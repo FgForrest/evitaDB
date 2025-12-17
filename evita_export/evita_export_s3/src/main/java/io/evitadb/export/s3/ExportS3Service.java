@@ -119,6 +119,11 @@ public class ExportS3Service implements ExportService {
 	private static final String META_ORIGIN = "origin";
 
 	/**
+	 * User metadata key for catalog name.
+	 */
+	private static final String META_CATALOG = "catalog";
+
+	/**
 	 * Part size for S3 multipart upload (10MB).
 	 */
 	private static final long PART_SIZE = 10_485_760L;
@@ -184,6 +189,7 @@ public class ExportS3Service implements ExportService {
 			final String contentType = userMetadata.get(META_CONTENT_TYPE);
 			final String createdStr = userMetadata.get(META_CREATED);
 			final String originStr = userMetadata.get(META_ORIGIN);
+			final String catalogName = userMetadata.get(META_CATALOG);
 
 			if (fileIdStr == null || name == null || createdStr == null) {
 				return null;
@@ -202,7 +208,8 @@ public class ExportS3Service implements ExportService {
 				contentType != null ? contentType : "application/octet-stream",
 				size,
 				created,
-				origin
+				origin,
+				(catalogName == null || catalogName.isBlank()) ? null : catalogName
 			);
 		} catch (Exception e) {
 			log.error("Failed to parse file metadata", e);
@@ -312,7 +319,12 @@ public class ExportS3Service implements ExportService {
 
 	@Nonnull
 	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
+	public PaginatedList<FileForFetch> listFilesToFetch(
+		int page,
+		int pageSize,
+		@Nonnull Set<String> catalog,
+		@Nonnull Set<String> origin
+	) {
 		final CopyOnWriteArrayList<FileForFetch> allFiles = getFiles();
 		final List<FileForFetch> filteredFiles;
 
@@ -371,6 +383,7 @@ public class ExportS3Service implements ExportService {
 		@Nonnull String fileName,
 		@Nullable String description,
 		@Nonnull String contentType,
+		@Nullable String catalog,
 		@Nullable String origin
 	) {
 		final UUID fileId = UUIDUtil.randomUUID();
@@ -385,6 +398,7 @@ public class ExportS3Service implements ExportService {
 		userMetadata.put(META_CONTENT_TYPE, contentType);
 		userMetadata.put(META_CREATED, created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
 		userMetadata.put(META_ORIGIN, origin != null ? origin : "");
+		userMetadata.put(META_CATALOG, catalog != null ? catalog : "");
 
 		// Parse origin tags
 		final String[] originTags = origin == null ? null : Arrays.stream(origin.split(","))
@@ -407,6 +421,7 @@ public class ExportS3Service implements ExportService {
 			description,
 			created,
 			originTags,
+			catalog,
 			fileForFetchFuture,
 			this.s3Options.getRequestTimeoutInMillis()
 		);
@@ -948,6 +963,7 @@ public class ExportS3Service implements ExportService {
 		private final String description;
 		private final OffsetDateTime created;
 		private final String[] originTags;
+		private final String catalogName;
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
 		private final long requestTimeoutInMillis;
 		private boolean closed;
@@ -965,6 +981,7 @@ public class ExportS3Service implements ExportService {
 			@Nullable String description,
 			@Nonnull OffsetDateTime created,
 			@Nullable String[] originTags,
+			@Nullable String catalogName,
 			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 			long requestTimeoutInMillis
 		) {
@@ -996,6 +1013,7 @@ public class ExportS3Service implements ExportService {
 			this.description = description;
 			this.created = created;
 			this.originTags = originTags;
+			this.catalogName = catalogName;
 			this.fileForFetchFuture = fileForFetchFuture;
 			this.requestTimeoutInMillis = requestTimeoutInMillis;
 			this.closed = false;
@@ -1060,7 +1078,8 @@ public class ExportS3Service implements ExportService {
 									this.contentType,
 									tmpFileSize,
 									this.created,
-									this.originTags
+									this.originTags,
+									this.catalogName
 								);
 								this.fileForFetchFuture.complete(fileForFetch);
 							} else {

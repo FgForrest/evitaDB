@@ -124,6 +124,7 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 					OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".zip",
 				"The full backup of the " + "catalog `" + this.catalogName + "` at version `" + this.lastCatalogVersion + "`.",
 				"application/zip",
+				this.catalogName,
 				this.getClass().getSimpleName()
 			);
 

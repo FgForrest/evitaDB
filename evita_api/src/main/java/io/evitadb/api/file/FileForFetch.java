@@ -56,7 +56,8 @@ public record FileForFetch(
 	@Nonnull String contentType,
 	long totalSizeInBytes,
 	@Nonnull OffsetDateTime created,
-	@Nullable String[] origin
+	@Nullable String[] origin,
+	@Nullable String catalogName
 ) implements Serializable {
 	public static final String METADATA_EXTENSION = ".metadata";
 
@@ -67,7 +68,8 @@ public record FileForFetch(
 		@Nonnull String contentType,
 		long totalSizeInBytes,
 		@Nonnull OffsetDateTime created,
-		@Nullable String[] origin
+		@Nullable String[] origin,
+		@Nullable String catalogName
 	) {
 		this.fileId = fileId;
 		this.name = FileUtils.convertToSupportedName(name);
@@ -76,6 +78,7 @@ public record FileForFetch(
 		this.totalSizeInBytes = totalSizeInBytes;
 		this.created = created;
 		this.origin = origin;
+		this.catalogName = catalogName;
 	}
 
 	/**
@@ -116,7 +119,8 @@ public record FileForFetch(
 			metadataLines.get(3),
 			Long.parseLong(metadataLines.get(4)),
 			OffsetDateTime.parse(metadataLines.get(5), DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-			metadataLines.get(6).split(",")
+			metadataLines.get(6).split(","),
+			metadataLines.size() > 7 && !metadataLines.get(7).isEmpty() ? metadataLines.get(7) : null
 		);
 	}
 
@@ -132,7 +136,8 @@ public record FileForFetch(
 			this.contentType,
 			Long.toString(this.totalSizeInBytes),
 			this.created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-			this.origin == null ? "" : String.join(",", this.origin)
+			this.origin == null ? "" : String.join(",", this.origin),
+			this.catalogName == null ? "" : this.catalogName
 		);
 	}
 
@@ -147,6 +152,7 @@ public record FileForFetch(
 			", totalSizeInBytes=" + this.totalSizeInBytes +
 			", created=" + this.created +
 			", origin=" + Arrays.toString(this.origin) +
+			", catalogName='" + this.catalogName + '\'' +
 			'}';
 	}
 

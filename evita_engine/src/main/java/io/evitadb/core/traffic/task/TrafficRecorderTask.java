@@ -187,6 +187,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 						"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
 							" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
 						"application/zip",
+						settings.catalogName(),
 						this.getClass().getSimpleName()
 					)
 				) :

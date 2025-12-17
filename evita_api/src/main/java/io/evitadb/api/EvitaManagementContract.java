@@ -184,7 +184,23 @@ public interface EvitaManagementContract {
 	 * @return list of files
 	 */
 	@Nonnull
-	PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin);
+	default PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
+		return listFilesToFetch(page, pageSize, Set.of(), origin);
+	}
+
+	/**
+	 * Returns list of files that are available for download.
+	 *
+	 * @param page     page number (1-based)
+	 * @param pageSize number of items per page
+	 * @param catalog  optional catalog of the files, passing non-null value in this argument filters the returned files
+	 *                 to only those that are related to the specified catalog
+	 * @param origin   optional origin of the files (derived from {@link TaskStatus#taskType()}), passing non-null value
+	 *                 in this argument filters the returned files to only those that are related to the specified origin
+	 * @return list of files
+	 */
+	@Nonnull
+	PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> catalog, @Nonnull Set<String> origin);
 
 	/**
 	 * Returns file with the specified fileId that is available for download or empty if the file is not found.

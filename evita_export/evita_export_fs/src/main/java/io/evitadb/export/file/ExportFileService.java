@@ -137,6 +137,31 @@ public class ExportFileService implements ExportService {
 	}
 
 	/**
+	 * Resolves the directory for the given catalog. If the catalog is provided, it returns the subdirectory
+	 * with the catalog name. If the catalog is null, it returns the root export directory.
+	 *
+	 * @param catalogName Name of the catalog or null if the file is stored in the root directory.
+	 * @param create      If true, the directory will be created if it does not exist.
+	 * @return Path to the directory.
+	 */
+	@Nonnull
+	private Path resolveDirectory(@Nullable String catalogName, boolean create) {
+		final Path directory = catalogName == null
+			? this.fsOptions.getDirectory()
+			: this.fsOptions.getDirectory().resolve(catalogName);
+		if (create && !directory.toFile().exists()) {
+			Assert.isPremiseValid(
+				directory.toFile().mkdirs(),
+				() -> new UnexpectedIOException(
+					"Failed to create directory: " + directory,
+					"Failed to create directory."
+				)
+			);
+		}
+		return directory;
+	}
+
+	/**
 	 * Creates a new ExportFileService with default time provider using system clock.
 	 *
 	 * @param exportOptions export options configuration
@@ -171,8 +196,9 @@ public class ExportFileService implements ExportService {
 		this.timeProvider = timeProvider;
 		// init files for fetch
 		if (this.fsOptions.getDirectory().toFile().exists()) {
-			try (final Stream<Path> fileStream = Files.list(this.fsOptions.getDirectory())) {
+			try (final Stream<Path> fileStream = Files.walk(this.fsOptions.getDirectory(), 2)) {
 				this.files = fileStream
+					.filter(Files::isRegularFile)
 					.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
 					.map(ExportFileService::toFileForFetch)
 					.flatMap(Optional::stream)
@@ -220,12 +246,21 @@ public class ExportFileService implements ExportService {
 
 	@Nonnull
 	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
-		final List<FileForFetch> filteredFiles = origin.isEmpty() ?
-			this.files :
-			this.files.stream()
-				.filter(it -> it.origin() != null && Arrays.stream(it.origin()).anyMatch(origin::contains))
-				.toList();
+	public PaginatedList<FileForFetch> listFilesToFetch(
+		int page,
+		int pageSize,
+		@Nonnull Set<String> catalog,
+		@Nonnull Set<String> origin
+	) {
+		Stream<FileForFetch> stream = this.files.stream();
+		if (!origin.isEmpty()) {
+			stream = stream.filter(it -> it.origin() != null && Arrays.stream(it.origin()).anyMatch(origin::contains));
+		}
+		if (!catalog.isEmpty()) {
+			stream = stream.filter(it -> it.catalogName() != null && catalog.contains(it.catalogName()));
+		}
+		final List<FileForFetch> filteredFiles = stream.toList();
+
 		final List<FileForFetch> filePage = filteredFiles
 			.stream()
 			.skip(PaginatedList.getFirstItemNumberForPage(page, pageSize))
@@ -252,11 +287,13 @@ public class ExportFileService implements ExportService {
 		@Nonnull String fileName,
 		@Nullable String description,
 		@Nonnull String contentType,
+		@Nullable String catalog,
 		@Nullable String origin
 	) {
 		final UUID fileId = UUIDUtil.randomUUID();
 		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path finalFilePath = this.fsOptions.getDirectory().resolve(finalFileName);
+		final Path directory = resolveDirectory(catalog, true);
+		final Path finalFilePath = directory.resolve(finalFileName);
 		try {
 			if (!this.fsOptions.getDirectory().toFile().exists()) {
 				Assert.isPremiseValid(
@@ -293,7 +330,8 @@ public class ExportFileService implements ExportService {
 								this.timeProvider.get(),
 								origin == null ? null : Arrays.stream(origin.split(","))
 									.map(String::trim)
-									.toArray(String[]::new)
+									.toArray(String[]::new),
+								catalog
 							);
 							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
 							this.files.add(0, fileForFetch);
@@ -322,7 +360,8 @@ public class ExportFileService implements ExportService {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			return Files.newInputStream(file.path(this.fsOptions.getDirectory()), StandardOpenOption.READ);
+			final Path directory = resolveDirectory(file.catalogName(), false);
+			return Files.newInputStream(file.path(directory), StandardOpenOption.READ);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to open the designated file: " + e.getMessage(),
@@ -338,8 +377,9 @@ public class ExportFileService implements ExportService {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
 			if (this.files.remove(file)) {
-				Files.deleteIfExists(file.metadataPath(this.fsOptions.getDirectory()));
-				Files.deleteIfExists(file.path(this.fsOptions.getDirectory()));
+				final Path directory = resolveDirectory(file.catalogName(), false);
+				Files.deleteIfExists(file.metadataPath(directory));
+				Files.deleteIfExists(file.path(directory));
 			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -381,9 +421,10 @@ public class ExportFileService implements ExportService {
 		);
 
 		// then go through the directory files, that does not have metadata file and delete all that were created before the threshold
-		try (final Stream<Path> fileStream = Files.list(this.fsOptions.getDirectory())) {
+		try (final Stream<Path> fileStream = Files.walk(this.fsOptions.getDirectory(), 2)) {
 			fileStream
 				.map(Path::normalize)
+				.filter(Files::isRegularFile)
 				.filter(it -> !getUuidFromPath(it).map(knownFiles::contains).orElse(false))
 				.filter(it -> !this.folderLock.lockFilePath().equals(it))
 				.filter(it -> FileUtils.getFileLastModifiedTime(it).map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate)).orElse(true))
@@ -406,7 +447,7 @@ public class ExportFileService implements ExportService {
 				long savedSize = 0L;
 				for (FileForFetch it : filesByCreationDate) {
 					log.info("Purging the oldest file, because the export directory grew too big: {}", it);
-					final long metadataFileSize = it.metadataPath(this.fsOptions.getDirectory())
+					final long metadataFileSize = it.metadataPath(resolveDirectory(it.catalogName(), false))
 						.toFile()
 						.length();
 					deleteFile(it.fileId());
@@ -420,6 +461,9 @@ public class ExportFileService implements ExportService {
 		} catch (UnexpectedIOException e) {
 			log.error("Failed to calculate size of the directory: {}", this.fsOptions.getDirectory(), e);
 		}
+
+		// cleanup empty directories
+		FileUtils.deleteEmptyDirectories(this.fsOptions.getDirectory());
 	}
 
 	@Override
@@ -447,8 +491,9 @@ public class ExportFileService implements ExportService {
 		@Nonnull OpenOption... options
 	) throws EvitaIOException {
 		try {
+			final Path directory = resolveDirectory(fileForFetch.catalogName(), true);
 			Files.write(
-				this.fsOptions.getDirectory().resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
+				directory.resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
 				fileForFetch.toLines(),
 				StandardCharsets.UTF_8,
 				options

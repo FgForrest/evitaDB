@@ -33,12 +33,18 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -434,6 +440,92 @@ public class FileUtils {
 			throw new UnexpectedIOException(
 				"Failed to open or write to the output stream during directory compression.",
 				"Failed to compress directory!", e
+			);
+		}
+	}
+
+	/**
+	 * Deletes empty directories in the export directory.
+	 * Traverses the directory tree from bottom up and deletes directories that are empty.
+	 *
+	 * @param directory the root directory to start the cleanup
+	 */
+	public static void deleteEmptyDirectories(@Nonnull Path directory) {
+		try {
+			Files.walkFileTree(
+				directory,
+				new SimpleFileVisitor<>() {
+					final Map<Path, Integer> dirFileCountMap = new HashMap<>(16);
+
+					@Nonnull
+					@Override
+					public FileVisitResult preVisitDirectory(
+						@Nonnull Path dir,
+						@Nonnull BasicFileAttributes attrs
+					) throws IOException {
+						this.dirFileCountMap.put(dir, 0);
+						return super.preVisitDirectory(dir, attrs);
+					}
+
+					@Nonnull
+					@Override
+					public FileVisitResult visitFile(
+						@Nonnull Path file,
+						@Nonnull BasicFileAttributes attrs
+					) throws IOException {
+						if (file.toFile().isFile()) {
+							final Path parentDir = file.getParent();
+							this.dirFileCountMap.compute(
+								parentDir,
+								(dir, count) -> count == null ? 1 : count + 1
+							);
+						}
+						return super.visitFile(file, attrs);
+					}
+
+					@Nonnull
+					@Override
+					public FileVisitResult postVisitDirectory(@Nonnull Path dir, IOException exc) throws IOException {
+						// skip the root directory
+						if (dir.equals(directory)) {
+							return FileVisitResult.CONTINUE;
+						}
+						if (this.dirFileCountMap.get(dir) == 0) {
+							try {
+								Files.delete(dir);
+							} catch (DirectoryNotEmptyException e) {
+								// ignore, directory is not empty
+							} catch (IOException e) {
+								throw new UnexpectedIOException(
+									"Failed to delete empty directory: " + dir,
+									"Failed to delete empty directory!", e
+								);
+							}
+						} else {
+							// if directory is not empty, propagate the count to the parent directory
+							final Path parentDir = dir.getParent();
+							this.dirFileCountMap.compute(
+								parentDir,
+								(parent, count) -> count == null ?
+									this.dirFileCountMap.get(dir) : count + this.dirFileCountMap.get(dir)
+							);
+						}
+						// if exception occurred during traversal, we probably shouldn't try to delete the directory
+						if (exc != null) {
+							throw exc;
+						}
+
+						// remove the directory from the map to free up memory
+						this.dirFileCountMap.remove(dir);
+
+						return FileVisitResult.CONTINUE;
+					}
+				}
+			);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to clean up empty directories in: " + directory,
+				"Failed to clean up empty directories!", e
 			);
 		}
 	}

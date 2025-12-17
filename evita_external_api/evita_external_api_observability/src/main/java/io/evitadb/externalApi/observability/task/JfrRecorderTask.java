@@ -144,6 +144,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 					fileName + ".zip",
 					"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(settings.allowedEvents()) + ".",
 					"application/zip",
+					null,
 					this.getClass().getSimpleName()
 				);
 

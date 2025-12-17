@@ -346,7 +346,10 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 	@Nonnull
 	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
+	public PaginatedList<FileForFetch> listFilesToFetch(
+		int page, int pageSize, @Nonnull Set<String> catalog,
+		@Nonnull Set<String> origin
+	) {
 		this.evitaClient.assertActive();
 
 		final GrpcFilesToFetchRequest.Builder requestBuilder = GrpcFilesToFetchRequest.newBuilder()
@@ -526,13 +529,16 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	 * @param <T>    return type of the function
 	 * @return result of the applied function
 	 */
+	@Nonnull
 	private <T> T executeWithEvitaBlockingService(
 		@Nonnull AsyncCallFunction<EvitaManagementServiceStub, T> lambda
 	) {
 		final Timeout timeout = Objects.requireNonNull(this.evitaClient.timeout.get().peek());
 		try {
-			return lambda.apply(
-				this.evitaManagementServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit())
+			return Objects.requireNonNull(
+				lambda.apply(
+					this.evitaManagementServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit())
+				)
 			);
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
@@ -562,8 +568,9 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	) {
 		final Timeout timeout = Objects.requireNonNull(this.evitaClient.timeout.get().peek());
 		try {
-			return lambda.apply(this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
-				.get(timeout.timeout(), timeout.timeoutUnit());
+			return Objects.requireNonNull(
+				lambda.apply(this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
+			).get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),

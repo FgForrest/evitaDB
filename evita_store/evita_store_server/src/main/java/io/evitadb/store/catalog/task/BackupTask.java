@@ -162,6 +162,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					(thePastMoment == null && theHistoricalCatalogVersion == null ? "actual " : "historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment)) +
 					"catalog `" + this.catalogName + "`" + (theIncludingWAL ? " including WAL." : "."),
 				"application/zip",
+				this.catalogName,
 				this.getClass().getSimpleName()
 			);
 

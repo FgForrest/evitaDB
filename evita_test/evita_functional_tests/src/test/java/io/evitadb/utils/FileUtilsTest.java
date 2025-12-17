@@ -361,4 +361,39 @@ class FileUtilsTest {
 			fail("Unexpected error occurred: " + e.getMessage());
 		}
 	}
+	@Test
+	void shouldDeleteEmptyDirectories() throws IOException {
+		// Create empty directory structure
+		Path empty1 = this.directoryTest.resolve("empty1");
+		Files.createDirectories(empty1);
+		Path empty2 = empty1.resolve("empty2");
+		Files.createDirectories(empty2);
+
+		// Create directory with file
+		Path nonEmpty = this.directoryTest.resolve("nonEmpty");
+		Files.createDirectories(nonEmpty);
+		Files.write(nonEmpty.resolve("file.txt"), "content".getBytes());
+
+		// Create mixed directory (contains empty directory and non-empty directory)
+		Path mixed = this.directoryTest.resolve("mixed");
+		Files.createDirectories(mixed);
+		Path empty3 = mixed.resolve("empty3");
+		Files.createDirectories(empty3);
+		Path nonEmpty2 = mixed.resolve("nonEmpty2");
+		Files.createDirectories(nonEmpty2);
+		Files.write(nonEmpty2.resolve("file2.txt"), "content2".getBytes());
+
+		// Execute
+		FileUtils.deleteEmptyDirectories(this.directoryTest);
+
+		// Verify
+		assertFalse(Files.exists(empty2), "empty2 should be deleted");
+		assertFalse(Files.exists(empty1), "empty1 should be deleted");
+		assertTrue(Files.exists(nonEmpty), "nonEmpty should exist");
+		assertTrue(Files.exists(nonEmpty.resolve("file.txt")), "file.txt should exist");
+		assertTrue(Files.exists(mixed), "mixed should exist");
+		assertFalse(Files.exists(empty3), "empty3 should be deleted");
+		assertTrue(Files.exists(nonEmpty2), "nonEmpty2 should exist");
+		assertTrue(Files.exists(nonEmpty2.resolve("file2.txt")), "file2.txt should exist");
+	}
 }

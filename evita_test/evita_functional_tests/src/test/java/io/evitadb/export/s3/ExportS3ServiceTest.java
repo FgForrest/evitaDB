@@ -163,7 +163,7 @@ class ExportS3ServiceTest {
 		writeFile("testFile.txt", "A,B");
 
 		// verify the file was written
-		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, Integer.MAX_VALUE, Set.of());
+		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, Integer.MAX_VALUE, Set.of(), Set.of());
 		assertEquals(1, files.getTotalRecordCount());
 
 		final FileForFetch fileForFetch = files.getData().get(0);
@@ -190,7 +190,7 @@ class ExportS3ServiceTest {
 			);
 		}
 
-		final PaginatedList<FileForFetch> fileForFetches = this.exportService.listFilesToFetch(1, 5, Set.of());
+		final PaginatedList<FileForFetch> fileForFetches = this.exportService.listFilesToFetch(1, 5, Set.of(), Set.of());
 		assertArrayEquals(
 			new String[]{
 				"testFile27.txt", "testFile26.txt", "testFile25.txt", "testFile24.txt", "testFile23.txt"
@@ -203,7 +203,7 @@ class ExportS3ServiceTest {
 			new String[]{
 				"testFile2.txt", "testFile1.txt", "testFile0.txt"
 			},
-			this.exportService.listFilesToFetch(6, 5, Set.of())
+			this.exportService.listFilesToFetch(6, 5, Set.of(), Set.of())
 				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
 
@@ -217,7 +217,7 @@ class ExportS3ServiceTest {
 
 		assertArrayEquals(
 			Lists.reverse(filteredNames).stream().limit(10).toArray(String[]::new),
-			this.exportService.listFilesToFetch(1, 10, Set.of("A"))
+			this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of("A"))
 				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
 	}
@@ -229,13 +229,13 @@ class ExportS3ServiceTest {
 			writeFile("testFile" + i + ".txt", null);
 		}
 
-		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportService.listFilesToFetch(1, 20, Set.of());
+		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of());
 		assertEquals(5, filesBeforeDelete.getTotalRecordCount());
 
 		this.exportService.deleteFile(filesBeforeDelete.getData().get(0).fileId());
 		this.exportService.deleteFile(filesBeforeDelete.getData().get(3).fileId());
 
-		assertEquals(3, this.exportService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount());
+		assertEquals(3, this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount());
 	}
 
 	@Test
@@ -279,21 +279,21 @@ class ExportS3ServiceTest {
 		}
 
 		// Check files before purging
-		final int totalFilesBeforePurge = this.exportService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
+		final int totalFilesBeforePurge = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount();
 		assertEquals(10, totalFilesBeforePurge);
 
 		// Purge the files older than 2 minutes ago (should keep all since they're fresh)
 		this.exportService.purgeFiles(OffsetDateTime.now().minusMinutes(2));
 
 		// Check files after purging - should still have files since threshold is in the past
-		final int totalFilesAfterPurge = this.exportService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
+		final int totalFilesAfterPurge = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount();
 		assertEquals(10, totalFilesAfterPurge);
 
 		// Purge files created before now (should remove all)
 		this.exportService.purgeFiles(OffsetDateTime.now().plusMinutes(1));
 
 		// Check files after purging
-		final int totalFilesAfterPurge2 = this.exportService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
+		final int totalFilesAfterPurge2 = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount();
 		assertEquals(0, totalFilesAfterPurge2);
 	}
 
@@ -354,7 +354,7 @@ class ExportS3ServiceTest {
 		this.exportService.purgeFiles(OffsetDateTime.now().minusYears(1));
 
 		// Verify some files were removed to bring storage under limit
-		final PaginatedList<FileForFetch> remaining = this.exportService.listFilesToFetch(1, 20, Set.of());
+		final PaginatedList<FileForFetch> remaining = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of());
 
 		// Should have fewer than 7 files and newest files should be kept
 		assertTrue(remaining.getTotalRecordCount() < 7);
@@ -367,7 +367,7 @@ class ExportS3ServiceTest {
 	@DisplayName("Should handle empty file upload")
 	void shouldHandleEmptyFileUpload() throws IOException, InterruptedException, ExecutionException, TimeoutException {
 		final ExportFileHandle handle = this.exportService.storeFile(
-			"empty.txt", "Empty file", "text/plain", null);
+			"empty.txt", "Empty file", "text/plain", null, null);
 
 		// Close without writing anything
 		handle.close();
@@ -386,7 +386,7 @@ class ExportS3ServiceTest {
 	void shouldHandleFileWithSpecialCharactersInName() throws IOException {
 		final FileForFetch storedFile = writeFile("test file (1).txt", null);
 
-		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of());
+		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 
 		assertEquals(1, files.getTotalRecordCount());
 		// Name may be sanitized by FileUtils.convertToSupportedName()
@@ -399,7 +399,7 @@ class ExportS3ServiceTest {
 		final String unicodeContent = "Hello \u4e16\u754c \ud83d\ude00";
 
 		final ExportFileHandle handle = this.exportService.storeFile(
-			"unicode.txt", "Description with \u00e9\u00e8", "text/plain", null);
+			"unicode.txt", "Description with \u00e9\u00e8", "text/plain", null, null);
 
 		try (final OutputStream os = handle.outputStream()) {
 			os.write(unicodeContent.getBytes(StandardCharsets.UTF_8));
@@ -416,7 +416,7 @@ class ExportS3ServiceTest {
 	@DisplayName("Should handle null description")
 	void shouldHandleNullDescription() throws IOException, InterruptedException, ExecutionException, TimeoutException {
 		final ExportFileHandle handle = this.exportService.storeFile(
-			"test.txt", null, "text/plain", "origin");
+			"test.txt", null, "text/plain", null, "origin");
 
 		try (final OutputStream os = handle.outputStream()) {
 			os.write("content".getBytes(StandardCharsets.UTF_8));
@@ -431,7 +431,7 @@ class ExportS3ServiceTest {
 	void shouldReturnEmptyListWhenPageBeyondAvailableData() throws IOException {
 		writeFile("test.txt", null);
 
-		final PaginatedList<FileForFetch> result = this.exportService.listFilesToFetch(100, 10, Set.of());
+		final PaginatedList<FileForFetch> result = this.exportService.listFilesToFetch(100, 10, Set.of(), Set.of());
 
 		assertEquals(1, result.getTotalRecordCount());
 		assertTrue(result.getData().isEmpty());
@@ -444,7 +444,7 @@ class ExportS3ServiceTest {
 			writeFile("test" + i + ".txt", null);
 		}
 
-		final PaginatedList<FileForFetch> result = this.exportService.listFilesToFetch(1, 100, Set.of());
+		final PaginatedList<FileForFetch> result = this.exportService.listFilesToFetch(1, 100, Set.of(), Set.of());
 
 		assertEquals(3, result.getTotalRecordCount());
 		assertEquals(3, result.getData().size());
@@ -464,7 +464,7 @@ class ExportS3ServiceTest {
 		newService.awaitInitialization();
 
 		try {
-			final PaginatedList<FileForFetch> files = newService.listFilesToFetch(1, 10, Set.of());
+			final PaginatedList<FileForFetch> files = newService.listFilesToFetch(1, 10, Set.of(), Set.of());
 			assertEquals(2, files.getTotalRecordCount());
 		} finally {
 			newService.close();
@@ -489,7 +489,7 @@ class ExportS3ServiceTest {
 		writeFile("test1.txt", "A,B");
 		writeFile("test2.txt", "C,D");
 
-		final PaginatedList<FileForFetch> result = this.exportService.listFilesToFetch(1, 10, Set.of("X", "Y", "Z"));
+		final PaginatedList<FileForFetch> result = this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of("X", "Y", "Z"));
 
 		assertEquals(0, result.getTotalRecordCount());
 	}
@@ -501,11 +501,11 @@ class ExportS3ServiceTest {
 		writeFile("noOrigin.txt", null);
 
 		// Files with null origin should not match any filter
-		final PaginatedList<FileForFetch> filteredResult = this.exportService.listFilesToFetch(1, 10, Set.of("A"));
+		final PaginatedList<FileForFetch> filteredResult = this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of("A"));
 		assertEquals(1, filteredResult.getTotalRecordCount());
 
 		// But should appear when no filter is applied
-		final PaginatedList<FileForFetch> unfilteredResult = this.exportService.listFilesToFetch(1, 10, Set.of());
+		final PaginatedList<FileForFetch> unfilteredResult = this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 		assertEquals(2, unfilteredResult.getTotalRecordCount());
 	}
 
@@ -513,7 +513,7 @@ class ExportS3ServiceTest {
 	@DisplayName("Should handle idempotent output stream close")
 	void shouldHandleIdempotentOutputStreamClose() throws IOException {
 		final ExportFileHandle handle = this.exportService.storeFile(
-			"test.txt", "desc", "text/plain", null);
+			"test.txt", "desc", "text/plain", null, null);
 
 		try (final OutputStream os = handle.outputStream()) {
 			os.write("content".getBytes(StandardCharsets.UTF_8));
@@ -522,7 +522,7 @@ class ExportS3ServiceTest {
 		}
 
 		handle.fileForFetchFuture().join();
-		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of());
+		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 		assertEquals(1, files.getTotalRecordCount());
 	}
 
@@ -540,6 +540,7 @@ class ExportS3ServiceTest {
 			fileName,
 			"With description ...",
 			"text/plain",
+			null,
 			withOrigin
 		);
 		try (final OutputStream outputStream = exportFileHandle.outputStream()) {
@@ -564,7 +565,7 @@ class ExportS3ServiceTest {
 	@Nonnull
 	private FileForFetch writeLargeFile(@Nonnull String fileName, int sizeInBytes) throws IOException {
 		final ExportFileHandle handle = this.exportService.storeFile(
-			fileName, "Large file", "application/octet-stream", null);
+			fileName, "Large file", "application/octet-stream", null, null);
 		try (final OutputStream os = handle.outputStream()) {
 			final byte[] data = new byte[sizeInBytes];
 			Arrays.fill(data, (byte) 'X');

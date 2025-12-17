@@ -108,7 +108,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		writeFile("testFile.txt", "A,B");
 
 		// verify the file was written
-		final PaginatedList<FileForFetch> files = exportService.listFilesToFetch(1, Integer.MAX_VALUE, Set.of());
+		final PaginatedList<FileForFetch> files = exportService.listFilesToFetch(1, Integer.MAX_VALUE, Set.of(), Set.of());
 		assertEquals(1, files.getTotalRecordCount());
 
 		final FileForFetch fileForFetch = files.getData().get(0);
@@ -138,7 +138,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			);
 		}
 
-		final PaginatedList<FileForFetch> fileForFetches = this.exportService.listFilesToFetch(1, 5, Set.of());
+		final PaginatedList<FileForFetch> fileForFetches = this.exportService.listFilesToFetch(1, 5, Set.of(), Set.of());
 		assertArrayEquals(
 			new String[]{
 				"testFile27.txt", "testFile26.txt", "testFile25.txt", "testFile24.txt", "testFile23.txt"
@@ -151,7 +151,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			new String[]{
 				"testFile2.txt", "testFile1.txt", "testFile0.txt"
 			},
-			this.exportService.listFilesToFetch(6, 5, Set.of())
+			this.exportService.listFilesToFetch(6, 5, Set.of(), Set.of())
 				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
 
@@ -165,7 +165,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		assertArrayEquals(
 			Lists.reverse(filteredNames).stream().limit(10).toArray(String[]::new),
-			this.exportService.listFilesToFetch(1, 10, Set.of("A"))
+			this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of("A"))
 				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
 	}
@@ -181,13 +181,13 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			11, numberOfFiles(this.exportOptions.getDirectory())
 		);
 
-		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportService.listFilesToFetch(1, 20, Set.of());
+		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of());
 		assertEquals(5, filesBeforeDelete.getTotalRecordCount());
 
 		this.exportService.deleteFile(filesBeforeDelete.getData().get(0).fileId());
 		this.exportService.deleteFile(filesBeforeDelete.getData().get(3).fileId());
 
-		assertEquals(3, this.exportService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount());
+		assertEquals(3, this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount());
 
 		assertEquals(
 			7, numberOfFiles(this.exportOptions.getDirectory())
@@ -215,7 +215,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Check files before purging
 		int numOfFilesBeforePurge = numberOfFiles(exportOptions.getDirectory());
-		int totalFilesBeforePurge = this.exportService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
+		int totalFilesBeforePurge = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount();
 		assertEquals(10, totalFilesBeforePurge);
 		assertEquals(totalFilesBeforePurge * 2 + 1, numOfFilesBeforePurge);
 
@@ -224,7 +224,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Check files after purging
 		int numOfFilesAfterPurge = numberOfFiles(exportOptions.getDirectory());
-		int totalFilesAfterPurge = this.exportService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
+		int totalFilesAfterPurge = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount();
 		assertEquals(6, totalFilesAfterPurge);
 		assertEquals(totalFilesAfterPurge * 2 + 1, numOfFilesAfterPurge);
 
@@ -232,9 +232,130 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Check files after purging
 		int numOfFilesAfterPurge2 = numberOfFiles(exportOptions.getDirectory());
-		int totalFilesAfterPurge2 = this.exportService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
+		int totalFilesAfterPurge2 = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount();
 		assertEquals(0, totalFilesAfterPurge2);
 		assertEquals(totalFilesAfterPurge2 * 2 + 1, numOfFilesAfterPurge2);
+	}
+
+	@Test
+	@DisplayName("Should store file in catalog subdirectory")
+	void shouldStoreFileInCatalogDirectory() throws IOException {
+		final String catalogName = "my-catalog";
+		final FileForFetch storedFile = writeFileWithCatalog("test.txt", "A", catalogName);
+
+		// Verify file location
+		final Path catalogDir = this.exportOptions.getDirectory().resolve(catalogName);
+		assertTrue(Files.exists(catalogDir), "Catalog directory should exist");
+		assertTrue(Files.isDirectory(catalogDir), "Catalog path should be a directory");
+
+		// Verify file existence in the subdirectory
+		final Path expectedPath = storedFile.path(catalogDir);
+		assertTrue(Files.exists(expectedPath), "File should exist in catalog subdirectory");
+
+		// Verify metadata existence in the subdirectory
+		final Path expectedMetadataPath = storedFile.metadataPath(catalogDir);
+		assertTrue(Files.exists(expectedMetadataPath), "Metadata file should exist in catalog subdirectory");
+
+		// Verify retrieval
+		final Optional<FileForFetch> retrieved = this.exportService.getFile(storedFile.fileId());
+		assertTrue(retrieved.isPresent());
+		assertEquals(catalogName, retrieved.get().catalogName());
+	}
+
+	@Test
+	@DisplayName("Should fetch file content from catalog subdirectory")
+	void shouldFetchFileFromCatalogDirectory() throws IOException {
+		final String catalogName = "fetch-catalog";
+		final FileForFetch storedFile = writeFileWithCatalog("test.txt", "A", catalogName);
+
+		try (final InputStream inputStream = this.exportService.fetchFile(storedFile.fileId())) {
+			final String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+			assertEquals("testFileContent", content);
+		}
+	}
+
+	@Test
+	@DisplayName("Should delete file and empty catalog subdirectory")
+	void shouldDeleteFileFromCatalogDirectory() throws IOException {
+		final String catalogName = "delete-catalog";
+		final FileForFetch storedFile = writeFileWithCatalog("test.txt", "A", catalogName);
+
+		assertTrue(Files.exists(this.exportOptions.getDirectory().resolve(catalogName)));
+
+		this.exportService.deleteFile(storedFile.fileId());
+
+		// File and metadata should be gone
+		final Path catalogDir = this.exportOptions.getDirectory().resolve(catalogName);
+		final Path filePath = storedFile.path(catalogDir);
+		final Path metadataPath = storedFile.metadataPath(catalogDir);
+
+		assertFalse(Files.exists(filePath), "File should be deleted");
+		assertFalse(Files.exists(metadataPath), "Metadata should be deleted");
+		
+		// The directory might remain after deleteFile, it is cleaned up by purgeFiles usually, 
+		// but let's check if the implementation does it immediately? 
+		// The requirement says: "Also automatically remove empty folders in purge methods."
+		// So deleteFile probably doesn't remove the folder.
+		assertTrue(Files.exists(catalogDir), "Catalog directory should still exist after single file deletion");
+	}
+
+	@Test
+	@DisplayName("Should list files filtering by catalog")
+	void shouldListFilesFilteringByCatalog() throws IOException {
+		writeFileWithCatalog("file1.txt", "A", "cat1");
+		writeFileWithCatalog("file2.txt", "A", "cat2");
+		writeFileWithCatalog("file3.txt", "A", null); // root
+
+		final PaginatedList<FileForFetch> cat1Files = this.exportService.listFilesToFetch(1, 10, Set.of("cat1"), Set.of());
+		assertEquals(1, cat1Files.getTotalRecordCount());
+		assertEquals("file1.txt", cat1Files.getData().get(0).name());
+
+		final PaginatedList<FileForFetch> cat2Files = this.exportService.listFilesToFetch(1, 10, Set.of("cat2"), Set.of());
+		assertEquals(1, cat2Files.getTotalRecordCount());
+		assertEquals("file2.txt", cat2Files.getData().get(0).name());
+
+		// Filtering by empty set should return all
+		final PaginatedList<FileForFetch> allFiles = this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
+		assertEquals(3, allFiles.getTotalRecordCount());
+	}
+
+	@Test
+	@DisplayName("Should purge empty catalog directories")
+	void shouldPurgeEmptyCatalogDirectories() throws IOException {
+		final String catalogName = "purge-catalog";
+		final FileForFetch storedFile = writeFileWithCatalog("test.txt", "A", catalogName);
+		
+		// Manually delete the file to simulate expiration/deletion leaving empty dir
+		// Or better, use deleteFile
+		this.exportService.deleteFile(storedFile.fileId());
+		
+		final Path catalogDir = this.exportOptions.getDirectory().resolve(catalogName);
+		assertTrue(Files.exists(catalogDir), "Directory should exist before purge");
+		
+		// Run purge
+		this.exportService.purgeFiles(OffsetDateTime.now());
+		
+		assertFalse(Files.exists(catalogDir), "Directory should be removed after purge");
+	}
+
+	@Test
+	@DisplayName("Should purge files recursively")
+	void shouldPurgeFilesRecursively() throws IOException {
+		// Initialize files in root and catalogs
+		writeFileWithCatalog("root.txt", null, null);
+		writeFileWithCatalog("cat.txt", null, "cat");
+
+		// Check files before purging
+		assertEquals(2, this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount());
+
+		// Purge the files (all of them)
+		this.exportService.purgeFiles(OffsetDateTime.now());
+
+		// Check files after purging
+		assertEquals(0, this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount());
+		
+		// Check directory structure
+		assertFalse(Files.exists(this.exportOptions.getDirectory().resolve("cat")), "Catalog directory should be gone");
 	}
 
 	// ==================== Exception Handling Tests ====================
@@ -346,7 +467,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@DisplayName("Should store empty file correctly")
 	void shouldStoreEmptyFile() throws IOException {
 		final ExportFileHandle handle = exportService.storeFile(
-			"empty.txt", "Empty file", "text/plain", null);
+			"empty.txt", "Empty file", "text/plain", null, null);
 		handle.outputStream().close();  // Write nothing
 
 		final FileForFetch fileForFetch = handle.fileForFetchFuture().getNow(null);
@@ -357,7 +478,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@DisplayName("Should handle null origin correctly")
 	void shouldStoreFileWithNullOrigin() throws IOException {
 		final ExportFileHandle handle = exportService.storeFile(
-			"test.txt", "desc", "text/plain", null);
+			"test.txt", "desc", "text/plain", null, null);
 		try (OutputStream os = handle.outputStream()) {
 			os.write("content".getBytes());
 		}
@@ -371,7 +492,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	void shouldNotMatchNullOriginWhenFiltering() throws IOException {
 		// Store file with null origin
 		final ExportFileHandle handle = exportService.storeFile(
-			"nullOrigin.txt", "desc", "text/plain", null);
+			"nullOrigin.txt", "desc", "text/plain", null, null);
 		try (OutputStream os = handle.outputStream()) {
 			os.write("content".getBytes());
 		}
@@ -381,13 +502,13 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Filter by TAG should only return 1 file
 		final PaginatedList<FileForFetch> filtered =
-			exportService.listFilesToFetch(1, 10, Set.of("TAG"));
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of("TAG"));
 		assertEquals(1, filtered.getTotalRecordCount());
 		assertEquals("withOrigin.txt", filtered.getData().get(0).name());
 
 		// No filter should return both files
 		final PaginatedList<FileForFetch> all =
-			exportService.listFilesToFetch(1, 10, Set.of());
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 		assertEquals(2, all.getTotalRecordCount());
 	}
 
@@ -399,7 +520,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		writeFile("test.txt", "A");
 
 		final PaginatedList<FileForFetch> result =
-			exportService.listFilesToFetch(100, 10, Set.of());
+			exportService.listFilesToFetch(100, 10, Set.of(), Set.of());
 
 		assertEquals(1, result.getTotalRecordCount());
 		assertTrue(result.getData().isEmpty());
@@ -409,7 +530,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@DisplayName("Should return empty results for empty file list")
 	void shouldReturnEmptyResultsWhenNoFiles() {
 		final PaginatedList<FileForFetch> result =
-			exportService.listFilesToFetch(1, 10, Set.of());
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 
 		assertEquals(0, result.getTotalRecordCount());
 		assertTrue(result.getData().isEmpty());
@@ -423,7 +544,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		writeFile("file3.txt", "C");
 
 		final PaginatedList<FileForFetch> result =
-			exportService.listFilesToFetch(1, 10, Set.of("A", "B"));
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of("A", "B"));
 
 		assertEquals(2, result.getTotalRecordCount());
 	}
@@ -435,7 +556,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		writeFile("file2.txt", "B");
 
 		final PaginatedList<FileForFetch> result =
-			exportService.listFilesToFetch(1, 10, Set.of("NON_EXISTENT"));
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of("NON_EXISTENT"));
 
 		assertEquals(0, result.getTotalRecordCount());
 		assertTrue(result.getData().isEmpty());
@@ -457,7 +578,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			exportOptions, Mockito.mock(Scheduler.class));
 
 		final PaginatedList<FileForFetch> files =
-			exportService.listFilesToFetch(1, 10, Set.of());
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 		assertEquals(2, files.getTotalRecordCount());
 	}
 
@@ -481,7 +602,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Should only see the proper file
 		final PaginatedList<FileForFetch> files =
-			exportService.listFilesToFetch(1, 10, Set.of());
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 		assertEquals(1, files.getTotalRecordCount());
 		assertEquals("proper.txt", files.getData().get(0).name());
 	}
@@ -507,7 +628,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		// Orphan should be deleted
 		assertFalse(Files.exists(orphanPath));
 		// Proper file should remain
-		assertEquals(1, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+		assertEquals(1, exportService.listFilesToFetch(1, 10, Set.of(), Set.of()).getTotalRecordCount());
 	}
 
 	@Test
@@ -548,14 +669,14 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		}
 
 		// All 5 files should exist now (total ~1500 bytes, over limit)
-		assertEquals(5, exportService.listFilesToFetch(1, 10, Set.of()).getTotalRecordCount());
+		assertEquals(5, exportService.listFilesToFetch(1, 10, Set.of(), Set.of()).getTotalRecordCount());
 
 		// Trigger purge with future date (don't delete by date, only by size)
 		exportService.purgeFiles(OffsetDateTime.now().plusDays(1));
 
 		// Files should be deleted from oldest until under limit
 		final PaginatedList<FileForFetch> remaining =
-			exportService.listFilesToFetch(1, 10, Set.of());
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 
 		// Should have fewer files now due to size limit
 		assertTrue(remaining.getTotalRecordCount() < 5);
@@ -578,7 +699,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@DisplayName("Should return correct file size from handle")
 	void shouldReturnCorrectFileSizeFromHandle() throws IOException {
 		final ExportFileHandle handle = exportService.storeFile(
-			"test.txt", "desc", "text/plain", "A");
+			"test.txt", "desc", "text/plain", null, "A");
 		try (OutputStream os = handle.outputStream()) {
 			os.write("12345".getBytes());
 		}
@@ -590,7 +711,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@DisplayName("Should handle double close of output stream safely")
 	void shouldHandleDoubleCloseOfOutputStreamSafely() throws IOException {
 		final ExportFileHandle handle = exportService.storeFile(
-			"test.txt", "desc", "text/plain", "A");
+			"test.txt", "desc", "text/plain", null, "A");
 		final OutputStream os = handle.outputStream();
 		os.write("content".getBytes());
 
@@ -605,7 +726,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@DisplayName("Should complete future after stream close")
 	void shouldCompleteFutureAfterStreamClose() throws IOException {
 		final ExportFileHandle handle = exportService.storeFile(
-			"test.txt", "desc", "text/plain", "A");
+			"test.txt", "desc", "text/plain", null, "A");
 
 		// Future should not be complete before close
 		assertFalse(handle.fileForFetchFuture().isDone());
@@ -631,7 +752,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@DisplayName("Should handle file with null description")
 	void shouldStoreFileWithNullDescription() throws IOException {
 		final ExportFileHandle handle = exportService.storeFile(
-			"test.txt", null, "text/plain", "A");
+			"test.txt", null, "text/plain", null, "A");
 		try (OutputStream os = handle.outputStream()) {
 			os.write("content".getBytes());
 		}
@@ -663,7 +784,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		writeFile("third.txt", "A");
 
 		final PaginatedList<FileForFetch> files =
-			exportService.listFilesToFetch(1, 10, Set.of());
+			exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 
 		assertEquals(3, files.getTotalRecordCount());
 		// Newest first
@@ -680,6 +801,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			fileName,
 			"With description ...",
 			"text/plain",
+			null,
 			withOrigin
 		);
 		try (final OutputStream outputStream = exportFileHandle.outputStream()) {
@@ -695,11 +817,26 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		@Nonnull byte[] content
 	) throws IOException {
 		final ExportFileHandle handle = exportService.storeFile(
-			fileName, "desc", "text/plain", origin);
+			fileName, "desc", "text/plain", null, origin);
 		try (OutputStream os = handle.outputStream()) {
 			os.write(content);
 		}
 		return handle.fileForFetchFuture().getNow(null);
+	}
+
+	@Nullable
+	private FileForFetch writeFileWithCatalog(@Nonnull String fileName, @Nullable String withOrigin, @Nullable String catalogName) throws IOException {
+		final ExportFileHandle exportFileHandle = this.exportService.storeFile(
+			fileName,
+			"With description ...",
+			"text/plain",
+			catalogName,
+			withOrigin
+		);
+		try (final OutputStream outputStream = exportFileHandle.outputStream()) {
+			outputStream.write("testFileContent".getBytes());
+		}
+		return exportFileHandle.fileForFetchFuture().getNow(null);
 	}
 
 }

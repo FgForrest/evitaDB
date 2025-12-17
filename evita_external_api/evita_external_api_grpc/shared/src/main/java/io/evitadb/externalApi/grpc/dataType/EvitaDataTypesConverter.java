@@ -1706,7 +1706,8 @@ public class EvitaDataTypesConverter {
 			grpcFile.getContentType(),
 			grpcFile.getTotalSizeInBytes(),
 			toOffsetDateTime(grpcFile.getCreated()),
-			grpcFile.hasOrigin() ? grpcFile.getOrigin().getValue().split(",") : null
+			grpcFile.hasOrigin() ? grpcFile.getOrigin().getValue().split(",") : null,
+			null
 		);
 	}
 

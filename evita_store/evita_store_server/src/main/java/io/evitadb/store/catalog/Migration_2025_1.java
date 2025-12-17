@@ -155,11 +155,13 @@ public interface Migration_2025_1 {
 		// first create backup of all catalog files
 		try (
 			final ExportFileHandle exportFileHandle = exportService.storeFile(
-				catalogStoragePath.toFile().getName() + "_" + OffsetDateTime.now()
-				                                                            .format(
-					                                                            DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "_upgrade.zip",
+				catalogStoragePath.toFile().getName() + "_" +
+					OffsetDateTime.now()
+						.format(
+							DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "_upgrade.zip",
 				"Catalog `" + catalogName + "` backup before storage protocol upgrade.",
 				"application/zip",
+				catalogName,
 				null
 			)
 		) {
