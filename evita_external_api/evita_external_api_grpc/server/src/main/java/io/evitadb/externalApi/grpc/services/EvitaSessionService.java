@@ -708,6 +708,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					firstRequestedCatalogVersion = null;
 					lastRequestedCatalogVersion = null;
 				}
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 				try (
 					final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
 						ChangeCaptureConverter.toChangeCaptureRequest(
@@ -731,7 +732,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						)
 						.limit(pageSize)
 						.forEach(cdcEvent -> builder.addChangeCapture(
-							ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent))
+							ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent, clientVersion))
 						);
 				}
 				responseObserver.onNext(builder.build());
@@ -773,12 +774,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					ChangeCaptureConverter.toChangeCaptureRequest(request)
 				);
 				mutationsHistoryStreamRef.set(mutationsHistoryStream);
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 
 				mutationsHistoryStream.forEach(
 					cdcEvent -> {
 						final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse.newBuilder();
 						final GrpcChangeCatalogCapture event = ChangeCaptureConverter.toGrpcChangeCatalogCapture(
-							cdcEvent);
+							cdcEvent, clientVersion
+						);
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addChangeCapture(event);
 						responseObserver.onNext(builder.build());
@@ -2051,11 +2054,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 
 		executeWithClientContext(
-			session -> session.registerChangeCatalogCapture(
-				ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
-			).subscribe(
-				new ChangeCatalogCaptureSubscriber(responseObserver, subscriptionFuture)
-			),
+			session -> {
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+				session.registerChangeCatalogCapture(
+					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
+				).subscribe(
+					new ChangeCatalogCaptureSubscriber(responseObserver, subscriptionFuture, clientVersion)
+				);
+			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.tracingContext
@@ -2115,6 +2121,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	private static class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture> {
 		private final StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
 		private final CompletableFuture<Subscription> subscriptionFuture;
+		private final SemVer clientVersion;
 		private Subscription subscription;
 
 		@Override
@@ -2139,7 +2146,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			this.responseObserver.onNext(
 				GrpcRegisterChangeCatalogCaptureResponse
 					.newBuilder()
-					.setCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(item))
+					.setCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(item, this.clientVersion))
 					.setResponseType(GrpcCaptureResponseType.CHANGE)
 					.build()
 			);
