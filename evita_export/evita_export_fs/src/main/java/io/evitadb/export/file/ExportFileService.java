@@ -30,6 +30,7 @@ import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaIOException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.ExportService;
@@ -55,6 +56,7 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -62,9 +64,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -85,6 +90,15 @@ import static java.util.Optional.of;
 @Slf4j
 public class ExportFileService implements ExportService {
 	/**
+	 * Timeout for the file cache in milliseconds.
+	 */
+	private static final long FILES_CACHE_TTL_MS = 5 * 60 * 1000L;
+	/**
+	 * Timeout for acquiring the lock for listing files.
+	 */
+	private static final long LOCK_TIMEOUT_MS = 60_000L;
+
+	/**
 	 * Folder lock to prevent concurrent access to the export directory.
 	 */
 	private final FolderLock folderLock;
@@ -93,9 +107,17 @@ public class ExportFileService implements ExportService {
 	 */
 	private final FileSystemExportOptions fsOptions;
 	/**
-	 * Cached list of files to fetch.
+	 * Task that clears the file cache after inactivity.
 	 */
-	private final CopyOnWriteArrayList<FileForFetch> files;
+	private final DelayedAsyncTask filesCacheClearTask;
+	/**
+	 * Queue for cache updates that happen while the cache is being loaded.
+	 */
+	private final BlockingQueue<Runnable> cacheUpdateQueue = new LinkedBlockingQueue<>();
+	/**
+	 * Lock for listing files.
+	 */
+	private final ReentrantLock listingLock = new ReentrantLock();
 	/**
 	 * Task that periodically purges old files from the storage.
 	 */
@@ -104,6 +126,10 @@ public class ExportFileService implements ExportService {
 	 * Provider for current time, allowing injection of controllable time for testing.
 	 */
 	private final Supplier<OffsetDateTime> timeProvider;
+	/**
+	 * Cached list of files to fetch.
+	 */
+	@Nullable private volatile CopyOnWriteArrayList<FileForFetch> files;
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -137,35 +163,10 @@ public class ExportFileService implements ExportService {
 	}
 
 	/**
-	 * Resolves the directory for the given catalog. If the catalog is provided, it returns the subdirectory
-	 * with the catalog name. If the catalog is null, it returns the root export directory.
-	 *
-	 * @param catalogName Name of the catalog or null if the file is stored in the root directory.
-	 * @param create      If true, the directory will be created if it does not exist.
-	 * @return Path to the directory.
-	 */
-	@Nonnull
-	private Path resolveDirectory(@Nullable String catalogName, boolean create) {
-		final Path directory = catalogName == null
-			? this.fsOptions.getDirectory()
-			: this.fsOptions.getDirectory().resolve(catalogName);
-		if (create && !directory.toFile().exists()) {
-			Assert.isPremiseValid(
-				directory.toFile().mkdirs(),
-				() -> new UnexpectedIOException(
-					"Failed to create directory: " + directory,
-					"Failed to create directory."
-				)
-			);
-		}
-		return directory;
-	}
-
-	/**
 	 * Creates a new ExportFileService with default time provider using system clock.
 	 *
 	 * @param exportOptions export options configuration
-	 * @param scheduler scheduler for background tasks
+	 * @param scheduler     scheduler for background tasks
 	 */
 	public ExportFileService(
 		@Nonnull ExportOptions exportOptions,
@@ -179,8 +180,8 @@ public class ExportFileService implements ExportService {
 	 * This constructor allows injection of a controllable time source for testing.
 	 *
 	 * @param exportOptions export options configuration
-	 * @param scheduler scheduler for background tasks
-	 * @param timeProvider supplier for current time
+	 * @param scheduler     scheduler for background tasks
+	 * @param timeProvider  supplier for current time
 	 */
 	public ExportFileService(
 		@Nonnull ExportOptions exportOptions,
@@ -189,29 +190,15 @@ public class ExportFileService implements ExportService {
 	) {
 		if (!(exportOptions instanceof FileSystemExportOptions)) {
 			throw new IllegalArgumentException(
-				"ExportFileService requires FileSystemExportOptions but got: " + exportOptions.getClass().getSimpleName()
+				"ExportFileService requires FileSystemExportOptions but got: " + exportOptions.getClass()
+					.getSimpleName()
 			);
 		}
 		this.fsOptions = (FileSystemExportOptions) exportOptions;
 		this.timeProvider = timeProvider;
-		// init files for fetch
-		if (this.fsOptions.getDirectory().toFile().exists()) {
-			try (final Stream<Path> fileStream = Files.walk(this.fsOptions.getDirectory(), 2)) {
-				this.files = fileStream
-					.filter(Files::isRegularFile)
-					.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
-					.map(ExportFileService::toFileForFetch)
-					.flatMap(Optional::stream)
-					.sorted(Comparator.comparing(FileForFetch::created).reversed())
-					.collect(Collectors.toCollection(CopyOnWriteArrayList::new));
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to read the contents of the folder: " + e.getMessage(),
-					"Failed to read the contents of the folder.",
-					e
-				);
-			}
-		} else {
+		this.files = null;
+
+		if (!this.fsOptions.getDirectory().toFile().exists()) {
 			Assert.isPremiseValid(
 				this.fsOptions.getDirectory().toFile().mkdirs(),
 				() -> new UnexpectedIOException(
@@ -219,7 +206,6 @@ public class ExportFileService implements ExportService {
 					"Failed to create directory."
 				)
 			);
-			this.files = new CopyOnWriteArrayList<>();
 		}
 		// init folder lock
 		this.folderLock = new FolderLock(this.fsOptions.getDirectory());
@@ -232,6 +218,18 @@ public class ExportFileService implements ExportService {
 			5, TimeUnit.MINUTES
 		);
 		this.purgeTask.schedule();
+
+		this.filesCacheClearTask = new DelayedAsyncTask(
+			null,
+			"Export file service cache clearer",
+			scheduler,
+			() -> {
+				this.files = null;
+				return -1L;
+			},
+			FILES_CACHE_TTL_MS,
+			TimeUnit.MILLISECONDS
+		);
 	}
 
 	/**
@@ -252,15 +250,16 @@ public class ExportFileService implements ExportService {
 		@Nonnull Set<String> catalog,
 		@Nonnull Set<String> origin
 	) {
-		Stream<FileForFetch> stream = this.files.stream();
+		final List<FileForFetch> theFiles = getAndCacheFiles();
+		Stream<FileForFetch> stream = theFiles.stream();
 		if (!origin.isEmpty()) {
 			stream = stream.filter(it -> it.origin() != null && Arrays.stream(it.origin()).anyMatch(origin::contains));
 		}
 		if (!catalog.isEmpty()) {
 			stream = stream.filter(it -> it.catalogName() != null && catalog.contains(it.catalogName()));
 		}
+		
 		final List<FileForFetch> filteredFiles = stream.toList();
-
 		final List<FileForFetch> filePage = filteredFiles
 			.stream()
 			.skip(PaginatedList.getFirstItemNumberForPage(page, pageSize))
@@ -276,9 +275,16 @@ public class ExportFileService implements ExportService {
 	@Nonnull
 	@Override
 	public Optional<FileForFetch> getFile(@Nonnull UUID fileId) {
-		return this.files.stream()
-			.filter(it -> it.fileId().equals(fileId))
-			.findFirst();
+		try (final Stream<Path> fileStream = Files.walk(this.fsOptions.getDirectory(), 2)) {
+			return fileStream
+				.filter(Files::isRegularFile)
+				.filter(it -> it.toFile().getName().equals(fileId + FileForFetch.METADATA_EXTENSION))
+				.findFirst()
+				.flatMap(ExportFileService::toFileForFetch);
+		} catch (IOException e) {
+			log.error("Failed to find file {}: {}", fileId, e.getMessage());
+			return empty();
+		}
 	}
 
 	@Nonnull
@@ -334,7 +340,37 @@ public class ExportFileService implements ExportService {
 								catalog
 							);
 							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
-							this.files.add(0, fileForFetch);
+							final Runnable updateCache = () -> {
+								final CopyOnWriteArrayList<FileForFetch> theFiles = this.files;
+								if (theFiles != null) {
+									if (theFiles.stream().noneMatch(f -> f.fileId().equals(fileId))) {
+										theFiles.add(0, fileForFetch);
+									}
+								}
+							};
+							if (this.files != null) {
+								updateCache.run();
+							} else {
+								if (this.listingLock.tryLock()) {
+									try {
+										if (this.files != null) {
+											updateCache.run();
+										}
+									} finally {
+										this.listingLock.unlock();
+									}
+								} else {
+									// Lock held by Lister
+									if (this.files != null) {
+										updateCache.run();
+									} else {
+										this.cacheUpdateQueue.add(updateCache);
+										if (this.files != null) {
+											updateCache.run();
+										}
+									}
+								}
+							}
 							return fileForFetch;
 						} catch (IOException e) {
 							throw new UnexpectedIOException(
@@ -376,10 +412,13 @@ public class ExportFileService implements ExportService {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			if (this.files.remove(file)) {
-				final Path directory = resolveDirectory(file.catalogName(), false);
-				Files.deleteIfExists(file.metadataPath(directory));
-				Files.deleteIfExists(file.path(directory));
+			final Path directory = resolveDirectory(file.catalogName(), false);
+			Files.deleteIfExists(file.metadataPath(directory));
+			Files.deleteIfExists(file.path(directory));
+
+			final CopyOnWriteArrayList<FileForFetch> theFiles = this.files;
+			if (theFiles != null) {
+				theFiles.remove(file);
 			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -391,45 +430,47 @@ public class ExportFileService implements ExportService {
 	}
 
 	@Override
-	public void close() {
-		// stop purging task
-		IOUtils.closeQuietly(this.purgeTask::close);
-		// purge old files
-		purgeFiles();
-		// release folder lock
-		IOUtils.close(
-			() -> new UnexpectedIOException(
-				"Failed to close the folder lock: " + this.folderLock,
-				"Failed to close the folder lock."
-			),
-			this.folderLock::close
-		);
+	public long purgeFiles() {
+		// first go through the file list in memory and delete files that are older than the threshold
+		final OffsetDateTime thresholdDate = OffsetDateTime.now().minusSeconds(
+			this.fsOptions.getHistoryExpirationSeconds());
+		purgeFiles(thresholdDate);
+
+		return 0L;
 	}
 
 	@Override
 	public void purgeFiles(@Nonnull OffsetDateTime thresholdDate) {
-		final Set<UUID> knownFiles = new HashSet<>(this.files.size());
-		final List<FileForFetch> filesToDelete = this.files.stream()
-			.peek(it -> knownFiles.add(it.fileId()))
+		final List<FileForFetch> validFiles = scanFilesFromDisk();
+		final Set<UUID> knownFileIds = new HashSet<>();
+
+		final List<FileForFetch> filesToDelete = validFiles.stream()
+			.peek(it -> knownFileIds.add(it.fileId()))
 			.filter(it -> it.created().isBefore(thresholdDate))
 			.toList();
+
 		filesToDelete.forEach(
 			it -> {
 				log.info("Purging file, because it has been created before {}: {}", thresholdDate, it);
-				deleteFile(it.fileId());
+				deleteFileInternal(it);
 			}
 		);
+		validFiles.removeAll(filesToDelete);
 
 		// then go through the directory files, that does not have metadata file and delete all that were created before the threshold
 		try (final Stream<Path> fileStream = Files.walk(this.fsOptions.getDirectory(), 2)) {
 			fileStream
 				.map(Path::normalize)
 				.filter(Files::isRegularFile)
-				.filter(it -> !getUuidFromPath(it).map(knownFiles::contains).orElse(false))
+				.filter(it -> !it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
+				.filter(it -> !getUuidFromPath(it).map(knownFileIds::contains).orElse(false))
 				.filter(it -> !this.folderLock.lockFilePath().equals(it))
-				.filter(it -> FileUtils.getFileLastModifiedTime(it).map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate)).orElse(true))
+				.filter(it -> FileUtils.getFileLastModifiedTime(it)
+					.map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate))
+					.orElse(true))
 				.forEach(it -> {
-					log.info("Purging temporary file, because it has been last modified before {}: {}", thresholdDate, it);
+					log.info(
+						"Purging temporary file, because it has been last modified before {}: {}", thresholdDate, it);
 					FileUtils.deleteFileIfExists(it);
 				});
 		} catch (IOException e) {
@@ -441,7 +482,7 @@ public class ExportFileService implements ExportService {
 			final long directorySize = FileUtils.getDirectorySize(this.fsOptions.getDirectory());
 			// delete the oldest files until the directory size is below the limit
 			if (directorySize > this.fsOptions.getSizeLimitBytes()) {
-				final List<FileForFetch> filesByCreationDate = this.files.stream()
+				final List<FileForFetch> filesByCreationDate = validFiles.stream()
 					.sorted(Comparator.comparing(FileForFetch::created))
 					.toList();
 				long savedSize = 0L;
@@ -450,7 +491,7 @@ public class ExportFileService implements ExportService {
 					final long metadataFileSize = it.metadataPath(resolveDirectory(it.catalogName(), false))
 						.toFile()
 						.length();
-					deleteFile(it.fileId());
+					deleteFileInternal(it);
 					savedSize += it.totalSizeInBytes() + metadataFileSize;
 					// finish removing files if the directory size is below the limit
 					if (directorySize - savedSize <= this.fsOptions.getSizeLimitBytes()) {
@@ -467,13 +508,133 @@ public class ExportFileService implements ExportService {
 	}
 
 	@Override
-	public long purgeFiles() {
-		// first go through the file list in memory and delete files that are older than the threshold
-		final OffsetDateTime thresholdDate = OffsetDateTime.now().minusSeconds(
-			this.fsOptions.getHistoryExpirationSeconds());
-		purgeFiles(thresholdDate);
+	public void close() {
+		// stop purging task
+		IOUtils.closeQuietly(this.purgeTask::close);
+		IOUtils.closeQuietly(this.filesCacheClearTask::close);
+		// purge old files
+		purgeFiles();
+		// release folder lock
+		IOUtils.close(
+			() -> new UnexpectedIOException(
+				"Failed to close the folder lock: " + this.folderLock,
+				"Failed to close the folder lock."
+			),
+			this.folderLock::close
+		);
+	}
 
-		return 0L;
+	/**
+	 * Retrieves and caches the list of files available for fetch.
+	 * If the cached file list is not yet initialized, this method will scan the disk for relevant files,
+	 * cache the results, and handle any pending updates in the update queue.
+	 * Appropriate locks are used to ensure thread safety during the initialization of the cache.
+	 *
+	 * The method also schedules the clearing of the file cache and executes queued update tasks
+	 * if the files were loaded during this call.
+	 *
+	 * @return a list of {@link FileForFetch} instances representing the available files for fetch
+	 * @throws GenericEvitaInternalError if the lock cannot be acquired within the specified timeout
+	 *                                   or if the thread is interrupted while waiting for the lock
+	 */
+	@Nonnull
+	private List<FileForFetch> getAndCacheFiles() {
+		List<FileForFetch> theFiles = this.files;
+		if (theFiles == null) {
+			try {
+				if (this.listingLock.tryLock(LOCK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+					final List<Runnable> updates;
+					try {
+						theFiles = this.files;
+						if (theFiles == null) {
+							final List<FileForFetch> loadedFiles = scanFilesFromDisk();
+							this.files = new CopyOnWriteArrayList<>(loadedFiles);
+							theFiles = loadedFiles;
+
+							// Replay queued updates
+							updates = new ArrayList<>(this.cacheUpdateQueue.size());
+							this.cacheUpdateQueue.drainTo(updates);
+						} else {
+							updates = List.of();
+						}
+					} finally {
+						this.listingLock.unlock();
+					}
+
+					this.filesCacheClearTask.schedule();
+					updates.forEach(Runnable::run);
+				} else {
+					throw new GenericEvitaInternalError("Could not acquire lock to list files within timeout");
+				}
+			} catch (InterruptedException e) {
+				throw new GenericEvitaInternalError("Interrupted while waiting for lock to list files", e);
+			}
+		}
+		return theFiles;
+	}
+
+	/**
+	 * Resolves the directory for the given catalog. If the catalog is provided, it returns the subdirectory
+	 * with the catalog name. If the catalog is null, it returns the root export directory.
+	 *
+	 * @param catalogName Name of the catalog or null if the file is stored in the root directory.
+	 * @param create      If true, the directory will be created if it does not exist.
+	 * @return Path to the directory.
+	 */
+	@Nonnull
+	private Path resolveDirectory(@Nullable String catalogName, boolean create) {
+		final Path directory = catalogName == null
+			? this.fsOptions.getDirectory()
+			: this.fsOptions.getDirectory().resolve(catalogName);
+		if (create && !directory.toFile().exists()) {
+			Assert.isPremiseValid(
+				directory.toFile().mkdirs(),
+				() -> new UnexpectedIOException(
+					"Failed to create directory: " + directory,
+					"Failed to create directory."
+				)
+			);
+		}
+		return directory;
+	}
+
+	/**
+	 * Scans the export directory for metadata files and creates a list of {@link FileForFetch} instances.
+	 *
+	 * @return List of {@link FileForFetch} instances.
+	 */
+	@Nonnull
+	private List<FileForFetch> scanFilesFromDisk() {
+		try (final Stream<Path> fileStream = Files.walk(this.fsOptions.getDirectory(), 2)) {
+			return fileStream
+				.filter(Files::isRegularFile)
+				.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
+				.map(ExportFileService::toFileForFetch)
+				.flatMap(Optional::stream)
+				.sorted(Comparator.comparing(FileForFetch::created).reversed())
+				.collect(Collectors.toList());
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to read the contents of the folder: " + e.getMessage(),
+				"Failed to read the contents of the folder.",
+				e
+			);
+		}
+	}
+
+	private void deleteFileInternal(FileForFetch file) {
+		try {
+			final Path directory = resolveDirectory(file.catalogName(), false);
+			Files.deleteIfExists(file.metadataPath(directory));
+			Files.deleteIfExists(file.path(directory));
+
+			final CopyOnWriteArrayList<FileForFetch> theFiles = this.files;
+			if (theFiles != null) {
+				theFiles.remove(file);
+			}
+		} catch (IOException e) {
+			log.error("Failed to delete file: {}", file, e);
+		}
 	}
 
 	/**
@@ -482,8 +643,8 @@ public class ExportFileService implements ExportService {
 	 * Implementations may persist human-readable or machine-usable metadata (e.g. JSON) next to the
 	 * binary content. Existing metadata can be overwritten based on {@code options}.
 	 *
-	 * @param fileForFetch	 descriptor of the file whose metadata should be persisted
-	 * @param options	 optional {@link java.nio.file.StandardOpenOption} flags controlling write mode
+	 * @param fileForFetch descriptor of the file whose metadata should be persisted
+	 * @param options      optional {@link java.nio.file.StandardOpenOption} flags controlling write mode
 	 * @throws EvitaIOException if the metadata cannot be written
 	 */
 	private void writeFileMetadata(
@@ -513,7 +674,7 @@ public class ExportFileService implements ExportService {
 	 *
 	 * @param fileId             ID of the file.
 	 * @param fileForFetchFuture Future that will be completed when the file is written.
-	 * @param filePath		     Path to the file.
+	 * @param filePath           Path to the file.
 	 * @param outputStream       Output stream the file can be written to.
 	 */
 	public record ExportFileHandleLocal(
