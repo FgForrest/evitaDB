@@ -68,7 +68,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	private static final String UPDATE_CATALOG_SCHEMA_PATH = "data.updateCatalogSchema";
 	private static final String MY_NEW_COLLECTION_SCHEMA_PATH = "data.getMyNewCollectionSchema";
 	private static final String NEW_COLLECTION_NAME = "myNewCollection";
-	public static final String GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE = GRAPHQL_THOUSAND_PRODUCTS + "forCatalogSchemaChange";
+	private static final String GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE = GRAPHQL_THOUSAND_PRODUCTS + "forCatalogSchemaChange";
 
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)

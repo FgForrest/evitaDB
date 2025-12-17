@@ -60,7 +60,7 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 
 	private static final String DELETE_PRODUCT_PATH = "data.deleteProduct";
 	private static final String GET_PRODUCT_PATH = "data.getProduct";
-	public static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE = GRAPHQL_THOUSAND_PRODUCTS + "forDelete";
+	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE = GRAPHQL_THOUSAND_PRODUCTS + "forDelete";
 
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)

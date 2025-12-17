@@ -81,7 +81,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
-	public static final String REST_THOUSAND_PRODUCTS_FOR_UPDATE = REST_THOUSAND_PRODUCTS + "forUpdate";
+	private static final String REST_THOUSAND_PRODUCTS_FOR_UPDATE = REST_THOUSAND_PRODUCTS + "forUpdate";
 
 	@Override
 	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
