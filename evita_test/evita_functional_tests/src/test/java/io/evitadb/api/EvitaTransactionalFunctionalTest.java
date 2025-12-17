@@ -2667,7 +2667,9 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
                     lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false))
 			);
 
-			final Path backupFilePath = lastBackupProcess.get().get().path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
+			final CompletableFuture<FileForFetch> fileForFetchCompletableFuture = lastBackupProcess.get();
+			assertNotNull(fileForFetchCompletableFuture, "No backup process was started!");
+			final Path backupFilePath = fileForFetchCompletableFuture.get().path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
@@ -2847,6 +2849,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							.queryTimeoutInMilliseconds(-1)
 							.transactionTimeoutInMilliseconds(-1)
 							.closeSessionsAfterSecondsOfInactivity(-1)
+							.build()
+					)
+					.export(
+						FileSystemExportOptions.builder()
+							.directory(testDirectoryExport)
 							.build()
 					)
 					.build()
