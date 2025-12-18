@@ -87,4 +87,5 @@ fabric.properties
 
 ### VisualStudioCode ###
 .vscode/*
-/.claude/settings.local.json
+.junie/*
+.claude/*

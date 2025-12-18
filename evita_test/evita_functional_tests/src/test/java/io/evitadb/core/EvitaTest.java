@@ -5303,7 +5303,8 @@ class EvitaTest implements EvitaTestSupport {
 				formerConfiguration.storage(),
 				formerConfiguration.transaction(),
 				formerConfiguration.cache(),
-				formerConfiguration.export()
+				formerConfiguration.export(),
+				formerConfiguration.cluster()
 			)
 		);
 		reinstantiatedEvita.waitUntilFullyInitialized();

@@ -99,8 +99,17 @@ module evita.engine {
 	exports io.evitadb.spi.store.engine.model;
 	exports io.evitadb.spi.export;
 	exports io.evitadb.spi.export.model;
+	exports io.evitadb.spi.cluster;
+	exports io.evitadb.spi.cluster.model;
+	exports io.evitadb.spi.cluster.protocol.normalFlow;
+	exports io.evitadb.spi.cluster.protocol.reconfiguration;
+	exports io.evitadb.spi.cluster.protocol.recovery;
+	exports io.evitadb.spi.cluster.protocol.stateTransfer;
+	exports io.evitadb.spi.cluster.protocol.viewChange;
 
 	uses io.evitadb.spi.export.ExportServiceFactory;
+	uses io.evitadb.spi.cluster.EnvironmentServiceFactory;
+	uses io.evitadb.spi.cluster.ViewStampedReplicationServiceFactory;
 	uses io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
 	uses io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 	uses io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;

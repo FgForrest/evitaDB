@@ -73,6 +73,13 @@ export:                                           # [see Export configuration](#
     region: null
     requestTimeoutInMillis: 30s
 
+cluster:                                          # [see Cluster configuration](#cluster-configuration)
+  mock:
+    enabled: false
+    clusterSize: 1
+  k8s:
+    enabled: false
+
 transaction:                                      # [see Transaction configuration](#transaction-configuration)
   transactionWorkDirectory: /tmp/evitaDB/transaction
   transactionMemoryBufferLimitSizeBytes: 16MB
@@ -723,6 +730,42 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
         The timeout is used when waiting for completion of asynchronous MinIO client calls, such as
         bucket creation, object upload, download, deletion and metadata reads. Increase this value if
         your S3 provider or network exhibits higher latencies.</p>
+    </dd>
+</dl>
+
+## Cluster configuration
+
+This section contains configuration options for the clustering functionality. evitaDB supports multiple cluster
+implementations. Only one cluster implementation can be active at a time - if multiple backends have `enabled: true`,
+an error will be thrown during startup. If no cluster implementation is enabled, the server runs in standalone mode.
+
+### Mock cluster configuration
+
+Configuration for mock cluster implementation. This implementation is used for development and testing purposes,
+simulating a cluster environment on a single node.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>When set to `true`, enables the mock cluster backend.</p>
+    </dd>
+    <dt>clusterSize</dt>
+    <dd>
+        <p>**Default:** `1`</p>
+        <p>Specifies the simulated cluster size (number of nodes) for the mock cluster.</p>
+    </dd>
+</dl>
+
+### Kubernetes cluster configuration
+
+Configuration for Kubernetes cluster implementation. Requires the `evita_cluster_k8s` module on the classpath.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>When set to `true`, enables the Kubernetes cluster backend.</p>
     </dd>
 </dl>
 

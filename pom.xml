@@ -165,6 +165,8 @@
 		<module>evita_test/evita_test_support</module>
 		<module>evita_test/evita_functional_tests</module>
 		<module>evita_test/evita_performance_tests</module>
+		<module>evita_cluster/evita_cluster_k8s</module>
+		<module>evita_cluster/evita_cluster_mock</module>
 		<module>jacoco</module>
 	</modules>
 
