@@ -32,6 +32,7 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.utils.UUIDUtil;
@@ -40,7 +41,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,9 +53,12 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -546,6 +552,35 @@ class ExportS3ServiceTest {
 			this.exportService.close();
 			this.exportService.close();
 		});
+	}
+
+	@Test
+	@DisplayName("Should throw exception when deleting unmanaged file")
+	void shouldThrowExceptionWhenDeletingUnmanagedFile() throws Exception {
+		final UUID fileId = UUIDUtil.randomUUID();
+		final String objectKey = fileId + ".txt";
+
+		// Create metadata that is valid for parsing but missing the marker
+		final Map<String, String> meta = new HashMap<>();
+		meta.put("file-id", fileId.toString());
+		meta.put("name", "unmanaged.txt");
+		meta.put("created", OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+		// Missing generated-by marker
+
+		// Upload file directly to S3
+		this.s3Client.putObject(PutObjectRequest.builder()
+				.bucket(BUCKET_NAME)
+				.key(objectKey)
+				.metadata(meta)
+				.build(),
+			RequestBody.fromString("content"));
+
+		// Should throw exception when trying to delete
+		assertThrows(UnexpectedIOException.class, () -> this.exportService.deleteFile(fileId));
+
+		// Verify file is still there
+		final var response = this.s3Client.listObjectsV2(r -> r.bucket(BUCKET_NAME).prefix(objectKey));
+		assertTrue(response.contents().stream().anyMatch(o -> o.key().equals(objectKey)));
 	}
 
 	@Test

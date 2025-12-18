@@ -698,7 +698,10 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
     <dt>bucket</dt>
     <dd>
         <p>**Default:** `null`</p>
-        <p>The name of the S3 bucket where exported files will be stored. Required when S3 is enabled.</p>
+        <p>
+            The name of the S3 bucket where exported files will be stored. Required when S3 is enabled.
+            <Note type="warning">If the specified bucket does not exist, the export service will attempt to create it during startup.</Note>
+        </p>
     </dd>
     <dt>accessKey</dt>
     <dd>
