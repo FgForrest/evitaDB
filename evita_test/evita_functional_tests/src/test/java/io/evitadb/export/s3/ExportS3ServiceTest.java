@@ -223,6 +223,80 @@ class ExportS3ServiceTest {
 	}
 
 	@Test
+	@DisplayName("Should store file in catalog")
+	void shouldStoreFileInCatalog() throws IOException {
+		final String catalogName = "my-catalog";
+		final FileForFetch storedFile = writeFileWithCatalog("test.txt", "A", catalogName);
+
+		// Verify retrieval
+		final Optional<FileForFetch> retrieved = this.exportService.getFile(storedFile.fileId());
+		assertTrue(retrieved.isPresent());
+		assertEquals(catalogName, retrieved.get().catalogName());
+	}
+
+	@Test
+	@DisplayName("Should fetch file content from catalog")
+	void shouldFetchFileFromCatalog() throws IOException {
+		final String catalogName = "fetch-catalog";
+		final FileForFetch storedFile = writeFileWithCatalog("test.txt", "A", catalogName);
+
+		try (final InputStream inputStream = this.exportService.fetchFile(storedFile.fileId())) {
+			final String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+			assertEquals("testFileContent", content);
+		}
+	}
+
+	@Test
+	@DisplayName("Should delete file from catalog")
+	void shouldDeleteFileFromCatalog() throws IOException {
+		final String catalogName = "delete-catalog";
+		final FileForFetch storedFile = writeFileWithCatalog("test.txt", "A", catalogName);
+
+		this.exportService.deleteFile(storedFile.fileId());
+
+		// Verify retrieval returns empty
+		final Optional<FileForFetch> retrieved = this.exportService.getFile(storedFile.fileId());
+		assertTrue(retrieved.isEmpty());
+	}
+
+	@Test
+	@DisplayName("Should list files filtering by catalog")
+	void shouldListFilesFilteringByCatalog() throws IOException {
+		writeFileWithCatalog("file1.txt", "A", "cat1");
+		writeFileWithCatalog("file2.txt", "A", "cat2");
+		writeFileWithCatalog("file3.txt", "A", null); // root
+
+		final PaginatedList<FileForFetch> cat1Files = this.exportService.listFilesToFetch(1, 10, Set.of("cat1"), Set.of());
+		assertEquals(1, cat1Files.getTotalRecordCount());
+		assertEquals("file1.txt", cat1Files.getData().get(0).name());
+
+		final PaginatedList<FileForFetch> cat2Files = this.exportService.listFilesToFetch(1, 10, Set.of("cat2"), Set.of());
+		assertEquals(1, cat2Files.getTotalRecordCount());
+		assertEquals("file2.txt", cat2Files.getData().get(0).name());
+
+		// Filtering by empty set should return all
+		final PaginatedList<FileForFetch> allFiles = this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
+		assertEquals(3, allFiles.getTotalRecordCount());
+	}
+
+	@Test
+	@DisplayName("Should purge files in catalogs")
+	void shouldPurgeFilesInCatalogs() throws IOException {
+		// Initialize files in root and catalogs
+		writeFileWithCatalog("root.txt", null, null);
+		writeFileWithCatalog("cat.txt", null, "cat");
+
+		// Check files before purging
+		assertEquals(2, this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount());
+
+		// Purge the files (created now, so purging with future threshold removes them)
+		this.exportService.purgeFiles(OffsetDateTime.now().plusSeconds(1));
+
+		// Check files after purging
+		assertEquals(0, this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount());
+	}
+
+	@Test
 	@DisplayName("Should delete file from S3 bucket")
 	void shouldDeleteFile() throws IOException {
 		for (int i = 0; i < 5; i++) {
@@ -541,6 +615,35 @@ class ExportS3ServiceTest {
 			"With description ...",
 			"text/plain",
 			null,
+			withOrigin
+		);
+		try (final OutputStream outputStream = exportFileHandle.outputStream()) {
+			outputStream.write("testFileContent".getBytes(StandardCharsets.UTF_8));
+		}
+		// Wait for the async upload to complete
+		try {
+			return exportFileHandle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
+		} catch (InterruptedException | ExecutionException | TimeoutException e) {
+			throw new IOException("Failed to wait for file upload to complete", e);
+		}
+	}
+
+	/**
+	 * Helper method to write a file to the export service with catalog.
+	 *
+	 * @param fileName    the name of the file to write
+	 * @param withOrigin  comma-separated origin tags, or null for no tags
+	 * @param catalogName the catalog name
+	 * @return the created {@link FileForFetch} instance
+	 * @throws IOException if file writing fails
+	 */
+	@Nonnull
+	private FileForFetch writeFileWithCatalog(@Nonnull String fileName, @Nullable String withOrigin, @Nullable String catalogName) throws IOException {
+		final ExportFileHandle exportFileHandle = this.exportService.storeFile(
+			fileName,
+			"With description ...",
+			"text/plain",
+			catalogName,
 			withOrigin
 		);
 		try (final OutputStream outputStream = exportFileHandle.outputStream()) {

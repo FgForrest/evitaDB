@@ -326,25 +326,38 @@ public class ExportS3Service implements ExportService {
 		@Nonnull Set<String> origin
 	) {
 		final CopyOnWriteArrayList<FileForFetch> allFiles = getFiles();
-		final List<FileForFetch> filteredFiles;
+		final List<FileForFetch> filteredFiles = new ArrayList<>(allFiles.size());
 
-		if (origin.isEmpty()) {
-			filteredFiles = new ArrayList<>(allFiles);
-		} else {
-			final int size = allFiles.size();
-			final List<FileForFetch> filtered = new ArrayList<>(size);
-			for (final FileForFetch file : allFiles) {
+		for (final FileForFetch file : allFiles) {
+			// Filter by catalog
+			boolean catalogMatches = catalog.isEmpty();
+			if (!catalogMatches) {
+				// If catalog filter is present, file must have a matching catalog name
+				// Files in root (null catalog) won't match any specific catalog filter
+				catalogMatches = file.catalogName() != null && catalog.contains(file.catalogName());
+			}
+
+			if (!catalogMatches) {
+				continue;
+			}
+
+			// Filter by origin
+			boolean originMatches = origin.isEmpty();
+			if (!originMatches) {
 				final String[] fileOrigin = file.origin();
 				if (fileOrigin != null) {
 					for (final String o : fileOrigin) {
 						if (origin.contains(o)) {
-							filtered.add(file);
+							originMatches = true;
 							break;
 						}
 					}
 				}
 			}
-			filteredFiles = filtered;
+
+			if (originMatches) {
+				filteredFiles.add(file);
+			}
 		}
 
 		final int firstItem = PaginatedList.getFirstItemNumberForPage(page, pageSize);
