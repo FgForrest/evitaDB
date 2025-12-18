@@ -235,6 +235,22 @@ public class Crc32Calculator {
 	}
 
 	/**
+	 * Updates the checksum with a slice of byte array.
+	 *
+	 * @param values the byte array
+	 * @param offset the start offset
+	 * @param length the number of bytes to use
+	 * @return this calculator for method chaining
+	 */
+	@Nonnull
+	public Crc32Calculator withByteArray(@Nullable final byte[] values, int offset, int length) {
+		if (values != null) {
+			this.crc32C.update(values, offset, length);
+		}
+		return this;
+	}
+
+	/**
 	 * Updates the checksum with an array of boxed Byte values. Null array elements are treated as 0.
 	 *
 	 * @param values the Byte array to include in the checksum

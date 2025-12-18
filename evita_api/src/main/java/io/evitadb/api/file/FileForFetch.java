@@ -47,6 +47,7 @@ import java.util.UUID;
  * @param totalSizeInBytes Total size of the file in bytes.
  * @param created          Date and time when the file was created.
  * @param origin           Optional origin of the file. Usually {@link TaskStatus#taskType()}.
+ * @param crc32            CRC32 checksum of the file content.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record FileForFetch(
@@ -57,7 +58,8 @@ public record FileForFetch(
 	long totalSizeInBytes,
 	@Nonnull OffsetDateTime created,
 	@Nullable String[] origin,
-	@Nullable String catalogName
+	@Nullable String catalogName,
+	long crc32
 ) implements Serializable {
 	public static final String METADATA_EXTENSION = ".metadata";
 
@@ -69,7 +71,8 @@ public record FileForFetch(
 		long totalSizeInBytes,
 		@Nonnull OffsetDateTime created,
 		@Nullable String[] origin,
-		@Nullable String catalogName
+		@Nullable String catalogName,
+		long crc32
 	) {
 		this.fileId = fileId;
 		this.name = FileUtils.convertToSupportedName(name);
@@ -79,6 +82,7 @@ public record FileForFetch(
 		this.created = created;
 		this.origin = origin;
 		this.catalogName = catalogName;
+		this.crc32 = crc32;
 	}
 
 	/**
@@ -89,7 +93,11 @@ public record FileForFetch(
 	 */
 	@Nonnull
 	public Path metadataPath(@Nonnull Path directory) {
-		return directory.resolve(this.fileId + METADATA_EXTENSION);
+		Path targetDirectory = directory;
+		if (this.catalogName != null && !this.catalogName.isEmpty()) {
+			targetDirectory = targetDirectory.resolve(this.catalogName);
+		}
+		return targetDirectory.resolve(this.fileId + METADATA_EXTENSION);
 	}
 
 	/**
@@ -100,7 +108,11 @@ public record FileForFetch(
 	 */
 	@Nonnull
 	public Path path(@Nonnull Path directory) {
-		return directory.resolve(this.fileId + FileUtils.getFileExtension(this.name).map(it -> "." + it).orElse(""));
+		Path targetDirectory = directory;
+		if (this.catalogName != null && !this.catalogName.isEmpty()) {
+			targetDirectory = targetDirectory.resolve(this.catalogName);
+		}
+		return targetDirectory.resolve(this.fileId + FileUtils.getFileExtension(this.name).map(it -> "." + it).orElse(""));
 	}
 
 	/**
@@ -120,7 +132,8 @@ public record FileForFetch(
 			Long.parseLong(metadataLines.get(4)),
 			OffsetDateTime.parse(metadataLines.get(5), DateTimeFormatter.ISO_OFFSET_DATE_TIME),
 			metadataLines.get(6).split(","),
-			metadataLines.size() > 7 && !metadataLines.get(7).isEmpty() ? metadataLines.get(7) : null
+			metadataLines.size() > 7 && !metadataLines.get(7).isEmpty() ? metadataLines.get(7) : null,
+			metadataLines.size() > 8 ? Long.parseLong(metadataLines.get(8)) : 0L
 		);
 	}
 
@@ -137,7 +150,8 @@ public record FileForFetch(
 			Long.toString(this.totalSizeInBytes),
 			this.created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
 			this.origin == null ? "" : String.join(",", this.origin),
-			this.catalogName == null ? "" : this.catalogName
+			this.catalogName == null ? "" : this.catalogName,
+			Long.toString(this.crc32)
 		);
 	}
 
@@ -153,6 +167,7 @@ public record FileForFetch(
 			", created=" + this.created +
 			", origin=" + Arrays.toString(this.origin) +
 			", catalogName='" + this.catalogName + '\'' +
+			", crc32=" + this.crc32 +
 			'}';
 	}
 

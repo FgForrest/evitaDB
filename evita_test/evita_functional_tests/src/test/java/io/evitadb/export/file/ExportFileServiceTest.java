@@ -29,6 +29,7 @@ import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.FileChecksumInvalidException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.test.EvitaTestSupport;
@@ -225,7 +226,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		// Check files after purging
 		int numOfFilesAfterPurge = numberOfFiles(exportOptions.getDirectory());
 		int totalFilesAfterPurge = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount();
-		assertEquals(6, totalFilesAfterPurge);
+		assertEquals(5, totalFilesAfterPurge);
 		assertEquals(totalFilesAfterPurge * 2 + 1, numOfFilesAfterPurge);
 
 		this.exportService.purgeFiles(OffsetDateTime.now());
@@ -249,11 +250,11 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertTrue(Files.isDirectory(catalogDir), "Catalog path should be a directory");
 
 		// Verify file existence in the subdirectory
-		final Path expectedPath = storedFile.path(catalogDir);
+		final Path expectedPath = storedFile.path(this.exportOptions.getDirectory());
 		assertTrue(Files.exists(expectedPath), "File should exist in catalog subdirectory");
 
 		// Verify metadata existence in the subdirectory
-		final Path expectedMetadataPath = storedFile.metadataPath(catalogDir);
+		final Path expectedMetadataPath = storedFile.metadataPath(this.exportOptions.getDirectory());
 		assertTrue(Files.exists(expectedMetadataPath), "Metadata file should exist in catalog subdirectory");
 
 		// Verify retrieval
@@ -291,9 +292,9 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		assertFalse(Files.exists(filePath), "File should be deleted");
 		assertFalse(Files.exists(metadataPath), "Metadata should be deleted");
-		
-		// The directory might remain after deleteFile, it is cleaned up by purgeFiles usually, 
-		// but let's check if the implementation does it immediately? 
+
+		// The directory might remain after deleteFile, it is cleaned up by purgeFiles usually,
+		// but let's check if the implementation does it immediately?
 		// The requirement says: "Also automatically remove empty folders in purge methods."
 		// So deleteFile probably doesn't remove the folder.
 		assertTrue(Files.exists(catalogDir), "Catalog directory should still exist after single file deletion");
@@ -324,17 +325,17 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	void shouldPurgeEmptyCatalogDirectories() throws IOException {
 		final String catalogName = "purge-catalog";
 		final FileForFetch storedFile = writeFileWithCatalog("test.txt", "A", catalogName);
-		
+
 		// Manually delete the file to simulate expiration/deletion leaving empty dir
 		// Or better, use deleteFile
 		this.exportService.deleteFile(storedFile.fileId());
-		
+
 		final Path catalogDir = this.exportOptions.getDirectory().resolve(catalogName);
 		assertTrue(Files.exists(catalogDir), "Directory should exist before purge");
-		
+
 		// Run purge
 		this.exportService.purgeFiles(OffsetDateTime.now());
-		
+
 		assertFalse(Files.exists(catalogDir), "Directory should be removed after purge");
 	}
 
@@ -353,7 +354,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Check files after purging
 		assertEquals(0, this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount());
-		
+
 		// Check directory structure
 		assertFalse(Files.exists(this.exportOptions.getDirectory().resolve("cat")), "Catalog directory should be gone");
 	}
@@ -680,6 +681,20 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Should have fewer files now due to size limit
 		assertTrue(remaining.getTotalRecordCount() < 5);
+	}
+
+	@Test
+	@DisplayName("Should throw exception when file content is corrupted")
+	void shouldThrowExceptionWhenFileContentIsCorrupted() throws IOException {
+		final FileForFetch storedFile = writeFile("test.txt", "A");
+		final Path filePath = storedFile.path(this.exportOptions.getDirectory());
+
+		// Append a byte to corrupt the file content
+		Files.write(filePath, new byte[]{0}, java.nio.file.StandardOpenOption.APPEND);
+
+		final InputStream is = this.exportService.fetchFile(storedFile.fileId());
+		is.readAllBytes();
+		assertThrows(FileChecksumInvalidException.class, is::close);
 	}
 
 	// ==================== Constructor Validation Tests ====================

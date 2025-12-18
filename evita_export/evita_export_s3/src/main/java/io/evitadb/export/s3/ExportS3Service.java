@@ -34,8 +34,10 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.stream.Crc32VerifyingInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Crc32Calculator;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -129,6 +131,11 @@ public class ExportS3Service implements ExportService {
 	private static final String GENERATED_BY_VALUE = "evitaDB-export-s3";
 
 	/**
+	 * User metadata key for CRC32 checksum.
+	 */
+	private static final String META_CRC32 = "crc32";
+
+	/**
 	 * Part size for S3 multipart upload (10MB).
 	 */
 	private static final long PART_SIZE = 10_485_760L;
@@ -173,6 +180,7 @@ public class ExportS3Service implements ExportService {
 			final String createdStr = userMetadata.get(META_CREATED);
 			final String originStr = userMetadata.get(META_ORIGIN);
 			final String catalogName = userMetadata.get(META_CATALOG);
+			final String crc32Str = userMetadata.get(META_CRC32);
 
 			if (fileIdStr == null || name == null || createdStr == null) {
 				return null;
@@ -192,7 +200,8 @@ public class ExportS3Service implements ExportService {
 				size,
 				created,
 				origin,
-				(catalogName == null || catalogName.isBlank()) ? null : catalogName
+				(catalogName == null || catalogName.isBlank()) ? null : catalogName,
+				crc32Str != null ? Long.parseLong(crc32Str) : 0L
 			);
 		} catch (Exception e) {
 			log.error("Failed to parse file metadata", e);
@@ -488,9 +497,12 @@ public class ExportS3Service implements ExportService {
 			if (isRegionValid(region)) {
 				getObjectBuilder.region(region);
 			}
-			return this.minioClient.getObject(
-				getObjectBuilder.build()
-			).get(timeout, TimeUnit.MILLISECONDS);
+			return new Crc32VerifyingInputStream(
+				this.minioClient.getObject(
+					getObjectBuilder.build()
+				).get(timeout, TimeUnit.MILLISECONDS),
+				file.crc32()
+			);
 		} catch (Exception e) {
 			throw new UnexpectedIOException(
 				"Failed to fetch file from S3: " + e.getMessage(),
@@ -781,7 +793,11 @@ public class ExportS3Service implements ExportService {
 						normalizedMetadata.put(e.getKey().toLowerCase(Locale.US), e.getValue());
 					}
 				}
-				normalizedMetadata.put(lowerCaseKey.substring(USER_METADATA_PREFIX.length()), entry.getValue());
+				if (lowerCaseKey.startsWith(USER_METADATA_PREFIX)) {
+					normalizedMetadata.put(lowerCaseKey.substring(USER_METADATA_PREFIX.length()), entry.getValue());
+				} else {
+					normalizedMetadata.put(lowerCaseKey, entry.getValue());
+				}
 			}
 		}
 		return normalizedMetadata != null ? normalizedMetadata : userMetadata;
@@ -847,6 +863,7 @@ public class ExportS3Service implements ExportService {
 		private final String catalogName;
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
 		private final long requestTimeoutInMillis;
+		private final Crc32Calculator crcCalculator = new Crc32Calculator();
 		private boolean closed;
 
 		S3UploadOutputStream(
@@ -902,16 +919,19 @@ public class ExportS3Service implements ExportService {
 
 		@Override
 		public void write(int b) throws IOException {
+			this.crcCalculator.withByte((byte) b);
 			this.delegate.write(b);
 		}
 
 		@Override
 		public void write(@Nonnull byte[] b) throws IOException {
+			this.crcCalculator.withByteArray(b);
 			this.delegate.write(b);
 		}
 
 		@Override
 		public void write(@Nonnull byte[] b, int off, int len) throws IOException {
+			this.crcCalculator.withByteArray(b, off, len);
 			this.delegate.write(b, off, len);
 		}
 
@@ -930,6 +950,9 @@ public class ExportS3Service implements ExportService {
 			try {
 				// Ensure all buffered content is written to temporary file
 				this.delegate.close();
+
+				final long checksum = this.crcCalculator.getValue();
+				this.userMetadata.put(META_CRC32, Long.toString(checksum));
 
 				// Prepare upload resources
 				final File tmpFile = this.path.toFile();
@@ -960,7 +983,8 @@ public class ExportS3Service implements ExportService {
 									tmpFileSize,
 									this.created,
 									this.originTags,
-									this.catalogName
+									this.catalogName,
+									checksum
 								);
 								this.fileForFetchFuture.complete(fileForFetch);
 							} else {

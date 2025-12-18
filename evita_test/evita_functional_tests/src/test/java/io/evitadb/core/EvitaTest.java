@@ -4289,9 +4289,11 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateBackupAndRestoreCatalog() throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
-		final CompletableFuture<FileForFetch> backupPathFuture = this.evita.management().backupCatalog(
-			TEST_CATALOG, null, null, true);
-		final Path backupPath = backupPathFuture.join().path(
+		final FileForFetch backupPathFuture = this.evita.management().backupCatalog(
+			TEST_CATALOG, null, null, true
+		).join();
+
+		final Path backupPath = backupPathFuture.path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
 
@@ -4378,9 +4380,10 @@ class EvitaTest implements EvitaTestSupport {
 		);
 
 		final EvitaManagement management = this.evita.management();
-		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(
-			TEST_CATALOG, null, null, true);
-		final Path backupPath = backupPathFuture.join().path(
+		final FileForFetch backupPathFuture = management.backupCatalog(
+			TEST_CATALOG, null, null, true
+		).join();
+		final Path backupPath = backupPathFuture.path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
 

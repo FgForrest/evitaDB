@@ -1696,6 +1696,8 @@ public class EvitaDataTypesConverter {
 	 * This method is used to convert a {@link GrpcFile} to {@link FileForFetch}.
 	 * @param grpcFile file to be converted
 	 * @return {@link FileForFetch} instance
+	 *
+	 * TODO JNO - ADD CRC32 to grpc file
 	 */
 	@Nonnull
 	public static FileForFetch toFileForFetch(@Nonnull GrpcFile grpcFile) {
@@ -1707,7 +1709,8 @@ public class EvitaDataTypesConverter {
 			grpcFile.getTotalSizeInBytes(),
 			toOffsetDateTime(grpcFile.getCreated()),
 			grpcFile.hasOrigin() ? grpcFile.getOrigin().getValue().split(",") : null,
-			null
+			null,
+			0L
 		);
 	}
 

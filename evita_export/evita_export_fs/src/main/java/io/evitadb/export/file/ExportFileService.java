@@ -30,12 +30,15 @@ import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaIOException;
+import io.evitadb.exception.FileChecksumInvalidException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.stream.Crc32VerifyingInputStream;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Crc32Calculator;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.FolderLock;
 import io.evitadb.utils.IOUtils;
@@ -85,6 +88,19 @@ import static java.util.Optional.of;
  * later - probably some kind of infrastructural database. Because we want to support clustered solutions we would have
  * to move to S3 storage or similar anyway.
  *
+ * ## Thread-Safety Guarantees
+ *
+ * This class is thread-safe and designed for concurrent access:
+ *
+ * - **Cache Management**: The internal file cache uses `volatile CopyOnWriteArrayList` for visibility and safe
+ *   concurrent reads. A `ReentrantLock` protects cache initialization and updates.
+ * - **Update Queuing**: When the cache is being loaded, concurrent updates are queued and replayed atomically
+ *   inside the lock to prevent lost updates.
+ * - **Cache Invalidation**: The cache is automatically cleared after a timeout period. Operations may continue
+ *   even if the cache is invalidated, as they fall back to disk scanning.
+ * - **File Operations**: Individual file operations (store, fetch, delete) are thread-safe and can be called
+ *   concurrently. Delete operations optimistically update the cache if present.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
@@ -128,6 +144,9 @@ public class ExportFileService implements ExportService {
 	private final Supplier<OffsetDateTime> timeProvider;
 	/**
 	 * Cached list of files to fetch.
+	 *
+	 * Thread-safety: Declared as volatile to ensure visibility across threads. The CopyOnWriteArrayList
+	 * provides thread-safe read operations. The listingLock protects initialization and updates.
 	 */
 	@Nullable private volatile CopyOnWriteArrayList<FileForFetch> files;
 
@@ -298,7 +317,7 @@ public class ExportFileService implements ExportService {
 	) {
 		final UUID fileId = UUIDUtil.randomUUID();
 		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path directory = resolveDirectory(catalog, true);
+		final Path directory = resolveDirectory(catalog);
 		final Path finalFilePath = directory.resolve(finalFileName);
 		try {
 			if (!this.fsOptions.getDirectory().toFile().exists()) {
@@ -325,9 +344,10 @@ public class ExportFileService implements ExportService {
 				new WriteMetadataOnCloseOutputStream(
 					finalFilePath,
 					fileForFetchCompletableFuture,
-					() -> {
+					(checksum) -> {
+						final FileForFetch fileForFetch;
 						try {
-							final FileForFetch fileForFetch = new FileForFetch(
+							fileForFetch = new FileForFetch(
 								fileId,
 								fileName,
 								description,
@@ -337,47 +357,19 @@ public class ExportFileService implements ExportService {
 								origin == null ? null : Arrays.stream(origin.split(","))
 									.map(String::trim)
 									.toArray(String[]::new),
-								catalog
+								catalog,
+								checksum
 							);
 							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
-							final Runnable updateCache = () -> {
-								final CopyOnWriteArrayList<FileForFetch> theFiles = this.files;
-								if (theFiles != null) {
-									if (theFiles.stream().noneMatch(f -> f.fileId().equals(fileId))) {
-										theFiles.add(0, fileForFetch);
-									}
-								}
-							};
-							if (this.files != null) {
-								updateCache.run();
-							} else {
-								if (this.listingLock.tryLock()) {
-									try {
-										if (this.files != null) {
-											updateCache.run();
-										}
-									} finally {
-										this.listingLock.unlock();
-									}
-								} else {
-									// Lock held by Lister
-									if (this.files != null) {
-										updateCache.run();
-									} else {
-										this.cacheUpdateQueue.add(updateCache);
-										if (this.files != null) {
-											updateCache.run();
-										}
-									}
-								}
-							}
-							return fileForFetch;
 						} catch (IOException e) {
 							throw new UnexpectedIOException(
 								"Failed to write metadata file: " + e.getMessage(),
 								"Failed to write metadata file."
 							);
 						}
+						// update cache
+						updateCacheSafely(fileForFetch);
+						return fileForFetch;
 					}
 				)
 			);
@@ -392,12 +384,14 @@ public class ExportFileService implements ExportService {
 
 	@Nonnull
 	@Override
-	public InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
+	public InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, FileChecksumInvalidException {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			final Path directory = resolveDirectory(file.catalogName(), false);
-			return Files.newInputStream(file.path(directory), StandardOpenOption.READ);
+			return new Crc32VerifyingInputStream(
+				Files.newInputStream(file.path(this.fsOptions.getDirectory()), StandardOpenOption.READ),
+				file.crc32()
+			);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to open the designated file: " + e.getMessage(),
@@ -412,10 +406,12 @@ public class ExportFileService implements ExportService {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			final Path directory = resolveDirectory(file.catalogName(), false);
-			Files.deleteIfExists(file.metadataPath(directory));
-			Files.deleteIfExists(file.path(directory));
+			Files.deleteIfExists(file.metadataPath(this.fsOptions.getDirectory()));
+			Files.deleteIfExists(file.path(this.fsOptions.getDirectory()));
 
+			// Cache reference taken once to avoid TOCTOU issues.
+			// CopyOnWriteArrayList handles concurrent reads/writes safely.
+			// It's acceptable if cache is cleared between check and use.
 			final CopyOnWriteArrayList<FileForFetch> theFiles = this.files;
 			if (theFiles != null) {
 				theFiles.remove(file);
@@ -492,7 +488,7 @@ public class ExportFileService implements ExportService {
 					long savedSize = 0L;
 					for (FileForFetch it : filesByCreationDate) {
 						log.info("Purging the oldest file, because the export directory grew too big: {}", it);
-						final long metadataFileSize = it.metadataPath(resolveDirectory(it.catalogName(), false))
+						final long metadataFileSize = it.metadataPath(this.fsOptions.getDirectory())
 							.toFile()
 							.length();
 						deleteFileInternal(it);
@@ -530,6 +526,41 @@ public class ExportFileService implements ExportService {
 	}
 
 	/**
+	 * Updates the cache of files safely by either modifying the internal file list directly if the lock
+	 * is acquired, or adding the update operation to a queue for delayed execution if the lock is not available.
+	 * Ensures thread safety when updating the file list.
+	 *
+	 * Thread-safety: This method uses a lock to protect cache updates. If the lock cannot be acquired immediately,
+	 * the update is queued for later execution. The queued updates are replayed when the cache is next loaded.
+	 * Updates may be lost if the cache is cleared after queueing but before replay.
+	 *
+	 * @param fileForFetch The {@link FileForFetch} instance representing the file to be added or updated in the cache.
+	 */
+	private void updateCacheSafely(@Nonnull FileForFetch fileForFetch) {
+		final Runnable updateCache = () -> {
+			final CopyOnWriteArrayList<FileForFetch> theFiles = this.files;
+			if (theFiles != null) {
+				theFiles.removeIf(f -> f.fileId().equals(fileForFetch.fileId()));
+				theFiles.add(0, fileForFetch);
+			}
+		};
+		if (this.listingLock.tryLock()) {
+			try {
+				if (this.files != null) {
+					updateCache.run();
+				}
+			} finally {
+				this.listingLock.unlock();
+			}
+		} else {
+			// Queue the update for replay during next cache load.
+			// We queue unconditionally because even if cache is null now, it might be loaded
+			// by another thread and our update should be included.
+			this.cacheUpdateQueue.add(updateCache);
+		}
+	}
+
+	/**
 	 * Retrieves and caches the list of files available for fetch.
 	 * If the cached file list is not yet initialized, this method will scan the disk for relevant files,
 	 * cache the results, and handle any pending updates in the update queue.
@@ -538,36 +569,36 @@ public class ExportFileService implements ExportService {
 	 * The method also schedules the clearing of the file cache and executes queued update tasks
 	 * if the files were loaded during this call.
 	 *
+	 * Thread-safety: This method replays queued updates inside the lock to prevent concurrent modifications
+	 * from being lost during cache initialization.
+	 *
 	 * @return a list of {@link FileForFetch} instances representing the available files for fetch
 	 * @throws GenericEvitaInternalError if the lock cannot be acquired within the specified timeout
 	 *                                   or if the thread is interrupted while waiting for the lock
 	 */
 	@Nonnull
 	private List<FileForFetch> getAndCacheFiles() {
-		List<FileForFetch> theFiles = this.files;
+		CopyOnWriteArrayList<FileForFetch> theFiles = this.files;
 		if (theFiles == null) {
 			try {
 				if (this.listingLock.tryLock(LOCK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-					final List<Runnable> updates;
 					try {
 						theFiles = this.files;
 						if (theFiles == null) {
 							final List<FileForFetch> loadedFiles = scanFilesFromDisk();
-							this.files = new CopyOnWriteArrayList<>(loadedFiles);
-							theFiles = loadedFiles;
+							theFiles = new CopyOnWriteArrayList<>(loadedFiles);
+							this.files = theFiles;
 
-							// Replay queued updates
-							updates = new ArrayList<>(this.cacheUpdateQueue.size());
+							// Replay queued updates inside the lock to prevent losing concurrent updates
+							final List<Runnable> updates = new ArrayList<>(this.cacheUpdateQueue.size());
 							this.cacheUpdateQueue.drainTo(updates);
-						} else {
-							updates = List.of();
+							updates.forEach(Runnable::run);
 						}
 					} finally {
 						this.listingLock.unlock();
 					}
 
 					this.filesCacheClearTask.schedule();
-					updates.forEach(Runnable::run);
 				} else {
 					throw new GenericEvitaInternalError("Could not acquire lock to list files within timeout");
 				}
@@ -583,15 +614,14 @@ public class ExportFileService implements ExportService {
 	 * with the catalog name. If the catalog is null, it returns the root export directory.
 	 *
 	 * @param catalogName Name of the catalog or null if the file is stored in the root directory.
-	 * @param create      If true, the directory will be created if it does not exist.
 	 * @return Path to the directory.
 	 */
 	@Nonnull
-	private Path resolveDirectory(@Nullable String catalogName, boolean create) {
+	private Path resolveDirectory(@Nullable String catalogName) {
 		final Path directory = catalogName == null
 			? this.fsOptions.getDirectory()
 			: this.fsOptions.getDirectory().resolve(catalogName);
-		if (create && !directory.toFile().exists()) {
+		if (!directory.toFile().exists()) {
 			Assert.isPremiseValid(
 				directory.toFile().mkdirs(),
 				() -> new UnexpectedIOException(
@@ -627,12 +657,22 @@ public class ExportFileService implements ExportService {
 		}
 	}
 
+	/**
+	 * Deletes a file from the filesystem and removes it from the cache.
+	 *
+	 * Thread-safety: Cache reference is captured once to avoid TOCTOU issues.
+	 * CopyOnWriteArrayList allows safe concurrent modifications.
+	 *
+	 * @param file The file to delete.
+	 */
 	private void deleteFileInternal(FileForFetch file) {
 		try {
-			final Path directory = resolveDirectory(file.catalogName(), false);
-			Files.deleteIfExists(file.metadataPath(directory));
-			Files.deleteIfExists(file.path(directory));
+			Files.deleteIfExists(file.metadataPath(this.fsOptions.getDirectory()));
+			Files.deleteIfExists(file.path(this.fsOptions.getDirectory()));
 
+			// Cache reference taken once to avoid TOCTOU issues.
+			// CopyOnWriteArrayList handles concurrent reads/writes safely.
+			// It's acceptable if cache is cleared between check and use.
 			final CopyOnWriteArrayList<FileForFetch> theFiles = this.files;
 			if (theFiles != null) {
 				theFiles.remove(file);
@@ -657,9 +697,9 @@ public class ExportFileService implements ExportService {
 		@Nonnull OpenOption... options
 	) throws EvitaIOException {
 		try {
-			final Path directory = resolveDirectory(fileForFetch.catalogName(), true);
+			final Path metadataPath = fileForFetch.metadataPath(this.fsOptions.getDirectory());
 			Files.write(
-				directory.resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
+				metadataPath,
 				fileForFetch.toLines(),
 				StandardCharsets.UTF_8,
 				options
@@ -711,17 +751,37 @@ public class ExportFileService implements ExportService {
 	 */
 	private final static class WriteMetadataOnCloseOutputStream extends FileOutputStream implements Closeable {
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
-		private final Supplier<FileForFetch> onClose;
+		private final java.util.function.Function<Long, FileForFetch> onClose;
+		private final Crc32Calculator crcCalculator;
 		private boolean closed;
 
 		public WriteMetadataOnCloseOutputStream(
 			@Nonnull Path finalFilePath,
 			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
-			@Nonnull Supplier<FileForFetch> onClose
+			@Nonnull java.util.function.Function<Long, FileForFetch> onClose
 		) throws FileNotFoundException {
 			super(finalFilePath.toFile());
 			this.fileForFetchFuture = fileForFetchFuture;
 			this.onClose = onClose;
+			this.crcCalculator = new Crc32Calculator();
+		}
+
+		@Override
+		public void write(int b) throws IOException {
+			this.crcCalculator.withByte((byte) b);
+			super.write(b);
+		}
+
+		@Override
+		public void write(@Nonnull byte[] b) throws IOException {
+			this.crcCalculator.withByteArray(b);
+			super.write(b);
+		}
+
+		@Override
+		public void write(@Nonnull byte[] b, int off, int len) throws IOException {
+			this.crcCalculator.withByteArray(b, off, len);
+			super.write(b, off, len);
 		}
 
 		@Override
@@ -732,7 +792,7 @@ public class ExportFileService implements ExportService {
 				try {
 					super.close();
 				} finally {
-					this.fileForFetchFuture.complete(this.onClose.get());
+					this.fileForFetchFuture.complete(this.onClose.apply(this.crcCalculator.getValue()));
 				}
 			}
 		}

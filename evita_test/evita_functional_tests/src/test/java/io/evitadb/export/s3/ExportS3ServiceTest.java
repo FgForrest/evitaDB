@@ -32,6 +32,7 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.FileChecksumInvalidException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
@@ -337,6 +338,34 @@ class ExportS3ServiceTest {
 
 		// The file must be removed from the local cache as well (stateless -> check lookup returns empty)
 		assertTrue(this.exportService.getFile(storedFile.fileId()).isEmpty());
+	}
+
+	@Test
+	@DisplayName("Should throw exception when file content is corrupted")
+	void shouldThrowExceptionWhenFileContentIsCorrupted() throws IOException {
+		final FileForFetch storedFile = writeFile("test.txt", "A");
+
+		// Construct object key
+		final String name = storedFile.name();
+		final int dotIdx = name.lastIndexOf('.');
+		final String ext = dotIdx >= 0 ? name.substring(dotIdx) : "";
+		final String objectKey = storedFile.fileId().toString() + ext;
+
+		// Get original metadata
+		var headObjectResponse = this.s3Client.headObject(b -> b.bucket(BUCKET_NAME).key(objectKey));
+		Map<String, String> metadata = headObjectResponse.metadata();
+
+		// Upload modified content with original metadata (containing original CRC32)
+		this.s3Client.putObject(PutObjectRequest.builder()
+				.bucket(BUCKET_NAME)
+				.key(objectKey)
+				.metadata(metadata)
+				.build(),
+			RequestBody.fromString("corrupted content"));
+
+		final InputStream is = this.exportService.fetchFile(storedFile.fileId());
+		is.readAllBytes();
+		assertThrows(FileChecksumInvalidException.class, is::close);
 	}
 
 	@Test

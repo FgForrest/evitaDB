@@ -26,6 +26,7 @@ package io.evitadb.spi.export;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.FileChecksumInvalidException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.model.ExportFileHandle;
 
@@ -125,9 +126,10 @@ public interface ExportService extends Closeable {
 	 * @param fileId file identifier
 	 * @return non-null stream to read the file contents
 	 * @throws FileForFetchNotFoundException if the file does not exist
+	 * @throws FileChecksumInvalidException if the file's checksum does not match the expected value
 	 */
 	@Nonnull
-	InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException;
+	InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, FileChecksumInvalidException;
 
 	/**
 	 * Deletes the file identified by {@code fileId}.
