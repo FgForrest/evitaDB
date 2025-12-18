@@ -157,10 +157,10 @@ public class ExportFileService implements ExportService {
 	 * @return {@link FileForFetch} instance or empty if the file is not valid.
 	 */
 	@Nonnull
-	private static Optional<FileForFetch> toFileForFetch(@Nonnull Path metadataFile) {
+	private static Optional<FileSystemFileForFetch> toFileForFetch(@Nonnull Path metadataFile) {
 		try {
 			final List<String> metadataLines = Files.readAllLines(metadataFile, StandardCharsets.UTF_8);
-			return of(FileForFetch.fromLines(metadataLines));
+			return of(FileSystemFileForFetch.fromLines(metadataLines));
 		} catch (Exception e) {
 			return empty();
 		}
@@ -272,7 +272,10 @@ public class ExportFileService implements ExportService {
 		final List<FileForFetch> theFiles = getAndCacheFiles();
 		Stream<FileForFetch> stream = theFiles.stream();
 		if (!origin.isEmpty()) {
-			stream = stream.filter(it -> it.origin() != null && Arrays.stream(it.origin()).anyMatch(origin::contains));
+			stream = stream.filter(it -> {
+				final String[] theOrigin = it.origin();
+				return theOrigin != null && Arrays.stream(theOrigin).anyMatch(origin::contains);
+			});
 		}
 		if (!catalog.isEmpty()) {
 			stream = stream.filter(it -> it.catalogName() != null && catalog.contains(it.catalogName()));
@@ -297,7 +300,7 @@ public class ExportFileService implements ExportService {
 		try (final Stream<Path> fileStream = Files.walk(this.fsOptions.getDirectory(), 2)) {
 			return fileStream
 				.filter(Files::isRegularFile)
-				.filter(it -> it.toFile().getName().equals(fileId + FileForFetch.METADATA_EXTENSION))
+				.filter(it -> it.toFile().getName().equals(fileId + FileSystemFileForFetch.METADATA_EXTENSION))
 				.findFirst()
 				.flatMap(ExportFileService::toFileForFetch);
 		} catch (IOException e) {
@@ -345,9 +348,9 @@ public class ExportFileService implements ExportService {
 					finalFilePath,
 					fileForFetchCompletableFuture,
 					(checksum) -> {
-						final FileForFetch fileForFetch;
+						final FileSystemFileForFetch fileForFetch;
 						try {
-							fileForFetch = new FileForFetch(
+							fileForFetch = new FileSystemFileForFetch(
 								fileId,
 								fileName,
 								description,
@@ -388,8 +391,11 @@ public class ExportFileService implements ExportService {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
+			if (!(file instanceof FileSystemFileForFetch fileSystemFile)) {
+				throw new GenericEvitaInternalError("File is not stored on file system.");
+			}
 			return new Crc32VerifyingInputStream(
-				Files.newInputStream(file.path(this.fsOptions.getDirectory()), StandardOpenOption.READ),
+				Files.newInputStream(fileSystemFile.path(this.fsOptions.getDirectory()), StandardOpenOption.READ),
 				file.crc32()
 			);
 		} catch (IOException e) {
@@ -406,8 +412,10 @@ public class ExportFileService implements ExportService {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			Files.deleteIfExists(file.metadataPath(this.fsOptions.getDirectory()));
-			Files.deleteIfExists(file.path(this.fsOptions.getDirectory()));
+			if (file instanceof FileSystemFileForFetch fileSystemFile) {
+				Files.deleteIfExists(fileSystemFile.metadataPath(this.fsOptions.getDirectory()));
+				Files.deleteIfExists(fileSystemFile.path(this.fsOptions.getDirectory()));
+			}
 
 			// Cache reference taken once to avoid TOCTOU issues.
 			// CopyOnWriteArrayList handles concurrent reads/writes safely.
@@ -460,7 +468,7 @@ public class ExportFileService implements ExportService {
 				fileStream
 					.map(Path::normalize)
 					.filter(Files::isRegularFile)
-					.filter(it -> !it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
+					.filter(it -> !it.toFile().getName().endsWith(FileSystemFileForFetch.METADATA_EXTENSION))
 					.filter(it -> !getUuidFromPath(it).map(knownFileIds::contains).orElse(false))
 					.filter(it -> !this.folderLock.lockFilePath().equals(it))
 					.filter(it -> FileUtils.getFileLastModifiedTime(it)
@@ -487,12 +495,14 @@ public class ExportFileService implements ExportService {
 						.toList();
 					long savedSize = 0L;
 					for (FileForFetch it : filesByCreationDate) {
-						log.info("Purging the oldest file, because the export directory grew too big: {}", it);
-						final long metadataFileSize = it.metadataPath(this.fsOptions.getDirectory())
-							.toFile()
-							.length();
-						deleteFileInternal(it);
-						savedSize += it.totalSizeInBytes() + metadataFileSize;
+						if (it instanceof FileSystemFileForFetch fileSystemFile) {
+							log.info("Purging the oldest file, because the export directory grew too big: {}", it);
+							final long metadataFileSize = fileSystemFile.metadataPath(this.fsOptions.getDirectory())
+								.toFile()
+								.length();
+							deleteFileInternal(it);
+							savedSize += it.totalSizeInBytes() + metadataFileSize;
+						}
 						// finish removing files if the directory size is below the limit
 						if (directorySize - savedSize <= this.fsOptions.getSizeLimitBytes()) {
 							break;
@@ -643,7 +653,7 @@ public class ExportFileService implements ExportService {
 		try (final Stream<Path> fileStream = Files.walk(this.fsOptions.getDirectory(), 2)) {
 			return fileStream
 				.filter(Files::isRegularFile)
-				.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
+				.filter(it -> it.toFile().getName().endsWith(FileSystemFileForFetch.METADATA_EXTENSION))
 				.map(ExportFileService::toFileForFetch)
 				.flatMap(Optional::stream)
 				.sorted(Comparator.comparing(FileForFetch::created).reversed())
@@ -667,8 +677,10 @@ public class ExportFileService implements ExportService {
 	 */
 	private void deleteFileInternal(FileForFetch file) {
 		try {
-			Files.deleteIfExists(file.metadataPath(this.fsOptions.getDirectory()));
-			Files.deleteIfExists(file.path(this.fsOptions.getDirectory()));
+			if (file instanceof FileSystemFileForFetch fileSystemFile) {
+				Files.deleteIfExists(fileSystemFile.metadataPath(this.fsOptions.getDirectory()));
+				Files.deleteIfExists(fileSystemFile.path(this.fsOptions.getDirectory()));
+			}
 
 			// Cache reference taken once to avoid TOCTOU issues.
 			// CopyOnWriteArrayList handles concurrent reads/writes safely.
@@ -693,7 +705,7 @@ public class ExportFileService implements ExportService {
 	 * @throws EvitaIOException if the metadata cannot be written
 	 */
 	private void writeFileMetadata(
-		@Nonnull FileForFetch fileForFetch,
+		@Nonnull FileSystemFileForFetch fileForFetch,
 		@Nonnull OpenOption... options
 	) throws EvitaIOException {
 		try {

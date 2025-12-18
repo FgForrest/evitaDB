@@ -69,6 +69,7 @@ import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.export.file.FileSystemFileForFetch;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.function.Functions;
 import io.evitadb.function.TriConsumer;
@@ -2669,7 +2670,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			final CompletableFuture<FileForFetch> fileForFetchCompletableFuture = lastBackupProcess.get();
 			assertNotNull(fileForFetchCompletableFuture, "No backup process was started!");
-			final Path backupFilePath = fileForFetchCompletableFuture.get().path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
+			final Path backupFilePath = ((FileSystemFileForFetch) fileForFetchCompletableFuture.get()).path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
@@ -2765,7 +2766,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				evita, productSchema, theEvita -> lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false))
 			);
 
-			final Path backupFilePath = lastBackupProcess.get().get().path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
+			final Path backupFilePath = ((FileSystemFileForFetch) lastBackupProcess.get().get()).path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
@@ -3045,8 +3046,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 								try {
 									log.info("Bootstrap record: " + record);
 									// create backup from each point in time
-									final Path backupPath = restartedEvita.management().backupCatalog(TEST_CATALOG, null, record.catalogVersion(), false)
-										.get(2, TimeUnit.MINUTES).path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
+									final Path backupPath = ((FileSystemFileForFetch) restartedEvita.management().backupCatalog(TEST_CATALOG, null, record.catalogVersion(), false)
+										.get(2, TimeUnit.MINUTES)).path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 									// restore it to unique new catalog
 									final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();
 									try (final InputStream inputStream = Files.newInputStream(backupPath)) {

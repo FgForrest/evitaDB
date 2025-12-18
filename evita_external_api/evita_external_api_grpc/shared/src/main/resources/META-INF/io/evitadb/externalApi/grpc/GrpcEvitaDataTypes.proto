@@ -358,8 +358,12 @@ message GrpcFile {
   int64 totalSizeInBytes = 5;
   // Date and time when the file was created
   GrpcOffsetDateTime created = 6;
-  // Origin of the file (usually the taskType)
+  // Origin of the file (usually the taskType, optional)
   google.protobuf.StringValue origin = 7;
+  // Name of the catalog the file is related to (optional)
+  google.protobuf.StringValue catalogName = 8;
+  // CRC32 checksum of the file
+  int64 crc32 = 9;
 }
 
 // Record representing status of particular asynchronous task

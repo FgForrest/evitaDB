@@ -74,6 +74,7 @@ import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.export.file.FileSystemFileForFetch;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateOptions;
@@ -4293,7 +4294,7 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG, null, null, true
 		).join();
 
-		final Path backupPath = backupPathFuture.path(
+		final Path backupPath = ((FileSystemFileForFetch) backupPathFuture).path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
 
@@ -4383,7 +4384,7 @@ class EvitaTest implements EvitaTestSupport {
 		final FileForFetch backupPathFuture = management.backupCatalog(
 			TEST_CATALOG, null, null, true
 		).join();
-		final Path backupPath = backupPathFuture.path(
+		final Path backupPath = ((FileSystemFileForFetch) backupPathFuture).path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
 

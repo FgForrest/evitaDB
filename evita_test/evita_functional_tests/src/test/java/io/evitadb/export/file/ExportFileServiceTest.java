@@ -120,7 +120,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertArrayEquals(new String[]{"A", "B"}, fileForFetch.origin());
 
 		// verify the file content
-		assertEquals("testFileContent", Files.readString(fileForFetch.path(this.exportOptions.getDirectory()), StandardCharsets.UTF_8));
+		assertEquals("testFileContent", Files.readString(((FileSystemFileForFetch) fileForFetch).path(this.exportOptions.getDirectory()), StandardCharsets.UTF_8));
 	}
 
 	@Test
@@ -250,11 +250,11 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertTrue(Files.isDirectory(catalogDir), "Catalog path should be a directory");
 
 		// Verify file existence in the subdirectory
-		final Path expectedPath = storedFile.path(this.exportOptions.getDirectory());
+		final Path expectedPath = ((FileSystemFileForFetch) storedFile).path(this.exportOptions.getDirectory());
 		assertTrue(Files.exists(expectedPath), "File should exist in catalog subdirectory");
 
 		// Verify metadata existence in the subdirectory
-		final Path expectedMetadataPath = storedFile.metadataPath(this.exportOptions.getDirectory());
+		final Path expectedMetadataPath = ((FileSystemFileForFetch) storedFile).metadataPath(this.exportOptions.getDirectory());
 		assertTrue(Files.exists(expectedMetadataPath), "Metadata file should exist in catalog subdirectory");
 
 		// Verify retrieval
@@ -287,8 +287,8 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// File and metadata should be gone
 		final Path catalogDir = this.exportOptions.getDirectory().resolve(catalogName);
-		final Path filePath = storedFile.path(catalogDir);
-		final Path metadataPath = storedFile.metadataPath(catalogDir);
+		final Path filePath = ((FileSystemFileForFetch) storedFile).path(catalogDir);
+		final Path metadataPath = ((FileSystemFileForFetch) storedFile).metadataPath(catalogDir);
 
 		assertFalse(Files.exists(filePath), "File should be deleted");
 		assertFalse(Files.exists(metadataPath), "Metadata should be deleted");
@@ -437,7 +437,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		final FileForFetch storedFile = writeFile("testfile", "A");
 
 		// Verify the file path doesn't have trailing dot
-		final Path filePath = storedFile.path(exportOptions.getDirectory());
+		final Path filePath = ((FileSystemFileForFetch) storedFile).path(exportOptions.getDirectory());
 		assertFalse(filePath.toString().endsWith("."));
 		assertTrue(Files.exists(filePath));
 		assertEquals("testfile", storedFile.name());
@@ -450,7 +450,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		assertEquals("test.backup.2024.tar.gz", storedFile.name());
 		// Extension should be "gz"
-		assertTrue(storedFile.path(exportOptions.getDirectory()).toString().endsWith(".gz"));
+		assertTrue(((FileSystemFileForFetch) storedFile).path(exportOptions.getDirectory()).toString().endsWith(".gz"));
 	}
 
 	@Test
@@ -459,7 +459,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		final FileForFetch storedFile = writeFile("test file with spaces.txt", "A");
 
 		// Verify file was created and can be retrieved
-		assertTrue(Files.exists(storedFile.path(exportOptions.getDirectory())));
+		assertTrue(Files.exists(((FileSystemFileForFetch) storedFile).path(exportOptions.getDirectory())));
 	}
 
 	// ==================== Empty File and Null Origin Tests ====================
@@ -591,7 +591,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Create corrupted metadata file directly
 		final Path corruptedMetadata = exportOptions.getDirectory()
-			.resolve(UUIDUtil.randomUUID() + FileForFetch.METADATA_EXTENSION);
+			.resolve(UUIDUtil.randomUUID() + FileSystemFileForFetch.METADATA_EXTENSION);
 		Files.writeString(corruptedMetadata, "corrupted content");
 
 		exportService.close();
@@ -687,7 +687,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@DisplayName("Should throw exception when file content is corrupted")
 	void shouldThrowExceptionWhenFileContentIsCorrupted() throws IOException {
 		final FileForFetch storedFile = writeFile("test.txt", "A");
-		final Path filePath = storedFile.path(this.exportOptions.getDirectory());
+		final Path filePath = ((FileSystemFileForFetch) storedFile).path(this.exportOptions.getDirectory());
 
 		// Append a byte to corrupt the file content
 		Files.write(filePath, new byte[]{0}, java.nio.file.StandardOpenOption.APPEND);

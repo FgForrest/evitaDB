@@ -296,7 +296,7 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue origin_;
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Origin of the file (usually the taskType, optional)
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -308,7 +308,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Origin of the file (usually the taskType, optional)
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -320,7 +320,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Origin of the file (usually the taskType, optional)
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -328,6 +328,59 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.StringValueOrBuilder getOriginOrBuilder() {
     return origin_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : origin_;
+  }
+
+  public static final int CATALOGNAME_FIELD_NUMBER = 8;
+  private com.google.protobuf.StringValue catalogName_;
+  /**
+   * <pre>
+   * Name of the catalog the file is related to (optional)
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue catalogName = 8;</code>
+   * @return Whether the catalogName field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogName() {
+    return ((bitField0_ & 0x00000010) != 0);
+  }
+  /**
+   * <pre>
+   * Name of the catalog the file is related to (optional)
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue catalogName = 8;</code>
+   * @return The catalogName.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getCatalogName() {
+    return catalogName_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : catalogName_;
+  }
+  /**
+   * <pre>
+   * Name of the catalog the file is related to (optional)
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue catalogName = 8;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getCatalogNameOrBuilder() {
+    return catalogName_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : catalogName_;
+  }
+
+  public static final int CRC32_FIELD_NUMBER = 9;
+  private long crc32_ = 0L;
+  /**
+   * <pre>
+   * CRC32 checksum of the file
+   * </pre>
+   *
+   * <code>int64 crc32 = 9;</code>
+   * @return The crc32.
+   */
+  @java.lang.Override
+  public long getCrc32() {
+    return crc32_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -365,6 +418,12 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000008) != 0)) {
       output.writeMessage(7, getOrigin());
     }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      output.writeMessage(8, getCatalogName());
+    }
+    if (crc32_ != 0L) {
+      output.writeInt64(9, crc32_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -399,6 +458,14 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000008) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(7, getOrigin());
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(8, getCatalogName());
+    }
+    if (crc32_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(9, crc32_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -441,6 +508,13 @@ private static final long serialVersionUID = 0L;
       if (!getOrigin()
           .equals(other.getOrigin())) return false;
     }
+    if (hasCatalogName() != other.hasCatalogName()) return false;
+    if (hasCatalogName()) {
+      if (!getCatalogName()
+          .equals(other.getCatalogName())) return false;
+    }
+    if (getCrc32()
+        != other.getCrc32()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -475,6 +549,13 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + ORIGIN_FIELD_NUMBER;
       hash = (53 * hash) + getOrigin().hashCode();
     }
+    if (hasCatalogName()) {
+      hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogName().hashCode();
+    }
+    hash = (37 * hash) + CRC32_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getCrc32());
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -613,6 +694,7 @@ private static final long serialVersionUID = 0L;
         getDescriptionFieldBuilder();
         getCreatedFieldBuilder();
         getOriginFieldBuilder();
+        getCatalogNameFieldBuilder();
       }
     }
     @java.lang.Override
@@ -642,6 +724,12 @@ private static final long serialVersionUID = 0L;
         originBuilder_.dispose();
         originBuilder_ = null;
       }
+      catalogName_ = null;
+      if (catalogNameBuilder_ != null) {
+        catalogNameBuilder_.dispose();
+        catalogNameBuilder_ = null;
+      }
+      crc32_ = 0L;
       return this;
     }
 
@@ -708,6 +796,15 @@ private static final long serialVersionUID = 0L;
             ? origin_
             : originBuilder_.build();
         to_bitField0_ |= 0x00000008;
+      }
+      if (((from_bitField0_ & 0x00000080) != 0)) {
+        result.catalogName_ = catalogNameBuilder_ == null
+            ? catalogName_
+            : catalogNameBuilder_.build();
+        to_bitField0_ |= 0x00000010;
+      }
+      if (((from_bitField0_ & 0x00000100) != 0)) {
+        result.crc32_ = crc32_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -781,6 +878,12 @@ private static final long serialVersionUID = 0L;
       if (other.hasOrigin()) {
         mergeOrigin(other.getOrigin());
       }
+      if (other.hasCatalogName()) {
+        mergeCatalogName(other.getCatalogName());
+      }
+      if (other.getCrc32() != 0L) {
+        setCrc32(other.getCrc32());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -850,6 +953,18 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000040;
               break;
             } // case 58
+            case 66: {
+              input.readMessage(
+                  getCatalogNameFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000080;
+              break;
+            } // case 66
+            case 72: {
+              crc32_ = input.readInt64();
+              bitField0_ |= 0x00000100;
+              break;
+            } // case 72
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1571,7 +1686,7 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> originBuilder_;
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1582,7 +1697,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1597,7 +1712,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1617,7 +1732,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1635,7 +1750,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1660,7 +1775,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1677,7 +1792,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1689,7 +1804,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1704,7 +1819,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Origin of the file (usually the taskType, optional)
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1721,6 +1836,207 @@ private static final long serialVersionUID = 0L;
         origin_ = null;
       }
       return originBuilder_;
+    }
+
+    private com.google.protobuf.StringValue catalogName_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> catalogNameBuilder_;
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     * @return Whether the catalogName field is set.
+     */
+    public boolean hasCatalogName() {
+      return ((bitField0_ & 0x00000080) != 0);
+    }
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     * @return The catalogName.
+     */
+    public com.google.protobuf.StringValue getCatalogName() {
+      if (catalogNameBuilder_ == null) {
+        return catalogName_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : catalogName_;
+      } else {
+        return catalogNameBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     */
+    public Builder setCatalogName(com.google.protobuf.StringValue value) {
+      if (catalogNameBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        catalogName_ = value;
+      } else {
+        catalogNameBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     */
+    public Builder setCatalogName(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (catalogNameBuilder_ == null) {
+        catalogName_ = builderForValue.build();
+      } else {
+        catalogNameBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     */
+    public Builder mergeCatalogName(com.google.protobuf.StringValue value) {
+      if (catalogNameBuilder_ == null) {
+        if (((bitField0_ & 0x00000080) != 0) &&
+          catalogName_ != null &&
+          catalogName_ != com.google.protobuf.StringValue.getDefaultInstance()) {
+          getCatalogNameBuilder().mergeFrom(value);
+        } else {
+          catalogName_ = value;
+        }
+      } else {
+        catalogNameBuilder_.mergeFrom(value);
+      }
+      if (catalogName_ != null) {
+        bitField0_ |= 0x00000080;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     */
+    public Builder clearCatalogName() {
+      bitField0_ = (bitField0_ & ~0x00000080);
+      catalogName_ = null;
+      if (catalogNameBuilder_ != null) {
+        catalogNameBuilder_.dispose();
+        catalogNameBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getCatalogNameBuilder() {
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return getCatalogNameFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getCatalogNameOrBuilder() {
+      if (catalogNameBuilder_ != null) {
+        return catalogNameBuilder_.getMessageOrBuilder();
+      } else {
+        return catalogName_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : catalogName_;
+      }
+    }
+    /**
+     * <pre>
+     * Name of the catalog the file is related to (optional)
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue catalogName = 8;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getCatalogNameFieldBuilder() {
+      if (catalogNameBuilder_ == null) {
+        catalogNameBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getCatalogName(),
+                getParentForChildren(),
+                isClean());
+        catalogName_ = null;
+      }
+      return catalogNameBuilder_;
+    }
+
+    private long crc32_ ;
+    /**
+     * <pre>
+     * CRC32 checksum of the file
+     * </pre>
+     *
+     * <code>int64 crc32 = 9;</code>
+     * @return The crc32.
+     */
+    @java.lang.Override
+    public long getCrc32() {
+      return crc32_;
+    }
+    /**
+     * <pre>
+     * CRC32 checksum of the file
+     * </pre>
+     *
+     * <code>int64 crc32 = 9;</code>
+     * @param value The crc32 to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCrc32(long value) {
+
+      crc32_ = value;
+      bitField0_ |= 0x00000100;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * CRC32 checksum of the file
+     * </pre>
+     *
+     * <code>int64 crc32 = 9;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCrc32() {
+      bitField0_ = (bitField0_ & ~0x00000100);
+      crc32_ = 0L;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

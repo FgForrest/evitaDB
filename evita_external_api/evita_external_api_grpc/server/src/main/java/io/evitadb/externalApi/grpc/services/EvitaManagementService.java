@@ -601,6 +601,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final PaginatedList<FileForFetch> filesToFetch = this.management.listFilesToFetch(
 					request.getPageNumber(),
 					request.getPageSize(),
+					request.getCatalogNameList()
+						.stream()
+						.map(StringValue::getValue)
+						.collect(Collectors.toSet()),
 					request.getOriginList()
 						.stream()
 						.map(StringValue::getValue)

@@ -192,7 +192,7 @@ public class ExportS3Service implements ExportService {
 				? null
 				: Arrays.stream(originStr.split(",")).map(String::trim).toArray(String[]::new);
 
-			return new FileForFetch(
+			return new S3FileForFetch(
 				fileId,
 				name,
 				(description == null || description.isBlank()) ? null : description,
@@ -975,7 +975,7 @@ public class ExportS3Service implements ExportService {
 					.whenComplete((ignored, throwable) -> {
 						try {
 							if (throwable == null) {
-								final FileForFetch fileForFetch = new FileForFetch(
+								final FileForFetch fileForFetch = new S3FileForFetch(
 									this.fileId,
 									this.fileName,
 									this.description,
