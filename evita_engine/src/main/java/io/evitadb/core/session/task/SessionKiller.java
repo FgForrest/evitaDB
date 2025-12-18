@@ -26,11 +26,11 @@ package io.evitadb.core.session.task;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.RollbackException;
-import io.evitadb.core.Evita;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.session.KilledEvent;
 import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,15 +54,15 @@ public class SessionKiller implements Runnable, Closeable {
 	/**
 	 * Reference to the evitaDB instance.
 	 */
-	private final Evita evita;
+	private final SessionRegistry sessionRegistry;
 	/**
 	 * The task that is scheduled to kill the sessions.
 	 */
 	private final DelayedAsyncTask killerTask;
 
-	public SessionKiller(int allowedInactivityInSeconds, @Nonnull Evita evita, @Nonnull Scheduler scheduler) {
+	public SessionKiller(int allowedInactivityInSeconds, @Nonnull SessionRegistry sessionRegistry, @Nonnull Scheduler scheduler) {
 		this.allowedInactivityInSeconds = allowedInactivityInSeconds;
-		this.evita = evita;
+		this.sessionRegistry = sessionRegistry;
 		this.killerTask = new DelayedAsyncTask(
 			null,
 			"Session killer",
@@ -81,10 +81,10 @@ public class SessionKiller implements Runnable, Closeable {
 	@Override
 	public void run() {
 		try {
-			this.evita.clearSessionRegistries();
+			this.sessionRegistry.clearSessionRegistries();
 
 			final AtomicInteger counter = new AtomicInteger(0);
-			this.evita.getActiveSessions()
+			this.sessionRegistry.getActiveSessions()
 				.map(EvitaInternalSessionContract.class::cast)
 				.filter(session -> {
 					final boolean sessionOld = session.getInactivityDurationInSeconds() >= this.allowedInactivityInSeconds;
@@ -104,7 +104,7 @@ public class SessionKiller implements Runnable, Closeable {
 						}
 
 						try {
-							this.evita.terminateSession(session);
+							session.close();
 						} catch (RollbackException ex) {
 							// ignore rollback exceptions during session termination
 							// this is expected and may happen

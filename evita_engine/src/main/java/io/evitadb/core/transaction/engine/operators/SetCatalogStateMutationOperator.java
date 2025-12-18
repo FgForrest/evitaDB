@@ -144,7 +144,7 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						}
 					);
 
-					evita.removeCatalogSessionRegistryIfPresent(catalogName);
+					evita.getSessionRegistry().removeCatalogSessionRegistryIfPresent(catalogName);
 					theCatalog.terminate();
 					return null;
 				}

@@ -381,44 +381,52 @@ public class ExportFileService implements ExportService {
 		);
 
 		// then go through the directory files, that does not have metadata file and delete all that were created before the threshold
-		try (final Stream<Path> fileStream = Files.list(this.fsOptions.getDirectory())) {
-			fileStream
-				.map(Path::normalize)
-				.filter(it -> !getUuidFromPath(it).map(knownFiles::contains).orElse(false))
-				.filter(it -> !this.folderLock.lockFilePath().equals(it))
-				.filter(it -> FileUtils.getFileLastModifiedTime(it).map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate)).orElse(true))
-				.forEach(it -> {
-					log.info("Purging temporary file, because it has been last modified before {}: {}", thresholdDate, it);
-					FileUtils.deleteFileIfExists(it);
-				});
-		} catch (IOException e) {
-			log.error("Failed to list files in the directory: {}", this.fsOptions.getDirectory(), e);
-		}
+		final Path directory = this.fsOptions.getDirectory();
+		if (directory.toFile().exists()) {
+			try (final Stream<Path> fileStream = Files.list(directory)) {
+				fileStream
+					.map(Path::normalize)
+					.filter(it -> !getUuidFromPath(it).map(knownFiles::contains).orElse(false))
+					.filter(it -> !this.folderLock.lockFilePath().equals(it))
+					.filter(it -> FileUtils.getFileLastModifiedTime(it)
+						.map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate))
+						.orElse(true))
+					.forEach(it -> {
+						log.info(
+							"Purging temporary file, because it has been last modified before {}: {}", thresholdDate,
+							it
+						);
+						FileUtils.deleteFileIfExists(it);
+					});
+			} catch (IOException e) {
+				log.error("Failed to list files in the directory: {}", directory, e);
+			}
 
-		try {
-			// then check the size of the directory and delete oldest files until the directory size is below the limit
-			final long directorySize = FileUtils.getDirectorySize(this.fsOptions.getDirectory());
-			// delete the oldest files until the directory size is below the limit
-			if (directorySize > this.fsOptions.getSizeLimitBytes()) {
-				final List<FileForFetch> filesByCreationDate = this.files.stream()
-					.sorted(Comparator.comparing(FileForFetch::created))
-					.toList();
-				long savedSize = 0L;
-				for (FileForFetch it : filesByCreationDate) {
-					log.info("Purging the oldest file, because the export directory grew too big: {}", it);
-					final long metadataFileSize = it.metadataPath(this.fsOptions.getDirectory())
-						.toFile()
-						.length();
-					deleteFile(it.fileId());
-					savedSize += it.totalSizeInBytes() + metadataFileSize;
-					// finish removing files if the directory size is below the limit
-					if (directorySize - savedSize <= this.fsOptions.getSizeLimitBytes()) {
-						break;
+			try {
+				// then check the size of the directory and delete oldest files until the directory size is below the limit
+				final long directorySize = FileUtils.getDirectorySize(directory);
+				// delete the oldest files until the directory size is below the limit
+				if (directorySize > this.fsOptions.getSizeLimitBytes()) {
+					final List<FileForFetch> filesByCreationDate = this.files.stream()
+						.sorted(Comparator.comparing(FileForFetch::created))
+						.toList();
+					long savedSize = 0L;
+					for (FileForFetch it : filesByCreationDate) {
+						log.info("Purging the oldest file, because the export directory grew too big: {}", it);
+						final long metadataFileSize = it.metadataPath(directory)
+							.toFile()
+							.length();
+						deleteFile(it.fileId());
+						savedSize += it.totalSizeInBytes() + metadataFileSize;
+						// finish removing files if the directory size is below the limit
+						if (directorySize - savedSize <= this.fsOptions.getSizeLimitBytes()) {
+							break;
+						}
 					}
 				}
+			} catch (UnexpectedIOException e) {
+				log.error("Failed to calculate size of the directory: {}", directory, e);
 			}
-		} catch (UnexpectedIOException e) {
-			log.error("Failed to calculate size of the directory: {}", this.fsOptions.getDirectory(), e);
 		}
 	}
 
