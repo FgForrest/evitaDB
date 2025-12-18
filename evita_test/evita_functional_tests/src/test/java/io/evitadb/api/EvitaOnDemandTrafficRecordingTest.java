@@ -434,9 +434,23 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		System.out.println("Verifying the content of the ZIP archive: " + fileForFetch);
 
 		final byte[] buffer = new byte[4_096];
+
+		// First phase: fetch the file with CRC32 verification and save to temporary file
+		// This is necessary because ZipInputStream doesn't read all bytes sequentially (it skips
+		// metadata, central directories, etc.), which causes Crc32VerifyingInputStream to fail
+		final Path tempZipFile = Files.createTempFile("evitaTrafficRecordingTest", ".zip");
+		try (
+			final InputStream crc32VerifyingStream = this.evita.management().fetchFile(fileForFetch.fileId());
+			final OutputStream tempOutputStream = new BufferedOutputStream(Files.newOutputStream(tempZipFile, StandardOpenOption.TRUNCATE_EXISTING), 4_096)
+		) {
+			// copy entire file to disk, which verifies CRC32 on close
+			IOUtils.copy(crc32VerifyingStream, tempOutputStream, buffer);
+		}
+
+		// Second phase: process ZIP entries from the verified temporary file
 		final List<String> filesInZip = new ArrayList<>(16);
 		try (
-			final InputStream inputStream = this.evita.management().fetchFile(fileForFetch.fileId());
+			final InputStream inputStream = Files.newInputStream(tempZipFile, StandardOpenOption.READ);
 			final ZipInputStream zipInputStream = new ZipInputStream(inputStream)
 		) {
 			ZipEntry nextEntry;
@@ -467,6 +481,9 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 				}
 				zipInputStream.closeEntry();
 			}
+		} finally {
+			// cleanup temporary ZIP file
+			Files.deleteIfExists(tempZipFile);
 		}
 		return filesInZip.toArray(String[]::new);
 	}
