@@ -25,7 +25,7 @@ package io.evitadb.core.session;
 
 
 /**
- * Enum contains different levels of suspension operations for the SessionRegistry.
+ * Enum contains different levels of suspension operations for the CatalogSessionRegistry.
  */
 public enum SuspendOperation {
 	/**

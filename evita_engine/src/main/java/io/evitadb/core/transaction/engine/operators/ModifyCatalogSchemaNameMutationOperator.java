@@ -34,6 +34,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.engine.ExpandedEngineState.Builder;
+import io.evitadb.core.session.CatalogSessionRegistry;
 import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
@@ -112,20 +113,21 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		@Nonnull Evita evita,
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	) {
+		final SessionRegistry sessionRegistry = evita.getSessionRegistry();
 		// close all active sessions to the catalog that will replace the original one
-		final Optional<SessionRegistry> prevailingCatalogSessionRegistry = evita.getCatalogSessionRegistry(catalogNameToBeReplacedWith);
+		final Optional<CatalogSessionRegistry> prevailingCatalogSessionRegistry = sessionRegistry.getCatalogSessionRegistry(catalogNameToBeReplacedWith);
 		// this will be always empty if catalogToBeReplaced == catalogToBeReplacedWith
-		Optional<SessionRegistry> removedCatalogSessionRegistry = evita.getCatalogSessionRegistry(catalogNameToBeReplaced);
+		final Optional<CatalogSessionRegistry> removedCatalogSessionRegistry = sessionRegistry.getCatalogSessionRegistry(catalogNameToBeReplaced);
 
 		prevailingCatalogSessionRegistry
-			.ifPresent(sessionRegistry -> sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE));
+			.ifPresent(catalogSessionRegistry -> catalogSessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE));
 
 		final Runnable undoOperations = () -> {
 			// revert session registry swap
 			if (removedCatalogSessionRegistry.isPresent()) {
-				evita.registerCatalogSessionRegistry(catalogNameToBeReplaced, removedCatalogSessionRegistry.get());
+				sessionRegistry.registerCatalogSessionRegistry(catalogNameToBeReplaced, removedCatalogSessionRegistry.get());
 			} else {
-				evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
+				sessionRegistry.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
 			}
 		};
 
@@ -179,23 +181,23 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					if (replaceOperation) {
 						// we can resume suspended operations on catalogs
 						prevailingCatalogSessionRegistry.ifPresent(
-							sessionRegistry -> {
-								evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
-								final SessionRegistry previous = evita.registerWithReplaceCatalogSessionRegistry(
+							catalogSessionRegistry -> {
+								sessionRegistry.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
+								final CatalogSessionRegistry previous = sessionRegistry.registerWithReplaceCatalogSessionRegistry(
 									catalogNameToBeReplaced,
-									sessionRegistry.withDifferentCatalogSupplier(
+									catalogSessionRegistry.withDifferentCatalogSupplier(
 										() -> (Catalog) evita.getCatalogInstanceOrThrowException(
 											catalogNameToBeReplaced))
 								);
 								Assert.isPremiseValid(
-									previous == null || previous == removedCatalogSessionRegistry.get(),
+									previous == null || previous == removedCatalogSessionRegistry.orElse(null),
 									"Unexpected instance of the session registry was replaced!"
 								);
-								sessionRegistry.resumeOperations();
+								catalogSessionRegistry.resumeOperations();
 							}
 						);
 					} else {
-						removedCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations);
+						removedCatalogSessionRegistry.ifPresent(CatalogSessionRegistry::resumeOperations);
 					}
 
 					// terminate the catalog that was replaced

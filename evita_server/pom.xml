@@ -68,6 +68,11 @@
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
+            <artifactId>evita_cluster_k8s</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>evita_traffic_engine</artifactId>
             <version>${project.parent.version}</version>
         </dependency>

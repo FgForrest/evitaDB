@@ -30,7 +30,6 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.EvitaSessionTerminationCallback;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
@@ -89,10 +88,8 @@ import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.session.SuspensionInformation;
-import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
@@ -114,8 +111,6 @@ import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -136,7 +131,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.Assert.notNull;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -156,17 +150,6 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public final class Evita implements EvitaContract {
 	/**
-	 * Data store shared among all instances of {@link SessionRegistry} that holds information about active sessions.
-	 */
-	private final SessionRegistry.SessionRegistryDataStore sessionRegistryDataStore = SessionRegistry.createDataStore();
-	/**
-	 * Keeps information about session registries for each catalog.
-	 * {@link SessionRegistry} is the primary management service for active sessions, sessions that are stored in
-	 * the {@link #sessionRegistryDataStore} map are present only for quick lookup for the session and are actively
-	 * updated from the session registry (when the session is closed).
-	 */
-	private final Map<String, SessionRegistry> catalogSessionRegistries = CollectionUtils.createConcurrentHashMap(64);
-	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified by
 	 * its {@link Formula#getHash()} method and when the supervisor identifies that certain formula
 	 * is frequently used in query formulas it moves its memoized results to the cache. The non-computed formula
@@ -174,12 +157,6 @@ public final class Evita implements EvitaContract {
 	 * memoized result.
 	 */
 	private final CacheSupervisor cacheSupervisor;
-	/**
-	 * Task that ensures that no inactive session is kept after
-	 * {@link io.evitadb.api.configuration.ServerOptions#closeSessionsAfterSecondsOfInactivity()} inactivity timeout.
-	 */
-	@SuppressWarnings({"FieldCanBeLocal", "unused"})
-	private final SessionKiller sessionKiller;
 	/**
 	 * Field contains the global - shared configuration for the entire Evita instance.
 	 */
@@ -214,6 +191,12 @@ public final class Evita implements EvitaContract {
 	 */
 	private final EvitaManagement management;
 	/**
+	 * Contains a session registry that keeps track of all active sessions in the Evita instance and handles associated
+	 * operation with them.
+	 */
+	@Getter
+	private final SessionRegistry sessionRegistry;
+	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/
 	private final TracingContext tracingContext;
@@ -240,14 +223,6 @@ public final class Evita implements EvitaContract {
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
 	@Getter private boolean readOnly;
-	/**
-	 * Callback that will be called when a new session is created.
-	 */
-	private final Consumer<EvitaSessionContract> onSessionCreationCallback;
-	/**
-	 * Callback that will be called when an old session is closed.
-	 */
-	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
 
 	/**
 	 * Shuts down passed executor service in a safe manner.
@@ -307,11 +282,6 @@ public final class Evita implements EvitaContract {
 		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
 	) {
 		this.configuration = configuration;
-		this.onSessionCreationCallback = onSessionCreationCallback == null ?
-			Functions.noOpConsumer() : onSessionCreationCallback;
-		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
-			Functions.noOpConsumer() : onSessionTerminationCallback;
-
 		this.serviceExecutor = configuration.server().directExecutor() ?
 			// in test environment we use immediate (synchronous) executor to avoid race conditions
 			new Scheduler(new ImmediateScheduledThreadPoolExecutor()) :
@@ -333,14 +303,18 @@ public final class Evita implements EvitaContract {
 			false
 		);
 
-		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
-			.filter(it -> it > 0)
-			.map(it -> new SessionKiller(it, this, this.serviceExecutor))
-			.orElse(null);
 		this.cacheSupervisor = configuration.cache().enabled() ?
 			new HeapMemoryCacheSupervisor(configuration.cache(), this.serviceExecutor) : NoCacheSupervisor.INSTANCE;
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.tracingContext = TracingContextProvider.getContext();
+		this.sessionRegistry = new SessionRegistry(
+			configuration.server(),
+			this.serviceExecutor,
+			this.tracingContext,
+			this::getCatalogByName,
+			onSessionCreationCallback,
+			onSessionTerminationCallback
+		);
 
 		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(
 			EnginePersistenceServiceFactory.class
@@ -361,36 +335,36 @@ public final class Evita implements EvitaContract {
 
 		// register stubs for all inactive catalogs
 		Arrays.stream(engineState.inactiveCatalogs())
-		      .map(
-			      it -> new UnusableCatalog(
-				      it, CatalogState.INACTIVE,
-				      this.configuration.storage().storageDirectory().resolve(it),
-				      CatalogInactiveException::new
-			      )
-		      )
-		      .forEach(it -> catalogs.put(it.getName(), it));
+			.map(
+				it -> new UnusableCatalog(
+					it, CatalogState.INACTIVE,
+					this.configuration.storage().storageDirectory().resolve(it),
+					CatalogInactiveException::new
+				)
+			)
+			.forEach(it -> catalogs.put(it.getName(), it));
 
 		// spawn parallel tasks to load all active catalogs, but don't wait for them to finish
 		//noinspection unchecked
 		this.initialLoadCatalogFutures = new AtomicReference<>(
 			Arrays.stream(engineState.activeCatalogs())
-			      .map(catalogName -> {
-				      catalogs.put(
-					      catalogName,
-					      new UnusableCatalog(
-						      catalogName,
-						      CatalogState.BEING_ACTIVATED,
-						      this.configuration.storage().storageDirectory().resolve(catalogName),
-						      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
-					      )
-				      );
-					  return this.loadCatalogInternal(
-						  catalogName,
-						  ArrayUtils.computeInsertPositionOfObjInOrderedArray(catalogName, engineState.readOnlyCatalogs())
-						            .alreadyPresent()
-					  );
-			      })
-			      .toArray(ProgressingFuture[]::new)
+				.map(catalogName -> {
+					catalogs.put(
+						catalogName,
+						new UnusableCatalog(
+							catalogName,
+							CatalogState.BEING_ACTIVATED,
+							this.configuration.storage().storageDirectory().resolve(catalogName),
+							(cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
+						)
+					);
+					return this.loadCatalogInternal(
+						catalogName,
+						ArrayUtils.computeInsertPositionOfObjInOrderedArray(catalogName, engineState.readOnlyCatalogs())
+							.alreadyPresent()
+					);
+				})
+				.toArray(ProgressingFuture[]::new)
 		);
 		// now init state with catalog stubs
 		this.engineState.set(
@@ -419,10 +393,10 @@ public final class Evita implements EvitaContract {
 					log.error(
 						"Errors encountered during start - {} catalog(s) could not be loaded!",
 						this.getCatalogs()
-						    .stream()
-						    .map(CatalogContract::getCatalogState)
-						    .filter(CatalogState.CORRUPTED::equals)
-						    .count()
+							.stream()
+							.map(CatalogContract::getCatalogState)
+							.filter(CatalogState.CORRUPTED::equals)
+							.count()
 					);
 				}
 				// clear the initial load catalog futures, we don't need them anymore
@@ -453,119 +427,6 @@ public final class Evita implements EvitaContract {
 		return this.active.get();
 	}
 
-	/**
-	 * Schedules the initial loading of catalogs by executing all future tasks
-	 * in the `initialLoadCatalogFutures` collection using the provided service executor.
-	 * This method ensures that the catalog loading tasks are executed concurrently
-	 * or sequentially based on the configuration of the service executor.
-	 *
-	 * The tasks in `initialLoadCatalogFutures` are instances of `ProgressingFuture`
-	 * which encapsulate asynchronous operations for loading catalogs.
-	 */
-	public void scheduleInitialCatalogLoading() {
-		final ProgressingFuture<Catalog>[] progressingFutures = this.initialLoadCatalogFutures.get();
-		if (progressingFutures != null) {
-			for (ProgressingFuture<Catalog> loadCatalogFuture : progressingFutures) {
-				loadCatalogFuture.execute(this.engineTransactionManager.getExecutor());
-			}
-		}
-	}
-
-	/**
-	 * Retrieves an array of ProgressingFuture objects representing the initial catalog load futures.
-	 * If no initial catalog load futures exist, returns an empty array.
-	 *
-	 * @return an array of ProgressingFuture objects for the initial catalog load,
-	 * or an empty array if none are present.
-	 */
-	@Nonnull
-	public ProgressingFuture<Catalog>[] getInitialLoadCatalogFutures() {
-		//noinspection unchecked
-		return ofNullable(this.initialLoadCatalogFutures.get())
-			.orElse((ProgressingFuture<Catalog>[]) ProgressingFuture.EMPTY_ARRAY);
-	}
-
-	/**
-	 * Provides access to the request executor service, which is responsible
-	 * for managing and executing request-level operations with hard deadlines
-	 * within the Evita instance.
-	 *
-	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline}
-	 * that handles request execution with hard deadlines for tasks.
-	 */
-	@Nonnull
-	public ObservableExecutorServiceWithHardDeadline getRequestExecutor() {
-		return this.requestExecutor;
-	}
-
-	/**
-	 * Provides access to the transaction executor service, which is responsible for managing
-	 * and executing transactional operations within the Evita instance.
-	 *
-	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline} that handles
-	 * transaction execution with hard deadlines for tasks.
-	 */
-	@Nonnull
-	public ObservableExecutorServiceWithHardDeadline getTransactionExecutor() {
-		return this.transactionExecutor;
-	}
-
-	/**
-	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
-	 * If we didn't postpone this initialization, events would become lost.
-	 */
-	public void emitStartObservabilityEvents() {
-		// emit the statistics event
-		FlightRecorder.addPeriodicEvent(
-			EvitaStatisticsEvent.class,
-			this::emitEvitaStatistics
-		);
-		FlightRecorder.addPeriodicEvent(
-			RequestForkJoinPoolStatisticsEvent.class,
-			() -> this.requestExecutor.emitPoolStatistics(
-				(fj, steals) -> new RequestForkJoinPoolStatisticsEvent(
-					steals,
-					fj.getQueuedTaskCount(),
-					fj.getActiveThreadCount(),
-					fj.getRunningThreadCount()
-				)
-			)
-		);
-		FlightRecorder.addPeriodicEvent(
-			TransactionForkJoinPoolStatisticsEvent.class,
-			() -> this.transactionExecutor.emitPoolStatistics(
-				(fj, steals) -> new TransactionForkJoinPoolStatisticsEvent(
-					steals,
-					fj.getQueuedTaskCount(),
-					fj.getActiveThreadCount(),
-					fj.getRunningThreadCount()
-				)
-			)
-		);
-		FlightRecorder.addPeriodicEvent(
-			ScheduledExecutorStatisticsEvent.class,
-			this.serviceExecutor::emitScheduledForkJoinPoolStatistics
-		);
-	}
-
-	/**
-	 * Method for internal use. Can switch Evita from read-write to read-only. This is an irreversible operation and
-	 * can be used only once.
-	 */
-	public void setReadOnly() {
-		Assert.isTrue(!this.readOnly, "Only read-write evita can be switched to read-only instance!");
-		this.readOnly = true;
-	}
-
-	/**
-	 * Returns list of all catalogs maintained by this evitaDB instance.
-	 * Part of PRIVATE API.
-	 */
-	@Nonnull
-	public Collection<CatalogContract> getCatalogs() {
-		return this.getEngineState().getCatalogCollection();
-	}
-
 	@Override
 	@Nonnull
 	@SuppressWarnings("resource")
@@ -577,7 +438,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	@Nonnull
 	public Optional<EvitaSessionContract> getSessionById(@Nonnull UUID sessionId) {
-		return this.sessionRegistryDataStore.getActiveSessionById(sessionId);
+		return this.sessionRegistry.getActiveSessionById(sessionId);
 	}
 
 	@Override
@@ -766,13 +627,13 @@ public final class Evita implements EvitaContract {
 			final T resultValue = createdSession.session().execute(updater);
 			// join the transaction future and return the result
 			return createdSession.commitProgress()
-			                     .on(commitBehaviour)
-			                     .handle((__, ex) -> {
-				                     if (ex != null) {
-					                     throw new CompletionException(ex);
-				                     }
-				                     return resultValue;
-			                     });
+				.on(commitBehaviour)
+				.handle((__, ex) -> {
+					if (ex != null) {
+						throw new CompletionException(ex);
+					}
+					return resultValue;
+				});
 		} catch (RuntimeException ex) {
 			createdSession.commitProgress().completeExceptionally(ex);
 			throw ex;
@@ -832,25 +693,116 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Checks if sessions were forcefully closed for the specified catalog and session ID.
+	 * Schedules the initial loading of catalogs by executing all future tasks
+	 * in the `initialLoadCatalogFutures` collection using the provided service executor.
+	 * This method ensures that the catalog loading tasks are executed concurrently
+	 * or sequentially based on the configuration of the service executor.
 	 *
-	 * @param catalogName the name of the catalog for which to check if sessions were forcefully closed; must not be null
-	 * @param sessionId   the unique identifier of the session to check; must not be null
-	 * @return true if sessions were forcefully closed for the specified catalog and session ID, false otherwise
+	 * The tasks in `initialLoadCatalogFutures` are instances of `ProgressingFuture`
+	 * which encapsulate asynchronous operations for loading catalogs.
 	 */
-	public boolean wasSessionForcefullyClosedForCatalog(@Nonnull String catalogName, @Nonnull UUID sessionId) {
-		return ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.map(it -> it.wereSessionsForcefullyClosedForCatalog(sessionId))
-			.orElse(false);
+	public void scheduleInitialCatalogLoading() {
+		final ProgressingFuture<Catalog>[] progressingFutures = this.initialLoadCatalogFutures.get();
+		if (progressingFutures != null) {
+			for (ProgressingFuture<Catalog> loadCatalogFuture : progressingFutures) {
+				loadCatalogFuture.execute(this.engineTransactionManager.getExecutor());
+			}
+		}
 	}
 
 	/**
-	 * Clears all session registries and their temporary information.
+	 * Retrieves an array of ProgressingFuture objects representing the initial catalog load futures.
+	 * If no initial catalog load futures exist, returns an empty array.
+	 *
+	 * @return an array of ProgressingFuture objects for the initial catalog load,
+	 * or an empty array if none are present.
 	 */
-	public void clearSessionRegistries() {
-		for (SessionRegistry value : this.catalogSessionRegistries.values()) {
-			value.clearTemporaryInformation();
-		}
+	@Nonnull
+	public ProgressingFuture<Catalog>[] getInitialLoadCatalogFutures() {
+		//noinspection unchecked
+		return ofNullable(this.initialLoadCatalogFutures.get())
+			.orElse((ProgressingFuture<Catalog>[]) ProgressingFuture.EMPTY_ARRAY);
+	}
+
+	/**
+	 * Provides access to the request executor service, which is responsible
+	 * for managing and executing request-level operations with hard deadlines
+	 * within the Evita instance.
+	 *
+	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline}
+	 * that handles request execution with hard deadlines for tasks.
+	 */
+	@Nonnull
+	public ObservableExecutorServiceWithHardDeadline getRequestExecutor() {
+		return this.requestExecutor;
+	}
+
+	/**
+	 * Provides access to the transaction executor service, which is responsible for managing
+	 * and executing transactional operations within the Evita instance.
+	 *
+	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline} that handles
+	 * transaction execution with hard deadlines for tasks.
+	 */
+	@Nonnull
+	public ObservableExecutorServiceWithHardDeadline getTransactionExecutor() {
+		return this.transactionExecutor;
+	}
+
+	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	public void emitStartObservabilityEvents() {
+		// emit the statistics event
+		FlightRecorder.addPeriodicEvent(
+			EvitaStatisticsEvent.class,
+			this::emitEvitaStatistics
+		);
+		FlightRecorder.addPeriodicEvent(
+			RequestForkJoinPoolStatisticsEvent.class,
+			() -> this.requestExecutor.emitPoolStatistics(
+				(fj, steals) -> new RequestForkJoinPoolStatisticsEvent(
+					steals,
+					fj.getQueuedTaskCount(),
+					fj.getActiveThreadCount(),
+					fj.getRunningThreadCount()
+				)
+			)
+		);
+		FlightRecorder.addPeriodicEvent(
+			TransactionForkJoinPoolStatisticsEvent.class,
+			() -> this.transactionExecutor.emitPoolStatistics(
+				(fj, steals) -> new TransactionForkJoinPoolStatisticsEvent(
+					steals,
+					fj.getQueuedTaskCount(),
+					fj.getActiveThreadCount(),
+					fj.getRunningThreadCount()
+				)
+			)
+		);
+		FlightRecorder.addPeriodicEvent(
+			ScheduledExecutorStatisticsEvent.class,
+			this.serviceExecutor::emitScheduledForkJoinPoolStatistics
+		);
+	}
+
+	/**
+	 * Method for internal use. Can switch Evita from read-write to read-only. This is an irreversible operation and
+	 * can be used only once.
+	 */
+	public void setReadOnly() {
+		Assert.isTrue(!this.readOnly, "Only read-write evita can be switched to read-only instance!");
+		this.readOnly = true;
+	}
+
+	/**
+	 * Returns list of all catalogs maintained by this evitaDB instance.
+	 * Part of PRIVATE API.
+	 */
+	@Nonnull
+	public Collection<CatalogContract> getCatalogs() {
+		return this.getEngineState().getCatalogCollection();
 	}
 
 	/**
@@ -914,15 +866,6 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public Stream<EngineMutation<?>> getReversedCommittedMutationStream(@Nullable Long version) {
 		return this.engineTransactionManager.getReversedCommittedMutationStream(version);
-	}
-
-	/**
-	 * Returns set of all active (currently open) sessions.
-	 * Part of PRIVATE API.
-	 */
-	@Nonnull
-	public Stream<EvitaSessionContract> getActiveSessions() {
-		return this.sessionRegistryDataStore.getActiveSessions();
 	}
 
 	/**
@@ -1017,17 +960,6 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Discards the suspension state of the session registry associated with the given catalog name, if present.
-	 * The method resumes operations for the session registry if it exists for the provided catalog name.
-	 *
-	 * @param catalogName The name of the catalog whose suspension state should be discarded. Must not be null.
-	 */
-	public void discardSuspension(@Nonnull String catalogName) {
-		ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.ifPresent(SessionRegistry::resumeOperations);
-	}
-
-	/**
 	 * Creates a new CatalogContract instance using the provided catalog schema and other dependencies.
 	 *
 	 * @param catalogSchema the schema definition for the catalog; must not be null
@@ -1066,7 +998,8 @@ public final class Evita implements EvitaContract {
 			this.management.fileManagementService(),
 			this::replaceCatalogReference,
 			(cn, catalog) -> {
-				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+				log.info(
+					"Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				catalog.processWriteAheadLog(
 					updatedCatalog -> {
 						this.engineState.updateAndGet(
@@ -1112,80 +1045,6 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Retrieves the session registry associated with the specified catalog name.
-	 *
-	 * @param catalogName the name of the catalog for which the session registry is to be retrieved, must not be null
-	 * @return an Optional containing the SessionRegistry associated with the specified catalog name, or an empty Optional if no registry exists for the given catalog name
-	 */
-	@Nonnull
-	public Optional<SessionRegistry> getCatalogSessionRegistry(@Nonnull String catalogName) {
-		return ofNullable(this.catalogSessionRegistries.get(catalogName));
-	}
-
-	/**
-	 * Closes all active sessions associated with the specified catalog and suspends further operations.
-	 *
-	 * @param catalogName      the name of the catalog whose sessions are to be closed and suspended
-	 * @param suspendOperation the operation to be executed during the suspension of the catalog
-	 */
-	@Nonnull
-	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(
-		@Nonnull String catalogName,
-		@Nonnull SuspendOperation suspendOperation
-	) {
-		return ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.flatMap(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
-	}
-
-	/**
-	 * Registers a session registry for a specific catalog. This ensures that a session
-	 * registry is associated with the provided catalog name. If a session registry
-	 * for the given catalog name already exists, an error is thrown to prevent overwriting.
-	 *
-	 * @param catalogName the name of the catalog to associate with the session registry
-	 * @param sessionRegistry the session registry to register with the catalog
-	 * @throws GenericEvitaInternalError if a session registry for the specified catalog name already exists
-	 */
-	public void registerCatalogSessionRegistry(@Nonnull String catalogName, @Nonnull SessionRegistry sessionRegistry) {
-		this.catalogSessionRegistries.compute(
-			catalogName,
-			(__, existingRegistry) -> {
-				if (existingRegistry != null && existingRegistry != sessionRegistry) {
-					throw new GenericEvitaInternalError(
-						"Catalog session registry for catalog `" + catalogName + "` already exists! " +
-							"Cannot overwrite it with another one!"
-					);
-				} else {
-					// otherwise we register the new one
-					return sessionRegistry;
-				}
-			}
-		);
-	}
-
-	/**
-	 * Registers a session registry for a specific catalog replacing any potentially existing registry under particular
-	 * catalog name. This ensures that a session registry is associated with the provided catalog name.
-	 *
-	 * @param catalogName     the name of the catalog to associate with the session registry
-	 * @param sessionRegistry the session registry to register with the catalog
-	 * @return previously registered session registry for the catalog, or null if there was no previous registry
-	 */
-	@Nullable
-	public SessionRegistry registerWithReplaceCatalogSessionRegistry(@Nonnull String catalogName, @Nonnull SessionRegistry sessionRegistry) {
-		return this.catalogSessionRegistries.put(catalogName, sessionRegistry);
-	}
-
-	/**
-	 * Removes the catalog session registry associated with the specified catalog name, if it exists.
-	 *
-	 * @param catalogName the name of the catalog whose session registry should be removed, must not be null
-	 */
-	public void removeCatalogSessionRegistryIfPresent(@Nonnull String catalogName) {
-		this.catalogSessionRegistries.remove(catalogName);
-	}
-
-	/**
 	 * Verifies this instance is still active.
 	 */
 	public void assertActive() {
@@ -1205,6 +1064,56 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Closes all active sessions associated with the specified catalog and suspends further operations.
+	 *
+	 * @param catalogName      the name of the catalog whose sessions are to be closed and suspended
+	 * @param suspendOperation the operation to be executed during the suspension of the catalog
+	 */
+	@Nonnull
+	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(
+		@Nonnull String catalogName,
+		@Nonnull SuspendOperation suspendOperation
+	) {
+		return this.sessionRegistry.closeAllSessionsAndSuspend(catalogName, suspendOperation);
+	}
+
+	/**
+	 * Checks if sessions were forcefully closed for the specified catalog and session ID.
+	 *
+	 * @param catalogName the name of the catalog for which to check if sessions were forcefully closed; must not be null
+	 * @param sessionId   the unique identifier of the session to check; must not be null
+	 * @return true if sessions were forcefully closed for the specified catalog and session ID, false otherwise
+	 */
+	public boolean wasSessionForcefullyClosedForCatalog(@Nonnull String catalogName, @Nonnull UUID sessionId) {
+		return this.sessionRegistry.wasSessionForcefullyClosedForCatalog(catalogName, sessionId);
+	}
+
+	/**
+	 * Retrieves a catalog by its name from the engine state.
+	 *
+	 * @param catalogName the name of the catalog to be retrieved; must not be null
+	 * @return the {@link Catalog} object associated with the given catalog name
+	 * @throws CatalogNotFoundException  if no catalog with the specified name is found
+	 * @throws GenericEvitaInternalError if an unexpected internal error occurs
+	 * @throws RuntimeException          if the catalog is marked as unusable and its representative exception is thrown
+	 */
+	@Nonnull
+	private Catalog getCatalogByName(@Nonnull String catalogName) {
+		return this.getEngineState()
+			.getCatalog(catalogName)
+			.map(it -> {
+				if (it instanceof Catalog catalog) {
+					return catalog;
+				} else if (it instanceof UnusableCatalog unusableCatalog) {
+					throw unusableCatalog.getRepresentativeException();
+				} else {
+					throw new GenericEvitaInternalError("Could not happen!");
+				}
+			})
+			.orElseThrow(() -> new CatalogNotFoundException(catalogName));
+	}
+
+	/**
 	 * Replaces current catalog reference with updated one.
 	 */
 	private void replaceCatalogReference(@Nonnull Catalog catalog) {
@@ -1214,22 +1123,10 @@ public final class Evita implements EvitaContract {
 		getEngineState().replaceCatalogReference(catalog);
 
 		// discard suspension of the session registry for the catalog, if present
-		discardSuspension(catalog.getName());
+		this.sessionRegistry.discardSuspension(catalog.getName());
 
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();
-	}
-
-	/**
-	 * Closes all active sessions regardless of target catalog.
-	 */
-	private void closeAllSessions() {
-		final Iterator<SessionRegistry> sessionRegistryIt = this.catalogSessionRegistries.values().iterator();
-		while (sessionRegistryIt.hasNext()) {
-			final SessionRegistry sessionRegistry = sessionRegistryIt.next();
-			sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT);
-			sessionRegistryIt.remove();
-		}
 	}
 
 	/**
@@ -1237,20 +1134,9 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	private CreatedSession createSessionInternal(@Nonnull SessionTraits sessionTraits) {
-		final SessionRegistry catalogSessionRegistry = this.catalogSessionRegistries.computeIfAbsent(
+		final EvitaInternalSessionContract newSession = this.sessionRegistry.createSession(
 			sessionTraits.catalogName(),
-			__ -> {
-				// we need first to verify whether the catalog exists and is not corrupted
-				final CatalogContract catalogContract = getCatalogInstanceOrThrowException(sessionTraits.catalogName());
-				if (catalogContract instanceof UnusableCatalog unusableCatalog) {
-					throw unusableCatalog.getRepresentativeException();
-				}
-				return createSessionNewRegistry(sessionTraits);
-			}
-		);
-
-		final EvitaInternalSessionContract newSession = catalogSessionRegistry.createSession(
-			sessionRegistry -> {
+			(sessionRegistry, terminationCallback) -> {
 				if (this.readOnly) {
 					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::engineReadOnly);
 				}
@@ -1258,19 +1144,16 @@ public final class Evita implements EvitaContract {
 				final Catalog catalog = sessionRegistry.getCatalog();
 				final String catalogName = catalog.getName();
 				if (this.getEngineState().isReadOnly(catalogName)) {
-					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), () -> ReadOnlyException.catalogReadOnly(catalogName));
+					isTrue(
+						!sessionTraits.isReadWrite() || sessionTraits.isDryRun(),
+						() -> ReadOnlyException.catalogReadOnly(catalogName)
+					);
 				}
 				if (catalog.isGoingLive()) {
 					throw new CatalogGoingLiveException(catalogName);
 				}
 
-				final EvitaSessionTerminationCallback terminationCallback =
-					session -> {
-						sessionRegistry.removeSession((EvitaSession) session);
-						this.onSessionTerminationCallback.accept(session);
-					};
-
-				final EvitaInternalSessionContract internalSession = sessionRegistry.addSession(
+				return sessionRegistry.addSession(
 					catalog.supportsTransaction(),
 					() -> new EvitaSession(
 						this, catalog, this.reflectionLookup,
@@ -1280,44 +1163,12 @@ public final class Evita implements EvitaContract {
 						sessionRegistry::createCatalogConsumerControl
 					)
 				);
-
-				this.onSessionCreationCallback.accept(internalSession);
-
-				return internalSession;
 			}
 		);
 
 		return new CreatedSession(
 			newSession,
 			newSession.getCommitProgress()
-		);
-	}
-
-	/**
-	 * Creates and initializes a new instance of SessionRegistry using the provided session traits.
-	 *
-	 * @param sessionTraits the traits of the session, including catalog name and other properties,
-	 *                      required to create the session registry instance
-	 * @return a newly created SessionRegistry object associated with the given session traits
-	 */
-	@Nonnull
-	private SessionRegistry createSessionNewRegistry(@Nonnull SessionTraits sessionTraits) {
-		final String catalogName = sessionTraits.catalogName();
-		return new SessionRegistry(
-			this.tracingContext,
-			() -> this.getEngineState()
-			          .getCatalog(catalogName)
-			          .map(it -> {
-				          if (it instanceof Catalog catalog) {
-					          return catalog;
-				          } else if (it instanceof UnusableCatalog unusableCatalog) {
-					          throw unusableCatalog.getRepresentativeException();
-				          } else {
-					          throw new GenericEvitaInternalError("Could not happen!");
-				          }
-			          })
-			          .orElseThrow(() -> new CatalogNotFoundException(catalogName)),
-			this.sessionRegistryDataStore
 		);
 	}
 
@@ -1390,14 +1241,9 @@ public final class Evita implements EvitaContract {
 		try {
 			// first close all sessions
 			CompletableFuture.allOf(
-				CompletableFuture.runAsync(this::closeAllSessions),
+				CompletableFuture.runAsync(this.sessionRegistry::close),
 				CompletableFuture.runAsync(this.changeObserver::close),
-				CompletableFuture.runAsync(this.cacheSupervisor::close),
-				CompletableFuture.runAsync(() -> {
-					if (this.sessionKiller != null) {
-						this.sessionKiller.close();
-					}
-				})
+				CompletableFuture.runAsync(this.cacheSupervisor::close)
 			).join();
 		} catch (RuntimeException ex) {
 			exception = ex;

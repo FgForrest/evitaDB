@@ -1,0 +1,4 @@
+cluster:
+  mock:
+    enabled: true
+    clusterSize: 3

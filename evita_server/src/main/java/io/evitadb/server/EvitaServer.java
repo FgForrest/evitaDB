@@ -34,6 +34,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
+import io.evitadb.api.configuration.ClusterOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.core.Evita;
@@ -44,6 +45,7 @@ import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
+import io.evitadb.server.yaml.ClusterOptionsDeserializer;
 import io.evitadb.server.yaml.EvitaConstructor;
 import io.evitadb.server.yaml.ExportOptionsDeserializer;
 import io.evitadb.server.yaml.SpecialConfigInputFormatsHandler;
@@ -593,7 +595,8 @@ public class EvitaServer {
 			evitaServerConfig.storage(),
 			evitaServerConfig.transaction(),
 			evitaServerConfig.cache(),
-			evitaServerConfig.export()
+			evitaServerConfig.export(),
+			evitaServerConfig.cluster()
 		);
 
 		if (this.evitaConfiguration.server().quiet()) {
@@ -637,6 +640,7 @@ public class EvitaServer {
 			this.evitaConfiguration.transaction(),
 			this.evitaConfiguration.cache(),
 			this.evitaConfiguration.export(),
+			this.evitaConfiguration.cluster(),
 			apiOptions
 		);
 	}
@@ -726,6 +730,7 @@ public class EvitaServer {
 
 		yamlMapper.registerModule(createAbstractApiConfigModule(unknownPropertyProblemHandler));
 		yamlMapper.registerModule(createExportOptionsModule(unknownPropertyProblemHandler));
+		yamlMapper.registerModule(createClusterOptionsModule(unknownPropertyProblemHandler));
 		yamlMapper.registerModule(new ParameterNamesModule());
 		yamlMapper.addHandler(new SpecialConfigInputFormatsHandler());
 
@@ -799,11 +804,29 @@ public class EvitaServer {
 	 * discovery of export implementation configuration classes via {@link java.util.ServiceLoader}.
 	 */
 	@Nonnull
-	private SimpleModule createExportOptionsModule(@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler) {
+	private static SimpleModule createExportOptionsModule(
+		@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler
+	) {
 		final SimpleModule module = new SimpleModule();
 		module.addDeserializer(
 			ExportOptions.class,
 			new ExportOptionsDeserializer(unknownPropertyProblemHandler)
+		);
+		return module;
+	}
+
+	/**
+	 * Method creates Jackson module for deserializing {@link ClusterOptions} with dynamic
+	 * discovery of cluster implementation configuration classes via {@link java.util.ServiceLoader}.
+	 */
+	@Nonnull
+	private static SimpleModule createClusterOptionsModule(
+		@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler
+	) {
+		final SimpleModule module = new SimpleModule();
+		module.addDeserializer(
+			ClusterOptions.class,
+			new ClusterOptionsDeserializer(unknownPropertyProblemHandler)
 		);
 		return module;
 	}

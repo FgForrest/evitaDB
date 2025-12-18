@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.server.configuration;
 
 import io.evitadb.api.configuration.CacheOptions;
+import io.evitadb.api.configuration.ClusterOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.configuration.ServerOptions;
@@ -32,6 +33,7 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Encapsulating DTO record allowing to setup {@link EvitaConfiguration} and {@link ApiOptions} within one root object.
@@ -43,6 +45,7 @@ import javax.annotation.Nonnull;
  * @param transaction refers to {@link EvitaConfiguration#transaction()}
  * @param cache       refers to {@link EvitaConfiguration#cache()}
  * @param export      refers to {@link EvitaConfiguration#export()}
+ * @param cluster     refers to {@link EvitaConfiguration#cluster()}
  * @param api         contains configuration for API endpoints, refers to {@link ApiOptions}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -53,6 +56,7 @@ public record EvitaServerConfiguration(
 	@Nonnull TransactionOptions transaction,
 	@Nonnull CacheOptions cache,
 	@Nonnull ExportOptions export,
+	@Nullable ClusterOptions cluster,
 	@Nonnull ApiOptions api
 ) {
 

@@ -70,6 +70,7 @@ import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.management.EvitaManagement;
+import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
@@ -102,7 +103,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -881,7 +881,7 @@ class EvitaTest implements EvitaTestSupport {
 	 */
 	@Test
 	@DisplayName("Automatic killing of inactive sessions")
-	void shouldKillInactiveSessionsAutomatically() throws NoSuchFieldException, IllegalAccessException {
+	void shouldKillInactiveSessionsAutomatically() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			it -> {
@@ -897,21 +897,20 @@ class EvitaTest implements EvitaTestSupport {
 		final EvitaSessionContract sessionInactive = this.evita.createReadOnlySession(TEST_CATALOG);
 		final EvitaSessionContract sessionActive = this.evita.createReadOnlySession(TEST_CATALOG);
 
-		assertEquals(2L, this.evita.getActiveSessions().count());
+		final SessionRegistry sessionRegistry = this.evita.getSessionRegistry();
+		assertEquals(2L, sessionRegistry.getActiveSessions().count());
 
 		final long start = System.currentTimeMillis();
 		do {
 			assertNotNull(sessionActive.getCatalogSchema());
 		} while (!(System.currentTimeMillis() - start > 2000));
 
-		final Field sessionKillerField = Evita.class.getDeclaredField("sessionKiller");
-		sessionKillerField.setAccessible(true);
-		final SessionKiller sessionKiller = (SessionKiller) sessionKillerField.get(this.evita);
+		final SessionKiller sessionKiller = this.evita.getSessionRegistry().getSessionKiller();
 		sessionKiller.run();
 
 		assertFalse(sessionInactive.isActive());
 		assertTrue(sessionActive.isActive());
-		assertEquals(1L, this.evita.getActiveSessions().count());
+		assertEquals(1L, sessionRegistry.getActiveSessions().count());
 	}
 
 	/**
@@ -5303,7 +5302,8 @@ class EvitaTest implements EvitaTestSupport {
 				formerConfiguration.storage(),
 				formerConfiguration.transaction(),
 				formerConfiguration.cache(),
-				formerConfiguration.export()
+				formerConfiguration.export(),
+				formerConfiguration.cluster()
 			)
 		);
 		reinstantiatedEvita.waitUntilFullyInitialized();

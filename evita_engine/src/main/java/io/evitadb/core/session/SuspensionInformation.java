@@ -34,7 +34,7 @@ import java.util.UUID;
 
 /**
  * This record encapsulates information related to a suspension operation
- * within the SessionRegistry.
+ * within the CatalogSessionRegistry.
  *
  * The suspension operation holds data regarding:
  * - The time at which the suspension occurred.

@@ -23,10 +23,10 @@
 
 package io.evitadb.core.catalog;
 
-import io.evitadb.core.session.SessionRegistry;
+import io.evitadb.core.session.CatalogSessionRegistry;
 
 /**
- * This interface represents a listener called by {@link SessionRegistry} when last active session using particular
+ * This interface represents a listener called by {@link CatalogSessionRegistry} when last active session using particular
  * catalog version is closed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024

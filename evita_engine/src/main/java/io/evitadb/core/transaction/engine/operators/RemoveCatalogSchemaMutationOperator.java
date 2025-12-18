@@ -110,7 +110,7 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 					}
 				);
 
-				evita.removeCatalogSessionRegistryIfPresent(catalogName);
+				evita.getSessionRegistry().removeCatalogSessionRegistryIfPresent(catalogName);
 				catalogToRemove.terminateAndDelete();
 				return null;
 			}

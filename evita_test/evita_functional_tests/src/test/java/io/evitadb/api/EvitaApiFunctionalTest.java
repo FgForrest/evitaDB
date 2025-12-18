@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.core.Evita;
+import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
@@ -801,6 +802,7 @@ class EvitaApiFunctionalTest {
 		final ExecutorService service = Executors.newFixedThreadPool(numberOfThreads);
 		final CountDownLatch latch = new CountDownLatch(numberOfThreads);
 		final AtomicInteger peek = new AtomicInteger();
+		final SessionRegistry sessionRegistry = evita.getSessionRegistry();
 
 		final AtomicReference<Exception> terminatingException = new AtomicReference<>();
 		for (int i = 0; i < numberOfThreads; i++) {
@@ -811,7 +813,7 @@ class EvitaApiFunctionalTest {
 							TEST_CATALOG,
 							session -> {
 								// this is kind of unsafe, but it should work
-								final int activeSessions = Math.toIntExact(evita.getActiveSessions().count());
+								final int activeSessions = Math.toIntExact(sessionRegistry.getActiveSessions().count());
 								if (peek.get() < activeSessions) {
 									peek.set(activeSessions);
 								}
@@ -834,7 +836,7 @@ class EvitaApiFunctionalTest {
 		}
 
 		assertTrue(peek.get() > 1, "There should be multiple session in parallel!");
-		assertEquals(0L, evita.getActiveSessions().count(), "There should be no active session now!");
+		assertEquals(0L, sessionRegistry.getActiveSessions().count(), "There should be no active session now!");
 	}
 
 	@DisplayName("Delete entity with all possible data")

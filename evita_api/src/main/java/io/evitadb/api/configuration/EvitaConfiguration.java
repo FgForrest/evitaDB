@@ -32,6 +32,7 @@ import lombok.ToString;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -51,6 +52,7 @@ import java.nio.file.attribute.BasicFileAttributes;
  * @param transaction Contains transaction related options.
  * @param cache       Cache options contain settings crucial for Evita caching and cache invalidation.
  * @param export      Export options contain settings for file export functionality including storage backend selection.
+ * @param cluster     Cluster options contain settings for distributed cluster functionality including backend selection.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaConfiguration(
@@ -59,7 +61,8 @@ public record EvitaConfiguration(
 	@Nonnull StorageOptions storage,
 	@Nonnull TransactionOptions transaction,
 	@Nonnull CacheOptions cache,
-	@Nonnull ExportOptions export
+	@Nonnull ExportOptions export,
+	@Nullable ClusterOptions cluster
 ) {
 	public static final String DEFAULT_SERVER_NAME = "evitaDB";
 
@@ -84,6 +87,20 @@ public record EvitaConfiguration(
 		@Nonnull TransactionOptions transaction,
 		@Nonnull CacheOptions cache,
 		@Nonnull ExportOptions export
+	) {
+		this(
+			name, server, storage, transaction, cache, export, null
+		);
+	}
+
+	public EvitaConfiguration(
+		@Nonnull String name,
+		@Nonnull ServerOptions server,
+		@Nonnull StorageOptions storage,
+		@Nonnull TransactionOptions transaction,
+		@Nonnull CacheOptions cache,
+		@Nonnull ExportOptions export,
+		@Nullable ClusterOptions cluster
 	) {
 		try {
 			if (DEFAULT_SERVER_NAME.equals(name)) {
@@ -112,6 +129,7 @@ public record EvitaConfiguration(
 			this.transaction = transaction;
 			this.cache = cache;
 			this.export = export;
+			this.cluster = cluster;
 		} catch (IOException ex) {
 			throw new GenericEvitaInternalError("Unable to access storage directory creation time!", ex);
 		}
@@ -120,17 +138,16 @@ public record EvitaConfiguration(
 	/**
 	 * Creates a new EvitaConfiguration with default values.
 	 * Export options must be provided as there is no default implementation.
-	 *
-	 * @param export export options implementation
 	 */
-	public EvitaConfiguration(@Nonnull ExportOptions export) {
+	public EvitaConfiguration() {
 		this(
 			DEFAULT_SERVER_NAME,
 			new ServerOptions(),
 			new StorageOptions(),
 			new TransactionOptions(),
 			new CacheOptions(),
-			export
+			new DefaultExportOptions(),
+			null
 		);
 	}
 
@@ -154,6 +171,7 @@ public record EvitaConfiguration(
 		private TransactionOptions transaction = TransactionOptions.builder().build();
 		private CacheOptions cache = CacheOptions.builder().build();
 		private ExportOptions export = DefaultExportOptions.INSTANCE;
+		@Nullable private ClusterOptions cluster;
 
 		Builder() {
 		}
@@ -165,6 +183,7 @@ public record EvitaConfiguration(
 			this.transaction = configuration.transaction;
 			this.cache = configuration.cache;
 			this.export = configuration.export;
+			this.cluster = configuration.cluster;
 		}
 
 		@Nonnull
@@ -203,9 +222,15 @@ public record EvitaConfiguration(
 			return this;
 		}
 
+		@Nonnull
+		public EvitaConfiguration.Builder cluster(@Nullable ClusterOptions cluster) {
+			this.cluster = cluster;
+			return this;
+		}
+
 		public EvitaConfiguration build() {
 			return new EvitaConfiguration(
-				this.name, this.server, this.storage, this.transaction, this.cache, this.export
+				this.name, this.server, this.storage, this.transaction, this.cache, this.export, this.cluster
 			);
 		}
 

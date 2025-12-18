@@ -60,6 +60,13 @@ export:
     secretKey: ${export.s3.secretKey:null}
     region: ${export.s3.region:null}
 
+cluster:
+  mock:
+    enabled: ${cluster.mock.enabled:false}
+    clusterSize: ${cluster.mock.clusterSize:3}
+  k8s:
+    enabled: ${cluster.k8s.enabled:false}
+
 transaction:
   transactionWorkDirectory: ${transaction.workDirectory:null}
   transactionMemoryBufferLimitSizeBytes: ${transaction.memoryBufferLimitSize:16M}

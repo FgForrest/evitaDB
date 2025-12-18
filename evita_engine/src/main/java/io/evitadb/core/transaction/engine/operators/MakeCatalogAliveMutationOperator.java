@@ -119,7 +119,7 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 					);
 
 					newCatalog.notifyCatalogPresentInLiveView();
-					evita.discardSuspension(newCatalog.getName());
+					evita.getSessionRegistry().discardSuspension(newCatalog.getName());
 
 					return new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version());
 				}

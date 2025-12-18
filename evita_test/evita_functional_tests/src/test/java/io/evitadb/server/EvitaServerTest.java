@@ -30,7 +30,9 @@ import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.ClusterOptions;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.cluster.mock.configuration.MockClusterOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -952,6 +954,54 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		);
 		try {
 			evitaServer.run();
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldLoadClusterConfiguration() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-cluster.yaml",
+			"evita-configuration-cluster.yaml"
+		);
+
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+
+			final ClusterOptions clusterOptions = evitaServer.getEvita().getConfiguration().cluster();
+			assertNotNull(clusterOptions);
+			assertInstanceOf(MockClusterOptions.class, clusterOptions);
+
+			final MockClusterOptions mockOptions = (MockClusterOptions) clusterOptions;
+			assertTrue(mockOptions.getEnabled());
+			assertEquals(3, mockOptions.getClusterSize());
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldStartWithClusterDisabledByDefault() {
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+
+			final ClusterOptions clusterOptions = evitaServer.getEvita().getConfiguration().cluster();
+			assertNull(clusterOptions, "Cluster options should be null when not configured");
+
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {

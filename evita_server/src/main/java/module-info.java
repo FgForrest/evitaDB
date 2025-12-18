@@ -23,6 +23,7 @@
 
 import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.spi.cluster.EnvironmentServiceFactory;
 import io.evitadb.spi.export.ExportServiceFactory;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 
@@ -35,6 +36,7 @@ module evita.server {
 	uses ExternalApiProviderRegistrar;
 	uses ProbesProvider;
 	uses ExportServiceFactory;
+	uses EnvironmentServiceFactory;
 
 	opens io.evitadb.server.configuration to com.fasterxml.jackson.databind;
 	exports io.evitadb.server;
