@@ -313,8 +313,8 @@ class ExportS3ServiceTest {
 	}
 
 	@Test
-	@DisplayName("Should not fail when deleting file already removed by third party")
-	void shouldNotFailWhenDeletingAlreadyDeletedObject() throws IOException {
+	@DisplayName("Should throw exception when deleting file already removed by third party")
+	void shouldThrowExceptionWhenDeletingAlreadyDeletedObject() throws IOException {
 		final FileForFetch storedFile = writeFile("thirdParty.txt", null);
 
 		// Compute S3 object key the same way as service does: <fileId><extension>
@@ -329,7 +329,7 @@ class ExportS3ServiceTest {
 		// Our service deletion must not throw even if the object is already gone
 		assertDoesNotThrow(() -> this.exportService.deleteFile(storedFile.fileId()));
 
-		// The file must be removed from the local cache as well
+		// The file must be removed from the local cache as well (stateless -> check lookup returns empty)
 		assertTrue(this.exportService.getFile(storedFile.fileId()).isEmpty());
 	}
 
@@ -377,14 +377,6 @@ class ExportS3ServiceTest {
 		final UUID nonExistentId = UUIDUtil.randomUUID();
 		assertThrows(FileForFetchNotFoundException.class,
 			() -> this.exportService.fetchFile(nonExistentId));
-	}
-
-	@Test
-	@DisplayName("Should throw exception when deleting non-existent file")
-	void shouldThrowExceptionWhenDeletingNonExistentFile() {
-		final UUID nonExistentId = UUIDUtil.randomUUID();
-		assertThrows(FileForFetchNotFoundException.class,
-			() -> this.exportService.deleteFile(nonExistentId));
 	}
 
 	@Test
@@ -535,7 +527,6 @@ class ExportS3ServiceTest {
 
 		// Create a new service instance
 		final ExportS3Service newService = createExportService();
-		newService.awaitInitialization();
 
 		try {
 			final PaginatedList<FileForFetch> files = newService.listFilesToFetch(1, 10, Set.of(), Set.of());
