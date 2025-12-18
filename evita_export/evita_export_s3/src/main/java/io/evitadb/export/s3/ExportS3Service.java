@@ -501,7 +501,8 @@ public class ExportS3Service implements ExportService {
 				this.minioClient.getObject(
 					getObjectBuilder.build()
 				).get(timeout, TimeUnit.MILLISECONDS),
-				file.crc32()
+				file.crc32(),
+				file.totalSizeInBytes()
 			);
 		} catch (Exception e) {
 			throw new UnexpectedIOException(

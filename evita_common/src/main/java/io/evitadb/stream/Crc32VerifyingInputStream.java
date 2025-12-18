@@ -32,16 +32,42 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Input stream wrapper that verifies CRC32 checksum on close.
+ * Input stream wrapper that verifies CRC32 checksum on close. The verification is performed only if the
+ * stream is read completely (number of read bytes equals to the expected file size).
+ *
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class Crc32VerifyingInputStream extends FilterInputStream {
+	/**
+	 * Expected CRC32 checksum of the file.
+	 */
 	private final long expectedChecksum;
+	/**
+	 * Expected size of the file in bytes.
+	 */
+	private final long expectedFileSize;
+	/**
+	 * Calculator used to compute CRC32 checksum of the read bytes.
+	 */
 	private final Crc32Calculator crcCalculator;
+	/**
+	 * Number of bytes read from the stream.
+	 */
+	private long bytesRead;
 
-	public Crc32VerifyingInputStream(InputStream in, long expectedChecksum) {
+	/**
+	 * Creates a new input stream that verifies CRC32 checksum on close.
+	 *
+	 * @param in               the underlying input stream
+	 * @param expectedChecksum expected CRC32 checksum of the file
+	 * @param expectedFileSize expected size of the file in bytes
+	 */
+	public Crc32VerifyingInputStream(@Nonnull InputStream in, long expectedChecksum, long expectedFileSize) {
 		super(in);
 		this.expectedChecksum = expectedChecksum;
+		this.expectedFileSize = expectedFileSize;
 		this.crcCalculator = new Crc32Calculator();
+		this.bytesRead = 0;
 	}
 
 	@Override
@@ -49,6 +75,7 @@ public class Crc32VerifyingInputStream extends FilterInputStream {
 		int b = super.read();
 		if (b != -1) {
 			this.crcCalculator.withByte((byte) b);
+			this.bytesRead++;
 		}
 		return b;
 	}
@@ -58,6 +85,7 @@ public class Crc32VerifyingInputStream extends FilterInputStream {
 		int read = super.read(b, off, len);
 		if (read != -1) {
 			this.crcCalculator.withByteArray(b, off, read);
+			this.bytesRead += read;
 		}
 		return read;
 	}
@@ -65,12 +93,14 @@ public class Crc32VerifyingInputStream extends FilterInputStream {
 	@Override
 	public void close() throws IOException {
 		super.close();
-		long actualChecksum = this.crcCalculator.getValue();
-		if (actualChecksum != this.expectedChecksum && this.expectedChecksum != 0) {
-			throw new FileChecksumInvalidException(
-				"File checksum mismatch. Expected: " + this.expectedChecksum + ", Actual: " + actualChecksum,
-				"File checksum mismatch."
-			);
+		if (this.bytesRead >= this.expectedFileSize) {
+			long actualChecksum = this.crcCalculator.getValue();
+			if (actualChecksum != this.expectedChecksum && this.expectedChecksum != 0) {
+				throw new FileChecksumInvalidException(
+					"File checksum mismatch. Expected: " + this.expectedChecksum + ", Actual: " + actualChecksum,
+					"File checksum mismatch."
+				);
+			}
 		}
 	}
 }

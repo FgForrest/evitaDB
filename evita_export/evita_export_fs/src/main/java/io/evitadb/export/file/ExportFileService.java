@@ -396,7 +396,8 @@ public class ExportFileService implements ExportService {
 			}
 			return new Crc32VerifyingInputStream(
 				Files.newInputStream(fileSystemFile.path(this.fsOptions.getDirectory()), StandardOpenOption.READ),
-				file.crc32()
+				file.crc32(),
+				file.totalSizeInBytes()
 			);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
