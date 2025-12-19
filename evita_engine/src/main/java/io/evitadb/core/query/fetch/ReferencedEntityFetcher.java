@@ -154,6 +154,17 @@ import static java.util.Optional.ofNullable;
  */
 public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
+	 * Comparator that allows to sort reduced entity indexes by their discriminator.
+	 */
+	private static final Comparator<ReducedEntityIndex> BY_DISCRIMINATOR = Comparator.comparing(
+		rede -> {
+			final EntityIndexKey indexKey = rede.getIndexKey();
+			return Objects.requireNonNull(
+				(RepresentativeReferenceKey) indexKey.discriminator()
+			);
+		}
+	);
+	/**
 	 * Requirement for fetching the parents from hierarchical structure.
 	 */
 	@Nullable private final HierarchyContent hierarchyContent;
@@ -636,100 +647,32 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.doWithScope(
 						examinedScopes,
 						() -> {
+fix:							final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityIds.isEmpty() ?
+								Collections.emptyList() :
+								theFilterByVisitor.getReferencedRecordEntityIndexes(
+									new ReferenceHaving(
+										referenceSchema.getName(),
+										and(
+											ArrayUtils.mergeArrays(
+												new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds.getArray())},
+												filterBy.getChildren()
+											)
+										)
+									),
+									examinedScopes,
+									(es, eik) -> null
+								);
+							if (!referencedEntityIndexes.isEmpty()) {
+								referencedEntityIndexes.sort(BY_DISCRIMINATOR);
+							}
+
 							final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
 							final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityIds.size());
+
+							boolean anyScopeIndexed = false;
 							for (Scope scope : examinedScopes) {
 								if (referenceSchema.isIndexedInScope(scope)) {
-									final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityIds.isEmpty() ?
-										Collections.emptyList() :
-										theFilterByVisitor.getReferencedRecordEntityIndexes(
-											new ReferenceHaving(
-												referenceSchema.getName(),
-												and(
-													ArrayUtils.mergeArrays(
-														new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds.getArray())},
-														filterBy.getChildren()
-													)
-												)
-											),
-											examinedScopes,
-											(es, eik) -> null
-										);
-									if (referencedEntityIndexes.isEmpty()) {
-										continue;
-									}
-
-									Formula lastIndexFormula = null;
-									RepresentativeReferenceKey lastDiscriminator = null;
-
-									referencedEntityIndexes.sort(Comparator.comparing(
-										rede -> {
-											final EntityIndexKey indexKey = rede.getIndexKey();
-											return Objects.requireNonNull(
-												(RepresentativeReferenceKey) indexKey.discriminator()
-											);
-										}
-									));
-
-									for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
-										final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
-										final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
-											(RepresentativeReferenceKey) indexKey.discriminator()
-										);
-										foundReferencedIds.add(discriminator.primaryKey());
-
-										final Formula resultFormula = computeResultWithPassedIndex(
-											referencedEntityIndex,
-											entitySchema,
-											referenceSchema,
-											theFilterByVisitor,
-											filterBy,
-											entityNestedQueryComparator,
-											EntityPrimaryKeyInSet.class
-										);
-
-										if (lastDiscriminator == null) {
-											lastDiscriminator = discriminator;
-											lastIndexFormula = resultFormula;
-										} else if (Objects.equals(lastDiscriminator, discriminator)) {
-											if (lastIndexFormula != resultFormula) {
-												final Formula epkFormula = toFormula(entityPrimaryKeys.get(scope));
-												lastIndexFormula = FormulaFactory.or(
-													lastIndexFormula,
-													resultFormula,
-													epkFormula
-												);
-											}
-										} else {
-											Assert.isPremiseValid(
-												lastIndexFormula != null,
-												"Last index formula must be initialized!"
-											);
-											lastIndexFormula.initialize(executionContext);
-											final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
-											final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
-											if (matchingPrimaryKeys.isEmpty()) {
-												validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
-											} else {
-												validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, matchingPrimaryKeys));
-												referencedPrimaryKeysWriter.add(finalLastDiscriminator.primaryKey());
-											}
-
-											lastIndexFormula = resultFormula;
-											lastDiscriminator = discriminator;
-										}
-									}
-									if (lastDiscriminator != null && lastIndexFormula != null) {
-										lastIndexFormula.initialize(executionContext);
-										final RepresentativeReferenceKey finalDiscriminator = lastDiscriminator;
-										final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
-										if (matchingPrimaryKeys.isEmpty()) {
-											validityMappingOptional.ifPresent(it -> it.restrictTo(finalDiscriminator, EmptyBitmap.INSTANCE));
-										} else {
-											validityMappingOptional.ifPresent(it -> it.restrictTo(finalDiscriminator, matchingPrimaryKeys));
-											referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
-										}
-									}
+									anyScopeIndexed = true;
 								} else {
 									final OfInt it = allReferencedEntityIds.iterator();
 									while (it.hasNext()) {
@@ -738,7 +681,69 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										referencedPrimaryKeysWriter.add(pkInScope);
 									}
 								}
+							}
 
+							if (anyScopeIndexed) {
+								Formula lastIndexFormula = null;
+								RepresentativeReferenceKey lastDiscriminator = null;
+
+								for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
+									final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
+									final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
+										(RepresentativeReferenceKey) indexKey.discriminator()
+									);
+									foundReferencedIds.add(discriminator.primaryKey());
+
+									final Formula resultFormula = computeResultWithPassedIndex(
+										referencedEntityIndex,
+										entitySchema,
+										referenceSchema,
+										theFilterByVisitor,
+										filterBy,
+										entityNestedQueryComparator,
+										EntityPrimaryKeyInSet.class
+									);
+
+									if (lastDiscriminator == null) {
+										lastDiscriminator = discriminator;
+										lastIndexFormula = resultFormula;
+									} else if (Objects.equals(lastDiscriminator, discriminator)) {
+										if (lastIndexFormula != resultFormula) {
+											lastIndexFormula = FormulaFactory.or(
+												lastIndexFormula,
+												resultFormula
+											);
+										}
+									} else {
+										Assert.isPremiseValid(
+											lastIndexFormula != null,
+											"Last index formula must be initialized!"
+										);
+										lastIndexFormula.initialize(executionContext);
+										final Bitmap matchingPks = lastIndexFormula.compute();
+										final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
+										if (matchingPks.isEmpty()) {
+											validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
+										} else {
+											validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, matchingPks));
+											referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
+										}
+
+										lastIndexFormula = resultFormula;
+										lastDiscriminator = discriminator;
+									}
+								}
+								if (lastDiscriminator != null && lastIndexFormula != null) {
+									final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
+									lastIndexFormula.initialize(executionContext);
+									final Bitmap matchingPks = lastIndexFormula.compute();
+									if (matchingPks.isEmpty()) {
+										validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
+									} else {
+										validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, matchingPks));
+										referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
+									}
+								}
 							}
 
 							validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
