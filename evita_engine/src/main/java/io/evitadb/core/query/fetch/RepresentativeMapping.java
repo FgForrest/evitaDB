@@ -31,12 +31,14 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -60,11 +62,10 @@ class RepresentativeMapping {
 	/**
 	 * Set of allowed representative keys - if empty or null, all representative keys are allowed.
 	 */
-	private Set<RepresentativeReferenceKey> restrictedKeys = null;
+	private Map<RepresentativeReferenceKey, Bitmap> restrictedKeys = null;
 
 	public RepresentativeMapping(
-		@Nonnull Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer,
-		int expectedSize
+		@Nonnull Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer
 	) {
 		this.representativeKeyProducer = representativeKeyProducer;
 		this.referencedEntityIds = new BaseBitmap();
@@ -118,12 +119,13 @@ class RepresentativeMapping {
 	 * is not initialized, it is created to accommodate the restriction.
 	 *
 	 * @param representativeReferenceKey the key representing the reference to which the restriction is being applied
+	 * @param entityPrimaryKeys          the set of entity primary keys that are allowed for the given representative reference key
 	 */
-	public void restrictTo(@Nonnull RepresentativeReferenceKey representativeReferenceKey) {
+	public void restrictTo(@Nonnull RepresentativeReferenceKey representativeReferenceKey, @Nonnull Bitmap entityPrimaryKeys) {
 		if (this.restrictedKeys == null) {
-			this.restrictedKeys = CollectionUtils.createHashSet(8);
+			this.restrictedKeys = CollectionUtils.createHashMap(8);
 		}
-		this.restrictedKeys.add(representativeReferenceKey);
+		this.restrictedKeys.put(representativeReferenceKey, entityPrimaryKeys);
 	}
 
 	/**
@@ -141,18 +143,23 @@ class RepresentativeMapping {
 	 * Checks if the provided reference is contained within the referenced entity identifiers.
 	 * The method evaluates based on both primary key presence and potential restrictions applied.
 	 *
+	 * @param entityPrimaryKey the primary key of the entity to check for presence
 	 * @param reference the reference to check, wrapped in a {@link ReferenceDecorator},
 	 *                  which serves as the input for determining the presence.
 	 * @return true if the reference is contained in the set of referenced entity identifiers
 	 * and meets any applicable restrictions; otherwise, false.
 	 */
-	public boolean contains(@Nonnull ReferenceDecorator reference) {
+	public boolean contains(int entityPrimaryKey, @Nonnull ReferenceDecorator reference) {
 		final RepresentativeReferenceKey referenceKey = this.representativeKeyProducer.apply(reference);
 		if (referenceKey.representativeAttributeValues().length == 0) {
 			return this.referencedEntityIds.contains(referenceKey.primaryKey());
 		} else {
-			return this.referencedEntityIds.contains(referenceKey.primaryKey()) &&
-				(this.restrictedKeys == null || this.restrictedKeys.contains(referenceKey));
+			final Bitmap restrictedPrimaryKeys = this.restrictedKeys == null ? null : this.restrictedKeys.get(referenceKey);
+			if (restrictedPrimaryKeys == null) {
+				return false;
+			} else {
+				return restrictedPrimaryKeys.contains(entityPrimaryKey);
+			}
 		}
 	}
 
@@ -169,10 +176,10 @@ class RepresentativeMapping {
 		}
 		if (this.restrictedKeys != null) {
 			sb.append(" restricted to: ");
-			final Iterator<RepresentativeReferenceKey> it2 = this.restrictedKeys.iterator();
+			final Iterator<Entry<RepresentativeReferenceKey, Bitmap>> it2 = this.restrictedKeys.entrySet().iterator();
 			while (it2.hasNext()) {
-				RepresentativeReferenceKey pk = it2.next();
-				sb.append(pk);
+				Entry<RepresentativeReferenceKey, Bitmap> pk = it2.next();
+				sb.append(pk.getKey()).append(": ").append(pk.getValue());
 				if (it2.hasNext()) {
 					sb.append(", ");
 				}
