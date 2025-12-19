@@ -647,7 +647,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.doWithScope(
 						examinedScopes,
 						() -> {
-fix:							final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityIds.isEmpty() ?
+							final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityIds.isEmpty() ?
 								Collections.emptyList() :
 								theFilterByVisitor.getReferencedRecordEntityIndexes(
 									new ReferenceHaving(
