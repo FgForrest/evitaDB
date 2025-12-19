@@ -34,7 +34,7 @@ applications. It looks like this:
 
 The following example shows how to get all the data needed to render a mega-menu in a single query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for 2-level deep mega menu](documentation/user/en/solve/examples/render-category-menu/mega-menu.evitaql)
 
@@ -63,7 +63,7 @@ Which produces the following result:
 Sometimes you'll want to list the number of products in each category. 
 This can be accomplished by adding the <LS to="e,j,c,r">[`QUERIED_ENTITY_COUNT` statistics](../query/requirements/hierarchy#statistics)</LS><LS to="g">[`queriedEntityCount` statistics](../query/requirements/hierarchy#statistics)</LS> request to the query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for 2-level deep mega menu with product statistics](documentation/user/en/solve/examples/render-category-menu/mega-menu-with-product-statistics.evitaql)
 
@@ -110,7 +110,7 @@ The menu shows only a single level of categories with the option to open each of
 you'd need a very simple query, but it must contain a request to calculate 
 the <LS to="e,j,c,r">[`CHILDREN_COUNT` statistics](../query/requests/hierarchy#statistics)</LS><LS to="g">[`childrenCount` statistics](../query/requests/hierarchy#statistics)</LS>:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for dynamic collapsible menu](documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu.evitaql)
 
@@ -140,7 +140,7 @@ the category name to allow the user to expand the category:
 Then, when the user expands the category, you can issue another query to retrieve the subcategories of the expanded 
 categories in a similar way:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for nested categories in the dynamic menu](documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu-sub-category.evitaql)
 
@@ -179,7 +179,7 @@ find similar listings all over the web:
 
 The following query will help you retrieve such a list for any of the rendered category listings:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for sub-categories listing](documentation/user/en/solve/examples/render-category-menu/sub-categories-listing.evitaql)
 
@@ -220,7 +220,7 @@ the categories of the root level, the second one, called `siblings`, will contai
 category, and the third one, called `parents`, will contain the parents of the selected category. By combining these 
 three results, you can easily render the hybrid menu:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for hybrid menu](documentation/user/en/solve/examples/render-category-menu/hybrid-menu.evitaql)
 
@@ -255,7 +255,7 @@ either the value `ACTIVE` or `PRIVATE`. The value `ACTIVE` means that the catego
 therefore should not be visible in the menu and accessible. To achieve this, you can list the products and render 
 the menu for visitors using the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for a menu excluding private categories](documentation/user/en/solve/examples/render-category-menu/excluding-private-categories.evitaql)
 
@@ -266,7 +266,7 @@ the *Accessories* category in advance, which includes LED Christmas tree lights,
 an attribute of type `DateTimeRange` named `validity` in the category entity and set its value to Christmas only 
 (as we did in our demo dataset), we can then define the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for a menu excluding categories with expired validity](documentation/user/en/solve/examples/render-category-menu/excluding-expired-categories.evitaql)
 
@@ -277,7 +277,7 @@ or have a defined validity range that includes the current moment. Notice that t
 category in the result, because it is not valid at the moment. But if we modify the query a little bit to rewind 
 the time to the Christmas season, we will get the category in the result:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for a menu at the Christmas time](documentation/user/en/solve/examples/render-category-menu/excluding-expired-categories-at-correct-time.evitaql)
 

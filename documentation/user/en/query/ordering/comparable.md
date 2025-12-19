@@ -35,7 +35,7 @@ and the direction of the ordering.
 
 To sort products by the number of their sales (the best-selling products first), we can use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.evitaql)
 </SourceCodeTabs>
@@ -70,7 +70,7 @@ To sort products by the number of their sales (the best-selling products first),
 If you want to sort products by their name, which is a localized attribute, you need to specify the `entityLocaleEquals`
 constraint in the `filterBy` part of the query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.evitaql)
 </SourceCodeTabs>
@@ -110,7 +110,7 @@ attributes in an `orderBy` clause of the query, evitaDB sorts them first by the 
 by the second (but only those where the first attribute is missing). If two entities have the same value of the first
 attribute, they are not sorted by the second attribute, but by the primary key (in ascending order).
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.evitaql)
 </SourceCodeTabs>
@@ -171,7 +171,7 @@ ordering behavior.
 
 To sort products by their primary key in descending order, we can use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.evitaql)
 </SourceCodeTabs>

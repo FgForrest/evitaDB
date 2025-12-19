@@ -62,7 +62,7 @@ using argument `format` on the `queryTelemetry` field. This way human-readable v
 To demonstrate the information the query telemetry is providing, we will use the following query that filters and sorts
 entities:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example query to compute query telemetry for complex filtering and ordering](/documentation/user/en/query/requirements/examples/telemetry/queryTelemetry.evitaql)
 </SourceCodeTabs>

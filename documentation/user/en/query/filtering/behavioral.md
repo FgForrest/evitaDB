@@ -58,7 +58,7 @@ For example, in our demo dataset we have only a few attributes indexed in the ar
 a few others. We don't index references, hierarchy or prices in archive scope. If we want to search for entities in both 
 scopes and use appropriate filter constraints, we need to use the `inScope` container in the following way:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Disginguishing filters in different scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.evitaql)
 
@@ -125,7 +125,7 @@ or [histogram](../filtering/histogram.md) calculation), while the mandatory part
 Let's look at the example where the [`facetHaving`](references.md#facet-having) constraint is used inside
 the `userFilter` container:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [User filter container example](/documentation/user/en/query/filtering/examples/behavioral/user-filter.evitaql)
 

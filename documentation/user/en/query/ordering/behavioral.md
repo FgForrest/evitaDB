@@ -57,7 +57,7 @@ a few others. No attribute has a sort index in the archive scope. So if we were 
 scopes and try to sort them by `name`, we'd get an error. However, if we use the `inScope` container, we can sort 
 the entities by `name` in the live scope and let the archived entities sort by the order in the input query.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Disginguishing orders in different scopes](/documentation/user/en/query/ordering/examples/behavioral/archived-entities-ordering.evitaql)
 

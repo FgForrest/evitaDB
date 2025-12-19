@@ -27,7 +27,7 @@ entityPrimaryKeyInSet(
 
 The constraint limits the list of returned entities by exactly specifying their entity primary keys.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List of products filtered by entity primary key](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql)
 </SourceCodeTabs>
@@ -134,7 +134,7 @@ There are a few archived entities in our demo dataset. Our schema is configured 
 attributes in the archived scope, so we can search for archived entities using only these attributes and, of course,
 the primary key.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Accessing archived entities example](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.evitaql)
 

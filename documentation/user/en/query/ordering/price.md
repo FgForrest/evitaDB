@@ -34,7 +34,7 @@ requirement of the query (price with tax is used by default).
 To sort products by their selling price (currently considering only `basic` price list and `EUR`), we can use
 the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List of products sorted by selling price](/documentation/user/en/query/ordering/examples/price/price-natural.evitaql)
 </SourceCodeTabs>
@@ -155,7 +155,7 @@ amount in an efficient way.
 To sort products by their discount amount (i.e. to compare how much discount you'll get with `b2b-basic-price` compared
 to `basic` price list and `EUR`), we can use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-discount.evitaql)
 </SourceCodeTabs>

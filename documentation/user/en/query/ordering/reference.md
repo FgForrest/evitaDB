@@ -58,7 +58,7 @@ relationship.
 To sort products related to a "sale" group by the `orderInGroup` attribute set on the reference, you need to issue the
 following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query products in "sale" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural.evitaql)
 </SourceCodeTabs>
@@ -175,7 +175,7 @@ to the same entity to be used for ordering by `referenceProperty`.
 
 Let's expand our previous example to include products that refer to both the "sale" and "new" groups:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query products in groups "sale" or "new" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql)
 </SourceCodeTabs>
@@ -215,7 +215,7 @@ If we want to change the order of the groups, we can use the `pickFirstByEntityP
 specify the order of the groups. For example, if we want to list products in the "sale" group first, we can use
 the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query products in groups "sale" or "new" ordered by predecessor chain with explicit ordering](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple-explicit.evitaql)
 </SourceCodeTabs>
@@ -282,7 +282,7 @@ the referenced entities. If there are multiple references, only the first one th
 This behaviour is best illustrated by the following example. Let's list products in the 'Accessories' category in order
 of the `orderInCategory` attribute on the category reference:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query products in "Accessories" category ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.evitaql)
 
@@ -332,7 +332,7 @@ on the `orderInCategory` attribute on the reference to the category. But we want
 [breadth first manner](https://en.wikipedia.org/wiki/Breadth-first_search), where each hierarchy level should be sorted
 by category `order` attribute first:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List products breadth first by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql)
 
@@ -389,7 +389,7 @@ attributes of the entity the reference points to.
 In other words, if the `Product` entity has multiple references to `ParameterValue` entities, you can sort those
 references by, for example, the `order` or `name` attribute of the `ParameterValue` entity. Let's see an example:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Get product with parameters ordered by their priority](/documentation/user/en/query/ordering/examples/reference/entity-property.evitaql)
 </SourceCodeTabs>
@@ -445,7 +445,7 @@ In other words, if the `Product` entity has multiple references to `ParameterVal
 assignment to the `Parameter` entity, you can sort those references primarily by the `name` attribute of the grouping
 entity, and secondarily by the `name` attribute of the referenced entity. Let's look at an example:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.evitaql)
 

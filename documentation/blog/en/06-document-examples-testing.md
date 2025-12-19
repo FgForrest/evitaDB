@@ -134,7 +134,7 @@ source code examples much faster and easier.
 
 Next, we initialize the classpath for the JShell instance by copying the full classpath of the JVM that the JUnit test 
 suite runs in, and finally we initialize all the imports that our Java examples need using this file:
-<SourceClass>evita_functional_tests/src/test/resources/META-INF/documentation/imports.java</SourceClass>. 
+<SourceClass>evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/imports.java</SourceClass>. 
 For initializing imports, we use the same logic as for executing the source code itself.
 
 ### Source code preparation and execution

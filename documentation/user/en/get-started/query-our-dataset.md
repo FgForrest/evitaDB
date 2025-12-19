@@ -157,7 +157,7 @@ instance:
 After that you can create a new session and try any of the evitaQL queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.java)
 </SourceCodeTabs>

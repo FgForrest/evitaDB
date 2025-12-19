@@ -40,7 +40,7 @@ because its scope is quite large and deserves its own analysis.
 The product listing page usually starts with the category title and description. This information is easily accessible 
 by fetching the category entity in a particular language through its unique URL:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting category description](documentation/user/en/solve/examples/filtering-products-in-category/category-description.evitaql)
 
@@ -80,7 +80,7 @@ product detail page, where the second option is not applicable, since the produc
 
 First, let's see how to get the breadcrumb from the category entity:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql)
 
@@ -109,7 +109,7 @@ As you can see, the requested parent information is part of the category entity 
 Next, let's see how to get the breadcrumb for a specific product. Here the situation is more complicated because 
 the product can (and in our example it does) belong to several categories:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting data for breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql)
 
@@ -144,7 +144,7 @@ To list products in a category, you need to issue a query that retrieves all pro
 done by querying the `product` entity and filtering it by the `categories` reference - which points to the category by 
 its unique URL *"/en/smartwatches"*:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting product listing](documentation/user/en/solve/examples/filtering-products-in-category/product-listing.evitaql)
 
@@ -201,7 +201,7 @@ The result of the query is a list of products with their attributes and referenc
 To list the top-selling products, you would use a similar query, but with different sorting options and probably 
 a different page size. To increase readability, we want to simplify the product query to the bare minimum:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting top-selling products](documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.evitaql)
 
@@ -252,7 +252,7 @@ Let's say we want to render the `brand` and `parameterValues` filters on the cat
 brand filter first, because it is quite simple and immediately shows the situation when some of the facets are already 
 selected by the user:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting brand facet filters](documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql)
 
@@ -287,7 +287,7 @@ entity references and not on top of entity attributes (which is an approach you 
 
 The final facet query looks like this:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting facet filters](documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql)
 
@@ -308,7 +308,7 @@ rendered as a range slider with a histogram showing the distribution of products
 
 Let's demonstrate the situation when the user has already selected a certain price range:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Requesting price filter](documentation/user/en/solve/examples/filtering-products-in-category/price-filter.evitaql)
 
@@ -370,7 +370,7 @@ all aspects of the product listing page combined.
 
 By combining all of the above queries, you end up with the following two queries:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Category details with breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/category-details-with-breadcrumb.evitaql)
 
@@ -379,7 +379,7 @@ By combining all of the above queries, you end up with the following two queries
 And the product list query (we omit the top-selling products query because it would just be a simpler version of 
 the same query with different sorting options):
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product listing with facet filters and sorting options](documentation/user/en/solve/examples/filtering-products-in-category/product-listing-with-facets-and-sorting.evitaql)
 

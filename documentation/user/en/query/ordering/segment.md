@@ -57,7 +57,7 @@ price over 500€, then the top-selling product with price under 500€, then th
 in stock, and finally the rest of the products that we need to order from our suppliers. We can define the segments as 
 follows:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Segmented ordering in practice](/documentation/user/en/query/ordering/examples/segment/segments.evitaql)
 </SourceCodeTabs>

@@ -37,7 +37,7 @@ to the query.
 
 Each label is a key-value pair appended to the query header, as shown in the following example:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Attaching labels to query](/documentation/user/en/query/header/examples/labels.evitaql)
 

@@ -39,7 +39,7 @@ requirement is specified, **the price with tax is used by default**.
 To demonstrate the effect of this requirement, let's say the user wants to find all products with a selling price
 between `€100` and `€105`. The following query will do that:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example query to filter products with price between `€100` and `€105`](/documentation/user/en/query/requirements/examples/price/price-type.evitaql)
 
@@ -76,7 +76,7 @@ The result contains some products, which you can see in the following table:
 But if the user is a legal entity and can subtract the sales tax from the price, he probably wants to find all products
 in this range with the price without tax. To do this, we need to modify the query and add the `priceType` requirement:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example query to filter products with price between `€100` and `€105` without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.evitaql)
 
