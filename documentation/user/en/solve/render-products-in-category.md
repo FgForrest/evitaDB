@@ -1,5 +1,5 @@
 ---
-title: Filtering products in category
+title: Render products in category
 perex: |
   Listing and filtering products assigned to a hierarchical entity (usually a category) is one of the most common tasks
   in catalog-based e-commerce systems. However, it is also one of the most demanding in terms of performance and
