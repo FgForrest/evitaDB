@@ -281,8 +281,8 @@
 		"path": "/deep-dive/cache.md"
 	  },
 	  {
-		"title": "Observe changes",
-		"path": "/deep-dive/observing.md"
+		"title": "Change Capture",
+		"path": "/deep-dive/cc.md"
 	  }
 	]
   },
