@@ -47,6 +47,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -196,7 +197,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getEntitySchema(Entities.PRODUCT).orElseThrow().getDescription()
 		);
 
-		assertEquals(1, this.catalogSubscriber.getEntityCollectionCreated(Entities.PRODUCT));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionCreated(Entities.PRODUCT, 1, TimeUnit.MINUTES, 1));
 	}
 
 	@Test

@@ -23,21 +23,23 @@
 
 package io.evitadb.externalApi.grpc.exception;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
-import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when gRPC server fails to start.
+ * Exception is thrown when server cancels subscription.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class GrpcServerStartFailedException extends EvitaInternalError {
-	@Serial private static final long serialVersionUID = 4000001873137284869L;
+public class GrpcServerCancellationException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = -5618233169510120875L;
 
-	public GrpcServerStartFailedException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(privateMessage, publicMessage, cause);
+	public GrpcServerCancellationException() {
+		super(
+			"The server has canceled the subscription.",
+			"The server has canceled the subscription."
+		);
 	}
 
 }

@@ -39,6 +39,7 @@ import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumerControl;
+import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.core.metric.event.session.ClosedEvent;
 import io.evitadb.core.metric.event.session.OpenedEvent;
@@ -1109,18 +1110,23 @@ public final class SessionRegistry {
 
 			if (lastReader) {
 				// notify listeners that the catalog version is no longer used
-				final Catalog theCatalog = catalog.get();
-				// in rare cases (catalog replacement) the catalog might not have been available already
-				if (theCatalog != null) {
-					final long minimalActiveVersion = minimalActiveCatalogVersion.orElse(theCatalog.getVersion());
-					theCatalog.catalogConsumersLeft(
-						traits.isReadWrite() ?
-							getMinimalVersionFrom(this.versionConsumingReadOnlySessions).orElse(minimalActiveVersion) :
-							minimalActiveVersion,
-						traits.isReadWrite() ?
-							minimalActiveVersion :
-							getMinimalVersionFrom(this.versionConsumingReadWriteSessions).orElse(minimalActiveVersion)
-					);
+				final Catalog theCatalog;
+				try {
+					theCatalog = catalog.get();
+					// in rare cases (catalog replacement) the catalog might not have been available already
+					if (theCatalog != null) {
+						final long minimalActiveVersion = minimalActiveCatalogVersion.orElse(theCatalog.getVersion());
+						theCatalog.catalogConsumersLeft(
+							traits.isReadWrite() ?
+								getMinimalVersionFrom(this.versionConsumingReadOnlySessions).orElse(minimalActiveVersion) :
+								minimalActiveVersion,
+							traits.isReadWrite() ?
+								minimalActiveVersion :
+								getMinimalVersionFrom(this.versionConsumingReadWriteSessions).orElse(minimalActiveVersion)
+						);
+					}
+				} catch (CatalogTransitioningException ignored) {
+					// catalog is transitioning, we cannot notify it anyway
 				}
 			}
 		}

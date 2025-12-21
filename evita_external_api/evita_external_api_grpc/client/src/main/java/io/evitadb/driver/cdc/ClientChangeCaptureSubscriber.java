@@ -90,6 +90,11 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * Used to prevent multiple close operations and ensure proper cleanup.
 	 */
 	private final AtomicBoolean closed = new AtomicBoolean(false);
+	/**
+	 * Flag indicating whether the server side has closed the stream.
+	 * This is used to differentiate between client-initiated and server-initiated closures.
+	 */
+	private final AtomicBoolean serverSideClosed = new AtomicBoolean(false);
 
 	/**
 	 * The gRPC observer that sends requests to and receives responses from the server.
@@ -183,6 +188,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onError(Throwable throwable) {
+		this.serverSideClosed.set(true);
 		final Throwable rootCause = ExceptionUtils.getRootCause(throwable);
 		if (rootCause instanceof PublisherClosedByClientException) {
 			// this is expected, we closed the publisher manually
@@ -214,6 +220,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onComplete() {
+		this.serverSideClosed.set(true);
 		this.delegate.onComplete();
 		this.subscription.cancel();
 	}
@@ -239,10 +246,13 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	public void close() {
 		if (this.closed.compareAndSet(false, true)) {
 			// this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
-			this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
-		}
-		if (this.delegate instanceof AutoCloseable closeable) {
-			IOUtils.closeQuietly(closeable::close);
+			this.subscription.cancel();
+			if (!this.serverSideClosed.get()) {
+				this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
+			}
+			if (this.delegate instanceof AutoCloseable closeable) {
+				IOUtils.closeQuietly(closeable::close);
+			}
 		}
 	}
 
