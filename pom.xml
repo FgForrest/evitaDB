@@ -652,7 +652,7 @@
 			<plugin>
 				<groupId>org.simplify4u.plugins</groupId>
 				<artifactId>pgpverify-maven-plugin</artifactId>
-				<version>1.16.0</version>
+				<version>1.19.1</version>
 				<configuration>
 					<keysMapLocations>
 						<keysMapLocation>${maven.multiModuleProjectDirectory}/pgp-keys-map.list</keysMapLocation>
