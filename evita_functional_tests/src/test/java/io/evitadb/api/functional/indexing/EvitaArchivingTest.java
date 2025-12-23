@@ -711,6 +711,89 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 2));
 	}
 
+	@DisplayName("Results respect the filter even when both scopes are combined")
+	@Test
+	void shouldReturnOnlyLimitedSetOfReferencedEntities() {
+		/* create schema for entity archival */
+		createSchemaForEntityArchiving(Scope.LIVE);
+
+		// upsert entities product depends on
+		createBrandAndCategoryEntities();
+
+		// create product entity
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
+					.setReference(Entities.BRAND, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "456"))
+					.setReference(Entities.CATEGORY, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
+
+		final Query complexQuery = query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(100),
+				inScope(
+					Scope.LIVE,
+					entityLocaleEquals(Locale.ENGLISH),
+					attributeInSet(ATTRIBUTE_NAME, "TV", "Radio"),
+					attributeInSet(ATTRIBUTE_CODE, "TV-123", "TV-456"),
+					referenceHaving(
+						Entities.BRAND,
+						attributeInSet(ATTRIBUTE_BRAND_EAN, "123", "456")
+					),
+					referenceHaving(
+						Entities.CATEGORY,
+						attributeInSet(ATTRIBUTE_CATEGORY_MARKET, "EU", "US")
+					),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK)
+				),
+				scope(Scope.LIVE, Scope.ARCHIVED)
+			),
+			require(
+				entityFetch(
+					attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME),
+					referenceContentWithAttributes(Entities.BRAND, filterBy(inScope(Scope.LIVE, entityPrimaryKeyInSet(2))), entityFetchAll()),
+					referenceContentWithAttributes(Entities.CATEGORY, filterBy(inScope(Scope.LIVE, entityHaving(attributeInSet(ATTRIBUTE_CODE, "electronics")))), entityFetchAll()),
+					priceContentRespectingFilter()
+				)
+			)
+		);
+
+
+		// find products with complex query - there are no archived data at the moment
+		final List<SealedEntity> liveProducts = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryList(complexQuery, SealedEntity.class);
+			}
+		);
+		assertArrayEquals(
+			new int[] {100},
+			liveProducts.stream()
+				.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+				.toArray()
+		);
+
+		for (SealedEntity liveProduct : liveProducts) {
+			assertEquals(1, liveProduct.getReferences(Entities.BRAND).size());
+			assertEquals(1, liveProduct.getReferences(Entities.CATEGORY).size());
+			// all bodies are fetched
+			for (ReferenceContract reference : liveProduct.getReferences()) {
+				assertNotNull(reference.getReferencedEntity());
+			}
+		}
+	}
+
 	@DisplayName("Results should be merged from both scopes when querying and fetching contents")
 	@Test
 	void shouldCombineArchivedAndNonArchiveDataInQueryAndFetch() {
