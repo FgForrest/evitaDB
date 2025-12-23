@@ -115,7 +115,6 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
-import org.roaringbitmap.PeekableIntIterator;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
@@ -511,38 +510,41 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @return non-filtered complete array of referenced entity ids
 	 */
 	@Nonnull
-	private static Bitmap getAllReferencedEntityIds(
+	private static Map<Scope, Bitmap> getAllReferencedEntityIds(
 		@Nonnull Map<Scope, int[]> entityPrimaryKeys,
 		@Nonnull Function<Integer, Formula> referencedEntityResolver,
 		@Nullable ValidEntityToReferenceMapping validityMapping
 	) {
 		// aggregate all referenced primary keys into one sorted distinct array
-		return FormulaFactory
-			.or(
-				entityPrimaryKeys
-					.values()
-					.stream()
-					.flatMap(
-						epks -> Arrays
-							.stream(epks)
-							.mapToObj(it -> {
-								final Formula referencedEntityIds = referencedEntityResolver.apply(it);
-								// Initializes starting validity relations in `validityMapping` where each entity sees
-								// all its referenced entities. This initial visibility setup will be refined during fetch process.
-								ofNullable(validityMapping)
-									.ifPresent(
-										vm -> vm.setInitialVisibilityForEntity(
-											it,
-											referencedEntityIds.compute()
-										)
-									);
-								// return the referenced entity primary keys
-								return referencedEntityIds;
-							})
-					)
-					.toArray(Formula[]::new)
-			)
-			.compute();
+		final Map<Scope, Formula[]> formulas = CollectionUtils.createHashMap(entityPrimaryKeys.size());
+		for (Entry<Scope, int[]> entry : entityPrimaryKeys.entrySet()) {
+			final int[] epks = entry.getValue();
+			final Formula[] scopeFormulas = new Formula[epks.length];
+			formulas.put(entry.getKey(), scopeFormulas);
+			for (int i = 0; i < epks.length; i++) {
+				int epk = epks[i];
+				final Formula referencedEntityIds = referencedEntityResolver.apply(epk);
+				// Initializes starting validity relations in `validityMapping` where each entity sees
+				// all its referenced entities. This initial visibility setup will be refined during fetch process.
+				if (validityMapping != null) {
+					validityMapping.setInitialVisibilityForEntity(
+						epk,
+						referencedEntityIds.compute()
+					);
+				}
+				// return the referenced entity primary keys
+				scopeFormulas[i] = referencedEntityIds;
+			}
+		}
+
+		final Map<Scope, Bitmap> result = CollectionUtils.createHashMap(formulas.size());
+		for (Entry<Scope, Formula[]> entry : formulas.entrySet()) {
+			result.put(
+				entry.getKey(),
+				FormulaFactory.or(entry.getValue()).compute()
+			);
+		}
+		return result;
 	}
 
 	/**
@@ -581,7 +583,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Bitmap result;
 
 		// we need to gather all referenced entity ids and initialize validity mapping for all the passed entity PKs
-		final Bitmap allReferencedEntityIds = getAllReferencedEntityIds(
+		final Map<Scope, Bitmap> allReferencedEntityPksFromEntitiesInScope = getAllReferencedEntityIds(
 			entityPrimaryKeys,
 			entityPk -> referencedEntityResolver.apply(referenceSchema.getName(), entityPk),
 			validityMapping
@@ -621,39 +623,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			result = EmptyBitmap.INSTANCE;
 		} else {
 			final RoaringBitmap referencedPrimaryKeys;
-			final QueryPlanningContext queryContext = executionContext.getQueryContext();
-			final Set<Scope> scopes = executionContext.getQueryContext().getScopes();
 			if (filterBy == null) {
+				// if there is no filtering, we can quickly return all referenced pks
 				final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
-				if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING) {
-					// we need to filter the referenced entity ids to only those that really exist
-					final Optional<EntityCollection> targetEntityCollection = queryContext
-						.getEntityCollection(targetEntityType);
-					if (targetEntityCollection.isPresent()) {
-						for (Scope scope : scopes) {
-							final EntityIndex indexByKeyIfExists = targetEntityCollection
-								.get()
-								.getIndexByKeyIfExists(
-									new EntityIndexKey(EntityIndexType.GLOBAL, scope)
-								);
-							if (indexByKeyIfExists != null) {
-								final RoaringBitmap matchingPrimaryKeys = RoaringBitmap.and(
-									RoaringBitmapBackedBitmap.getRoaringBitmap(indexByKeyIfExists.getAllPrimaryKeys()),
-									RoaringBitmapBackedBitmap.getRoaringBitmap(allReferencedEntityIds)
-								);
-								final PeekableIntIterator it = matchingPrimaryKeys.getIntIterator();
-								while (it.hasNext()) {
-									referencedPrimaryKeysWriter.add(it.next());
-								}
-							}
-						}
-					}
-				} else {
-					// we may allow all referenced entity ids
-					// this is not necessary to be done here - it's the initial setup:
-					// validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
-					writeAllReferencedPrimaryKeys(allReferencedEntityIds, referencedPrimaryKeysWriter);
-				}
+				writeAllReferencedPrimaryKeys(allReferencedEntityPks, referencedPrimaryKeysWriter);
 
 				initNestedQueryComparator(
 					entityNestedQueryComparator,
@@ -668,21 +641,19 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			} else {
 				// otherwise we need to filter the referenced pks according to the filterBy constraint
 				final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
-				final Set<Scope> examinedScopes = gatherSearchedScopes(filterBy, scopes);
-
 				referencedPrimaryKeys = theFilterByVisitor
 					.getProcessingScope()
 					.doWithScope(
 						examinedScopes,
 						() -> {
-							final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityIds.isEmpty() ?
+							final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityPks.isEmpty() ?
 								Collections.emptyList() :
 								theFilterByVisitor.getReferencedRecordEntityIndexes(
 									new ReferenceHaving(
 										referenceSchema.getName(),
 										and(
 											ArrayUtils.mergeArrays(
-												new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds.getArray())},
+												new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityPks.getArray())},
 												filterBy.getChildren()
 											)
 										)
@@ -703,23 +674,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							}
 
 							final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
-							final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityIds.size());
-
-							boolean anyScopeIndexed = false;
-							for (Scope scope : examinedScopes) {
-								if (referenceSchema.isIndexedInScope(scope)) {
-									anyScopeIndexed = true;
-								} else {
-									final OfInt it = allReferencedEntityIds.iterator();
-									while (it.hasNext()) {
-										final int pkInScope = it.nextInt();
-										foundReferencedIds.add(pkInScope);
-										referencedPrimaryKeysWriter.add(pkInScope);
-									}
-								}
-							}
-
-							if (anyScopeIndexed) {
+							final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityPks.size());
+							// if there is at least one indexed scope, we need to process the indexes
+							if (nonIndexedScopes.size() < examinedScopes.size()) {
 								Formula lastIndexFormula = null;
 								RepresentativeReferenceKey lastDiscriminator = null;
 
@@ -780,6 +737,38 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
 									}
 								}
+
+								// finally, add all referenced pks from non-indexed scopes
+								for (Scope nonIndexedScope : nonIndexedScopes) {
+									// we need to add all referenced entities from source entities in scope that is not indexed
+									// i.e. archived product relates to live product via non-indexed reference
+									final Bitmap refPksFromEntitiesInScope = allReferencedEntityPksFromEntitiesInScope.get(nonIndexedScope);
+									if (refPksFromEntitiesInScope != null) {
+										for (Integer refPk : refPksFromEntitiesInScope) {
+											foundReferencedIds.add(refPk);
+											referencedPrimaryKeysWriter.add(refPk);
+										}
+									}
+									// but we also need to add referenced entities that exist in the non-indexed scope
+									// i.e. live product relates to archived product via indexed reference
+									// references are indexed only within the same scope and here it goes across scopes
+									final Bitmap refPks = allReferencedEntityPksInScope.get(nonIndexedScope);
+									if (refPks != null) {
+										for (Integer refPk : refPks) {
+											foundReferencedIds.add(refPk);
+											referencedPrimaryKeysWriter.add(refPk);
+										}
+									}
+								}
+							} else {
+								// if there are only non-indexed scopes, we need to add all referenced pks
+								// from all source entities in scope
+								final OfInt it = allReferencedEntityPks.iterator();
+								while (it.hasNext()) {
+									final int pkInScope = it.nextInt();
+									foundReferencedIds.add(pkInScope);
+									referencedPrimaryKeysWriter.add(pkInScope);
+								}
 							}
 
 							validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
@@ -812,6 +801,50 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
+	 * Limits the referenced entity IDs to include only those that exist in the provided entity collection
+	 * and scopes, optionally updating the validity mapping as necessary.
+	 *
+	 * @param allReferencedEntityIdsIncludingNonExisting A {@link Bitmap} containing IDs of all referenced
+	 *        entities, including ones that may not exist.
+	 * @param entityCollection The {@link EntityCollection} containing indexes used to determine which
+	 *        entities exist. If null, no filtering is applied and an empty bitmap is returned.
+	 * @param examinedScopes A set of {@link Scope} objects defining the scopes within which to check for
+	 *        existing entities.
+	 * @return A {@link Bitmap} containing the IDs of entities that exist in the specified scopes of
+	 *         the entity collection. If no entities exist for the given parameters, an empty bitmap is returned.
+	 */
+	@Nonnull
+	private static Map<Scope, Bitmap> limitToExistingEntities(
+		@Nonnull Bitmap allReferencedEntityIdsIncludingNonExisting,
+		@Nullable EntityCollection entityCollection,
+		@Nonnull Set<Scope> examinedScopes
+	) {
+		if (entityCollection != null) {
+			final RoaringBitmap allPks = RoaringBitmapBackedBitmap.getRoaringBitmap(allReferencedEntityIdsIncludingNonExisting);
+			final Map<Scope, Bitmap> existingEntityIdsByScope = CollectionUtils.createHashMap(examinedScopes.size());
+			for (Scope scope : examinedScopes) {
+				final EntityIndex indexByKeyIfExists = entityCollection
+					.getIndexByKeyIfExists(
+						new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+					);
+				if (indexByKeyIfExists != null) {
+					final RoaringBitmap andResult = RoaringBitmap.and(
+						RoaringBitmapBackedBitmap.getRoaringBitmap(indexByKeyIfExists.getAllPrimaryKeys()),
+						allPks
+					);
+					existingEntityIdsByScope.put(
+						scope,
+						andResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(andResult)
+					);
+				}
+			}
+			return existingEntityIdsByScope;
+		} else {
+			return Collections.emptyMap();
+		}
+	}
+
+	/**
 	 * Gathers and returns the set of scopes that are to be examined based on the provided filter and initial scopes.
 	 * If the filter contains a local `EntityScope` constraint, its scopes are added to the provided scopes.
 	 *
@@ -824,7 +857,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @return a set of scopes that includes the initial scopes and any additional scopes derived from the filter criteria
 	 */
 	@Nonnull
-	private static Set<Scope> gatherSearchedScopes(@Nonnull FilterBy filterBy, @Nonnull Set<Scope> scopes) {
+	private static Set<Scope> gatherSearchedScopes(@Nullable FilterBy filterBy, @Nonnull Set<Scope> scopes) {
+		if (filterBy == null) {
+			return scopes;
+		}
 		final EntityScope localScope = QueryUtils.findConstraint(filterBy, EntityScope.class);
 		final Set<Scope> examinedScopes;
 		if (localScope == null) {
