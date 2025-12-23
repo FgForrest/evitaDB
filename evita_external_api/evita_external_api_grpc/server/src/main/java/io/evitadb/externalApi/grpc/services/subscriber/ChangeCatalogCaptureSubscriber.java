@@ -29,6 +29,7 @@ import io.evitadb.externalApi.grpc.exception.GrpcServerCancellationException;
 import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
+import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 
@@ -60,6 +61,7 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
 public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture>, AutoCloseable {
 	private final StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
 	private final CompletableFuture<Subscription> subscriptionFuture;
+	private final SemVer clientVersion;
 	private final AtomicBoolean isClosed = new AtomicBoolean(false);
 	private Subscription subscription;
 
@@ -85,7 +87,7 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 		this.responseObserver.onNext(
 			GrpcRegisterChangeCatalogCaptureResponse
 				.newBuilder()
-				.setCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(item))
+				.setCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(item, this.clientVersion))
 				.setResponseType(GrpcCaptureResponseType.CHANGE)
 				.build()
 		);
