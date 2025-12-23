@@ -587,7 +587,35 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			validityMapping
 		);
 
-		if (allReferencedEntityIds.isEmpty()) {
+		// extract working context
+		final QueryPlanningContext queryContext = executionContext.getQueryContext();
+		// identify scopes that need to be searched for referenced entities
+		final Set<Scope> examinedScopes = gatherSearchedScopes(
+			filterBy,
+			executionContext.getQueryContext().getScopes()
+		);
+
+		// collect the referenced entity ids
+		final Map<Scope, Bitmap> allReferencedEntityPksInScope;
+		final Bitmap allReferencedEntityPks;
+		// if query required filtering or only existing references
+		if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null) {
+			// we need to filter the referenced entity ids to only those that really exist
+			allReferencedEntityPksInScope = limitToExistingEntities(
+				combineWithOr(allReferencedEntityPksFromEntitiesInScope.values()),
+				queryContext.getEntityCollection(targetEntityType).orElse(null),
+				examinedScopes
+			);
+			// and also create unified lookup over all referenced entity ids in all requested scopes
+			allReferencedEntityPks = combineWithOr(allReferencedEntityPksInScope.values());
+		} else {
+			// otherwise we just use all referenced entity pks as they are
+			allReferencedEntityPksInScope = allReferencedEntityPksFromEntitiesInScope;
+			// and also create unified lookup over all referenced entity ids in all requested scopes
+			allReferencedEntityPks = combineWithOr(allReferencedEntityPksFromEntitiesInScope.values());
+		}
+
+		if (allReferencedEntityPks.isEmpty()) {
 			// if nothing was found, quickly finish
 			validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
 			result = EmptyBitmap.INSTANCE;
@@ -637,8 +665,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
 
 				validityMappingOptional.ifPresent(it -> it.restrictTo(result));
-
 			} else {
+				// otherwise we need to filter the referenced pks according to the filterBy constraint
 				final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
 				final Set<Scope> examinedScopes = gatherSearchedScopes(filterBy, scopes);
 
@@ -664,6 +692,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								);
 							if (!referencedEntityIndexes.isEmpty()) {
 								referencedEntityIndexes.sort(BY_DISCRIMINATOR);
+							}
+
+							// we need to identify which scopes are not indexed for this reference
+							final Set<Scope> nonIndexedScopes = CollectionUtils.createHashSet(examinedScopes.size());
+							for (Scope scope : examinedScopes) {
+								if (!referenceSchema.isIndexedInScope(scope)) {
+									nonIndexedScopes.add(scope);
+								}
 							}
 
 							final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
@@ -762,6 +798,17 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		}
 
 		return result;
+	}
+
+	@Nonnull
+	private static Bitmap combineWithOr(@Nonnull Collection<Bitmap> values) {
+		final RoaringBitmap orResult = RoaringBitmap.or(
+			values
+				.stream()
+				.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+				.toArray(RoaringBitmap[]::new)
+		);
+		return orResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(orResult);
 	}
 
 	/**
