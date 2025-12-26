@@ -136,6 +136,11 @@ public class ExportS3Service implements ExportService {
 	private static final String META_CRC32 = "crc32";
 
 	/**
+	 * User metadata key for externally managed flag.
+	 */
+	private static final String META_EXTERNALLY_MANAGED = "externally-managed";
+
+	/**
 	 * Part size for S3 multipart upload (10MB).
 	 */
 	private static final long PART_SIZE = 10_485_760L;
@@ -181,6 +186,7 @@ public class ExportS3Service implements ExportService {
 			final String originStr = userMetadata.get(META_ORIGIN);
 			final String catalogName = userMetadata.get(META_CATALOG);
 			final String crc32Str = userMetadata.get(META_CRC32);
+			final String externallyManagedStr = userMetadata.get(META_EXTERNALLY_MANAGED);
 
 			if (fileIdStr == null || name == null || createdStr == null) {
 				return null;
@@ -201,7 +207,8 @@ public class ExportS3Service implements ExportService {
 				created,
 				origin,
 				(catalogName == null || catalogName.isBlank()) ? null : catalogName,
-				crc32Str != null ? Long.parseLong(crc32Str) : 0L
+				crc32Str != null ? Long.parseLong(crc32Str) : 0L,
+				Boolean.parseBoolean(externallyManagedStr)
 			);
 		} catch (Exception e) {
 			log.error("Failed to parse file metadata", e);
@@ -431,12 +438,47 @@ public class ExportS3Service implements ExportService {
 		@Nullable String catalog,
 		@Nullable String origin
 	) {
+		return storeFileInternal(fileName, description, contentType, catalog, origin, false);
+	}
+
+	@Nonnull
+	@Override
+	public ExportFileHandle storeExternallyManagedFile(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String catalog,
+		@Nullable String origin
+	) {
+		return storeFileInternal(fileName, description, contentType, catalog, origin, true);
+	}
+
+	/**
+	 * Internal method that creates a new export file with optional external management flag.
+	 *
+	 * @param fileName          preferred file name
+	 * @param description       optional human-readable description
+	 * @param contentType       MIME type of the content
+	 * @param catalog           optional catalog name the file relates to
+	 * @param origin            optional origin tag of the file
+	 * @param externallyManaged true if the file should not be automatically purged
+	 * @return handle for writing and publishing the file
+	 */
+	@Nonnull
+	private ExportFileHandle storeFileInternal(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String catalog,
+		@Nullable String origin,
+		boolean externallyManaged
+	) {
 		final UUID fileId = UUIDUtil.randomUUID();
 		final String objectKey = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
 		final OffsetDateTime created = OffsetDateTime.now();
 
 		// Prepare user metadata
-		final Map<String, String> userMetadata = CollectionUtils.createHashMap(8);
+		final Map<String, String> userMetadata = CollectionUtils.createHashMap(10);
 		userMetadata.put(META_FILE_ID, fileId.toString());
 		userMetadata.put(META_NAME, fileName);
 		userMetadata.put(META_DESCRIPTION, description != null ? description : "");
@@ -445,6 +487,7 @@ public class ExportS3Service implements ExportService {
 		userMetadata.put(META_ORIGIN, origin != null ? origin : "");
 		userMetadata.put(META_CATALOG, catalog != null ? catalog : "");
 		userMetadata.put(META_GENERATED_BY, GENERATED_BY_VALUE);
+		userMetadata.put(META_EXTERNALLY_MANAGED, Boolean.toString(externallyManaged));
 
 		// Parse origin tags
 		final String[] originTags = origin == null ? null : Arrays.stream(origin.split(","))
@@ -468,6 +511,7 @@ public class ExportS3Service implements ExportService {
 			created,
 			originTags,
 			catalog,
+			externallyManaged,
 			fileForFetchFuture,
 			this.s3Options.getRequestTimeoutInMillis()
 		);
@@ -594,8 +638,11 @@ public class ExportS3Service implements ExportService {
 		final String bucket = this.s3Options.getBucketOrThrowException();
 		final String region = this.s3Options.getRegion();
 		final boolean regionSet = isRegionValid(region);
+		final long sizeLimitBytes = this.s3Options.getSizeLimitBytes();
 
-		final List<FileForFetch> allFiles = new ArrayList<>();
+		// Separate externally managed files from regular files
+		final List<FileForFetch> managedFiles = new ArrayList<>();
+		final List<FileForFetch> regularFiles = new ArrayList<>();
 
 		try {
 			String startAfter = null;
@@ -629,13 +676,16 @@ public class ExportS3Service implements ExportService {
 							}
 							final FileForFetch file = parseFileForFetch(userMetadata, item.size());
 							if (file != null) {
-								// Check age expiration
-								if (file.created().isBefore(thresholdDate)) {
+								// Externally managed files are never purged by age
+								if (file.externallyManaged()) {
+									managedFiles.add(file);
+								} else if (file.created().isBefore(thresholdDate)) {
+									// Check age expiration for non-managed files
 									log.info("Purging file from S3, because it has been created before {}: {}", thresholdDate, file);
 									deleteFile(file.fileId());
 								} else {
 									// Keep for size check
-									allFiles.add(file);
+									regularFiles.add(file);
 								}
 							}
 						}
@@ -649,24 +699,43 @@ public class ExportS3Service implements ExportService {
 				}
 			} while (counter++ < 1_000); // safety limit to avoid infinite loops
 
-			// Check total size and delete oldest files if over limit
-			long totalSize = 0L;
-			for (FileForFetch fileForFetch : allFiles) {
+			// Calculate managed file size and log warnings/errors
+			long managedFileSize = 0L;
+			for (FileForFetch file : managedFiles) {
+				managedFileSize += file.totalSizeInBytes();
+			}
+			if (managedFileSize > sizeLimitBytes) {
+				log.error(
+					"Externally managed files ({} bytes) exceed 100% of the configured size limit ({} bytes). " +
+						"Consider increasing the limit or removing managed files.",
+					managedFileSize, sizeLimitBytes
+				);
+			} else if (managedFileSize > sizeLimitBytes * 0.8) {
+				log.warn(
+					"Externally managed files ({} bytes) exceed 80% of the configured size limit ({} bytes). " +
+						"Consider monitoring or removing managed files.",
+					managedFileSize, sizeLimitBytes
+				);
+			}
+
+			// Check total size and delete oldest non-managed files if over limit
+			long totalSize = managedFileSize;
+			for (FileForFetch fileForFetch : regularFiles) {
 				totalSize += fileForFetch.totalSizeInBytes();
 			}
 
-			if (totalSize > this.s3Options.getSizeLimitBytes()) {
-				// Sort by creation date (oldest first) for deletion
-				allFiles.sort(Comparator.comparing(FileForFetch::created));
+			if (totalSize > sizeLimitBytes) {
+				// Sort non-managed files by creation date (oldest first) for deletion
+				regularFiles.sort(Comparator.comparing(FileForFetch::created));
 
 				long savedSize = 0L;
-				for (final FileForFetch file : allFiles) {
+				for (final FileForFetch file : regularFiles) {
 					log.info("Purging the oldest file from S3, because the storage grew too big: {}", file);
 					try {
 						final long fileSize = file.totalSizeInBytes();
 						deleteFile(file.fileId());
 						savedSize += fileSize;
-						if (totalSize - savedSize <= this.s3Options.getSizeLimitBytes()) {
+						if (totalSize - savedSize <= sizeLimitBytes) {
 							break;
 						}
 					} catch (Exception e) {
@@ -862,6 +931,7 @@ public class ExportS3Service implements ExportService {
 		private final OffsetDateTime created;
 		private final String[] originTags;
 		private final String catalogName;
+		private final boolean externallyManaged;
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
 		private final long requestTimeoutInMillis;
 		private final Crc32Calculator crcCalculator = new Crc32Calculator();
@@ -881,6 +951,7 @@ public class ExportS3Service implements ExportService {
 			@Nonnull OffsetDateTime created,
 			@Nullable String[] originTags,
 			@Nullable String catalogName,
+			boolean externallyManaged,
 			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
 			long requestTimeoutInMillis
 		) {
@@ -913,6 +984,7 @@ public class ExportS3Service implements ExportService {
 			this.created = created;
 			this.originTags = originTags;
 			this.catalogName = catalogName;
+			this.externallyManaged = externallyManaged;
 			this.fileForFetchFuture = fileForFetchFuture;
 			this.requestTimeoutInMillis = requestTimeoutInMillis;
 			this.closed = false;
@@ -985,7 +1057,8 @@ public class ExportS3Service implements ExportService {
 									this.created,
 									this.originTags,
 									this.catalogName,
-									checksum
+									checksum,
+									this.externallyManaged
 								);
 								this.fileForFetchFuture.complete(fileForFetch);
 							} else {

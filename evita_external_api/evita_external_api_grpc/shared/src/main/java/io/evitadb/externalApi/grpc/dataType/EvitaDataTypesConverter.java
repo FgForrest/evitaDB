@@ -1686,7 +1686,8 @@ public class EvitaDataTypesConverter {
 			.setContentType(fileForFetch.contentType())
 			.setTotalSizeInBytes(fileForFetch.totalSizeInBytes())
 			.setCreated(toGrpcOffsetDateTime(fileForFetch.created()))
-			.setCrc32(fileForFetch.crc32());
+			.setCrc32(fileForFetch.crc32())
+			.setExternallyManaged(fileForFetch.externallyManaged());
 		ofNullable(fileForFetch.description())
 			.ifPresent(description -> builder.setDescription(StringValue.newBuilder().setValue(description).build()));
 		ofNullable(fileForFetch.origin())
@@ -1712,7 +1713,8 @@ public class EvitaDataTypesConverter {
 			toOffsetDateTime(grpcFile.getCreated()),
 			grpcFile.hasOrigin() ? grpcFile.getOrigin().getValue().split(",") : null,
 			grpcFile.hasCatalogName() ? grpcFile.getCatalogName().getValue() : null,
-			grpcFile.getCrc32()
+			grpcFile.getCrc32(),
+			grpcFile.getExternallyManaged()
 		);
 	}
 

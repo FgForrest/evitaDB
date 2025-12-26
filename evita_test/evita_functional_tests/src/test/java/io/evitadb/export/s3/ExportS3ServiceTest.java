@@ -655,6 +655,116 @@ class ExportS3ServiceTest {
 		assertEquals(1, files.getTotalRecordCount());
 	}
 
+	@Test
+	@DisplayName("Should not purge externally managed files by date")
+	void shouldNotPurgeExternallyManagedFilesByDate() throws IOException {
+		// Create regular files and externally managed files
+		writeFile("regular1.txt", null);
+		writeFile("regular2.txt", null);
+		final FileForFetch managedFile = writeExternallyManagedFile("managed.txt", null);
+
+		// Verify all files exist
+		assertEquals(3, this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of()).getTotalRecordCount());
+
+		// Purge with future date (should delete all regular files but not managed)
+		this.exportService.purgeFiles(OffsetDateTime.now().plusMinutes(1));
+
+		// Verify only managed file remains
+		final PaginatedList<FileForFetch> remainingFiles = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of());
+		assertEquals(1, remainingFiles.getTotalRecordCount());
+		assertEquals(managedFile.fileId(), remainingFiles.getData().get(0).fileId());
+		assertTrue(remainingFiles.getData().get(0).externallyManaged());
+	}
+
+	@Test
+	@DisplayName("Should not purge externally managed files by size")
+	void shouldNotPurgeExternallyManagedFilesBySize() throws IOException {
+		// Service is configured with sizeLimitBytes=1000
+		// Create externally managed file that takes up 400 bytes
+		final FileForFetch managedFile = writeLargeExternallyManagedFile("managed.txt", 400);
+
+		// Create regular files that together with managed exceed limit
+		writeLargeFile("regular1.txt", 300);
+		writeLargeFile("regular2.txt", 400);
+		// Total: 400 + 300 + 400 = 1100 bytes (exceeds 1000 limit)
+
+		// Trigger size-based purge with past date
+		this.exportService.purgeFiles(OffsetDateTime.now().minusYears(1));
+
+		// Verify managed file still exists (regular files may be purged to fit within limit)
+		final PaginatedList<FileForFetch> remainingFiles = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of());
+		assertTrue(remainingFiles.getData().stream()
+			.anyMatch(f -> f.fileId().equals(managedFile.fileId())));
+	}
+
+	@Test
+	@DisplayName("Should delete externally managed file explicitly")
+	void shouldDeleteExternallyManagedFileExplicitly() throws IOException {
+		final FileForFetch managedFile = writeExternallyManagedFile("managed.txt", null);
+
+		// Verify file exists
+		assertTrue(this.exportService.getFile(managedFile.fileId()).isPresent());
+
+		// Delete explicitly
+		this.exportService.deleteFile(managedFile.fileId());
+
+		// Verify file is deleted
+		assertTrue(this.exportService.getFile(managedFile.fileId()).isEmpty());
+	}
+
+	@Test
+	@DisplayName("Should mark externally managed file correctly")
+	void shouldMarkExternallyManagedFileCorrectly() throws IOException {
+		final FileForFetch regularFile = writeFile("regular.txt", null);
+		final FileForFetch managedFile = writeExternallyManagedFile("managed.txt", null);
+
+		// Verify flags
+		assertFalse(regularFile.externallyManaged());
+		assertTrue(managedFile.externallyManaged());
+
+		// Verify via getFile
+		final Optional<FileForFetch> retrievedRegular = this.exportService.getFile(regularFile.fileId());
+		final Optional<FileForFetch> retrievedManaged = this.exportService.getFile(managedFile.fileId());
+
+		assertTrue(retrievedRegular.isPresent());
+		assertTrue(retrievedManaged.isPresent());
+		assertFalse(retrievedRegular.get().externallyManaged());
+		assertTrue(retrievedManaged.get().externallyManaged());
+	}
+
+	@Test
+	@DisplayName("Should evict regular files earlier when managed files take space")
+	void shouldEvictRegularFilesEarlierWhenManagedFilesTakeSpace() throws IOException {
+		// Service is configured with sizeLimitBytes=1000
+		// Create large externally managed file (600 bytes)
+		final FileForFetch managedFile = writeLargeExternallyManagedFile("managed.txt", 600);
+
+		// Available space for regular files: 1000 - 600 = 400 bytes
+		// Create regular files that exceed the available space
+		writeLargeFile("regular1.txt", 200);
+		writeLargeFile("regular2.txt", 200);
+		writeLargeFile("regular3.txt", 200);
+		// Total regular files: 600 bytes (exceeds 400 available)
+
+		// Trigger size-based purge
+		this.exportService.purgeFiles(OffsetDateTime.now().minusYears(1));
+
+		// Verify managed file still exists
+		final PaginatedList<FileForFetch> remainingFiles = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of());
+		assertTrue(remainingFiles.getData().stream()
+			.anyMatch(f -> f.fileId().equals(managedFile.fileId())));
+
+		// Calculate total size of remaining regular files
+		long regularFilesSize = remainingFiles.getData().stream()
+			.filter(f -> !f.externallyManaged())
+			.mapToLong(FileForFetch::totalSizeInBytes)
+			.sum();
+
+		// Regular files should fit within available space (400 bytes)
+		assertTrue(regularFilesSize <= 400,
+			"Regular files size (" + regularFilesSize + ") should be <= 400 bytes");
+	}
+
 	/**
 	 * Helper method to write a file to the export service.
 	 *
@@ -724,6 +834,57 @@ class ExportS3ServiceTest {
 	private FileForFetch writeLargeFile(@Nonnull String fileName, int sizeInBytes) throws IOException {
 		final ExportFileHandle handle = this.exportService.storeFile(
 			fileName, "Large file", "application/octet-stream", null, null);
+		try (final OutputStream os = handle.outputStream()) {
+			final byte[] data = new byte[sizeInBytes];
+			Arrays.fill(data, (byte) 'X');
+			os.write(data);
+		}
+		try {
+			return handle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
+		} catch (InterruptedException | ExecutionException | TimeoutException e) {
+			throw new IOException("Failed to wait for file upload", e);
+		}
+	}
+
+	/**
+	 * Helper method to write an externally managed file to the export service.
+	 *
+	 * @param fileName   the name of the file to write
+	 * @param withOrigin comma-separated origin tags, or null for no tags
+	 * @return the created {@link FileForFetch} instance
+	 * @throws IOException if file writing fails
+	 */
+	@Nonnull
+	private FileForFetch writeExternallyManagedFile(@Nonnull String fileName, @Nullable String withOrigin) throws IOException {
+		final ExportFileHandle exportFileHandle = this.exportService.storeExternallyManagedFile(
+			fileName,
+			"With description ...",
+			"text/plain",
+			null,
+			withOrigin
+		);
+		try (final OutputStream outputStream = exportFileHandle.outputStream()) {
+			outputStream.write("testFileContent".getBytes(StandardCharsets.UTF_8));
+		}
+		try {
+			return exportFileHandle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
+		} catch (InterruptedException | ExecutionException | TimeoutException e) {
+			throw new IOException("Failed to wait for file upload to complete", e);
+		}
+	}
+
+	/**
+	 * Helper method to write a large externally managed file with specified size.
+	 *
+	 * @param fileName    the name of the file to write
+	 * @param sizeInBytes the size of the file content in bytes
+	 * @return the created {@link FileForFetch} instance
+	 * @throws IOException if file writing fails
+	 */
+	@Nonnull
+	private FileForFetch writeLargeExternallyManagedFile(@Nonnull String fileName, int sizeInBytes) throws IOException {
+		final ExportFileHandle handle = this.exportService.storeExternallyManagedFile(
+			fileName, "Large externally managed file", "application/octet-stream", null, null);
 		try (final OutputStream os = handle.outputStream()) {
 			final byte[] data = new byte[sizeInBytes];
 			Arrays.fill(data, (byte) 'X');

@@ -164,7 +164,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool corrupted = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=417
+   *     See GrpcEvitaDataTypes.proto;l=419
    * @return The corrupted.
    */
   @java.lang.Override
@@ -1244,7 +1244,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=417
+     *     See GrpcEvitaDataTypes.proto;l=419
      * @return The corrupted.
      */
     @java.lang.Override
@@ -1258,7 +1258,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=417
+     *     See GrpcEvitaDataTypes.proto;l=419
      * @param value The corrupted to set.
      * @return This builder for chaining.
      */
@@ -1276,7 +1276,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=417
+     *     See GrpcEvitaDataTypes.proto;l=419
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearCorrupted() {

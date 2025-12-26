@@ -89,4 +89,12 @@ public interface FileForFetch extends Serializable {
 	 */
 	long crc32();
 
+	/**
+	 * Returns true if the file is externally managed and should not be automatically purged
+	 * due to age or size constraints. Such files can only be removed via explicit
+	 * {@link io.evitadb.spi.export.ExportService#deleteFile(java.util.UUID)} calls.
+	 * They still count towards the maximum total file size limit.
+	 */
+	boolean externallyManaged();
+
 }

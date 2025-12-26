@@ -75,7 +75,11 @@ public interface ExportService extends Closeable {
 	 */
 	@Nonnull
 	PaginatedList<FileForFetch> listFilesToFetch(
-		int page, int pageSize, @Nonnull Set<String> catalog, @Nonnull Set<String> origin);
+		int page,
+		int pageSize,
+		@Nonnull Set<String> catalog,
+		@Nonnull Set<String> origin
+	);
 
 	/**
 	 * Returns the file descriptor for the specified {@code fileId} or an empty value when it does not
@@ -110,6 +114,31 @@ public interface ExportService extends Closeable {
 	 */
 	@Nonnull
 	ExportFileHandle storeFile(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String catalog,
+		@Nullable String origin
+	);
+
+	/**
+	 * Creates a new externally managed export file and returns a handle for writing its contents.
+	 *
+	 * Externally managed files are not automatically purged due to age or size constraints.
+	 * They can only be removed via explicit {@link #deleteFile(UUID)} calls. They still count
+	 * towards the maximum total file size limit, so when there are many such files, it may
+	 * trigger earlier eviction of other non-managed files.
+	 *
+	 * @param fileName    preferred file name
+	 * @param description optional human-readable description
+	 * @param contentType MIME type of the content
+	 * @param catalog     optional catalog name the file relates to
+	 * @param origin      optional origin tag of the file
+	 * @return handle for writing and publishing the file
+	 * @see #storeFile(String, String, String, String, String)
+	 */
+	@Nonnull
+	ExportFileHandle storeExternallyManagedFile(
 		@Nonnull String fileName,
 		@Nullable String description,
 		@Nonnull String contentType,

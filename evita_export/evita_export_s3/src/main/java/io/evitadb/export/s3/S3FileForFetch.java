@@ -35,14 +35,15 @@ import java.util.UUID;
 /**
  * S3 implementation of {@link FileForFetch} interface.
  *
- * @param fileId           ID of the file.
- * @param name             Name of the file.
- * @param description      Optional short description of the file in human readable form.
- * @param contentType      MIME type of the file.
- * @param totalSizeInBytes Total size of the file in bytes.
- * @param created          Date and time when the file was created.
- * @param origin           Optional origin of the file.
- * @param crc32            CRC32 checksum of the file content.
+ * @param fileId            ID of the file.
+ * @param name              Name of the file.
+ * @param description       Optional short description of the file in human readable form.
+ * @param contentType       MIME type of the file.
+ * @param totalSizeInBytes  Total size of the file in bytes.
+ * @param created           Date and time when the file was created.
+ * @param origin            Optional origin of the file.
+ * @param crc32             CRC32 checksum of the file content.
+ * @param externallyManaged True if the file is externally managed and should not be automatically purged.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record S3FileForFetch(
@@ -54,7 +55,8 @@ public record S3FileForFetch(
 	@Nonnull OffsetDateTime created,
 	@Nullable String[] origin,
 	@Nullable String catalogName,
-	long crc32
+	long crc32,
+	boolean externallyManaged
 ) implements FileForFetch {
 
 	public S3FileForFetch {
@@ -74,6 +76,7 @@ public record S3FileForFetch(
 			", origin=" + Arrays.toString(this.origin) +
 			", catalogName='" + this.catalogName + '\'' +
 			", crc32=" + this.crc32 +
+			", externallyManaged=" + this.externallyManaged +
 			'}';
 	}
 

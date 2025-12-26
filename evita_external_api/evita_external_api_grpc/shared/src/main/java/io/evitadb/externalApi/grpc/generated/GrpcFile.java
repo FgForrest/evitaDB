@@ -383,6 +383,21 @@ private static final long serialVersionUID = 0L;
     return crc32_;
   }
 
+  public static final int EXTERNALLYMANAGED_FIELD_NUMBER = 10;
+  private boolean externallyManaged_ = false;
+  /**
+   * <pre>
+   * True if the file is externally managed and should not be automatically purged
+   * </pre>
+   *
+   * <code>bool externallyManaged = 10;</code>
+   * @return The externallyManaged.
+   */
+  @java.lang.Override
+  public boolean getExternallyManaged() {
+    return externallyManaged_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -423,6 +438,9 @@ private static final long serialVersionUID = 0L;
     }
     if (crc32_ != 0L) {
       output.writeInt64(9, crc32_);
+    }
+    if (externallyManaged_ != false) {
+      output.writeBool(10, externallyManaged_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -466,6 +484,10 @@ private static final long serialVersionUID = 0L;
     if (crc32_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(9, crc32_);
+    }
+    if (externallyManaged_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(10, externallyManaged_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -515,6 +537,8 @@ private static final long serialVersionUID = 0L;
     }
     if (getCrc32()
         != other.getCrc32()) return false;
+    if (getExternallyManaged()
+        != other.getExternallyManaged()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -556,6 +580,9 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + CRC32_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getCrc32());
+    hash = (37 * hash) + EXTERNALLYMANAGED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getExternallyManaged());
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -730,6 +757,7 @@ private static final long serialVersionUID = 0L;
         catalogNameBuilder_ = null;
       }
       crc32_ = 0L;
+      externallyManaged_ = false;
       return this;
     }
 
@@ -805,6 +833,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000100) != 0)) {
         result.crc32_ = crc32_;
+      }
+      if (((from_bitField0_ & 0x00000200) != 0)) {
+        result.externallyManaged_ = externallyManaged_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -883,6 +914,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getCrc32() != 0L) {
         setCrc32(other.getCrc32());
+      }
+      if (other.getExternallyManaged() != false) {
+        setExternallyManaged(other.getExternallyManaged());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -965,6 +999,11 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000100;
               break;
             } // case 72
+            case 80: {
+              externallyManaged_ = input.readBool();
+              bitField0_ |= 0x00000200;
+              break;
+            } // case 80
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2035,6 +2074,50 @@ private static final long serialVersionUID = 0L;
     public Builder clearCrc32() {
       bitField0_ = (bitField0_ & ~0x00000100);
       crc32_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private boolean externallyManaged_ ;
+    /**
+     * <pre>
+     * True if the file is externally managed and should not be automatically purged
+     * </pre>
+     *
+     * <code>bool externallyManaged = 10;</code>
+     * @return The externallyManaged.
+     */
+    @java.lang.Override
+    public boolean getExternallyManaged() {
+      return externallyManaged_;
+    }
+    /**
+     * <pre>
+     * True if the file is externally managed and should not be automatically purged
+     * </pre>
+     *
+     * <code>bool externallyManaged = 10;</code>
+     * @param value The externallyManaged to set.
+     * @return This builder for chaining.
+     */
+    public Builder setExternallyManaged(boolean value) {
+
+      externallyManaged_ = value;
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * True if the file is externally managed and should not be automatically purged
+     * </pre>
+     *
+     * <code>bool externallyManaged = 10;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearExternallyManaged() {
+      bitField0_ = (bitField0_ & ~0x00000200);
+      externallyManaged_ = false;
       onChanged();
       return this;
     }

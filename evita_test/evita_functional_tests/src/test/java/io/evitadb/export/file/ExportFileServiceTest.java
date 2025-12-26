@@ -808,6 +808,151 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertEquals("first.txt", files.getData().get(2).name());
 	}
 
+	// ==================== Externally Managed Files Tests ====================
+
+	@Test
+	@DisplayName("Should not purge externally managed files by date")
+	void shouldNotPurgeExternallyManagedFilesByDate() throws IOException {
+		// Create both managed and regular files
+		final FileForFetch managedFile = writeExternallyManagedFile("managed.txt", "A");
+		final FileForFetch regularFile = writeFile("regular.txt", "A");
+
+		// Verify both files exist
+		assertEquals(2, exportService.listFilesToFetch(1, 10, Set.of(), Set.of()).getTotalRecordCount());
+
+		// Purge all files by date (threshold in future)
+		exportService.purgeFiles(OffsetDateTime.now().plusMinutes(1));
+
+		// Managed file should remain, regular should be deleted
+		final PaginatedList<FileForFetch> remainingFiles = exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
+		assertEquals(1, remainingFiles.getTotalRecordCount());
+		assertEquals(managedFile.fileId(), remainingFiles.getData().get(0).fileId());
+		assertTrue(remainingFiles.getData().get(0).externallyManaged());
+	}
+
+	@Test
+	@DisplayName("Should not purge externally managed files by size limit")
+	void shouldNotPurgeExternallyManagedFilesBySize() throws IOException {
+		// Recreate service with controllable time
+		final AtomicReference<OffsetDateTime> testTime =
+			new AtomicReference<>(OffsetDateTime.now());
+
+		this.exportService.close();
+		this.exportService = new ExportFileService(
+			exportOptions,
+			Mockito.mock(Scheduler.class),
+			testTime::get
+		);
+
+		// Create managed files that exceed the size limit (1000 bytes)
+		final FileForFetch managedFile1 = writeExternallyManagedFileWithContent("managed1.txt", "A", new byte[400]);
+		testTime.set(testTime.get().plusSeconds(1));
+		final FileForFetch managedFile2 = writeExternallyManagedFileWithContent("managed2.txt", "A", new byte[400]);
+		testTime.set(testTime.get().plusSeconds(1));
+
+		// Create regular files
+		final FileForFetch regularFile1 = writeFileWithContent("regular1.txt", "A", new byte[300]);
+		testTime.set(testTime.get().plusSeconds(1));
+		final FileForFetch regularFile2 = writeFileWithContent("regular2.txt", "A", new byte[300]);
+
+		// Verify all 4 files exist (total > 1000 bytes)
+		assertEquals(4, exportService.listFilesToFetch(1, 10, Set.of(), Set.of()).getTotalRecordCount());
+
+		// Trigger purge with future date (only size-based purge should happen)
+		exportService.purgeFiles(OffsetDateTime.now().plusDays(1));
+
+		// Managed files should remain, regular files should be deleted to meet size limit
+		final PaginatedList<FileForFetch> remainingFiles = exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
+
+		// Count managed and regular files
+		long managedCount = remainingFiles.getData().stream().filter(FileForFetch::externallyManaged).count();
+		long regularCount = remainingFiles.getData().stream().filter(f -> !f.externallyManaged()).count();
+
+		// Both managed files should remain
+		assertEquals(2, managedCount);
+		// Regular files should be reduced or eliminated
+		assertTrue(regularCount < 2, "Regular files should be purged to meet size limit");
+	}
+
+	@Test
+	@DisplayName("Should delete externally managed file via explicit deleteFile call")
+	void shouldDeleteExternallyManagedFileExplicitly() throws IOException {
+		final FileForFetch managedFile = writeExternallyManagedFile("managed.txt", "A");
+
+		// Verify file exists
+		assertTrue(exportService.getFile(managedFile.fileId()).isPresent());
+
+		// Delete explicitly
+		exportService.deleteFile(managedFile.fileId());
+
+		// Verify file is deleted
+		assertTrue(exportService.getFile(managedFile.fileId()).isEmpty());
+	}
+
+	@Test
+	@DisplayName("Should mark externally managed file correctly in metadata")
+	void shouldMarkExternallyManagedFileCorrectly() throws IOException {
+		final FileForFetch managedFile = writeExternallyManagedFile("managed.txt", "A");
+		final FileForFetch regularFile = writeFile("regular.txt", "A");
+
+		assertTrue(managedFile.externallyManaged(), "Managed file should have externallyManaged=true");
+		assertFalse(regularFile.externallyManaged(), "Regular file should have externallyManaged=false");
+
+		// Verify metadata is persisted correctly by reloading
+		final Optional<FileForFetch> reloadedManaged = exportService.getFile(managedFile.fileId());
+		final Optional<FileForFetch> reloadedRegular = exportService.getFile(regularFile.fileId());
+
+		assertTrue(reloadedManaged.isPresent());
+		assertTrue(reloadedRegular.isPresent());
+		assertTrue(reloadedManaged.get().externallyManaged());
+		assertFalse(reloadedRegular.get().externallyManaged());
+	}
+
+	@Test
+	@DisplayName("Should evict regular files earlier when managed files take space")
+	void shouldEvictRegularFilesEarlierWhenManagedFilesTakeSpace() throws IOException {
+		// Recreate service with controllable time
+		final AtomicReference<OffsetDateTime> testTime =
+			new AtomicReference<>(OffsetDateTime.now());
+
+		this.exportService.close();
+		this.exportService = new ExportFileService(
+			exportOptions,
+			Mockito.mock(Scheduler.class),
+			testTime::get
+		);
+
+		// Create a managed file that takes significant space (600 bytes out of 1000 limit)
+		writeExternallyManagedFileWithContent("managed.txt", "A", new byte[600]);
+		testTime.set(testTime.get().plusSeconds(1));
+
+		// Create regular files that would fit without the managed file but don't fit with it
+		final FileForFetch regularOld = writeFileWithContent("regular_old.txt", "A", new byte[200]);
+		testTime.set(testTime.get().plusSeconds(1));
+		final FileForFetch regularNew = writeFileWithContent("regular_new.txt", "A", new byte[300]);
+
+		// Total: 600 + 200 + 300 + metadata = > 1000 bytes
+		assertEquals(3, exportService.listFilesToFetch(1, 10, Set.of(), Set.of()).getTotalRecordCount());
+
+		// Trigger size-based purge
+		exportService.purgeFiles(OffsetDateTime.now().plusDays(1));
+
+		// Managed file should remain, oldest regular file should be deleted
+		final PaginatedList<FileForFetch> remaining = exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
+
+		// Check that managed file is still present
+		boolean managedPresent = remaining.getData().stream().anyMatch(FileForFetch::externallyManaged);
+		assertTrue(managedPresent, "Managed file should not be deleted");
+
+		// The oldest regular file should be deleted first
+		boolean oldRegularPresent = remaining.getData().stream()
+			.anyMatch(f -> f.fileId().equals(regularOld.fileId()));
+
+		// Either the old one is deleted, or the total is reduced
+		assertTrue(remaining.getTotalRecordCount() < 3 || !oldRegularPresent,
+			"Oldest regular files should be evicted first");
+	}
+
 	// ==================== Helper Methods ====================
 
 	@Nullable
@@ -852,6 +997,35 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			outputStream.write("testFileContent".getBytes());
 		}
 		return exportFileHandle.fileForFetchFuture().getNow(null);
+	}
+
+	@Nullable
+	private FileForFetch writeExternallyManagedFile(@Nonnull String fileName, @Nullable String withOrigin) throws IOException {
+		final ExportFileHandle exportFileHandle = this.exportService.storeExternallyManagedFile(
+			fileName,
+			"Externally managed file",
+			"text/plain",
+			null,
+			withOrigin
+		);
+		try (final OutputStream outputStream = exportFileHandle.outputStream()) {
+			outputStream.write("testFileContent".getBytes());
+		}
+		return exportFileHandle.fileForFetchFuture().getNow(null);
+	}
+
+	@Nullable
+	private FileForFetch writeExternallyManagedFileWithContent(
+		@Nonnull String fileName,
+		@Nullable String origin,
+		@Nonnull byte[] content
+	) throws IOException {
+		final ExportFileHandle handle = exportService.storeExternallyManagedFile(
+			fileName, "Externally managed file", "text/plain", null, origin);
+		try (OutputStream os = handle.outputStream()) {
+			os.write(content);
+		}
+		return handle.fileForFetchFuture().getNow(null);
 	}
 
 }

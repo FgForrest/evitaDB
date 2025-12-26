@@ -318,6 +318,41 @@ public class ExportFileService implements ExportService {
 		@Nullable String catalog,
 		@Nullable String origin
 	) {
+		return storeFileInternal(fileName, description, contentType, catalog, origin, false);
+	}
+
+	@Nonnull
+	@Override
+	public ExportFileHandleLocal storeExternallyManagedFile(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String catalog,
+		@Nullable String origin
+	) {
+		return storeFileInternal(fileName, description, contentType, catalog, origin, true);
+	}
+
+	/**
+	 * Internal method that creates a new export file with optional external management flag.
+	 *
+	 * @param fileName          preferred file name
+	 * @param description       optional human-readable description
+	 * @param contentType       MIME type of the content
+	 * @param catalog           optional catalog name the file relates to
+	 * @param origin            optional origin tag of the file
+	 * @param externallyManaged true if the file should not be automatically purged
+	 * @return handle for writing and publishing the file
+	 */
+	@Nonnull
+	private ExportFileHandleLocal storeFileInternal(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String catalog,
+		@Nullable String origin,
+		boolean externallyManaged
+	) {
 		final UUID fileId = UUIDUtil.randomUUID();
 		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
 		final Path directory = resolveDirectory(catalog);
@@ -361,7 +396,8 @@ public class ExportFileService implements ExportService {
 									.map(String::trim)
 									.toArray(String[]::new),
 								catalog,
-								checksum
+								checksum,
+								externallyManaged
 							);
 							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
 						} catch (IOException e) {
@@ -449,8 +485,40 @@ public class ExportFileService implements ExportService {
 		final List<FileForFetch> validFiles = scanFilesFromDisk();
 		final Set<UUID> knownFileIds = new HashSet<>();
 
-		final List<FileForFetch> filesToDelete = validFiles.stream()
-			.peek(it -> knownFileIds.add(it.fileId()))
+		// Separate externally managed files from regular files
+		final List<FileForFetch> managedFiles = new ArrayList<>();
+		final List<FileForFetch> regularFiles = new ArrayList<>();
+		for (FileForFetch file : validFiles) {
+			knownFileIds.add(file.fileId());
+			if (file.externallyManaged()) {
+				managedFiles.add(file);
+			} else {
+				regularFiles.add(file);
+			}
+		}
+
+		// Calculate managed file size and log warnings/errors
+		final long sizeLimitBytes = this.fsOptions.getSizeLimitBytes();
+		long managedFileSize = 0L;
+		for (FileForFetch file : managedFiles) {
+			managedFileSize += file.totalSizeInBytes();
+		}
+		if (managedFileSize > sizeLimitBytes) {
+			log.error(
+				"Externally managed files ({} bytes) exceed 100% of the configured size limit ({} bytes). " +
+					"Consider increasing the limit or removing managed files.",
+				managedFileSize, sizeLimitBytes
+			);
+		} else if (managedFileSize > sizeLimitBytes * 0.8) {
+			log.warn(
+				"Externally managed files ({} bytes) exceed 80% of the configured size limit ({} bytes). " +
+					"Consider monitoring or removing managed files.",
+				managedFileSize, sizeLimitBytes
+			);
+		}
+
+		// Age-based purge - only for NON-managed files
+		final List<FileForFetch> filesToDelete = regularFiles.stream()
 			.filter(it -> it.created().isBefore(thresholdDate))
 			.toList();
 
@@ -460,7 +528,7 @@ public class ExportFileService implements ExportService {
 				deleteFileInternal(it);
 			}
 		);
-		validFiles.removeAll(filesToDelete);
+		regularFiles.removeAll(filesToDelete);
 
 		// then go through the directory files, that does not have metadata file and delete all that were created before the threshold
 		final Path directory = this.fsOptions.getDirectory();
@@ -487,11 +555,12 @@ public class ExportFileService implements ExportService {
 			}
 
 			try {
-				// then check the size of the directory and delete oldest files until the directory size is below the limit
+				// then check the size of the directory and delete oldest non-managed files until the directory size is below the limit
 				final long directorySize = FileUtils.getDirectorySize(this.fsOptions.getDirectory());
-				// delete the oldest files until the directory size is below the limit
-				if (directorySize > this.fsOptions.getSizeLimitBytes()) {
-					final List<FileForFetch> filesByCreationDate = validFiles.stream()
+				// delete the oldest non-managed files until the directory size is below the limit
+				if (directorySize > sizeLimitBytes) {
+					// Only delete regular (non-managed) files, sorted by creation date (oldest first)
+					final List<FileForFetch> filesByCreationDate = regularFiles.stream()
 						.sorted(Comparator.comparing(FileForFetch::created))
 						.toList();
 					long savedSize = 0L;
@@ -505,7 +574,7 @@ public class ExportFileService implements ExportService {
 							savedSize += it.totalSizeInBytes() + metadataFileSize;
 						}
 						// finish removing files if the directory size is below the limit
-						if (directorySize - savedSize <= this.fsOptions.getSizeLimitBytes()) {
+						if (directorySize - savedSize <= sizeLimitBytes) {
 							break;
 						}
 					}

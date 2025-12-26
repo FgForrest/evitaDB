@@ -39,14 +39,15 @@ import java.util.UUID;
 /**
  * File system implementation of {@link FileForFetch} interface.
  *
- * @param fileId           ID of the file.
- * @param name             Name of the file.
- * @param description      Optional short description of the file in human readable form.
- * @param contentType      MIME type of the file.
- * @param totalSizeInBytes Total size of the file in bytes.
- * @param created          Date and time when the file was created.
- * @param origin           Optional origin of the file.
- * @param crc32            CRC32 checksum of the file content.
+ * @param fileId            ID of the file.
+ * @param name              Name of the file.
+ * @param description       Optional short description of the file in human readable form.
+ * @param contentType       MIME type of the file.
+ * @param totalSizeInBytes  Total size of the file in bytes.
+ * @param created           Date and time when the file was created.
+ * @param origin            Optional origin of the file.
+ * @param crc32             CRC32 checksum of the file content.
+ * @param externallyManaged True if the file is externally managed and should not be automatically purged.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record FileSystemFileForFetch(
@@ -58,7 +59,8 @@ public record FileSystemFileForFetch(
 	@Nonnull OffsetDateTime created,
 	@Nullable String[] origin,
 	@Nullable String catalogName,
-	long crc32
+	long crc32,
+	boolean externallyManaged
 ) implements FileForFetch {
 	public static final String METADATA_EXTENSION = ".metadata";
 
@@ -114,7 +116,8 @@ public record FileSystemFileForFetch(
 			OffsetDateTime.parse(metadataLines.get(5), DateTimeFormatter.ISO_OFFSET_DATE_TIME),
 			metadataLines.get(6).split(","),
 			metadataLines.size() > 7 && !metadataLines.get(7).isEmpty() ? metadataLines.get(7) : null,
-			metadataLines.size() > 8 ? Long.parseLong(metadataLines.get(8)) : 0L
+			metadataLines.size() > 8 ? Long.parseLong(metadataLines.get(8)) : 0L,
+			metadataLines.size() > 9 && Boolean.parseBoolean(metadataLines.get(9))
 		);
 	}
 
@@ -132,7 +135,8 @@ public record FileSystemFileForFetch(
 			this.created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
 			this.origin == null ? "" : String.join(",", this.origin),
 			this.catalogName == null ? "" : this.catalogName,
-			Long.toString(this.crc32)
+			Long.toString(this.crc32),
+			Boolean.toString(this.externallyManaged)
 		);
 	}
 
@@ -149,6 +153,7 @@ public record FileSystemFileForFetch(
 			", origin=" + Arrays.toString(this.origin) +
 			", catalogName='" + this.catalogName + '\'' +
 			", crc32=" + this.crc32 +
+			", externallyManaged=" + this.externallyManaged +
 			'}';
 	}
 

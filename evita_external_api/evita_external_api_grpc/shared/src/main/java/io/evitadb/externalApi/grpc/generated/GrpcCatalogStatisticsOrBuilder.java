@@ -85,7 +85,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    *
    * <code>bool corrupted = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=417
+   *     See GrpcEvitaDataTypes.proto;l=419
    * @return The corrupted.
    */
   @java.lang.Deprecated boolean getCorrupted();

@@ -225,4 +225,14 @@ public interface GrpcFileOrBuilder extends
    * @return The crc32.
    */
   long getCrc32();
+
+  /**
+   * <pre>
+   * True if the file is externally managed and should not be automatically purged
+   * </pre>
+   *
+   * <code>bool externallyManaged = 10;</code>
+   * @return The externallyManaged.
+   */
+  boolean getExternallyManaged();
 }

@@ -364,6 +364,8 @@ message GrpcFile {
   google.protobuf.StringValue catalogName = 8;
   // CRC32 checksum of the file
   int64 crc32 = 9;
+  // True if the file is externally managed and should not be automatically purged
+  bool externallyManaged = 10;
 }
 
 // Record representing status of particular asynchronous task
