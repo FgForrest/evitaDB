@@ -1209,9 +1209,9 @@ the listed group as exclusive.
 
 </SourceCodeTabs>
 
-| Default behaviour                                       | Altered behaviour                                    |
-|---------------------------------------------------------|------------------------------------------------------|
-| ![Before](assets/facet-exclusivity-before.png "Before") | ![After](assets/facet-exclusivity-after.png "After") |
+| Default behaviour                                     | Altered behaviour                                  |
+|-------------------------------------------------------|----------------------------------------------------|
+| ![Before](assets/facet-exclusion-before.png "Before") | ![After](assets/facet-exclusion-after.png "After") |
 
 <Note type="info">
 

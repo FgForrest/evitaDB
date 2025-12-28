@@ -20,6 +20,7 @@ The constraint makes the order of the entities in the result random and does not
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted randomly](/documentation/user/en/query/ordering/examples/random/random.evitaql)
+
 </SourceCodeTabs>
 
 The sample query always returns a different page of products.
@@ -76,6 +77,7 @@ testing purposes, or for consistent output for a given user).
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted pseudo randomly](/documentation/user/en/query/ordering/examples/random/pseudo-random.evitaql)
+
 </SourceCodeTabs>
 
 The sample query always returns a same page of products, which seems to be random, but it is always the same.
@@ -89,19 +91,19 @@ The sample query always returns a same page of products, which seems to be rando
 
 <LS to="e,j,c">
 
-<MDInclude>[List of pseudo-randomized products using seed](/documentation/user/en/query/ordering/examples/random/pseudo-randomized.evitaql.md)</MDInclude>
+<MDInclude>[List of pseudo-randomized products using seed](/documentation/user/en/query/ordering/examples/random/pseudo-random.evitaql.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[List of pseudo-randomized products using seed](/documentation/user/en/query/ordering/examples/random/pseudo-randomized.graphql.json.md)</MDInclude>
+<MDInclude>[List of pseudo-randomized products using seed](/documentation/user/en/query/ordering/examples/random/pseudo-random.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[List of pseudo-randomized products using seed](/documentation/user/en/query/ordering/examples/random/pseudo-randomized.rest.json.md)</MDInclude>
+<MDInclude>[List of pseudo-randomized products using seed](/documentation/user/en/query/ordering/examples/random/pseudo-random.rest.json.md)</MDInclude>
 
 </LS>
 

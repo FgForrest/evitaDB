@@ -60,6 +60,7 @@ follows:
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Segmented ordering in practice](/documentation/user/en/query/ordering/examples/segment/segments.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">

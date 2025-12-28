@@ -12,7 +12,7 @@ preferredLang: 'evitaql'
 ## In Scope
 
 ```evitaql-syntax
-scope(
+inScope(
     argument:enum(LIVE|ARCHIVED)
     filterConstraint:any+
 )
@@ -41,7 +41,7 @@ performance). Scopes, on the other hand, allows us to get rid of unnecessary ind
 (archived data is not expected to be queried as extensively as live data) and free up some resources for more important
 tasks.
 
-The [scope](#scope) filter constraint allows us to query entities in both scopes at once, which would be impossible if 
+The [scope](#in-scope) filter constraint allows us to query entities in both scopes at once, which would be impossible if 
 we couldn't tell which filter constraint to apply to which scope. The `inScope` container is designed to handle this 
 situation.
 
@@ -82,7 +82,7 @@ for the entity in the archive scope, as can be seen by looking at the input quer
 </LS>
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of selected entities in multiple scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of selected entities in multiple scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.graphql.json.md)</MDInclude>
 
 </LS>
 <LS to="r">
@@ -95,7 +95,7 @@ for the entity in the archive scope, as can be seen by looking at the input quer
 
 <Note type="info">
 
-Similar `inScope` containers are available for [order constraints](../ordering/behavioral.md#in-scope) 
+Similar `scope` containers are available for [order constraints](../ordering/behavioral.md#in-scope) 
 and [requirements constraints](../requirements/behavioral.md#in-scope) with the same purpose and meaning.
 
 </Note>
@@ -119,8 +119,8 @@ userFilter(
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/UserFilter.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/UserFilter.cs</SourceClass></LS>
 works identically to the [`and`](logical.md#and) constraint, but it distinguishes the filter scope, which is controlled by the user
 through some kind of user interface, from the rest of the query, which contains the mandatory constraints on the result
-set. The user-defined scope can be modified during certain calculations (such as the [facet](../filtering/facet.md)
-or [histogram](../filtering/histogram.md) calculation), while the mandatory part outside of `userFilter` cannot.
+set. The user-defined scope can be modified during certain calculations (such as the [facet](../requirements/facet.md#facet-summary)
+or [histogram](../requirements/histogram.md) calculation), while the mandatory part outside of `userFilter` cannot.
 
 Let's look at the example where the [`facetHaving`](references.md#facet-having) constraint is used inside
 the `userFilter` container:

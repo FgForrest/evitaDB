@@ -67,6 +67,7 @@ The grammar of a full query is as follows:
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of grammar of a query](/documentation/user/en/query/examples/grammar.evitaql)
+
 </SourceCodeTabs>
 
 Or more complex one:
@@ -74,6 +75,7 @@ Or more complex one:
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of grammar of a complex query](/documentation/user/en/query/examples/complexGrammar.evitaql)
+
 </SourceCodeTabs>
 
 <LS to="g">
@@ -137,6 +139,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of the simplest query](/documentation/user/en/query/examples/simplestQuery.evitaql)
+
 </SourceCodeTabs>
 
 ... or even this one (although it is recommended to keep the order for better readability:
@@ -145,6 +148,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example random order of query parts](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
+
 </SourceCodeTabs>
 
 <LS to="g,r">
@@ -359,12 +363,12 @@ if the [filterBy](#filter-by) contains a constraint that targets a globally uniq
 This is useful for one of the most important e-commerce scenarios, where the requested URI needs to match one of the
 existing entities (see the [routing](../solve/routing.md) chapter for a detailed guide).
 
-Optionally, you can specify one or more [labels](header/header#label) associated with this query, which will be 
+Optionally, you can specify one or more [labels](header/label.md) associated with this query, which will be 
 appended to the [traces](../operate/observe.md#tracing) generated for this query. Labels are also recorded with 
 the query on traffic traces, which can be used for further analysis or playback.
 
-- [collection](header/header.md#collection)
-- [label](header/header.md#label)
+- [collection](header/collection.md)
+- [label](header/label.md)
 
 ## Filter by
 

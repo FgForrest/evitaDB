@@ -160,6 +160,7 @@ After that you can create a new session and try any of the evitaQL queries descr
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.java)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -171,7 +172,7 @@ After that you can create a new session and try any of the evitaQL queries descr
 </NoteTitle>
 
 For complete instructions on setting up a Java client, see [the Java drivers chapter](../use/connectors/java.md).
-If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+If you need more hints for querying the data, try [the query API chapter](../use/api/query-data.md).
 
 </Note>
 
@@ -200,6 +201,7 @@ usage of generated self-signed certificates, it needs to get the certificate fro
 are asynchronous in .NET, we decided to make the initialization process asynchronous as well. These asynchronous calls
 cannot be done  in the constructor (without blocking the main application thread, which could cause serious problems in
 your application), so we decided to use static async method instead.
+
 </Note>
 
 After that you can create a new session and try any of the evitaQL queries described in
@@ -208,6 +210,7 @@ After that you can create a new session and try any of the evitaQL queries descr
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.cs)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -219,7 +222,8 @@ After that you can create a new session and try any of the evitaQL queries descr
 </NoteTitle>
 
 For complete instructions on setting up a C# client, see [the C# drivers chapter](../use/connectors/c-sharp.md).
-If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+If you need more hints for querying the data, try [the query API chapter](../use/api/query-data.md).
+
 </Note>
 
 </LS>
@@ -237,6 +241,7 @@ After that you can send GraphQL requests to that URL and try any of the GraphQL 
 <SourceCodeTabs langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.graphql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -248,7 +253,7 @@ After that you can send GraphQL requests to that URL and try any of the GraphQL 
 </NoteTitle>
 
 For complete instructions on setting up a GraphQL client, see [the GraphQL drivers chapter](../use/connectors/graphql.md).
-If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+If you need more hints for querying the data, try [the query API chapter](../use/api/query-data.md).
 
 </Note>
 
@@ -267,6 +272,7 @@ After that you can send REST requests to different variants of that URL and try 
 <SourceCodeTabs langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.rest)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -278,7 +284,7 @@ After that you can send REST requests to different variants of that URL and try 
 </NoteTitle>
 
 For complete instructions on setting up a REST client, see [the REST drivers chapter](../use/connectors/rest.md).
-If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+If you need more hints for querying the data, try [the query API chapter](../use/api/query-data.md).
 
 </Note>
 

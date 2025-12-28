@@ -30,6 +30,7 @@ The constraint limits the list of returned entities by exactly specifying their 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List of products filtered by entity primary key](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql)
+
 </SourceCodeTabs>
 
 The sample query returns products whose primary keys are declared in the `entityPrimaryKeyInSet` constraint. The order
@@ -119,7 +120,7 @@ Unique constraints are only enforced within the same scope. This means that two 
 the same unique attribute value. When you move an entity from one scope to another, the unique constraints within
 the target scope are checked and if the entity violates the unique constraint, the move is refused.
 
-If you query entities in both scopes using [scope](../query/filtering/behavioral.md#scope) filter and use the filtering
+If you query entities in both scopes using [inScope](behavioral.md#in-scope) filter and use the filtering
 constraint that exactly matches the unique attribute ([attribute equals](../filtering/comparable.md#attribute-equals),
 [attribute in set](../filtering/comparable.md#attribute-in-set), [attribute is](../filtering/comparable.md#attribute-is)),
 evitaDB will prefer the entity from the first scope specified in `scope` constraint over the entities in scopes defined

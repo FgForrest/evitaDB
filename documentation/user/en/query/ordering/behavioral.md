@@ -11,7 +11,7 @@ preferredLang: 'evitaql'
 ## In Scope
 
 ```evitaql-syntax
-scope(
+inScope(
     argument:enum(LIVE|ARCHIVED)
     orderConstraint:any+
 )
@@ -40,7 +40,7 @@ performance). Scopes, on the other hand, allows us to get rid of unnecessary ind
 (archived data is not expected to be queried as extensively as live data) and free up some resources for more important
 tasks.
 
-The [scope](../filtering/behavioral.md#scope) order constraint allows us to query entities in both scopes at once,
+The [inScope](#in-scope) order constraint allows us to query entities in both scopes at once,
 which would be impossible if we couldn't tell which order constraint to apply to which scope. The `inScope` container 
 is designed to handle this situation.
 

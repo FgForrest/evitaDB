@@ -42,7 +42,7 @@ by fetching the category entity in a particular language through its unique URL:
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Requesting category description](documentation/user/en/solve/examples/filtering-products-in-category/category-description.evitaql)
+[Requesting category description](/documentation/user/en/solve/examples/filtering-products-in-category/category-description.evitaql)
 
 </SourceCodeTabs>
 
@@ -50,19 +50,19 @@ That produces the requested data:
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Result for category description](documentation/user/en/solve/examples/filtering-products-in-category/category-description.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for category description](/documentation/user/en/solve/examples/filtering-products-in-category/category-description.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result for category description](documentation/user/en/solve/examples/filtering-products-in-category/category-description.graphql.json.md)</MDInclude>
+<MDInclude>[Result for category description](/documentation/user/en/solve/examples/filtering-products-in-category/category-description.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for category description](documentation/user/en/solve/examples/filtering-products-in-category/category-description.rest.json.md)</MDInclude>
+<MDInclude>[Result for category description](/documentation/user/en/solve/examples/filtering-products-in-category/category-description.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -82,7 +82,7 @@ First, let's see how to get the breadcrumb from the category entity:
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Requesting data for breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql)
+[Requesting data for breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql)
 
 </SourceCodeTabs>
 
@@ -90,19 +90,19 @@ As you can see, the requested parent information is part of the category entity 
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Result for category breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for category breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result for category breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.graphql.json.md)</MDInclude>
+<MDInclude>[Result for category breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for category breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.rest.json.md)</MDInclude>
+<MDInclude>[Result for category breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -111,7 +111,7 @@ the product can (and in our example it does) belong to several categories:
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Requesting data for breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql)
+[Requesting data for breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql)
 
 </SourceCodeTabs>
 
@@ -122,19 +122,19 @@ the longest path, the last visited category, etc.).
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Result for product breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for product breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result for product breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.graphql.json.md)</MDInclude>
+<MDInclude>[Result for product breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for product breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.rest.json.md)</MDInclude>
+<MDInclude>[Result for product breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -146,7 +146,7 @@ its unique URL *"/en/smartwatches"*:
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Requesting product listing](documentation/user/en/solve/examples/filtering-products-in-category/product-listing.evitaql)
+[Requesting product listing](/documentation/user/en/solve/examples/filtering-products-in-category/product-listing.evitaql)
 
 </SourceCodeTabs>
 
@@ -180,19 +180,19 @@ The result of the query is a list of products with their attributes and referenc
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Result for product listing](documentation/user/en/solve/examples/filtering-products-in-category/product-listing.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for product listing](/documentation/user/en/solve/examples/filtering-products-in-category/product-listing.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result for product listing](documentation/user/en/solve/examples/filtering-products-in-category/product-listing.graphql.json.md)</MDInclude>
+<MDInclude>[Result for product listing](/documentation/user/en/solve/examples/filtering-products-in-category/product-listing.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for product listing](documentation/user/en/solve/examples/filtering-products-in-category/product-listing.rest.json.md)</MDInclude>
+<MDInclude>[Result for product listing](/documentation/user/en/solve/examples/filtering-products-in-category/product-listing.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -203,7 +203,7 @@ a different page size. To increase readability, we want to simplify the product 
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Requesting top-selling products](documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.evitaql)
+[Requesting top-selling products](/documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.evitaql)
 
 </SourceCodeTabs>
 
@@ -221,19 +221,19 @@ The result of the query is as follows:
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Result for top-selling products](documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Result for top-selling products](/documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result for top-selling products](documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.graphql.json.md)</MDInclude>
+<MDInclude>[Result for top-selling products](/documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for top-selling products](documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.rest.json.md)</MDInclude>
+<MDInclude>[Result for top-selling products](/documentation/user/en/solve/examples/filtering-products-in-category/top-selling-products.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -254,7 +254,7 @@ selected by the user:
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Requesting brand facet filters](documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql)
+[Requesting brand facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql)
 
 </SourceCodeTabs>
 
@@ -274,7 +274,7 @@ calculated numbers. To render the filter's UI correctly, you'll need to follow t
 These rules emerged from user testing as the most intuitive and user-friendly way to render the filter. But feel free to 
 experiment with your own settings. The rendered filter using the rules above would look like this:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[Result for brand facet filters](documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.FacetSummary">[Result for brand facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql.string.md)</MDInclude>
 
 The brand relationship is simple, but parameter values are a different beast. A parameter value (e.g. *blue* or *red*) 
 belongs to a parameter used to group similar values (e.g. *color*). We also want to control the presence of 
@@ -289,13 +289,13 @@ The final facet query looks like this:
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Requesting facet filters](documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql)
+[Requesting facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql)
 
 </SourceCodeTabs>
 
 We apply the same rendering logic to the response and the result is as follows:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[Result for brand facet filters](documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.FacetSummary">[Result for brand facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
 
 Ultimately, you'll want to have both requirements in a single query, but we'll go through some additional requirements 
 for the category detail page [until we combine everything](#complete-product-listing-queries-including-filtering-and-sorting).
@@ -310,7 +310,7 @@ Let's demonstrate the situation when the user has already selected a certain pri
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Requesting price filter](documentation/user/en/solve/examples/filtering-products-in-category/price-filter.evitaql)
+[Requesting price filter](/documentation/user/en/solve/examples/filtering-products-in-category/price-filter.evitaql)
 
 </SourceCodeTabs>
 
@@ -325,19 +325,19 @@ The result of the query is as follows:
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.PriceHistogram">[Result for price filter](documentation/user/en/solve/examples/filtering-products-in-category/price-filter.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.PriceHistogram">[Result for price filter](/documentation/user/en/solve/examples/filtering-products-in-category/price-filter.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.priceHistogram">[Result for price filter](documentation/user/en/solve/examples/filtering-products-in-category/price-filter.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.priceHistogram">[Result for price filter](/documentation/user/en/solve/examples/filtering-products-in-category/price-filter.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.priceHistogram">[Result for price filter](documentation/user/en/solve/examples/filtering-products-in-category/price-filter.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.priceHistogram">[Result for price filter](/documentation/user/en/solve/examples/filtering-products-in-category/price-filter.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -372,7 +372,7 @@ By combining all of the above queries, you end up with the following two queries
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Category details with breadcrumb](documentation/user/en/solve/examples/filtering-products-in-category/category-details-with-breadcrumb.evitaql)
+[Category details with breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/category-details-with-breadcrumb.evitaql)
 
 </SourceCodeTabs>
 
@@ -381,7 +381,7 @@ the same query with different sorting options):
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Product listing with facet filters and sorting options](documentation/user/en/solve/examples/filtering-products-in-category/product-listing-with-facets-and-sorting.evitaql)
+[Product listing with facet filters and sorting options](/documentation/user/en/solve/examples/filtering-products-in-category/product-listing-with-facets-and-sorting.evitaql)
 
 </SourceCodeTabs>
 

@@ -9,7 +9,7 @@ proofreading: 'done'
 preferredLang: 'java'
 ---
 
-The [query in evitaDB](../query/basics.md) is represented by a tree of nested "constraints" divided into four <LS to="g">_logical_</LS> parts:
+The [query in evitaDB](../../query/basics.md) is represented by a tree of nested "constraints" divided into four <LS to="g">_logical_</LS> parts:
 
 <dl>
     <dt>`collection`</dt>
@@ -44,6 +44,7 @@ constraints in those arguments. An example of such a query might look like this:
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)
+
 </SourceCodeTabs>
 
 > *The query will return the first page of 20 products in the category "local food" and its subcategories that have*
@@ -70,7 +71,7 @@ We also try to preserve the "look & feel" of the original evitaQL in different l
 while respecting the conventions and capabilities of the respective language.
 
 evitaQL is used in the gRPC protocol and can optionally be used for the embedded Java environment. It can also be used
-in [evitaDB console](/documentation/blog/en/09-our-new-web-client-evitalab). The GraphQL and REST Web API use a similar format, but adapted to
+in [evitaDB console](/documentation/blog/en/09-our-new-web-client-evitalab.md). The GraphQL and REST Web API use a similar format, but adapted to
 the protocol conventions (so that we can take advantage of the Open API / GQL schema).
 
 <LS to="j">
@@ -93,6 +94,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Java query example](/documentation/user/en/use/api/example/java-query-example.java)
+
 </SourceCodeTabs>
 
 ### Automatic query cleaning
@@ -102,6 +104,7 @@ The query may also contain "dirty" parts - that is, null constraints and unneces
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Java dirty query example](/documentation/user/en/use/api/example/java-dirty-query-example.java)
+
 </SourceCodeTabs>
 
 The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
@@ -148,16 +151,17 @@ interface.
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.java)
+
 </SourceCodeTabs>
 
 The client application can request returning entity bodies instead, but this must be explicitly requested using
 a specific require constraint (or their combination):
 
-- [entity fetch](../../query/requirements/fetching.md)
-- [attribute fetch](../../query/requirements/fetching.md#attributes)
-- [associated data fetch](../../query/requirements/fetching.md#associated-data)
-- [price fetch](../../query/requirements/fetching.md#prices)
-- [reference fetch](../../query/requirements/fetching.md#references)
+- [entity fetch](../../query/requirements/fetching.md#entity-fetch)
+- [attribute fetch](../../query/requirements/fetching.md#attribute-content)
+- [associated data fetch](../../query/requirements/fetching.md#associated-data-content)
+- [price fetch](../../query/requirements/fetching.md#price-content)
+- [reference fetch](../../query/requirements/fetching.md#reference-content)
 
 When such a require constraint is used, data will be fetched *greedily* during the initial request. The response object
 will then contain entities in the form of
@@ -166,6 +170,7 @@ will then contain entities in the form of
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/fetching-example.java)
+
 </SourceCodeTabs>
 
 Although there are simpler variants for querying entities, the typical method is `query` that returns a complex object
@@ -182,6 +187,7 @@ The next example documents fetching the second page of products in a category wi
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.java)
+
 </SourceCodeTabs>
 
 There are shortcuts for calling query with the expected entity form so that you don't need to declare the expected
@@ -203,6 +209,7 @@ enforced by database design, enriching an entity object returns a new instance o
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.java)
+
 </SourceCodeTabs>
 
 Lazy fetching may not be necessary for a frontend designed using an MVC architecture, where all requirements for the
@@ -516,6 +523,7 @@ The example imports previously mentioned interface
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [C# query example](/documentation/user/en/use/api/example/csharp-query-example.cs)
+
 </SourceCodeTabs>
 
 ### Automatic query cleaning
@@ -525,6 +533,7 @@ The query may also contain "dirty" parts - that is, null constraints and unneces
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [C# dirty query example](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
+
 </SourceCodeTabs>
 
 The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
@@ -548,16 +557,17 @@ interface.
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.cs)
+
 </SourceCodeTabs>
 
 The client application can request returning entity bodies instead, but this must be explicitly requested using
 a specific require constraint (or their combination):
 
-- [entity fetch](../../query/requirements/fetching.md)
-- [attribute fetch](../../query/requirements/fetching.md#attributes)
-- [associated data fetch](../../query/requirements/fetching.md#associated-data)
-- [price fetch](../../query/requirements/fetching.md#prices)
-- [reference fetch](../../query/requirements/fetching.md#references)
+- [entity fetch](../../query/requirements/fetching.md#entity-fetch)
+- [attribute fetch](../../query/requirements/fetching.md#attribute-content)
+- [associated data fetch](../../query/requirements/fetching.md#associated-data-content)
+- [price fetch](../../query/requirements/fetching.md#price-content)
+- [reference fetch](../../query/requirements/fetching.md#reference-content)
 
 When such a `require` constraint is used, data will be fetched *greedily* during the initial request. The response object
 will then contain entities in the form of
@@ -566,6 +576,7 @@ will then contain entities in the form of
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/fetching-example.cs)
+
 </SourceCodeTabs>
 
 Although there are simpler variants for querying entities, the typical method is `Query` that returns a complex object
@@ -582,6 +593,7 @@ The next example documents fetching the second page of products in a category wi
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.cs)
+
 </SourceCodeTabs>
 
 There are shortcuts for calling query with the expected entity form so that you don't need to declare the expected
@@ -603,6 +615,7 @@ enforced by database design, enriching an entity object returns a new instance o
 <SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.cs)
+
 </SourceCodeTabs>
 
 Lazy fetching may not be necessary for a frontend designed using an MVC architecture, where all requirements for the
@@ -662,6 +675,7 @@ as they provide quick access to entities.
 <SourceCodeTabs langSpecificTabOnly>
 
 [GraphQL get query example](/documentation/user/en/use/api/example/graphql-get-query-example.graphql)
+
 </SourceCodeTabs>
 
 #### `getEntity` query
@@ -674,6 +688,7 @@ The query will then return a generic entity object that will contain only data c
 <SourceCodeTabs langSpecificTabOnly>
 
 [GraphQL get entity query example](/documentation/user/en/use/api/example/graphql-get-entity-query-example.graphql)
+
 </SourceCodeTabs>
 
 However, you can use the `targetEntity` field to get to the actual entity object (specific to resolved entity collection),
@@ -683,6 +698,7 @@ to specify field structure for every entity target object you want to support to
 <SourceCodeTabs langSpecificTabOnly>
 
 [GraphQL get entity with target entity query example](/documentation/user/en/use/api/example/graphql-get-entity-with-target-entity-query-example.graphql)
+
 </SourceCodeTabs>
 
 ### `list` queries
@@ -696,12 +712,13 @@ requirements are needed.
 <SourceCodeTabs langSpecificTabOnly>
 
 [GraphQL list query example](/documentation/user/en/use/api/example/graphql-list-query-example.graphql)
+
 </SourceCodeTabs>
 
 #### `listEntity` query
 
 There is also a special variant of the `list` queries with a fixed `entity` classifier in the name -> `listEntity`. This query
-is essentially an extension of the [`getEntity`](#get-entity-query) that accepts multiple identifiers and is meant to be
+is essentially an extension of the [`getEntity`](#getentity-query) that accepts multiple identifiers and is meant to be
 used when you need to fetch one or more entities, but you only have globally unique identifiers and you don't know the target
 entity collection. Also, because the `listEntity` query accepts multiple identifiers, each returned entity can be from
 a different entity collection.
@@ -710,6 +727,7 @@ The query will then return a list of generic entity objects that contain only da
 <SourceCodeTabs langSpecificTabOnly>
 
 [GraphQL list entity query example](/documentation/user/en/use/api/example/graphql-list-entity-query-example.graphql)
+
 </SourceCodeTabs>
 
 However, you can use the `targetEntity` field to get to the actual entity object (specific to resolved entity collection),
@@ -719,6 +737,7 @@ to specify field structure for every entity target object you want to support to
 <SourceCodeTabs langSpecificTabOnly>
 
 [GraphQL list entity with target entity query example](/documentation/user/en/use/api/example/graphql-list-entity-with-target-entity-query-example.graphql)
+
 </SourceCodeTabs>
 
 ### `query` queries
@@ -732,6 +751,7 @@ one query.
 <SourceCodeTabs langSpecificTabOnly>
 
 [GraphQL full query example](/documentation/user/en/use/api/example/graphql-full-query-example.graphql)
+
 </SourceCodeTabs>
 
 </LS>
@@ -760,6 +780,7 @@ as they provide quick access to entities.
 <SourceCodeTabs langSpecificTabOnly>
 
 [REST get query example](/documentation/user/en/use/api/example/rest-get-query-example.rest)
+
 </SourceCodeTabs>
 
 #### `/entity/get` query
@@ -772,6 +793,7 @@ The query will then return a target entity object based on the resolved entity t
 <SourceCodeTabs langSpecificTabOnly>
 
 [REST get entity query example](/documentation/user/en/use/api/example/rest-get-entity-query-example.rest)
+
 </SourceCodeTabs>
 
 ### `list` queries
@@ -785,12 +807,13 @@ requirements are needed.
 <SourceCodeTabs langSpecificTabOnly>
 
 [REST list query example](/documentation/user/en/use/api/example/rest-list-query-example.rest)
+
 </SourceCodeTabs>
 
 #### `/entity/list` query
 
 There is also a special variant of the `list` queries with a fixed `entity` classifier -> `/entity/list`. This query
-is essentially an extension of the [`/entity/get`](#entity-get-query) that accepts multiple identifiers and is meant to
+is essentially an extension of the [`/entity/get`](#entityget-query) that accepts multiple identifiers and is meant to
 be used when you need to fetch one or more entities, but you only have globally unique identifiers and you don't know the target
 entity collection. Also, because the `/entity/list` query accepts multiple identifiers, each returned entity can be from
 a different entity collection.
@@ -799,6 +822,7 @@ The query will then return a list of target entity objects based on the resolved
 <SourceCodeTabs langSpecificTabOnly>
 
 [REST list entity query example](/documentation/user/en/use/api/example/rest-list-entity-query-example.rest)
+
 </SourceCodeTabs>
 
 ### `query` queries
@@ -812,6 +836,7 @@ one query.
 <SourceCodeTabs langSpecificTabOnly>
 
 [REST full query example](/documentation/user/en/use/api/example/rest-full-query-example.rest)
+
 </SourceCodeTabs>
 
 </LS>

@@ -202,7 +202,7 @@ attributeContent(
 The `attributeContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AttributeContent.cs</SourceClass></LS>)
 requirement is used to retrieve one or more entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized). [Localized attributes](../../use/data-model.md#localized-attributes)
 are only fetched if there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
-filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
+filter constraint or the [`dataInLocales`](#data-in-locales) require constraint.
 
 <Note type="info">
 
@@ -404,7 +404,7 @@ The `associatedDataContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/ja
 requirement is used to retrieve one or more entity [associated data](../../use/data-model.md#associated-data).
 [Localized associated data](../../use/data-model.md#localized-associated-data) are only fetched if
 there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
-filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
+filter constraint or the [`dataInLocales`](#data-in-locales) require constraint.
 
 To select an *allActiveUrls* and localized *localization* associated data for the `Brand` entity, use the following query:
 
