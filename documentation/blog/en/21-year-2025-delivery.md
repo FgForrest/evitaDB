@@ -4,11 +4,10 @@ perex: |
   The end of the year is a perfect moment to look back at how far evitaDB has come. The key
   theme of this year was stability and adapting to real-world production needs, which we see in
   greater numbers every month.
-date: '31.12.2025'
+date: '30.12.2025'
 author: 'Jan Novotný'
 motive: assets/images/21-year-2025-delivery.png
 proofreading: 'done'
-draft: true
 ---
 
 I’ll break the recap into a few thematic topics:

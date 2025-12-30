@@ -2,11 +2,10 @@
 title: Co nového přinesl rok 2025
 perex: |
   Konec roku je ideální čas ohlédnout se za tím, kam se v minulém roce podařilo evitaDB posunout. Klíčovým tématem letošního roku byla především stabilita a adaptace na potřeby z produkčních nasazení, kterých je stále víc a víc.
-date: '31.12.2025'
+date: '30.12.2025'
 author: 'Jan Novotný'
 motive: assets/images/21-year-2025-delivery.png
 proofreading: 'done'
-draft: true
 ---
 
 Rekapitulaci rozdělím na několik tématických okruhů:
