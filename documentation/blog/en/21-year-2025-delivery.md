@@ -111,11 +111,12 @@ Another nice addition related to hierarchies is integrating hierarchical search 
 filter. Rather than a lengthy explanation, a practical example on **Ikea.com** is more telling:
 
 <p>
-    <video width="850" height="478" controls="controls">
-      <source src="https://evitadb.io/download/blog-21-hierarchy-in-facet-filter.webm" type="video/mp4"/>
-        Your browser does not support the video tag.
-    </video>
-  </p>
+ <video width="850" height="478" controls="controls">
+    <source src="https://evitadb.io/download/blog-21-hierarchy-in-facet-filter.webm" type="video/webm"/>
+    <source src="https://evitadb.io/download/blog-21-hierarchy-in-facet-filter.mp4" type="video/mp4"/>
+     Your browser does not support the video tag.
+ </video>
+</p>
 
 Within the facet filter’s data structure, evitaDB can now return a computed hierarchy where
 entities matching the given criteria were found. Each node in this structure contains an aggregate
