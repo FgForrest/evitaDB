@@ -18,6 +18,7 @@ module evita.common {
 	exports io.evitadb.dataType.iterator;
 	exports io.evitadb.dataType.bPlusTree;
 	exports io.evitadb.stream;
+	exports io.evitadb.cron;
 
 	requires org.slf4j;
 	requires jsr305;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       referenceName_ = s;
@@ -162,7 +162,7 @@ private static final long serialVersionUID = 0L;
       getReferenceNameBytes() {
     java.lang.Object ref = referenceName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       referenceName_ = b;
@@ -356,7 +356,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_GlobalAttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_GlobalAttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -451,7 +451,7 @@ io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue) {
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_LocalizedAttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_LocalizedAttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1314,7 +1314,7 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
         getReferenceNameBytes() {
       java.lang.Object ref = referenceName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         referenceName_ = b;
@@ -1564,7 +1564,7 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference referencedEntityReference = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getReferencedEntityReferenceFieldBuilder() {
       if (referencedEntityReferenceBuilder_ == null) {
         referencedEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1721,7 +1721,7 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity referencedEntity = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getReferencedEntityFieldBuilder() {
       if (referencedEntityBuilder_ == null) {
         referencedEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1894,7 +1894,7 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupReferencedEntityReference = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getGroupReferencedEntityReferenceFieldBuilder() {
       if (groupReferencedEntityReferenceBuilder_ == null) {
         if (!(groupReferenceTypeCase_ == 5)) {
@@ -2072,7 +2072,7 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupReferencedEntity = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getGroupReferencedEntityFieldBuilder() {
       if (groupReferencedEntityBuilder_ == null) {
         if (!(groupReferenceTypeCase_ == 6)) {
