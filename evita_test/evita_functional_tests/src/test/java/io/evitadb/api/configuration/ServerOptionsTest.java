@@ -26,10 +26,9 @@ package io.evitadb.api.configuration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies {@link ServerOptions} builder behaviour and default values.
@@ -80,6 +79,7 @@ class ServerOptionsTest {
 		assertNotNull(options.serviceThreadPool());
 		assertNotNull(options.changeDataCapture());
 		assertNotNull(options.trafficRecording());
+		assertNotNull(options.schedule());
 	}
 
 	@Test
@@ -103,6 +103,15 @@ class ServerOptionsTest {
 		final TrafficRecordingOptions customTraffic = TrafficRecordingOptions.builder()
 			.enabled(true)
 			.build();
+		final ScheduleOptions customSchedule = ScheduleOptions.builder()
+			.backup(List.of(
+				BackupScheduleOptions.builder()
+					.cron("0 0 2 * * *")
+					.backupType(BackupType.FULL)
+					.retention(7)
+					.build()
+			))
+			.build();
 
 		final ServerOptions options = ServerOptions.builder()
 			.requestThreadPool(customRequestPool)
@@ -113,6 +122,7 @@ class ServerOptionsTest {
 			.closeSessionsAfterSecondsOfInactivity(3600)
 			.changeDataCapture(customCdc)
 			.trafficRecording(customTraffic)
+			.schedule(customSchedule)
 			.readOnly(true)
 			.quiet(true)
 			.build();
@@ -125,6 +135,7 @@ class ServerOptionsTest {
 		assertEquals(3600, options.closeSessionsAfterSecondsOfInactivity());
 		assertEquals(customCdc, options.changeDataCapture());
 		assertEquals(customTraffic, options.trafficRecording());
+		assertEquals(customSchedule, options.schedule());
 		assertTrue(options.readOnly());
 		assertTrue(options.quiet());
 	}
@@ -150,6 +161,7 @@ class ServerOptionsTest {
 		assertEquals(original.closeSessionsAfterSecondsOfInactivity(), copied.closeSessionsAfterSecondsOfInactivity());
 		assertEquals(original.changeDataCapture(), copied.changeDataCapture());
 		assertEquals(original.trafficRecording(), copied.trafficRecording());
+		assertEquals(original.schedule(), copied.schedule());
 		assertEquals(original.readOnly(), copied.readOnly());
 		assertEquals(original.quiet(), copied.quiet());
 	}
@@ -166,6 +178,7 @@ class ServerOptionsTest {
 			1200,
 			null,  // changeDataCapture
 			null,  // trafficRecording
+			null,  // schedule
 			false,
 			false,
 			false
@@ -177,6 +190,8 @@ class ServerOptionsTest {
 		assertNotNull(options.serviceThreadPool());
 		assertNotNull(options.changeDataCapture());
 		assertNotNull(options.trafficRecording());
+		assertNotNull(options.schedule());
+		assertTrue(options.schedule().backup().isEmpty());
 
 		// verify thread pool defaults are applied
 		assertEquals(8, options.requestThreadPool().threadPriority());
@@ -209,6 +224,92 @@ class ServerOptionsTest {
 		assertTrue(servicePool.maxThreadCount() >= servicePool.minThreadCount());
 		assertEquals(1, servicePool.threadPriority());
 		assertEquals(20, servicePool.queueSize());
+	}
+
+	@Test
+	@DisplayName("No-arg constructor should initialize empty backup schedule")
+	void shouldInitEmptyBackupSchedule() {
+		final ServerOptions options = new ServerOptions();
+		assertNotNull(options.schedule());
+		assertNotNull(options.schedule().backup());
+		assertTrue(options.schedule().backup().isEmpty());
+	}
+
+	@Test
+	@DisplayName("Builder should allow setting schedule with backup list")
+	void shouldSetScheduleViaBuilder() {
+		final List<BackupScheduleOptions> backups = List.of(
+			BackupScheduleOptions.builder()
+				.cron("0 0 2 * * *")
+				.backupType(BackupType.FULL)
+				.retention(7)
+				.build(),
+			BackupScheduleOptions.builder()
+				.cron("0 0 */4 * * *")
+				.backupType(BackupType.SNAPSHOT)
+				.retention(3)
+				.build()
+		);
+
+		final ServerOptions options = ServerOptions.builder()
+			.schedule(ScheduleOptions.builder().backup(backups).build())
+			.build();
+
+		assertEquals(2, options.schedule().backup().size());
+		assertEquals(BackupType.FULL, options.schedule().backup().get(0).backupType());
+		assertEquals(BackupType.SNAPSHOT, options.schedule().backup().get(1).backupType());
+	}
+
+	@Test
+	@DisplayName("Backup schedule list should be immutable")
+	void shouldReturnImmutableBackupScheduleList() {
+		final ServerOptions options = ServerOptions.builder()
+			.schedule(ScheduleOptions.builder()
+				.backup(List.of(
+					BackupScheduleOptions.builder()
+						.cron("0 0 2 * * *")
+						.build()
+				))
+				.build())
+			.build();
+
+		assertThrows(UnsupportedOperationException.class, () ->
+			options.schedule().backup().add(
+				BackupScheduleOptions.builder()
+					.cron("0 0 3 * * *")
+					.build()
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("Static schedule backup default constant should be empty list")
+	void shouldHaveEmptyDefaultBackupSchedule() {
+		assertNotNull(ScheduleOptions.DEFAULT_BACKUP_SCHEDULE);
+		assertTrue(ScheduleOptions.DEFAULT_BACKUP_SCHEDULE.isEmpty());
+	}
+
+	@Test
+	@DisplayName("Builder from existing options should copy schedule")
+	void shouldCopyScheduleFromExistingOptions() {
+		final List<BackupScheduleOptions> backups = List.of(
+			BackupScheduleOptions.builder()
+				.cron("0 0 2 * * *")
+				.backupType(BackupType.FULL)
+				.retention(5)
+				.build()
+		);
+
+		final ServerOptions original = ServerOptions.builder()
+			.schedule(ScheduleOptions.builder().backup(backups).build())
+			.build();
+
+		final ServerOptions copied = ServerOptions.builder(original).build();
+
+		assertEquals(original.schedule().backup().size(), copied.schedule().backup().size());
+		assertEquals(original.schedule().backup().get(0).cron(), copied.schedule().backup().get(0).cron());
+		assertEquals(original.schedule().backup().get(0).backupType(), copied.schedule().backup().get(0).backupType());
+		assertEquals(original.schedule().backup().get(0).retention(), copied.schedule().backup().get(0).retention());
 	}
 
 }

@@ -29,6 +29,8 @@ server:
     exportFileChunkSizeInBytes: ${server.trafficRecording.exportFileChunkSizeInBytes:16MB}
     trafficSamplingPercentage: ${server.trafficRecording.trafficSamplingPercentage:100}
     trafficFlushIntervalInMilliseconds: ${server.trafficRecording.trafficFlushIntervalInMilliseconds:1m}
+  schedule:
+    backup: ${server.schedule.backup:[]}
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}

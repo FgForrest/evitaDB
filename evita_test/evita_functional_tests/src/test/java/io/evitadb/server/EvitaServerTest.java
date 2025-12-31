@@ -30,8 +30,12 @@ import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.BackupScheduleOptions;
+import io.evitadb.api.configuration.BackupType;
 import io.evitadb.api.configuration.ClusterOptions;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.api.configuration.ScheduleOptions;
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.cluster.mock.configuration.MockClusterOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
@@ -983,6 +987,43 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			final MockClusterOptions mockOptions = (MockClusterOptions) clusterOptions;
 			assertTrue(mockOptions.getEnabled());
 			assertEquals(3, mockOptions.getClusterSize());
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldLoadBackupScheduleConfiguration() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-backup-schedule.yaml",
+			"evita-configuration-backup-schedule.yaml"
+		);
+
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+
+			final ServerOptions serverOptions = evitaServer.getEvita().getConfiguration().server();
+			final ScheduleOptions schedule = serverOptions.schedule();
+			assertNotNull(schedule);
+			assertNotNull(schedule.backup());
+			assertEquals(2, schedule.backup().size());
+
+			final BackupScheduleOptions fullBackup = schedule.backup().get(0);
+			assertEquals("0 0 2 * * *", fullBackup.cron());
+			assertEquals(BackupType.FULL, fullBackup.backupType());
+			assertEquals(7, fullBackup.retention());
+
+			final BackupScheduleOptions snapshotBackup = schedule.backup().get(1);
+			assertEquals("0 0 */6 * * *", snapshotBackup.cron());
+			assertEquals(BackupType.SNAPSHOT, snapshotBackup.backupType());
+			assertEquals(5, snapshotBackup.retention());
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {

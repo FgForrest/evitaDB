@@ -52,6 +52,8 @@ import javax.annotation.Nullable;
  *                                              to a stream of changes that occur in the database, enabling near real-time
  *                                              data synchronization, event-driven architectures, and audit logging.
  * @param trafficRecording                      Defines settings for traffic recording.
+ * @param schedule                              Defines scheduled task configurations including backups, maintenance,
+ *                                              and other periodic operations. See {@link ScheduleOptions} for details.
  * @param readOnly                              starts the database in full read-only mode, prohibiting write operations
  *                                              on {@link EntityContract} level and open read-write {@link EvitaSessionContract}.
  * @param quiet                                 If true, all output to the system console is suppressed.
@@ -70,6 +72,7 @@ public record ServerOptions(
 	int closeSessionsAfterSecondsOfInactivity,
 	@Nonnull ChangeDataCaptureOptions changeDataCapture,
 	@Nonnull TrafficRecordingOptions trafficRecording,
+	@Nonnull ScheduleOptions schedule,
 	boolean readOnly,
 	boolean quiet,
 	boolean directExecutor
@@ -104,6 +107,7 @@ public record ServerOptions(
 		int closeSessionsAfterSecondsOfInactivity,
 		@Nullable ChangeDataCaptureOptions changeDataCapture,
 		@Nullable TrafficRecordingOptions trafficRecording,
+		@Nullable ScheduleOptions schedule,
 		boolean readOnly,
 		boolean quiet,
 		boolean directExecutor
@@ -116,6 +120,7 @@ public record ServerOptions(
 		this.closeSessionsAfterSecondsOfInactivity = closeSessionsAfterSecondsOfInactivity;
 		this.changeDataCapture = changeDataCapture == null ? ChangeDataCaptureOptions.builder().build() : changeDataCapture;
 		this.trafficRecording = trafficRecording == null ? TrafficRecordingOptions.builder().build() : trafficRecording;
+		this.schedule = schedule == null ? ScheduleOptions.builder().build() : schedule;
 		this.readOnly = readOnly;
 		this.quiet = quiet;
 		this.directExecutor = directExecutor;
@@ -131,6 +136,7 @@ public record ServerOptions(
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
 			ChangeDataCaptureOptions.builder().build(),
 			TrafficRecordingOptions.builder().build(),
+			ScheduleOptions.builder().build(),
 			DEFAULT_READ_ONLY,
 			DEFAULT_QUIET,
 			DEFAULT_DIRECT_EXECUTOR
@@ -150,6 +156,7 @@ public record ServerOptions(
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
 		private ChangeDataCaptureOptions changeDataCapture = ChangeDataCaptureOptions.builder().build();
 		private TrafficRecordingOptions trafficRecording = TrafficRecordingOptions.builder().build();
+		private ScheduleOptions schedule = ScheduleOptions.builder().build();
 		private boolean readOnly = DEFAULT_READ_ONLY;
 		private boolean quiet = DEFAULT_QUIET;
 
@@ -165,6 +172,7 @@ public record ServerOptions(
 			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity();
 			this.trafficRecording = serverOptions.trafficRecording();
 			this.changeDataCapture = serverOptions.changeDataCapture();
+			this.schedule = serverOptions.schedule();
 			this.readOnly = serverOptions.readOnly();
 			this.quiet = serverOptions.quiet();
 		}
@@ -230,6 +238,12 @@ public record ServerOptions(
 		}
 
 		@Nonnull
+		public ServerOptions.Builder schedule(@Nonnull ScheduleOptions schedule) {
+			this.schedule = schedule;
+			return this;
+		}
+
+		@Nonnull
 		public ServerOptions build() {
 			return new ServerOptions(
 				this.requestThreadPool,
@@ -240,6 +254,7 @@ public record ServerOptions(
 				this.closeSessionsAfterSecondsOfInactivity,
 				this.changeDataCapture,
 				this.trafficRecording,
+				this.schedule,
 				this.readOnly,
 				this.quiet,
 				DEFAULT_DIRECT_EXECUTOR

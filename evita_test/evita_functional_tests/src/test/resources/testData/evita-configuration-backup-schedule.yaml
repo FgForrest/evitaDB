@@ -1,0 +1,9 @@
+server:
+  schedule:
+    backup:
+      - cron: "0 0 2 * * *"
+        backupType: FULL
+        retention: 7
+      - cron: "0 0 */6 * * *"
+        backupType: SNAPSHOT
+        retention: 5

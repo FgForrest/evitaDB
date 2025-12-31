@@ -5299,6 +5299,7 @@ class EvitaTest implements EvitaTestSupport {
 					formerServerOptions.closeSessionsAfterSecondsOfInactivity(),
 					formerServerOptions.changeDataCapture(),
 					formerServerOptions.trafficRecording(),
+					formerServerOptions.schedule(),
 					formerServerOptions.readOnly(),
 					formerServerOptions.quiet(),
 					false
