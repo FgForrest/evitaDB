@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
@@ -361,6 +362,11 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST))
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT))
 					.build()
 			)
 			.build();

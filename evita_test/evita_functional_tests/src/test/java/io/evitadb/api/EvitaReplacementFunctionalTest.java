@@ -30,6 +30,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.SessionBusyException;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
@@ -205,6 +206,11 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_REPLACEMENT_TEST))
 					.maxOpenedReadHandles(100)
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_EVITA_REPLACEMENT_TEST_EXPORT))
 					.build()
 			)
 			.build();

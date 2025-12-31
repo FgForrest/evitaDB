@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.generator.DataGenerator;
@@ -232,6 +233,11 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 					.timeTravelEnabled(false)
 					.fileSizeCompactionThresholdBytes(1_000_000)
 					.minimalActiveRecordShare(0.8)
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.build()
 			)
 			.build();

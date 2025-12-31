@@ -30,6 +30,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -131,6 +132,11 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 						StorageOptions.builder()
 							.storageDirectory(targetDirectory)
 							.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE * 2)
+							.build()
+					)
+					.export(
+						FileSystemExportOptions.builder()
+							.directory(targetDirectory.resolve("export"))
 							.build()
 					)
 					.build()
