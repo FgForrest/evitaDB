@@ -318,7 +318,7 @@ we have implemented a special mode that allows us to generate examples for diffe
 from the base EvitaQL query statement.
 
 Similarly, we can automatically generate the MarkDown snippets documenting the expected output for the queries applied
-to our [demo dataset](/documentation/get-started/query-our-dataset). These MarkDown snippets play another important role 
+to our [demo dataset](https://evitadb.io/documentation/get-started/query-our-dataset). These MarkDown snippets play another important role 
 as you will read in the next chapter.
 
 The sample translation is a manual operation that is not invoked by our CI workflows. The generated files need to be 
@@ -328,7 +328,7 @@ the generated snippets look like: <SourceClass>/documentation/user/en/query/filt
 
 ## Verification, assertions
 
-The examples that query our [demo dataset](/documentation/getting-started/query-our-dataset) usually contain the preview 
+The examples that query our [demo dataset](https://evitadb.io/documentation/get-started/query-our-dataset) usually contain the preview 
 of the result that the reader can expect if they run the query themselves. Since our dataset is not static, but evolves 
 over time (new data is added, the structure changes, etc.), the results may differ over time. We are also working on 
 the evitaDB query engine and the results may differ as we change the internal logic of the engine. In any case, we want 
@@ -344,7 +344,7 @@ There is a special GitHub workflow <SourceClass>.github/workflows/ci-dev-documen
 documentation verification. The tests, which check the executability of our source code examples and compare their 
 output to the last checked output, run automatically whenever there is a change in the 
 <SourceClass>documentation/user/</SourceClass> folder. They also run every Sunday night, so that we can detect possible changes 
-in [the demo dataset](/documentation/getting-started/query-our-dataset), even if the documentation itself hasn't 
+in [the demo dataset](https://evitadb.io/documentation/get-started/query-our-dataset), even if the documentation itself hasn't 
 changed.
 
 ## Summary
@@ -357,7 +357,7 @@ The pleasant side effects of the described process is that it saves a considerab
 the examples for all languages we support and also adds another layer of integration testing, that has uncovered some 
 bugs in the evitaDB core / query parser.
 
-The queries run against our [demo dataset](/documentation/get-started/query-our-dataset) and verify that our demo server 
+The queries run against our [demo dataset](https://evitadb.io/documentation/get-started/query-our-dataset) and verify that our demo server 
 API is working correctly and that we haven't broken it with some update, and that's also pretty important - we want our
 demo server to be available to anyone who wants to play with it.
 
