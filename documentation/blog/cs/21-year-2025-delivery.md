@@ -4,8 +4,9 @@ perex: |
   Konec roku je ideální čas ohlédnout se za tím, kam se v minulém roce podařilo evitaDB posunout. Klíčovým tématem letošního roku byla především stabilita a adaptace na potřeby z produkčních nasazení, kterých je stále víc a víc.
 date: '30.12.2025'
 author: 'Jan Novotný'
-motive: assets/images/21-year-2025-delivery.png
+motive: ../en/assets/images/21-year-2025-delivery.png
 proofreading: 'done'
+commit: ac51bc20025832d2c01c6678b1b7fc0eaa97f820
 ---
 
 Rekapitulaci rozdělím na několik tématických okruhů:
