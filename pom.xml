@@ -660,6 +660,33 @@
 					<quiet>true</quiet>
 				</configuration>
 			</plugin>
+			<plugin>
+				<groupId>io.evitadb</groupId>
+				<artifactId>comenius-maven-plugin</artifactId>
+				<version>0.0.1-SNAPSHOT</version>
+				<configuration>
+					<llmProvider>openai</llmProvider>
+					<llmUrl>https://api.openai.com/v1</llmUrl>
+					<llmToken>${OPENAI_API_KEY}</llmToken>
+					<llmModel>gpt-4.1</llmModel>
+					<sourceDir>documentation/user/en</sourceDir>
+					<targets>
+						<target>
+							<locale>cs</locale>
+							<targetDir>documentation/user/cs</targetDir>
+						</target>
+					</targets>
+					<excludedFilePatterns>
+						<excludedFilePattern>(?i).*\/assets</excludedFilePattern>
+						<excludedFilePattern>(?i).*\/example</excludedFilePattern>
+						<excludedFilePattern>(?i).*\/examples</excludedFilePattern>
+					</excludedFilePatterns>
+					<translatableFrontMatterFields>
+						<field>title</field>
+						<field>perex</field>
+					</translatableFrontMatterFields>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 	<reporting>

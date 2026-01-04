@@ -1,12 +1,10 @@
 ---
 title: Storage model
-perex: |
-  Pokud vás zajímá interní model uložení dat v systému, pak je tento článek určen právě vám. Z pohledu uživatelského není znalost tohoto modelu nutná, ale může vám pomoci pochopit některé aspekty systému a jeho chování. evitaDB má narozdíl od řady ostatních systémů vlastní model uložení dat postavený na principu úložiště typu klíč/hodnota s variabilní délkou hodnoty. Zároveň je ukládání dat striktně přírůstkové, tj. jednou zapsaná data se již nikdy nemění. 
+perex: Pokud vás zajímá interní model uložení dat v systému, pak je tento článek určen právě vám. Z pohledu uživatelského není znalost tohoto modelu nutná, ale může vám pomoci pochopit některé aspekty systému a jeho chování. evitaDB má narozdíl od řady ostatních systémů vlastní model uložení dat postavený na principu úložiště typu klíč/hodnota s variabilní délkou hodnoty. Zároveň je ukládání dat striktně přírůstkové, tj. jednou zapsaná data se již nikdy nemění.
 date: '5.4.2024'
-author: 'Ing. Jan Novotný'
+author: Ing. Jan Novotný
 commit: '8764472ef49849948721983bb4c491b3a3446d31'
 ---
-
 ## Základní typy souborů a vazby mezi nimi
 
 evitaDB ukládá data do souborů na disku do datového adresáře specifikovaného v konfiguraci. První úroveň datového adresáře obsahuje adresáře pro jednotlivé katalogy. Adresář katalogu obsahuje všechny soubory potřebné pro práci s katalogem (katalog nepotřebuje žádnou další informaci vně svého adresáře). Adresář vždy obsahuje:
@@ -65,7 +63,7 @@ Níže si vysvětlíme význam jednotlivých položek:
     <dt>Generation Id</dt>
     <dd>Číslo generace, které je přiřazeno každému záznamu. Toto číslo se aktivně nepoužívá, ale je možné jej použít při případné rekonstrukci dat. Typicky je shodné s verzí [offset indexu](#offsetový-index), který na tento záznam ukazuje.</dd>
     <dt>Payload</dt>
-    <dd>Skutečná data záznamu. Tato část může mít proměnlivou délku a obsahuje konkrétní informace odpovídající typu záznamu. Payload má omezenou maximální velikost danou velikostí výstupního bufferu (viz. `[outputBufferSize](/documentation/operate/configure?lang=evitaql#storage-configuration)`)</dd>
+    <dd>Skutečná data záznamu. Tato část může mít proměnlivou délku a obsahuje konkrétní informace odpovídající typu záznamu. Payload má omezenou maximální velikost danou velikostí výstupního bufferu (viz. `[outputBufferSize](https://evitadb.io/documentation/operate/configure?lang=evitaql#storage-configuration)`)</dd>
     <dt>Checksum - CRC32C</dt>
     <dd>Kontrolní součet pro ověření integrity dat v rámci záznamu. Tento údaj se používá k detekci chyb při čtení dat v payload sekci.</dd>
 </dl>
@@ -80,9 +78,9 @@ Existuje celá řada případů, kdy je množství dat v payloadu větší než 
 
 #### Náklady na kontrolní součet a kompresi
 
-Pro výpočet kontrolního součtu se používá optimalizovaná varianta CRC32 (konkrétně [CRC32C](https://www.ietf.org/rfc/rfc3720.txt)), která je součástí JDK. Náklady na výpočet a ověřování kontrolního součtu jsou minimální, a proto doporučujeme jej mít vždy zapnutý (ve výchozí konfiguraci tomu tak je). Je možné jej však vypnout pomocí nastavení `computeCRC32C` v konfiguraci [úložiště](/documentation/operate/configure?lang=evitaql#storage-configuration). Pokud k tomu dojde, je vypočtený kontrolní součet u existujících záznamů při čtení ignorován a při zápisu se již neprovádí.
+Pro výpočet kontrolního součtu se používá optimalizovaná varianta CRC32 (konkrétně [CRC32C](https://www.ietf.org/rfc/rfc3720.txt)), která je součástí JDK. Náklady na výpočet a ověřování kontrolního součtu jsou minimální, a proto doporučujeme jej mít vždy zapnutý (ve výchozí konfiguraci tomu tak je). Je možné jej však vypnout pomocí nastavení `computeCRC32C` v konfiguraci [úložiště](https://evitadb.io/documentation/operate/configure?lang=evitaql#storage-configuration). Pokud k tomu dojde, je vypočtený kontrolní součet u existujících záznamů při čtení ignorován a při zápisu se již neprovádí.
 
-Při zapnutí komprese se zvýší paměťové nároky na výstupní buffer, protože je nutné jej alokovat 2x - jednou pro zápis nekomprimované verze a druhý pro vlastní komprimovaná data. Pokud by byl charakter dat špatně komprimovatelný, může dojít k situaci, že se po komprimaci zjistí, že komprimovaná data jsou stejně veliká nebo dokonce větší než data původní. V takovém případě se data uloží v původním formátu - nicméně náklady na pokus o jejich komprimaci zůstávají v platnosti. Při čtení se tento fakt ověřuje pomocí kontrolního bitu č. 4 - je tedy předem známo, jestli je třeba záznam před deserializací dekomprimovat či nikoliv. Při čtení kromě vlastních nákladů na CPU spojených s dekompresí další dodatečné náklady nevznikají. Ve zkratce se tedy dá říct, že náklady na kompresi jsou spojené především se zápisem dat. Komprimaci dat je možné zapnout pomocí nastavení `compress` v konfiguraci [úložiště](/documentation/operate/configure?lang=evitaql#storage-configuration). Ve výchozí konfiguraci je komprese vypnuta. Při pokusu o načtení komprimovaných dat bez zapnuté komprese v konfiguraci, dojde k chybě čtení dat.
+Při zapnutí komprese se zvýší paměťové nároky na výstupní buffer, protože je nutné jej alokovat 2x - jednou pro zápis nekomprimované verze a druhý pro vlastní komprimovaná data. Pokud by byl charakter dat špatně komprimovatelný, může dojít k situaci, že se po komprimaci zjistí, že komprimovaná data jsou stejně veliká nebo dokonce větší než data původní. V takovém případě se data uloží v původním formátu - nicméně náklady na pokus o jejich komprimaci zůstávají v platnosti. Při čtení se tento fakt ověřuje pomocí kontrolního bitu č. 4 - je tedy předem známo, jestli je třeba záznam před deserializací dekomprimovat či nikoliv. Při čtení kromě vlastních nákladů na CPU spojených s dekompresí další dodatečné náklady nevznikají. Ve zkratce se tedy dá říct, že náklady na kompresi jsou spojené především se zápisem dat. Komprimaci dat je možné zapnout pomocí nastavení `compress` v konfiguraci [úložiště](https://evitadb.io/documentation/operate/configure?lang=evitaql#storage-configuration). Ve výchozí konfiguraci je komprese vypnuta. Při pokusu o načtení komprimovaných dat bez zapnuté komprese v konfiguraci, dojde k chybě čtení dat.
 
 ### Bootstrap soubor
 
@@ -194,7 +192,7 @@ Pro komprimaci dat v payload sekci se používá standardní deflate algoritmus,
 
 ### Uklízení nepořádku
 
-Uklízení nepořádku je proces, který se stará o to, aby se v datových souborech nevyskytovalo nadměrné množství "neaktuální" záznamů, které zpomalují start databáze (zabírají místo v [offset indexu](#offsetový-index) a je nutné je procházet a následně ignorovat), taktéž zabírají místo ve file cache operačního systému, takže snižují pravděpodobnost toho, že v cache budou dostupná data, které je potřeba skutečně číst. Proto obsahuje evitaDB automatický proces zvaný *compaction*, který tato data pravidelně čistí, pokud je překročen [nakonfigurovaný](/documentation/operate/configure#storage-configuration) limit `minimalActiveRecordShare` a zároveň velikost souboru překročila limit `fileSizeCompactionThresholdBytes`.
+Uklízení nepořádku je proces, který se stará o to, aby se v datových souborech nevyskytovalo nadměrné množství "neaktuální" záznamů, které zpomalují start databáze (zabírají místo v [offset indexu](#offsetový-index) a je nutné je procházet a následně ignorovat), taktéž zabírají místo ve file cache operačního systému, takže snižují pravděpodobnost toho, že v cache budou dostupná data, které je potřeba skutečně číst. Proto obsahuje evitaDB automatický proces zvaný *compaction*, který tato data pravidelně čistí, pokud je překročen [nakonfigurovaný](https://evitadb.io/documentation/operate/configure#storage-configuration) limit `minimalActiveRecordShare` a zároveň velikost souboru překročila limit `fileSizeCompactionThresholdBytes`.
 
 Tento proces probíhá v rámci zpracování transakce, pokud se zjistí, že po jejím ukončení jsou výše uvedené podmínky splněny. To na jednu stranu zabraňuje tomu, že by díky tlaku na systém došlo k odložení úlohy a mezitím došlo k nadměrnému znečištění a zvětšení souboru na disku. Na druhou stranu to však znamená, že dokončení dané transakce může trvat déle než je tomu obvyklé, protože bude zahrnovat i čas potřebný na kompakci souboru.
 
