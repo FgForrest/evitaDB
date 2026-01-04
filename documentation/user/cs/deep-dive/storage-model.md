@@ -4,6 +4,7 @@ perex: |
   Pokud vás zajímá interní model uložení dat v systému, pak je tento článek určen právě vám. Z pohledu uživatelského není znalost tohoto modelu nutná, ale může vám pomoci pochopit některé aspekty systému a jeho chování. evitaDB má narozdíl od řady ostatních systémů vlastní model uložení dat postavený na principu úložiště typu klíč/hodnota s variabilní délkou hodnoty. Zároveň je ukládání dat striktně přírůstkové, tj. jednou zapsaná data se již nikdy nemění. 
 date: '5.4.2024'
 author: 'Ing. Jan Novotný'
+commit: '8764472ef49849948721983bb4c491b3a3446d31'
 ---
 
 ## Základní typy souborů a vazby mezi nimi
