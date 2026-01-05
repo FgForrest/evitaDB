@@ -4,7 +4,7 @@ perex: |
   V poslední verzi evitaLab je k dispozici nová funkce pro procházení a vyhledávání ve Write-Ahead logu (WAL), co umožňuje detailní průzkum všech změn v databázi. V tomto článku se dozvíte, jak tento nástroj efektivně využívat a k čemu slouží.
 date: '2.1.2026'
 author: 'Jan Novotný'
-motive: assets/images/22-auditing-in-evitalab.png
+motive: ../en/assets/images/22-auditing-in-evitalab.png
 proofreading: 'needed'
 ---
 
@@ -29,7 +29,7 @@ Pod filtrovacím panelem najdete seznam všech naposledy potvrzených transakcí
 
 U každé transakce je zobrazen čas potvrzení, počet změn, velikost transakce v Bytech a tlačítko pro rozbalení detailů. Po kliknutí na tlačítko se zobrazí seznam jednotlivých mutací, které transakce obsahovala a zároveň odpovídají zadanému filtru. Tyto mutace lze často dále rozbalit pro zobrazení lokálních změn, které byly v rámci mutace provedeny. Například u mutace typu *upsert entity* se zobrazí lokální mutace tykající se jednotlivých atributů, cen a dalších "lokálních" částí entity.
 
-![22-entity-upsert.png](../en/assets/images/22-entity-upsert.png)
+![Detail entity upsert mutace](../en/assets/images/22-entity-upsert.png)
 
 Každá mutace umožňuje otevření dalšího pohledu, který zobrazuje historii odpovídající položky v čase. Například u mutace entity otevírá pohled na historii celé entity, kde lze vidět všechny změny, které se na entitě v čase udály, včetně změn jejích atributů, cen a dalších částí. U lokální mutace atributu se zase otevírá pohled na historii konkrétního atributu v dané entitě. Velmi snadno si tak lze udělat představu o tom, jak a kdy se daná položka měnila.
 
