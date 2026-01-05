@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -538,10 +538,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns finalized {@link QueryTelemetry} or throws an exception.
+	 * Returns {@link QueryTelemetry} root or throws an exception if no telemetry is initialized.
 	 */
 	@Nonnull
-	public QueryTelemetry finalizeAndGetTelemetry() {
+	public QueryTelemetry getTelemetryRoot() {
+		Assert.isPremiseValid(!this.telemetryStack.isEmpty(), "The telemetry is not initialized!");
+		return this.telemetryStack.getFirst();
+	}
+
+	/**
+	 * Finalizes {@link QueryTelemetry} or throws an exception. This method can be called only once, because it
+	 * empties the internal telemetry stack.
+	 */
+	public void finalizeTelemetry() {
 		Assert.isPremiseValid(!this.telemetryStack.isEmpty(), "The telemetry has been already retrieved!");
 
 		// there may be some steps still open at the time extra results is fabricated
@@ -550,8 +559,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			rootStep = this.telemetryStack.pop();
 			rootStep.finish();
 		} while (!this.telemetryStack.isEmpty());
-
-		return rootStep;
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,6 +58,7 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
@@ -117,7 +118,9 @@ import io.evitadb.store.spi.model.storageParts.index.*;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import io.evitadb.utils.CollectionUtils;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -949,7 +952,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		final int entityPrimaryKey = Objects.requireNonNull(entityDecorator.getPrimaryKey());
-		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
+		final IoFetchStatistics ioFetchStatistics = entityDecorator instanceof ServerEntityDecorator sed ?
+			new IoFetchStatistics(sed.getIoFetchCount(), sed.getIoFetchedBytes()) : new IoFetchStatistics();
 
 		// body part is fetched everytime - we need to at least test the version
 		final EntityBodyStoragePart bodyPart = ioFetchStatistics.record(
@@ -1567,6 +1571,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Collects the information about fetched data.
 	 */
 	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
 	private static final class IoFetchStatistics {
 		private int ioFetchCount;
 		private int ioFetchedBytes;
