@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -453,6 +453,7 @@ public class EvitaRequest {
 		this.facetGroupNegation = null;
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = null;
+		this.queryTelemetryRequested = evitaRequest.queryTelemetryRequested;
 		this.scopes = scopes;
 		this.scopesAsArray = this.scopes == null ?
 			null : this.scopes.toArray(Scope[]::new);
@@ -723,6 +724,7 @@ public class EvitaRequest {
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
 				this.additionalPriceLists = ArrayUtils.EMPTY_STRING_ARRAY;
+				this.accompanyingPrices = AccompanyingPrice.EMPTY_ARRAY;
 			} else {
 				final Optional<PriceContent> priceContentRequirement = ofNullable(QueryUtils.findConstraint(entityFetch, PriceContent.class, SeparateEntityContentRequireContainer.class));
 				this.entityPrices = priceContentRequirement
