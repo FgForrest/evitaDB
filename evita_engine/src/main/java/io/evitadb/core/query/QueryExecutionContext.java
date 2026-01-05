@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,6 +81,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -471,14 +473,24 @@ public class QueryExecutionContext implements Closeable {
 	}
 
 	/**
-	 * Returns finalized {@link QueryTelemetry} or throws an exception.
+	 * Returns root node of {@link QueryTelemetry} or throws an exception.
 	 */
 	@Nonnull
-	public QueryTelemetry finalizeAndGetTelemetry() {
+	public Optional<QueryTelemetry> getTelemetryRoot() {
 		if (isDryRun()) {
-			return new QueryTelemetry(QueryPhase.OVERALL);
+			return of(new QueryTelemetry(QueryPhase.OVERALL));
 		} else {
-			return this.queryContext.finalizeAndGetTelemetry();
+			return this.queryContext.getEvitaRequest().isQueryTelemetryRequested() ?
+				of(this.queryContext.getTelemetryRoot()) : empty();
+		}
+	}
+
+	/**
+	 * Finalizes telemetry data by stopping the timer.
+	 */
+	public void finalizeTelemetry() {
+		if (!isDryRun() && this.queryContext.getEvitaRequest().isQueryTelemetryRequested()) {
+			this.queryContext.finalizeTelemetry();
 		}
 	}
 

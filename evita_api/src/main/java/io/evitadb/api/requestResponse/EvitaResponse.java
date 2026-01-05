@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -224,7 +224,7 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 				this.extraResults.size() == ((EvitaResponse<?>) o).extraResults.size() &&
 				this.extraResults.entrySet()
 					.stream()
-					.filter(it -> !(it instanceof QueryTelemetry))
+					.filter(it -> !(it.getKey().equals(QueryTelemetry.class)))
 					.allMatch(it -> it.getValue().equals(((EvitaResponse<?>) o).extraResults.get(it.getKey())))
 			);
 	}
