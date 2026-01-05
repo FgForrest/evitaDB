@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -370,7 +370,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							.filter(Optional::isPresent)
 							.map(Optional::get)
 							.map(ServerEntityDecorator.class::cast)
-							.mapToInt(ServerEntityDecorator::getIoFetchedBytes)
+							.mapToInt(ServerEntityDecorator::getIoFetchCount)
 							.sum()
 						:
 						0
@@ -388,7 +388,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						getParentEntity()
 							.filter(ServerEntityDecorator.class::isInstance)
 							.map(ServerEntityDecorator.class::cast)
-							.map(ServerEntityDecorator::getIoFetchCount)
+							.map(ServerEntityDecorator::getIoFetchedBytes)
 							.orElse(0)
 						:
 						0
