@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.store.kryo;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
@@ -78,7 +78,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 * Contains reference to the asynchronous task executor that clears the cached file pointers after some
 	 * time of inactivity.
 	 */
-	private final DelayedAsyncTask cutTask;
+	private final ScheduledTask cutTask;
 	/**
 	 * Cache containing the cached outputs for target files.
 	 * The cached outputs are stored as a ConcurrentHashMap with the target file path as the key and the corresponding
@@ -98,7 +98,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	public ObservableOutputKeeper(@Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
 		this.catalogName = null;
 		this.options = options;
-		this.cutTask = new DelayedAsyncTask(
+		this.cutTask = new ScheduledTask(
 			null, "Write buffer releaser",
 			scheduler,
 			this::cutOutputCache,
@@ -109,7 +109,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	public ObservableOutputKeeper(@Nonnull String catalogName, @Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
 		this.catalogName = catalogName;
 		this.options = options;
-		this.cutTask = new DelayedAsyncTask(
+		this.cutTask = new ScheduledTask(
 			catalogName, "Write buffer releaser",
 			scheduler,
 			this::cutOutputCache,

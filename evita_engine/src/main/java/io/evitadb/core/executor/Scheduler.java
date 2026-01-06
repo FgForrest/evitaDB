@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	/**
 	 * Task that periodically purges finished tasks from the queue.
 	 */
-	private final DelayedAsyncTask purgingTask;
+	private final ScheduledTask purgingTask;
 
 	/**
 	 * Creates a predicate to evaluate {@link TaskStatus} objects based on the specified task types and simplified states.
@@ -150,7 +150,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		this.queueCapacity = options.queueSize();
 		this.queue = new ArrayBlockingQueue<>(this.queueCapacity << 1);
 		// schedule automatic purging task
-		this.purgingTask = new DelayedAsyncTask(
+		this.purgingTask = new ScheduledTask(
 			null,
 			"Scheduler queue purging task",
 			this,

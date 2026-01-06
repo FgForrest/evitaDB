@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.export.s3;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.PaginatedList;
@@ -166,7 +166,7 @@ public class ExportS3Service implements ExportService {
 	/**
 	 * Task that periodically purges old files from the storage.
 	 */
-	private final DelayedAsyncTask purgeTask;
+	private final ScheduledTask purgeTask;
 
 	/**
 	 * Parses user metadata into a {@link FileForFetch} instance.
@@ -282,7 +282,7 @@ public class ExportS3Service implements ExportService {
 		ensureBucketExists();
 
 		// Schedule automatic purging task
-		this.purgeTask = new DelayedAsyncTask(
+		this.purgeTask = new ScheduledTask(
 			null,
 			"S3 export file service purging task",
 			scheduler,

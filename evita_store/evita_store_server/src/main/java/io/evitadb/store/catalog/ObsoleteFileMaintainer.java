@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.store.catalog;
 
 import io.evitadb.core.catalog.CatalogConsumersListener;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
@@ -79,7 +79,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	/**
 	 * Asynchronous task that purges obsolete files.
 	 */
-	private final DelayedAsyncTask purgeTask;
+	private final ScheduledTask purgeTask;
 	/**
 	 * List of files that are maintained until they are no longer used and can be purged.
 	 */
@@ -120,7 +120,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		this.dataFilesInfoFetcher = dataFilesInfoFetcher;
 		// purge task is not present when time travel is enabled
 		// in this situation the files are removed in the synchronous manner when the WAL history is purged
-		this.purgeTask = new DelayedAsyncTask(
+		this.purgeTask = new ScheduledTask(
 			catalogName, "Obsolete files purger",
 			scheduler,
 			this::purgeObsoleteFiles,

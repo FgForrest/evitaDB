@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.OffsetDateTime;
@@ -45,13 +46,53 @@ import java.util.function.LongSupplier;
 /**
  * Represents a task that is executed asynchronously after a specified delay. The task is guarded to be scheduled only
  * once at a time or not at all. Task is scheduled by {@link #schedule()} method with constant delay. The task is paused
- * when the {@link #lambda} is finished and returns negative value. The task is re-scheduled when the {@link #lambda} returns
- * positive value. The task is re-scheduled with shorter delay when the {@link #lambda} returns positive value.
+ * when the {@link #lambda} is finished and returns negative value. The task is re-scheduled when the {@link #lambda}
+ * returns zero or a positive value. In the latter case, the task is re-scheduled with a shorter delay.
+ *
+ * ## Thread-Safety
+ *
+ * This class is thread-safe. All scheduling operations are protected by {@link #schedulingLock} to ensure atomic
+ * state transitions. The class uses atomic variables for simple boolean/reference updates and explicit locking
+ * for complex operations involving multiple state changes.
+ *
+ * ## Return Value Semantics
+ *
+ * The `LongSupplier` runnable controls task behavior through its return value:
+ *
+ * - **Negative value (< 0)**: Task pauses - no automatic rescheduling occurs. However, if another thread called
+ * `schedule()` or `scheduleImmediately()` while the task was running (setting the `reSchedule` flag),
+ * the task will be rescheduled despite the pause intent.
+ * - **Zero (0)**: Task is rescheduled with the same delay as originally configured.
+ * - **Positive value (> 0)**: Task is rescheduled with delay shortened by this amount. The actual delay
+ * will be `max(delay - returnValue, 1)` in the configured time unit.
+ *
+ * ## Lifecycle States
+ *
+ * - **Created**: Task is constructed but not yet scheduled
+ * - **Scheduled**: Task has a pending execution in the scheduler
+ * - **Running**: Task is currently executing
+ * - **Paused**: Task has finished and returned negative value
+ * - **Closed**: Task cannot be scheduled anymore; pending executions are cancelled
+ *
+ * ## Exception Handling
+ *
+	 * If the task lambda throws a `RuntimeException`, the exception is logged. The `running` flag
+	 * is properly reset in the finally block, allowing the task to be rescheduled later. The task automatically reschedules
+	 * to a standard delay after an exception.
+ *
+ * ## Close Semantics
+ *
+ * The `close()` method:
+ * - Cancels any pending scheduled execution (does not interrupt running tasks)
+ * - Releases the lambda reference to allow garbage collection
+ * - Prevents any future scheduling attempts (throws `GenericEvitaInternalError`)
+ * - Is idempotent - calling it multiple times has no additional effect
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@ThreadSafe
 @Slf4j
-public class DelayedAsyncTask implements Closeable {
+public class ScheduledTask implements Closeable {
 	/**
 	 * The default minimal gap between two scheduling moments.
 	 */
@@ -84,7 +125,7 @@ public class DelayedAsyncTask implements Closeable {
 	private final String taskName;
 	/**
 	 * The task that is executed asynchronously after the specified delay and returns negative value when it should be
-	 * paused or positive value when it should be re-scheduled (with shortened delay).
+	 * paused or zero / positive value when it should be re-scheduled (with shortened delay).
 	 */
 	private final AtomicReference<Runnable> lambda;
 	/**
@@ -117,7 +158,7 @@ public class DelayedAsyncTask implements Closeable {
 	 */
 	private final ReentrantLock schedulingLock = new ReentrantLock();
 
-	public DelayedAsyncTask(
+	public ScheduledTask(
 		@Nullable String catalogName,
 		@Nonnull String taskName,
 		@Nonnull Scheduler scheduler,
@@ -130,7 +171,7 @@ public class DelayedAsyncTask implements Closeable {
 		);
 	}
 
-	public DelayedAsyncTask(
+	public ScheduledTask(
 		@Nullable String catalogName,
 		@Nonnull String taskName,
 		@Nonnull Scheduler scheduler,
@@ -139,6 +180,19 @@ public class DelayedAsyncTask implements Closeable {
 		@Nonnull TimeUnit delayUnits,
 		long minimalSchedulingGap
 	) {
+		Assert.notNull(scheduler, "Scheduler must not be null");
+		Assert.notNull(taskName, "Task name must not be null");
+		Assert.notNull(runnable, "Runnable must not be null");
+		Assert.notNull(delayUnits, "Delay units must not be null");
+		Assert.isTrue(
+			delay >= 0,
+			"Delay must be non-negative or Long.MAX_VALUE for manual tasks"
+		);
+		Assert.isTrue(
+			minimalSchedulingGap >= 0,
+			"Minimal scheduling gap must be non-negative"
+		);
+
 		this.scheduler = scheduler;
 		this.delay = delay;
 		this.delayUnits = delayUnits;
@@ -234,19 +288,26 @@ public class DelayedAsyncTask implements Closeable {
 
 	/**
 	 * Schedules the task for execution after the specified computed delay if the task is not already closed.
-	 * The task is scheduled using the scheduler's schedule method with the computed delay and time unit specified in milliseconds.
+	 * The task is scheduled using the scheduler's schedule method with the computed delay and time unit
+	 * specified in milliseconds.
+	 *
+	 * This method checks both the closed state and lambda availability before scheduling. The lambda
+	 * may be null if `close()` was called concurrently.
 	 *
 	 * @param computedDelay the delay time in milliseconds after which the task should be executed
 	 */
 	private void scheduleTask(long computedDelay) {
 		if (!this.closed.get()) {
-			this.scheduledFuture.set(
-				this.scheduler.schedule(
-					this.lambda.get(),
-					computedDelay,
-					TimeUnit.MILLISECONDS
-				)
-			);
+			final Runnable task = this.lambda.get();
+			if (task != null) {
+				this.scheduledFuture.set(
+					this.scheduler.schedule(
+						task,
+						computedDelay,
+						TimeUnit.MILLISECONDS
+					)
+				);
+			}
 		}
 	}
 
@@ -269,21 +330,62 @@ public class DelayedAsyncTask implements Closeable {
 	}
 
 	/**
-	 * Pauses the execution of the task by setting the next planned execution time to the minimum value.
+	 * Handles post-execution scheduling based on the task's return value.
+	 * This method is called after the task completes and determines whether to:
+	 *
+	 * - Re-schedule with a shortened delay (if returnValue >= 0)
+	 * - Pause and check for deferred rescheduling (if returnValue < 0)
+	 *
+	 * Thread-safety: This method acquires the scheduling lock to ensure atomic
+	 * state transitions between pause/schedule operations.
+	 *
+	 * @param planWithShorterDelay the value returned by the task lambda:
+	 *                             - negative: pause (no automatic rescheduling)
+	 *                             - 0: reschedule with the same delay
+	 *                             - positive: reschedule with delay shortened by this amount
 	 */
-	private void pause() {
+	private void handlePostExecution(long planWithShorterDelay) {
+		this.schedulingLock.lock();
+		try {
+			if (this.closed.get()) {
+				// don't reschedule if closed
+				return;
+			}
+			if (planWithShorterDelay > -1L) {
+				scheduleWithDelayShorterByLocked(planWithShorterDelay);
+			} else {
+				pauseLocked();
+				if (this.reSchedule.compareAndSet(true, false)) {
+					// someone called schedule()/scheduleImmediately() while we were running
+					scheduleLocked();
+				}
+			}
+		} finally {
+			this.schedulingLock.unlock();
+		}
+	}
+
+	/**
+	 * Internal version of pause that assumes lock is already held.
+	 * Sets the next planned execution time to the minimum value, indicating the task is paused.
+	 */
+	private void pauseLocked() {
 		this.nextPlannedExecution.set(OffsetDateTime.MIN);
 	}
 
 	/**
-	 * Updates the next planned execution time by shortening the delay by the specified amount.
-	 * It re-plans the scheduled task to the new execution time using the scheduler's schedule method.
+	 * Internal version of scheduleWithDelayShorterBy that assumes lock is already held.
+	 * Updates the next planned execution time by shortening the delay by the specified amount
+	 * and schedules the task accordingly.
 	 *
-	 * @param shorterBy The amount to shorten the delay by.
+	 * @param shorterBy the amount to shorten the delay by
 	 */
-	private void scheduleWithDelayShorterBy(long shorterBy) {
+	private void scheduleWithDelayShorterByLocked(long shorterBy) {
 		final OffsetDateTime nextTick = this.nextPlannedExecution.updateAndGet(
-			offsetDateTime -> offsetDateTime.plus(Math.max(this.delay - shorterBy, 1L), this.delayUnits.toChronoUnit())
+			offsetDateTime -> offsetDateTime.plus(
+				Math.max(this.delay - shorterBy, 1L),
+				this.delayUnits.toChronoUnit()
+			)
 		);
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		final OffsetDateTime now = OffsetDateTime.now();
@@ -296,10 +398,38 @@ public class DelayedAsyncTask implements Closeable {
 	}
 
 	/**
-	 * Executes the task and sets the running flag to false when the task is finished.
+	 * Internal version of schedule core logic that assumes lock is already held.
+	 * Schedules the task with the configured delay if not already scheduled.
+	 */
+	private void scheduleLocked() {
+		if (this.delay == Long.MAX_VALUE) {
+			// the task is manual task and will never be scheduled
+			return;
+		}
+		final OffsetDateTime now = OffsetDateTime.now();
+		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
+		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
+			final long nowMillis = now.toInstant().toEpochMilli();
+			final long computedDelay = Math.max(
+				nextTick.toInstant().toEpochMilli() - nowMillis,
+				computeMinimalSchedulingGap(nowMillis)
+			);
+			scheduleTask(computedDelay);
+		}
+	}
+
+	/**
+	 * Executes the task and handles post-execution scheduling.
+	 * The running flag is set to true during execution and reset in the finally block.
+	 * Post-execution scheduling is delegated to {@link #handlePostExecution(long)} which
+	 * properly synchronizes state transitions.
+	 *
+	 * If the task throws an exception, the task is automatically rescheduled to a standard delay.
+	 *
+	 * @param runnable the task to execute
 	 */
 	private void runTask(@Nonnull LongSupplier runnable) {
-		final long planWithShorterDelay;
+		long planWithShorterDelay = 0L;
 		final BackgroundTaskFinishedEvent finishEvent = new BackgroundTaskFinishedEvent(
 			this.catalogName, this.taskName
 		);
@@ -310,25 +440,17 @@ public class DelayedAsyncTask implements Closeable {
 			);
 			new BackgroundTaskStartedEvent(this.catalogName, this.taskName).commit();
 			planWithShorterDelay = runnable.getAsLong();
-			this.lastFinishedExecution.set(OffsetDateTime.now());
 		} catch (RuntimeException ex) {
 			log.error("Error while running task: {}", this.taskName, ex);
-			throw ex;
 		} finally {
+			this.lastFinishedExecution.set(OffsetDateTime.now());
 			finishEvent.commit();
 			Assert.isPremiseValid(
 				this.running.compareAndSet(true, false),
 				"Task is not running."
 			);
-		}
-		if (planWithShorterDelay > -1L) {
-			scheduleWithDelayShorterBy(planWithShorterDelay);
-		} else {
-			pause();
-			if (this.reSchedule.compareAndSet(true, false)) {
-				// reschedule the task if it was requested during the run
-				this.schedule();
-			}
+			// delegate post-execution handling to synchronized method
+			handlePostExecution(planWithShorterDelay);
 		}
 	}
 }
