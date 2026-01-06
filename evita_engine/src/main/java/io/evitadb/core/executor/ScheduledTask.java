@@ -25,6 +25,7 @@ package io.evitadb.core.executor;
 
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
+import io.evitadb.cron.CronSchedule;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -162,6 +163,50 @@ public class ScheduledTask implements Closeable {
 		@Nullable String catalogName,
 		@Nonnull String taskName,
 		@Nonnull Scheduler scheduler,
+		@Nonnull Runnable runnable,
+		@Nonnull CronSchedule cronSchedule
+	) {
+		this(
+			catalogName, taskName, scheduler, runnable, cronSchedule, DEFAULT_MINIMAL_SCHEDULING_GAP
+		);
+	}
+
+	public ScheduledTask(
+		@Nullable String catalogName,
+		@Nonnull String taskName,
+		@Nonnull Scheduler scheduler,
+		@Nonnull Runnable runnable,
+		@Nonnull CronSchedule cronSchedule,
+		long minimalSchedulingGap
+	) {
+		this(
+			catalogName,
+			taskName,
+			scheduler,
+			() -> {
+				runnable.run();
+				// we need to calculate shortened delay against Long.MAX_VALUE from now
+				// (now)|-----------|(nextRun)----------------------|(Long.MAX_VALUE)
+				//      |-----------|-- we need to calculate this --|(Long.MAX_VALUE)
+				final OffsetDateTime now = OffsetDateTime.now();
+				final OffsetDateTime nextRun = cronSchedule.calculateNext(now);
+				return Math.negateExact(
+					nextRun.toInstant().toEpochMilli() - now.toInstant().toEpochMilli() - Long.MAX_VALUE
+				);
+			},
+			Long.MAX_VALUE,
+			TimeUnit.MILLISECONDS,
+			minimalSchedulingGap
+		);
+		schedule(
+			cronSchedule.calculateNext(OffsetDateTime.now())
+		);
+	}
+
+	public ScheduledTask(
+		@Nullable String catalogName,
+		@Nonnull String taskName,
+		@Nonnull Scheduler scheduler,
 		@Nonnull LongSupplier runnable,
 		long delay,
 		@Nonnull TimeUnit delayUnits
@@ -185,18 +230,19 @@ public class ScheduledTask implements Closeable {
 		Assert.notNull(runnable, "Runnable must not be null");
 		Assert.notNull(delayUnits, "Delay units must not be null");
 		Assert.isTrue(
-			delay >= 0,
-			"Delay must be non-negative or Long.MAX_VALUE for manual tasks"
-		);
-		Assert.isTrue(
-			minimalSchedulingGap >= 0,
-			"Minimal scheduling gap must be non-negative"
+			delay > 0,
+			"Delay must be positive or Long.MAX_VALUE for manual tasks"
 		);
 
 		this.scheduler = scheduler;
 		this.delay = delay;
 		this.delayUnits = delayUnits;
-		this.minimalSchedulingGap = minimalSchedulingGap;
+		if (minimalSchedulingGap < 0) {
+			// in tests we want to intentionally disable the minimal gap or work with lower values
+			this.minimalSchedulingGap = minimalSchedulingGap * -1;
+		} else {
+			this.minimalSchedulingGap = Math.max(minimalSchedulingGap, DEFAULT_MINIMAL_SCHEDULING_GAP);
+		}
 		this.catalogName = catalogName;
 		this.taskName = taskName;
 		this.lambda = new AtomicReference<>(() -> runTask(runnable));
@@ -207,12 +253,20 @@ public class ScheduledTask implements Closeable {
 	 * The task is scheduled using the scheduler's schedule method.
 	 */
 	public void scheduleImmediately() {
+		schedule(OffsetDateTime.now());
+	}
+
+	/**
+	 * Schedules the execution of the task at the specified time if it has not been scheduled already.
+	 * If the task is currently running, it flags the task to be re-scheduled after it finishes.
+	 * The actual execution might be delayed to respect the minimal scheduling gap.
+	 */
+	public void schedule(@Nonnull OffsetDateTime scheduledTime) {
 		assertNotClosed();
 		this.schedulingLock.lock();
 		try {
-			final OffsetDateTime now = OffsetDateTime.now();
-			if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, now) == OffsetDateTime.MIN) {
-				scheduleTask(computeMinimalSchedulingGap(now.toInstant().toEpochMilli()));
+			if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, scheduledTime) == OffsetDateTime.MIN) {
+				scheduleTask(computeMinimalSchedulingGap(scheduledTime.toInstant().toEpochMilli()));
 			} else if (this.running.get()) {
 				// if this task is currently running, we need to schedule it again after it finishes
 				this.reSchedule.set(true);

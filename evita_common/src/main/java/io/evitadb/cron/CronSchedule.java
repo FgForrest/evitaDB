@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.cron;
 
+import io.evitadb.exception.CronScheduleException;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
@@ -173,15 +174,20 @@ public final class CronSchedule {
 	 *
 	 * The returned temporal will be at least 1 nanosecond after the provided seed value.
 	 * If no matching time can be found within a reasonable number of iterations
-	 * (e.g., for impossible expressions like February 31st), null is returned.
+	 * (e.g., for impossible expressions like February 31st), {@link CronScheduleException} is thrown.
 	 *
 	 * @param fromTime the seed temporal to start searching from
 	 * @param <T> the temporal type (must be both Temporal and Comparable)
-	 * @return the next matching temporal, or null if none found
+	 * @return the next matching temporal
+	 * @throws CronScheduleException if no matching temporal can be found
 	 */
-	@Nullable
+	@Nonnull
 	public <T extends Temporal & Comparable<? super T>> T calculateNext(@Nonnull T fromTime) {
-		return findNextOrSame(ChronoUnit.NANOS.addTo(fromTime, 1));
+		final T result = findNextOrSame(ChronoUnit.NANOS.addTo(fromTime, 1));
+		if (result == null) {
+			throw new CronScheduleException(this);
+		}
+		return result;
 	}
 
 	/**

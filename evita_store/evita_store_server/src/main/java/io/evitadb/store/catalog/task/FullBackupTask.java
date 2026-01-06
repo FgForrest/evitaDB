@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,15 +65,45 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFetch> {
+	private static final String MIME_TYPE = "application/zip";
 	private final String catalogName;
 	private final AtomicReference<ExportService> exportFileService;
 	private final AtomicReference<LongConsumer> onComplete;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final long lastCatalogVersion;
 
+	/**
+	 * Generates a description for the full backup of a catalog with a specific version.
+	 *
+	 * @param catalogName        the name of the catalog for which the description is generated, must not be null
+	 * @param lastCatalogVersion the version of the catalog at the time of the backup
+	 * @return a string representing the description of the backup, including the catalog name and version
+	 */
+	@Nonnull
+	private static String getDescription(@Nonnull String catalogName, long lastCatalogVersion) {
+		return "The full backup of the " + "catalog `" + catalogName + "` at version `" + lastCatalogVersion + "`.";
+	}
+
+	/**
+	 * Generates the name of the backup file for the given catalog.
+	 * The file name is composed of the catalog name, the current timestamp in ISO-8601 format,
+	 * and a ".zip" extension.
+	 *
+	 * @param catalogName the name of the catalog for which the backup file name is created, must not be null
+	 * @return the generated backup file name including the catalog name, timestamp, and ".zip" extension
+	 */
+	@Nonnull
+	private static String getFileName(@Nonnull String catalogName) {
+		return "full_backup_" + catalogName + "_" +
+			OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".zip";
+	}
+
 	public FullBackupTask(
+		@Nullable String origin,
 		@Nonnull String catalogName,
-		@Nonnull ExportService exportService, @Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
+		boolean systemOrigin,
+		@Nonnull ExportService exportService,
+		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) {
@@ -81,7 +111,7 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 			catalogName,
 			FullBackupTask.class.getSimpleName(),
 			"Catalog " + catalogName + " full backup",
-			new BackupSettings(),
+			new BackupSettings(origin, systemOrigin),
 			(task) -> ((FullBackupTask) task).doBackup(),
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
@@ -119,14 +149,28 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		try {
 			log.info("Starting full backup of catalog `{}`.", this.catalogName);
 
-			final ExportFileHandle exportFileHandle = exportFileService.storeFile(
-				"full_backup_" + this.catalogName + "_" +
-					OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".zip",
-				"The full backup of the " + "catalog `" + this.catalogName + "` at version `" + this.lastCatalogVersion + "`.",
-				"application/zip",
-				this.catalogName,
-				this.getClass().getSimpleName()
-			);
+			final FullBackupTask.BackupSettings settings = getStatus().settings();
+			final String origin = settings.origin() == null || settings.origin().isBlank() ?
+				this.getClass().getSimpleName() : settings.origin();
+
+			final ExportFileHandle exportFileHandle;
+			if (settings.systemOrigin()) {
+				exportFileHandle = exportFileService.storeExternallyManagedFile(
+					getFileName(this.catalogName),
+					getDescription(this.catalogName, this.lastCatalogVersion),
+					MIME_TYPE,
+					this.catalogName,
+					origin
+				);
+			} else {
+				exportFileHandle = exportFileService.storeFile(
+					getFileName(this.catalogName),
+					getDescription(this.catalogName, this.lastCatalogVersion),
+					MIME_TYPE,
+					this.catalogName,
+					origin
+				);
+			}
 
 			try {
 				final Path catalogStoragePath = this.catalogPersistenceService.get().getCatalogStoragePath();
@@ -136,21 +180,32 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 					totalFiles = Math.toIntExact(files.count());
 				}
 
-				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+				try (ZipOutputStream zipOutputStream = new ZipOutputStream(
+					new BufferedOutputStream(exportFileHandle.outputStream()))) {
 					zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
 					zipOutputStream.closeEntry();
 
 					// first, store the catalog bootstrap that contains pointers to other files
-					backup(catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, BOOT_FILE_SUFFIX, "bootstrap");
+					backup(
+						catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, BOOT_FILE_SUFFIX, "bootstrap");
 
 					// then write the contents of the catalog file
-					backup(catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, CatalogPersistenceService.CATALOG_FILE_SUFFIX, "catalog");
+					backup(
+						catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles,
+						CatalogPersistenceService.CATALOG_FILE_SUFFIX, "catalog"
+					);
 
 					// then all the entity collection data files
-					backup(catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX, "entity collection");
+					backup(
+						catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles,
+						CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX, "entity collection"
+					);
 
 					// finally store all the WAL file with all records written so far
-					backup(catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, WAL_FILE_SUFFIX, "write-ahead log");
+					backup(
+						catalogStoragePath, zipOutputStream, backedUpFiles, totalFiles, WAL_FILE_SUFFIX,
+						"write-ahead log"
+					);
 
 				}
 
@@ -252,12 +307,15 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	/**
 	 * Settings for this instance of backup task.
 	 */
-	public record BackupSettings() implements Serializable {
+	public record BackupSettings(
+		@Nullable String origin,
+		boolean systemOrigin
+	) implements Serializable {
 
 		@Nonnull
 		@Override
 		public String toString() {
-			return "Full backup.";
+			return "Full " + (this.systemOrigin ? "system backup: " + this.origin : "backup") + ".";
 		}
 	}
 

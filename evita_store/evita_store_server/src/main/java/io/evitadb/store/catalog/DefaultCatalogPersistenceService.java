@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -2400,9 +2400,23 @@ public class DefaultCatalogPersistenceService
 			bootstrapRecord = this.bootstrapUsed;
 		}
 		return new BackupTask(
-			this.catalogName, pastMoment, catalogVersion, includingWAL,
+			null,
+			this.catalogName,
+			pastMoment, catalogVersion, includingWAL, false,
 			bootstrapRecord, this.exportService, this,
 			onStart, onComplete
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<?, FileForFetch> createSystemBackupTask() {
+		return new BackupTask(
+			"SystemBackupTask",
+			this.catalogName,
+			null, null, true, true,
+			this.bootstrapUsed, this.exportService, this,
+			null, null
 		);
 	}
 
@@ -2413,10 +2427,25 @@ public class DefaultCatalogPersistenceService
 		@Nullable LongConsumer onComplete
 	) {
 		return new FullBackupTask(
+			null,
 			this.catalogName,
+			false,
 			this.exportService,
 			this,
 			onStart, onComplete
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<?, FileForFetch> createSystemFullBackupTask() {
+		return new FullBackupTask(
+			"SystemFullBackupTask",
+			this.catalogName,
+			true,
+			this.exportService,
+			this,
+			null, null
 		);
 	}
 

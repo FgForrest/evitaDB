@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,7 +63,8 @@ import java.util.UUID;
 public interface ExportService extends Closeable {
 
 	/**
-	 * Returns a paginated list of files currently available for fetching.
+	 * Returns a paginated list of files currently available for fetching. Files are sorted by creation
+	 * date descending (newest first).
 	 *
 	 * The result can be filtered by file origin. Pass an empty set to return files of all origins.
 	 *

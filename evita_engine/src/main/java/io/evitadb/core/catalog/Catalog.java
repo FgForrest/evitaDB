@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -92,6 +92,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.collection.EntityCollection.EntityCollectionHeaderWithCollection;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.management.FileManagementService;
@@ -140,6 +141,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
+import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
@@ -178,7 +180,12 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 @ThreadSafe
 public final class Catalog
-	implements CatalogContract, CatalogConsumersListener, TransactionalLayerProducer<DataStoreChanges, Catalog> {
+	implements
+	CatalogContract,
+	CatalogConsumersListener,
+	TransactionalLayerProducer<DataStoreChanges, Catalog>,
+	ScheduledBackupSupport
+{
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains information about version of the catalog which corresponds to transaction commit sequence number.
@@ -301,6 +308,10 @@ public final class Catalog
 	 * Last persisted schema version of the catalog.
 	 */
 	private long lastPersistedSchemaVersion;
+	/**
+	 * List of scheduled automatic backup tasks for this catalog.
+	 */
+	private final List<ScheduledTask> automaticBackupTasks;
 
 	/**
 	 * Verifies whether the catalog name could be used for a new catalog.
@@ -597,6 +608,15 @@ public final class Catalog
 			Collections.emptyList(),
 			this.dataStoreBuffer
 		);
+
+		this.automaticBackupTasks = initializeBackupTasks(
+			catalogName,
+			this.evitaConfiguration.server().schedule(),
+			this.scheduler,
+			exportService,
+			this.persistenceService,
+			log
+		);
 	}
 
 	private Catalog(
@@ -693,6 +713,15 @@ public final class Catalog
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
 			collectionByPk, EntityCollection.class, Function.identity());
 		this.entitySchemaIndex = new TransactionalMap<>(entitySchemaIndex);
+
+		this.automaticBackupTasks = initializeBackupTasks(
+			catalogName,
+			this.evitaConfiguration.server().schedule(),
+			this.scheduler,
+			exportService,
+			this.persistenceService,
+			log
+		);
 	}
 
 	Catalog(
@@ -789,6 +818,8 @@ public final class Catalog
 			// when the collection is attached to the catalog, we can access its schema and put it into the schema index
 			newEntitySchemaIndex.put(entityCollection.getEntityType(), entityCollection.getSchema());
 		}
+
+		this.automaticBackupTasks = previousCatalogVersion.automaticBackupTasks;
 	}
 
 	@Override
@@ -2211,6 +2242,13 @@ public final class Catalog
 	private void terminateInternally() {
 		final String catalogName = getName();
 		try {
+			// terminate scheduled backups
+			IOUtils.closeQuietly(
+				this.automaticBackupTasks
+					.stream()
+					.map(it -> (ExceptionThrowingRunnable) it::close)
+					.toArray(ExceptionThrowingRunnable[]::new)
+			);
 			// close transaction manager
 			IOUtils.closeQuietly(this.transactionManager::close);
 			// flush all entity collections and store their headers

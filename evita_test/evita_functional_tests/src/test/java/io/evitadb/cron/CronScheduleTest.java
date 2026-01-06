@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.cron;
 
+import io.evitadb.exception.CronScheduleException;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -423,13 +424,13 @@ class CronScheduleTest {
 	}
 
 	@Test
-	@DisplayName("should return null for non-existent date")
-	void shouldReturnNullForNonExistentDate() {
+	@DisplayName("should throw exception for non-existent date")
+	void shouldThrowExceptionForNonExistentDate() {
 		// June 31st doesn't exist
 		final CronSchedule schedule = CronSchedule.fromExpression("0 0 0 31 6 *");
 
 		final LocalDateTime last = LocalDateTime.now().withMonth(3).withDayOfMonth(10);
-		assertNull(schedule.calculateNext(last));
+		assertThrows(CronScheduleException.class, () -> schedule.calculateNext(last));
 	}
 
 	@Test
@@ -617,30 +618,30 @@ class CronScheduleTest {
 	}
 
 	@Test
-	@DisplayName("should return null for September 31")
-	void shouldReturnNullForSeptember31() {
+	@DisplayName("should throw exception for September 31")
+	void shouldThrowExceptionForSeptember31() {
 		// September has only 30 days
 		final CronSchedule schedule = CronSchedule.fromExpression("0 0 0 31 9 *");
 		final LocalDateTime last = LocalDateTime.of(2023, 1, 1, 0, 0, 0);
-		assertNull(schedule.calculateNext(last));
+		assertThrows(CronScheduleException.class, () -> schedule.calculateNext(last));
 	}
 
 	@Test
-	@DisplayName("should return null for November 31")
-	void shouldReturnNullForNovember31() {
+	@DisplayName("should throw exception for November 31")
+	void shouldThrowExceptionForNovember31() {
 		// November has only 30 days
 		final CronSchedule schedule = CronSchedule.fromExpression("0 0 0 31 11 *");
 		final LocalDateTime last = LocalDateTime.of(2023, 1, 1, 0, 0, 0);
-		assertNull(schedule.calculateNext(last));
+		assertThrows(CronScheduleException.class, () -> schedule.calculateNext(last));
 	}
 
 	@Test
-	@DisplayName("should return null for February 30")
-	void shouldReturnNullForFebruary30() {
+	@DisplayName("should throw exception for February 30")
+	void shouldThrowExceptionForFebruary30() {
 		// February never has 30 days, not even in leap years
 		final CronSchedule schedule = CronSchedule.fromExpression("0 0 0 30 2 *");
 		final LocalDateTime last = LocalDateTime.of(2023, 1, 1, 0, 0, 0);
-		assertNull(schedule.calculateNext(last));
+		assertThrows(CronScheduleException.class, () -> schedule.calculateNext(last));
 	}
 
 	@Test
