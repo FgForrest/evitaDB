@@ -388,6 +388,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 							this.internalSubscriber.onError(
 								this.walkingDead.get()
 							);
+							this.cancel();
 						}
 						Assert.isPremiseValid(
 							this.currentlyConsuming.compareAndSet(true, false),

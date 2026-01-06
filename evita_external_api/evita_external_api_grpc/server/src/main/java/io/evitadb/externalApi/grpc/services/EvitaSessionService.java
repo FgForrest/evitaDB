@@ -43,7 +43,6 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -93,6 +92,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.Modif
 import io.evitadb.externalApi.grpc.services.converter.WriteAheadLogVersionDescriptorConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
+import io.evitadb.externalApi.grpc.services.subscriber.ChangeCatalogCaptureSubscriber;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
@@ -122,7 +122,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -708,6 +707,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					firstRequestedCatalogVersion = null;
 					lastRequestedCatalogVersion = null;
 				}
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 				try (
 					final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
 						ChangeCaptureConverter.toChangeCaptureRequest(
@@ -731,7 +731,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						)
 						.limit(pageSize)
 						.forEach(cdcEvent -> builder.addChangeCapture(
-							ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent))
+							ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent, clientVersion))
 						);
 				}
 				responseObserver.onNext(builder.build());
@@ -773,12 +773,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					ChangeCaptureConverter.toChangeCaptureRequest(request)
 				);
 				mutationsHistoryStreamRef.set(mutationsHistoryStream);
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 
 				mutationsHistoryStream.forEach(
 					cdcEvent -> {
 						final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse.newBuilder();
 						final GrpcChangeCatalogCapture event = ChangeCaptureConverter.toGrpcChangeCatalogCapture(
-							cdcEvent);
+							cdcEvent, clientVersion
+						);
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addChangeCapture(event);
 						responseObserver.onNext(builder.build());
@@ -2051,11 +2053,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 
 		executeWithClientContext(
-			session -> session.registerChangeCatalogCapture(
-				ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
-			).subscribe(
-				new ChangeCatalogCaptureSubscriber(responseObserver, subscriptionFuture)
-			),
+			session -> {
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+				session.registerChangeCatalogCapture(
+					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
+				).subscribe(
+					new ChangeCatalogCaptureSubscriber(responseObserver, subscriptionFuture, clientVersion)
+				);
+			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.tracingContext
@@ -2096,65 +2101,4 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 	}
 
-	/**
-	 * A private static class implementing the {@link Subscriber} interface to handle
-	 * subscription and communication logic for {@link ChangeCatalogCapture} events.
-	 *
-	 * This class acts as a bridge between a publisher of {@link ChangeCatalogCapture}
-	 * events and a gRPC client through the {@link StreamObserver}. It manages the
-	 * lifecycle of the subscription to the publisher and relays received events or
-	 * errors to the client.
-	 *
-	 * Key responsibilities:
-	 * - Requests one item at a time from the publisher, ensuring backpressure support.
-	 * - Relays each {@link ChangeCatalogCapture} event to the gRPC client in the form
-	 *   of a {@link GrpcRegisterChangeCatalogCaptureResponse}.
-	 * - Handles the completion and error states of the subscription.
-	 */
-	@RequiredArgsConstructor
-	private static class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture> {
-		private final StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
-		private final CompletableFuture<Subscription> subscriptionFuture;
-		private Subscription subscription;
-
-		@Override
-		public void onSubscribe(Subscription subscription) {
-			this.subscription = subscription;
-			this.subscriptionFuture.complete(subscription);
-			final GrpcRegisterChangeCatalogCaptureResponse.Builder response = GrpcRegisterChangeCatalogCaptureResponse
-				.newBuilder();
-			if (subscription instanceof ChangeCaptureSubscription ccs) {
-				response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
-			}
-			this.responseObserver.onNext(
-				response
-					.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
-					.build()
-			);
-			subscription.request(1);
-		}
-
-		@Override
-		public void onNext(ChangeCatalogCapture item) {
-			this.responseObserver.onNext(
-				GrpcRegisterChangeCatalogCaptureResponse
-					.newBuilder()
-					.setCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(item))
-					.setResponseType(GrpcCaptureResponseType.CHANGE)
-					.build()
-			);
-			this.subscription.request(1);
-		}
-
-		@Override
-		public void onError(Throwable throwable) {
-			this.subscriptionFuture.completeExceptionally(throwable);
-			this.responseObserver.onError(throwable);
-		}
-
-		@Override
-		public void onComplete() {
-			this.responseObserver.onCompleted();
-		}
-	}
 }

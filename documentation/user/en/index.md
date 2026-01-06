@@ -122,7 +122,7 @@ this will not be necessary, but we cannot guarantee it yet.
 3. [Transactions](deep-dive/transactions.md)
 4. [Price for sale calculation](deep-dive/price-for-sale-calculation.md)
 5. [Cache](deep-dive/cache.md)
-6. [Observe changes](deep-dive/observing.md)
+6. [Capture changes](deep-dive/cc.md)
 
 ## Solve
 
@@ -133,11 +133,11 @@ this will not be necessary, but we cannot guarantee it yet.
    3. [Listing sub-categories](solve/render-category-menu.md#listing-sub-categories)
    4. [Hybrid menu](solve/render-category-menu.md#hybrid-menu)
    5. [Hide parts of the category menu](solve/render-category-menu.md#hiding-parts-of-the-category-tree)
-3. [Filter products in category](solve/filtering-products-in-category.md)
-   1. [With faceted search](solve/filtering-products-in-category.md#faceted-search)
-   2. [With price filter](solve/filtering-products-in-category.md#price-filter)
-4. [Render referenced brand](solve/render-referenced-brand.md)
-   1. [With product listing](solve/render-referenced-brand.md#product-listing)
-   2. [With involved categories listing](solve/render-referenced-brand.md#category-listing)
+3. [Filter products in category](solve/render-products-in-category.md)
+   1. [With faceted search](solve/render-products-in-category.md#faceted-search)
+   2. [With price filter](solve/render-products-in-category.md#price-filter)
+4. [Render referenced brand](solve/render-products-in-brand.md)
+   1. [With product listing](solve/render-products-in-brand.md#product-listing)
+   2. [With involved categories listing](solve/render-products-in-brand.md#category-listing)
 5. [Handle images & binaries](solve/handling-images-binaries.md)
 6. [Model price policies](solve/model-price-policies.md)

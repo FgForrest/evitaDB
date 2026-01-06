@@ -20,7 +20,7 @@ To make the query language more concise, we omit logical binding in container-ty
 a logical conjunctive relation "and at the same time" ([`and`](#and)) unless an explicit binding is set.
 For example, you can issue the following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Implicit binding example](/documentation/user/en/query/filtering/examples/logical/implicit-binding.evitaql)
 </SourceCodeTabs>
@@ -58,7 +58,7 @@ a [logical conjunction](https://en.wikipedia.org/wiki/Logical_conjunction), that
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Logical conjunction example](/documentation/user/en/query/filtering/examples/logical/and.evitaql)
 </SourceCodeTabs>
@@ -120,7 +120,7 @@ a [logical disjunction](https://en.wikipedia.org/wiki/Logical_disjunction), that
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Logical disjunction example](/documentation/user/en/query/filtering/examples/logical/or.evitaql)
 </SourceCodeTabs>
@@ -179,7 +179,7 @@ a [logical negation](https://en.wikipedia.org/wiki/Negation), that is demonstrat
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Logical negation example](/documentation/user/en/query/filtering/examples/logical/not.evitaql)
 </SourceCodeTabs>
@@ -215,7 +215,7 @@ The following query:
 
 Because this situation is hard to visualize - let's narrow our super set to only a few entities:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Logical conjunction example](/documentation/user/en/query/filtering/examples/logical/not-narrowed.evitaql)
 </SourceCodeTabs>

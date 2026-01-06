@@ -100,7 +100,7 @@ The same principle is applied to an evitaDB web server, which generates self-sig
 <Term location="/documentation/user/en/operate/tls.md" name="certificate">certificates</Term>. 
 All of these are stored in a randomly named folder that is isolated from other instances.
 
-The evitaDB client, which has to pass the [mTLS verification](/documentation/operate/tls?codelang=java#mutual-tls-for-grpc)
+The evitaDB client, which has to pass the [mTLS verification](https://evitadb.io/documentation/operate/tls?mutual-tls)
 and download the generic client certificate, stores the 
 <Term location="/documentation/user/en/operate/tls.md" name="certificate">certificates</Term> in the separate isolated folder.
 
@@ -126,6 +126,6 @@ isolated within class instances.
 ## The next turn is yours
 
 The good news is that you can use the same test support in your own integration tests with evitaDB.
-Read [our documentation](/documentation/use/api/write-tests?codelang=java) and replicate our approach in your 
+Read [our documentation](https://evitadb.io/documentation/use/api/write-tests?lang=java) and replicate our approach in your 
 integration tests. Keep the time required to execute your integration test suite to a minimum and enjoy the convenience
 of running all tests locally after each change to your application code.

@@ -26,7 +26,7 @@ priceNatural(
 
 
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/order/PriceNatural.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Order/PriceNatural.cs</SourceClass></LS> constraint
-allows output entities to be sorted by their [selling price](../filtering/price.md#price-for-sale-computation-algorithm)
+allows output entities to be sorted by their [selling price](../../deep-dive/price-for-sale-calculation.md)
 in their natural numeric order. It requires only the order direction and the price constraints in the `filterBy` section
 of the query. The price variant (with or without tax) is determined by the [`priceType`](../requirements/price.md#price-type)
 requirement of the query (price with tax is used by default).
@@ -34,7 +34,7 @@ requirement of the query (price with tax is used by default).
 To sort products by their selling price (currently considering only `basic` price list and `EUR`), we can use
 the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List of products sorted by selling price](/documentation/user/en/query/ordering/examples/price/price-natural.evitaql)
 </SourceCodeTabs>
@@ -89,7 +89,7 @@ priceDiscount(
 
 
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/order/PriceDiscount.java</SourceClass></LS> constraint
-allows output entities to be sorted by the difference between their [selling price](../filtering/price.md#price-for-sale-computation-algorithm)
+allows output entities to be sorted by the difference between their [selling price](../../deep-dive/price-for-sale-calculation.md)
 and any calculated alternative, in their natural numeric order. It requires the definition of the prioritized set 
 of price list names that define the rules for calculating the alternative price and optionally the order direction 
 (default is `DESC`). The price variant (with or without tax) is determined by the [`priceType`](../requirements/price.md#price-type) 
@@ -123,7 +123,7 @@ the virtual product with LOWEST_PRICE strategy manifests itself with sub-product
 When we calculate the discount, we need to use the price from different price lists, but only the price that refers to 
 the same product variant as the price for sale.
 
-Moreover, if we further narrow the query with the [price between constraint](../filtering/price#price-between), 
+Moreover, if we further narrow the query with the [price between constraint](../filtering/price.md#price-between), 
 the representative variant will be the one with the lowest price in the selected price range. In this case, 
 the reference price must also be calculated from the different sets of price lists for the same product variant.
 
@@ -155,7 +155,7 @@ amount in an efficient way.
 To sort products by their discount amount (i.e. to compare how much discount you'll get with `b2b-basic-price` compared
 to `basic` price list and `EUR`), we can use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-discount.evitaql)
 </SourceCodeTabs>

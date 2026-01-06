@@ -25,4 +25,4 @@ jobs:
           LIMIT_HOURS : 24
         run: |
           export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
-          ./evita_performance_tests/src/do_k8s_automation/deploy/101-safety_kill.sh
+          ./evita_test/evita_performance_tests/src/do_k8s_automation/deploy/101-safety_kill.sh

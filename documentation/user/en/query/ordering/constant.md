@@ -24,7 +24,7 @@ The constraint requires the presence of exactly one [`entityPrimaryKeyInSet`](..
 constraint in the filter part of the query. It uses the specified array of entity primary keys to sort the result
 returned by the query.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted by order of the filtered primary keys](/documentation/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql)
 </SourceCodeTabs>
@@ -77,7 +77,7 @@ entityPrimaryKeyExact(
 The constraint allows output entities to be sorted by entity primary keys in the exact order specified in the 2nd through
 Nth arguments of this constraint.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted by the specified order of the primary keys](/documentation/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql)
 </SourceCodeTabs>
@@ -136,7 +136,7 @@ they were filtered. The constraint requires the presence of exactly one [`attrib
 in the filter part of the query, referring to the attribute with the same name as used in the first argument of this
 constraint. It uses the specified array of attribute values to sort the result returned by the query.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted by order `code` attribute of the filtered entities](/documentation/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
 </SourceCodeTabs>
@@ -196,7 +196,7 @@ attributeSetExact(
 The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
 Nth arguments of this constraint.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entities sorted by the specified order of the attribute `code` values](/documentation/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql)
 </SourceCodeTabs>

@@ -11,7 +11,7 @@ preferredLang: 'evitaql'
 ## In Scope
 
 ```evitaql-syntax
-scope(
+inScope(
     argument:enum(LIVE|ARCHIVED)
     orderConstraint:any+
 )
@@ -40,7 +40,7 @@ performance). Scopes, on the other hand, allows us to get rid of unnecessary ind
 (archived data is not expected to be queried as extensively as live data) and free up some resources for more important
 tasks.
 
-The [scope](../filtering/behavioral.md#scope) order constraint allows us to query entities in both scopes at once,
+The [inScope](#in-scope) order constraint allows us to query entities in both scopes at once,
 which would be impossible if we couldn't tell which order constraint to apply to which scope. The `inScope` container 
 is designed to handle this situation.
 
@@ -57,7 +57,7 @@ a few others. No attribute has a sort index in the archive scope. So if we were 
 scopes and try to sort them by `name`, we'd get an error. However, if we use the `inScope` container, we can sort 
 the entities by `name` in the live scope and let the archived entities sort by the order in the input query.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Disginguishing orders in different scopes](/documentation/user/en/query/ordering/examples/behavioral/archived-entities-ordering.evitaql)
 

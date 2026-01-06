@@ -4,9 +4,10 @@ perex: |
   Zápis dat v evitaDB je specifický, protože k datům na disku se chová jako k neměnným. Všechny změny jsou připojovány na konec souborů formou přírůstků. Tento přístup má své pozitivní i negativní stránky. Jednou z nevýhod je to, že musí docházet ke kompakci dat, protože soubory se postupně plní zastaralými záznamy, které se provádí v rámci zpracování transakce synchronně, když jsou splněny podmínky pro detekci nadměrného množství zastaralých dat v datovém souboru. Tento fakt se může propisovat do latence při commitu transakce. V tomto článku se podíváme na to, jak můžeme na tento fakt reagovat na straně klienta. 
 date: '16.05.2025'
 author: 'Jan Novotný'
-motive: assets/images/19-transaction-processing.png
+motive: ../en/assets/images/19-transaction-processing.png
 proofreading: 'done'
 draft: true
+commit: 34052b9c666c9009d233448f58c2b3589938271f
 ---
 Na začátku si pojďme ukázat nejjednodušší formu transakčního zápisu dat do evitaDB:
 

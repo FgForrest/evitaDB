@@ -11,7 +11,7 @@ preferredLang: 'evitaql'
 ## In Scope
 
 ```evitaql-syntax
-scope(
+inScope(
     argument:enum(LIVE|ARCHIVED)
     requireConstraint:any+
 )
@@ -40,7 +40,7 @@ performance). Scopes, on the other hand, allows us to get rid of unnecessary ind
 (archived data is not expected to be queried as extensively as live data) and free up some resources for more important
 tasks.
 
-The [scope](../filtering/behavioral.md#scope) require constraint allows us to query entities in both scopes at once,
+The [inScope](#in-scope) require constraint allows us to query entities in both scopes at once,
 which would be impossible if we couldn't tell which require constraint to apply to which scope. The `inScope` container
 is designed to handle this situation.
 
@@ -69,7 +69,7 @@ information is also not indexed. So if you tried to calculate facet summary or h
 the archive scope, you'd get an error from the query engine. If you are querying entities in multiple scopes, you should
 use the `inScope` container and limit these calculations to only those scopes where the indexes are prepared:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Distinguishing requires in different scopes](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.evitaql)
 

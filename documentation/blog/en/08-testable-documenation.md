@@ -60,10 +60,10 @@ However, testing is quite a challenge. Each platform/language requires a differe
 have a look at each of them:
 
 1. The Java examples were quite challenging and their testing was documented in the [previous blog post](06-document-examples-testing.md)
-2. evitaQL uses [Java Client](/documentation/use/connectors/java)
+2. evitaQL uses [Java Client](https://evitadb.io/documentation/use/connectors/java)
 3. REST API uses simple HTTP client to make requests
 4. GraphQL API uses simple HTTP client to make requests
-5. C# examples use [C# Client](/documentation/use/connectors/c-sharp)
+5. C# examples use [C# Client](https://evitadb.io/documentation/use/connectors/c-sharp)
 
 ## Obstacles overcome
 
