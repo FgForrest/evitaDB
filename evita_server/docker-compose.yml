@@ -53,6 +53,7 @@ services:
         export.s3.bucket=evitadb-export
         export.s3.accessKey=minioadmin
         export.s3.secretKey=minioadmin
+        server.schedule.backup=[{cron:"0 0 2 * * *",backupType:FULL,retention:7},{cron:"0 0 */6 * * *",backupType:SNAPSHOT,retention:4}]
 
 volumes:
   minio_data:

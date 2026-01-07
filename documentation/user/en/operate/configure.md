@@ -585,6 +585,7 @@ Multiple schedules can be defined to create different types of backups at differ
                     <li>`0 0 0 * * SUN` - Every Sunday at midnight</li>
                     <li>`0 0 3 1 * *` - First day of every month at 3:00 AM</li>
                 </ul>
+                <p>For complete cron syntax documentation, see the [Cron expressions reference](reference/cron-expressions.md).</p>
             </dd>
             <dt>backupType</dt>
             <dd>
