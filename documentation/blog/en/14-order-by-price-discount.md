@@ -13,7 +13,7 @@ proofreading: 'done'
 
 In the ever-competitive e-commerce landscape, showcasing the best deals to your customers can make all the difference. 
 To help you achieve this, we're excited to introduce a powerful new feature in evitaDB — 
-the [`priceDiscount`](/documentation/query/ordering/price#price-discount) ordering 
+the [`priceDiscount`](https://evitadb.io/documentation/query/ordering/price#price-discount) ordering 
 constraint. This feature empowers you to sort products based on the discount amount, making it easier to highlight 
 significant savings and entice shoppers.
 
@@ -25,12 +25,12 @@ considering the prioritized price lists you specify and the validity date.
 
 **Calculation Steps:**
 
-1. **Selling Price**: The first valid price found in the [`priceInPriceLists`](/documentation/query/filtering/price#price-in-price-lists) constraint, 
-   matching the [`priceValidIn`](/documentation/query/filtering/price#price-valid-in) date and currency specified in 
-   [`priceInCurrency`](/documentation/query/filtering/price#price-in-currency). 
+1. **Selling Price**: The first valid price found in the [`priceInPriceLists`](https://evitadb.io/documentation/query/filtering/price#price-in-price-lists) constraint, 
+   matching the [`priceValidIn`](https://evitadb.io/documentation/query/filtering/price#price-valid-in) date and currency specified in 
+   [`priceInCurrency`](https://evitadb.io/documentation/query/filtering/price#price-in-currency). 
    Prices are considered in the order of the price lists provided.
 2. **Reference Price**: The first valid price found in the price lists specified in the 
-   [`priceDiscount`](/documentation/query/ordering/price#price-discount) constraint,
+   [`priceDiscount`](https://evitadb.io/documentation/query/ordering/price#price-discount) constraint,
    matching the same date and currency.
 3. **Discount**: Calculated as `Reference Price - Selling Price`.
 
@@ -47,7 +47,7 @@ by discount. This ensures efficient performance, especially with large datasets.
 **Special Adjustments for Products with Variants or Sets**
 
 - **`LOWEST_PRICE` Strategy**: For products with variants, the discount is calculated based on the variant selected for 
-  sale. It's usually the one with the lowest price, or if the [`priceBetween`](/documentation/query/filtering/price#price-between) 
+  sale. It's usually the one with the lowest price, or if the [`priceBetween`](https://evitadb.io/documentation/query/filtering/price#price-between) 
   filter is used, the one with the lowest price that still meets the selected price range. The reference price must be 
   from the same variant in different price lists.
 - **`SUM` Strategy**: For product sets, the selling price is the sum of the selling prices of all components.

@@ -164,81 +164,84 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	) throws UnexpectedIOException {
 		this.evitaClient.assertActive();
 
-		return executeWithEvitaBlockingService(
-			evitaService -> {
-				final CompletableFuture<TaskStatus<?, ?>> result = new CompletableFuture<>();
-				final AtomicLong bytesSent = new AtomicLong(0);
-				final AtomicReference<TaskStatus<?, ?>> taskStatus = new AtomicReference<>();
-				final StreamObserver<GrpcRestoreCatalogRequest> requestObserver = evitaService.restoreCatalog(
-					new StreamObserver<>() {
-						final AtomicLong bytesReceived = new AtomicLong(0);
+		return Objects.requireNonNull(
+			executeWithEvitaBlockingService(
+				evitaService -> {
+					final CompletableFuture<TaskStatus<?, ?>> result = new CompletableFuture<>();
+					final AtomicLong bytesSent = new AtomicLong(0);
+					final AtomicReference<TaskStatus<?, ?>> taskStatus = new AtomicReference<>();
+					final StreamObserver<GrpcRestoreCatalogRequest> requestObserver = evitaService.restoreCatalog(
+						new StreamObserver<>() {
+							final AtomicLong bytesReceived = new AtomicLong(0);
 
-						@Override
-						public void onNext(GrpcRestoreCatalogResponse value) {
-							this.bytesReceived.accumulateAndGet(value.getRead(), Math::max);
-							if (value.hasTask()) {
-								taskStatus.set(EvitaDataTypesConverter.toTaskStatus(value.getTask()));
+							@Override
+							public void onNext(GrpcRestoreCatalogResponse value) {
+								this.bytesReceived.accumulateAndGet(value.getRead(), Math::max);
+								if (value.hasTask()) {
+									taskStatus.set(EvitaDataTypesConverter.toTaskStatus(value.getTask()));
+								}
+							}
+
+							@Override
+							public void onError(Throwable t) {
+								log.error("Error occurred during catalog restoration: {}", t.getMessage(), t);
+								result.completeExceptionally(t);
+							}
+
+							@Override
+							public void onCompleted() {
+								if (bytesSent.get() == this.bytesReceived.get()) {
+									result.complete(taskStatus.get());
+								} else {
+									result.completeExceptionally(
+										new UnexpectedIOException(
+											"Number of bytes sent and received during catalog restoration does not match (sent " + bytesSent.get() + ", received " + this.bytesReceived.get() + ")!",
+											"Number of bytes sent and received during catalog restoration does not match!"
+										)
+									);
+								}
 							}
 						}
+					);
 
-						@Override
-						public void onError(Throwable t) {
-							log.error("Error occurred during catalog restoration: {}", t.getMessage(), t);
-							result.completeExceptionally(t);
-						}
-
-						@Override
-						public void onCompleted() {
-							if (bytesSent.get() == this.bytesReceived.get()) {
-								result.complete(taskStatus.get());
-							} else {
-								result.completeExceptionally(
-									new UnexpectedIOException(
-										"Number of bytes sent and received during catalog restoration does not match (sent " + bytesSent.get() + ", received " + this.bytesReceived.get() + ")!",
-										"Number of bytes sent and received during catalog restoration does not match!"
-									)
-								);
+					// Send data in chunks
+					final ByteBuffer buffer = ByteBuffer.allocate(65_536);
+					try (inputStream) {
+						while (inputStream.available() > 0) {
+							final int read = inputStream.read(buffer.array());
+							if (read == -1) {
+								requestObserver.onCompleted();
 							}
+							buffer.limit(read);
+							requestObserver.onNext(
+								GrpcRestoreCatalogRequest.newBuilder()
+									.setCatalogName(catalogName)
+									.setBackupFile(ByteString.copyFrom(buffer))
+									.build()
+							);
+							buffer.clear();
+							bytesSent.addAndGet(read);
 						}
-					}
-				);
 
-				// Send data in chunks
-				final ByteBuffer buffer = ByteBuffer.allocate(65_536);
-				try (inputStream) {
-					while (inputStream.available() > 0) {
-						final int read = inputStream.read(buffer.array());
-						if (read == -1) {
-							requestObserver.onCompleted();
-						}
-						buffer.limit(read);
-						requestObserver.onNext(
-							GrpcRestoreCatalogRequest.newBuilder()
-								.setCatalogName(catalogName)
-								.setBackupFile(ByteString.copyFrom(buffer))
-								.build()
-						);
-						buffer.clear();
-						bytesSent.addAndGet(read);
+						requestObserver.onCompleted();
+					} catch (IOException e) {
+						requestObserver.onError(e);
+						throw new RuntimeException(e);
 					}
 
-					requestObserver.onCompleted();
-				} catch (IOException e) {
-					requestObserver.onError(e);
-					throw new RuntimeException(e);
+					//noinspection unchecked
+					return (Task<?, Void>) this.clientTaskTracker.createTask(
+						Objects.requireNonNull(result.get())
+					);
 				}
-
-				//noinspection unchecked
-				return (Task<?, Void>) this.clientTaskTracker.createTask(
-					Objects.requireNonNull(result.get())
-				);
-			}
+			)
 		);
 	}
 
 	@Nonnull
 	@Override
-	public Task<?, Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
+	public Task<?, Void> restoreCatalog(
+		@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
 		this.evitaClient.assertActive();
 
 		final GrpcRestoreCatalogFromServerFileRequest request = GrpcRestoreCatalogFromServerFileRequest.newBuilder()
@@ -346,7 +349,10 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 	@Nonnull
 	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
+	public PaginatedList<FileForFetch> listFilesToFetch(
+		int page, int pageSize, @Nonnull Set<String> catalog,
+		@Nonnull Set<String> origin
+	) {
 		this.evitaClient.assertActive();
 
 		final GrpcFilesToFetchRequest.Builder requestBuilder = GrpcFilesToFetchRequest.newBuilder()
@@ -406,7 +412,8 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 							public void onNext(GrpcFetchFileResponse response) {
 								try {
 									// Write chunks to the temporary file
-									Files.write(tempFile, response.getFileContents().toByteArray(), StandardOpenOption.APPEND);
+									Files.write(
+										tempFile, response.getFileContents().toByteArray(), StandardOpenOption.APPEND);
 								} catch (IOException e) {
 									onError(e);
 								}
@@ -509,9 +516,9 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	 * when the task is finished.
 	 *
 	 * @param taskStatus the status of the task to be tracked
+	 * @param <S>        the type of the settings of the task
+	 * @param <T>        the type of the result of the task
 	 * @return the client task that is tracking the status of the task
-	 * @param <S> the type of the settings of the task
-	 * @param <T> the type of the result of the task
 	 */
 	@Nonnull
 	public <S, T> ClientTask<S, T> createTask(@Nonnull TaskStatus<S, T> taskStatus) {
@@ -526,6 +533,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	 * @param <T>    return type of the function
 	 * @return result of the applied function
 	 */
+	@Nullable
 	private <T> T executeWithEvitaBlockingService(
 		@Nonnull AsyncCallFunction<EvitaManagementServiceStub, T> lambda
 	) {
@@ -562,8 +570,10 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	) {
 		final Timeout timeout = Objects.requireNonNull(this.evitaClient.timeout.get().peek());
 		try {
-			return lambda.apply(this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
-				.get(timeout.timeout(), timeout.timeoutUnit());
+			return Objects.requireNonNull(
+				lambda.apply(
+					this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
+			).get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),

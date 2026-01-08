@@ -57,7 +57,7 @@ authority, which can be automated and is part of all certificate trust chains th
 </Note>
 
 If you are familiar with certificate handling, you can skip the entire [create a certificate](#creating-a-certificate)
-chapter and go to [configuration](configure.md#tls-configuration) or read about [mTLS](#mutual-tls-for-grpc) support for
+chapter and go to [configuration](configure.md#tls-configuration) or read about [mTLS](#mutual-tls) support for
 the gRPC protocol.
 
 ## Creating a certificate
@@ -78,7 +78,7 @@ on the [Certbot site](https://certbot.eff.org/).
 
 ### Self-signed certificate authority
 
-In this guide, we will focus on the second group: self-signed certificates. When using [mTLS](#mutual-tls-for-grpc), it is
+In this guide, we will focus on the second group: self-signed certificates. When using [mTLS](#mutual-tls), it is
 necessary for the server to have access to a <Term>certificate authority</Term> that trusts it, and for clients that
 prove their identity with a <Term>certificate</Term> issued by that authority to allow communication.
 
@@ -202,7 +202,7 @@ Now you are ready for the final step.
 #### Issue signed certificate
 
 Finally, you're ready to generate signed certificate which you can use for evitaDB server or any of the clients in case
-the [mTLS](#mutual-tls-for-grpc) is enabled.
+the [mTLS](#mutual-tls) is enabled.
 
 Generate new <Term>certificate</Term> signed by the [certificate authority](#creating-certificate-authority)
 represented by the `rootCA.crt` and its <Term>private key</Term> `rootCA.key` using the following command:

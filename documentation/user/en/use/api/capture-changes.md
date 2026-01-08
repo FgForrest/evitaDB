@@ -7,7 +7,7 @@ author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'java'
 ---
-The database maintains a so-called [Write-Ahead Log (WAL)](https://en.wikipedia.org/wiki/Write-ahead_logging) that records all changes made to the database. This log is used to ensure data integrity and durability, but it can (and actually is) also be leveraged to implement change data capture (CDC) functionality. Once the catalogue is switched to the `ACTIVE` (transactional) stage, clients can start consuming information about changes made to both the schema and the data in the catalogue.
+The database maintains a so-called [Write-Ahead Log (WAL)](https://en.wikipedia.org/wiki/Write-ahead_logging) that records all changes made to the database. This log is used to ensure data integrity and durability, but it can also be leveraged to implement change data capture (CDC) functionality. Once the catalogue is switched to the `ACTIVE` (transactional) stage, clients can start consuming information about changes made to both the schema and the data in the catalogue.
 
 There is also a special CDC available for the entire database engine that allows clients to monitor high-level operations such as catalogue creation, deletion, and other global events (for more details, consult the [Control Engine chapter](control-engine.md)).
 
@@ -32,9 +32,23 @@ The basic principle in all APIs is the same:
 
 From that point onwards, clients will receive notifications about all changes that match their criteria. The changes are delivered in the order they were made, ensuring that clients can process them sequentially. The second step is optional — if no starting version is specified, the change stream will start from the next version of the catalogue.
 
+## Subscription lifecycle
+
+Once subscribed, the change stream remains active until one of the following occurs:
+
+1. the client explicitly cancels the subscription
+2. the client can't keep up with the rate of incoming changes (backpressure)
+3. the client throws an exception during processing
+4. the client doesn't react within a timeout
+5. the server shuts down or the catalogue is deleted
+6. the server doesn't react within a timeout
+7. the subscription TTL (time-to-live) expires - see [configuration settings](../connectors/java.md#configuration)
+
+As you can see, there are many reasons why a subscription may end. Therefore, clients should be prepared to handle such situations gracefully. The standard approach is to implement the `AutoCloseable` interface in your subscriber and re-establish the subscription in the `close()` method or schedule a re-establishment by another application service. Your subscriber should also track the last successfully processed version and index so that it can resume from the correct point when re-establishing the subscription. The criteria handle version and index as inclusive, so you should skip the first event after resumption if it matches the last processed version and index.
+
 ## Hierarchy of mutations
 
-Not all mutations operate on the same level and some mutations may encapsulate others. For example, when an entity is upserted, it may contain multiple mutations within it (multiple attribute, associated data, price operations etc.). The hierarchy of mutations is as follows:
+Not all mutations operate on the same level, and some mutations may encapsulate others. For example, when an entity is upserted, it may contain multiple mutations within it (multiple attribute, associated data, price operations, etc.). The hierarchy of mutations is as follows:
 
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> ([complete listing](control-engine.md), available in [engine change capture](#engine-change-capture))
     - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> ([complete listing](../schema.md), available in [catalog schema change capture](#catalogue-change-capture))
@@ -243,7 +257,7 @@ Setup is quite straightforward:
 
 The CDC stream will now send `ChangeSystemCapture` objects wrapped into `next` messages to the client.
 
-Example of setting up the engine change capture in REST over WebSocket API:
+Example of setting up the engine change capture in the REST over WebSocket API:
 
 <SourceAlternativeTabs variants="rest">
 
@@ -593,7 +607,7 @@ Example of retrieving catalogue change history in Java:
 
 </SourceCodeTabs>
 
-You can find also additional helpful examples in the below:
+You can also find additional helpful examples below:
 
 <Note type="info">
 
@@ -647,7 +661,7 @@ Setup is quite straightforward:
 
 The CDC stream will now send `ChangeCatalogCapture` objects wrapped into `next` messages to the client.
 
-Example of retrieving catalogue change history in WebSocket protocol for REST:
+Example of retrieving catalogue change history in the WebSocket protocol for REST:
 
 <SourceAlternativeTabs variants="rest">
 
@@ -655,7 +669,7 @@ Example of retrieving catalogue change history in WebSocket protocol for REST:
 
 </SourceAlternativeTabs>
 
-You can find also additional helpful examples in the below:
+You can also find additional helpful examples below:
 
 <Note type="info">
 
@@ -946,7 +960,7 @@ The setup is quite straightforward: define one subscription with the desired par
 via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
-Example of retrieving catalogue change history in GraphQL system API:
+Example of retrieving catalogue change history in the GraphQL system API:
 
 <SourceCodeTabs langSpecificTabOnly ignoreTest>
 
@@ -954,7 +968,7 @@ Example of retrieving catalogue change history in GraphQL system API:
 
 </SourceCodeTabs>
 
-You can find also additional helpful examples in the below:
+You can also find additional helpful examples below:
 
 <Note type="info">
 
@@ -1094,7 +1108,7 @@ The setup is quite straightforward: define one subscription with the desired par
 via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
-Example of retrieving catalogue change history in GraphQL catalogue data API:
+Example of retrieving catalogue change history in the GraphQL catalogue data API:
 
 <SourceCodeTabs langSpecificTabOnly ignoreTest>
 
@@ -1102,7 +1116,7 @@ Example of retrieving catalogue change history in GraphQL catalogue data API:
 
 </SourceCodeTabs>
 
-You can find also additional helpful examples in the below:
+You can also find additional helpful examples below:
 
 <Note type="info">
 
@@ -1212,7 +1226,7 @@ The setup is quite straightforward: define one subscription with the desired par
 via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
-Example of retrieving catalogue change history in GraphQL catalogue schema API:
+Example of retrieving catalogue change history in the GraphQL catalogue schema API:
 
 <SourceCodeTabs langSpecificTabOnly ignoreTest>
 
@@ -1220,7 +1234,7 @@ Example of retrieving catalogue change history in GraphQL catalogue schema API:
 
 </SourceCodeTabs>
 
-You can find also additional helpful examples in the below:
+You can also find additional helpful examples below:
 
 <Note type="info">
 

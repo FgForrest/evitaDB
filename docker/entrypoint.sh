@@ -7,7 +7,7 @@
 #             |  __/\ V /| | || (_| | |_| | |_) |
 #              \___| \_/ |_|\__\__,_|____/|____/
 #
-#   Copyright (c) 2023-2025
+#   Copyright (c) 2023-2026
 #
 #   Licensed under the Business Source License, Version 1.1 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -59,6 +59,9 @@ if [ "$1" = "" ]; then
     fi
     echo
 
+    # This parses the string and stores the results in the system arguments list ($@).
+    eval "set -- $EVITA_ARGS"
+
     # start evitaDB
     set -x
     exec java \
@@ -71,7 +74,7 @@ if [ "$1" = "" ]; then
         "storage.exportDirectory=$EVITA_EXPORT_DIR" \
         "api.certificate.folderPath=$EVITA_CERTIFICATE_DIR" \
         "logback.configurationFile=$EVITA_LOG_FILE" \
-        $EVITA_ARGS
+        "$@"
 else
     exec "$@"
 fi

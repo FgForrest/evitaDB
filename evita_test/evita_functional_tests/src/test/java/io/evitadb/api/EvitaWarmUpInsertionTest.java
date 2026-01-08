@@ -28,6 +28,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.Evita;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -121,6 +122,11 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 					.timeTravelEnabled(false)
 					.fileSizeCompactionThresholdBytes(100_000_000)
 					.minimalActiveRecordShare(0.8)
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.build()
 			)
 			.build();

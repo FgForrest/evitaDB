@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -213,6 +213,14 @@ public class DefaultCatalogPersistenceService
 		ENTITY_COLLECTION_FILE_SUFFIX, 2,
 		WAL_FILE_SUFFIX, 3
 	);
+	/**
+	 * Origin string for system SNAPSHOT backup tasks.
+	 */
+	public static final String ORIGIN_SYSTEM_BACKUP_TASK = "SystemBackupTask";
+	/**
+	 * Origin string for system full backup tasks.
+	 */
+	public static final String ORIGIN_SYSTEM_FULL_BACKUP_TASK = "SystemFullBackupTask";
 	/**
 	 * This supplier is overridden in tests to provide deterministic time. Do not use elsewhere.
 	 */
@@ -2400,9 +2408,23 @@ public class DefaultCatalogPersistenceService
 			bootstrapRecord = this.bootstrapUsed;
 		}
 		return new BackupTask(
-			this.catalogName, pastMoment, catalogVersion, includingWAL,
+			null,
+			this.catalogName,
+			pastMoment, catalogVersion, includingWAL, false,
 			bootstrapRecord, this.exportService, this,
 			onStart, onComplete
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<?, FileForFetch> createSystemBackupTask() {
+		return new BackupTask(
+			ORIGIN_SYSTEM_BACKUP_TASK,
+			this.catalogName,
+			null, null, true, true,
+			this.bootstrapUsed, this.exportService, this,
+			null, null
 		);
 	}
 
@@ -2413,10 +2435,25 @@ public class DefaultCatalogPersistenceService
 		@Nullable LongConsumer onComplete
 	) {
 		return new FullBackupTask(
+			null,
 			this.catalogName,
+			false,
 			this.exportService,
 			this,
 			onStart, onComplete
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<?, FileForFetch> createSystemFullBackupTask() {
+		return new FullBackupTask(
+			ORIGIN_SYSTEM_FULL_BACKUP_TASK,
+			this.catalogName,
+			true,
+			this.exportService,
+			this,
+			null, null
 		);
 	}
 

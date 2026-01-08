@@ -30,10 +30,13 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDat
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcLocale;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.LocalMutationConverter;
+import io.evitadb.utils.VersionUtils.SemVer;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
  * Ancestor for all converters converting implementations of {@link AssociatedDataMutation}.
@@ -42,10 +45,44 @@ import javax.annotation.Nonnull;
  */
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class AssociatedDataMutationConverter<J extends AssociatedDataMutation, G extends Message> implements LocalMutationConverter<J, G> {
+	private static final ThreadLocal<SemVer> CLIENT_VERSION = new ThreadLocal<>();
+
+	/**
+	 * Executes the provided lambda within the context of a specific client version.
+	 * Sets the client version in a thread-local variable for the duration of the lambda's execution.
+	 * Once the lambda finishes execution, the client version is removed from the thread-local storage.
+	 *
+	 * @param clientVersion the semantic version of the client to be set for this execution context
+	 * @param lambda the task to be executed within the context of the specified client version
+	 * @deprecated
+	 * TOBEDONE #538 - remove this enum when all clients are `2025.4` or newer
+	 */
+	@Deprecated
+	public static void doWithClientVersion(@Nullable SemVer clientVersion, @Nonnull Runnable lambda) {
+		CLIENT_VERSION.set(clientVersion);
+		try {
+			lambda.run();
+		} finally {
+			CLIENT_VERSION.remove();
+		}
+	}
+
+	/**
+	 * Retrieves the client version stored in the thread-local context, if available.
+	 * The client version represents a semantic version (SemVer) of the client making the request.
+	 *
+	 * @return An {@code Optional} containing the client version if it has been set; otherwise, an empty {@code Optional}.
+	 */
+	@Nonnull
+	protected Optional<SemVer> getClientVersion() {
+		return Optional.ofNullable(CLIENT_VERSION.get());
+	}
 
 	@Nonnull
-	protected static AssociatedDataContract.AssociatedDataKey buildAssociatedDataKey(@Nonnull String associatedDataName,
-	                                                                                 @Nonnull GrpcLocale associatedDataLocale) {
+	protected static AssociatedDataContract.AssociatedDataKey buildAssociatedDataKey(
+		@Nonnull String associatedDataName,
+	    @Nonnull GrpcLocale associatedDataLocale
+	) {
 		if (!associatedDataLocale.getDefaultInstanceForType().equals(associatedDataLocale)) {
 			return new AssociatedDataKey(
 				associatedDataName,

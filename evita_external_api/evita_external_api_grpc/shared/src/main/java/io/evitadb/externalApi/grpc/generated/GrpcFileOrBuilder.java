@@ -164,7 +164,7 @@ public interface GrpcFileOrBuilder extends
 
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Origin of the file (usually the taskType, optional)
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -173,7 +173,7 @@ public interface GrpcFileOrBuilder extends
   boolean hasOrigin();
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Origin of the file (usually the taskType, optional)
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -182,10 +182,57 @@ public interface GrpcFileOrBuilder extends
   com.google.protobuf.StringValue getOrigin();
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Origin of the file (usually the taskType, optional)
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
    */
   com.google.protobuf.StringValueOrBuilder getOriginOrBuilder();
+
+  /**
+   * <pre>
+   * Name of the catalog the file is related to (optional)
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue catalogName = 8;</code>
+   * @return Whether the catalogName field is set.
+   */
+  boolean hasCatalogName();
+  /**
+   * <pre>
+   * Name of the catalog the file is related to (optional)
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue catalogName = 8;</code>
+   * @return The catalogName.
+   */
+  com.google.protobuf.StringValue getCatalogName();
+  /**
+   * <pre>
+   * Name of the catalog the file is related to (optional)
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue catalogName = 8;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getCatalogNameOrBuilder();
+
+  /**
+   * <pre>
+   * CRC32 checksum of the file
+   * </pre>
+   *
+   * <code>int64 crc32 = 9;</code>
+   * @return The crc32.
+   */
+  long getCrc32();
+
+  /**
+   * <pre>
+   * True if the file is externally managed and should not be automatically purged
+   * </pre>
+   *
+   * <code>bool externallyManaged = 10;</code>
+   * @return The externallyManaged.
+   */
+  boolean getExternallyManaged();
 }

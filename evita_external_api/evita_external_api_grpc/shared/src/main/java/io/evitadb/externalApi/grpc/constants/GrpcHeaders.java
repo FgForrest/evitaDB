@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.grpc.constants;
 
-import io.evitadb.utils.VersionUtils;
-import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Metadata;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+
+import static io.evitadb.utils.VersionUtils.SemVer;
 
 /**
  * Shared gRPC constant repository. The constants that we want o be shared between the Java client and the gRPC server.
@@ -74,11 +74,11 @@ public interface GrpcHeaders {
 	 * Retrieves the client version from the provided gRPC metadata.
 	 *
 	 * @param metadata the gRPC metadata object containing client metadata
-	 * @return an {@link Optional} containing the client version as a {@link VersionUtils.SemVer} object
+	 * @return an {@link Optional} containing the client version as a {@link SemVer} object
 	 *         if the version metadata exists; otherwise, an empty {@link Optional}
 	 */
 	@Nonnull
-	static Optional<VersionUtils.SemVer> getClientVersion(@Nonnull Metadata metadata) {
+	static Optional<SemVer> getClientVersion(@Nonnull Metadata metadata) {
 		final Metadata.Key<String> clientVersion = Metadata.Key.of(CLIENT_VERSION, Metadata.ASCII_STRING_MARSHALLER);
 		return Optional.ofNullable(metadata.get(clientVersion)).map(SemVer::fromString);
 	}

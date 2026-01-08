@@ -41,6 +41,8 @@ server:                                           # [see Server configuration](#
     exportFileChunkSizeInBytes: 16MB
     trafficSamplingPercentage: 100
     trafficFlushIntervalInMilliseconds: 1m
+  schedule:                                       # [see Schedule configuration](#schedule-configuration)
+    backup: []                                    # [see Backup scheduling configuration](#backup-scheduling-configuration)
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: "./data"
@@ -532,11 +534,93 @@ This section contains general settings for the evitaDB server. It allows configu
     <dt>trafficFlushIntervalInMilliseconds</dt>
     <dd>
         <p>**Default:** `1m`</p>
-        <p>Sets the interval in milliseconds at which the traffic buffer is flushed to disk. For development 
-        (i.e. low traffic, immediate debugging) it can be set to 0. For production it should be set to a reasonable 
+        <p>Sets the interval in milliseconds at which the traffic buffer is flushed to disk. For development
+        (i.e. low traffic, immediate debugging) it can be set to 0. For production it should be set to a reasonable
         value (e.g. 60000 = minute).</p>
     </dd>
 </dl>
+
+### Schedule configuration
+
+The schedule section contains configuration for all scheduled tasks that run periodically in evitaDB.
+This includes automated backups and may include other maintenance operations in the future.
+
+<dl>
+    <dt>schedule</dt>
+    <dd>
+        <p>Container for scheduled task configurations.</p>
+        <dl>
+            <dt>backup</dt>
+            <dd>
+                <p>**Default:** `[]` (no scheduled tasks)</p>
+                <p>A list of schedule task configurations. See [Backup scheduling configuration](#backup-scheduling-configuration).</p>
+            </dd>
+        </dl>
+    </dd>
+</dl>
+
+### Backup scheduling configuration
+
+Backup scheduling allows you to configure automated backups that run according to cron expressions.
+Multiple schedules can be defined to create different types of backups at different intervals.
+
+<dl>
+    <dt>backup</dt>
+    <dd>
+        <p>**Default:** `[]` (no scheduled backups)</p>
+        <p>A list of backup schedule configurations. Each schedule defines when and how backups
+        should be created. Schedules are applied server-wide to all catalogs.</p>
+
+        <p>Each schedule entry supports the following properties:</p>
+        <dl>
+            <dt>cron</dt>
+            <dd>
+                <p>**Required**</p>
+                <p>A 6-field cron expression defining when the backup should run. Format:
+                `second minute hour day-of-month month day-of-week`.</p>
+                <p>Examples:</p>
+                <ul>
+                    <li>`0 0 2 * * *` - Every day at 2:00 AM</li>
+                    <li>`0 0 */4 * * *` - Every 4 hours</li>
+                    <li>`0 0 0 * * SUN` - Every Sunday at midnight</li>
+                    <li>`0 0 3 1 * *` - First day of every month at 3:00 AM</li>
+                </ul>
+                <p>For complete cron syntax documentation, see the [Cron expressions reference](reference/cron-expressions.md).</p>
+            </dd>
+            <dt>backupType</dt>
+            <dd>
+                <p>**Default:** `SNAPSHOT`</p>
+                <p>The type of backup to create:</p>
+                <ul>
+                    <li>`FULL` - Complete backup including all data files and historical versions.
+                    Larger but comprehensive for full disaster recovery.</li>
+                    <li>`SNAPSHOT` - Point-in-time backup of active data only. Faster and more
+                    compact, suitable for regular operational backups.</li>
+                </ul>
+            </dd>
+            <dt>retention</dt>
+            <dd>
+                <p>**Default:** `3`</p>
+                <p>Number of backup copies to retain. When a new backup is created, older backups
+                exceeding this count are automatically removed. Must be a positive integer.</p>
+            </dd>
+        </dl>
+    </dd>
+</dl>
+
+**Example configuration:**
+
+```yaml
+server:
+  schedule:
+    backup:
+      - cron: "0 0 2 * * *"      # Daily at 2 AM
+        backupType: FULL
+        retention: 7              # Keep 7 full backups
+      - cron: "0 0 */6 * * *"    # Every 6 hours
+        backupType: SNAPSHOT
+        retention: 4              # Keep 4 snapshots
+```
 
 ## Storage configuration
 
@@ -705,7 +789,10 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
     <dt>bucket</dt>
     <dd>
         <p>**Default:** `null`</p>
-        <p>The name of the S3 bucket where exported files will be stored. Required when S3 is enabled.</p>
+        <p>
+            The name of the S3 bucket where exported files will be stored. Required when S3 is enabled.
+            <Note type="warning">If the specified bucket does not exist, the export service will attempt to create it during startup.</Note>
+        </p>
     </dd>
     <dt>accessKey</dt>
     <dd>

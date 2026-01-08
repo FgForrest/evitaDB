@@ -33,6 +33,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.mock.CategoryInterface;
@@ -89,6 +90,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -114,6 +116,7 @@ import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
@@ -133,6 +136,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -1345,6 +1349,48 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					return session.getEntityCollectionSize(Entities.PRODUCT);
 				}
 			)
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldThrowExceptionWhenFetchingCorruptedBackup(
+		EvitaClient evitaClient,
+		EvitaServer evitaServer
+	) throws ExecutionException, InterruptedException, TimeoutException, IOException {
+		final EvitaManagementContract management = evitaClient.management();
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(
+			TEST_CATALOG, null, null, true);
+		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
+
+		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
+
+		// Find the file on disk
+		final ExportOptions exportOptions = evitaServer.getEvita().getConfiguration().export();
+		if (!(exportOptions instanceof FileSystemExportOptions fsExportOptions)) {
+			fail("Expected FileSystemExportOptions but got " + exportOptions.getClass().getName());
+			return; // make compiler happy
+		}
+
+		Path targetDirectory = fsExportOptions.getDirectory();
+		if (fileForFetch.catalogName() != null && !fileForFetch.catalogName().isEmpty()) {
+			targetDirectory = targetDirectory.resolve(fileForFetch.catalogName());
+		}
+
+		final Path filePath = targetDirectory.resolve(fileForFetch.fileId() + FileUtils.getFileExtension(fileForFetch.name()).map(it -> "." + it).orElse(""));
+
+		assertTrue(Files.exists(filePath), "Backup file not found at " + filePath);
+
+		// Append a byte to corrupt the file content
+		Files.write(filePath, new byte[]{0}, java.nio.file.StandardOpenOption.APPEND);
+
+		assertThrows(
+			CompletionException.class,
+			() -> {
+				try (final InputStream is = management.fetchFile(fileForFetch.fileId())) {
+					is.readAllBytes();
+				}
+			}
 		);
 	}
 

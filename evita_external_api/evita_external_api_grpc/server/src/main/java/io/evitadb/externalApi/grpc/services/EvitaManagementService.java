@@ -601,6 +601,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final PaginatedList<FileForFetch> filesToFetch = this.management.listFilesToFetch(
 					request.getPageNumber(),
 					request.getPageSize(),
+					request.getCatalogNameList()
+						.stream()
+						.map(StringValue::getValue)
+						.collect(Collectors.toSet()),
 					request.getOriginList()
 						.stream()
 						.map(StringValue::getValue)
@@ -683,7 +687,6 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 								.build();
 							responseObserver.onNext(response);
 						}
-						responseObserver.onCompleted();
 					} catch (IOException e) {
 						throw new UnexpectedIOException(
 							"Failed to fetch the designated file: " + e.getMessage(),
@@ -691,6 +694,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							e
 						);
 					}
+					responseObserver.onCompleted();
 				}
 			},
 			this.evita.getRequestExecutor(),

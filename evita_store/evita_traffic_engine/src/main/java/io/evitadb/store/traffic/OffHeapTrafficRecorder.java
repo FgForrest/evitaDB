@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.exception.EvitaInternalError;
@@ -183,11 +183,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * Contains reference to the asynchronous task executor that clears finalized session memory blocks and writes
 	 * them to disk buffer.
 	 */
-	private DelayedAsyncTask freeMemoryTask;
+	private ScheduledTask freeMemoryTask;
 	/**
 	 * Contains reference to the asynchronous task executor that initiates the indexing of the disk buffer.
 	 */
-	private DelayedAsyncTask indexTask;
+	private ScheduledTask indexTask;
 	/**
 	 * Last time when the data from the {@link #diskBuffer} was read.
 	 */
@@ -571,12 +571,12 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			recordingOptions.trafficDiskBufferSizeInBytes()
 		);
 
-		this.freeMemoryTask = new DelayedAsyncTask(
+		this.freeMemoryTask = new ScheduledTask(
 			this.catalogName, "Traffic recorder - memory buffer cleanup", scheduler,
 			this::freeMemory, trafficFlushIntervalInMilliseconds, TimeUnit.MILLISECONDS, 0
 		);
 
-		this.indexTask = new DelayedAsyncTask(
+		this.indexTask = new ScheduledTask(
 			this.catalogName, "Traffic recorder - disk buffer indexing", scheduler,
 			this::index, Long.MAX_VALUE, TimeUnit.MILLISECONDS, 0
 		);

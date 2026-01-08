@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsEvent;
 import io.evitadb.utils.IOUtils;
@@ -86,7 +86,7 @@ public class SystemChangeObserver
 	/**
 	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
 	 */
-	private final DelayedAsyncTask cleaner;
+	private final ScheduledTask cleaner;
 	/**
 	 * Whether this observer is still active and can fire new events.
 	 */
@@ -105,7 +105,7 @@ public class SystemChangeObserver
 			cdcOptions.subscriberBufferSize(),
 			this::updateStatistics
 		);
-		this.cleaner = new DelayedAsyncTask(
+		this.cleaner = new ScheduledTask(
 			null,
 			SystemChangeObserver.class.getSimpleName(),
 			scheduler,

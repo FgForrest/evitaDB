@@ -24,143 +24,77 @@
 package io.evitadb.api.file;
 
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.utils.FileUtils;
-import io.evitadb.utils.UUIDUtil;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.List;
 import java.util.UUID;
 
 /**
  * Record that represents single file stored in the server export file available for download.
  *
- * @param fileId           ID of the file.
- * @param name             Name of the file.
- * @param description      Optional short description of the file in human readable form.
- * @param contentType      MIME type of the file.
- * @param totalSizeInBytes Total size of the file in bytes.
- * @param created          Date and time when the file was created.
- * @param origin           Optional origin of the file. Usually {@link TaskStatus#taskType()}.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record FileForFetch(
-	@Nonnull UUID fileId,
-	@Nonnull String name,
-	@Nullable String description,
-	@Nonnull String contentType,
-	long totalSizeInBytes,
-	@Nonnull OffsetDateTime created,
-	@Nullable String[] origin
-) implements Serializable {
-	public static final String METADATA_EXTENSION = ".metadata";
-
-	public FileForFetch(
-		@Nonnull UUID fileId,
-		@Nonnull String name,
-		@Nullable String description,
-		@Nonnull String contentType,
-		long totalSizeInBytes,
-		@Nonnull OffsetDateTime created,
-		@Nullable String[] origin
-	) {
-		this.fileId = fileId;
-		this.name = FileUtils.convertToSupportedName(name);
-		this.description = description;
-		this.contentType = contentType;
-		this.totalSizeInBytes = totalSizeInBytes;
-		this.created = created;
-		this.origin = origin;
-	}
-
+public interface FileForFetch extends Serializable {
 	/**
-	 * Returns path to the metadata file in target directory.
-	 *
-	 * @param directory Target directory.
-	 * @return Path to the metadata file.
+	 * Returns ID of the file.
 	 */
 	@Nonnull
-	public Path metadataPath(@Nonnull Path directory) {
-		return directory.resolve(this.fileId + METADATA_EXTENSION);
-	}
+	UUID fileId();
 
 	/**
-	 * Returns path to the file contents in target directory.
-	 *
-	 * @param directory Target directory.
-	 * @return Path to the file contents in target directory.
+	 * Returns name of the file.
 	 */
 	@Nonnull
-	public Path path(@Nonnull Path directory) {
-		return directory.resolve(this.fileId + FileUtils.getFileExtension(this.name).map(it -> "." + it).orElse(""));
-	}
+	String name();
 
 	/**
-	 * Creates new instance of the record from the metadata lines.
-	 * Might throw exception and in that case metadata file is corrupted.
-	 *
-	 * @param metadataLines   Lines of the metadata file.
-	 * @return New instance of the record.
+	 * Returns optional short description of the file in human readable form.
 	 */
-	@Nonnull
-	public static FileForFetch fromLines(@Nonnull List<String> metadataLines) {
-		return new FileForFetch(
-			UUIDUtil.uuid(metadataLines.get(0)),
-			metadataLines.get(1),
-			metadataLines.get(2),
-			metadataLines.get(3),
-			Long.parseLong(metadataLines.get(4)),
-			OffsetDateTime.parse(metadataLines.get(5), DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-			metadataLines.get(6).split(",")
-		);
-	}
+	@Nullable
+	String description();
 
 	/**
-	 * Returns contents of the record written as set of lines.
+	 * Returns MIME type of the file.
 	 */
 	@Nonnull
-	public List<String> toLines() {
-		return Arrays.asList(
-			this.fileId.toString(),
-			this.name,
-			this.description,
-			this.contentType,
-			Long.toString(this.totalSizeInBytes),
-			this.created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-			this.origin == null ? "" : String.join(",", this.origin)
-		);
-	}
+	String contentType();
 
+	/**
+	 * Returns total size of the file in bytes.
+	 */
+	long totalSizeInBytes();
+
+	/**
+	 * Returns date and time when the file was created.
+	 */
 	@Nonnull
-	@Override
-	public String toString() {
-		return "FileForFetch{" +
-			"fileId=" + this.fileId +
-			", name='" + this.name + '\'' +
-			", description='" + this.description + '\'' +
-			", contentType='" + this.contentType + '\'' +
-			", totalSizeInBytes=" + this.totalSizeInBytes +
-			", created=" + this.created +
-			", origin=" + Arrays.toString(this.origin) +
-			'}';
-	}
+	OffsetDateTime created();
 
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
+	/**
+	 * Returns optional origin of the file. Usually {@link TaskStatus#taskType()}.
+	 */
+	@Nullable
+	String[] origin();
 
-		FileForFetch that = (FileForFetch) o;
-		return this.fileId.equals(that.fileId);
-	}
+	/**
+	 * Returns optional catalog name.
+	 */
+	@Nullable
+	String catalogName();
 
-	@Override
-	public int hashCode() {
-		return this.fileId.hashCode();
-	}
+	/**
+	 * Returns CRC32 checksum of the file content.
+	 */
+	long crc32();
+
+	/**
+	 * Returns true if the file is externally managed and should not be automatically purged
+	 * due to age or size constraints. Such files can only be removed via explicit
+	 * {@link io.evitadb.spi.export.ExportService#deleteFile(java.util.UUID)} calls.
+	 * They still count towards the maximum total file size limit.
+	 */
+	boolean externallyManaged();
+
 }

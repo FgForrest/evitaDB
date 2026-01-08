@@ -99,4 +99,53 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
    */
   com.google.protobuf.StringValueOrBuilder getOriginOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  java.util.List<com.google.protobuf.StringValue> 
+      getCatalogNameList();
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  com.google.protobuf.StringValue getCatalogName(int index);
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  int getCatalogNameCount();
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+      getCatalogNameOrBuilderList();
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getCatalogNameOrBuilder(
+      int index);
 }

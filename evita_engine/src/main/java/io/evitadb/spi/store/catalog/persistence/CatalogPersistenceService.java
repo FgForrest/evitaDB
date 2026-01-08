@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -539,6 +539,15 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Method is expected to be used only by evitaDB internal mechanisms to create system SNAPSHOT backups.
+	 *
+	 * @return task producing file for fetching
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> createSystemBackupTask();
+
+	/**
 	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
 	 * @param onStart        callback that is called before the backup starts
@@ -550,6 +559,15 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	);
+
+	/**
+	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Method is expected to be used only by evitaDB internal mechanisms to create system FULL backups.
+	 *
+	 * @return task producing file for fetching
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> createSystemFullBackupTask();
 
 	/**
 	 * Duplicates an existing catalog to create a new catalog with a different name.

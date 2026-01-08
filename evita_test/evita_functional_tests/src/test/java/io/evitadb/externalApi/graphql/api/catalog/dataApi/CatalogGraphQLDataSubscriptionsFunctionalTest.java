@@ -56,7 +56,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 	private static final String ON_DATA_CHANGE_PATH = "payload.data.onDataChange";
 	private static final String ON_DATA_CHANGE_UNTYPED_PATH = "payload.data.onDataChangeUntyped";
 
-	public static final String GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API = "GraphQLEmptySystemForCatalogDataApi";
+	private static final String GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API = "GraphQLEmptySystemForCatalogDataApi";
 
 	@Override
 	@DataSet(value = GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)

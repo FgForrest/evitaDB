@@ -137,17 +137,19 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 			return Stream.concat(
 				catalogMutation,
 				Arrays.stream(this.schemaMutations)
-				      .filter(predicate)
-				      .flatMap(m -> m.toChangeCatalogCapture(predicate, content))
+					.filter(predicate)
+					.flatMap(m -> context.doNotAdvance(
+						() -> m.toChangeCatalogCapture(predicate, content)))
 			);
 		} else {
 			final AtomicInteger index = new AtomicInteger(this.schemaMutations.length);
 			return Stream.concat(
 				Stream.generate(() -> null)
-				      .takeWhile(x -> index.get() > 0)
-				      .map(x -> this.schemaMutations[index.decrementAndGet()])
-				      .filter(predicate)
-				      .flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
+					.takeWhile(x -> index.get() > 0)
+					.map(x -> this.schemaMutations[index.decrementAndGet()])
+					.filter(predicate)
+					.flatMap(x -> context.doNotAdvance(
+						() -> x.toChangeCatalogCapture(predicate, content))),
 				catalogMutation
 			);
 

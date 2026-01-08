@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.core.session.task;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.RollbackException;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.session.KilledEvent;
 import io.evitadb.core.session.EvitaInternalSessionContract;
@@ -58,12 +58,12 @@ public class SessionKiller implements Runnable, Closeable {
 	/**
 	 * The task that is scheduled to kill the sessions.
 	 */
-	private final DelayedAsyncTask killerTask;
+	private final ScheduledTask killerTask;
 
 	public SessionKiller(int allowedInactivityInSeconds, @Nonnull SessionRegistry sessionRegistry, @Nonnull Scheduler scheduler) {
 		this.allowedInactivityInSeconds = allowedInactivityInSeconds;
 		this.sessionRegistry = sessionRegistry;
-		this.killerTask = new DelayedAsyncTask(
+		this.killerTask = new ScheduledTask(
 			null,
 			"Session killer",
 			scheduler,

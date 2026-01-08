@@ -202,7 +202,7 @@ attributeContent(
 The `attributeContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AttributeContent.cs</SourceClass></LS>)
 requirement is used to retrieve one or more entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized). [Localized attributes](../../use/data-model.md#localized-attributes)
 are only fetched if there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
-filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
+filter constraint or the [`dataInLocales`](#data-in-locales) require constraint.
 
 <Note type="info">
 
@@ -214,7 +214,7 @@ an entity using [`attributeContentAll`](#attribute-content-all).
 
 To select a `code` and localized `name` attribute for the `Brand` entity, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/attributeContent.evitaql)
 </SourceCodeTabs>
@@ -352,7 +352,7 @@ clause.
 
 To select all non-localized attributes for the `Brand` entity, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql)
 </SourceCodeTabs>
@@ -404,11 +404,11 @@ The `associatedDataContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/ja
 requirement is used to retrieve one or more entity [associated data](../../use/data-model.md#associated-data).
 [Localized associated data](../../use/data-model.md#localized-associated-data) are only fetched if
 there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
-filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
+filter constraint or the [`dataInLocales`](#data-in-locales) require constraint.
 
 To select an *allActiveUrls* and localized *localization* associated data for the `Brand` entity, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.evitaql)
 </SourceCodeTabs>
@@ -545,7 +545,7 @@ used for debugging or exploratory purposes and should not be included in product
 
 To select all non-localized associated data for the `Brand` entity, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting code and name of the brand](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.evitaql)
 </SourceCodeTabs>
@@ -612,7 +612,7 @@ requirement is used in two scenarios:
 If the locale filter is missing in the query, but you still want to access the localized data, you can use the following
 query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/dataInLocales.evitaql)
 </SourceCodeTabs>
@@ -646,7 +646,7 @@ constraint was not used at all.
 To demonstrate the second scenario, let's say you want to filter a brand that has a Czech localization, but you want to
 get Czech and English *name* attribute values. The following query will do the job:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting code and name of the brand in multiple locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.evitaql)
 </SourceCodeTabs>
@@ -695,7 +695,7 @@ or `entityLocaleEquals` filtering constraint instead.
 
 To fetch entity in all locales available, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.evitaql)
 </SourceCodeTabs>
@@ -771,7 +771,7 @@ you to access the attributes of the parent entities, etc.
 
 To fetch an entity with basic hierarchy information, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.evitaql)
 </SourceCodeTabs>
@@ -804,7 +804,7 @@ To demonstrate a more complex and useful example let's fetch a product with its 
 fetch its full hierarchy placement up to the root of the hierarchy tree with `code` and `name` attributes of these
 categories. The query looks like this:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.evitaql)
 </SourceCodeTabs>
@@ -855,7 +855,7 @@ use - since the hierarchy placement is directly available in the retrieved entit
 
 To fetch an entity with basic hierarchy information, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.evitaql)
 </SourceCodeTabs>
@@ -879,7 +879,7 @@ To demonstrate a more complex and useful example let's fetch a product with its 
 fetch its full hierarchy placement up to the root of the hierarchy tree with `code` and `name` attributes of these
 categories. The query looks like this:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting localized name of the brand](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.evitaql)
 </SourceCodeTabs>
@@ -958,7 +958,7 @@ UI to determine whether to display a price range or just a single price without 
 
 To get an entity with prices that you filter by, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity with prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql)
 </SourceCodeTabs>
@@ -1017,7 +1017,7 @@ This requirement is only a variation of the generic [`priceContent`](#price-cont
 
 To get an entity with prices that you filter by and a *reference* price on top of it, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity with filtered prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql)
 </SourceCodeTabs>
@@ -1061,7 +1061,7 @@ This requirement is only a variation of the generic [`priceContent`](#price-cont
 
 To get an entity with all of the entity's prices, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity with prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql)
 </SourceCodeTabs>
@@ -1219,7 +1219,7 @@ The following query requests calculation of price for sale as well as a referenc
 
 Let's demonstrate this principle with a complex example:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example query to calculate different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.evitaql)
 
@@ -1414,7 +1414,7 @@ the specific reference schema.
 
 To get an entity with reference to categories and brand, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.evitaql)
 
@@ -1452,7 +1452,7 @@ The returned `Product` entity will contain primary keys of all categories and br
 In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies and
 the bodies of the groups the references refer to. One such common scenario is fetching the parameters of a product:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.evitaql)
 
@@ -1493,7 +1493,7 @@ To demonstrate graph-like fetching of multiple referenced levels, let's fetch a 
 for each group fetch the group's tags and for each tag fetch the tag's category name. The query contains 4 levels of
 related entities: product → group → tag → tag category. The query looks like this:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity groups and their tags](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.evitaql)
 
@@ -1540,7 +1540,7 @@ available, similarly to entity attributes.
 To obtain an entity with reference to a parameter value that reveals which association defines the unique product-variant
 combination and which parameter values are merely informative, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity with references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.graphql)
 </SourceCodeTabs>
@@ -1605,7 +1605,7 @@ For example, your product has got a lot of parameters, but on product detail pag
 part of group which contains an attribute *isVisibleInDetail* set to *TRUE*.To fetch only those parameters, use the
 following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.evitaql)
 
@@ -1661,7 +1661,7 @@ container constraint.
 Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
 query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql)
 
@@ -1712,7 +1712,7 @@ references and avoid fetching the actual data.
 
 Let's say you need only to check whether there is any parameter for the product. To do this, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values count without fetching them](/documentation/user/en/query/requirements/examples/fetching/referenceContentPageEmpty.evitaql)
 
@@ -1749,7 +1749,7 @@ If the number of possible parameter values is large, you'd better limit the retu
 be processed/rendered by the client. In this situation you'd probably want to list the most important ones first, so 
 the `orderBy` constraint should be handy:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values count without fetching them](/documentation/user/en/query/requirements/examples/fetching/referenceContentPage.evitaql)
 
@@ -1839,7 +1839,7 @@ For detail information, see the [`referenceContent`](#reference-content) require
 
 To get an entity with all the references available, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.evitaql)
 </SourceCodeTabs>
@@ -1936,7 +1936,7 @@ For detail information, see the [`referenceContent`](#reference-content) require
 To obtain an entity with reference to a parameter value that reveals which association defines the unique product-variant
 combination and which parameter values are merely informative, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity with references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.evitaql)
 </SourceCodeTabs>
@@ -2049,7 +2049,7 @@ to define multiple reference fields with different parameters.
 To get media files distinguished by a gallery as separate collections, you can define multiple reference fields with
 unique aliases and custom filtering: 
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example query to request different configurations of the same reference type](/documentation/user/en/query/requirements/examples/fetching/namedReferenceContent.graphql)
 
@@ -2067,7 +2067,7 @@ This will produce the following result:
 
 To obtain an entity with all the references and their attributes, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity with all of the references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.evitaql)
 
@@ -2145,7 +2145,7 @@ You can check details in [the issue](https://github.com/FgForrest/evitaDB/issues
 
 Let's demonstrate this principle with a complex example:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example query to calculate different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.evitaql)
 

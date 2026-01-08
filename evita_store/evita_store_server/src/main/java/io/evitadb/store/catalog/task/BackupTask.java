@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -87,17 +87,140 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch> {
+	private static final String MIME_TYPE = "application/zip";
 	private final String catalogName;
 	private final CatalogBootstrap bootstrapRecord;
 	private final AtomicReference<ExportService> exportFileService;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final AtomicReference<LongConsumer> onComplete;
 
+	/**
+	 * Generates a description of the catalog backup process based on the provided parameters.
+	 *
+	 * @param catalogName                 the name of the catalog, must not be null
+	 * @param thePastMoment               an optional timestamp representing a past moment for historical data;
+	 *                                    can be null if a historical catalog version is provided
+	 * @param theHistoricalCatalogVersion an optional version number representing a historical
+	 *                                    catalog state; can be null if a past moment is provided
+	 * @param theIncludingWAL             flag indicating whether the Write-Ahead Log (WAL) should be included in the backup
+	 * @return a string describing the catalog backup process, including information about the catalog
+	 * name, whether it is a historical or actual catalog, and whether WAL is included
+	 */
+	@Nonnull
+	private static String getDescription(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime thePastMoment,
+		@Nullable Long theHistoricalCatalogVersion,
+		boolean theIncludingWAL
+	) {
+		return "The backup of the " +
+			(thePastMoment == null && theHistoricalCatalogVersion == null ?
+				"actual " :
+				"historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment)) +
+			"catalog `" + catalogName + "`" + (theIncludingWAL ? " including WAL." : ".");
+	}
+
+	/**
+	 * Constructs a file name for the catalog backup based on the provided parameters.
+	 * The file name includes the catalog name, a timestamp or historical version,
+	 * and the ".zip" extension. If both thePastMoment and theHistoricalCatalogVersion
+	 * are null, the current timestamp is used.
+	 *
+	 * @param catalogName                 the name of the catalog, must not be null
+	 * @param thePastMoment               an optional timestamp representing a past moment for historical data,
+	 *                                    can be null if a historical catalog version is provided
+	 * @param theHistoricalCatalogVersion an optional version number representing a historical
+	 *                                    catalog state, can be null if a past moment is provided
+	 * @return the constructed file name for the catalog backup
+	 */
+	@Nonnull
+	private static String getFileName(
+		@Nonnull String catalogName,
+		@Nullable OffsetDateTime thePastMoment,
+		@Nullable Long theHistoricalCatalogVersion
+	) {
+		return "backup_" + catalogName + "_" +
+			(thePastMoment == null && theHistoricalCatalogVersion == null ?
+				"actual_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) :
+				"historical_" + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment.format(
+					DateTimeFormatter.ISO_OFFSET_DATE_TIME))
+			) + ".zip";
+	}
+
+	/**
+	 * Collects all entity collection services and calculates total record count to backup.
+	 */
+	@Nonnull
+	private static ServicesAndStatistics getServicesAndStatistics(
+		long catalogVersion,
+		@Nullable OffsetDateTime thePastMoment,
+		@Nullable Long theHistoricalCatalogVersion,
+		boolean theIncludingWAL,
+		@Nonnull DefaultCatalogPersistenceService defaultCatalogPersistenceService,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
+		@Nonnull Closeables closeables
+	) throws IOException {
+		int totalRecords = 0;
+		final Map<Integer, ServiceWithStatistics> entityCollectionPersistenceServices = new HashMap<>();
+		final int catalogServiceRecordCount = catalogPersistenceService.countStorageParts(catalogVersion);
+		totalRecords += catalogServiceRecordCount;
+
+		for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
+			final EntityCollectionFileHeader entityCollectionHeader = catalogPersistenceService.getStoragePart(
+				catalogVersion,
+				entityTypeFileIndex.entityTypePrimaryKey(),
+				EntityCollectionFileHeader.class
+			);
+			Assert.isPremiseValid(
+				entityCollectionHeader != null,
+				"Entity collection header for entity type `" + entityTypeFileIndex.entityType() + "` was unexpectedly not created!"
+			);
+			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
+				defaultCatalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
+					catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
+				) :
+				closeables.add(
+					defaultCatalogPersistenceService.createEntityCollectionPersistenceService(entityCollectionHeader)
+				);
+			final ServiceWithStatistics serviceStats = new ServiceWithStatistics(
+				entityCollectionPersistenceService,
+				entityCollectionPersistenceService.getStoragePartPersistenceService().countStorageParts(catalogVersion)
+			);
+			entityCollectionPersistenceServices.put(
+				entityTypeFileIndex.entityTypePrimaryKey(),
+				serviceStats
+			);
+			totalRecords += serviceStats.totalRecordCount();
+		}
+
+		final Path[] walFiles;
+		if (theIncludingWAL) {
+			try (final Stream<Path> walFileStream = Files.list(
+				defaultCatalogPersistenceService.getCatalogStoragePath())) {
+				walFiles = walFileStream
+					.filter(it -> it.getFileName().toString().endsWith(WAL_FILE_SUFFIX))
+					.toArray(Path[]::new);
+			}
+		} else {
+			walFiles = new Path[0];
+		}
+
+		return new ServicesAndStatistics(
+			totalRecords + walFiles.length,
+			catalogServiceRecordCount,
+			entityCollectionPersistenceServices,
+			walFiles
+		);
+	}
+
 	public BackupTask(
+		@Nullable String origin,
 		@Nonnull String catalogName,
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
+		boolean systemOrigin,
 		@Nonnull CatalogBootstrap bootstrapRecord,
 		@Nonnull ExportService exportService,
 		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
@@ -111,7 +234,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				(pastMoment == null ? " with current data" : " snapshot at " + pastMoment) +
 				(catalogVersion == null ? "" : " for version " + catalogVersion) +
 				(includingWAL ? "" : ", including WAL"),
-			new BackupSettings(pastMoment, catalogVersion, includingWAL),
+			new BackupSettings(origin, pastMoment, catalogVersion, includingWAL, systemOrigin),
 			(task) -> ((BackupTask) task).doBackup(),
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
@@ -128,6 +251,15 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		if (onStart != null) {
 			onStart.accept(this.bootstrapRecord.catalogVersion());
 		}
+	}
+
+	@Override
+	public boolean cancel() {
+		final boolean cancel = super.cancel();
+		if (cancel) {
+			tearDown();
+		}
+		return cancel;
 	}
 
 	/**
@@ -152,26 +284,38 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 			log.info("Starting backup of catalog `{}` at version {}.", this.catalogName, catalogVersion);
 
-			final ExportFileHandle exportFileHandle = exportService.storeFile(
-				"backup_" + this.catalogName + "_" +
-					(thePastMoment == null && theHistoricalCatalogVersion == null ?
-						"actual_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) :
-						"historical_" + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
-					) + ".zip",
-				"The backup of the " +
-					(thePastMoment == null && theHistoricalCatalogVersion == null ? "actual " : "historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment)) +
-					"catalog `" + this.catalogName + "`" + (theIncludingWAL ? " including WAL." : "."),
-				"application/zip",
-				this.getClass().getSimpleName()
-			);
+			final ExportFileHandle exportFileHandle;
+			final String origin = settings.origin() == null || settings.origin().isBlank() ?
+				this.getClass().getSimpleName() : settings.origin();
+
+			if (settings.systemOrigin()) {
+				exportFileHandle = exportService.storeExternallyManagedFile(
+					getFileName(this.catalogName, thePastMoment, theHistoricalCatalogVersion),
+					getDescription(this.catalogName, thePastMoment, theHistoricalCatalogVersion, theIncludingWAL),
+					MIME_TYPE,
+					this.catalogName,
+					origin
+				);
+			} else {
+				exportFileHandle = exportService.storeFile(
+					getFileName(this.catalogName, thePastMoment, theHistoricalCatalogVersion),
+					getDescription(this.catalogName, thePastMoment, theHistoricalCatalogVersion, theIncludingWAL),
+					MIME_TYPE,
+					this.catalogName,
+					origin
+				);
+			}
 
 			try {
 				try (final Closeables closeables = new Closeables()) {
-					final CatalogOffsetIndexStoragePartPersistenceService catalogOffsetIndexPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
-						defaultCatalogPersistenceService.getStoragePartPersistenceService(catalogVersion) :
-						closeables.add(defaultCatalogPersistenceService.createCatalogOffsetIndexStoragePartService(this.bootstrapRecord));
+					final CatalogOffsetIndexStoragePartPersistenceService catalogOffsetIndexPersistenceService =
+						thePastMoment == null && theHistoricalCatalogVersion == null ?
+							defaultCatalogPersistenceService.getStoragePartPersistenceService(catalogVersion) :
+							closeables.add(defaultCatalogPersistenceService.createCatalogOffsetIndexStoragePartService(
+								this.bootstrapRecord));
 
-					try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+					try (ZipOutputStream zipOutputStream = new ZipOutputStream(
+						new BufferedOutputStream(exportFileHandle.outputStream()))) {
 						zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/"));
 						zipOutputStream.closeEntry();
 
@@ -192,13 +336,15 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						int backedUpRecords = 0;
 						for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
 							backedUpRecords = backupEntityCollectionDataFile(
-								catalogVersion, backedUpRecords, entityTypeFileIndex, zipOutputStream, servicesAndStatistics,
+								catalogVersion, backedUpRecords, entityTypeFileIndex, zipOutputStream,
+								servicesAndStatistics,
 								entityHeaders
 							);
 						}
 
 						// then write the active contents of the catalog file
-						final String catalogDataStoreFileName = CatalogPersistenceService.getCatalogDataStoreFileName(this.catalogName, 0);
+						final String catalogDataStoreFileName = CatalogPersistenceService.getCatalogDataStoreFileName(
+							this.catalogName, 0);
 						zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + catalogDataStoreFileName));
 
 						final OffsetIndexDescriptor catalogDataFileDescriptor = backupCatalogDataFile(
@@ -246,15 +392,6 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		}
 	}
 
-	@Override
-	public boolean cancel() {
-		final boolean cancel = super.cancel();
-		if (cancel) {
-			tearDown();
-		}
-		return cancel;
-	}
-
 	/**
 	 * Cleans up resources used by this task.
 	 */
@@ -286,7 +423,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			.copySnapshotTo(
 				catalogVersion,
 				zipOutputStream,
-				recordsCopied -> doUpdateProgress(processedRecords + recordsCopied, servicesAndStatistics.totalRecords()),
+				recordsCopied -> doUpdateProgress(
+					processedRecords + recordsCopied, servicesAndStatistics.totalRecords()),
 				Stream.concat(
 						Stream.of(
 							new CatalogHeader<>(
@@ -343,7 +481,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			0
 		);
 		zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + entityDataFileName));
-		final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = servicesAndStatistics.getServiceByEntityTypePrimaryKey(entityTypeFileIndex.entityTypePrimaryKey());
+		final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = servicesAndStatistics.getServiceByEntityTypePrimaryKey(
+			entityTypeFileIndex.entityTypePrimaryKey());
 		final int finalBackedUpRecords = backedUpRecords;
 		final EntityCollectionFileHeader newEntityCollectionHeader = entityCollectionPersistenceService
 			.copySnapshotTo(
@@ -355,14 +494,16 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					entityTypeFileIndex.fileLocation()
 				),
 				zipOutputStream,
-				recordsCopied -> doUpdateProgress(finalBackedUpRecords + recordsCopied, servicesAndStatistics.totalRecords())
+				recordsCopied -> doUpdateProgress(
+					finalBackedUpRecords + recordsCopied, servicesAndStatistics.totalRecords())
 			);
 		entityHeaders.put(
 			entityTypeFileIndex.entityType(),
 			newEntityCollectionHeader
 		);
 		zipOutputStream.closeEntry();
-		return backedUpRecords + servicesAndStatistics.getServiceRecordCount(entityTypeFileIndex.entityTypePrimaryKey());
+		return backedUpRecords + servicesAndStatistics.getServiceRecordCount(
+			entityTypeFileIndex.entityTypePrimaryKey());
 	}
 
 	/**
@@ -438,72 +579,6 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	}
 
 	/**
-	 * Collects all entity collection services and calculates total record count to backup.
-	 */
-	@Nonnull
-	private static ServicesAndStatistics getServicesAndStatistics(
-		long catalogVersion,
-		@Nullable OffsetDateTime thePastMoment,
-		@Nullable Long theHistoricalCatalogVersion,
-		boolean theIncludingWAL,
-		@Nonnull DefaultCatalogPersistenceService defaultCatalogPersistenceService,
-		@Nonnull CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService,
-		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
-		@Nonnull Closeables closeables
-	) throws IOException {
-		int totalRecords = 0;
-		final Map<Integer, ServiceWithStatistics> entityCollectionPersistenceServices = new HashMap<>();
-		final int catalogServiceRecordCount = catalogPersistenceService.countStorageParts(catalogVersion);
-		totalRecords += catalogServiceRecordCount;
-
-		for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
-			final EntityCollectionFileHeader entityCollectionHeader = catalogPersistenceService.getStoragePart(
-				catalogVersion,
-				entityTypeFileIndex.entityTypePrimaryKey(),
-				EntityCollectionFileHeader.class
-			);
-			Assert.isPremiseValid(
-				entityCollectionHeader != null,
-				"Entity collection header for entity type `" + entityTypeFileIndex.entityType() + "` was unexpectedly not created!"
-			);
-			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
-				defaultCatalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
-					catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
-				) :
-				closeables.add(
-					defaultCatalogPersistenceService.createEntityCollectionPersistenceService(entityCollectionHeader)
-				);
-			final ServiceWithStatistics serviceStats = new ServiceWithStatistics(
-				entityCollectionPersistenceService,
-				entityCollectionPersistenceService.getStoragePartPersistenceService().countStorageParts(catalogVersion)
-			);
-			entityCollectionPersistenceServices.put(
-				entityTypeFileIndex.entityTypePrimaryKey(),
-				serviceStats
-			);
-			totalRecords += serviceStats.totalRecordCount();
-		}
-
-		final Path[] walFiles;
-		if (theIncludingWAL) {
-			try (final Stream<Path> walFileStream = Files.list(defaultCatalogPersistenceService.getCatalogStoragePath())) {
-				walFiles = walFileStream
-					.filter(it -> it.getFileName().toString().endsWith(WAL_FILE_SUFFIX))
-					.toArray(Path[]::new);
-			}
-		} else {
-			walFiles = new Path[0];
-		}
-
-		return new ServicesAndStatistics(
-			totalRecords + walFiles.length,
-			catalogServiceRecordCount,
-			entityCollectionPersistenceServices,
-			walFiles
-		);
-	}
-
-	/**
 	 * Record contains total record count and index of services.
 	 */
 	private record ServicesAndStatistics(
@@ -515,11 +590,13 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 		@Nonnull
 		public DefaultEntityCollectionPersistenceService getServiceByEntityTypePrimaryKey(int entityTypePrimaryKey) {
-			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::service).orElseThrow();
+			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::service)
+				.orElseThrow();
 		}
 
 		public int getServiceRecordCount(int entityTypePrimaryKey) {
-			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::totalRecordCount).orElseThrow();
+			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::totalRecordCount)
+				.orElseThrow();
 		}
 
 	}
@@ -542,9 +619,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	 * @param includingWAL   whether to include WAL files in the backup
 	 */
 	public record BackupSettings(
+		@Nullable String origin,
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
-		boolean includingWAL
+		boolean includingWAL,
+		boolean systemOrigin
 	) implements Serializable {
 
 		@Nonnull
@@ -552,9 +631,10 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		public String toString() {
 			return Objects.requireNonNull(
 				StringUtils.capitalize(
-					(this.pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(this.pastMoment) + ", ") +
+					(this.pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(
+						this.pastMoment) + ", ") +
 						(this.catalogVersion == null ? "" : "catalogVersion=" + this.catalogVersion + ", ") +
-						"includingWAL=" + this.includingWAL
+						"includingWAL=" + this.includingWAL + (systemOrigin ? ", systemOrigin: " + this.origin : "")
 				)
 			);
 		}

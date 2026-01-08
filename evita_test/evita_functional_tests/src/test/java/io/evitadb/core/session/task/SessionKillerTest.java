@@ -32,6 +32,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +42,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -59,12 +59,14 @@ import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 @Tag(LONG_RUNNING_TEST)
 class SessionKillerTest implements EvitaTestSupport {
 	public static final String SUB_DIRECTORY = "SessionKillerTest";
+	public static final String SUB_DIRECTORY_EXPORT = "SessionKillerTest_export";
 	private Evita evita;
 	private SessionKiller sessionKiller;
 
 	@BeforeEach
-	void setUp() throws IOException, NoSuchFieldException, IllegalAccessException {
+	void setUp() throws IOException {
 		cleanTestSubDirectory(SUB_DIRECTORY);
+		cleanTestSubDirectory(SUB_DIRECTORY_EXPORT);
 		this.evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
@@ -77,17 +79,21 @@ class SessionKillerTest implements EvitaTestSupport {
 						.closeSessionsAfterSecondsOfInactivity(1)
 						.build()
 				)
+				.export(
+					FileSystemExportOptions.builder()
+						.directory(getTestDirectory().resolve(SUB_DIRECTORY_EXPORT))
+						.build()
+				)
 				.build()
 		);
-		final Field sessionKillerField = Evita.class.getDeclaredField("sessionKiller");
-		sessionKillerField.setAccessible(true);
-		this.sessionKiller = (SessionKiller) sessionKillerField.get(this.evita);
+		this.sessionKiller = this.evita.getSessionRegistry().getSessionKiller();
 	}
 
 	@AfterEach
 	void tearDown() throws IOException {
 		this.evita.close();
 		cleanTestSubDirectory(SUB_DIRECTORY);
+		cleanTestSubDirectory(SUB_DIRECTORY_EXPORT);
 	}
 
 	@Test

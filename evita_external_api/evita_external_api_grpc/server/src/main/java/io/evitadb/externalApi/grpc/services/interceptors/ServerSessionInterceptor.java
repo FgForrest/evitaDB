@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
-import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.Metadata;
@@ -50,6 +49,7 @@ import java.util.Set;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.METADATA_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.METHOD_NAME_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
+import static io.evitadb.utils.VersionUtils.SemVer;
 
 /**
  * This class is used to intercept calls to gRPC services by setting a session to

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,8 +53,8 @@ import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.ChangeCatalogObserverContract;
-import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.conflict.AttributeDeltaResolver;
@@ -193,7 +193,7 @@ public class TransactionManager implements Closeable {
 	 * Task that is scheduled to drain the WAL and process the transactions that are not yet processed when there is
 	 * emergency situation when some of the tasks was not processed.
 	 */
-	private final DelayedAsyncTask walDrainingTask;
+	private final ScheduledTask walDrainingTask;
 	/**
 	 * Lock used for conflict resolution.
 	 */
@@ -357,7 +357,7 @@ public class TransactionManager implements Closeable {
 			catalog.getVersion(),
 			this.configuration.transaction().conflictRingBufferSize()
 		);
-		this.walDrainingTask = new DelayedAsyncTask(
+		this.walDrainingTask = new ScheduledTask(
 			catalog.getName(), "WAL draining task",
 			scheduler,
 			this::drainWal,

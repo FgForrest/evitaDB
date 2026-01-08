@@ -193,9 +193,11 @@ so that it requires a memory index.
 <LS to="j">
 
 <Note type="info">
+
 Application logic connected with evitaDB data types is located in
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/EvitaDataTypes.java</SourceClass>
 class.
+
 </Note>
 
 </LS>
@@ -203,9 +205,11 @@ class.
 <LS to="c">
 
 <Note type="info">
+
 Application logic connected with evitaDB data types is located in
 <SourceClass>EvitaDB.Client/DataTypes/EvitaDataTypes.cs</SourceClass>
 class.
+
 </Note>
 
 </LS>
@@ -281,6 +285,7 @@ timezone information would be the best option, but we run into problems with
 [parsing](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/parse) in certain
 environments, and only the date with offset information seems to be widely supported. The offset information is good
 enough for our case - it identifies a globally valid time that is known at the time the data value is stored.
+
 </Note>
 
 ### DateTimeRange
@@ -361,6 +366,7 @@ data types. The supported number types are: Byte, Short, Integer, Long and BigDe
 
 Both boundaries of the number range must be of the same type - you cannot mix for example BigDecimal as lower bound
 and Byte as upper bound.
+
 </LS>
 <LS to="c">
 The NumberRange represents a specific implementation of the
@@ -370,6 +376,7 @@ data type. The supported number types are: byte, short, int, long and decimal.
 
 Both boundaries of the number range must be of the same type - you cannot mix for example decimal as lower bound
 and byte as upper bound.
+
 </LS>
 
 **Range is written as:**
@@ -430,7 +437,7 @@ The <LS to="e,j,r,g"><SourceClass>evita_common/src/main/java/io/evitadb/dataType
 <LS to="c"><SourceClass>EvitaDB.Client/DataTypes/Predecessor.cs</SourceClass></LS> is a special data type
 used to define a single oriented linked list of entities of the same type. It represents a pointer to a previous entity
 in the list. The head element is a special case and is represented by the constant `Predecessor#HEAD`. The predecessor
-attribute can only be used in the [attributes](data-model.md#attributes-unique-filterable-sortable-localised) of an
+attribute can only be used in the [attributes](data-model.md#attributes-unique-filterable-sortable-localized) of an
 entity or its reference to another entity. It cannot be used to filter entities, but is very useful for sorting.
 
 #### Motivation for linked lists in database sorting
@@ -597,6 +604,7 @@ Storing a complex type to entity is executed as follows:
 <SourceCodeTabs requires="/documentation/user/en/use/examples/dto.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Storing associated data to an entity](/documentation/user/en/use/examples/storing.cs)
+
 </SourceCodeTabs>
 
 If the serialization process encounters any property that cannot be serialized,
@@ -609,6 +617,7 @@ Retrieving a complex type from an entity is executed as follows:
 <SourceCodeTabs requires="/documentation/user/en/use/examples/storing.java" local>
 
 [Loading associated data from an entity](/documentation/user/en/use/examples/loading.cs)
+
 </SourceCodeTabs>
 
 Complex types are internally converted to a
@@ -644,6 +653,7 @@ Storing a complex type to entity is executed as follows:
 <SourceCodeTabs requires="/documentation/user/en/use/examples/dto.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Storing associated data to an entity](/documentation/user/en/use/examples/storing.java)
+
 </SourceCodeTabs>
 
 As you can see, annotations can be placed either on methods or property fields, so that if you use
@@ -705,6 +715,7 @@ Retrieving a complex type from an entity is executed as follows:
 <SourceCodeTabs requires="/documentation/user/en/use/examples/storing.java" local>
 
 [Loading associated data from an entity](/documentation/user/en/use/examples/loading.java)
+
 </SourceCodeTabs>
 
 Complex types are internally converted to a

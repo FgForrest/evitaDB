@@ -362,9 +362,14 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 
 	@Nonnull
 	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
+	public PaginatedList<FileForFetch> listFilesToFetch(
+		int page,
+		int pageSize,
+		@Nonnull Set<String> catalog,
+		@Nonnull Set<String> origin
+	) {
 		this.evita.assertActive();
-		return this.exportService.listFilesToFetch(page, pageSize, origin);
+		return this.exportService.listFilesToFetch(page, pageSize, catalog, origin);
 	}
 
 	@Nonnull

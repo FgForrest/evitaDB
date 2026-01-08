@@ -74,6 +74,7 @@ import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.export.file.FileSystemFileForFetch;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateOptions;
@@ -4289,9 +4290,11 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateBackupAndRestoreCatalog() throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
-		final CompletableFuture<FileForFetch> backupPathFuture = this.evita.management().backupCatalog(
-			TEST_CATALOG, null, null, true);
-		final Path backupPath = backupPathFuture.join().path(
+		final FileForFetch backupPathFuture = this.evita.management().backupCatalog(
+			TEST_CATALOG, null, null, true
+		).join();
+
+		final Path backupPath = ((FileSystemFileForFetch) backupPathFuture).path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
 
@@ -4378,9 +4381,10 @@ class EvitaTest implements EvitaTestSupport {
 		);
 
 		final EvitaManagement management = this.evita.management();
-		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(
-			TEST_CATALOG, null, null, true);
-		final Path backupPath = backupPathFuture.join().path(
+		final FileForFetch backupPathFuture = management.backupCatalog(
+			TEST_CATALOG, null, null, true
+		).join();
+		final Path backupPath = ((FileSystemFileForFetch) backupPathFuture).path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
 
@@ -5295,6 +5299,7 @@ class EvitaTest implements EvitaTestSupport {
 					formerServerOptions.closeSessionsAfterSecondsOfInactivity(),
 					formerServerOptions.changeDataCapture(),
 					formerServerOptions.trafficRecording(),
+					formerServerOptions.schedule(),
 					formerServerOptions.readOnly(),
 					formerServerOptions.quiet(),
 					false

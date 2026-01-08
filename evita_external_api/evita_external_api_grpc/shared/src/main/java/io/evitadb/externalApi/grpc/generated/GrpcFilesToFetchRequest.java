@@ -45,6 +45,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcFilesToFetchRequest() {
     origin_ = java.util.Collections.emptyList();
+    catalogName_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -163,6 +164,72 @@ private static final long serialVersionUID = 0L;
     return origin_.get(index);
   }
 
+  public static final int CATALOGNAME_FIELD_NUMBER = 4;
+  @SuppressWarnings("serial")
+  private java.util.List<com.google.protobuf.StringValue> catalogName_;
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  @java.lang.Override
+  public java.util.List<com.google.protobuf.StringValue> getCatalogNameList() {
+    return catalogName_;
+  }
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+      getCatalogNameOrBuilderList() {
+    return catalogName_;
+  }
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  @java.lang.Override
+  public int getCatalogNameCount() {
+    return catalogName_.size();
+  }
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getCatalogName(int index) {
+    return catalogName_.get(index);
+  }
+  /**
+   * <pre>
+   * Optional catalog name, passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified catalog
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getCatalogNameOrBuilder(
+      int index) {
+    return catalogName_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -186,6 +253,9 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < origin_.size(); i++) {
       output.writeMessage(3, origin_.get(i));
     }
+    for (int i = 0; i < catalogName_.size(); i++) {
+      output.writeMessage(4, catalogName_.get(i));
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -206,6 +276,10 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < origin_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, origin_.get(i));
+    }
+    for (int i = 0; i < catalogName_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(4, catalogName_.get(i));
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -228,6 +302,8 @@ private static final long serialVersionUID = 0L;
         != other.getPageSize()) return false;
     if (!getOriginList()
         .equals(other.getOriginList())) return false;
+    if (!getCatalogNameList()
+        .equals(other.getCatalogNameList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -246,6 +322,10 @@ private static final long serialVersionUID = 0L;
     if (getOriginCount() > 0) {
       hash = (37 * hash) + ORIGIN_FIELD_NUMBER;
       hash = (53 * hash) + getOriginList().hashCode();
+    }
+    if (getCatalogNameCount() > 0) {
+      hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogNameList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -391,6 +471,13 @@ private static final long serialVersionUID = 0L;
         originBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000004);
+      if (catalogNameBuilder_ == null) {
+        catalogName_ = java.util.Collections.emptyList();
+      } else {
+        catalogName_ = null;
+        catalogNameBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00000008);
       return this;
     }
 
@@ -432,6 +519,15 @@ private static final long serialVersionUID = 0L;
         result.origin_ = origin_;
       } else {
         result.origin_ = originBuilder_.build();
+      }
+      if (catalogNameBuilder_ == null) {
+        if (((bitField0_ & 0x00000008) != 0)) {
+          catalogName_ = java.util.Collections.unmodifiableList(catalogName_);
+          bitField0_ = (bitField0_ & ~0x00000008);
+        }
+        result.catalogName_ = catalogName_;
+      } else {
+        result.catalogName_ = catalogNameBuilder_.build();
       }
     }
 
@@ -521,6 +617,32 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      if (catalogNameBuilder_ == null) {
+        if (!other.catalogName_.isEmpty()) {
+          if (catalogName_.isEmpty()) {
+            catalogName_ = other.catalogName_;
+            bitField0_ = (bitField0_ & ~0x00000008);
+          } else {
+            ensureCatalogNameIsMutable();
+            catalogName_.addAll(other.catalogName_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.catalogName_.isEmpty()) {
+          if (catalogNameBuilder_.isEmpty()) {
+            catalogNameBuilder_.dispose();
+            catalogNameBuilder_ = null;
+            catalogName_ = other.catalogName_;
+            bitField0_ = (bitField0_ & ~0x00000008);
+            catalogNameBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getCatalogNameFieldBuilder() : null;
+          } else {
+            catalogNameBuilder_.addAllMessages(other.catalogName_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -570,6 +692,19 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 26
+            case 34: {
+              com.google.protobuf.StringValue m =
+                  input.readMessage(
+                      com.google.protobuf.StringValue.parser(),
+                      extensionRegistry);
+              if (catalogNameBuilder_ == null) {
+                ensureCatalogNameIsMutable();
+                catalogName_.add(m);
+              } else {
+                catalogNameBuilder_.addMessage(m);
+              }
+              break;
+            } // case 34
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1003,6 +1138,336 @@ private static final long serialVersionUID = 0L;
         origin_ = null;
       }
       return originBuilder_;
+    }
+
+    private java.util.List<com.google.protobuf.StringValue> catalogName_ =
+      java.util.Collections.emptyList();
+    private void ensureCatalogNameIsMutable() {
+      if (!((bitField0_ & 0x00000008) != 0)) {
+        catalogName_ = new java.util.ArrayList<com.google.protobuf.StringValue>(catalogName_);
+        bitField0_ |= 0x00000008;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> catalogNameBuilder_;
+
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public java.util.List<com.google.protobuf.StringValue> getCatalogNameList() {
+      if (catalogNameBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(catalogName_);
+      } else {
+        return catalogNameBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public int getCatalogNameCount() {
+      if (catalogNameBuilder_ == null) {
+        return catalogName_.size();
+      } else {
+        return catalogNameBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public com.google.protobuf.StringValue getCatalogName(int index) {
+      if (catalogNameBuilder_ == null) {
+        return catalogName_.get(index);
+      } else {
+        return catalogNameBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder setCatalogName(
+        int index, com.google.protobuf.StringValue value) {
+      if (catalogNameBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureCatalogNameIsMutable();
+        catalogName_.set(index, value);
+        onChanged();
+      } else {
+        catalogNameBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder setCatalogName(
+        int index, com.google.protobuf.StringValue.Builder builderForValue) {
+      if (catalogNameBuilder_ == null) {
+        ensureCatalogNameIsMutable();
+        catalogName_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        catalogNameBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder addCatalogName(com.google.protobuf.StringValue value) {
+      if (catalogNameBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureCatalogNameIsMutable();
+        catalogName_.add(value);
+        onChanged();
+      } else {
+        catalogNameBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder addCatalogName(
+        int index, com.google.protobuf.StringValue value) {
+      if (catalogNameBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureCatalogNameIsMutable();
+        catalogName_.add(index, value);
+        onChanged();
+      } else {
+        catalogNameBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder addCatalogName(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (catalogNameBuilder_ == null) {
+        ensureCatalogNameIsMutable();
+        catalogName_.add(builderForValue.build());
+        onChanged();
+      } else {
+        catalogNameBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder addCatalogName(
+        int index, com.google.protobuf.StringValue.Builder builderForValue) {
+      if (catalogNameBuilder_ == null) {
+        ensureCatalogNameIsMutable();
+        catalogName_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        catalogNameBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder addAllCatalogName(
+        java.lang.Iterable<? extends com.google.protobuf.StringValue> values) {
+      if (catalogNameBuilder_ == null) {
+        ensureCatalogNameIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, catalogName_);
+        onChanged();
+      } else {
+        catalogNameBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder clearCatalogName() {
+      if (catalogNameBuilder_ == null) {
+        catalogName_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000008);
+        onChanged();
+      } else {
+        catalogNameBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public Builder removeCatalogName(int index) {
+      if (catalogNameBuilder_ == null) {
+        ensureCatalogNameIsMutable();
+        catalogName_.remove(index);
+        onChanged();
+      } else {
+        catalogNameBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getCatalogNameBuilder(
+        int index) {
+      return getCatalogNameFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getCatalogNameOrBuilder(
+        int index) {
+      if (catalogNameBuilder_ == null) {
+        return catalogName_.get(index);  } else {
+        return catalogNameBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+         getCatalogNameOrBuilderList() {
+      if (catalogNameBuilder_ != null) {
+        return catalogNameBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(catalogName_);
+      }
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public com.google.protobuf.StringValue.Builder addCatalogNameBuilder() {
+      return getCatalogNameFieldBuilder().addBuilder(
+          com.google.protobuf.StringValue.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public com.google.protobuf.StringValue.Builder addCatalogNameBuilder(
+        int index) {
+      return getCatalogNameFieldBuilder().addBuilder(
+          index, com.google.protobuf.StringValue.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Optional catalog name, passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified catalog
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue catalogName = 4;</code>
+     */
+    public java.util.List<com.google.protobuf.StringValue.Builder> 
+         getCatalogNameBuilderList() {
+      return getCatalogNameFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getCatalogNameFieldBuilder() {
+      if (catalogNameBuilder_ == null) {
+        catalogNameBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                catalogName_,
+                ((bitField0_ & 0x00000008) != 0),
+                getParentForChildren(),
+                isClean());
+        catalogName_ = null;
+      }
+      return catalogNameBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.spi.export;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.FileChecksumInvalidException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.model.ExportFileHandle;
 
@@ -46,12 +47,12 @@ import java.util.UUID;
  * network share, object store) so that the engine's business logic can create, publish and serve
  * files without being coupled to a particular storage. The typical lifecycle is:
  *
- * - create a new file via {@link #storeFile(String, String, String, String)} which returns an
- *   {@link io.evitadb.spi.export.model.ExportFileHandle} with an {@code OutputStream}
+ * - create a new file via {@link #storeFile(String, String, String, String, String)} which returns an
+ * {@link io.evitadb.spi.export.model.ExportFileHandle} with an {@code OutputStream}
  * - write bytes to the stream and close the handle to finalize and publish the file
  * - obtain the {@link io.evitadb.api.file.FileForFetch} descriptor and expose it to clients
- * - list or retrieve files later via {@link #listFilesToFetch(int, int, Set)} and
- *   {@link #getFile(UUID)}; contents can be read with {@link #fetchFile(UUID)}
+ * - list or retrieve files later via {@link #listFilesToFetch(int, int, Set, Set)} and
+ * {@link #getFile(UUID)}; contents can be read with {@link #fetchFile(UUID)}
  *
  * The service extends {@link java.io.Closeable}; callers should close it to release resources when
  * no longer needed.
@@ -62,23 +63,30 @@ import java.util.UUID;
 public interface ExportService extends Closeable {
 
 	/**
-	 * Returns a paginated list of files currently available for fetching.
+	 * Returns a paginated list of files currently available for fetching. Files are sorted by creation
+	 * date descending (newest first).
 	 *
 	 * The result can be filtered by file origin. Pass an empty set to return files of all origins.
 	 *
-	 * @param page	 requested page (1-based or implementation defined)
-	 * @param pageSize	 requested page size
-	 * @param origin	 set of allowed origins; empty set means no filtering
+	 * @param page     requested page (1-based or implementation defined)
+	 * @param pageSize requested page size
+	 * @param catalog  set of allowed catalogs; empty set means no filtering
+	 * @param origin   set of allowed origins; empty set means no filtering
 	 * @return paginated list of descriptors for files ready to be fetched
 	 */
 	@Nonnull
-	PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin);
+	PaginatedList<FileForFetch> listFilesToFetch(
+		int page,
+		int pageSize,
+		@Nonnull Set<String> catalog,
+		@Nonnull Set<String> origin
+	);
 
 	/**
 	 * Returns the file descriptor for the specified {@code fileId} or an empty value when it does not
 	 * exist.
 	 *
-	 * @param fileId	 unique identifier of the file
+	 * @param fileId unique identifier of the file
 	 * @return optional descriptor of the file available for fetch
 	 */
 	@Nonnull
@@ -96,12 +104,13 @@ public interface ExportService extends Closeable {
 	 * - {@code description} is optional and can be used in listings and UIs
 	 * - {@code contentType} should be a valid MIME type (e.g. {@code application/zip})
 	 * - {@code origin} can be used to group or filter files (see
-	 *   {@link #listFilesToFetch(int, int, Set)})
+	 * {@link #listFilesToFetch(int, int, Set, Set)})
 	 *
-	 * @param fileName	 preferred file name
-	 * @param description	 optional human-readable description
-	 * @param contentType	 MIME type of the content
-	 * @param origin	 optional origin tag of the file
+	 * @param fileName    preferred file name
+	 * @param description optional human-readable description
+	 * @param contentType MIME type of the content
+	 * @param catalog     optional catalog name the file relates to
+	 * @param origin      optional origin tag of the file
 	 * @return handle for writing and publishing the file
 	 */
 	@Nonnull
@@ -109,6 +118,32 @@ public interface ExportService extends Closeable {
 		@Nonnull String fileName,
 		@Nullable String description,
 		@Nonnull String contentType,
+		@Nullable String catalog,
+		@Nullable String origin
+	);
+
+	/**
+	 * Creates a new externally managed export file and returns a handle for writing its contents.
+	 *
+	 * Externally managed files are not automatically purged due to age or size constraints.
+	 * They can only be removed via explicit {@link #deleteFile(UUID)} calls. They still count
+	 * towards the maximum total file size limit, so when there are many such files, it may
+	 * trigger earlier eviction of other non-managed files.
+	 *
+	 * @param fileName    preferred file name
+	 * @param description optional human-readable description
+	 * @param contentType MIME type of the content
+	 * @param catalog     optional catalog name the file relates to
+	 * @param origin      optional origin tag of the file
+	 * @return handle for writing and publishing the file
+	 * @see #storeFile(String, String, String, String, String)
+	 */
+	@Nonnull
+	ExportFileHandle storeExternallyManagedFile(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String catalog,
 		@Nullable String origin
 	);
 
@@ -118,19 +153,20 @@ public interface ExportService extends Closeable {
 	 * The caller is responsible for closing the stream. The operation does not remove the file from
 	 * the storage.
 	 *
-	 * @param fileId	 file identifier
+	 * @param fileId file identifier
 	 * @return non-null stream to read the file contents
 	 * @throws FileForFetchNotFoundException if the file does not exist
+	 * @throws FileChecksumInvalidException if the file's checksum does not match the expected value
 	 */
 	@Nonnull
-	InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException;
+	InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, FileChecksumInvalidException;
 
 	/**
 	 * Deletes the file identified by {@code fileId}.
 	 *
-	 * @param fileId	 file identifier
+	 * @param fileId file identifier
 	 * @throws FileForFetchNotFoundException if the file is not found
-	 * @throws UnexpectedIOException	 if the underlying storage deletion fails
+	 * @throws UnexpectedIOException         if the underlying storage deletion fails
 	 */
 	void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException;
 
@@ -157,7 +193,7 @@ public interface ExportService extends Closeable {
 	 *
 	 * The operation is best-effort and may keep files needed by concurrent readers.
 	 *
-	 * @param thresholdDate	 files strictly older than this date can be removed
+	 * @param thresholdDate files strictly older than this date can be removed
 	 */
 	void purgeFiles(@Nonnull OffsetDateTime thresholdDate);
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.model.CacheRecordType;
 import io.evitadb.core.cache.payload.BinaryEntityComputationalObjectAdapter;
 import io.evitadb.core.cache.payload.EntityComputationalObjectAdapter;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
 import io.evitadb.core.query.algebra.CacheableFormula;
@@ -104,7 +104,7 @@ public class CacheAnteroom implements Closeable {
 	/**
 	 * Task that evaluates adepts for the eden.
 	 */
-	private final DelayedAsyncTask edenGateKeeper;
+	private final ScheduledTask edenGateKeeper;
 	/**
 	 * Contains a hash map that collects adepts for the caching. In other terms the expensive data structures that were
 	 * recently computed and might be worth caching. The map is cleared each time {@link #evaluateAssociates(boolean)}
@@ -135,7 +135,7 @@ public class CacheAnteroom implements Closeable {
 		this.cacheEden = cacheEden;
 		this.maxRecordCount = maxRecordCount;
 		this.minimalComplexityThreshold = minimalComplexityThreshold;
-		this.edenGateKeeper = new DelayedAsyncTask(
+		this.edenGateKeeper = new ScheduledTask(
 			null,
 			"Eden cache adepts inbound reevaluation",
 			scheduler,

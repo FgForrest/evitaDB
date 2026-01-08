@@ -29,6 +29,7 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.Timestamp;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.file.BasicFileForFetch;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.task.TaskStatus;
@@ -1684,11 +1685,15 @@ public class EvitaDataTypesConverter {
 			.setName(fileForFetch.name())
 			.setContentType(fileForFetch.contentType())
 			.setTotalSizeInBytes(fileForFetch.totalSizeInBytes())
-			.setCreated(toGrpcOffsetDateTime(fileForFetch.created()));
+			.setCreated(toGrpcOffsetDateTime(fileForFetch.created()))
+			.setCrc32(fileForFetch.crc32())
+			.setExternallyManaged(fileForFetch.externallyManaged());
 		ofNullable(fileForFetch.description())
 			.ifPresent(description -> builder.setDescription(StringValue.newBuilder().setValue(description).build()));
 		ofNullable(fileForFetch.origin())
 			.ifPresent(origin -> builder.setOrigin(StringValue.newBuilder().setValue(String.join(",", origin)).build()));
+		ofNullable(fileForFetch.catalogName())
+			.ifPresent(catalogName -> builder.setCatalogName(StringValue.newBuilder().setValue(catalogName).build()));
 		return builder.build();
 	}
 
@@ -1699,14 +1704,17 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static FileForFetch toFileForFetch(@Nonnull GrpcFile grpcFile) {
-		return new FileForFetch(
+		return new BasicFileForFetch(
 			toUuid(grpcFile.getFileId()),
 			grpcFile.getName(),
 			grpcFile.hasDescription() ? grpcFile.getDescription().getValue() : null,
 			grpcFile.getContentType(),
 			grpcFile.getTotalSizeInBytes(),
 			toOffsetDateTime(grpcFile.getCreated()),
-			grpcFile.hasOrigin() ? grpcFile.getOrigin().getValue().split(",") : null
+			grpcFile.hasOrigin() ? grpcFile.getOrigin().getValue().split(",") : null,
+			grpcFile.hasCatalogName() ? grpcFile.getCatalogName().getValue() : null,
+			grpcFile.getCrc32(),
+			grpcFile.getExternallyManaged()
 		);
 	}
 

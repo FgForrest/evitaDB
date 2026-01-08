@@ -207,10 +207,16 @@ on the client side:
         <p>Whether the client will retry the call in case of timeout or other network related problems.</p>
     </dd>
     <dt>trackedTaskLimit</dt>
-    <dd> 
+    <dd>
         <p>**Default: `100`**</p>
-        <p>The maximum number of server tasks that can be tracked by the client. If the limit is reached, 
+        <p>The maximum number of server tasks that can be tracked by the client. If the limit is reached,
          the client will stop tracking the oldest tasks.</p>
+    </dd>
+    <dt>changeCaptureQueueSize</dt>
+    <dd>
+        <p>**Default: `Flow.defaultBufferSize()`**</p>
+        <p>The maximum number of change capture events that can be buffered for each subscriber.
+        If this limit is reached, an error is reported to the subscriber.</p>
     </dd>
 </dl>
 
