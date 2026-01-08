@@ -30,6 +30,7 @@ import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -41,6 +42,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("ScheduledTask functionality tests")
+@Tag(LONG_RUNNING_TEST)
 class ScheduledTaskTest implements TestConstants {
 	private Scheduler scheduler;
 
@@ -85,7 +88,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return -1;
 				},
-				1, TimeUnit.MILLISECONDS, -1L
+				1, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -105,7 +108,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return 0;
 				},
-				1, TimeUnit.MILLISECONDS, -1L
+				1, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -126,7 +129,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return counter.updateAndGet(i -> i / 2 == 0 ? -1 : i / 2);
 				},
-				1, TimeUnit.MILLISECONDS, -1L
+				1, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -149,7 +152,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return counter.decrementAndGet() > 0 ? 180 : -1;
 				},
-				201, TimeUnit.MILLISECONDS, -1L
+				201, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -179,7 +182,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return -1;
 				},
-				51, TimeUnit.MILLISECONDS, -1L
+				51, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			for (int i = 0; i < threadCount; i++) {
@@ -229,7 +232,7 @@ class ScheduledTaskTest implements TestConstants {
 					}
 					return -1;
 				},
-				1001, TimeUnit.MILLISECONDS, -1L
+				1001, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			for (int i = 0; i < threadCount; i++) {
@@ -280,7 +283,7 @@ class ScheduledTaskTest implements TestConstants {
 					}
 					return -1; // Pause after each execution
 				},
-				1, TimeUnit.MILLISECONDS, -1L
+				1, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -306,7 +309,7 @@ class ScheduledTaskTest implements TestConstants {
 		try (
 			final ScheduledTask tested = new ScheduledTask(
 				TEST_CATALOG, "testTask", this.scheduler,
-				() -> -1, 101, TimeUnit.MILLISECONDS, -1L
+				() -> -1, 101, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.close();
@@ -323,7 +326,7 @@ class ScheduledTaskTest implements TestConstants {
 		try (
 			final ScheduledTask tested = new ScheduledTask(
 				TEST_CATALOG, "testTask", this.scheduler,
-				() -> -1, 101, TimeUnit.MILLISECONDS, -1L
+				() -> -1, 101, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.close();
@@ -344,7 +347,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return -1;
 				},
-				501, TimeUnit.MILLISECONDS, -1L // Long delay
+				501, TimeUnit.MILLISECONDS, 0L // Long delay
 			)
 		) {
 			tested.schedule();
@@ -379,7 +382,7 @@ class ScheduledTaskTest implements TestConstants {
 					}
 					return 0; // Would normally reschedule
 				},
-				1, TimeUnit.MILLISECONDS, -1L
+				1, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -413,7 +416,7 @@ class ScheduledTaskTest implements TestConstants {
 					}
 					return -1;
 				},
-				1, TimeUnit.MILLISECONDS, -1L
+				1, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -440,7 +443,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return -1;
 				},
-				Long.MAX_VALUE, TimeUnit.MILLISECONDS, -1L
+				Long.MAX_VALUE, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule(); // Should return immediately without scheduling
@@ -462,7 +465,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return -1;
 				},
-				Long.MAX_VALUE, TimeUnit.MILLISECONDS, -1L
+				Long.MAX_VALUE, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.scheduleImmediately();
@@ -476,7 +479,7 @@ class ScheduledTaskTest implements TestConstants {
 	@DisplayName("Should enforce minimalSchedulingGap between executions")
 	@Timeout(value = 5, unit = TimeUnit.SECONDS)
 	void shouldEnforceMinimalSchedulingGap() throws InterruptedException, IOException {
-		final long minGap = -200L;
+		final long minGap = 200L;
 		final List<Long> executionTimes = Collections.synchronizedList(new ArrayList<>());
 		final AtomicInteger counter = new AtomicInteger(3);
 
@@ -514,7 +517,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return executed.get() < 5 ? 0 : -1;
 				},
-				1, TimeUnit.MILLISECONDS, -1L
+				1, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -545,7 +548,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return -1;
 				},
-				10001, TimeUnit.MILLISECONDS, -1L // Very long delay
+				10001, TimeUnit.MILLISECONDS, 0L // Very long delay
 			)
 		) {
 			tested.scheduleImmediately();
@@ -584,7 +587,7 @@ class ScheduledTaskTest implements TestConstants {
 					}
 					return -1;
 				},
-				1001, TimeUnit.MILLISECONDS, -1L
+				1001, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.scheduleImmediately();
@@ -624,7 +627,7 @@ class ScheduledTaskTest implements TestConstants {
 					}
 					return -1; // Always returns negative (pause)
 				},
-				1, TimeUnit.MILLISECONDS, -1L
+				1, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			tested.schedule();
@@ -646,7 +649,7 @@ class ScheduledTaskTest implements TestConstants {
 	@Timeout(value = 5, unit = TimeUnit.SECONDS)
 	void shouldTrackLastFinishedExecution() throws InterruptedException, IOException {
 		final AtomicInteger executed = new AtomicInteger();
-		final long minGap = -100;
+		final long minGap = 100L;
 
 		try (
 			final ScheduledTask tested = new ScheduledTask(
@@ -687,7 +690,7 @@ class ScheduledTaskTest implements TestConstants {
 					executed.incrementAndGet();
 					return -1;
 				},
-				101, TimeUnit.MILLISECONDS, -1L
+				101, TimeUnit.MILLISECONDS, 0L
 			)
 		) {
 			// Call schedule() multiple times rapidly
@@ -719,7 +722,7 @@ class ScheduledTaskTest implements TestConstants {
 				TEST_CATALOG, "cronTask", this.scheduler,
 				executed::incrementAndGet,
 				cronSchedule,
-				-1L
+				0L
 			)
 		) {
 			// Note: we do NOT call schedule() - the constructor should auto-schedule
@@ -743,7 +746,7 @@ class ScheduledTaskTest implements TestConstants {
 				TEST_CATALOG, "cronTask", this.scheduler,
 				executed::countDown,
 				cronSchedule,
-				-1L
+				0L
 			)
 		) {
 			// Wait for approximately 3.5 seconds to allow multiple cron executions

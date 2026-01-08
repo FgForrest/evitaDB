@@ -56,6 +56,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -132,6 +133,19 @@ class ScheduledBackupSupportTest implements EvitaTestSupport {
 			if (index < this.capturedSchedules.size()) {
 				this.capturedSchedules.get(index).runnable().run();
 			}
+		}
+
+		/**
+		 * Overrides the submit method to execute the task synchronously and return a completed future.
+		 * This allows mocked tasks to be executed directly, making the mocks work correctly.
+		 */
+		@Nonnull
+		@Override
+		public <T> CompletableFuture<T> submit(@Nonnull ServerTask<?, T> task) {
+			// Execute the task synchronously (this will trigger the mock)
+			final T result = task.execute();
+			// Return a completed future with the result
+			return CompletableFuture.completedFuture(result);
 		}
 
 		@Override

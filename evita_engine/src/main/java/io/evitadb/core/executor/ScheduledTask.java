@@ -233,16 +233,15 @@ public class ScheduledTask implements Closeable {
 			delay >= 0,
 			"Delay must be positive or Long.MAX_VALUE for manual tasks"
 		);
+		Assert.isTrue(
+			minimalSchedulingGap >= 0,
+			"Minimal scheduling gap must be positive"
+		);
 
 		this.scheduler = scheduler;
 		this.delay = delay;
 		this.delayUnits = delayUnits;
-		if (minimalSchedulingGap < 0) {
-			// in tests we want to intentionally disable the minimal gap or work with lower values
-			this.minimalSchedulingGap = minimalSchedulingGap * -1;
-		} else {
-			this.minimalSchedulingGap = Math.max(minimalSchedulingGap, DEFAULT_MINIMAL_SCHEDULING_GAP);
-		}
+		this.minimalSchedulingGap = minimalSchedulingGap;
 		this.catalogName = catalogName;
 		this.taskName = taskName;
 		this.lambda = new AtomicReference<>(() -> runTask(runnable));
