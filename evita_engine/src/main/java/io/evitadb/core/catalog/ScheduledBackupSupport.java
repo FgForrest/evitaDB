@@ -136,6 +136,7 @@ interface ScheduledBackupSupport {
 						catalogName,
 						"full backup",
 						persistenceService::createSystemFullBackupTask,
+						scheduler,
 						exportService,
 						log,
 						retention
@@ -150,6 +151,7 @@ interface ScheduledBackupSupport {
 						catalogName,
 						"snapshot backup",
 						persistenceService::createSystemBackupTask,
+						scheduler,
 						exportService,
 						log,
 						retention
@@ -158,6 +160,7 @@ interface ScheduledBackupSupport {
 				);
 			};
 			theScheduledTasks.add(scheduledTask);
+			scheduledTask.schedule();
 		}
 		return Collections.unmodifiableList(theScheduledTasks);
 	}
@@ -177,12 +180,13 @@ interface ScheduledBackupSupport {
 		@Nonnull String catalogName,
 		@Nonnull String backupType,
 		@Nonnull Supplier<ServerTask<?, FileForFetch>> taskSupplier,
+		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService,
 		@Nonnull Logger log,
 		int retention
 	) {
 		final ServerTask<?, FileForFetch> task = taskSupplier.get();
-		final FileForFetch fileForFetch = task.execute();
+		final FileForFetch fileForFetch = scheduler.submit(task).join();
 		if (fileForFetch == null || fileForFetch.totalSizeInBytes() <= 0L) {
 			log.error(
 				"Scheduled {} of catalog {} produced invalid file.",
@@ -197,7 +201,12 @@ interface ScheduledBackupSupport {
 				StringUtils.formatByteSize(fileForFetch.totalSizeInBytes())
 			);
 
-			applyRetentionPolicy(catalogName, backupType, Objects.requireNonNull(fileForFetch.origin()), exportService, log, retention
+			applyRetentionPolicy(
+				catalogName, backupType,
+				Objects.requireNonNull(fileForFetch.origin()),
+				exportService,
+				log,
+				retention
 			);
 		}
 	}
@@ -241,7 +250,7 @@ interface ScheduledBackupSupport {
 				}
 			}
 			pageNumber++;
-		} while (existingBackups.hasNext());
+		} while (existingBackups.hasNext() && pageNumber < 100);
 
 		// delete old backups
 		for (FileForFetch fileToDelete : filesToDelete) {

@@ -230,7 +230,7 @@ public class ScheduledTask implements Closeable {
 		Assert.notNull(runnable, "Runnable must not be null");
 		Assert.notNull(delayUnits, "Delay units must not be null");
 		Assert.isTrue(
-			delay > 0,
+			delay >= 0,
 			"Delay must be positive or Long.MAX_VALUE for manual tasks"
 		);
 

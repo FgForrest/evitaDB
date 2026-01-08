@@ -214,6 +214,14 @@ public class DefaultCatalogPersistenceService
 		WAL_FILE_SUFFIX, 3
 	);
 	/**
+	 * Origin string for system SNAPSHOT backup tasks.
+	 */
+	public static final String ORIGIN_SYSTEM_BACKUP_TASK = "SystemBackupTask";
+	/**
+	 * Origin string for system full backup tasks.
+	 */
+	public static final String ORIGIN_SYSTEM_FULL_BACKUP_TASK = "SystemFullBackupTask";
+	/**
 	 * This supplier is overridden in tests to provide deterministic time. Do not use elsewhere.
 	 */
 	static LongSupplier CURRENT_TIME_MILLIS = System::currentTimeMillis;
@@ -2412,7 +2420,7 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public ServerTask<?, FileForFetch> createSystemBackupTask() {
 		return new BackupTask(
-			"SystemBackupTask",
+			ORIGIN_SYSTEM_BACKUP_TASK,
 			this.catalogName,
 			null, null, true, true,
 			this.bootstrapUsed, this.exportService, this,
@@ -2440,7 +2448,7 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public ServerTask<?, FileForFetch> createSystemFullBackupTask() {
 		return new FullBackupTask(
-			"SystemFullBackupTask",
+			ORIGIN_SYSTEM_FULL_BACKUP_TASK,
 			this.catalogName,
 			true,
 			this.exportService,
