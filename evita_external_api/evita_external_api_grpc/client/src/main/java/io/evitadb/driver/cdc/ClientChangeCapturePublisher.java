@@ -471,6 +471,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 								this.internalSubscriber.onError(
 									this.walkingDead.get()
 								);
+								this.cancel();
 							}
 							// reset the consuming flag
 							this.currentlyConsuming.set(false);
