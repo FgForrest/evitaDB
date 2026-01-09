@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -621,6 +621,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		executeWithClientContext(
 			() -> {
 				try {
+					final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
 					this.evita.registerSystemChangeCapture(
 						new ChangeSystemCaptureRequest(
 							request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
@@ -628,7 +629,13 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							toCaptureContent(request.getContent())
 						)
 					).subscribe(
-						new ChangeSystemCaptureSubscriber(responseObserver, subscriptionFuture)
+						new ChangeSystemCaptureSubscriber(
+							this.evita.getServiceExecutor(),
+							responseObserver,
+							subscriptionFuture,
+							() -> this.evita.getEngineState().version(),
+							requestTimeoutMillis
+						)
 					);
 				} catch (RuntimeException e) {
 					subscriptionFuture.completeExceptionally(e);

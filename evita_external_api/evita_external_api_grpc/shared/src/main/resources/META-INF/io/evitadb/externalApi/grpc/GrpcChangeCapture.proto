@@ -93,6 +93,20 @@ message GrpcChangeSystemCapture {
   GrpcOffsetDateTime timestamp = 5;
 }
 
+// Heartbeat message sent to the subscriber to keep the connection alive.
+message GrpcHeartBeat {
+  // the index of the heartbeat event
+  int64 index = 1;
+  // the timestamp of the heartbeat event on the server
+  GrpcOffsetDateTime timestamp = 2;
+  // the last observed version by the subscriber
+  // in case of system subscription it is engine version
+  // in case of catalog subscription it is catalog version
+  int64 lastObservedVersion = 3;
+  // milliseconds to the next heartbeat (derived from the server configuration)
+  int64 millisToNextHeartbeat = 4;
+}
+
 // The enum defines what catalog area is covered by the capture.
 enum GrpcChangeCaptureArea {
   // Changes in the schema are captured.
@@ -145,4 +159,6 @@ enum GrpcCaptureResponseType {
   ACKNOWLEDGEMENT = 0;
   // The response contains the change event that was captured.
   CHANGE = 1;
+  // The response contains the heartbeat event.
+  HEARTBEAT = 2;
 }

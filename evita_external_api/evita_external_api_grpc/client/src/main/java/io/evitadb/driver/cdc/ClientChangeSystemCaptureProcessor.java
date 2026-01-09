@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,19 +24,20 @@
 package io.evitadb.driver.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
-import io.evitadb.utils.Assert;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.grpc.stub.ClientResponseObserver;
 
 import javax.annotation.Nonnull;
-import java.util.UUID;
+import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toChangeSystemCapture;
+import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toHeartBeat;
 
 /**
  * Implementation of {@link ClientChangeCapturePublisher} for the {@link ChangeSystemCapture}.
@@ -48,30 +49,31 @@ public class ClientChangeSystemCaptureProcessor extends
 
 	public ClientChangeSystemCaptureProcessor(
 		int queueSize,
+		@Nonnull Duration streamingTimeout,
 		@Nonnull ExecutorService executorService,
 		@Nonnull Consumer<ClientResponseObserver<GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse>> streamInitializer,
 		@Nonnull Consumer<ClientChangeCapturePublisher<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse>> onCloseCallback
 	) {
-		super(queueSize, executorService, streamInitializer, onCloseCallback);
+		super(queueSize, streamingTimeout, executorService, streamInitializer, onCloseCallback);
 	}
 
 	@Nonnull
 	@Override
-	protected UUID deserializeAcknowledgementResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
-		Assert.isPremiseValid(
-			itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT,
-			"Response type must be ACKNOWLEDGEMENT for ChangeSystemCapture, but was: " + itemResponse.getResponseType()
-		);
-		return EvitaDataTypesConverter.toUuid(itemResponse.getUuid());
+	protected Optional<HeartBeat> deserializeAcknowledgementResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
+		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT || itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT) {
+			return Optional.of(toHeartBeat(itemResponse.getUuid(), itemResponse.getHeartBeat()));
+		} else {
+			return Optional.empty();
+		}
 	}
 
 	@Nonnull
 	@Override
-	protected ChangeSystemCapture deserializeCaptureResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
-		Assert.isPremiseValid(
-			itemResponse.getResponseType() == GrpcCaptureResponseType.CHANGE,
-			"Response type must be CHANGE for ChangeSystemCapture, but was: " + itemResponse.getResponseType()
-		);
-		return toChangeSystemCapture(itemResponse.getCapture());
+	protected Optional<ChangeSystemCapture> deserializeCaptureResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
+		if (itemResponse.getResponseType() == GrpcCaptureResponseType.CHANGE) {
+			return Optional.of(toChangeSystemCapture(itemResponse.getCapture()));
+		} else {
+			return Optional.empty();
+		}
 	}
 }
