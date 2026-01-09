@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,11 +23,13 @@
 
 package io.evitadb.driver.cdc;
 
-
+import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.common.TimeoutException;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher.ClientSubscription;
 import io.evitadb.driver.exception.PublisherClosedByClientException;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.IOUtils;
@@ -37,7 +39,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.UUID;
+import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,7 +59,7 @@ import java.util.function.Function;
  * This class handles the lifecycle of the subscription, including error handling and graceful
  * shutdown when the client or server closes the connection.
  *
- * @param <C> type of change capture that this subscriber handles
+ * @param <C>   type of change capture that this subscriber handles
  * @param <REQ> type of request sent to the server
  * @param <RES> type of response received from the server
  *
@@ -65,7 +68,7 @@ import java.util.function.Function;
 @Slf4j
 @RequiredArgsConstructor
 public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
-	implements Flow.Subscriber<RES>, ClientResponseObserver<REQ, RES> {
+	implements Flow.Subscriber<RES>, ClientResponseObserver<REQ, RES>, AutoCloseable {
 
 	/**
 	 * The delegate subscriber that will receive the deserialized change captures.
@@ -77,13 +80,19 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * Function that converts the raw gRPC response into an assigned UUID for acknowledging the subscription setup
 	 * on the server side.
 	 */
-	private final Function<RES, UUID> deserializeAcknowledgeResponse;
+	private final Function<RES, Optional<HeartBeat>> deserializeAcknowledgeResponse;
 
 	/**
 	 * Function that converts the raw gRPC response into a typed change capture object.
 	 * This function is provided by the publisher to handle the specific type of response.
 	 */
-	private final Function<RES, C> deserializeCaptureResponse;
+	private final Function<RES, Optional<C>> deserializeCaptureResponse;
+
+	/**
+	 * Duration to extend the response timeout for each received message.
+	 * This helps keep the streaming connection alive as long as messages are being received.
+	 */
+	private final Duration streamingTimeout;
 
 	/**
 	 * Flag indicating whether this subscriber has been closed.
@@ -104,6 +113,11 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	private ClientSubscription<C, REQ, RES> subscription;
 
 	/**
+	 * The last heartbeat received from the server, used to monitor the connection health.
+	 */
+	private HeartBeat lastHeartBeat;
+
+	/**
 	 * Called by gRPC before starting the stream to provide the observer for sending requests to the server.
 	 *
 	 * This method initializes the serverObserver field which is later used to cancel the stream when closing.
@@ -119,9 +133,11 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			"ClientChangeCaptureSubscriber can only be started once. It is already started."
 		);
 
-		// netty channel builder doesn't allow for manual flow control (it ignores calling request(n))
-		// so we fallback to auto flow control
+		// Initialize gRPC flow control by requesting the acknowledgement message.
+		// Note: Armeria/Netty may use auto flow control for subsequent messages.
 		this.serverObserver = observer;
+		// Request the acknowledgement message
+		observer.request(1);
 	}
 
 	/**
@@ -148,25 +164,35 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onNext(RES itemResponse) {
+		// extend the response timeout for the next message
+		ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.streamingTimeout);
+		// first item is always subscription acknowledge response
+		this.deserializeAcknowledgeResponse.apply(itemResponse)
+			.ifPresent(heartBeat -> {
+				if (this.lastHeartBeat != null) {
+					if (this.lastHeartBeat.index() + 1 != heartBeat.index()) {
+						log.warn(
+							"Missed heartbeat(s)! Last heartbeat index: {}, new heartbeat index: {}",
+							this.lastHeartBeat.index(),
+							heartBeat.index()
+						);
+					}
+				}
+				this.lastHeartBeat = heartBeat;
+				if (this.delegate instanceof HeartBeatSensor heartBeatSensor) {
+					try {
+						heartBeatSensor.onHeartBeat(heartBeat);
+					} catch (Exception e) {
+						log.error("Error occurred in HeartBeatSensor while processing heartbeat: {}", heartBeat, e);
+					}
+				}
+			});
 		if (this.subscription.getSubscriptionId() == null) {
-			// first item is always subscription acknowledge response
-			this.subscription.setSubscriptionId(this.deserializeAcknowledgeResponse.apply(itemResponse));
+			this.subscription.setSubscriptionId(this.lastHeartBeat.subscriptionId());
 		} else {
-			this.subscription.produce(
-				this.deserializeCaptureResponse.apply(itemResponse)
-			);
+			this.deserializeCaptureResponse.apply(itemResponse)
+				.ifPresent(it -> this.subscription.produce(it));
 		}
-	}
-
-	/**
-	 * Called by the subscription when a change capture is ready to be delivered to the delegate subscriber.
-	 *
-	 * This method forwards the deserialized change capture to the delegate subscriber.
-	 *
-	 * @param item the deserialized change capture
-	 */
-	public void onDelegateNext(@Nonnull C item) {
-		this.delegate.onNext(item);
 	}
 
 	/**
@@ -199,9 +225,10 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			}
 			// we notify the subscriber about the error
 			try {
-				this.delegate.onError(throwable);
+				this.subscription.getExecutorService().execute(() -> this.delegate.onError(rootCause));
 			} finally {
-				this.close();
+				// this handles cleanup and calling #close on this instance
+				this.subscription.cancel();
 			}
 		}
 	}
@@ -214,8 +241,25 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onComplete() {
-		this.delegate.onComplete();
-		this.subscription.cancel();
+		if (!this.closed.get()) {
+			try {
+				this.subscription.getExecutorService().execute(this.delegate::onComplete);
+			} finally {
+				// this handles cleanup and calling #close on this instance
+				this.subscription.cancel();
+			}
+		}
+	}
+
+	/**
+	 * Called by the subscription when a change capture is ready to be delivered to the delegate subscriber.
+	 *
+	 * This method forwards the deserialized change capture to the delegate subscriber.
+	 *
+	 * @param item the deserialized change capture
+	 */
+	public void onDelegateNext(@Nonnull C item) {
+		this.delegate.onNext(item);
 	}
 
 	/**
@@ -236,13 +280,18 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * It cancels the stream with a special exception that is recognized in the onError method
 	 * to distinguish between client-initiated cancellation and other errors.
 	 */
+	@Override
 	public void close() {
-		if (this.closed.compareAndSet(false, true)) {
+		// cancel the subscription if not already cancelled - this will call this close method again
+		if (this.subscription != null && !this.subscription.isCanceled()) {
+			this.subscription.cancel();
+		} else if (this.closed.compareAndSet(false, true)) {
 			// this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
 			this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
-		}
-		if (this.delegate instanceof AutoCloseable closeable) {
-			IOUtils.closeQuietly(closeable::close);
+			// if the delegate is closeable, close it quietly
+			if (this.delegate instanceof AutoCloseable closeable) {
+				IOUtils.closeQuietly(closeable::close);
+			}
 		}
 	}
 

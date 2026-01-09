@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.driver.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
-import io.evitadb.driver.exception.ChangeDataCaptureClientCannotKeepUpException;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import io.grpc.stub.ClientResponseObserver;
@@ -34,9 +34,10 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Queue;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -60,10 +61,9 @@ import java.util.function.Consumer;
  * captures at their own pace. If a subscriber cannot keep up with the rate of incoming captures (queue becomes full),
  * an error is reported to that subscriber.
  *
- * @param <C> type of change capture that this publisher publishes
+ * @param <C>   type of change capture that this publisher publishes
  * @param <REQ> type of request sent to the server
  * @param <RES> type of response received from the server
- *
  * @author Jan Novotný, FG Forrest a.s. (c) 2025
  */
 @Slf4j
@@ -75,6 +75,12 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 * If this limit is reached, an error is reported to the subscriber.
 	 */
 	private final int queueSize;
+
+	/**
+	 * Duration to extend the response timeout for each received message.
+	 * This helps keep the streaming connection alive as long as messages are being received.
+	 */
+	private final Duration streamingTimeout;
 
 	/**
 	 * Executor service used to process captures asynchronously for each subscriber.
@@ -113,11 +119,13 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 
 	public ClientChangeCapturePublisher(
 		int queueSize,
+		@Nonnull Duration streamingTimeout,
 		@Nonnull ExecutorService executorService,
 		@Nonnull Consumer<ClientResponseObserver<REQ, RES>> streamInitializer,
 		@Nonnull Consumer<ClientChangeCapturePublisher<C, REQ, RES>> onCloseCallback
 	) {
 		this.queueSize = queueSize;
+		this.streamingTimeout = streamingTimeout;
 		this.executorService = executorService;
 		this.streamInitializer = streamInitializer;
 		this.onCloseCallback = onCloseCallback;
@@ -136,10 +144,13 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 */
 	@Override
 	public void subscribe(Subscriber<? super C> subscriber) {
+		assertActive();
+
 		final ClientChangeCaptureSubscriber<C, REQ, RES> internalSubscriber = new ClientChangeCaptureSubscriber<>(
 			subscriber,
 			this::deserializeAcknowledgementResponse,
-			this::deserializeCaptureResponse
+			this::deserializeCaptureResponse,
+			this.streamingTimeout
 		);
 
 		final ClientSubscription<C, REQ, RES> subscription = new ClientSubscription<>(
@@ -156,31 +167,21 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 			}
 		);
 
-		assertActive();
 		// initialize the subscriber
 		this.streamInitializer.accept(internalSubscriber);
+		internalSubscriber.onSubscribe(subscription);
+		// register the subscription with the publisher
 		this.subscriptions.add(subscription);
 
-		internalSubscriber.onSubscribe(subscription);
 	}
 
 	/**
 	 * Checks if the publisher is currently closed.
+	 *
 	 * @return true if the publisher is closed, false otherwise
 	 */
 	public boolean isClosed() {
 		return !this.active.get();
-	}
-
-	/**
-	 * Verifies that the publisher is still active.
-	 *
-	 * @throws IllegalStateException if the publisher has been closed
-	 */
-	private void assertActive() {
-		if (!this.active.get()) {
-			throw new IllegalStateException("Publisher has been already closed.");
-		}
 	}
 
 	/**
@@ -210,7 +211,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 * @return the deserialized UUID of the subscriber
 	 */
 	@Nonnull
-	protected abstract UUID deserializeAcknowledgementResponse(RES itemResponse);
+	protected abstract Optional<HeartBeat> deserializeAcknowledgementResponse(RES itemResponse);
 
 	/**
 	 * Takes the response from the server representing a single capture and deserializes it into a specific {@link ChangeCapture}.
@@ -221,7 +222,18 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 * @return the deserialized change capture
 	 */
 	@Nonnull
-	protected abstract C deserializeCaptureResponse(RES itemResponse);
+	protected abstract Optional<C> deserializeCaptureResponse(RES itemResponse);
+
+	/**
+	 * Verifies that the publisher is still active.
+	 *
+	 * @throws IllegalStateException if the publisher has been closed
+	 */
+	private void assertActive() {
+		if (!this.active.get()) {
+			throw new IllegalStateException("Publisher has been already closed.");
+		}
+	}
 
 	/**
 	 * Represents a subscription to the publisher for a specific subscriber.
@@ -230,42 +242,34 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 * between the publisher and a subscriber. It maintains a queue of items to be delivered
 	 * to the subscriber and processes them asynchronously when requested.
 	 *
-	 * @param <C> type of change capture that this subscription handles
+	 * @param <C>   type of change capture that this subscription handles
 	 * @param <REQ> type of request sent to the server
 	 * @param <RES> type of response received from the server
 	 */
-	static class ClientSubscription<C extends ChangeCapture, REQ, RES> implements Subscription, Comparable<ClientSubscription<C, REQ, RES>> {
+	static class ClientSubscription<C extends ChangeCapture, REQ, RES>
+		implements Subscription, Comparable<ClientSubscription<C, REQ, RES>> {
 		/**
 		 * Unique identifier for this subscription.
 		 * Used for ordering and equality comparisons.
 		 */
 		private final long id;
-
-		/**
-		 * Id assigned to this subscription on the server side.
-		 */
-		@Getter @Setter private UUID subscriptionId;
-
 		/**
 		 * Executor service used to process captures asynchronously.
 		 */
+		@Getter(lombok.AccessLevel.PACKAGE)
 		private final ExecutorService executorService;
-
 		/**
 		 * The internal subscriber that bridges between gRPC and Flow APIs.
 		 */
 		private final ClientChangeCaptureSubscriber<C, REQ, RES> internalSubscriber;
-
 		/**
 		 * Counter tracking how many items the subscriber has requested but not yet received.
 		 */
 		private final AtomicLong requested = new AtomicLong(0);
-
 		/**
 		 * Queue of captures waiting to be delivered to the subscriber.
 		 */
-		private final Queue<C> items;
-
+		private final ArrayBlockingQueue<C> items;
 		/**
 		 * Flag indicating whether the subscription is currently processing items.
 		 * Prevents concurrent processing of items.
@@ -284,14 +288,20 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * Flag indicating whether the subscription has been cancelled.
 		 */
 		private final AtomicBoolean cancelled = new AtomicBoolean(false);
+		/**
+		 * Id assigned to this subscription on the server side.
+		 */
+		@Getter
+		@Setter
+		private UUID subscriptionId;
 
 		/**
 		 * Creates a new subscription for the specified subscriber.
 		 *
-		 * @param id unique identifier for this subscription
-		 * @param executorService executor service used to process captures asynchronously
+		 * @param id                 unique identifier for this subscription
+		 * @param executorService    executor service used to process captures asynchronously
 		 * @param internalSubscriber the internal subscriber that bridges between gRPC and Flow APIs
-		 * @param queueSize maximum number of captures that can be buffered for this subscription
+		 * @param queueSize          maximum number of captures that can be buffered for this subscription
 		 */
 		public ClientSubscription(
 			long id,
@@ -317,7 +327,20 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 */
 		@Override
 		public void request(long n) {
-			this.requested.addAndGet(n);
+			Assert.isPremiseValid(
+				n > 0,
+				"Number of requested items must be greater than zero."
+			);
+			// Use safe addition to handle overflow (cap at Long.MAX_VALUE per spec rule 3.17)
+			this.requested.accumulateAndGet(
+				n, (left, right) -> {
+					try {
+						return Math.addExact(left, right);
+					} catch (ArithmeticException e) {
+						return Long.MAX_VALUE;
+					}
+				}
+			);
 			consume();
 		}
 
@@ -331,70 +354,47 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		public void cancel() {
 			if (this.cancelled.compareAndSet(false, true)) {
 				log.debug("Cancelling subscription with id {}", this.id);
-				// close the internal subscriber
-				IOUtils.closeSafely(this.internalSubscriber::close);
-				// notify the publisher that this subscription is closed
-				this.onCloseCallback.accept(this);
+				final Runnable runnable = () -> {
+					// close the internal subscriber
+					IOUtils.closeSafely(this.internalSubscriber::close);
+					// notify the publisher that this subscription is closed
+					this.onCloseCallback.accept(this);
+				};
+				try {
+					this.executorService.execute(runnable);
+				} catch (Throwable ex) {
+					// if the executor service is already shut down, run the cleanup synchronously
+					runnable.run();
+				}
 			}
+		}
+
+		/**
+		 * Checks if the subscription has been cancelled.
+		 *
+		 * @return true if the subscription is cancelled, false otherwise
+		 */
+		public boolean isCanceled() {
+			return this.cancelled.get();
 		}
 
 		/**
 		 * Adds a new capture to this subscription's queue.
 		 *
-		 * If the queue is full, an error is reported to the subscriber.
-		 * After adding the item, consumption is triggered if the subscriber
-		 * has requested items.
+		 * If the queue is full, the thread is blocked, which applies backpressure to the publisher.
+		 * After adding the item, consumption is triggered if the subscriber has requested items.
 		 *
 		 * @param item the capture to add
-		 * @throws ChangeDataCaptureClientCannotKeepUpException if the queue is full
 		 */
 		public void produce(@Nonnull C item) {
-			if (this.walkingDead.get() != null || !this.items.offer(item)) {
-				this.walkingDead.compareAndSet(
-					null,
-					new ChangeDataCaptureClientCannotKeepUpException(item.version(), item.index())
-				);
-			}
-			consume();
-		}
-
-		/**
-		 * Processes buffered items if the subscriber has requested them.
-		 *
-		 * This method is executed asynchronously to avoid blocking the publisher.
-		 * It delivers items to the subscriber until either the queue is empty or
-		 * the number of requested items is exhausted.
-		 */
-		private void consume() {
-			if (this.currentlyConsuming.compareAndSet(false, true)) {
-				this.executorService.execute(
-					() -> {
-						try {
-							while (!this.items.isEmpty() && this.requested.getAndUpdate(
-								counter -> counter > 0 ? counter - 1 : 0) > 0) {
-								this.internalSubscriber.onDelegateNext(
-									Objects.requireNonNull(this.items.poll())
-								);
-							}
-						} catch (Throwable ex) {
-							// if an error occurs during consumption, we need to report it to the subscriber
-							// clear the items queue and set the walking dead exception
-							this.items.clear();
-							this.walkingDead.compareAndSet(null, ex);
-						}
-						// if there are no more items in the queue and the walking dead exception is set,
-						// we need to notify the subscriber about the error (which effectively closes the subscription)
-						if (this.items.isEmpty() && this.walkingDead.get() != null) {
-							this.internalSubscriber.onError(
-								this.walkingDead.get()
-							);
-						}
-						Assert.isPremiseValid(
-							this.currentlyConsuming.compareAndSet(true, false),
-							"The currently consuming flag should be set to true when consuming items, but it was already set to false."
-						);
-					}
-				);
+			if (this.walkingDead.get() == null) {
+				try {
+					this.items.put(item);
+					consume();
+				} catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
+					this.walkingDead.set(ex);
+				}
 			}
 		}
 
@@ -404,12 +404,24 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * This method is used to maintain order in the subscriptions collection.
 		 *
 		 * @param o the subscription to compare to
-		 * @return a negative integer, zero, or a positive integer as this subscription's ID
-		 *         is less than, equal to, or greater than the specified subscription's ID
+		 * @return a negative integer, zero, or a positive integer as this
+		 * subscription's ID
+		 * is less than, equal to, or greater than the specified subscription's
+		 * ID
 		 */
 		@Override
 		public int compareTo(ClientSubscription o) {
 			return Long.compare(this.id, o.id);
+		}
+
+		/**
+		 * Returns a hash code for this subscription based on its ID.
+		 *
+		 * @return a hash code value for this subscription
+		 */
+		@Override
+		public int hashCode() {
+			return Long.hashCode(this.id);
 		}
 
 		/**
@@ -422,19 +434,55 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 */
 		@Override
 		public final boolean equals(Object o) {
-			if (!(o instanceof final ClientSubscription<?, ?, ?> that)) return false;
+			if (!(o instanceof final ClientSubscription<?, ?, ?> that))
+				return false;
 
 			return this.id == that.id;
 		}
 
 		/**
-		 * Returns a hash code for this subscription based on its ID.
+		 * Processes buffered items if the subscriber has requested them.
 		 *
-		 * @return a hash code value for this subscription
+		 * This method is executed asynchronously to avoid blocking the publisher.
+		 * It delivers items to the subscriber until either the queue is empty or
+		 * the number of requested items is exhausted.
 		 */
-		@Override
-		public int hashCode() {
-			return Long.hashCode(this.id);
+		private void consume() {
+			if (this.walkingDead.get() == null && this.currentlyConsuming.compareAndSet(false, true)) {
+				try {
+					this.executorService.execute(
+						() -> {
+							try {
+								while (!this.items.isEmpty() && this.requested.getAndUpdate(
+									counter -> counter > 0 ? counter - 1 : 0) > 0) {
+									this.internalSubscriber.onDelegateNext(
+										Objects.requireNonNull(this.items.poll())
+									);
+								}
+							} catch (Throwable ex) {
+								// if an error occurs during consumption, we need to report it to the subscriber
+								// clear the items queue and set the walking dead exception
+								this.items.clear();
+								this.walkingDead.compareAndSet(null, ex);
+							}
+							// if there are no more items in the queue and the walking dead exception is set,
+							// we need to notify the subscriber about the error (which effectively closes the subscription)
+							if (this.items.isEmpty() && this.walkingDead.get() != null) {
+								this.internalSubscriber.onError(
+									this.walkingDead.get()
+								);
+								this.cancel();
+							}
+							// reset the consuming flag
+							this.currentlyConsuming.set(false);
+						}
+					);
+				} catch (Exception ex) {
+					// If submission fails, reset the flag
+					this.currentlyConsuming.set(false);
+					throw ex;
+				}
+			}
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -208,8 +208,14 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 
 			// If the subscriber requests new CDC events, trigger processing
 			// But only if we're not already inside the onNext method (indicated by lock being held)
-			if (!this.lock.isLocked()) {
-				consumeQueue();
+			if (this.lock.tryLock()) {
+				try {
+					consumeQueue();
+				} finally {
+					if (this.lock.isHeldByCurrentThread()) {
+						this.lock.unlock();
+					}
+				}
 			}
 		}
 	}

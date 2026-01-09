@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,9 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
+import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
@@ -126,6 +128,7 @@ import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -133,6 +136,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
@@ -267,9 +271,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private final LinkedList<Timeout> callTimeout = new LinkedList<>();
 	/**
-	 * Current timeout for the streaming services.
+	 * Duration to extend the response timeout for each received message.
+	 * This helps keep the streaming connection alive as long as messages are being received.
 	 */
-	private final Timeout streamingTimeout;
+	private final Duration streamingTimeout;
 	/**
 	 * Future that is instantiated when the session is closed. When initialized, subsequent calls of the close method
 	 * will return the same future. When the future is non-null any calls after {@link #close()} method has been called.
@@ -370,9 +375,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.callTimeout.add(timeout);
 
 		final EvitaClientConfiguration configuration = evita.getConfiguration();
-		this.streamingTimeout = new Timeout(
+		this.streamingTimeout = Duration.of(
 			configuration.streamingTimeout(),
-			configuration.streamingTimeoutUnit()
+			configuration.streamingTimeoutUnit().toChronoUnit()
 		);
 	}
 
@@ -430,6 +435,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			"Making catalog `" + this.catalogName + "` alive",
 			progressObserver
 		);
+
+		final Duration timeout = this.streamingTimeout;
+
 		executeWithStreamingEvitaSessionService(
 			evitaSessionService -> {
 				final StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> observer = new StreamObserver<>() {
@@ -448,6 +456,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 						if (progressObserver != null) {
 							progressObserver.accept(grpcResponse.getProgressInPercent());
 						}
+
+						// postpone timeout with each message received
+						ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
 					}
 
 					@Override
@@ -484,6 +495,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public CompletionStage<CommitVersions> closeNow(@Nonnull CommitBehavior commitBehaviour) {
 		if (isActive()) {
 			final CompletableFuture<CommitVersions> result = closeInternally();
+			final Duration timeout = this.streamingTimeout;
+
 			executeWithStreamingEvitaSessionService(
 				evitaSessionService -> {
 					final StreamObserver<GrpcCloseResponse> observer = new StreamObserver<>() {
@@ -498,6 +511,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 							EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
 								grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
 							);
+							// postpone timeout with each message received
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
 						}
 
 						@Override
@@ -534,6 +549,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeCatalogCaptureProcessor(
 						this.evita.getConfiguration().changeCaptureQueueSize(),
+						this.streamingTimeout,
 						this.executor,
 						subscriber -> {
 							final AsyncCallFunction<EvitaSessionServiceStub, Void> callFunction = evitaService -> {
@@ -567,6 +583,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			final CompletableFuture<CommitVersions> result = closeInternally();
 			this.commitProgress = new CommitProgressRecord();
 			this.commitProgress.on(this.commitBehaviour).thenAccept(result::complete);
+			final Duration timeout = this.streamingTimeout;
+
 			executeWithStreamingEvitaSessionService(
 				evitaSessionService -> {
 					final StreamObserver<GrpcCloseWithProgressResponse> observer = new StreamObserver<>() {
@@ -587,6 +605,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 									EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, commitVersions);
 								}
 							}
+							// postpone timeout with each message received
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
 						}
 
 						@Override
@@ -1750,7 +1770,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 
 		// Observer reference that needs to be used for closing the stream
-		final MutationsStreamObserver streamObserver = new MutationsStreamObserver();
+		final MutationsStreamObserver streamObserver = new MutationsStreamObserver(this.streamingTimeout);
 		// Call reference is needed for cancelling stream on the server side
 		final AtomicReference<ClientCall<?, ?>> callRef = new AtomicReference<>();
 
@@ -2186,9 +2206,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	) {
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
-			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(
-				this.streamingTimeout.timeout(), this.streamingTimeout.timeoutUnit())
-			);
+			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(this.streamingTimeout));
 		} catch (ExecutionException e) {
 			final Throwable theException = e.getCause() == null ? e : e.getCause();
 			throw EvitaClient.transformException(
@@ -2203,9 +2221,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			Thread.currentThread().interrupt();
 			throw new EvitaClientServerCallException("Server call interrupted.", e);
 		} catch (TimeoutException e) {
-			throw new EvitaClientTimedOutException(
-				this.streamingTimeout.timeout(), this.streamingTimeout.timeoutUnit()
-			);
+			throw new EvitaClientTimedOutException(this.streamingTimeout);
 		} finally {
 			SessionIdHolder.reset();
 		}
@@ -2616,7 +2632,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Stream observer that stores the values returned by the server into the underlying queue. The observer cancels
 	 * the transmission when closed.
 	 */
+	@RequiredArgsConstructor
 	private static class MutationsStreamObserver implements StreamObserver<GetMutationsHistoryResponse> {
+		/**
+		 * Duration to extend the response timeout for each received message.
+		 * This helps keep the streaming connection alive as long as messages are being received.
+		 */
+		private final Duration streamingTimeout;
 		/**
 		 * Queue that holds the values returned by the server.
 		 */
@@ -2637,6 +2659,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.stream()
 				.map(ChangeCaptureConverter::toChangeCatalogCapture)
 				.forEach(it -> this.queue.add(new StreamValueWrapper<>(it)));
+
+			// postpone timeout with each message received
+			ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.streamingTimeout);
 		}
 
 		@Override
