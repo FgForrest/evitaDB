@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,38 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.cdc;
+package io.evitadb.driver.cdc;
 
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import lombok.Setter;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 
-import java.util.List;
-import java.util.concurrent.Flow;
+import javax.annotation.Nonnull;
 
-public class SystemChangeSubscriber implements Flow.Subscriber<ChangeSystemCapture> {
-    @Setter
-    private List<Flow.Publisher<? extends ChangeSystemCapture>> publishers;
+/**
+ * This interface can be implemented by client subscribing to the CDC events to receive notifications about incoming
+ * HeartBeat events from the server.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+public interface HeartBeatSensor {
 
-    @Override
-    public void onSubscribe(Flow.Subscription subscription) {
-        subscription.request(1);
-        for (Flow.Publisher<? extends ChangeSystemCapture> publisher : this.publishers) {
-            publisher.subscribe(this);
-        }
-    }
+	/**
+	 * Processes an incoming HeartBeat event to maintain connection state and handle related updates.
+	 *
+	 * @param heartBeat the HeartBeat instance containing details about the server heartbeat event,
+	 *                  including subscription ID, event index, timestamp, last observed version,
+	 *                  and the time interval until the next heartbeat.
+	 */
+	void onHeartBeat(@Nonnull HeartBeat heartBeat);
 
-    @Override
-    public void onNext(ChangeSystemCapture item) {
-
-    }
-
-    @Override
-    public void onError(Throwable throwable) {
-
-    }
-
-    @Override
-    public void onComplete() {
-
-    }
 }

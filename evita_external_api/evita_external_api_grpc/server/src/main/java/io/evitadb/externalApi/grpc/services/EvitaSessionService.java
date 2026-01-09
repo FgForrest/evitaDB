@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
 import com.google.protobuf.GeneratedMessageV3;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
@@ -67,7 +68,9 @@ import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -99,6 +102,7 @@ import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.function.QuadriConsumer;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Context;
@@ -111,6 +115,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -124,9 +129,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.BaseStream;
 import java.util.stream.Stream;
@@ -208,7 +215,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Internal method used to query catalog expecting only one record returned by calling {@link EvitaSessionContract#queryOne(Query, Class)}.
+	 * Internal method used to query catalog expecting only one record returned by calling
+	 * {@link EvitaSessionContract#queryOne(Query, Class)}.
 	 *
 	 * @param session          session on which the query will be executed
 	 * @param query            query to be executed
@@ -230,36 +238,37 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 			final GrpcQueryOneResponse.Builder responseBuilder = GrpcQueryOneResponse.newBuilder();
 			session.queryOne(evitaRequest)
-			       .ifPresent(responseEntity -> {
-				       if (responseEntity instanceof final EntityReference entityReference) {
-					       responseBuilder.setEntityReference(GrpcEntityReference.newBuilder()
-					                                                             .setEntityType(
-						                                                             entityReference.getType())
-					                                                             .setPrimaryKey(
-						                                                             entityReference.getPrimaryKey())
-					                                                             .build());
-				       } else if (responseEntity instanceof final SealedEntity sealedEntity) {
-					       final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-					       responseBuilder.setSealedEntity(
-						       EntityConverter.toGrpcSealedEntity(
-							       sealedEntity,
-							       clientVersion
-						       )
-					       );
-				       } else if (responseEntity instanceof final BinaryEntity binaryEntity) {
-					       responseBuilder.setBinaryEntity(EntityConverter.toGrpcBinaryEntity(binaryEntity));
-				       } else {
-					       throw new GenericEvitaInternalError(
-						       "Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
-				       }
-			       });
+				.ifPresent(responseEntity -> {
+					if (responseEntity instanceof final EntityReference entityReference) {
+						responseBuilder.setEntityReference(
+							GrpcEntityReference
+								.newBuilder()
+								.setEntityType(entityReference.getType())
+								.setPrimaryKey(entityReference.getPrimaryKey())
+								.build());
+					} else if (responseEntity instanceof final SealedEntity sealedEntity) {
+						final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+						responseBuilder.setSealedEntity(
+							EntityConverter.toGrpcSealedEntity(
+								sealedEntity,
+								clientVersion
+							)
+						);
+					} else if (responseEntity instanceof final BinaryEntity binaryEntity) {
+						responseBuilder.setBinaryEntity(EntityConverter.toGrpcBinaryEntity(binaryEntity));
+					} else {
+						throw new GenericEvitaInternalError(
+							"Unsupported entity class `" + responseEntity.getClass().getName() + "`.");
+					}
+				});
 			responseObserver.onNext(responseBuilder.build());
 		}
 		responseObserver.onCompleted();
 	}
 
 	/**
-	 * Internal method used to query catalog expecting list of records returned by calling {@link EvitaSessionContract#queryList(Query, Class)}.
+	 * Internal method used to query catalog expecting list of records returned by
+	 * calling {@link EvitaSessionContract#queryList(Query, Class)}.
 	 *
 	 * @param session          session on which the query will be executed
 	 * @param query            query to be executed
@@ -283,28 +292,29 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final EntityFetch entityFetchRequirement = evitaRequest.getEntityRequirement();
 			if (entityFetchRequirement != null) {
 				if (session.isBinaryFormat()) {
-					responseEntities.forEach(e ->
-						                         responseBuilder.addBinaryEntities(
-							                         EntityConverter.toGrpcBinaryEntity((BinaryEntity) e))
+					responseEntities.forEach(e -> responseBuilder.addBinaryEntities(
+						EntityConverter.toGrpcBinaryEntity((BinaryEntity) e))
 					);
 				} else {
 					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-					responseEntities.forEach(entity ->
-						                         responseBuilder.addSealedEntities(
-							                         EntityConverter.toGrpcSealedEntity(
-								                         (SealedEntity) entity,
-								                         clientVersion
-							                         ))
+					responseEntities.forEach(
+						entity -> responseBuilder.addSealedEntities(
+							EntityConverter.toGrpcSealedEntity(
+								(SealedEntity) entity,
+								clientVersion
+							)
+						)
 					);
 				}
 			} else {
-				responseEntities.forEach(e ->
-					                         responseBuilder.addEntityReferences(GrpcEntityReference.newBuilder()
-					                                                                                .setEntityType(
-						                                                                                e.getType())
-					                                                                                .setPrimaryKey(
-						                                                                                ((EntityReference) e).getPrimaryKey())
-					                                                                                .build())
+				responseEntities.forEach(e -> responseBuilder
+					.addEntityReferences(
+						GrpcEntityReference
+							.newBuilder()
+							.setEntityType(e.getType())
+							.setPrimaryKey(((EntityReference) e).getPrimaryKey())
+							.build()
+					)
 				);
 			}
 
@@ -337,25 +347,27 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final EvitaResponse<EntityClassifier> evitaResponse = session.query(evitaRequest);
 			final GrpcQueryResponse.Builder entityBuilder = GrpcQueryResponse.newBuilder();
 			final DataChunk<EntityClassifier> recordPage = evitaResponse.getRecordPage();
-			final GrpcDataChunk.Builder dataChunkBuilder = GrpcDataChunk.newBuilder()
-			                                                            .setTotalRecordCount(
-				                                                            evitaResponse.getTotalRecordCount())
-			                                                            .setIsFirst(recordPage.isFirst())
-			                                                            .setIsLast(recordPage.isLast())
-			                                                            .setHasPrevious(recordPage.hasPrevious())
-			                                                            .setHasNext(recordPage.hasNext())
-			                                                            .setIsSinglePage(recordPage.isSinglePage())
-			                                                            .setIsEmpty(recordPage.isEmpty());
+			final GrpcDataChunk.Builder dataChunkBuilder = GrpcDataChunk
+				.newBuilder()
+				.setTotalRecordCount(evitaResponse.getTotalRecordCount())
+				.setIsFirst(recordPage.isFirst())
+				.setIsLast(recordPage.isLast())
+				.setHasPrevious(recordPage.hasPrevious())
+				.setHasNext(recordPage.hasNext())
+				.setIsSinglePage(recordPage.isSinglePage())
+				.setIsEmpty(recordPage.isEmpty());
 
 			if (recordPage instanceof PaginatedList<?> paginatedList) {
-				dataChunkBuilder.getPaginatedListBuilder()
-				                .setPageNumber(paginatedList.getPageNumber())
-				                .setPageSize(paginatedList.getPageSize())
-				                .setLastPageNumber(paginatedList.getLastPageNumber());
+				dataChunkBuilder
+					.getPaginatedListBuilder()
+					.setPageNumber(paginatedList.getPageNumber())
+					.setPageSize(paginatedList.getPageSize())
+					.setLastPageNumber(paginatedList.getLastPageNumber());
 			} else if (recordPage instanceof StripList<?> stripList) {
-				dataChunkBuilder.getStripListBuilder()
-				                .setOffset(stripList.getOffset())
-				                .setLimit(stripList.getLimit());
+				dataChunkBuilder
+					.getStripListBuilder()
+					.setOffset(stripList.getOffset())
+					.setLimit(stripList.getLimit());
 			}
 
 			entityBuilder.setExtraResults(
@@ -366,24 +378,28 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			if (entityRequirement != null) {
 				if (session.isBinaryFormat()) {
 					final List<GrpcBinaryEntity> binaryEntities = new ArrayList<>(recordPage.getData().size());
-					recordPage.stream().forEach(e ->
-						                            binaryEntities.add(
-							                            EntityConverter.toGrpcBinaryEntity((BinaryEntity) e))
-					);
-					entityBuilder.setRecordPage(dataChunkBuilder
-						                            .addAllBinaryEntities(binaryEntities)
-						                            .build()
+					for (EntityClassifier ec : recordPage.getData()) {
+						if (ec instanceof BinaryEntity binaryEntity) {
+							binaryEntities.add(
+								EntityConverter.toGrpcBinaryEntity(binaryEntity)
+							);
+						}
+					}
+					entityBuilder.setRecordPage(
+						dataChunkBuilder
+							.addAllBinaryEntities(binaryEntities)
+							.build()
 					);
 				} else {
 					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 					final List<GrpcSealedEntity> sealedEntities = new ArrayList<>(recordPage.getData().size());
-					recordPage.stream().forEach(e ->
-						                            sealedEntities.add(
-							                            EntityConverter.toGrpcSealedEntity(
-								                            (SealedEntity) e,
-								                            clientVersion
-							                            ))
-					);
+					for (EntityClassifier ec : recordPage.getData()) {
+						if (ec instanceof SealedEntity sealedEntity) {
+							sealedEntities.add(
+								EntityConverter.toGrpcSealedEntity(sealedEntity, clientVersion)
+							);
+						}
+					}
 					entityBuilder.setRecordPage(
 						dataChunkBuilder
 							.addAllSealedEntities(sealedEntities)
@@ -392,20 +408,18 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				}
 			} else {
 				final List<GrpcEntityReference> entityReferences = new ArrayList<>(recordPage.getData().size());
-				recordPage.stream().forEach(e ->
-					                            entityReferences.add(
-						                            GrpcEntityReference.newBuilder()
-						                                               .setEntityType(e.getType())
-						                                               .setPrimaryKey(
-							                                               ((EntityReference) e).getPrimaryKey())
-						                                               .build())
+				recordPage.stream().forEach(e -> entityReferences.add(
+					GrpcEntityReference.newBuilder()
+						.setEntityType(e.getType())
+						.setPrimaryKey(((EntityReference) e).getPrimaryKey())
+						.build())
 				);
 				entityBuilder.setRecordPage(
-					             dataChunkBuilder
-						             .addAllEntityReferences(entityReferences)
-						             .build()
-				             )
-				             .build();
+						dataChunkBuilder
+							.addAllEntityReferences(entityReferences)
+							.build()
+					)
+					.build();
 			}
 
 			responseObserver.onNext(entityBuilder.build());
@@ -414,7 +428,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Normalizes the given query and optionally appends additional labels to the query's head.
+	 * Normalizes the given query and optionally appends additional labels to the
+	 * query's head.
 	 *
 	 * @param query            The query to be normalized. Must not be null.
 	 * @param additionalLabels Optional list of labels to be added to the query's head. Can be null or empty.
@@ -463,7 +478,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param session            the internal session used for query execution; cannot be null
 	 * @param sourceQuery        the query string to be parsed and executed; cannot be null
 	 * @param trackSourceQueries a flag indicating whether source queries should be tracked
-	 * @param handler            a consumer that handles the parsed query and streams the results using the observer; cannot be null
+	 * @param handler            a consumer that handles the parsed query and streams the results using the observer
 	 */
 	private static <T extends GeneratedMessageV3> void doQuery(
 		@Nonnull StreamObserver<T> responseObserver,
@@ -473,12 +488,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		boolean trackSourceQueries,
 		@Nonnull QuadriConsumer<StreamObserver<T>, EvitaInternalSessionContract, Query, Label[]> handler
 	) {
-		final UUID sourceQueryId = trackSourceQueries ?
-			session.recordSourceQuery(
-				completeSourceQuery(sourceQuery, parsedQuery.positionalParameters(), parsedQuery.namedParameters()),
-				GrpcProvider.CODE,
-				null
-			) : null;
+		final UUID sourceQueryId = trackSourceQueries ? session.recordSourceQuery(
+			completeSourceQuery(sourceQuery, parsedQuery.positionalParameters(), parsedQuery.namedParameters()),
+			GrpcProvider.CODE,
+			null
+		) : null;
 		try {
 			handler.accept(
 				responseObserver, session, parsedQuery.parsedQuery(),
@@ -553,10 +567,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final StringBuilder sb = new StringBuilder(sourceQuery);
 			for (Entry<String, Object> entry : namedQueryParamsMap.entrySet()) {
 				sb.append(entry.getKey())
-				  .append(": ")
-				  .append(
-					  EvitaDataTypes.formatValue(entry.getValue() instanceof Serializable ser ? ser : "N/Serializable"))
-				  .append("\n");
+					.append(": ")
+					.append(
+						EvitaDataTypes.formatValue(
+							entry.getValue() instanceof Serializable ser ? ser : "N/Serializable"
+						)
+					)
+					.append("\n");
 			}
 			return sb.toString();
 		}
@@ -582,12 +599,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			GlobalExceptionHandlerInterceptor.sendErrorToClient(throwable, responseObserver);
 		} else {
 			responseObserver.onNext(
-				GrpcCloseWithProgressResponse.newBuilder()
-				                             .setCatalogVersion(result.catalogVersion())
-				                             .setCatalogSchemaVersion(result.catalogSchemaVersion())
-				                             .setFinishedPhase(EvitaEnumConverter.toGrpcCommitPhase(phase))
-				                             .build()
-			);
+				GrpcCloseWithProgressResponse
+					.newBuilder()
+					.setCatalogVersion(result.catalogVersion())
+					.setCatalogSchemaVersion(result.catalogSchemaVersion())
+					.setFinishedPhase(EvitaEnumConverter.toGrpcCommitPhase(phase))
+					.build());
 		}
 	}
 
@@ -607,10 +624,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			session -> {
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
 				responseObserver.onNext(
-					GrpcCatalogSchemaResponse.newBuilder()
-					                         .setCatalogSchema(convert(catalogSchema, request.getNameVariants()))
-					                         .build()
-				);
+					GrpcCatalogSchemaResponse
+						.newBuilder()
+						.setCatalogSchema(convert(catalogSchema, request.getNameVariants()))
+						.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -628,196 +645,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			session -> {
 				final CatalogState catalogState = session.getCatalogState();
 				responseObserver.onNext(
-					GrpcCatalogStateResponse.newBuilder()
-					                        .setState(toGrpcCatalogState(catalogState))
-					                        .build()
-				);
-				responseObserver.onCompleted();
-			},
-			this.evita.getRequestExecutor(),
-			responseObserver,
-			this.tracingContext
-		);
-	}
-
-	/**
-	 * Method returns valid catalog version and the introduction date for the given moment in time.
-	 *
-	 * @param request          request containing the moment in time
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 */
-	@Override
-	public void getCatalogVersionAt(
-		GrpcCatalogVersionAtRequest request,
-		StreamObserver<GrpcCatalogVersionAtResponse> responseObserver
-	) {
-		executeWithClientContext(
-			session -> {
-				final MaterializedVersionBlock catalogVersionAt = session.getFirstCatalogVersionAfter(
-					request.hasTheMoment() ? toOffsetDateTime(request.getTheMoment()) : null
-				);
-				responseObserver.onNext(
-					GrpcCatalogVersionAtResponse
+					GrpcCatalogStateResponse
 						.newBuilder()
-						.setStartVersion(catalogVersionAt.startVersion())
-						.setEndVersion(catalogVersionAt.endVersion())
-						.setIntroducedAt(toGrpcOffsetDateTime(catalogVersionAt.introducedAt()))
-						.build()
-				);
-				responseObserver.onCompleted();
-			},
-			this.evita.getRequestExecutor(),
-			responseObserver,
-			this.tracingContext
-		);
-	}
-
-	/**
-	 * Method returns page of historical mutations in the form of change capture events that match given criteria and
-	 * pagination settings.
-	 *
-	 * @param request          request containing the criteria and pagination settings
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 */
-	@Override
-	public void getMutationsHistoryPage(
-		GetMutationsHistoryPageRequest request,
-		StreamObserver<GetMutationsHistoryPageResponse> responseObserver
-	) {
-		executeWithClientContext(
-			session -> {
-				final GetMutationsHistoryPageResponse.Builder builder = GetMutationsHistoryPageResponse.newBuilder();
-				final int page = request.hasPage() ? request.getPage().getValue() : 1;
-				final int pageSize = request.hasPageSize() ? request.getPageSize().getValue() : 20;
-				final Long firstRequestedCatalogVersion;
-				final Long lastRequestedCatalogVersion;
-				if (request.hasTimeFrame()) {
-					final DateTimeRange requestedTimeFrame = toDateTimeRange(request.getTimeFrame());
-					firstRequestedCatalogVersion = requestedTimeFrame.getPreciseFrom() != null ?
-						session.getFirstCatalogVersionAfter(requestedTimeFrame.getPreciseFrom()).startVersion() : null;
-					lastRequestedCatalogVersion = requestedTimeFrame.getPreciseTo() != null ?
-						(firstRequestedCatalogVersion == null ?
-							session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).startVersion() :
-							Math.max(
-								firstRequestedCatalogVersion + 1,
-								session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).startVersion()
-							)
-						) :
-						null;
-				} else {
-					firstRequestedCatalogVersion = null;
-					lastRequestedCatalogVersion = null;
-				}
-				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-				try (
-					final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
-						ChangeCaptureConverter.toChangeCaptureRequest(
-							request,
-							lastRequestedCatalogVersion != null ?
-								lastRequestedCatalogVersion : session.getCatalogVersion(),
-							StreamDirection.REVERSE
-						)
-					)
-				) {
-					mutationsHistoryStream
-						.skip(
-							PaginatedList.getFirstItemNumberForPage(
-								page,
-								pageSize
-							)
-						)
-						.takeWhile(cdcEvent ->
-							firstRequestedCatalogVersion == null ||
-								cdcEvent.version() > firstRequestedCatalogVersion
-						)
-						.limit(pageSize)
-						.forEach(cdcEvent -> builder.addChangeCapture(
-							ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent, clientVersion))
-						);
-				}
-				responseObserver.onNext(builder.build());
-				responseObserver.onCompleted();
-			},
-			this.evita.getRequestExecutor(),
-			responseObserver,
-			this.tracingContext
-		);
-	}
-
-	/**
-	 * Method returns all historical mutations in the form of change capture events that match given criteria.
-	 *
-	 * @param request          request containing the criteria
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 */
-	@Override
-	public void getMutationsHistory(
-		GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver
-	) {
-		ServerCallStreamObserver<GetMutationsHistoryResponse> serverCallStreamObserver =
-			(ServerCallStreamObserver<GetMutationsHistoryResponse>) responseObserver;
-
-		final AtomicReference<Stream<ChangeCatalogCapture>> mutationsHistoryStreamRef = new AtomicReference<>();
-
-		// avoid returning error when client cancels the stream
-		serverCallStreamObserver.setOnCancelHandler(
-			() -> {
-				log.info("Client cancelled the mutation history request.");
-				ofNullable(mutationsHistoryStreamRef.get())
-					.ifPresent(BaseStream::close);
-			}
-		);
-
-		executeWithClientContext(
-			session -> {
-				final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
-					ChangeCaptureConverter.toChangeCaptureRequest(request)
-				);
-				mutationsHistoryStreamRef.set(mutationsHistoryStream);
-				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-
-				mutationsHistoryStream.forEach(
-					cdcEvent -> {
-						final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse.newBuilder();
-						final GrpcChangeCatalogCapture event = ChangeCaptureConverter.toGrpcChangeCatalogCapture(
-							cdcEvent, clientVersion
-						);
-						// we send mutations one by one, but we may want to send them in batches in the future
-						builder.addChangeCapture(event);
-						responseObserver.onNext(builder.build());
-					}
-				);
-				responseObserver.onCompleted();
-			},
-			this.evita.getRequestExecutor(),
-			responseObserver,
-			this.tracingContext
-		);
-	}
-
-	/**
-	 * Retrieves the transaction overview based on the provided request and sends the response back
-	 * through the specified response observer. This method processes catalog version descriptors and
-	 * converts them into gRPC transaction overview objects to be sent as part of the response.
-	 *
-	 * @param request the request containing the catalog version information to retrieve the transaction overview
-	 * @param responseObserver the stream observer used to send the response back to the client
-	 */
-	@Override
-	public void getTransactionOverview(
-		GetTransactionOverviewRequest request,
-		StreamObserver<GetTransactionOverviewResponse> responseObserver
-	) {
-		executeWithClientContext(
-			session -> {
-				final long[] catalogVersions = request.getCatalogVersionList().stream().mapToLong(it -> it).toArray();
-				final GetTransactionOverviewResponse.Builder builder = GetTransactionOverviewResponse.newBuilder();
-				session.getCatalogVersionDescriptors(catalogVersions)
-					.stream()
-					.map(WriteAheadLogVersionDescriptorConverter::toGrpcTransactionOverview)
-					.forEach(builder::addTransactionOverviews);
-
-				responseObserver.onNext(builder.build());
+						.setState(toGrpcCatalogState(catalogState))
+						.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -836,19 +667,17 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			session -> {
 				final Builder responseBuilder = GrpcEntitySchemaResponse.newBuilder();
 				session.getEntitySchema(request.getEntityType())
-				       .ifPresent(
-					       entitySchema -> responseBuilder.setEntitySchema(
-						       EntitySchemaConverter.convert(
-							       session.getCatalogSchema(),
-							       entitySchema,
-							       request.getNameVariants()
-						       )
-					       )
-				       );
+					.ifPresent(
+						entitySchema -> responseBuilder.setEntitySchema(
+							EntitySchemaConverter.convert(
+								session.getCatalogSchema(),
+								entitySchema,
+								request.getNameVariants()
+							)
+						)
+					);
 
-				responseObserver.onNext(
-					responseBuilder.build()
-				);
+				responseObserver.onNext(responseBuilder.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -868,10 +697,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(
 			session -> {
 				responseObserver.onNext(
-					GrpcEntityTypesResponse.newBuilder()
-					                       .addAllEntityTypes(session.getAllEntityTypes())
-					                       .build()
-				);
+					GrpcEntityTypesResponse
+						.newBuilder()
+						.addAllEntityTypes(session.getAllEntityTypes())
+						.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -898,19 +727,21 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					session.goLiveAndCloseWithProgress()
 						.onCompletion()
 						.whenComplete(
-						(commitVersions, throwable) -> {
-							if (throwable == null) {
-								final GrpcGoLiveAndCloseResponse response = GrpcGoLiveAndCloseResponse.newBuilder()
-									.setCatalogVersion(commitVersions.catalogVersion())
-									.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion())
-									.setSuccess(true)
-									.build();
-								responseObserver.onNext(response);
-							} else {
-								responseObserver.onError(throwable);
+							(commitVersions, throwable) -> {
+								if (throwable == null) {
+									final GrpcGoLiveAndCloseResponse response = GrpcGoLiveAndCloseResponse
+										.newBuilder()
+										.setCatalogVersion(commitVersions.catalogVersion())
+										.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion())
+										.setSuccess(true)
+										.build();
+									responseObserver.onNext(response);
+								} else {
+									responseObserver.onError(throwable);
+								}
+								responseObserver.onCompleted();
 							}
-							responseObserver.onCompleted();
-					});
+						);
 				}
 			},
 			this.evita.getRequestExecutor(),
@@ -928,13 +759,17 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void goLiveAndCloseWithProgress(Empty request, StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> responseObserver) {
+	public void goLiveAndCloseWithProgress(
+		Empty request,
+		StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> responseObserver
+	) {
 		executeWithClientContext(
 			session -> {
 				if (session == null) {
 					responseObserver.onError(new SessionNotFoundException("No session for going live found!"));
 					responseObserver.onCompleted();
 				} else {
+					final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 					final Progress<CommitVersions> goLiveProgress = session.goLiveAndCloseWithProgress(
 						new IntConsumer() {
 							private int percentDone;
@@ -950,6 +785,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 									responseObserver.onNext(response);
 									this.lastUpdate = System.currentTimeMillis();
 								}
+								serviceContext.setRequestTimeout(
+									TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+								);
 							}
 						}
 					);
@@ -989,18 +827,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			session -> {
 				final Task<?, FileForFetch> backupTask = session.backupCatalog(
 					request.hasPastMoment() ?
-						EvitaDataTypesConverter.toOffsetDateTime(request.getPastMoment()) :
-						null,
-					request.hasCatalogVersion() ?
-						request.getCatalogVersion().getValue() : null,
+						EvitaDataTypesConverter.toOffsetDateTime(request.getPastMoment()) : null,
+					request.hasCatalogVersion() ? request.getCatalogVersion().getValue() : null,
 					request.getIncludingWAL()
 				);
 
 				responseObserver.onNext(
-					GrpcBackupCatalogResponse.newBuilder()
-					                         .setTaskStatus(toGrpcTaskStatus(backupTask.getStatus()))
-					                         .build()
-				);
+					GrpcBackupCatalogResponse
+						.newBuilder()
+						.setTaskStatus(toGrpcTaskStatus(backupTask.getStatus()))
+						.build());
 
 				responseObserver.onCompleted();
 			},
@@ -1023,9 +859,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final Task<?, FileForFetch> backupTask = session.fullBackupCatalog();
 
 				responseObserver.onNext(
-					GrpcFullBackupCatalogResponse.newBuilder()
-					                             .setTaskStatus(toGrpcTaskStatus(backupTask.getStatus()))
-					                             .build()
+					GrpcFullBackupCatalogResponse
+						.newBuilder()
+						.setTaskStatus(toGrpcTaskStatus(backupTask.getStatus()))
+						.build()
 				);
 
 				responseObserver.onCompleted();
@@ -1054,29 +891,36 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						.whenComplete(
 							(result, throwable) -> {
 								if (throwable != null) {
-									GlobalExceptionHandlerInterceptor.sendErrorToClient(throwable, responseObserver);
+									GlobalExceptionHandlerInterceptor.sendErrorToClient(
+										throwable,
+										responseObserver
+									);
 								} else {
 									responseObserver.onNext(
 										GrpcCloseResponse.newBuilder()
-										                 .setCatalogVersion(result.catalogVersion())
-										                 .setCatalogSchemaVersion(result.catalogSchemaVersion())
-										                 .build()
-									);
+											.setCatalogVersion(result.catalogVersion())
+											.setCatalogSchemaVersion(result.catalogSchemaVersion())
+											.build());
 								}
 								responseObserver.onCompleted();
-							}
-						);
+							});
 				} else {
 					final Metadata metadata = METADATA.get();
-					final String sessionId = metadata.get(Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER));
-					if (sessionId != null && this.evita.wasSessionForcefullyClosedForCatalog(request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
+					final String sessionId = metadata.get(
+						Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER)
+					);
+					if (
+						sessionId != null &&
+							this.evita.wasSessionForcefullyClosedForCatalog(
+								request.getCatalogName(), UUIDUtil.uuid(sessionId))
+					) {
 						// sessions has been closed from the server side, due to system action and therefore
 						// the session was not found - this is ok, we don't report an error
 						responseObserver.onNext(
 							// we cannot provide more information in the response, session was closed forcefully
-							// but if we wouldn't return this response, the client would receive an error because of completion without response
-							GrpcCloseResponse.newBuilder().build()
-						);
+							// but if we wouldn't return this response, the client would receive an error
+							// because of completion without response
+							GrpcCloseResponse.newBuilder().build());
 						responseObserver.onCompleted();
 					} else {
 						// no session to close, we couldn't return the catalog version, return error
@@ -1100,44 +944,51 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void closeWithProgress(GrpcCloseWithProgressRequest request, StreamObserver<GrpcCloseWithProgressResponse> responseObserver) {
+	public void closeWithProgress(
+		GrpcCloseWithProgressRequest request,
+		StreamObserver<GrpcCloseWithProgressResponse> responseObserver
+	) {
 		executeWithClientContext(
 			session -> {
 				if (session != null) {
 					final CommitProgress commitProgress = session.closeNowWithProgress();
 					commitProgress.onConflictResolved()
-					              .whenComplete(
-						              (result, throwable) -> sendTransactionUpdate(
-							              responseObserver, result, throwable,
-							              CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
-						              )
-					              );
+						.whenComplete(
+							(result, throwable) -> sendTransactionUpdate(
+								responseObserver, result, throwable,
+								CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
+							)
+						);
 					commitProgress.onWalAppended()
-					              .whenComplete(
-						              (result, throwable) -> sendTransactionUpdate(
-							              responseObserver, result, throwable, CommitBehavior.WAIT_FOR_WAL_PERSISTENCE
-						              )
-					              );
+						.whenComplete(
+							(result, throwable) -> sendTransactionUpdate(
+								responseObserver, result, throwable,
+								CommitBehavior.WAIT_FOR_WAL_PERSISTENCE
+							)
+						);
 					commitProgress.onChangesVisible()
-					              .whenComplete(
-						              (result, throwable) -> {
-							              sendTransactionUpdate(
-								              responseObserver, result, throwable,
-								              CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
-							              );
-							              // transaction reached the final phase, we can close the stream
-							              responseObserver.onCompleted();
-						              }
-					              );
+						.whenComplete(
+							(result, throwable) -> {
+								sendTransactionUpdate(
+									responseObserver, result, throwable,
+									CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+								);
+								// transaction reached the final phase, we can close the stream
+								responseObserver.onCompleted();
+							}
+						);
 				} else {
 					final Metadata metadata = METADATA.get();
-					final String sessionId = metadata.get(Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER));
-					if (sessionId != null && this.evita.wasSessionForcefullyClosedForCatalog(request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
+					final String sessionId = metadata
+						.get(Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER));
+					if (sessionId != null && this.evita.wasSessionForcefullyClosedForCatalog(
+						request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
 						// sessions has been closed from the server side, due to system action and therefore
 						// the session was not found - this is ok, we don't report an error
 						responseObserver.onNext(
 							// we cannot provide more information in the response, session was closed forcefully
-							// but if we wouldn't return this response, the client would receive an error because of completion without response
+							// but if we wouldn't return this response, the client would receive an error
+							// because of completion without response
 							GrpcCloseWithProgressResponse.newBuilder().build()
 						);
 						responseObserver.onCompleted();
@@ -1156,9 +1007,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to query catalog expecting only one record returned by calling {@link EvitaSessionContract#queryOne(Query, Class)}.
+	 * Method used to query catalog expecting only one record returned by calling
+	 * {@link EvitaSessionContract#queryOne(Query, Class)}.
 	 *
-	 * @param request          request containing query string form with possible usage of positional or named parameters and their respective collections
+	 * @param request          request containing query string form with possible usage of positional or named
+	 *                         parameters and their respective collections
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
@@ -1172,7 +1025,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver,
 					(sourceQuery, positionalParams, namedParams, error) ->
 						trackFailedQuery(
-							session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
+							session, sourceQuery, positionalParams, namedParams, error,
+							this.trackSourceQueries
+						)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -1189,9 +1044,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to query catalog expecting list of records returned by calling {@link EvitaSessionContract#queryList(Query, Class)}.
+	 * Method used to query catalog expecting list of records returned by calling
+	 * {@link EvitaSessionContract#queryList(Query, Class)}.
 	 *
-	 * @param request          request containing query string form with possible usage of positional or named parameters and their respective collections
+	 * @param request          request containing query string form with possible usage of positional or named
+	 *                         parameters and their respective collections
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
@@ -1205,7 +1062,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver,
 					(sourceQuery, positionalParams, namedParams, error) ->
 						trackFailedQuery(
-							session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
+							session, sourceQuery, positionalParams, namedParams, error,
+							this.trackSourceQueries
+						)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -1224,7 +1083,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	/**
 	 * Method used to query catalog calling {@link EvitaSessionContract#query(Query, Class)}.
 	 *
-	 * @param request          request containing query string form with possible usage of positional or named parameters and their respective collections
+	 * @param request          request containing query string form with possible usage of positional or named
+	 *                         parameters and their respective collections
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
@@ -1238,7 +1098,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver,
 					(sourceQuery, positionalParams, namedParams, error) ->
 						trackFailedQuery(
-							session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
+							session, sourceQuery, positionalParams, namedParams, error,
+							this.trackSourceQueries
+						)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -1273,7 +1135,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver,
 					(sourceQuery, positionalParams, namedParams, error) ->
 						trackFailedQuery(
-							session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
+							session, sourceQuery, positionalParams, namedParams, error,
+							this.trackSourceQueries
+						)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -1309,7 +1173,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver,
 					(sourceQuery, positionalParams, namedParams, error) ->
 						trackFailedQuery(
-							session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
+							session, sourceQuery, positionalParams, namedParams, error,
+							this.trackSourceQueries
+						)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -1344,17 +1210,18 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver,
 					(sourceQuery, positionalParams, namedParams, error) ->
 						trackFailedQuery(
-							session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
+							session, sourceQuery, positionalParams, namedParams, error,
+							this.trackSourceQueries
+						)
 				)
 			).ifPresent(
-				theQuery ->
-					doQuery(
-						responseObserver, session,
-						request.getQuery(),
-						theQuery,
-						this.trackSourceQueries,
-						EvitaSessionService::queryInternal
-					)
+				theQuery -> doQuery(
+					responseObserver, session,
+					request.getQuery(),
+					theQuery,
+					this.trackSourceQueries,
+					EvitaSessionService::queryInternal
+				)
 			),
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -1363,10 +1230,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to get entity by calling {@link EvitaSessionContract#getEntity(String, int, EntityContentRequire...)}.
+	 * Method used to get entity by calling
+	 * {@link EvitaSessionContract#getEntity(String, int, EntityContentRequire...)}.
 	 *
-	 * @param request          request containing entity type, primary key and string form of {@link EntityContentRequire} constraints
-	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @param request          request containing entity type, primary key and
+	 *                         string form of {@link EntityContentRequire}
+	 *                         constraints
+	 * @param responseObserver observer on which errors might be thrown and result
+	 *                         returned
 	 */
 	@Override
 	public void getEntity(GrpcEntityRequest request, StreamObserver<GrpcEntityResponse> responseObserver) {
@@ -1383,13 +1254,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseObserver
 					);
 				final Scope[] scopes = request.getScopesList()
-				                              .stream()
-				                              .map(EvitaEnumConverter::toScope)
-				                              .toArray(Scope[]::new);
+					.stream()
+					.map(EvitaEnumConverter::toScope)
+					.toArray(Scope[]::new);
 
 				entity = scopes.length == 0 ?
 					session.getEntity(request.getEntityType(), request.getPrimaryKey(), entityContentRequires) :
-					session.getEntity(request.getEntityType(), request.getPrimaryKey(), scopes, entityContentRequires);
+					session.getEntity(
+						request.getEntityType(), request.getPrimaryKey(), scopes,
+						entityContentRequires
+					);
 
 				final GrpcEntityResponse.Builder evitaEntityResponseBuilder = GrpcEntityResponse.newBuilder();
 				entity.ifPresent(it -> {
@@ -1405,22 +1279,32 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 	}
 
+	/**
+	 * Updates the catalog schema based on the provided schema mutations.
+	 * This method processes a gRPC update catalog schema request, converting the specified schema mutations,
+	 * applying the mutations to the catalog schema, and responding with the updated schema version.
+	 *
+	 * @param request          The gRPC request containing the schema mutations to be applied to the catalog schema.
+	 * @param responseObserver The stream observer used to send the response back to the client with the result
+	 *                         of the catalog schema update, including the new schema version.
+	 */
 	@Override
 	public void updateCatalogSchema(
 		GrpcUpdateCatalogSchemaRequest request, StreamObserver<GrpcUpdateCatalogSchemaResponse> responseObserver) {
 		executeWithClientContext(
 			session -> {
-				final LocalCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
-				                                                            .stream()
-				                                                            .map(
-					                                                            DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
-				                                                            .toArray(LocalCatalogSchemaMutation[]::new);
-				final int newSchemaVersion = session.updateCatalogSchema(schemaMutations);
+				final LocalCatalogSchemaMutation[] schemaMutations = request
+					.getSchemaMutationsList()
+					.stream()
+					.map(DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
+					.toArray(LocalCatalogSchemaMutation[]::new);
 
-				final GrpcUpdateCatalogSchemaResponse response = GrpcUpdateCatalogSchemaResponse.newBuilder()
-				                                                                                .setVersion(
-					                                                                                newSchemaVersion)
-				                                                                                .build();
+				final int newSchemaVersion = session.updateCatalogSchema(schemaMutations);
+				final GrpcUpdateCatalogSchemaResponse response = GrpcUpdateCatalogSchemaResponse
+					.newBuilder()
+					.setVersion(newSchemaVersion)
+					.build();
+
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
@@ -1430,6 +1314,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 	}
 
+	/**
+	 * Updates and retrieves the catalog schema by applying a list of schema mutations.
+	 *
+	 * @param request          the request containing a list of schema mutations to be applied.
+	 * @param responseObserver the response observer to send the updated catalog schema.
+	 */
 	@Override
 	public void updateAndFetchCatalogSchema(
 		GrpcUpdateCatalogSchemaRequest request,
@@ -1437,20 +1327,18 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		executeWithClientContext(
 			session -> {
-				final LocalCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
-				                                                            .stream()
-				                                                            .map(
-					                                                            DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
-				                                                            .toArray(LocalCatalogSchemaMutation[]::new);
-				final SealedCatalogSchema newCatalogSchema = session.updateAndFetchCatalogSchema(schemaMutations);
+				final LocalCatalogSchemaMutation[] schemaMutations = request
+					.getSchemaMutationsList()
+					.stream()
+					.map(DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
+					.toArray(LocalCatalogSchemaMutation[]::new);
 
-				final GrpcUpdateAndFetchCatalogSchemaResponse response = GrpcUpdateAndFetchCatalogSchemaResponse.newBuilder()
-				                                                                                                .setCatalogSchema(
-					                                                                                                convert(
-						                                                                                                newCatalogSchema,
-						                                                                                                false
-					                                                                                                ))
-				                                                                                                .build();
+				final SealedCatalogSchema newCatalogSchema = session.updateAndFetchCatalogSchema(schemaMutations);
+				final GrpcUpdateAndFetchCatalogSchemaResponse response = GrpcUpdateAndFetchCatalogSchemaResponse
+					.newBuilder()
+					.setCatalogSchema(convert(newCatalogSchema, false))
+					.build();
+
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
@@ -1460,6 +1348,15 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 	}
 
+	/**
+	 * Defines an entity schema for the given entity type based on the provided request
+	 * and sends the response to the caller through the response observer.
+	 *
+	 * @param request          The gRPC request containing the details for defining the entity schema,
+	 *                         including the target entity type and other related information.
+	 * @param responseObserver A stream observer for sending the gRPC response back to the caller
+	 *                         with the result of the entity schema definition or any error information.
+	 */
 	@Override
 	public void defineEntitySchema(
 		GrpcDefineEntitySchemaRequest request, StreamObserver<GrpcDefineEntitySchemaResponse> responseObserver) {
@@ -1467,15 +1364,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			session -> {
 				final EntitySchemaBuilder entitySchemaBuilder = session.defineEntitySchema(request.getEntityType());
 
-				final GrpcDefineEntitySchemaResponse response = GrpcDefineEntitySchemaResponse.newBuilder()
-				                                                                              .setEntitySchema(
-					                                                                              EntitySchemaConverter.convert(
-						                                                                              session.getCatalogSchema(),
-						                                                                              entitySchemaBuilder.toInstance(),
-						                                                                              false
-					                                                                              )
-				                                                                              )
-				                                                                              .build();
+				final GrpcDefineEntitySchemaResponse response = GrpcDefineEntitySchemaResponse
+					.newBuilder()
+					.setEntitySchema(
+						EntitySchemaConverter.convert(
+							session.getCatalogSchema(),
+							entitySchemaBuilder.toInstance(),
+							false
+						)
+					)
+					.build();
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
@@ -1485,19 +1383,30 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 	}
 
+	/**
+	 * Updates the entity schema based on the given request and streams back the response.
+	 * This method processes the schema mutation provided in the request, updates the entity
+	 * schema in the session, and sends the new schema version in the response.
+	 *
+	 * @param request          The gRPC request containing the schema mutation to be applied.
+	 * @param responseObserver The stream observer used to send the gRPC response containing
+	 *                         the updated schema version and to signal the completion of
+	 *                         the request processing.
+	 */
 	@Override
 	public void updateEntitySchema(
 		GrpcUpdateEntitySchemaRequest request, StreamObserver<GrpcUpdateEntitySchemaResponse> responseObserver) {
 		executeWithClientContext(
 			session -> {
-				final ModifyEntitySchemaMutation schemaMutation = ModifyEntitySchemaMutationConverter.INSTANCE.convert(
-					request.getSchemaMutation());
-				final int newSchemaVersion = session.updateEntitySchema(schemaMutation);
+				final ModifyEntitySchemaMutation schemaMutation = ModifyEntitySchemaMutationConverter.INSTANCE
+					.convert(request.getSchemaMutation());
 
-				final GrpcUpdateEntitySchemaResponse response = GrpcUpdateEntitySchemaResponse.newBuilder()
-				                                                                              .setVersion(
-					                                                                              newSchemaVersion)
-				                                                                              .build();
+				final int newSchemaVersion = session.updateEntitySchema(schemaMutation);
+				final GrpcUpdateEntitySchemaResponse response = GrpcUpdateEntitySchemaResponse
+					.newBuilder()
+					.setVersion(newSchemaVersion)
+					.build();
+
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
@@ -1507,6 +1416,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 	}
 
+	/**
+	 * Updates an entity schema based on the provided mutation and fetches the updated schema.
+	 * This method integrates with a gRPC service and uses the provided request to apply schema updates,
+	 * returning the updated schema as part of the response.
+	 *
+	 * @param request The gRPC request containing the schema mutation which specifies the updates to be applied
+	 *                to the entity schema.
+	 */
 	@Override
 	public void updateAndFetchEntitySchema(
 		GrpcUpdateEntitySchemaRequest request,
@@ -1514,18 +1431,21 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		executeWithClientContext(
 			session -> {
-				final ModifyEntitySchemaMutation schemaMutation = ModifyEntitySchemaMutationConverter.INSTANCE.convert(
-					request.getSchemaMutation());
+				final ModifyEntitySchemaMutation schemaMutation =
+					ModifyEntitySchemaMutationConverter.INSTANCE.convert(request.getSchemaMutation());
 				final SealedEntitySchema newEntitySchema = session.updateAndFetchEntitySchema(schemaMutation);
 
-				final GrpcUpdateAndFetchEntitySchemaResponse response = GrpcUpdateAndFetchEntitySchemaResponse.newBuilder()
-				                                                                                              .setEntitySchema(
-					                                                                                              EntitySchemaConverter.convert(
-						                                                                                              session.getCatalogSchema(),
-						                                                                                              newEntitySchema,
-						                                                                                              false
-					                                                                                              ))
-				                                                                                              .build();
+				final GrpcUpdateAndFetchEntitySchemaResponse response = GrpcUpdateAndFetchEntitySchemaResponse
+					.newBuilder()
+					.setEntitySchema(
+						EntitySchemaConverter.convert(
+							session.getCatalogSchema(),
+							newEntitySchema,
+							false
+						)
+					)
+					.build();
+
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
@@ -1547,9 +1467,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(
 			session -> {
 				responseObserver.onNext(
-					GrpcDeleteCollectionResponse.newBuilder()
-					                            .setDeleted(session.deleteCollection(request.getEntityType()))
-					                            .build()
+					GrpcDeleteCollectionResponse
+						.newBuilder()
+						.setDeleted(session.deleteCollection(request.getEntityType()))
+						.build()
 				);
 				responseObserver.onCompleted();
 			},
@@ -1573,9 +1494,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			session -> {
 				final boolean renamed = session.renameCollection(request.getEntityType(), request.getNewName());
 
-				final GrpcRenameCollectionResponse response = GrpcRenameCollectionResponse.newBuilder()
-				                                                                          .setRenamed(renamed)
-				                                                                          .build();
+				final GrpcRenameCollectionResponse response = GrpcRenameCollectionResponse
+					.newBuilder()
+					.setRenamed(renamed)
+					.build();
+
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
@@ -1600,9 +1523,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final boolean replaced = session.replaceCollection(
 					request.getEntityTypeToBeReplaced(), request.getEntityTypeToBeReplacedWith());
 
-				final GrpcReplaceCollectionResponse response = GrpcReplaceCollectionResponse.newBuilder()
-				                                                                            .setReplaced(replaced)
-				                                                                            .build();
+				final GrpcReplaceCollectionResponse response = GrpcReplaceCollectionResponse
+					.newBuilder()
+					.setReplaced(replaced)
+					.build();
+
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
@@ -1620,13 +1545,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@Override
 	public void getEntityCollectionSize(
-		GrpcEntityCollectionSizeRequest request, StreamObserver<GrpcEntityCollectionSizeResponse> responseObserver) {
+		GrpcEntityCollectionSizeRequest request,
+		StreamObserver<GrpcEntityCollectionSizeResponse> responseObserver
+	) {
 		executeWithClientContext(
 			session -> {
 				responseObserver.onNext(
-					GrpcEntityCollectionSizeResponse.newBuilder()
-					                                .setSize(session.getEntityCollectionSize(request.getEntityType()))
-					                                .build()
+					GrpcEntityCollectionSizeResponse
+						.newBuilder()
+						.setSize(session.getEntityCollectionSize(request.getEntityType()))
+						.build()
 				);
 				responseObserver.onCompleted();
 			},
@@ -1637,7 +1565,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to upsert or removing entities by internally calling {@link EvitaSessionContract#upsertEntity(EntityMutation)} with passing a custom collection of mutations processed by {@link DelegatingLocalMutationConverter}.
+	 * Method used to upsert or removing entities by internally calling
+	 * {@link EvitaSessionContract#upsertEntity(EntityMutation)} with passing a custom collection of mutations processed
+	 * by {@link DelegatingLocalMutationConverter}.
 	 *
 	 * @param request          request containing mutation to be performed
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -1683,8 +1613,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 										.setReassignedInternalPrimaryKey(reassigned.internalPrimaryKey())
 										.build();
 								}
-							)
-							.forEach(mappingBuilder::addReassignedReferenceKeys);
+							).forEach(mappingBuilder::addReassignedReferenceKeys);
 						builder.setEntityReferenceWithAssignedPrimaryKeys(
 							mappingBuilder.build()
 						);
@@ -1800,18 +1729,18 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				final GrpcDeleteEntityAndItsHierarchyResponse.Builder response = GrpcDeleteEntityAndItsHierarchyResponse
 					.newBuilder()
-					.addAllDeletedEntityPrimaryKeys(Arrays.stream(deletedHierarchy.deletedEntityPrimaryKeys())
-					                                      .boxed()
-					                                      .toList())
+					.addAllDeletedEntityPrimaryKeys(
+						Arrays.stream(deletedHierarchy.deletedEntityPrimaryKeys())
+							.boxed()
+							.toList()
+					)
 					.setDeletedEntities(deletedHierarchy.deletedEntities());
 				ofNullable(deletedHierarchy.deletedRootEntity())
 					.ifPresent(it -> {
 						final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 						response.setDeletedRootEntity(EntityConverter.toGrpcSealedEntity(it, clientVersion));
 					});
-				responseObserver.onNext(
-					response.build()
-				);
+				responseObserver.onNext(response.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -1838,7 +1767,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver,
 					(sourceQuery, positionalParams, namedParams, error) ->
 						trackFailedQuery(
-							session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
+							session, sourceQuery, positionalParams, namedParams, error,
+							this.trackSourceQueries
+						)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -1846,17 +1777,26 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.getQuery(),
 					theQuery,
 					this.trackSourceQueries,
-					(grpcDeleteEntitiesResponseStreamObserver, evitaInternalSessionContract, query, label) -> {
+					(
+						grpcDeleteEntitiesResponseStreamObserver,
+						evitaInternalSessionContract,
+						query,
+						label
+					) -> {
 						if (query != null) {
 							final int deletedEntities;
 							final SealedEntity[] deletedEntityBodies;
 							if (query.getRequire() == null ||
-								FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance)
-								             .isEmpty()) {
+								FinderVisitor.findConstraints(
+										query.getRequire(),
+										EntityFetch.class::isInstance
+									)
+									.isEmpty()) {
 								deletedEntities = session.deleteEntities(query);
 								deletedEntityBodies = null;
 							} else {
-								deletedEntityBodies = session.deleteSealedEntitiesAndReturnBodies(query);
+								deletedEntityBodies = session
+									.deleteSealedEntitiesAndReturnBodies(query);
 								deletedEntities = deletedEntityBodies.length;
 							}
 
@@ -1866,16 +1806,18 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 							ofNullable(deletedEntityBodies)
 								.ifPresent(
 									it -> {
-										final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(
-											null);
+										final SemVer clientVersion = ServerSessionInterceptor
+											.getClientVersion().orElse(null);
 										Arrays.stream(it)
-										      .map(entity -> EntityConverter.toGrpcSealedEntity(entity, clientVersion))
-										      .forEach(response::addDeletedEntityBodies);
+											.map(entity -> EntityConverter
+												.toGrpcSealedEntity(
+													entity,
+													clientVersion
+												)
+											).forEach(response::addDeletedEntityBodies);
 									}
 								);
-							responseObserver.onNext(
-								response.build()
-							);
+							responseObserver.onNext(response.build());
 						}
 						responseObserver.onCompleted();
 					}
@@ -1888,7 +1830,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to archive single entity by primary key by calling {@link EvitaSessionContract#archiveEntity(String, int)}.
+	 * Method used to archive single entity by primary key by calling
+	 * {@link EvitaSessionContract#archiveEntity(String, int)}.
 	 *
 	 * @param request          request containing entity type and primary key of archived entity
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -1927,16 +1870,15 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 							.newBuilder()
 							.setEntityType(entityType)
 							.setPrimaryKey(primaryKey)
-							.build()
-					);
+							.build());
 				}
-				entity.ifPresent(it -> {
-					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-					response.setEntity(EntityConverter.toGrpcSealedEntity(it, clientVersion));
-				});
-				responseObserver.onNext(
-					response.build()
+				entity.ifPresent(
+					it -> {
+						final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+						response.setEntity(EntityConverter.toGrpcSealedEntity(it, clientVersion));
+					}
 				);
+				responseObserver.onNext(response.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -1985,16 +1927,44 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 							.newBuilder()
 							.setEntityType(entityType)
 							.setPrimaryKey(primaryKey)
-							.build()
-					);
+							.build());
 				}
-				entity.ifPresent(it -> {
-					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-					response.setEntity(EntityConverter.toGrpcSealedEntity(it, clientVersion));
-				});
-				responseObserver.onNext(
-					response.build()
+				entity.ifPresent(
+					it -> {
+						final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+						response.setEntity(EntityConverter.toGrpcSealedEntity(it, clientVersion));
+					}
 				);
+				responseObserver.onNext(response.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Applies the specified mutation to an entity in the system using the provided
+	 * gRPC request.
+	 * Converts the {@code GrpcEntityMutation} request to an internal format and
+	 * applies it within
+	 * the session context. After successful application, the method sends an
+	 * acknowledgment using
+	 * the {@code responseObserver}.
+	 *
+	 * @param request          The gRPC request containing the details of the entity
+	 *                         mutation to be applied.
+	 * @param responseObserver The stream observer to send responses back to the
+	 *                         client, which indicates
+	 *                         the success or failure of the mutation operation.
+	 */
+	@Override
+	public void applyMutation(GrpcEntityMutation request, StreamObserver<Empty> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				session.applyMutation(DelegatingEntityMutationConverter.INSTANCE.convert(request));
+				responseObserver.onNext(Empty.newBuilder().build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -2016,8 +1986,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final GrpcTransactionResponse.Builder builder = GrpcTransactionResponse
 					.newBuilder();
 				session.getOpenedTransactionId()
-				       .ifPresent(txId -> builder.setTransactionId(toGrpcUuid(txId))
-				);
+					.ifPresent(txId -> builder.setTransactionId(toGrpcUuid(txId)));
 				responseObserver.onNext(
 					builder
 						.setCatalogVersion(session.getCatalogVersion())
@@ -2032,9 +2001,209 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
+	 * Applies the specified mutation to an entity in the system using the provided gRPC request.
+	 * Converts the {@code GrpcEntityMutation} request to an internal format and applies it within
+	 * the session context. After successful application, the method sends an acknowledgment using
+	 * the {@code responseObserver}.
+	 *
+	 * @param request          request containing the moment in time
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void getCatalogVersionAt(
+		GrpcCatalogVersionAtRequest request,
+		StreamObserver<GrpcCatalogVersionAtResponse> responseObserver
+	) {
+		executeWithClientContext(
+			session -> {
+				final MaterializedVersionBlock catalogVersionAt = session.getFirstCatalogVersionAfter(
+					request.hasTheMoment() ?
+						toOffsetDateTime(request.getTheMoment()) : null
+				);
+				responseObserver.onNext(
+					GrpcCatalogVersionAtResponse
+						.newBuilder()
+						.setStartVersion(catalogVersionAt.startVersion())
+						.setEndVersion(catalogVersionAt.endVersion())
+						.setIntroducedAt(toGrpcOffsetDateTime(catalogVersionAt.introducedAt()))
+						.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Method returns page of historical mutations in the form of change capture events that match given criteria and
+	 * pagination settings.
+	 *
+	 * @param request          request containing the criteria and pagination settings
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void getMutationsHistoryPage(
+		GetMutationsHistoryPageRequest request,
+		StreamObserver<GetMutationsHistoryPageResponse> responseObserver
+	) {
+		executeWithClientContext(
+			session -> {
+				final GetMutationsHistoryPageResponse.Builder builder = GetMutationsHistoryPageResponse
+					.newBuilder();
+				final int page = request.hasPage() ? request.getPage().getValue() : 1;
+				final int pageSize = request.hasPageSize() ? request.getPageSize().getValue() : 20;
+				final Long firstRequestedCatalogVersion;
+				final Long lastRequestedCatalogVersion;
+				if (request.hasTimeFrame()) {
+					final DateTimeRange requestedTimeFrame = toDateTimeRange(request.getTimeFrame());
+					firstRequestedCatalogVersion = requestedTimeFrame.getPreciseFrom() != null ?
+						session.getFirstCatalogVersionAfter(requestedTimeFrame.getPreciseFrom()).startVersion() : null;
+					lastRequestedCatalogVersion = requestedTimeFrame.getPreciseTo() != null ?
+						(firstRequestedCatalogVersion == null ?
+							session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).startVersion() :
+							Math.max(
+								firstRequestedCatalogVersion + 1,
+								session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).startVersion()
+							)
+						) : null;
+				} else {
+					firstRequestedCatalogVersion = null;
+					lastRequestedCatalogVersion = null;
+				}
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+				try (
+					final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
+						ChangeCaptureConverter.toChangeCaptureRequest(
+							request,
+							lastRequestedCatalogVersion != null ?
+								lastRequestedCatalogVersion : session.getCatalogVersion(),
+							StreamDirection.REVERSE
+						))) {
+					mutationsHistoryStream
+						.skip(
+							PaginatedList.getFirstItemNumberForPage(
+								page,
+								pageSize
+							)
+						)
+						.takeWhile(
+							cdcEvent -> firstRequestedCatalogVersion == null ||
+								cdcEvent.version() > firstRequestedCatalogVersion
+						)
+						.limit(pageSize)
+						.forEach(
+							cdcEvent -> builder.addChangeCapture(
+								ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent, clientVersion)
+							)
+						);
+				}
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Method returns all historical mutations in the form of change capture events
+	 * that match given criteria.
+	 *
+	 * @param request          request containing the criteria
+	 * @param responseObserver observer on which errors might be thrown and result
+	 *                         returned
+	 */
+	@Override
+	public void getMutationsHistory(
+		GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver
+	) {
+		ServerCallStreamObserver<GetMutationsHistoryResponse> serverCallStreamObserver =
+			(ServerCallStreamObserver<GetMutationsHistoryResponse>) responseObserver;
+
+		final AtomicReference<Stream<ChangeCatalogCapture>> mutationsHistoryStreamRef = new AtomicReference<>();
+
+		// avoid returning error when client cancels the stream
+		serverCallStreamObserver.setOnCancelHandler(
+			() -> {
+				log.info("Client cancelled the mutation history request.");
+				ofNullable(mutationsHistoryStreamRef.get())
+					.ifPresent(BaseStream::close);
+			}
+		);
+
+		executeWithClientContext(
+			session -> {
+				final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
+					ChangeCaptureConverter.toChangeCaptureRequest(request)
+				);
+				mutationsHistoryStreamRef.set(mutationsHistoryStream);
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+
+				final ServiceRequestContext serviceContext = ServiceRequestContext.current();
+				mutationsHistoryStream.forEach(
+					cdcEvent -> {
+						final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse
+							.newBuilder();
+						final GrpcChangeCatalogCapture event = ChangeCaptureConverter
+							.toGrpcChangeCatalogCapture(cdcEvent, clientVersion);
+						// we send mutations one by one, but we may want to send them in batches in the future
+						builder.addChangeCapture(event);
+						responseObserver.onNext(builder.build());
+						serviceContext.setRequestTimeout(
+							TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+						);
+					}
+				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Retrieves the transaction overview based on the provided request and sends the response back
+	 * through the specified response observer. This method processes catalog version descriptors and
+	 * converts them into gRPC transaction overview objects to be sent as part of the response.
+	 *
+	 * @param request          the request containing the catalog version information to retrieve the transaction
+	 *                         overview
+	 * @param responseObserver the stream observer used to send the response back to the client
+	 */
+	@Override
+	public void getTransactionOverview(
+		GetTransactionOverviewRequest request,
+		StreamObserver<GetTransactionOverviewResponse> responseObserver
+	) {
+		executeWithClientContext(
+			session -> {
+				final long[] catalogVersions = request
+					.getCatalogVersionList()
+					.stream()
+					.mapToLong(it -> it)
+					.toArray();
+				final GetTransactionOverviewResponse.Builder builder = GetTransactionOverviewResponse.newBuilder();
+				session.getCatalogVersionDescriptors(catalogVersions)
+					.stream()
+					.map(WriteAheadLogVersionDescriptorConverter::toGrpcTransactionOverview)
+					.forEach(builder::addTransactionOverviews);
+
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
 	 * Registers a change catalog capture based on the provided request.
 	 *
-	 * @param request The gRPC request containing the details for the change catalog capture to be registered.
+	 * @param request          The gRPC request containing the details for the change catalog capture to be registered.
 	 * @param responseObserver The stream observer used to send the response of the operation.
 	 */
 	@Override
@@ -2043,7 +2212,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver
 	) {
 		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
-		((ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>)responseObserver).setOnCancelHandler(
+		((ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver).setOnCancelHandler(
 			() -> {
 				try {
 					subscriptionFuture.get().cancel();
@@ -2056,10 +2225,18 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(
 			session -> {
 				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+				final String catalogName = session.getCatalogName();
 				session.registerChangeCatalogCapture(
 					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
 				).subscribe(
-					new ChangeCatalogCaptureSubscriber(responseObserver, subscriptionFuture, clientVersion)
+					new ChangeCatalogCaptureSubscriber(
+						this.evita.getServiceExecutor(),
+						catalogName,
+						responseObserver,
+						subscriptionFuture,
+						clientVersion,
+						() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion()
+					)
 				);
 			},
 			this.evita.getRequestExecutor(),
@@ -2093,7 +2270,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				constraints.add(headConstraint);
 				Arrays.stream(this.labels).filter(Objects::nonNull).forEach(constraints::add);
 
-				//noinspection DataFlowIssue
+				// noinspection DataFlowIssue
 				return head(constraints.toArray(HeadConstraint[]::new));
 			} else {
 				throw new UnsupportedOperationException("Cannot append labels to a non-head constraint.");
@@ -2117,12 +2294,45 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 *   of a {@link GrpcRegisterChangeCatalogCaptureResponse}.
 	 * - Handles the completion and error states of the subscription.
 	 */
-	@RequiredArgsConstructor
-	private static class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture> {
+	private static class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture>, AutoCloseable {
 		private final StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
 		private final CompletableFuture<Subscription> subscriptionFuture;
 		private final SemVer clientVersion;
+		private final LongSupplier versionSupplier;
+		private final ServiceRequestContext serviceContext;
+		private final long responseTimeoutMillis;
+		private final long heartBeatDelay;
+		private final DelayedAsyncTask heartBeatTask;
 		private Subscription subscription;
+		private long index = 0L;
+
+		public ChangeCatalogCaptureSubscriber(
+			@Nonnull Scheduler scheduler,
+			@Nonnull String catalogName,
+			@Nonnull StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver,
+			@Nonnull CompletableFuture<Subscription> subscriptionFuture,
+			@Nullable SemVer clientVersion,
+			@Nonnull LongSupplier versionSupplier
+		) {
+			this.responseObserver = responseObserver;
+			this.subscriptionFuture = subscriptionFuture;
+			this.clientVersion = clientVersion;
+			this.versionSupplier = versionSupplier;
+			// calculate heartbeat delay to be 5 seconds less than response timeout,
+			// but at least 1 second and at most 5 minutes
+			this.serviceContext = ServiceRequestContext.current();
+			this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
+			this.heartBeatDelay = Math.min(Math.max(this.responseTimeoutMillis - 5000L, 1000L), 300000L);
+			this.heartBeatTask = new DelayedAsyncTask(
+				catalogName,
+				"Subscriber Heartbeat",
+				scheduler,
+				this::sendHeartbeat,
+				this.heartBeatDelay,
+				TimeUnit.MILLISECONDS
+			);
+			this.heartBeatTask.schedule();
+		}
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
@@ -2136,6 +2346,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			this.responseObserver.onNext(
 				response
 					.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
+					.setHeartBeat(buildHeartBeatMessage())
 					.build()
 			);
 			subscription.request(1);
@@ -2163,5 +2374,53 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		public void onComplete() {
 			this.responseObserver.onCompleted();
 		}
+
+		@Override
+		public void close() {
+			IOUtils.closeQuietly(this.heartBeatTask::close);
+		}
+
+		/**
+		 * Sends a heartbeat response to the client. The heartbeat contains information
+		 * such as the unique subscription ID (if available) and the generated heartbeat message.
+		 * This method also schedules the next heartbeat at a regular interval.
+		 *
+		 * @return the delay (in milliseconds) until the next heartbeat is scheduled
+		 */
+		private long sendHeartbeat() {
+			final GrpcRegisterChangeCatalogCaptureResponse.Builder response = GrpcRegisterChangeCatalogCaptureResponse
+				.newBuilder();
+			if (this.subscription instanceof ChangeCaptureSubscription ccs) {
+				response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
+			}
+			this.responseObserver.onNext(
+				response
+					.setResponseType(GrpcCaptureResponseType.HEARTBEAT)
+					.setHeartBeat(buildHeartBeatMessage())
+					.build()
+			);
+			this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
+			// plan the next heartbeat at regular interval
+			return 0L;
+		}
+
+		/**
+		 * Constructs a new {@link GrpcHeartBeat} message with updated heartbeat data.
+		 * The message includes the current index, timestamp, last observed version,
+		 * and the delay in milliseconds to the next heartbeat.
+		 *
+		 * @return a newly constructed {@link GrpcHeartBeat} message containing the latest heartbeat information
+		 */
+		@Nonnull
+		private GrpcHeartBeat buildHeartBeatMessage() {
+			return GrpcHeartBeat.newBuilder()
+				.setIndex(this.index++)
+				.setTimestamp(toGrpcOffsetDateTime(OffsetDateTime.now()))
+				.setLastObservedVersion(this.versionSupplier.getAsLong())
+				.setMillisToNextHeartbeat(this.heartBeatDelay)
+				.build();
+		}
+
 	}
+
 }

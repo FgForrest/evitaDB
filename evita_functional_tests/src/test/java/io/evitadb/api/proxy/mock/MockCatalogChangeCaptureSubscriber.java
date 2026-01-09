@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.mock;
+package io.evitadb.api.proxy.mock;
 
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -45,7 +45,7 @@ import java.util.function.BooleanSupplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockCatalogChangeCaptureSubscriber implements Subscriber<ChangeCatalogCapture> {
+public class MockCatalogChangeCaptureSubscriber implements Subscriber<ChangeCatalogCapture>, AutoCloseable {
 	private final int initialRequestCount;
 	private Subscription subscription;
 
@@ -214,6 +214,11 @@ public class MockCatalogChangeCaptureSubscriber implements Subscriber<ChangeCata
 
 	public void cancel() {
 		this.subscription.cancel();
+	}
+
+	@Override
+	public void close() throws Exception {
+		System.out.println("MockCatalogChangeCaptureSubscriber closed.");
 	}
 
 }
