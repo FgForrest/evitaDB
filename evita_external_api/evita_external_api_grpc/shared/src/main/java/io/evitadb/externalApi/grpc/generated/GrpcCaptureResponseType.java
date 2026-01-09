@@ -52,6 +52,14 @@ public enum GrpcCaptureResponseType
    * <code>CHANGE = 1;</code>
    */
   CHANGE(1),
+  /**
+   * <pre>
+   * The response contains the heartbeat event.
+   * </pre>
+   *
+   * <code>HEARTBEAT = 2;</code>
+   */
+  HEARTBEAT(2),
   UNRECOGNIZED(-1),
   ;
 
@@ -71,6 +79,14 @@ public enum GrpcCaptureResponseType
    * <code>CHANGE = 1;</code>
    */
   public static final int CHANGE_VALUE = 1;
+  /**
+   * <pre>
+   * The response contains the heartbeat event.
+   * </pre>
+   *
+   * <code>HEARTBEAT = 2;</code>
+   */
+  public static final int HEARTBEAT_VALUE = 2;
 
 
   public final int getNumber() {
@@ -99,6 +115,7 @@ public enum GrpcCaptureResponseType
     switch (value) {
       case 0: return ACKNOWLEDGEMENT;
       case 1: return CHANGE;
+      case 2: return HEARTBEAT;
       default: return null;
     }
   }

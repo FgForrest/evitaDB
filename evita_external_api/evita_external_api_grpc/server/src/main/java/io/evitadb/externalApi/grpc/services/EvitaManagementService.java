@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.StringValue;
+import com.linecorp.armeria.common.util.TimeoutMode;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
@@ -72,6 +74,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -312,6 +315,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final Path finalBackupFilePath = backupFilePath;
 				@SuppressWarnings("resource") final OutputStream outputStream = Files.newOutputStream(finalBackupFilePath, StandardOpenOption.APPEND);
 				final AtomicLong bytesRead = new AtomicLong(0);
+				final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 
 				return new StreamObserver<>() {
 					private String catalogNameToRestore;
@@ -323,6 +327,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							final ByteString backupFile = request.getBackupFile();
 							backupFile.writeTo(outputStream);
 							bytesRead.addAndGet(backupFile.size());
+							serviceContext.setRequestTimeout(
+								TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+							);
+
 						} catch (IOException e) {
 							throw new UnexpectedIOException(
 								"Failed to write backup file to temporary file.",

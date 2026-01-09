@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,7 @@
 
 package io.evitadb.driver.interceptor;
 
-import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
-import io.evitadb.utils.VersionUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -57,20 +55,6 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 	) {
 		this.clientId = clientId;
 		this.version = clientVersion;
-	}
-
-	/**
-	 * Default constructor is used in tests.
-	 */
-	public ClientSessionInterceptor() {
-		this.clientId = null;
-		SemVer version;
-		try {
-			version = VersionUtils.SemVer.fromString(VersionUtils.readVersion());
-		} catch (InvalidEvitaVersionException ignored) {
-			version = null;
-		}
-		this.version = version;
 	}
 
 	/**

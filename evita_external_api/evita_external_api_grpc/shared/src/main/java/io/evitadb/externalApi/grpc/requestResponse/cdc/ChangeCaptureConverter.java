@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -181,6 +181,24 @@ public class ChangeCaptureConverter {
 		}
 
 		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link GrpcUuid} and a {@link GrpcHeartBeat} into a {@link HeartBeat}.
+	 *
+	 * @param grpcUuid the unique identifier of the subscription in gRPC format
+	 * @param grpcHeartBeat the gRPC representation of the heartbeat event containing metadata about the event
+	 * @return the converted {@link HeartBeat} instance
+	 */
+	@Nonnull
+	public static HeartBeat toHeartBeat(@Nonnull GrpcUuid grpcUuid, @Nonnull GrpcHeartBeat grpcHeartBeat) {
+		return new HeartBeat(
+			EvitaDataTypesConverter.toUuid(grpcUuid),
+			grpcHeartBeat.getIndex(),
+			EvitaDataTypesConverter.toOffsetDateTime(grpcHeartBeat.getTimestamp()),
+			grpcHeartBeat.getLastObservedVersion(),
+			grpcHeartBeat.getMillisToNextHeartbeat()
+		);
 	}
 
 	/**

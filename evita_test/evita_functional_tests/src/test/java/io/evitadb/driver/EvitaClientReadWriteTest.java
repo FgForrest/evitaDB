@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,6 +88,7 @@ import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.driver.cdc.HeartBeatSensor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
@@ -102,6 +103,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest.Buil
 import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatus;
 import io.evitadb.externalApi.grpc.generated.GrpcUuid;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
@@ -121,6 +123,7 @@ import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -3434,4 +3437,136 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			evitaClient.deleteCatalogIfExists(duplicatedCatalogName);
 		}
 	}
+
+	@Test
+	@Tag(LONG_RUNNING_TEST)
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldReceiveHeartbeatAtRegularIntervals(EvitaClient evitaClient) throws InterruptedException {
+		final String testCatalogName = "testCatalogForHeartbeat";
+		try {
+			// Create a test catalog
+			evitaClient.defineCatalog(testCatalogName);
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.goLiveAndClose();
+					return null;
+				}
+			);
+
+			// Create a custom subscriber that implements HeartBeatSensor to track heartbeats
+			final MockCatalogChangeCaptureSubscriberWithHeartBeat catalogSubscriber =
+				new MockCatalogChangeCaptureSubscriberWithHeartBeat(Integer.MAX_VALUE);
+
+			// Create a client with low streaming timeout to trigger frequent heartbeats
+			final EvitaClient clientWithLowTimeout = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host(evitaClient.getConfiguration().host())
+					.port(evitaClient.getConfiguration().port())
+					.systemApiPort(evitaClient.getConfiguration().systemApiPort())
+					.streamingTimeout(6, TimeUnit.SECONDS)
+					.build()
+			);
+
+			try {
+				// Register catalog change capture with the heartbeat-aware subscriber
+				clientWithLowTimeout.updateCatalog(
+					testCatalogName,
+					session -> {
+						final ChangeCapturePublisher<ChangeCatalogCapture> publisher = session.registerChangeCatalogCapture(
+							ChangeCatalogCaptureRequest
+								.builder()
+								.content(ChangeCaptureContent.BODY)
+								.criteria(
+									ChangeCatalogCaptureCriteria
+										.builder()
+										.schemaArea()
+										.build()
+								)
+								.build()
+						);
+						publisher.subscribe(catalogSubscriber);
+						return null;
+					}
+				);
+
+				// Wait for at least 3 heartbeats (should take ~3 seconds with the calculated interval)
+				// According to EvitaSessionService logic: heartBeatDelay = Math.min(Math.max(requestTimeout - 5000L, 1000L), 300000L)
+				// With 6000ms timeout: heartBeatDelay = Math.min(Math.max(6000 - 5000, 1000), 300000) = 1000ms
+				Thread.sleep(4000);
+
+				// Verify we received multiple heartbeats
+				final int receivedHeartbeats = catalogSubscriber.getHeartbeatCount();
+				assertTrue(receivedHeartbeats >= 3,
+					"Expected at least 3 heartbeats but got: " + receivedHeartbeats);
+
+				// Verify heartbeats came at approximately 1 second intervals
+				assertNotNull(catalogSubscriber.getFirstHeartbeatTime(), "Should have received first heartbeat");
+				assertNotNull(catalogSubscriber.getLastHeartbeatTime(), "Should have received last heartbeat");
+				assertNotNull(catalogSubscriber.getExpectedInterval(), "Should have expected interval from heartbeat");
+
+				// Check that the expected interval is approximately 1000ms
+				assertEquals(1000L, catalogSubscriber.getExpectedInterval(), 100L,
+					"Expected interval should be approximately 1000ms based on timeout calculation");
+
+				// Check that total time elapsed is reasonable for the number of heartbeats
+				final long totalTime = catalogSubscriber.getLastHeartbeatTime() - catalogSubscriber.getFirstHeartbeatTime();
+				assertTrue(
+					totalTime > 0,
+					"Total time between first and last heartbeat should be positive"
+				);
+				assertTrue(
+					totalTime > catalogSubscriber.getExpectedInterval(),
+					"Total time should be greater than one interval");
+			} finally {
+				clientWithLowTimeout.close();
+			}
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	private static class MockCatalogChangeCaptureSubscriberWithHeartBeat extends MockCatalogChangeCaptureSubscriber implements HeartBeatSensor {
+		private final AtomicInteger heartbeatCount = new AtomicInteger(0);
+		private final AtomicReference<Long> firstHeartbeatTime = new AtomicReference<>();
+		private final AtomicReference<Long> lastHeartbeatTime = new AtomicReference<>();
+		private final AtomicReference<Long> expectedInterval = new AtomicReference<>();
+
+		public MockCatalogChangeCaptureSubscriberWithHeartBeat(int initialRequestCount) {
+			super(initialRequestCount);
+		}
+
+		@Override
+		public void onHeartBeat(@Nonnull HeartBeat heartBeat) {
+			final long currentTime = System.currentTimeMillis();
+			this.heartbeatCount.incrementAndGet();
+
+			if (this.firstHeartbeatTime.get() == null) {
+				this.firstHeartbeatTime.set(currentTime);
+				this.expectedInterval.set(heartBeat.millisToNextHeartbeat());
+			}
+			this.lastHeartbeatTime.set(currentTime);
+		}
+
+		public int getHeartbeatCount() {
+			return this.heartbeatCount.get();
+		}
+
+		public Long getFirstHeartbeatTime() {
+			return this.firstHeartbeatTime.get();
+		}
+
+		public Long getLastHeartbeatTime() {
+			return this.lastHeartbeatTime.get();
+		}
+
+		public Long getExpectedInterval() {
+			return this.expectedInterval.get();
+		}
+
+
+	}
+
 }
