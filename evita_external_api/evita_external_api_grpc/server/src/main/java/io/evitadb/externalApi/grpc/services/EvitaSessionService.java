@@ -763,13 +763,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		Empty request,
 		StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> responseObserver
 	) {
+		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			session -> {
 				if (session == null) {
 					responseObserver.onError(new SessionNotFoundException("No session for going live found!"));
 					responseObserver.onCompleted();
 				} else {
-					final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 					final Progress<CommitVersions> goLiveProgress = session.goLiveAndCloseWithProgress(
 						new IntConsumer() {
 							private int percentDone;
@@ -2133,6 +2133,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			}
 		);
 
+		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			session -> {
 				final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
@@ -2141,7 +2142,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				mutationsHistoryStreamRef.set(mutationsHistoryStream);
 				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 
-				final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 				mutationsHistoryStream.forEach(
 					cdcEvent -> {
 						final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse

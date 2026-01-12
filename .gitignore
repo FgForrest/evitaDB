@@ -87,3 +87,32 @@ fabric.properties
 
 ### VisualStudioCode ###
 .vscode/*
+/data/evita-tutorial/brand-1_0.collection
+/data/evita-tutorial/brand-4_0.collection
+/data/evita-tutorial/category-2_0.collection
+/data/evita-tutorial/category-5_0.collection
+/data/evita-tutorial/evita-tutorial.boot
+/data/evita-tutorial/evita-tutorial_0.catalog
+/data/evita-tutorial/evita-tutorial_0.wal
+/data/evita-tutorial/product-3_0.collection
+/data/evita-tutorial/product-6_0.collection
+/data/ryor/adjustedPricePolicy-4_0.collection
+/data/ryor/category-10_0.collection
+/data/ryor/group-11_0.collection
+/data/ryor/media-3_0.collection
+/data/ryor/parameter-7_0.collection
+/data/ryor/parameterGroup-9_0.collection
+/data/ryor/parameterValue-8_0.collection
+/data/ryor/paymentMethod-14_0.collection
+/data/ryor/pickupPoint-13_0.collection
+/data/ryor/priceList-5_0.collection
+/data/ryor/product-6_0.collection
+/data/ryor/productBundle-15_0.collection
+/data/ryor/ryor.boot
+/data/ryor/ryor_0.catalog
+/data/ryor/shippingMethod-12_0.collection
+/data/ryor/stock-16_0.collection
+/data/ryor/tag-1_0.collection
+/data/ryor/tagCategory-2_0.collection
+/data/ryor/voucher-17_0.collection
+/data/evitaDB.boot
