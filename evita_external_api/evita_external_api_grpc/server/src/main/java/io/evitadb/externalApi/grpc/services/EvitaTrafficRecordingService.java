@@ -159,13 +159,13 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 			}
 		);
 
+		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			session -> {
 				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
 				final Stream<TrafficRecording> trafficHistoryStream = session.getRecordings(captureRequest);
 				trafficHistoryStreamRef.set(trafficHistoryStream);
 
-				final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 				trafficHistoryStream.forEach(
 					trafficRecording -> {
 						final GetTrafficHistoryResponse.Builder builder = GetTrafficHistoryResponse.newBuilder();
