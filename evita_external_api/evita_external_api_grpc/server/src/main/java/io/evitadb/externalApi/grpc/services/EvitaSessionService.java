@@ -2222,9 +2222,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			}
 		);
 
+		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
+		final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 		executeWithClientContext(
 			session -> {
-				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 				final String catalogName = session.getCatalogName();
 				session.registerChangeCatalogCapture(
 					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
@@ -2235,7 +2236,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseObserver,
 						subscriptionFuture,
 						clientVersion,
-						() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion()
+						() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
+						serviceRequestContext
 					)
 				);
 			},
@@ -2312,7 +2314,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			@Nonnull StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver,
 			@Nonnull CompletableFuture<Subscription> subscriptionFuture,
 			@Nullable SemVer clientVersion,
-			@Nonnull LongSupplier versionSupplier
+			@Nonnull LongSupplier versionSupplier,
+			@Nonnull ServiceRequestContext serviceContext
 		) {
 			this.responseObserver = responseObserver;
 			this.subscriptionFuture = subscriptionFuture;
@@ -2320,7 +2323,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			this.versionSupplier = versionSupplier;
 			// calculate heartbeat delay to be 5 seconds less than response timeout,
 			// but at least 1 second and at most 5 minutes
-			this.serviceContext = ServiceRequestContext.current();
+			this.serviceContext = serviceContext;
 			this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
 			this.heartBeatDelay = Math.min(Math.max(this.responseTimeoutMillis - 5000L, 1000L), 300000L);
 			this.heartBeatTask = new DelayedAsyncTask(

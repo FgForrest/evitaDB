@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
@@ -70,6 +71,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -630,7 +632,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			}
 		);
 
-		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
+		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			() -> {
 				try {
@@ -646,7 +648,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							responseObserver,
 							subscriptionFuture,
 							() -> this.evita.getEngineState().version(),
-							requestTimeoutMillis
+							serviceRequestContext
 						)
 					);
 				} catch (RuntimeException e) {
@@ -1125,6 +1127,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		private final StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver;
 		private final CompletableFuture<Subscription> subscriptionFuture;
 		private final LongSupplier versionSupplier;
+		private final ServiceRequestContext serviceContext;
+		private final long responseTimeoutMillis;
 		private final long heartBeatDelay;
 		private final DelayedAsyncTask heartBeatTask;
 		private Subscription subscription;
@@ -1135,14 +1139,16 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			@Nonnull StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver,
 			@Nonnull CompletableFuture<Subscription> subscriptionFuture,
 			@Nonnull LongSupplier versionSupplier,
-			long requestTimeout
+			@Nonnull ServiceRequestContext serviceContext
 		) {
 			this.responseObserver = responseObserver;
 			this.subscriptionFuture = subscriptionFuture;
 			this.versionSupplier = versionSupplier;
+			this.serviceContext = serviceContext;
+			this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
 			// calculate heartbeat delay to be 5 seconds less than request timeout,
 			// but at least 1 second and at most 5 minutes
-			this.heartBeatDelay = Math.min(Math.max(requestTimeout - 5000L, 1000L), 300000L);
+			this.heartBeatDelay = Math.min(Math.max(this.responseTimeoutMillis - 5000L, 1000L), 300000L);
 			this.heartBeatTask = new DelayedAsyncTask(
 				null,
 				"System Subscriber Heartbeat",
@@ -1219,6 +1225,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.setHeartBeat(buildHeartBeatMessage())
 					.build()
 			);
+			this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 			// plan the next heartbeat at regular interval
 			return 0L;
 		}
