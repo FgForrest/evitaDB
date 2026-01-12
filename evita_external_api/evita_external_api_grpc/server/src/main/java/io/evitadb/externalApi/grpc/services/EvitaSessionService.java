@@ -2216,9 +2216,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			}
 		);
 
+		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
+		final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 		executeWithClientContext(
 			session -> {
-				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 				final String catalogName = session.getCatalogName();
 				session.registerChangeCatalogCapture(
 					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
@@ -2229,7 +2230,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseObserver,
 						subscriptionFuture,
 						clientVersion,
-						() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion()
+						() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
+						serviceRequestContext
 					)
 				);
 			},
