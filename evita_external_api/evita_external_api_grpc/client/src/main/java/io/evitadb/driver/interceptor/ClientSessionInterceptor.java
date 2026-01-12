@@ -23,7 +23,9 @@
 
 package io.evitadb.driver.interceptor;
 
+import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
+import io.evitadb.utils.VersionUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -48,6 +50,21 @@ import java.util.function.Supplier;
 public class ClientSessionInterceptor implements ClientInterceptor {
 	private final String clientId;
 	private final SemVer version;
+
+	/**
+	 * Default constructor is used in documentation tests.
+	 * !!! DO NOT REMOVE !!!
+	 */
+	public ClientSessionInterceptor() {
+		this.clientId = null;
+		SemVer version;
+		try {
+			version = VersionUtils.SemVer.fromString(VersionUtils.readVersion());
+		} catch (InvalidEvitaVersionException ignored) {
+			version = null;
+		}
+		this.version = version;
+	}
 
 	public ClientSessionInterceptor(
 		@Nonnull String clientId,
