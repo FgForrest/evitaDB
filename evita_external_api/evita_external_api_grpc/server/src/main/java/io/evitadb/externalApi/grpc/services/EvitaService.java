@@ -618,10 +618,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			}
 		);
 
+		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
 		executeWithClientContext(
 			() -> {
 				try {
-					final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
 					this.evita.registerSystemChangeCapture(
 						new ChangeSystemCaptureRequest(
 							request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
