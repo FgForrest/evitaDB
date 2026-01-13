@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ public class ConstantFormula extends AbstractFormula {
 	@Getter private final Bitmap delegate;
 
 	public ConstantFormula(@Nonnull Bitmap delegate) {
-		Assert.isTrue(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
+		Assert.isPremiseValid(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
 		this.delegate = delegate;
 		this.initFields();
 	}
@@ -53,8 +53,8 @@ public class ConstantFormula extends AbstractFormula {
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		return this.delegate instanceof TransactionalBitmap ?
-			new long[]{((TransactionalBitmap) this.delegate).getId()} : EMPTY_LONG_ARRAY;
+		return this.delegate instanceof TransactionalBitmap txBitmap ?
+			new long[]{txBitmap.getId()} : EMPTY_LONG_ARRAY;
 	}
 
 	@Override
