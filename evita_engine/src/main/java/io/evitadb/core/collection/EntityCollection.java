@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -962,7 +962,7 @@ public final class EntityCollection implements
 				updatedSchema = (EntitySchema) theMutation.mutate(catalogSchema, updatedSchema);
 				/* TOBEDONE #409 JNO - this should be diverted to separate class and handle all necessary DDL operations */
 				if (theMutation instanceof SetEntitySchemaWithHierarchyMutation setHierarchy) {
-					if (setHierarchy.isWithHierarchy()) {
+					if (!originalSchema.isWithHierarchy() && setHierarchy.isWithHierarchy()) {
 						getGlobalIndexIfExists()
 							.ifPresent(it -> it.initRootNodes(it.getAllPrimaryKeys()));
 					}

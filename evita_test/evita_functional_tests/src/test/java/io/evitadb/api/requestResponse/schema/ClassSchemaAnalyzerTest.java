@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,14 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
@@ -34,6 +38,17 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.model.*;
+import io.evitadb.api.requestResponse.schema.model.evolution.*;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Scope;
@@ -48,10 +63,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -60,6 +78,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@DisplayName("Class schema analyzer")
 class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST = "classSchemaAnalyzerTest";
 	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT = "classSchemaAnalyzerTest_export";
@@ -107,16 +126,40 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
 			assertTrue(((GlobalAttributeSchema) attributeSchema).isUniqueGlobally());
 		}
-		assertEquals(unique, attributeSchema.isUnique(), "Attribute `" + attributeName + "` is expected to be " + (unique ? "" : "not") + " unique, but it " + (unique ? "is not" : "is") + ".");
-		assertEquals(filterable, attributeSchema.isFilterable(), "Attribute `" + attributeName + "` is expected to be " + (filterable ? "" : "not") + " filterable, but it " + (filterable ? "is not" : "is") + ".");
-		assertEquals(sortable, attributeSchema.isSortable(), "Attribute `" + attributeName + "` is expected to be " + (sortable ? "" : "not") + " sortable, but it " + (sortable ? "is not" : "is") + ".");
-		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " + (localized ? "" : "not") + "localized, but it " + (localized ? "is not" : "is") + ".");
-		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeName + "` is expected to be " + (nullable ? "" : "not") + " nullable, but it " + (nullable ? "is not" : "is") + ".");
+		assertEquals(
+			unique, attributeSchema.isUnique(), "Attribute `" + attributeName + "` is expected to be " + (unique ?
+				"" :
+				"not") + " unique, but it " + (unique ? "is not" : "is") + "."
+		);
+		assertEquals(
+			filterable, attributeSchema.isFilterable(), "Attribute `" + attributeName + "` is expected to be " + (
+				filterable ?
+					"" :
+					"not") + " filterable, but it " + (filterable ? "is not" : "is") + "."
+		);
+		assertEquals(
+			sortable, attributeSchema.isSortable(), "Attribute `" + attributeName + "` is expected to be " + (sortable ?
+				"" :
+				"not") + " sortable, but it " + (sortable ? "is not" : "is") + "."
+		);
+		assertEquals(
+			localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " + (
+				localized ?
+					"" :
+					"not") + "localized, but it " + (localized ? "is not" : "is") + "."
+		);
+		assertEquals(
+			nullable, attributeSchema.isNullable(), "Attribute `" + attributeName + "` is expected to be " + (nullable ?
+				"" :
+				"not") + " nullable, but it " + (nullable ? "is not" : "is") + "."
+		);
 		if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
 			assertEquals(
 				representative,
 				entityAttributeSchema.isRepresentative(),
-				"Attribute `" + attributeName + "` is expected to be " + (nullable ? "" : "not") + " representative, but it " + (nullable ? "is not" : "is") + "."
+				"Attribute `" + attributeName + "` is expected to be " + (nullable ?
+					"" :
+					"not") + " representative, but it " + (nullable ? "is not" : "is") + "."
 			);
 		}
 	}
@@ -143,9 +186,22 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, associatedData.getDeprecationNotice());
 		}
-		assertEquals(expectedType, associatedData.getType(), "Associated data `" + associatedDataName + "` is expected to be `" + expectedType + "`, but is `" + associatedData.getType() + "`.");
-		assertEquals(localized, associatedData.isLocalized(), "Associated data `" + associatedDataName + "` is expected to be " + (localized ? "" : "not") + "localized, but it " + (localized ? "is not" : "is") + ".");
-		assertEquals(nullable, associatedData.isNullable(), "Associated data `" + associatedDataName + "` is expected to be " + (nullable ? "" : "not") + " nullable, but it " + (nullable ? "is not" : "is") + ".");
+		assertEquals(
+			expectedType, associatedData.getType(),
+			"Associated data `" + associatedDataName + "` is expected to be `" + expectedType + "`, but is `" + associatedData.getType() + "`."
+		);
+		assertEquals(
+			localized, associatedData.isLocalized(),
+			"Associated data `" + associatedDataName + "` is expected to be " + (localized ?
+				"" :
+				"not") + "localized, but it " + (localized ? "is not" : "is") + "."
+		);
+		assertEquals(
+			nullable, associatedData.isNullable(), "Associated data `" + associatedDataName + "` is expected to be " + (
+				nullable ?
+					"" :
+					"not") + " nullable, but it " + (nullable ? "is not" : "is") + "."
+		);
 	}
 
 	private static void assertReference(
@@ -177,8 +233,18 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		assertEquals(referencedEntityTypeManaged, referenceSchema.isReferencedEntityTypeManaged());
 		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
 		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
-		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " + (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
-		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
+		assertEquals(
+			faceted, referenceSchema.isFaceted(),
+			"Attribute `" + name + "` is expected to be " + (faceted ? "" : "not") + " faceted, but it " + (faceted ?
+				"is not" :
+				"is") + "."
+		);
+		assertEquals(
+			indexed, referenceSchema.isIndexed(),
+			"Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ?
+				"is not" :
+				"is") + "."
+		);
 	}
 
 	@SafeVarargs
@@ -216,8 +282,18 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		assertEquals(entityType, referenceSchema.getReferencedEntityType());
 		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
 		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
-		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " + (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
-		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
+		assertEquals(
+			faceted, referenceSchema.isFaceted(),
+			"Attribute `" + name + "` is expected to be " + (faceted ? "" : "not") + " faceted, but it " + (faceted ?
+				"is not" :
+				"is") + "."
+		);
+		assertEquals(
+			indexed, referenceSchema.isIndexed(),
+			"Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ?
+				"is not" :
+				"is") + "."
+		);
 	}
 
 	private static void assertEvolutionMode(
@@ -261,9 +337,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					break;
 				}
 			}
-			assertEquals(shouldBeIndexed, compound.isIndexedInScope(scope),
+			assertEquals(
+				shouldBeIndexed, compound.isIndexedInScope(scope),
 				"Compound `" + compoundName + "` is expected to be " + (shouldBeIndexed ? "" : "not") +
-					" indexed in scope " + scope + ", but it " + (shouldBeIndexed ? "is not" : "is") + ".");
+					" indexed in scope " + scope + ", but it " + (shouldBeIndexed ? "is not" : "is") + "."
+			);
 		}
 
 		assertEquals(attributeElements.length, compound.getAttributeElements().size());
@@ -285,7 +363,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		@Nonnull Scope[] indexedScopes,
 		@Nonnull AttributeElement[] attributeElements
 	) {
-		final SortableAttributeCompoundSchemaContract compound = referenceSchema.getSortableAttributeCompound(compoundName)
+		final SortableAttributeCompoundSchemaContract compound = referenceSchema.getSortableAttributeCompound(
+				compoundName)
 			.orElseThrow();
 
 		if (description == null) {
@@ -307,9 +386,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					break;
 				}
 			}
-			assertEquals(shouldBeIndexed, compound.isIndexedInScope(scope),
+			assertEquals(
+				shouldBeIndexed, compound.isIndexedInScope(scope),
 				"Compound `" + compoundName + "` is expected to be " + (shouldBeIndexed ? "" : "not") +
-					" indexed in scope " + scope + ", but it " + (shouldBeIndexed ? "is not" : "is") + ".");
+					" indexed in scope " + scope + ", but it " + (shouldBeIndexed ? "is not" : "is") + "."
+			);
 		}
 
 		assertEquals(attributeElements.length, compound.getAttributeElements().size());
@@ -369,7 +450,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				entry.getValue(),
 				referenceSchema.getReferenceIndexType(entry.getKey()),
 				"Reference `" + name + "` is expected to have index type " + entry.getValue() +
-					" in scope " + entry.getKey() + ", but has " + referenceSchema.getReferenceIndexType(entry.getKey()) + "."
+					" in scope " + entry.getKey() + ", but has " + referenceSchema.getReferenceIndexType(
+					entry.getKey()) + "."
 			);
 		}
 	}
@@ -418,7 +500,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				entry.getValue(),
 				referenceSchema.getReferenceIndexType(entry.getKey()),
 				"Reflected reference `" + name + "` is expected to have index type " + entry.getValue() +
-					" in scope " + entry.getKey() + ", but has " + referenceSchema.getReferenceIndexType(entry.getKey()) + "."
+					" in scope " + entry.getKey() + ", but has " + referenceSchema.getReferenceIndexType(
+					entry.getKey()) + "."
 			);
 		}
 	}
@@ -456,13 +539,24 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		if (global) {
 			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
 		}
-		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " + (localized ? "" : "not") + "localized, but it " + (localized ? "is not" : "is") + ".");
-		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeName + "` is expected to be " + (nullable ? "" : "not") + " nullable, but it " + (nullable ? "is not" : "is") + ".");
+		assertEquals(
+			localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " + (
+				localized ?
+					"" :
+					"not") + "localized, but it " + (localized ? "is not" : "is") + "."
+		);
+		assertEquals(
+			nullable, attributeSchema.isNullable(), "Attribute `" + attributeName + "` is expected to be " + (nullable ?
+				"" :
+				"not") + " nullable, but it " + (nullable ? "is not" : "is") + "."
+		);
 		if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
 			assertEquals(
 				representative,
 				entityAttributeSchema.isRepresentative(),
-				"Attribute `" + attributeName + "` is expected to be " + (representative ? "" : "not") + " representative, but it " + (representative ? "is not" : "is") + "."
+				"Attribute `" + attributeName + "` is expected to be " + (representative ?
+					"" :
+					"not") + " representative, but it " + (representative ? "is not" : "is") + "."
 			);
 		}
 
@@ -473,7 +567,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					entry.getValue(),
 					globalAttributeSchema.getGlobalUniquenessType(entry.getKey()),
 					"Global attribute `" + attributeName + "` is expected to have global uniqueness type " + entry.getValue() +
-						" in scope " + entry.getKey() + ", but has " + globalAttributeSchema.getGlobalUniquenessType(entry.getKey()) + "."
+						" in scope " + entry.getKey() + ", but has " + globalAttributeSchema.getGlobalUniquenessType(
+						entry.getKey()) + "."
 				);
 			}
 		}
@@ -484,7 +579,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				entry.getValue(),
 				attributeSchema.getUniquenessType(entry.getKey()),
 				"Attribute `" + attributeName + "` is expected to have uniqueness type " + entry.getValue() +
-					" in scope " + entry.getKey() + ", but has " + attributeSchema.getUniquenessType(entry.getKey()) + "."
+					" in scope " + entry.getKey() + ", but has " + attributeSchema.getUniquenessType(
+					entry.getKey()) + "."
 			);
 		}
 
@@ -507,6 +603,61 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					" sortable in scope " + entry.getKey() + ", but it " + (entry.getValue() ? "is not" : "is") + "."
 			);
 		}
+	}
+
+	/**
+	 * Analyzes the given model class and captures the mutations generated.
+	 *
+	 * @param session    the evita session to use
+	 * @param modelClass the model class to analyze
+	 * @return the captured mutations array
+	 */
+	@Nonnull
+	private static LocalCatalogSchemaMutation[] analyzeAndCaptureMutations(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Class<?> modelClass
+	) {
+		final AtomicReference<LocalCatalogSchemaMutation[]> capturedMutations = new AtomicReference<>();
+		session.defineEntitySchemaFromModelClass(
+			modelClass,
+			new SchemaPostProcessorCapturingResult() {
+				@Override
+				public void postProcess(
+					@Nonnull CatalogSchemaBuilder catalogBuilder,
+					@Nonnull EntitySchemaBuilder entityBuilder
+				) {
+					// no-op
+				}
+
+				@Override
+				public void captureResult(@Nonnull LocalCatalogSchemaMutation[] mutations) {
+					capturedMutations.set(mutations);
+				}
+			}
+		);
+		return capturedMutations.get();
+	}
+
+	/**
+	 * Finds a specific mutation type within entity schema mutations.
+	 *
+	 * @param mutations    the array of catalog mutations to search
+	 * @param mutationType the expected mutation class
+	 * @param <T>          the mutation type
+	 * @return optional containing the found mutation, or empty if not found
+	 */
+	@Nonnull
+	private static <T extends EntitySchemaMutation> Optional<T> findEntitySchemaMutation(
+		@Nonnull LocalCatalogSchemaMutation[] mutations,
+		@Nonnull Class<T> mutationType
+	) {
+		return Arrays.stream(mutations)
+			.filter(ModifyEntitySchemaMutation.class::isInstance)
+			.map(ModifyEntitySchemaMutation.class::cast)
+			.flatMap(m -> Arrays.stream(m.getSchemaMutations()))
+			.filter(mutationType::isInstance)
+			.map(mutationType::cast)
+			.findFirst();
 	}
 
 	@BeforeEach
@@ -661,7 +812,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Compound B description",
 					"Not used anymore",
 					Scope.NO_SCOPE,
-					new AttributeElement[] {
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
 					}
@@ -680,10 +831,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 						new AttributeElement("inceptionYear", OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
 				);
-			});
+			}
+		);
 	}
 
-	@DisplayName("Verify that class fields are analyzed and set up with defaults")
+	@DisplayName("Verify that field-based entities are analyzed and set up with defaults")
 	@Test
 	void shouldSetupNewSchemaByClassFields() {
 		this.evita.updateCatalog(
@@ -807,7 +959,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Compound B description",
 					"Not used anymore",
 					Scope.NO_SCOPE,
-					new AttributeElement[] {
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
 					}
@@ -826,7 +978,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 						new AttributeElement("inceptionYear", OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
 				);
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that record components are analyzed and set up with defaults")
@@ -949,7 +1102,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Compound B description",
 					"Not used anymore",
 					Scope.NO_SCOPE,
-					new AttributeElement[] {
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
 					}
@@ -968,7 +1121,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 						new AttributeElement("inceptionYear", OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
 				);
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that all interface method annotation attributes are recognized and processed")
@@ -1072,7 +1226,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that all class field annotation attributes are recognized and processed")
@@ -1180,7 +1335,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that all record components annotation attributes are recognized and processed")
@@ -1284,7 +1440,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that external entities in methods are recognized and used in references")
@@ -1298,7 +1455,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReferencedEntity.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithReferencedEntity").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithReferencedEntity")
+					.orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1332,7 +1490,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that external entities in methods are recognized and used in reflected references")
@@ -1342,11 +1501,13 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReflectedReferencedEntity.Brand.class);
-				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReflectedReferencedEntity.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithReflectedReferencedEntity").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithReflectedReferencedEntity").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1386,7 +1547,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertTrue(attributes.containsKey("brandNote"));
 				assertTrue(attributes.containsKey("order"));
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that external entities in fields are recognized and used in references")
@@ -1396,11 +1558,13 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.Brand.class);
-				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(
+					FieldBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("FieldBasedEntityWithReflectedReferencedEntity").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"FieldBasedEntityWithReflectedReferencedEntity").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1440,7 +1604,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertTrue(attributes.containsKey("brandNote"));
 				assertTrue(attributes.containsKey("order"));
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that external entities in fields are recognized and used in reflected references")
@@ -1454,7 +1619,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReferencedEntity.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("FieldBasedEntityWithReferencedEntity").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("FieldBasedEntityWithReferencedEntity")
+					.orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1488,7 +1654,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that external entities in record components are recognized and used in references")
@@ -1502,7 +1669,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReferencedEntity.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("RecordBasedEntityWithReferencedEntity").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("RecordBasedEntityWithReferencedEntity")
+					.orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1536,7 +1704,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that external entities in record components are recognized and used in reflected references")
@@ -1546,11 +1715,13 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReflectedReferencedEntity.Brand.class);
-				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(
+					RecordBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReflectedReferencedEntity.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("RecordBasedEntityWithReflectedReferencedEntity").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"RecordBasedEntityWithReflectedReferencedEntity").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1591,9 +1762,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertTrue(attributes.containsKey("brandNote"));
 				assertTrue(attributes.containsKey("order"));
-			});
+			}
+		);
 	}
 
+	@DisplayName("Verify that defining attribute on two places fails with exception")
 	@Test
 	void shouldFailToSetupAttributeOnTwoPlaces() {
 		this.evita.updateCatalog(
@@ -1603,9 +1776,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					SchemaClassInvalidException.class,
 					() -> session.defineEntitySchemaFromModelClass(EntityWithAttributeOnTwoPlaces.class)
 				);
-			});
+			}
+		);
 	}
 
+	@DisplayName("Verify that defining associated data on two places fails with exception")
 	@Test
 	void shouldFailToSetupAssociatedDataOnTwoPlaces() {
 		this.evita.updateCatalog(
@@ -1615,9 +1790,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					SchemaClassInvalidException.class,
 					() -> session.defineEntitySchemaFromModelClass(EntityWithAssociatedDataOnTwoPlaces.class)
 				);
-			});
+			}
+		);
 	}
 
+	@DisplayName("Verify that single reference can be mapped twice with primitive type")
 	@Test
 	void shouldMapSingleReferenceTwiceWithPrimitive() {
 		this.evita.updateCatalog(
@@ -1627,7 +1804,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(EntityWithReferenceMappedTwice.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("EntityWithReferenceMappedTwice").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("EntityWithReferenceMappedTwice")
+					.orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1637,9 +1815,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertTrue(marketingBrand.isReferencedEntityTypeManaged());
 				assertEquals("Brand", marketingBrand.getReferencedEntityType());
-			});
+			}
+		);
 	}
 
+	@DisplayName("Verify that defining reference on two places fails with exception")
 	@Test
 	void shouldFailToSetupReferencesOnTwoPlaces() {
 		this.evita.updateCatalog(
@@ -1649,7 +1829,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					SchemaClassInvalidException.class,
 					() -> session.defineEntitySchemaFromModelClass(EntityWithReferenceOnTwoPlaces.class)
 				);
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with getter-based entities")
@@ -1661,7 +1842,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReferenceSettings.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithScopeReferenceSettings").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithScopeReferenceSettings").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1723,7 +1905,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					false, "brandGroup",
 					true, true
 				);
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with field-based entities")
@@ -1735,7 +1918,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithScopeReferenceSettings.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("FieldBasedEntityWithScopeReferenceSettings").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"FieldBasedEntityWithScopeReferenceSettings").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1796,7 +1980,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					false, "brandGroup",
 					true, true
 				);
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with record-based entities")
@@ -1808,7 +1993,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithScopeReferenceSettings.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("RecordBasedEntityWithScopeReferenceSettings").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"RecordBasedEntityWithScopeReferenceSettings").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1869,7 +2055,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					false, "brandGroup",
 					true, true
 				);
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with reflected references")
@@ -1883,7 +2070,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReflectedReference.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithScopeReflectedReference").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithScopeReflectedReference").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -1918,7 +2106,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals(2, attributes.size());
 				assertTrue(attributes.containsKey("brandNote"));
 				assertTrue(attributes.containsKey("order"));
-			});
+			}
+		);
 	}
 
 	@DisplayName("Debug simple ScopeAttributeSettings")
@@ -1929,14 +2118,16 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			session -> {
 				session.defineEntitySchemaFromModelClass(SimpleEntityWithScopeAttributeSettings.class);
 
-				final SealedEntitySchema entitySchema = session.getEntitySchema("SimpleEntityWithScopeAttributeSettings").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"SimpleEntityWithScopeAttributeSettings").orElseThrow();
 				assertNotNull(entitySchema);
 
 				// Test name attribute - should be filterable in LIVE scope
 				final AttributeSchemaContract nameAttribute = entitySchema.getAttribute("name").orElseThrow();
 				assertTrue(nameAttribute.isFilterableInScope(Scope.LIVE));
 				assertFalse(nameAttribute.isFilterableInScope(Scope.ARCHIVED));
-			});
+			}
+		);
 	}
 
 	@DisplayName("Debug minimal ScopeAttributeSettings with two attributes")
@@ -1947,7 +2138,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			session -> {
 				session.defineEntitySchemaFromModelClass(MinimalEntityWithScopeAttributeSettings.class);
 
-				final SealedEntitySchema entitySchema = session.getEntitySchema("MinimalEntityWithScopeAttributeSettings").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"MinimalEntityWithScopeAttributeSettings").orElseThrow();
 				assertNotNull(entitySchema);
 
 				// Test code attribute - regular attribute, should use defaults (not filterable)
@@ -1961,7 +2153,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertTrue(nameAttribute.isSortableInScope(Scope.LIVE));
 				assertFalse(nameAttribute.isFilterableInScope(Scope.ARCHIVED));
 				assertFalse(nameAttribute.isSortableInScope(Scope.ARCHIVED));
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with getter-based entities")
@@ -1973,7 +2166,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeAttributeSettings.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithScopeAttributeSettings").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithScopeAttributeSettings").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -2034,7 +2228,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					true, true,
 					false, false, false
 				);
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with field-based entities")
@@ -2046,7 +2241,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithScopeAttributeSettings.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("FieldBasedEntityWithScopeAttributeSettings").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"FieldBasedEntityWithScopeAttributeSettings").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -2107,7 +2303,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					true, true,
 					false, false, false
 				);
-			});
+			}
+		);
 	}
 
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with record-based entities")
@@ -2119,7 +2316,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithScopeAttributeSettings.class);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
-				final SealedEntitySchema entitySchema = session.getEntitySchema("RecordBasedEntityWithScopeAttributeSettings").orElseThrow();
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"RecordBasedEntityWithScopeAttributeSettings").orElseThrow();
 
 				assertNotNull(catalogSchema);
 				assertNotNull(entitySchema);
@@ -2180,7 +2378,831 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					true, true,
 					false, false, false
 				);
-			});
+			}
+		);
+	}
+
+	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (getter-based)")
+	@Test
+	void shouldProduceNoMutationsWhenGetterBasedSchemaUnchanged() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// First analysis - creates schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntity.class);
+
+				// Second analysis - should produce no mutations
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntity.class);
+
+				// Verify no mutations generated
+				assertEquals(
+					0, mutations.length,
+					"Expected no mutations but got: " + Arrays.toString(mutations)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (field-based)")
+	@Test
+	void shouldProduceNoMutationsWhenFieldBasedSchemaUnchanged() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// First analysis - creates schema
+				session.defineEntitySchemaFromModelClass(FieldBasedEntity.class);
+
+				// Second analysis - should produce no mutations
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, FieldBasedEntity.class);
+
+				// Verify no mutations generated
+				assertEquals(
+					0, mutations.length,
+					"Expected no mutations but got: " + Arrays.toString(mutations)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (record-based)")
+	@Test
+	void shouldProduceNoMutationsWhenRecordBasedSchemaUnchanged() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// First analysis - creates schema
+				session.defineEntitySchemaFromModelClass(RecordBasedEntity.class);
+
+				// Second analysis - should produce no mutations
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, RecordBasedEntity.class);
+
+				// Verify no mutations generated
+				assertEquals(
+					0, mutations.length,
+					"Expected no mutations but got: " + Arrays.toString(mutations)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify that analyzing full-featured entity class twice produces no mutations on second analysis")
+	@Test
+	void shouldProduceNoMutationsWhenFullFeaturedSchemaUnchanged() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// First analysis - creates schema (including referenced entities)
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReferencedEntity.Brand.class);
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReferencedEntity.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReferencedEntity.class);
+
+				// Second analysis - should produce no mutations
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityWithReferencedEntity.class);
+
+				// Verify no mutations generated
+				assertEquals(
+					0, mutations.length,
+					"Expected no mutations but got: " + Arrays.toString(mutations)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify that analyzing entity with scope attribute settings twice produces no mutations on second analysis")
+	@Test
+	void shouldProduceNoMutationsWhenScopeAttributeSettingsSchemaUnchanged() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// First analysis - creates schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeAttributeSettings.class);
+
+				// Second analysis - should produce no mutations
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityWithScopeAttributeSettings.class);
+
+				// Verify no mutations generated
+				assertEquals(
+					0, mutations.length,
+					"Expected no mutations but got: " + Arrays.toString(mutations)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateAttributeSchemaMutation generated when adding attribute to getter-based entity")
+	@Test
+	void shouldGenerateCreateAttributeMutationWhenAddingAttributeToGetterBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAttribute("name").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityEvolutionV2AddAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<CreateAttributeSchemaMutation> attributeMutation =
+					findEntitySchemaMutation(mutations, CreateAttributeSchemaMutation.class);
+				assertTrue(attributeMutation.isPresent(), "Expected CreateAttributeSchemaMutation");
+				assertEquals("name", attributeMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAttribute("name").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify SetAttributeSchemaFilterableMutation generated when modifying attribute in getter-based entity")
+	@Test
+	void shouldGenerateSetAttributeFilterableMutationWhenModifyingAttributeInGetterBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAttribute("code").orElseThrow().isFilterable());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityEvolutionV2ModifyAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<SetAttributeSchemaFilterableMutation> filterableMutation =
+					findEntitySchemaMutation(mutations, SetAttributeSchemaFilterableMutation.class);
+				assertTrue(filterableMutation.isPresent(), "Expected SetAttributeSchemaFilterableMutation");
+				assertEquals("code", filterableMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAttribute("code").orElseThrow().isFilterable());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateAssociatedDataSchemaMutation generated when adding associated data to getter-based entity")
+	@Test
+	void shouldGenerateCreateAssociatedDataMutationWhenAddingAssociatedDataToGetterBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAssociatedData("referencedFiles").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityEvolutionV2AddAssociatedData.class
+				);
+
+				// Verify mutation
+				final Optional<CreateAssociatedDataSchemaMutation> associatedDataMutation =
+					findEntitySchemaMutation(mutations, CreateAssociatedDataSchemaMutation.class);
+				assertTrue(associatedDataMutation.isPresent(), "Expected CreateAssociatedDataSchemaMutation");
+				assertEquals("referencedFiles", associatedDataMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAssociatedData("referencedFiles").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateReferenceSchemaMutation generated when adding reference to getter-based entity")
+	@Test
+	void shouldGenerateCreateReferenceMutationWhenAddingReferenceToGetterBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("category").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityEvolutionV2AddReference.class
+				);
+
+				// Verify mutation
+				final Optional<CreateReferenceSchemaMutation> referenceMutation =
+					findEntitySchemaMutation(mutations, CreateReferenceSchemaMutation.class);
+				assertTrue(referenceMutation.isPresent(), "Expected CreateReferenceSchemaMutation");
+				assertEquals("category", referenceMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("category").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify SetReferenceSchemaFacetedMutation generated when modifying reference in getter-based entity")
+	@Test
+	void shouldGenerateSetReferenceFacetedMutationWhenModifyingReferenceInGetterBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("marketingBrand").orElseThrow().isFaceted());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityEvolutionV2ModifyReference.class
+				);
+
+				// Verify mutation
+				final Optional<SetReferenceSchemaFacetedMutation> facetedMutation =
+					findEntitySchemaMutation(mutations, SetReferenceSchemaFacetedMutation.class);
+				assertTrue(facetedMutation.isPresent(), "Expected SetReferenceSchemaFacetedMutation");
+				assertEquals("marketingBrand", facetedMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("marketingBrand").orElseThrow().isFaceted());
+			}
+		);
+	}
+
+	@DisplayName("Verify ModifyReferenceAttributeSchemaMutation generated when adding attribute to reference in getter-based entity")
+	@Test
+	void shouldGenerateModifyReferenceAttributeMutationWhenAddingAttributeToReferenceInGetterBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("marketingBrand")
+					            .orElseThrow()
+					            .getAttribute("inceptionYear")
+					            .isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityEvolutionV2AddRefAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<ModifyReferenceAttributeSchemaMutation> refAttributeMutation =
+					findEntitySchemaMutation(mutations, ModifyReferenceAttributeSchemaMutation.class);
+				assertTrue(refAttributeMutation.isPresent(), "Expected ModifyReferenceAttributeSchemaMutation");
+				assertEquals("marketingBrand", refAttributeMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("marketingBrand")
+					           .orElseThrow()
+					           .getAttribute("inceptionYear")
+					           .isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateSortableAttributeCompoundSchemaMutation generated when adding compound to getter-based entity")
+	@Test
+	void shouldGenerateCreateSortableCompoundMutationWhenAddingCompoundToGetterBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityEvolutionV2AddCompound.class
+				);
+
+				// Verify mutation
+				final Optional<CreateSortableAttributeCompoundSchemaMutation> compoundMutation =
+					findEntitySchemaMutation(mutations, CreateSortableAttributeCompoundSchemaMutation.class);
+				assertTrue(compoundMutation.isPresent(), "Expected CreateSortableAttributeCompoundSchemaMutation");
+				assertEquals("codeNameCompound", compoundMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateAttributeSchemaMutation generated when adding attribute to field-based entity")
+	@Test
+	void shouldGenerateCreateAttributeMutationWhenAddingAttributeToFieldBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAttribute("name").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, FieldBasedEntityEvolutionV2AddAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<CreateAttributeSchemaMutation> attributeMutation =
+					findEntitySchemaMutation(mutations, CreateAttributeSchemaMutation.class);
+				assertTrue(attributeMutation.isPresent(), "Expected CreateAttributeSchemaMutation");
+				assertEquals("name", attributeMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAttribute("name").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify SetAttributeSchemaFilterableMutation generated when modifying attribute in field-based entity")
+	@Test
+	void shouldGenerateSetAttributeFilterableMutationWhenModifyingAttributeInFieldBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAttribute("code").orElseThrow().isFilterable());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, FieldBasedEntityEvolutionV2ModifyAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<SetAttributeSchemaFilterableMutation> filterableMutation =
+					findEntitySchemaMutation(mutations, SetAttributeSchemaFilterableMutation.class);
+				assertTrue(filterableMutation.isPresent(), "Expected SetAttributeSchemaFilterableMutation");
+				assertEquals("code", filterableMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAttribute("code").orElseThrow().isFilterable());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateAssociatedDataSchemaMutation generated when adding associated data to field-based entity")
+	@Test
+	void shouldGenerateCreateAssociatedDataMutationWhenAddingAssociatedDataToFieldBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAssociatedData("referencedFiles").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, FieldBasedEntityEvolutionV2AddAssociatedData.class
+				);
+
+				// Verify mutation
+				final Optional<CreateAssociatedDataSchemaMutation> associatedDataMutation =
+					findEntitySchemaMutation(mutations, CreateAssociatedDataSchemaMutation.class);
+				assertTrue(associatedDataMutation.isPresent(), "Expected CreateAssociatedDataSchemaMutation");
+				assertEquals("referencedFiles", associatedDataMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAssociatedData("referencedFiles").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateReferenceSchemaMutation generated when adding reference to field-based entity")
+	@Test
+	void shouldGenerateCreateReferenceMutationWhenAddingReferenceToFieldBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("category").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, FieldBasedEntityEvolutionV2AddReference.class
+				);
+
+				// Verify mutation
+				final Optional<CreateReferenceSchemaMutation> referenceMutation =
+					findEntitySchemaMutation(mutations, CreateReferenceSchemaMutation.class);
+				assertTrue(referenceMutation.isPresent(), "Expected CreateReferenceSchemaMutation");
+				assertEquals("category", referenceMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("category").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify SetReferenceSchemaFacetedMutation generated when modifying reference in field-based entity")
+	@Test
+	void shouldGenerateSetReferenceFacetedMutationWhenModifyingReferenceInFieldBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("marketingBrand").orElseThrow().isFaceted());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, FieldBasedEntityEvolutionV2ModifyReference.class
+				);
+
+				// Verify mutation
+				final Optional<SetReferenceSchemaFacetedMutation> facetedMutation =
+					findEntitySchemaMutation(mutations, SetReferenceSchemaFacetedMutation.class);
+				assertTrue(facetedMutation.isPresent(), "Expected SetReferenceSchemaFacetedMutation");
+				assertEquals("marketingBrand", facetedMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("marketingBrand").orElseThrow().isFaceted());
+			}
+		);
+	}
+
+	@DisplayName("Verify ModifyReferenceAttributeSchemaMutation generated when adding attribute to reference in field-based entity")
+	@Test
+	void shouldGenerateModifyReferenceAttributeMutationWhenAddingAttributeToReferenceInFieldBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("marketingBrand")
+					            .orElseThrow()
+					            .getAttribute("inceptionYear")
+					            .isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, FieldBasedEntityEvolutionV2AddRefAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<ModifyReferenceAttributeSchemaMutation> refAttributeMutation =
+					findEntitySchemaMutation(mutations, ModifyReferenceAttributeSchemaMutation.class);
+				assertTrue(refAttributeMutation.isPresent(), "Expected ModifyReferenceAttributeSchemaMutation");
+				assertEquals("marketingBrand", refAttributeMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("marketingBrand")
+					           .orElseThrow()
+					           .getAttribute("inceptionYear")
+					           .isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateSortableAttributeCompoundSchemaMutation generated when adding compound to field-based entity")
+	@Test
+	void shouldGenerateCreateSortableCompoundMutationWhenAddingCompoundToFieldBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, FieldBasedEntityEvolutionV2AddCompound.class
+				);
+
+				// Verify mutation
+				final Optional<CreateSortableAttributeCompoundSchemaMutation> compoundMutation =
+					findEntitySchemaMutation(mutations, CreateSortableAttributeCompoundSchemaMutation.class);
+				assertTrue(compoundMutation.isPresent(), "Expected CreateSortableAttributeCompoundSchemaMutation");
+				assertEquals("codeNameCompound", compoundMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateAttributeSchemaMutation generated when adding attribute to record-based entity")
+	@Test
+	void shouldGenerateCreateAttributeMutationWhenAddingAttributeToRecordBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAttribute("name").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, RecordBasedEntityEvolutionV2AddAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<CreateAttributeSchemaMutation> attributeMutation =
+					findEntitySchemaMutation(mutations, CreateAttributeSchemaMutation.class);
+				assertTrue(attributeMutation.isPresent(), "Expected CreateAttributeSchemaMutation");
+				assertEquals("name", attributeMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAttribute("name").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify SetAttributeSchemaFilterableMutation generated when modifying attribute in record-based entity")
+	@Test
+	void shouldGenerateSetAttributeFilterableMutationWhenModifyingAttributeInRecordBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAttribute("code").orElseThrow().isFilterable());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, RecordBasedEntityEvolutionV2ModifyAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<SetAttributeSchemaFilterableMutation> filterableMutation =
+					findEntitySchemaMutation(mutations, SetAttributeSchemaFilterableMutation.class);
+				assertTrue(filterableMutation.isPresent(), "Expected SetAttributeSchemaFilterableMutation");
+				assertEquals("code", filterableMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAttribute("code").orElseThrow().isFilterable());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateAssociatedDataSchemaMutation generated when adding associated data to record-based entity")
+	@Test
+	void shouldGenerateCreateAssociatedDataMutationWhenAddingAssociatedDataToRecordBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getAssociatedData("referencedFiles").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, RecordBasedEntityEvolutionV2AddAssociatedData.class
+				);
+
+				// Verify mutation
+				final Optional<CreateAssociatedDataSchemaMutation> associatedDataMutation =
+					findEntitySchemaMutation(mutations, CreateAssociatedDataSchemaMutation.class);
+				assertTrue(associatedDataMutation.isPresent(), "Expected CreateAssociatedDataSchemaMutation");
+				assertEquals("referencedFiles", associatedDataMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getAssociatedData("referencedFiles").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateReferenceSchemaMutation generated when adding reference to record-based entity")
+	@Test
+	void shouldGenerateCreateReferenceMutationWhenAddingReferenceToRecordBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("category").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, RecordBasedEntityEvolutionV2AddReference.class
+				);
+
+				// Verify mutation
+				final Optional<CreateReferenceSchemaMutation> referenceMutation =
+					findEntitySchemaMutation(mutations, CreateReferenceSchemaMutation.class);
+				assertTrue(referenceMutation.isPresent(), "Expected CreateReferenceSchemaMutation");
+				assertEquals("category", referenceMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("category").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify SetReferenceSchemaFacetedMutation generated when modifying reference in record-based entity")
+	@Test
+	void shouldGenerateSetReferenceFacetedMutationWhenModifyingReferenceInRecordBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("marketingBrand").orElseThrow().isFaceted());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, RecordBasedEntityEvolutionV2ModifyReference.class
+				);
+
+				// Verify mutation
+				final Optional<SetReferenceSchemaFacetedMutation> facetedMutation =
+					findEntitySchemaMutation(mutations, SetReferenceSchemaFacetedMutation.class);
+				assertTrue(facetedMutation.isPresent(), "Expected SetReferenceSchemaFacetedMutation");
+				assertEquals("marketingBrand", facetedMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("marketingBrand").orElseThrow().isFaceted());
+			}
+		);
+	}
+
+	@DisplayName("Verify ModifyReferenceAttributeSchemaMutation generated when adding attribute to reference in record-based entity")
+	@Test
+	void shouldGenerateModifyReferenceAttributeMutationWhenAddingAttributeToReferenceInRecordBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getReference("marketingBrand")
+					            .orElseThrow()
+					            .getAttribute("inceptionYear")
+					            .isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, RecordBasedEntityEvolutionV2AddRefAttribute.class
+				);
+
+				// Verify mutation
+				final Optional<ModifyReferenceAttributeSchemaMutation> refAttributeMutation =
+					findEntitySchemaMutation(mutations, ModifyReferenceAttributeSchemaMutation.class);
+				assertTrue(refAttributeMutation.isPresent(), "Expected ModifyReferenceAttributeSchemaMutation");
+				assertEquals("marketingBrand", refAttributeMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getReference("marketingBrand")
+					           .orElseThrow()
+					           .getAttribute("inceptionYear")
+					           .isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify CreateSortableAttributeCompoundSchemaMutation generated when adding compound to record-based entity")
+	@Test
+	void shouldGenerateCreateSortableCompoundMutationWhenAddingCompoundToRecordBasedEntity() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
+
+				// Verify initial state
+				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(initialSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
+
+				// Evolve schema
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, RecordBasedEntityEvolutionV2AddCompound.class
+				);
+
+				// Verify mutation
+				final Optional<CreateSortableAttributeCompoundSchemaMutation> compoundMutation =
+					findEntitySchemaMutation(mutations, CreateSortableAttributeCompoundSchemaMutation.class);
+				assertTrue(compoundMutation.isPresent(), "Expected CreateSortableAttributeCompoundSchemaMutation");
+				assertEquals("codeNameCompound", compoundMutation.get().getName());
+
+				// Verify schema updated
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(updatedSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
+			}
+		);
 	}
 
 }
