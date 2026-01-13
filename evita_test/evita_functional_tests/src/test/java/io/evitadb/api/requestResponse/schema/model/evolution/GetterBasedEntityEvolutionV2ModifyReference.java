@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.annotation.Reference;
 public interface GetterBasedEntityEvolutionV2ModifyReference extends GetterBasedEntityEvolutionV1 {
 
 	@Reference(faceted = true)
+	@Override
 	Brand getMarketingBrand();
 
 }
