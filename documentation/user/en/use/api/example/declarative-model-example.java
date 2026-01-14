@@ -73,7 +73,7 @@ public interface Product extends Serializable {
 	@Reference(managed = false)
 	Brand getMarketingBrand();
 
-	@Reference
+	@Reference(managed = false)
 	Brand[] getLicensingBrands();
 
 	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {}
