@@ -453,23 +453,32 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public EntitySchemaBuilder withReferenceTo(
-		@Nonnull String name,
+		@Nonnull String referenceName,
 		@Nonnull String externalEntityType,
 		@Nonnull Cardinality cardinality,
 		@Nullable Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> whichIs
 	) {
 		final EntitySchemaContract currentSchema = toInstance();
-		final ReferenceSchemaContract existingReference = currentSchema.getReference(name).orElse(null);
+		final ReferenceSchemaContract existingReference = currentSchema.getReference(referenceName).orElse(null);
+
+		Assert.isTrue(
+			!(existingReference instanceof ReflectedReferenceSchemaContract),
+			() -> new InvalidSchemaMutationException(
+				"Reference `" + referenceName + "` is already created as reflected reference, " +
+					"you need first to remove it to create a standard reference of such name."
+			)
+		);
+
 		final ReferenceSchemaBuilder referenceBuilder = new ReferenceSchemaBuilder(
 			this.catalogSchemaAccessor.get(),
 			this.baseSchema,
 			existingReference,
-			name,
+			referenceName,
 			externalEntityType,
 			false,
 			cardinality,
 			this.mutations,
-			this.baseSchema.getReference(name).isEmpty()
+			this.baseSchema.getReference(referenceName).isEmpty()
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
 
@@ -498,6 +507,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	) {
 		final EntitySchemaContract currentSchema = toInstance();
 		final ReferenceSchemaContract existingReference = currentSchema.getReference(referenceName).orElse(null);
+
 		Assert.isTrue(
 			!(existingReference instanceof ReflectedReferenceSchemaContract),
 			() -> new InvalidSchemaMutationException(
@@ -515,7 +525,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			true,
 			cardinality,
 			this.mutations,
-			existingReference == null
+			this.baseSchema.getReference(referenceName)
+				.map(ReflectedReferenceSchemaContract.class::isInstance)
+				.orElse(true)
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
 
@@ -559,7 +571,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			entityType,
 			reflectedReferenceName,
 			this.mutations,
-			existingReference == null
+			this.baseSchema.getReference(referenceName)
+				.map(it -> !(it instanceof ReflectedReferenceSchemaContract))
+				.orElse(true)
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
 
