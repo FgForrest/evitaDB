@@ -1417,20 +1417,34 @@ public class ClassSchemaAnalyzer {
 					final Predicate<String> attributeFilter = attributeName -> !allowedAttributeNames.contains(
 						attributeName);
 					collectReferencedAttributesFromMembers(
-						examinedReferenceType, referencedAttributes, attributeFilter);
+						examinedReferenceType, referencedAttributes, attributeFilter
+					);
 				}
 			}
 
 			switch (reference.attributesInheritanceBehavior()) {
-				case INHERIT_ONLY_SPECIFIED -> editor.withAttributesInherited(
-					Stream.concat(
+				case INHERIT_ONLY_SPECIFIED -> {
+					// merge specified and collected attributes
+					final String[] attributeNames = Stream.concat(
 						Arrays.stream(reference.attributeInheritanceFilter()),
 						referencedAttributes.stream()
-					).toArray(String[]::new)
-				);
-				case INHERIT_ALL_EXCEPT -> editor.withAttributesInheritedExcept(
-					reference.attributeInheritanceFilter()
-				);
+					).toArray(String[]::new);
+					// only set if inheritance behavior or filter differs
+					if (
+						editor.getAttributesInheritanceBehavior() != AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED ||
+							!Arrays.equals(editor.getAttributeInheritanceFilter(), attributeNames)
+					) {
+						editor.withAttributesInherited(attributeNames);
+					}
+				}
+				case INHERIT_ALL_EXCEPT -> {
+					// only set if inheritance behavior or filter differs
+					if (editor.getAttributesInheritanceBehavior() != AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT) {
+						editor.withAttributesInheritedExcept(
+							reference.attributeInheritanceFilter()
+						);
+					}
+				}
 			}
 
 			defineSortableAttributeCompounds(referenceType, editor);
