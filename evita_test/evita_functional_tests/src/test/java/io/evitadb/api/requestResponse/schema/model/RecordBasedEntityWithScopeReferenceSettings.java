@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import java.io.Serializable;
  */
 @Entity
 public record RecordBasedEntityWithScopeReferenceSettings(
+
 	@PrimaryKey
 	int id,
 
@@ -53,6 +54,7 @@ public record RecordBasedEntityWithScopeReferenceSettings(
 	 * Reference with scope-specific settings - indexed and faceted in LIVE scope only.
 	 */
 	@Reference(
+		managed = false,
 		scope = {
 			@ScopeReferenceSettings(
 				scope = Scope.LIVE,
@@ -67,6 +69,7 @@ public record RecordBasedEntityWithScopeReferenceSettings(
 	 * Reference with different settings for different scopes.
 	 */
 	@Reference(
+		managed = false,
 		scope = {
 			@ScopeReferenceSettings(
 				scope = Scope.LIVE,
@@ -75,8 +78,7 @@ public record RecordBasedEntityWithScopeReferenceSettings(
 			),
 			@ScopeReferenceSettings(
 				scope = Scope.ARCHIVED,
-				indexed = ReferenceIndexType.FOR_FILTERING,
-				faceted = false
+				indexed = ReferenceIndexType.FOR_FILTERING
 			)
 		}
 	)
@@ -85,7 +87,7 @@ public record RecordBasedEntityWithScopeReferenceSettings(
 	/**
 	 * Reference with no scope settings - should use defaults (LIVE scope only).
 	 */
-	@Reference(indexed = ReferenceIndexType.FOR_FILTERING, faceted = true)
+	@Reference(managed = false, indexed = ReferenceIndexType.FOR_FILTERING, faceted = true)
 	Brand defaultBrand
 ) {
 

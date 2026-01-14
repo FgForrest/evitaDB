@@ -40,7 +40,7 @@ import javax.annotation.Nonnull;
 public record RecordBasedEntityEvolutionV2AddRefAttribute(
 	@PrimaryKey int id,
 	@Attribute @Nonnull String code,
-	@Reference Brand marketingBrand
+	@Reference(managed = false) Brand marketingBrand
 ) {
 
 	public record Brand(

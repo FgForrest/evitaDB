@@ -70,6 +70,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -651,10 +653,21 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		@Nonnull LocalCatalogSchemaMutation[] mutations,
 		@Nonnull Class<T> mutationType
 	) {
-		return Arrays.stream(mutations)
-			.filter(ModifyEntitySchemaMutation.class::isInstance)
-			.map(ModifyEntitySchemaMutation.class::cast)
-			.flatMap(m -> Arrays.stream(m.getSchemaMutations()))
+		return Stream.of(
+				Arrays.stream(mutations),
+				Arrays.stream(mutations)
+					.filter(ModifyEntitySchemaMutation.class::isInstance)
+					.map(ModifyEntitySchemaMutation.class::cast)
+					.flatMap(m -> Arrays.stream(m.getSchemaMutations())),
+				Arrays.stream(mutations)
+					.filter(ModifyEntitySchemaMutation.class::isInstance)
+					.map(ModifyEntitySchemaMutation.class::cast)
+					.flatMap(m -> Arrays.stream(m.getSchemaMutations()))
+					.filter(ModifyReferenceAttributeSchemaMutation.class::isInstance)
+					.map(ModifyReferenceAttributeSchemaMutation.class::cast)
+					.map(ModifyReferenceAttributeSchemaMutation::getAttributeSchemaMutation)
+				)
+			.flatMap(Function.identity())
 			.filter(mutationType::isInstance)
 			.map(mutationType::cast)
 			.findFirst();
@@ -2504,7 +2517,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAttribute("name").isPresent());
 
@@ -2520,7 +2534,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("name", attributeMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAttribute("name").isPresent());
 			}
@@ -2537,7 +2552,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAttribute("code").orElseThrow().isFilterable());
 
@@ -2553,7 +2569,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("code", filterableMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAttribute("code").orElseThrow().isFilterable());
 			}
@@ -2570,7 +2587,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAssociatedData("referencedFiles").isPresent());
 
@@ -2586,7 +2604,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("referencedFiles", associatedDataMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAssociatedData("referencedFiles").isPresent());
 			}
@@ -2603,7 +2622,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("category").isPresent());
 
@@ -2619,7 +2639,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("category", referenceMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("category").isPresent());
 			}
@@ -2636,7 +2657,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("marketingBrand").orElseThrow().isFaceted());
 
@@ -2652,7 +2674,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("marketingBrand", facetedMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("marketingBrand").orElseThrow().isFaceted());
 			}
@@ -2669,7 +2692,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("marketingBrand")
 					            .orElseThrow()
@@ -2688,7 +2712,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("marketingBrand", refAttributeMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("marketingBrand")
 					           .orElseThrow()
@@ -2708,7 +2733,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
 
@@ -2724,7 +2750,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("codeNameCompound", compoundMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(GetterBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
 			}
@@ -2741,7 +2768,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAttribute("name").isPresent());
 
@@ -2757,7 +2785,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("name", attributeMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAttribute("name").isPresent());
 			}
@@ -2774,7 +2803,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAttribute("code").orElseThrow().isFilterable());
 
@@ -2790,7 +2820,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("code", filterableMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAttribute("code").orElseThrow().isFilterable());
 			}
@@ -2807,7 +2838,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAssociatedData("referencedFiles").isPresent());
 
@@ -2823,7 +2855,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("referencedFiles", associatedDataMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAssociatedData("referencedFiles").isPresent());
 			}
@@ -2840,7 +2873,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("category").isPresent());
 
@@ -2856,7 +2890,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("category", referenceMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("category").isPresent());
 			}
@@ -2873,7 +2908,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("marketingBrand").orElseThrow().isFaceted());
 
@@ -2889,7 +2925,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("marketingBrand", facetedMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("marketingBrand").orElseThrow().isFaceted());
 			}
@@ -2906,7 +2943,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("marketingBrand")
 					            .orElseThrow()
@@ -2925,7 +2963,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("marketingBrand", refAttributeMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("marketingBrand")
 					           .orElseThrow()
@@ -2945,7 +2984,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
 
@@ -2961,7 +3001,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("codeNameCompound", compoundMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(FieldBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						FieldBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
 			}
@@ -2978,7 +3019,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAttribute("name").isPresent());
 
@@ -2994,7 +3036,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("name", attributeMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAttribute("name").isPresent());
 			}
@@ -3011,7 +3054,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAttribute("code").orElseThrow().isFilterable());
 
@@ -3027,7 +3071,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("code", filterableMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAttribute("code").orElseThrow().isFilterable());
 			}
@@ -3044,7 +3089,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getAssociatedData("referencedFiles").isPresent());
 
@@ -3060,7 +3106,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("referencedFiles", associatedDataMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAssociatedData("referencedFiles").isPresent());
 			}
@@ -3077,7 +3124,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("category").isPresent());
 
@@ -3093,7 +3141,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("category", referenceMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("category").isPresent());
 			}
@@ -3110,7 +3159,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("marketingBrand").orElseThrow().isFaceted());
 
@@ -3126,7 +3176,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("marketingBrand", facetedMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("marketingBrand").orElseThrow().isFaceted());
 			}
@@ -3143,7 +3194,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getReference("marketingBrand")
 					            .orElseThrow()
@@ -3162,7 +3214,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("marketingBrand", refAttributeMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getReference("marketingBrand")
 					           .orElseThrow()
@@ -3182,7 +3235,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityEvolutionV1.class);
 
 				// Verify initial state
-				final SealedEntitySchema initialSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertFalse(initialSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
 
@@ -3198,9 +3252,134 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertEquals("codeNameCompound", compoundMutation.get().getName());
 
 				// Verify schema updated
-				final SealedEntitySchema updatedSchema = session.getEntitySchema(RecordBasedEntityEvolutionV1.ENTITY_NAME)
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						RecordBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getSortableAttributeCompound("codeNameCompound").isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Verify that enum attributes are converted to String type")
+	@Test
+	void shouldConvertEnumAttributeToStringType() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV1.class);
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityEvolutionV2EnumAttribute.class);
+
+				final SealedEntitySchema schema = session.getEntitySchema(
+					GetterBasedEntityEvolutionV1.ENTITY_NAME
+				).orElseThrow();
+
+				final AttributeSchemaContract priorityAttr = schema.getAttribute("priority").orElseThrow();
+				assertEquals(
+					String.class, priorityAttr.getType(),
+					"Enum attribute should be converted to String type"
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify that @ReferenceRef properly updates reflected references")
+	@Test
+	void shouldUpdateReflectedReferenceViaReferenceRefAnnotation() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// First define the Brand entity with its reference
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityEvolutionV1WithReflectedRef.Brand.class
+				);
+				// Then define the main entity with reflected reference
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityEvolutionV1WithReflectedRef.class
+				);
+
+				// Now evolve with V2 that adds attribute via @ReferenceRef
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityEvolutionV2ModifyReflectedRef.class
+				);
+
+				// Should generate mutation for new attribute on reflected reference
+				final Optional<CreateAttributeSchemaMutation> mutation =
+					findEntitySchemaMutation(mutations, CreateAttributeSchemaMutation.class);
+
+				assertTrue(
+					mutation.isPresent(),
+					"Expected CreateAttributeSchemaMutation for brandNote attribute"
+				);
+				assertEquals("brandNote", mutation.get().getName());
+			}
+		);
+	}
+
+	@DisplayName("Verify no duplicate mutations for already-global attributes")
+	@Test
+	void shouldNotGenerateDuplicateGlobalAttributeMutation() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Define schema with global attribute
+				session.defineEntitySchemaFromModelClass(EntityWithGlobalAttributeForEvolution.class);
+
+				// Verify schema has the attribute as global
+				final SealedEntitySchema schema = session.getEntitySchema(
+					EntityWithGlobalAttributeForEvolution.ENTITY_NAME
+				).orElseThrow();
+
+				assertTrue(schema.getAttribute("globalCode").isPresent());
+
+				// Verify the representative flag is set on the global attribute
+				final AttributeSchemaContract globalCodeAttribute = schema.getAttribute("globalCode").orElseThrow();
+				assertTrue(
+					globalCodeAttribute.isRepresentative(),
+					"Global attribute should have representative flag set"
+				);
+
+				// Re-analyze same class - should produce no mutations
+				final LocalCatalogSchemaMutation[] mutations =
+					analyzeAndCaptureMutations(session, EntityWithGlobalAttributeForEvolution.class);
+
+				// Should produce no entity schema mutations since schema is unchanged
+				final long entityMutationCount = Arrays.stream(mutations)
+					.filter(ModifyEntitySchemaMutation.class::isInstance)
+					.map(ModifyEntitySchemaMutation.class::cast)
+					.flatMap(m -> Arrays.stream(m.getSchemaMutations()))
+					.count();
+
+				assertEquals(
+					0, entityMutationCount,
+					"Should not generate mutations for already-defined global attribute"
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify exception when creating standard reference over reflected reference")
+	@Test
+	void shouldThrowExceptionWhenCreatingStandardReferenceOverReflected() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// First define Brand and Product with reflected reference
+				session.defineEntitySchemaFromModelClass(
+					EntityWithReflectedReferenceConflict.Brand.class
+				);
+				session.defineEntitySchemaFromModelClass(
+					EntityWithReflectedReferenceConflict.Product.class
+				);
+
+				// Now try to define InvalidProduct which tries standard ref over reflected
+				assertThrows(
+					SchemaClassInvalidException.class,
+					() -> session.defineEntitySchemaFromModelClass(
+						EntityWithReflectedReferenceConflict.InvalidProduct.class
+					),
+					"Should throw exception when trying to create standard reference " +
+						"where reflected reference already exists"
+				);
 			}
 		);
 	}

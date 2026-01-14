@@ -38,7 +38,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class FieldBasedEntityEvolutionV2ModifyReference extends FieldBasedEntityEvolutionV1 {
 
-	@Reference(faceted = true)
+	@Reference(managed = false, faceted = true)
 	private Brand marketingBrand;
 
 }

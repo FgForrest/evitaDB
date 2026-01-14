@@ -53,7 +53,7 @@ public class FieldBasedEntityEvolutionV1 {
 	@Nonnull
 	private String code;
 
-	@Reference
+	@Reference(managed = false)
 	private Brand marketingBrand;
 
 	/**

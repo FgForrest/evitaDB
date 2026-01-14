@@ -499,7 +499,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		final EntitySchemaContract currentSchema = toInstance();
 		final ReferenceSchemaContract existingReference = currentSchema.getReference(referenceName).orElse(null);
 		Assert.isTrue(
-			existingReference == null || !(existingReference instanceof ReflectedReferenceSchemaContract),
+			!(existingReference instanceof ReflectedReferenceSchemaContract),
 			() -> new InvalidSchemaMutationException(
 				"Reference `" + referenceName + "` is already created as reflected reference, " +
 					"you need first to remove it to create a standard reference of such name."

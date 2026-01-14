@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
 public record RecordBasedEntityEvolutionV1(
 	@PrimaryKey int id,
 	@Attribute @Nonnull String code,
-	@Reference Brand marketingBrand
+	@Reference(managed = false) Brand marketingBrand
 ) {
 
 	public static final String ENTITY_NAME = "RecordBasedEntityEvolution";
