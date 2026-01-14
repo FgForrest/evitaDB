@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import java.util.function.BooleanSupplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEditor<T>> extends EntityAttributeSchemaEditor<T> {
+public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEditor<T>> extends EntityAttributeSchemaEditor<T>, GlobalAttributeSchemaContract {
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single

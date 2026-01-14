@@ -36,7 +36,6 @@ import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.stub.StreamObserver;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -68,7 +67,6 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@RequiredArgsConstructor
 public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture>, AutoCloseable {
 	private final StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
 	private final CompletableFuture<Subscription> subscriptionFuture;
@@ -87,7 +85,8 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 		@Nonnull StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver,
 		@Nonnull CompletableFuture<Subscription> subscriptionFuture,
 		@Nullable SemVer clientVersion,
-		@Nonnull LongSupplier versionSupplier
+		@Nonnull LongSupplier versionSupplier,
+		@Nonnull ServiceRequestContext serviceContext
 	) {
 		this.responseObserver = responseObserver;
 		this.subscriptionFuture = subscriptionFuture;
@@ -95,7 +94,7 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 		this.versionSupplier = versionSupplier;
 		// calculate heartbeat delay to be 5 seconds less than response timeout,
 		// but at least 1 second and at most 5 minutes
-		this.serviceContext = ServiceRequestContext.current();
+		this.serviceContext = serviceContext;
 		this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
 		this.heartBeatDelay = Math.min(Math.max(this.responseTimeoutMillis - 5000L, 1000L), 300000L);
 		this.heartBeatTask = new DelayedAsyncTask(

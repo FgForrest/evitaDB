@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -545,10 +545,49 @@ public class ReflectionLookup {
 				propertyName,
 				new PropertyDescriptor(
 					propertyField,
-					isGetter ? method : existingTuple.getter(),
-					isGetter ? existingTuple.setter() : method
+					isGetter ? takeMoreSpecificByReturnType(method, existingTuple.getter()) : existingTuple.getter(),
+					isGetter ? existingTuple.setter() : takeMoreSpecificByArgument(method, existingTuple.setter())
 				)
 			);
+		}
+	}
+
+	/**
+	 * Determines the more specific method between two given methods, based on their return types.
+	 *
+	 * If the second method is null or if the return type of the first method
+	 * is assignable from the return type of the second method, the first method is returned.
+	 * Otherwise, the second method is returned.
+	 *
+	 * @param getterA the first method to be compared, must not be null
+	 * @param getterB the second method to be compared, can be null
+	 * @return the more specific method between the two according to their return types
+	 */
+	@Nonnull
+	private static Method takeMoreSpecificByReturnType(@Nonnull Method getterA, @Nullable Method getterB) {
+		if (getterB != null && getterA.getReturnType().isAssignableFrom(getterB.getReturnType())) {
+			return getterB;
+		} else {
+			return getterA;
+		}
+	}
+
+	/**
+	 * Selects the more specific setter method based on the type of the first argument of their parameters.
+	 * A method is considered more specific if its parameter type is assignable from the parameter type
+	 * of the other method.
+	 *
+	 * @param setterA the first method to compare, which must not be null
+	 * @param setterB the second method to compare, which may be null
+	 * @return the more specific method between the two. If setterB is null or its parameter type is less specific
+	 *         than that of setterA, setterA will be returned. Otherwise, setterB will be returned.
+	 */
+	@Nonnull
+	private static Method takeMoreSpecificByArgument(@Nonnull Method setterA, @Nullable Method setterB) {
+		if (setterB != null && setterA.getParameterTypes()[0].isAssignableFrom(setterB.getParameterTypes()[0])) {
+			return setterB;
+		} else {
+			return setterA;
 		}
 	}
 

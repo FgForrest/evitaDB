@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -124,7 +124,8 @@ public class FileSystemExportOptions extends ExportOptions {
 	 */
 	@ToString
 	public static class Builder {
-		@Nullable private Boolean enabled = null;
+		// when builder is used, the file system export is perceived as enabled by default
+		private boolean enabled = true;
 		private long sizeLimitBytes = DEFAULT_SIZE_LIMIT_BYTES;
 		private long historyExpirationSeconds = DEFAULT_HISTORY_EXPIRATION_SECONDS;
 		private Path directory = DEFAULT_EXPORT_DIRECTORY;
@@ -133,14 +134,13 @@ public class FileSystemExportOptions extends ExportOptions {
 		}
 
 		Builder(@Nonnull FileSystemExportOptions options) {
-			this.enabled = options.getEnabled();
 			this.sizeLimitBytes = options.getSizeLimitBytes();
 			this.historyExpirationSeconds = options.getHistoryExpirationSeconds();
 			this.directory = options.getDirectory();
 		}
 
 		@Nonnull
-		public Builder enabled(@Nullable Boolean enabled) {
+		public Builder enabled(boolean enabled) {
 			this.enabled = enabled;
 			return this;
 		}

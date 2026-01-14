@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -257,7 +257,8 @@ public class S3ExportOptions extends ExportOptions {
 	 */
 	@ToString(exclude = {"accessKey", "secretKey"})
 	public static class Builder {
-		@Nullable private Boolean enabled = null;
+		// when builder is used, the S3 system export is perceived as enabled by default
+		private boolean enabled = true;
 		private long sizeLimitBytes = DEFAULT_SIZE_LIMIT_BYTES;
 		private long historyExpirationSeconds = DEFAULT_HISTORY_EXPIRATION_SECONDS;
 		@Nullable private String endpoint = null;
@@ -271,7 +272,6 @@ public class S3ExportOptions extends ExportOptions {
 		}
 
 		Builder(@Nonnull S3ExportOptions options) {
-			this.enabled = options.getEnabled();
 			this.sizeLimitBytes = options.getSizeLimitBytes();
 			this.historyExpirationSeconds = options.getHistoryExpirationSeconds();
 			this.endpoint = options.getEndpoint();
@@ -283,7 +283,7 @@ public class S3ExportOptions extends ExportOptions {
 		}
 
 		@Nonnull
-		public Builder enabled(@Nullable Boolean enabled) {
+		public Builder enabled(boolean enabled) {
 			this.enabled = enabled;
 			return this;
 		}

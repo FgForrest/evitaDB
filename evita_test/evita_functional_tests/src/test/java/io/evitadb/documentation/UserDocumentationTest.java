@@ -115,7 +115,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	/**
 	 * Field containing the relative directory path to the user documentation.
 	 */
-	private static final String DOCS_ROOT = "documentation/user/";
+	private static final String DOCS_ROOT = "documentation/user/en/";
 	/**
 	 * Field contains list of all languages that are not tested by this class.
 	 */
