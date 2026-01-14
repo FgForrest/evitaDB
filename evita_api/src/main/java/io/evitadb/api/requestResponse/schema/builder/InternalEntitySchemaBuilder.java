@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -491,25 +491,31 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public EntitySchemaBuilder withReferenceToEntity(
-		@Nonnull String name,
+		@Nonnull String referenceName,
 		@Nonnull String entityType,
 		@Nonnull Cardinality cardinality,
 		@Nullable Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> whichIs
 	) {
 		final EntitySchemaContract currentSchema = toInstance();
-		final ReferenceSchemaContract existingReference = currentSchema.getReference(name).orElse(null);
+		final ReferenceSchemaContract existingReference = currentSchema.getReference(referenceName).orElse(null);
+		Assert.isTrue(
+			!(existingReference instanceof ReflectedReferenceSchemaContract),
+			() -> new InvalidSchemaMutationException(
+				"Reference `" + referenceName + "` is already created as reflected reference, " +
+					"you need first to remove it to create a standard reference of such name."
+			)
+		);
+
 		final ReferenceSchemaBuilder referenceSchemaBuilder = new ReferenceSchemaBuilder(
 			this.catalogSchemaAccessor.get(),
 			this.baseSchema,
 			existingReference,
-			name,
+			referenceName,
 			entityType,
 			true,
 			cardinality,
 			this.mutations,
-			this.baseSchema.getReference(name)
-				.map(ReflectedReferenceSchemaContract.class::isInstance)
-				.orElse(true)
+			existingReference == null
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
 
@@ -553,9 +559,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			entityType,
 			reflectedReferenceName,
 			this.mutations,
-			this.baseSchema.getReference(referenceName)
-				.map(it -> !(it instanceof ReflectedReferenceSchemaContract))
-				.orElse(true)
+			existingReference == null
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
 

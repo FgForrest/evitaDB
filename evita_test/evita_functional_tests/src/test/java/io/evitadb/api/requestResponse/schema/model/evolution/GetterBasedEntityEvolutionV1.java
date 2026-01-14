@@ -50,7 +50,7 @@ public interface GetterBasedEntityEvolutionV1 {
 	@Nonnull
 	String getCode();
 
-	@Reference
+	@Reference(managed = false)
 	Brand getMarketingBrand();
 
 	/**

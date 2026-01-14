@@ -36,7 +36,7 @@ import java.io.Serializable;
  */
 public interface GetterBasedEntityEvolutionV2AddReference extends GetterBasedEntityEvolutionV1 {
 
-	@Reference
+	@Reference(managed = false)
 	Category getCategory();
 
 	interface Category extends Serializable {

@@ -40,7 +40,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class FieldBasedEntityEvolutionV2AddReference extends FieldBasedEntityEvolutionV1 {
 
-	@Reference
+	@Reference(managed = false)
 	private Category category;
 
 	@Data

@@ -41,7 +41,7 @@ public record RecordBasedEntityEvolutionV2AddAttribute(
 	@PrimaryKey int id,
 	@Attribute @Nonnull String code,
 	@Attribute @Nonnull String name,
-	@Reference Brand marketingBrand
+	@Reference(managed = false) Brand marketingBrand
 ) {
 
 	public record Brand(

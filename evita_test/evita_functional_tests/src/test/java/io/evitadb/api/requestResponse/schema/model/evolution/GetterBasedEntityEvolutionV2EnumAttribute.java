@@ -25,29 +25,32 @@ package io.evitadb.api.requestResponse.schema.model.evolution;
 
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-
-import javax.annotation.Nonnull;
 
 /**
- * V2 evolution: modifies 'marketingBrand' reference to be faceted.
+ * V2 evolution: adds enum attribute which should be converted to String type.
+ * Tests the enum type conversion in ClassSchemaAnalyzer.verifyDataType() method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Entity(name = RecordBasedEntityEvolutionV1.ENTITY_NAME)
-public record RecordBasedEntityEvolutionV2ModifyReference(
-	@PrimaryKey int id,
-	@Attribute @Nonnull String code,
-	@Reference(managed = false, faceted = true) Brand marketingBrand
-) {
+@Entity(name = GetterBasedEntityEvolutionV1.ENTITY_NAME)
+public interface GetterBasedEntityEvolutionV2EnumAttribute extends GetterBasedEntityEvolutionV1 {
 
-	public record Brand(
-		@ReferencedEntity int brand,
-		@Attribute String market
-	) {
-
+	/**
+	 * Priority levels for the entity.
+	 */
+	enum Priority {
+		LOW,
+		MEDIUM,
+		HIGH
 	}
+
+	/**
+	 * Returns the priority level of the entity. Enum types are automatically
+	 * converted to String type for storage.
+	 *
+	 * @return priority level
+	 */
+	@Attribute
+	Priority getPriority();
 
 }

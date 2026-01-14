@@ -43,7 +43,7 @@ public record RecordBasedEntityEvolutionV2AddAssociatedData(
 	@PrimaryKey int id,
 	@Attribute @Nonnull String code,
 	@AssociatedData @Nonnull ReferencedFiles referencedFiles,
-	@Reference Brand marketingBrand
+	@Reference(managed = false) Brand marketingBrand
 ) {
 
 	public record Brand(

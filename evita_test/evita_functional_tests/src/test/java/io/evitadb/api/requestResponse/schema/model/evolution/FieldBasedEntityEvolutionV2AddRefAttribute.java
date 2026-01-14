@@ -39,7 +39,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class FieldBasedEntityEvolutionV2AddRefAttribute extends FieldBasedEntityEvolutionV1 {
 
-	@Reference
+	@Reference(managed = false)
 	private ExtendedBrand marketingBrand;
 
 	@Data

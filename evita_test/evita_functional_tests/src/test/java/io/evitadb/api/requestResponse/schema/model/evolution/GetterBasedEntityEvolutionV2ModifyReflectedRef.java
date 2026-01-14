@@ -24,29 +24,39 @@
 package io.evitadb.api.requestResponse.schema.model.evolution;
 
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
-import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-
-import javax.annotation.Nonnull;
+import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 
 /**
- * V2 evolution: modifies 'marketingBrand' reference to be faceted.
+ * V2 evolution: adds attribute to existing reflected reference via @ReferenceRef.
+ * Tests the defineReflectedReference() code path in ClassSchemaAnalyzer.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Entity(name = RecordBasedEntityEvolutionV1.ENTITY_NAME)
-public record RecordBasedEntityEvolutionV2ModifyReference(
-	@PrimaryKey int id,
-	@Attribute @Nonnull String code,
-	@Reference(managed = false, faceted = true) Brand marketingBrand
-) {
+public interface GetterBasedEntityEvolutionV2ModifyReflectedRef
+	extends GetterBasedEntityEvolutionV1WithReflectedRef {
 
-	public record Brand(
-		@ReferencedEntity int brand,
-		@Attribute String market
-	) {
+	/**
+	 * Returns the enhanced brand reference with additional attribute.
+	 * The @ReferenceRef annotation signals that we're enhancing an existing reference.
+	 *
+	 * @return enhanced brand reference
+	 */
+	@ReferenceRef("marketingBrand")
+	@Override
+	EnhancedBrandRef getMarketingBrand();
+
+	/**
+	 * Enhanced reference interface that adds a new attribute to the existing reflected reference.
+	 */
+	interface EnhancedBrandRef extends BrandRef {
+
+		/**
+		 * Returns the brand note attribute. This is a new attribute added to the reflected reference.
+		 *
+		 * @return brand note
+		 */
+		@Attribute(sortable = true)
+		String getBrandNote();
 
 	}
 

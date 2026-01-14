@@ -293,9 +293,14 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	private static <T> Class<T> verifyDataType(@Nonnull Class<T> theType) {
+		// user enums are always represented as String, which is naturally supported
+		if (theType.isEnum()) {
+			//noinspection unchecked
+			return (Class<T>) String.class;
+		}
 		Assert.isTrue(
 			EvitaDataTypes.isSupportedTypeOrItsArray(theType),
-			"Default value type `" + theType + "` must implement Serializable!"
+			"Default value type `" + theType + "` must implement Serializable or must be an enum type!"
 		);
 		return theType;
 	}
@@ -452,6 +457,11 @@ public class ClassSchemaAnalyzer {
 				attributeName, attributeType,
 				whichIs -> {
 					attributeBuilder.accept(whichIs);
+
+					if (attributeAnnotation.representative() && !whichIs.isRepresentative()) {
+						whichIs.representative();
+					}
+
 					if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 						// unique globally - only set if not already unique globally in default scope
 						if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG &&
@@ -493,7 +503,12 @@ public class ClassSchemaAnalyzer {
 				}
 			);
 			if (attributeSchemaEditor instanceof EntitySchemaBuilder entitySchemaBuilder) {
-				entitySchemaBuilder.withGlobalAttribute(attributeName);
+				final Boolean globalAttributeAlreadyDefined = entitySchemaBuilder.getAttribute(attributeName)
+					.map(GlobalAttributeSchemaContract.class::isInstance)
+					.orElse(false);
+				if (!globalAttributeAlreadyDefined) {
+					entitySchemaBuilder.withGlobalAttribute(attributeName);
+				}
 			}
 		} else {
 			if (attributeSchemaEditor instanceof EntitySchemaBuilder entitySchemaBuilder) {
@@ -910,11 +925,22 @@ public class ClassSchemaAnalyzer {
 				if (referenceRefAnnotation != null) {
 					final String referenceName = getNameOrElse(referenceRefAnnotation.value(), member::getName);
 					final Class<?> referenceType = member.getType(this.modelClass);
-					defineReference(
-						entityBuilder,
-						entityBuilder.getReferenceOrThrowException(referenceName),
-						this.subClassResolver.apply(referenceName, referenceType)
+					final ReferenceSchemaContract existingReference = entityBuilder.getReferenceOrThrowException(
+						referenceName
 					);
+					if (existingReference instanceof ReflectedReferenceSchemaContract rrsc) {
+						defineReflectedReference(
+							entityBuilder,
+							rrsc,
+							this.subClassResolver.apply(referenceName, referenceType)
+						);
+					} else {
+						defineReference(
+							entityBuilder,
+							existingReference,
+							this.subClassResolver.apply(referenceName, referenceType)
+						);
+					}
 				}
 
 				// Parent entity
@@ -1460,6 +1486,43 @@ public class ClassSchemaAnalyzer {
 
 		entityBuilder.withReflectedReferenceToEntity(
 			referenceName, targetEntity.entityType(), reference.ofName(), reflectedReferenceBuilder
+		);
+	}
+
+	/**
+	 * Method defines that entity will have the reflected reference based on an existing
+	 * {@link ReflectedReferenceSchemaContract}. This is used when a reference is already defined
+	 * (e.g., from @ReferenceRef annotation) and needs to be enhanced with attributes from the
+	 * referenced type's members.
+	 *
+	 * @param entityBuilder the entity schema builder to add the reference to
+	 * @param reference     the existing reflected reference schema contract
+	 * @param referenceType the class type of the reference for analyzing attributes
+	 */
+	private void defineReflectedReference(
+		@Nonnull EntitySchemaBuilder entityBuilder,
+		@Nonnull ReflectedReferenceSchemaContract reference,
+		@Nonnull Class<?> referenceType
+	) {
+		final Class<?> examinedReferenceType = referenceType.isArray() ?
+			referenceType.getComponentType() :
+			referenceType;
+
+		final Map<String, String> relationAttributes = new HashMap<>(32);
+		final Consumer<ReflectedReferenceSchemaBuilder> reflectedReferenceBuilder = editor -> {
+			// we need also to analyze the target type for presence of control annotations in case the type is not
+			// entity itself (i.e. is a relation mapping DTO)
+			if (this.reflectionLookup.getClassAnnotations(examinedReferenceType, Entity.class).isEmpty()) {
+				analyzeReferenceMembers(examinedReferenceType, relationAttributes, editor);
+				defineSortableAttributeCompounds(referenceType, editor);
+			}
+		};
+
+		entityBuilder.withReflectedReferenceToEntity(
+			reference.getName(),
+			reference.getReferencedEntityType(),
+			reference.getReflectedReferenceName(),
+			reflectedReferenceBuilder
 		);
 	}
 

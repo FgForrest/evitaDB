@@ -40,8 +40,8 @@ import javax.annotation.Nonnull;
 public record RecordBasedEntityEvolutionV2AddReference(
 	@PrimaryKey int id,
 	@Attribute @Nonnull String code,
-	@Reference Brand marketingBrand,
-	@Reference Category category
+	@Reference(managed = false) Brand marketingBrand,
+	@Reference(managed = false) Category category
 ) {
 
 	public record Brand(

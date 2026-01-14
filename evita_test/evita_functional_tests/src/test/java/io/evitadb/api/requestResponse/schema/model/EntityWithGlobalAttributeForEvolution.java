@@ -21,33 +21,43 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.schema.model.evolution;
+package io.evitadb.api.requestResponse.schema.model;
 
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 
 import javax.annotation.Nonnull;
 
 /**
- * V2 evolution: modifies 'marketingBrand' reference to be faceted.
+ * Entity with global attribute for testing duplicate mutation prevention.
+ * When the same entity class is analyzed twice, no duplicate mutations should be generated
+ * for the global attribute that is already defined.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Entity(name = RecordBasedEntityEvolutionV1.ENTITY_NAME)
-public record RecordBasedEntityEvolutionV2ModifyReference(
-	@PrimaryKey int id,
-	@Attribute @Nonnull String code,
-	@Reference(managed = false, faceted = true) Brand marketingBrand
-) {
+@Entity(name = EntityWithGlobalAttributeForEvolution.ENTITY_NAME)
+public interface EntityWithGlobalAttributeForEvolution {
 
-	public record Brand(
-		@ReferencedEntity int brand,
-		@Attribute String market
-	) {
+	String ENTITY_NAME = "EntityWithGlobalAttr";
 
-	}
+	/**
+	 * Returns the primary key of the entity.
+	 *
+	 * @return primary key
+	 */
+	@PrimaryKey
+	int getId();
+
+	/**
+	 * Returns the global code attribute. This attribute is defined as global,
+	 * meaning it is shared across all entities in the catalog. It is also marked
+	 * as representative to help identify entities in developer tools.
+	 *
+	 * @return global code
+	 */
+	@Attribute(global = true, filterable = true, representative = true)
+	@Nonnull
+	String getGlobalCode();
 
 }
