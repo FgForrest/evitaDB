@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,46 +21,39 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
+package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 
-import graphql.schema.DataFetcher;
-import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
+import graphql.TypeResolutionEnvironment;
+import graphql.schema.GraphQLObjectType;
+import graphql.schema.TypeResolver;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
 
 /**
- * Fetches group entity from parent {@link ReferenceContract}.
+ * TODO lho docs
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class ReferencedGroupDataFetcher implements DataFetcher<EntityClassifier> {
+public class HelperInterfaceTypeResolver implements TypeResolver {
 
 	@Nullable
-	private static ReferencedGroupDataFetcher INSTANCE;
+	private static HelperInterfaceTypeResolver INSTANCE = null;
 
 	@Nonnull
-	public static ReferencedGroupDataFetcher getInstance() {
+	public static HelperInterfaceTypeResolver getInstance() {
 		if (INSTANCE == null) {
-			INSTANCE = new ReferencedGroupDataFetcher();
+			INSTANCE = new HelperInterfaceTypeResolver();
 		}
 		return INSTANCE;
 	}
 
-	@Nonnull
 	@Override
-	public EntityClassifier get(DataFetchingEnvironment environment) throws Exception {
-		final ReferenceContract reference = Objects.requireNonNull(environment.getSource());
-		return reference.getGroupEntity()
-			.map(EntityClassifier.class::cast)
-			.orElse(reference.getGroup()
-				.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing group reference.")));
+	public GraphQLObjectType getType(TypeResolutionEnvironment env) {
+		throw new GraphQLQueryResolvingInternalError("Interface cannot be used independently.");
 	}
 }

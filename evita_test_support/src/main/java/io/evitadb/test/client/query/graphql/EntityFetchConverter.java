@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,11 +40,13 @@ import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceWithGroupDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BigDecimalFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
@@ -586,7 +588,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 		referenceContent.getEntityRequirement().ifPresent(entityRequirement ->
 			referenceBuilder.addObjectField(
-				ReferenceDescriptor.REFERENCED_ENTITY,
+				ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY,
 				referencedEntityBuilder -> convert(
 					referencedEntityBuilder,
 					referenceSchema.getReferencedEntityType(),
@@ -597,7 +599,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 		referenceContent.getGroupEntityRequirement().ifPresent(groupEntityRequirement ->
 			referenceBuilder.addObjectField(
-				ReferenceDescriptor.GROUP_ENTITY,
+				ReferenceWithGroupDescriptor.GROUP_ENTITY,
 				referencedGroupEntityBuilder -> convert(
 					referencedGroupEntityBuilder,
 					referenceSchema.getReferencedGroupType(),

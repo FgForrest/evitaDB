@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,12 +37,14 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceWithGroupDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
@@ -482,12 +484,12 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey());
 
 		reference.getReferencedEntity()
-			.ifPresent(entity -> dto.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityDto(entity, localized)));
+			.ifPresent(entity -> dto.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), createEntityDto(entity, localized)));
 
 		reference.getGroupEntity()
 			.map(it -> (EntityClassifier) it)
 			.or(reference::getGroup)
-			.ifPresent(groupEntity -> dto.e(ReferenceDescriptor.GROUP_ENTITY.name(), createEntityDto(groupEntity, localized)));
+			.ifPresent(groupEntity -> dto.e(ReferenceWithGroupDescriptor.GROUP_ENTITY.name(), createEntityDto(groupEntity, localized)));
 
 		createAttributesDto(dto, locales, reference, localized);
 

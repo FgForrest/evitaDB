@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,9 @@
 
 package io.evitadb.externalApi.api.model;
 
-import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.regex.Pattern;
 
 /**
  * API-independent descriptor of a type.
@@ -37,15 +36,16 @@ import javax.annotation.Nullable;
  */
 public interface TypeDescriptor {
 
-	public static String NAME_WILDCARD = "*";
+	String NAME_WILDCARD_PLACEHOLDER = "*";
+	Pattern NAME_WILDCARD_PLACEHOLDER_PATTERN = Pattern.compile("\\" + NAME_WILDCARD_PLACEHOLDER);
+
+	String NAME_SINGLE_PLACEHOLDER = "$";
+	Pattern NAME_SINGLE_PLACEHOLDER_PATTERN = Pattern.compile("\\" + NAME_SINGLE_PLACEHOLDER);
 
 	String name();
 
 	@Nonnull
-	String name(@Nonnull NamedSchemaContract... schema);
-
-	@Nonnull
-	String name(@Nullable String suffix, @Nonnull NamedSchemaContract... schema);
+	String name(@Nonnull Object... schema);
 
 	boolean isNameStatic();
 

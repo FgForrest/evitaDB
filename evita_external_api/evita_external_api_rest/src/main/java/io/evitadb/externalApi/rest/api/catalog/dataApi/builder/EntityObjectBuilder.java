@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,15 +29,13 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.*;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionPageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
@@ -467,7 +465,8 @@ public class EntityObjectBuilder {
 	private OpenApiTypeReference buildReferenceObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                  boolean localized) {
-		final OpenApiObject.Builder referenceObject = ReferenceDescriptor.THIS
+		// todo lho implement interfaces
+		final OpenApiObject.Builder referenceObject = EntityReferenceDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(constructReferenceObjectName(entitySchema, referenceSchema, localized))
 			.description(referenceSchema.getDescription());
@@ -487,7 +486,7 @@ public class EntityObjectBuilder {
 	private OpenApiProperty buildReferenceReferencedEntityObjectProperty(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                                                     boolean localized) {
 		final OpenApiTypeReference referencedEntityObject = buildReferenceReferencedEntityObject(referenceSchema, localized);
-		return ReferenceDescriptor.REFERENCED_ENTITY
+		return ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY
 			.to(this.propertyBuilderTransformer)
 			.type(referencedEntityObject)
 			.build();
@@ -516,7 +515,7 @@ public class EntityObjectBuilder {
 	private OpenApiProperty buildReferenceGroupEntityProperty(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                                          boolean localized) {
 		final OpenApiTypeReference groupEntityObject = buildReferenceGroupEntityObject(referenceSchema, localized);
-		return ReferenceDescriptor.GROUP_ENTITY
+		return ReferenceWithGroupDescriptor.GROUP_ENTITY
 			.to(this.propertyBuilderTransformer)
 			.type(nonNull(groupEntityObject))
 			.build();
@@ -586,7 +585,7 @@ public class EntityObjectBuilder {
 	                                                      @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                      boolean localized) {
 		return this.buildingContext.registerType(
-			ReferencePageDescriptor.THIS
+			ReferenceDefinitionPageDescriptor.THIS_INTERFACE
 				.to(this.objectBuilderTransformer)
 				.name(constructReferencePageObjectName(entitySchema, referenceSchema, localized))
 				.description(referenceSchema.getDescription())
@@ -602,7 +601,7 @@ public class EntityObjectBuilder {
 	                                                       @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                       boolean localized) {
 		return this.buildingContext.registerType(
-			ReferenceStripDescriptor.THIS
+			ReferenceDefinitionStripDescriptor.THIS
 				.to(this.objectBuilderTransformer)
 				.name(constructReferenceStripObjectName(entitySchema, referenceSchema, localized))
 				.description(referenceSchema.getDescription())

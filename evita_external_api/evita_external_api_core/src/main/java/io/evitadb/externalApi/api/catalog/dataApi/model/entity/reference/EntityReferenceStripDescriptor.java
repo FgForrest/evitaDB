@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,23 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference;
 
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Partial descriptor for object that provides {@link io.evitadb.api.requestResponse.data.structure.Attributes}.
+ * Represents a strip list of {@link EntityReferenceDescriptor#THIS_INTERFACE}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * Note: this descriptor has a dynamic structure based on the referenced entity type.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-public interface AttributesProviderDescriptor {
+public interface EntityReferenceStripDescriptor extends ReferenceDefinitionStripDescriptor {
 
-	PropertyDescriptor ATTRIBUTES = PropertyDescriptor.builder()
-		.name("attributes")
-		.description("""
-			Attributes allows defining set of data that are fetched in bulk along with the reference.
-			Attributes may be used for fast filtering or can be used to sort along.
-			""")
-		// type is expected to be a map with attribute names as key and attribute values as values
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(ReferenceDefinitionStripDescriptor.THIS_INTERFACE)
+		.name("$$ReferenceStrip") // the name consists of the source entity type and the reference name
+		.description("Strip of references %s entity%s according to offset and limit rules in input query.") // the rest of the description should be dynamically constructed based on present data
 		.build();
 }

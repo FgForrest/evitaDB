@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLFieldDefinition.Builder;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
+import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
@@ -39,7 +40,10 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityRemoveMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationUnionDescriptor;
@@ -69,12 +73,14 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGrap
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder.EntityObjectVariant;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.FullResponseObjectBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.GlobalEntityObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.LocalMutationAggregateObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.HeadConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.ReferenceInterfaceBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.mutation.CatalogDataMutationUnionDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionSizeDataFetcher;
@@ -93,6 +99,7 @@ import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLEnumTypeTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.HelperInterfaceTypeResolver;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 
 import javax.annotation.Nonnull;
@@ -131,7 +138,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final RequireConstraintSchemaBuilder mainQueryRequireConstraintSchemaBuilder;
 	@Nonnull private final RequireConstraintSchemaBuilder mainListRequireConstraintSchemaBuilder;
 
+	@Nonnull private final ReferenceInterfaceBuilder referenceInterfaceBuilder;
 	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
+	@Nonnull private final GlobalEntityObjectBuilder globalEntityObjectBuilder;
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
 	@Nonnull private final LocalMutationAggregateObjectBuilder localMutationAggregateObjectBuilder;
 
@@ -163,6 +172,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			new AtomicReference<>(this.filterConstraintSchemaBuilder)
 		);
 
+		this.referenceInterfaceBuilder = new ReferenceInterfaceBuilder(
+			this.buildingContext,
+			this.interfaceBuilderTransformer
+		);
 		this.entityObjectBuilder = new EntityObjectBuilder(
 			this.buildingContext,
 			this.constraintContext,
@@ -171,6 +184,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			CDO_OBJECT_MAPPER,
 			this.argumentBuilderTransformer,
 			this.interfaceBuilderTransformer,
+			this.objectBuilderTransformer,
+			this.fieldBuilderTransformer
+		);
+		this.globalEntityObjectBuilder = new GlobalEntityObjectBuilder(
+			this.buildingContext,
+			this.argumentBuilderTransformer,
 			this.objectBuilderTransformer,
 			this.fieldBuilderTransformer
 		);
@@ -213,7 +232,23 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		this.buildingContext.registerType(scalarEnum);
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 
+		// todo lho add these interface to REST? (but we need some better way to define interfaces in REST API), use it for entities as well
+
+		final GraphQLInterfaceType dataChunkInterface = DataChunkDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(dataChunkInterface);
+		this.buildingContext.registerTypeResolver(dataChunkInterface, HelperInterfaceTypeResolver.getInstance());
+
+		final GraphQLInterfaceType paginatedListInterface = PaginatedListDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(paginatedListInterface);
+		this.buildingContext.registerTypeResolver(paginatedListInterface, HelperInterfaceTypeResolver.getInstance());
+
+		final GraphQLInterfaceType stripListInterface = StripListDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(stripListInterface);
+		this.buildingContext.registerTypeResolver(stripListInterface, HelperInterfaceTypeResolver.getInstance());
+
 		this.entityObjectBuilder.buildCommonTypes();
+		this.globalEntityObjectBuilder.build();
+
 		this.fullResponseObjectBuilder.buildCommonTypes();
 	}
 

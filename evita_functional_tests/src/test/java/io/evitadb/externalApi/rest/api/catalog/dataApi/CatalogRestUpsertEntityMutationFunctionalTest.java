@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,10 +29,11 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
@@ -835,7 +836,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				resultPath("store", ReferenceDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
+				resultPath("store", ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
 				not(containsInRelativeOrder(1_000_000_000))
 			);
 
@@ -858,7 +859,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				resultPath("store", ReferenceDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
+				resultPath("store", ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
 				not(containsInRelativeOrder(1_000_000_000))
 			);
 	}

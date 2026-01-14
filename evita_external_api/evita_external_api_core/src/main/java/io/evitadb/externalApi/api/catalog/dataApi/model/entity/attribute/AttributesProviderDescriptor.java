@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,18 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute;
 
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * Represents {@link io.evitadb.dataType.PaginatedList} for references within entities.
+ * Partial descriptor for object that provides {@link io.evitadb.api.requestResponse.data.structure.Attributes}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ReferencePageDescriptor extends PaginatedListDescriptor {
+public interface AttributesProviderDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.from(PaginatedListDescriptor.THIS)
-		.name("*ReferencePage")
+	PropertyDescriptor ATTRIBUTES = PropertyDescriptor.builder()
+		.name("attributes")
+		.description("""
+			Attributes allows defining set of data that are fetched in bulk along with the reference.
+			Attributes may be used for fast filtering or can be used to sort along.
+			""")
+		// type is expected to be a map with attribute names as key and attribute values as values
 		.build();
 }

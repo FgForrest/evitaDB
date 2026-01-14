@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,12 +28,17 @@ import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.EntityReferenceKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Collection context object for building entity collection-specific GraphQL schema.
@@ -53,6 +58,9 @@ public class CollectionGraphQLSchemaBuildingContext {
 	private GraphQLInputType orderByInputObject;
 	private GraphQLInputType listRequireInputObject;
 	private GraphQLInputType queryRequireInputObject;
+
+	// todo lho check count on demo dataset
+	@Nonnull private final Map<EntityReferenceKey, GraphQLObjectType> entityReferenceObjects = createHashMap(20);
 
 	@Nonnull
 	public CatalogContract getCatalog() {
@@ -151,5 +159,20 @@ public class CollectionGraphQLSchemaBuildingContext {
 	@Nonnull
 	public Optional<GraphQLInputType> getQueryRequireInputObject() {
 		return Optional.ofNullable(this.queryRequireInputObject);
+	}
+
+	@Nonnull
+	public GraphQLObjectType getOrComputeEntityReferenceObject(
+		@Nonnull EntityReferenceKey key,
+		@Nonnull Supplier<GraphQLObjectType> entityReferenceObjectBuilder
+	) {
+		return this.entityReferenceObjects.computeIfAbsent(
+			key,
+			k -> {
+				final GraphQLObjectType newObject = entityReferenceObjectBuilder.get();
+				this.catalogCtx.registerType(newObject);
+				return newObject;
+			}
+		);
 	}
 }

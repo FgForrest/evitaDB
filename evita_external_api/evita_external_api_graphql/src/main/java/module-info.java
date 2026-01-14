@@ -71,5 +71,7 @@ module evita.external.api.graphql {
 	requires evita.query;
 	requires evita.engine;
 	requires evita.external.api.core;
+	requires zero.allocation.hashing;
+	requires com.esotericsoftware.kryo;
 
 }

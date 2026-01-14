@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,9 +49,11 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.StripList;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceWithGroupDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
@@ -64,16 +66,8 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.Set;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
@@ -151,7 +145,7 @@ public class EntityJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeEntityClassifier(@Nonnull EntityClassifier entity) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
-		rootNode.put(EntityDescriptor.PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(entity.getPrimaryKey()));
+		rootNode.put(EntityDescriptor.PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(Objects.requireNonNull(entity.getPrimaryKey())));
 		rootNode.put(EntityDescriptor.TYPE.name(), this.objectJsonSerializer.serializeObject(entity.getType()));
 		return rootNode;
 	}
@@ -333,12 +327,12 @@ public class EntityJsonSerializer {
 		referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
 
 		reference.getReferencedEntity().ifPresent(sealedEntity ->
-			referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(ctx, sealedEntity)));
+			referenceNode.putIfAbsent(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(ctx, sealedEntity)));
 
 		reference.getGroupEntity()
 			.map(EntityClassifier.class::cast)
 			.or(reference::getGroup)
-			.ifPresent(groupEntity -> referenceNode.putIfAbsent(ReferenceDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(ctx,groupEntity)));
+			.ifPresent(groupEntity -> referenceNode.putIfAbsent(ReferenceWithGroupDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(ctx, groupEntity)));
 
 		final ReferenceSchemaContract referenceSchema = reference.getReferenceSchema()
 			.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find reference schema for `" + reference.getReferenceName() + "` in entity schema `" + entitySchema.getName() + "`."));

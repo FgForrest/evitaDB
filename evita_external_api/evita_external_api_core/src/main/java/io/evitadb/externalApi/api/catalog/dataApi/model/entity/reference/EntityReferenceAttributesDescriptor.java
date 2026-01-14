@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,18 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Represents {@link io.evitadb.dataType.StripList} for references within entities.
+ * Represents {@link io.evitadb.api.requestResponse.data.AttributesContract} within {@link io.evitadb.api.requestResponse.data.ReferenceContract}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
+ * descriptor are supposed to be dynamically registered to target generated DTO.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface ReferenceStripDescriptor extends StripListDescriptor {
+public interface EntityReferenceAttributesDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.from(StripListDescriptor.THIS)
-		.name("*ReferenceStrip")
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("$$ReferenceAttributes") // the name contains a unique attributes hash
+		.description("""
+			Attributes allows defining set of data that are fetched in bulk along with the entity body.
+			Attributes may be used for fast filtering or can be used to sort along.
+			""")
 		.build();
 }

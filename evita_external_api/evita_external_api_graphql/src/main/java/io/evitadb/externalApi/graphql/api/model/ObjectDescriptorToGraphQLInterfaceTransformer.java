@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.model;
 
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInterfaceType;
+import graphql.schema.GraphQLTypeReference;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
@@ -45,9 +46,14 @@ public class ObjectDescriptorToGraphQLInterfaceTransformer implements ObjectDesc
 
 	@Override
 	public GraphQLInterfaceType.Builder apply(ObjectDescriptor objectDescriptor) {
-		final GraphQLInterfaceType.Builder interfaceBuilder = GraphQLInterfaceType.newInterface()
-			.name(objectDescriptor.name())
-			.description(objectDescriptor.description());
+		final GraphQLInterfaceType.Builder interfaceBuilder = GraphQLInterfaceType.newInterface();
+
+		if (objectDescriptor.isNameStatic()) {
+			interfaceBuilder.name(objectDescriptor.name());
+		}
+		if (objectDescriptor.description() != null) {
+			interfaceBuilder.description(objectDescriptor.description());
+		}
 
 		objectDescriptor.staticProperties().stream()
 			.map(this.fieldBuilderTransformer)
