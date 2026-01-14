@@ -1056,7 +1056,8 @@ public class ClassSchemaAnalyzer {
 		final TargetEntity targetEntityGroup;
 
 		final List<Entity> directEntity = this.reflectionLookup.getClassAnnotations(
-			examinedReferenceType, Entity.class);
+			examinedReferenceType, Entity.class
+		);
 		if (directEntity.isEmpty()) {
 			targetEntity = getTargetEntity(
 				definer, ReferencedEntity.class, new TargetEntity(reference.entity(), reference.managed()),
@@ -1156,6 +1157,13 @@ public class ClassSchemaAnalyzer {
 
 			defineReferenceAttributes(referenceType, editor, examinedReferenceType, relationAttributes);
 		};
+
+		Assert.isTrue(
+			reference.managed() == targetEntity.managed(),
+			"@Reference annotation managed flag needs to be consistent with @ReferencedEntity / @Entity annotations! " +
+				"Managed flag is set to `" + reference.managed() + "` on target entity, " +
+				"but `" + targetEntity.managed() + "` on reference definition in `" + definer + "`."
+		);
 
 		if (targetEntity.managed()) {
 			entityBuilder.withReferenceToEntity(
@@ -1693,7 +1701,8 @@ public class ClassSchemaAnalyzer {
 	) {
 		final TargetEntity targetEntity;
 		final List<Entity> targetEntityAnnotations = this.reflectionLookup.getClassAnnotations(
-			targetEntityType, Entity.class);
+			targetEntityType, Entity.class
+		);
 		if (targetEntityAnnotations.isEmpty()) {
 			throw new InvalidSchemaMutationException(
 				"There is no `@Entity` annotation available on class `" + targetEntityType + "` referenced " +
