@@ -27,7 +27,7 @@ import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
 import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
@@ -75,7 +75,7 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 	private final ServiceRequestContext serviceContext;
 	private final long responseTimeoutMillis;
 	private final long heartBeatDelay;
-	private final DelayedAsyncTask heartBeatTask;
+	private final ScheduledTask heartBeatTask;
 	private Subscription subscription;
 	private long index = 0L;
 
@@ -97,7 +97,7 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 		this.serviceContext = serviceContext;
 		this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
 		this.heartBeatDelay = Math.min(Math.max(this.responseTimeoutMillis - 5000L, 1000L), 300000L);
-		this.heartBeatTask = new DelayedAsyncTask(
+		this.heartBeatTask = new ScheduledTask(
 			catalogName,
 			"Subscriber Heartbeat",
 			scheduler,

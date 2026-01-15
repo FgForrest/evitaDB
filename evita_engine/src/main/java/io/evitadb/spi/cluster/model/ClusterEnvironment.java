@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,10 @@
 
 package io.evitadb.spi.cluster.model;
 
+import io.evitadb.core.exception.ReplicaNotPartOfClusterException;
+
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.net.InetAddress;
 
 /**
@@ -57,5 +60,24 @@ import java.net.InetAddress;
 public record ClusterEnvironment(
 	@Nonnull InetAddress[] clusterMembers,
 	int selfIndex
-) {
+) implements Serializable {
+
+	/**
+	 * Determines the index of a given InetAddress in the clusterMembers array.
+	 * This method is used to identify the position of a specific cluster member,
+	 * which is crucial for establishing its role and responsibilities in the cluster.
+	 *
+	 * @param inetAddress the InetAddress of the cluster member whose index is to be determined
+	 * @return the index of the specified InetAddress in the clusterMembers array
+	 * @throws ReplicaNotPartOfClusterException if the specified InetAddress is not part of the clusterMembers array
+	 */
+	public int selfIndex(@Nonnull InetAddress inetAddress) {
+		for (int i = 0; i < this.clusterMembers.length; i++) {
+			if (this.clusterMembers[i].equals(inetAddress)) {
+				return i;
+			}
+		}
+		throw new ReplicaNotPartOfClusterException(inetAddress, this.clusterMembers);
+	}
+
 }

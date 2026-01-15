@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ public record DoViewChangeRequest(
 	int selfIndex,
 	int targetReplicaIndex,
 	long crc32,
-	int epoch,
+	long epoch,
 	long viewNumber,
 	long lastNormalViewNumber,
 	@Nonnull Versions engineVersion,
@@ -78,7 +78,7 @@ public record DoViewChangeRequest(
 	@Override
 	public long calculateHash(@Nonnull Crc32Calculator crc32Calculator) {
 		crc32Calculator
-			.withInt(this.epoch)
+			.withLong(this.epoch)
 			.withLong(this.viewNumber)
 			.withLong(this.lastNormalViewNumber)
 			.withLong(this.engineVersion.lastObserved())

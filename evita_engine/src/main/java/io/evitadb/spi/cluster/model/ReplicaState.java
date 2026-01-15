@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,10 @@
 
 package io.evitadb.spi.cluster.model;
 
+import io.evitadb.core.exception.InsufficientClusterSizeException;
+
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.net.InetAddress;
 
 /**
@@ -61,8 +64,29 @@ public record ReplicaState(
 	@Nonnull InetAddress[] oldConfiguration,
 	@Nonnull InetAddress[] configuration,
 	int replicaNumber,
+	long epoch,
 	long viewNumber,
-	int epoch,
 	@Nonnull ViewState status
-) {
+) implements Serializable {
+
+	public ReplicaState {
+		if (configuration.length < 2) {
+			throw new InsufficientClusterSizeException(configuration.length);
+		}
+	}
+
+	/**
+	 * Calculates the quorum size (majority) required for consensus in the current configuration.
+	 *
+	 * A quorum is the minimum number of replicas that must acknowledge an operation for it to be
+	 * committed. In VSR, a quorum consists of a majority of replicas to ensure that at least one
+	 * replica in any subsequent quorum will have witnessed all committed operations.
+	 *
+	 * @return the minimum number of replicas needed for a quorum
+	 */
+	public int getQuorum() {
+		return (this.configuration.length / 2) + 1;
+	}
+
+
 }

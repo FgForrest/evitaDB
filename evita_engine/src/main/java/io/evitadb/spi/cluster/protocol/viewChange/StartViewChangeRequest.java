@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ public record StartViewChangeRequest(
 	int selfIndex,
 	int targetReplicaIndex,
 	long crc32,
-	int epoch,
+	long epoch,
 	long viewNumber
 ) implements HashChainedClusterRequestMessage {
 
@@ -72,7 +72,7 @@ public record StartViewChangeRequest(
 		return crc32Calculator
 			.withInt(this.selfIndex)
 			.withInt(this.targetReplicaIndex)
-			.withInt(this.epoch)
+			.withLong(this.epoch)
 			.withLong(this.viewNumber)
 			.getValue();
 	}

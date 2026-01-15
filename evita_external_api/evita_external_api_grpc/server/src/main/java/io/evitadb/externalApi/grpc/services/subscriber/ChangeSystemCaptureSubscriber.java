@@ -27,7 +27,7 @@ import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
@@ -68,7 +68,7 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 	private final ServiceRequestContext serviceContext;
 	private final long responseTimeoutMillis;
 	private final long heartBeatDelay;
-	private final DelayedAsyncTask heartBeatTask;
+	private final ScheduledTask heartBeatTask;
 	private Subscription subscription;
 	private long index = 0L;
 
@@ -87,7 +87,7 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 		// calculate heartbeat delay to be 5 seconds less than request timeout,
 		// but at least 1 second and at most 5 minutes
 		this.heartBeatDelay = Math.min(Math.max(this.responseTimeoutMillis - 5000L, 1000L), 300000L);
-		this.heartBeatTask = new DelayedAsyncTask(
+		this.heartBeatTask = new ScheduledTask(
 			null,
 			"System Subscriber Heartbeat",
 			scheduler,

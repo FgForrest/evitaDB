@@ -100,3 +100,12 @@ fabric.properties
 /evita_server/logs
 /evita_test/evita_functional_tests/evita-server-certificates/*
 /evita_test/evita_functional_tests/export/*
+/evita-server-certificates/evitaDB-e4ef8549435a7d2e/trustStore.jks
+/evita-server-certificates/client.crt
+/evita-server-certificates/client.key
+/evita-server-certificates/evitaDB-CA-selfSigned.crt
+/evita-server-certificates/evitaDB-CA-selfSigned.key
+/evita-server-certificates/other.crt
+/evita-server-certificates/other.key
+/evita-server-certificates/server.crt
+/evita-server-certificates/server.key

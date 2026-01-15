@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ public record StartEpochRequest(
 	int selfIndex,
 	int targetReplicaIndex,
 	long crc32,
-	int epoch,
+	long epoch,
 	long engineVersion,
 	@Nonnull InetAddress[] oldClusterMembers,
 	@Nonnull InetAddress[] newClusterMembers
@@ -83,7 +83,7 @@ public record StartEpochRequest(
 	@Override
 	public long calculateHash(@Nonnull Crc32Calculator crc32Calculator) {
 		crc32Calculator
-			.withInt(this.epoch)
+			.withLong(this.epoch)
 			.withLong(this.engineVersion);
 		for (final InetAddress address : this.oldClusterMembers) {
 			crc32Calculator.withString(address.getHostAddress());

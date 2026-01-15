@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,13 +69,13 @@ public record EpochStartedRequest(
 	int selfIndex,
 	int targetReplicaIndex,
 	long crc32,
-	int epoch
+	long epoch
 ) implements HashChainedClusterRequestMessage {
 
 	@Override
 	public long calculateHash(@Nonnull Crc32Calculator crc32Calculator) {
 		return crc32Calculator
-			.withInt(this.epoch)
+			.withLong(this.epoch)
 			.getValue();
 	}
 

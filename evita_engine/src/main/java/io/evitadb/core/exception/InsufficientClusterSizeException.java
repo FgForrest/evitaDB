@@ -21,31 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.spi.cluster.protocol.normalFlow;
+package io.evitadb.core.exception;
 
-import io.evitadb.spi.cluster.protocol.HashChainedClusterResponseMessage;
+import io.evitadb.exception.EvitaInvalidUsageException;
+
+import java.io.Serial;
 
 /**
- * COMMITOK response acknowledging engine state commit completion.
+ * TODO JNO - document me
  *
- * This response is sent by backup replicas after executing a committed engine state operation.
- * While the primary doesn't need to wait for these responses to consider the operation durable
- * (quorum was already achieved during prepare), they help the primary track replica health.
- *
- * @param selfIndex responding backup replica's index
- * @param crc32 cumulative hash echoed back for verification
- * @param epoch current configuration epoch
- * @param viewNumber current view number
- * @param engineVersion the committed operation number
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
- * @see CommitEngineStateRequest
  */
-public record CommitEngineStateResponse(
-	int selfIndex,
-	long crc32,
-	long epoch,
-	long viewNumber,
-	long engineVersion
-) implements HashChainedClusterResponseMessage {
+public class InsufficientClusterSizeException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = 1160024305102522051L;
 
+	public InsufficientClusterSizeException(int clusterSize) {
+		super(
+			"Insufficient cluster size: " + clusterSize + ". The cluster size must be an odd number greater than or equal to 3 to ensure proper quorum-based operations.",
+			"Insufficient cluster size. The cluster size must be an odd number greater than or equal to 3 to ensure proper quorum-based operations."
+		);
+	}
 }

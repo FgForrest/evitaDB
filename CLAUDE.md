@@ -96,3 +96,7 @@ mvn clean install
 - All classes and methods must have comprehensible JavaDoc
 - No TODO statements in committed code
 - No commented out code
+
+### MCP
+
+Always use Context7 MCP when you need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
