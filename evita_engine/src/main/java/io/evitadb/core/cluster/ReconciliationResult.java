@@ -28,7 +28,7 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import io.evitadb.spi.cluster.model.ReplicaState;
+import io.evitadb.spi.cluster.model.ReplicaClusterState;
 import io.evitadb.spi.cluster.model.ViewState;
 import io.evitadb.spi.cluster.protocol.recovery.RecoveryResponse;
 import io.evitadb.utils.Assert;
@@ -61,7 +61,7 @@ import java.util.Iterator;
  *   <li><b>Quorum</b> ({@code quorumSize}): the minimum number of replicas that must respond before we
  *   act on the result. This mirrors VR requirements for view-change / commit decisions where progress
  *   requires a majority.</li>
- *   <li><b>Primary state</b> ({@link PrimaryState}): the authoritative state for the highest
+ *   <li><b>Primary state</b> ({@link ReplicaState}): the authoritative state for the highest
  *   {@code (epoch, viewNumber)} observed in the quorum. In VR this plays the role of the leader's
  *   view-change payload (e.g. information needed to safely continue in the new view).</li>
  * </ul>
@@ -70,7 +70,7 @@ import java.util.Iterator;
  * <ul>
  *   <li>Tracks how many responses have been observed ({@link #getResponseCount(ViewState)}).</li>
  *   <li>Keeps the highest {@code (epoch, viewNumber)} seen so far using lexicographic ordering.</li>
- *   <li>Returns a non-null {@link PrimaryState} only once a quorum has responded <em>and</em> the leader
+ *   <li>Returns a non-null {@link ReplicaState} only once a quorum has responded <em>and</em> the leader
  *   state for the highest view has been captured.</li>
  * </ul>
  *
@@ -111,7 +111,7 @@ class ReconciliationResult implements Serializable {
 	/**
 	 * Leader state for the highest observed (epoch, viewNumber), if any responder provided it.
 	 */
-	@Getter @Nullable private PrimaryState primaryState;
+	@Getter @Nullable private ReplicaState primaryState;
 
 	public ReconciliationResult(int expectedResponses) {
 		this.responses = new IntHashSet(expectedResponses);
@@ -125,12 +125,12 @@ class ReconciliationResult implements Serializable {
 	 * <p>
 	 * The response is represented by its {@code candidateEpoch} and {@code candidateViewNumber}.
 	 * If this pair is higher than what we have seen so far, the method updates the stored
-	 * "highest view". If the caller provides a {@link ReplicaState}, it must correspond to the same
+	 * "highest view". If the caller provides a {@link ReplicaClusterState}, it must correspond to the same
 	 * {@code (epoch, viewNumber)}.
 	 * </p>
 	 *
 	 * <p>
-	 * The method returns a {@link ReplicaState} only when:
+	 * The method returns a {@link ReplicaClusterState} only when:
 	 * </p>
 	 * <ol>
 	 *   <li>At least {@code quorumSize} responses have been processed (VR quorum condition), and</li>
@@ -149,7 +149,7 @@ class ReconciliationResult implements Serializable {
 	 * @return leader state for the highest observed view once quorum is met; otherwise {@code null}
 	 */
 	@Nullable
-	public synchronized PrimaryState updateIfHigher(
+	public synchronized ReplicaState updateIfHigher(
 		int currentReplicaIndex,
 		int quorumSize,
 		int clusterSize,
@@ -205,7 +205,7 @@ class ReconciliationResult implements Serializable {
 				"Replica claiming to be primary is not the primary for the view!"
 			);
 
-			this.primaryState = new PrimaryState(currentReplicaIndex, ViewState.RECOVERING, response);
+			this.primaryState = new ReplicaState(currentReplicaIndex, ViewState.RECOVERING, response);
 			log.info(
 				"Primary replica identified at index {}. " +
 					"Epoch={}, viewNumber={}, engineVersion={}, committedVersion={}",
@@ -242,7 +242,7 @@ class ReconciliationResult implements Serializable {
 				quorumSize,
 				this.epoch,
 				this.viewNumber,
-				this.primaryState.replicaState().replicaNumber()
+				this.primaryState.replicaClusterState().replicaNumber()
 			);
 			return this.primaryState;
 		} else if (getResponseCount(ViewState.RECOVERING) == clusterSize) {
@@ -277,15 +277,15 @@ class ReconciliationResult implements Serializable {
 	 * Picks the highest recovery response based on the epoch and view number among the available recovery responses.
 	 * If multiple responses share the same epoch and view number, the method selects the response with the highest
 	 * priority (preferring primary).
-	 * Returns a {@link PrimaryState} object that corresponds to the determined highest recovery response.
+	 * Returns a {@link ReplicaState} object that corresponds to the determined highest recovery response.
 	 *
 	 * @param currentReplicaIndex the index of the current replica within the cluster
 	 * @param clusterSize         the total number of replicas in the cluster
-	 * @return a {@link PrimaryState} object representing the highest observed view response;
+	 * @return a {@link ReplicaState} object representing the highest observed view response;
 	 * or {@code null} if no responses are available
 	 */
 	@Nullable
-	private PrimaryState pickHighestViewResponse(int currentReplicaIndex, int clusterSize) {
+	private ReplicaState pickHighestViewResponse(int currentReplicaIndex, int clusterSize) {
 		final Iterator<IntObjectCursor<RecoveryResponse>> it = this.recoveryResponses.iterator();
 		RecoveryResponse highestRecoveryResponse = null;
 		while (it.hasNext()) {
@@ -330,7 +330,7 @@ class ReconciliationResult implements Serializable {
 				highestRecoveryResponse = theResponse;
 			}
 		}
-		// return the PrimaryState based on the highest recovery response found
+		// return the ReplicaState based on the highest recovery response found
 		if (highestRecoveryResponse != null) {
 			log.info(
 				"Selected highest view response from replica {} as authoritative. " +
@@ -340,7 +340,7 @@ class ReconciliationResult implements Serializable {
 				highestRecoveryResponse.viewNumber(),
 				highestRecoveryResponse.isPrimary()
 			);
-			return new PrimaryState(currentReplicaIndex, ViewState.RECOVERING, highestRecoveryResponse);
+			return new ReplicaState(currentReplicaIndex, ViewState.RECOVERING, highestRecoveryResponse);
 		} else {
 			log.warn("No recovery responses available to pick highest view from!");
 			return null;

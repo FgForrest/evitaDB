@@ -24,7 +24,7 @@
 package io.evitadb.spi.cluster.protocol.recovery;
 
 import io.evitadb.spi.cluster.model.ClusterEnvironment;
-import io.evitadb.spi.cluster.model.ReplicaState;
+import io.evitadb.spi.cluster.model.ReplicaClusterState;
 import io.evitadb.spi.cluster.model.ViewState;
 import io.evitadb.spi.cluster.protocol.CatalogVersions;
 import io.evitadb.spi.cluster.protocol.ClusterResponseMessage;
@@ -98,7 +98,7 @@ public record RecoveryResponse(
 	 */
 	@Nonnull
 	public static RecoveryResponse fromSelf(
-		@Nonnull ReplicaState replicaState,
+		@Nonnull ReplicaClusterState replicaState,
 		@Nonnull ClusterEnvironment clusterEnvironment
 	) {
 		return new RecoveryResponse(

@@ -60,7 +60,7 @@ import java.net.InetAddress;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  * @see ViewState
  */
-public record ReplicaState(
+public record ReplicaClusterState(
 	@Nonnull InetAddress[] oldConfiguration,
 	@Nonnull InetAddress[] configuration,
 	int replicaNumber,
@@ -69,7 +69,7 @@ public record ReplicaState(
 	@Nonnull ViewState status
 ) implements Serializable {
 
-	public ReplicaState {
+	public ReplicaClusterState {
 		if (configuration.length < 2) {
 			throw new InsufficientClusterSizeException(configuration.length);
 		}

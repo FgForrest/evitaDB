@@ -33,7 +33,7 @@ import io.evitadb.spi.cluster.EnvironmentServiceFactory;
 import io.evitadb.spi.cluster.ViewStampedReplicationService;
 import io.evitadb.spi.cluster.ViewStampedReplicationServiceFactory;
 import io.evitadb.spi.cluster.model.ClusterEnvironment;
-import io.evitadb.spi.cluster.model.ReplicaState;
+import io.evitadb.spi.cluster.model.ReplicaClusterState;
 import io.evitadb.spi.cluster.model.ViewState;
 import io.evitadb.spi.cluster.protocol.recovery.RecoveryRequest;
 import io.evitadb.spi.cluster.protocol.recovery.RecoveryResponse;
@@ -55,6 +55,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Central wiring point for cluster-related services.
@@ -83,7 +85,7 @@ public class ClusterManagement implements AutoCloseable {
 	@Nonnull
 	private final ViewStampedReplicationService viewStampedReplicationService;
 	@Nonnull
-	private final AtomicReference<ReplicaState> replicaState;
+	private final AtomicReference<ReplicaClusterState> replicaState;
 	private final ScheduledTask clusterReconciliationTask;
 	private final Scheduler scheduler;
 
@@ -195,7 +197,7 @@ public class ClusterManagement implements AutoCloseable {
 		this.viewStampedReplicationService = initializeVsrService(clusterOptions);
 
 		final ClusterEnvironment initialEnvironment = environmentService.getEnvironment();
-		final ReplicaState initialReplicaState = new ReplicaState(
+		final ReplicaClusterState initialReplicaState = new ReplicaClusterState(
 			initialEnvironment.clusterMembers(),
 			initialEnvironment.clusterMembers(),
 			initialEnvironment.selfIndex(),
@@ -245,10 +247,10 @@ public class ClusterManagement implements AutoCloseable {
 	 * - `0L` if initialization needs to be retried
 	 */
 	private long initializeReplicaState(
-		@Nonnull ReplicaState initialReplicaState,
+		@Nonnull ReplicaClusterState initialReplicaState,
 		@Nonnull ClusterEnvironment initialEnvironment
 	) {
-		final ReplicaState currentState = this.replicaState.get();
+		final ReplicaClusterState currentState = this.replicaState.get();
 		log.debug(
 			"Attempting replica state initialization. Current status: {}, epoch={}, viewNumber={}",
 			currentState.status(),
@@ -257,7 +259,7 @@ public class ClusterManagement implements AutoCloseable {
 		);
 
 		if (currentState.status() == ViewState.RECOVERING) {
-			final ReplicaState theState = resolveInitialReplicaState(initialReplicaState, initialEnvironment);
+			final ReplicaClusterState theState = resolveInitialReplicaState(initialReplicaState, initialEnvironment);
 			if (theState != null && theState.status() == ViewState.NORMAL) {
 				if (!this.replicaState.compareAndSet(initialReplicaState, theState)) {
 					log.warn(
@@ -296,11 +298,11 @@ public class ClusterManagement implements AutoCloseable {
 	 * and returns null.
 	 *
 	 * @param initialEnvironment the initial cluster environment used to determine the replica state; must not be null
-	 * @return the resolved {@link ReplicaState}, or null if the reconciliation process fails
+	 * @return the resolved {@link ReplicaClusterState}, or null if the reconciliation process fails
 	 */
 	@Nullable
-	private ReplicaState resolveInitialReplicaState(
-		@Nonnull ReplicaState initialReplicaState,
+	private ReplicaClusterState resolveInitialReplicaState(
+		@Nonnull ReplicaClusterState initialReplicaState,
 		@Nonnull ClusterEnvironment initialEnvironment
 	) {
 		log.info(
@@ -313,13 +315,13 @@ public class ClusterManagement implements AutoCloseable {
 		);
 
 		final AtomicReference<OffsetDateTime> lastProgressTimestamp = new AtomicReference<>(OffsetDateTime.now());
-		final ReplicaState reconciliationResult;
+		final ReplicaClusterState reconciliationResult;
 		try {
 			// first we need to resolve replica status
-			final CompletableFuture<ReplicaState> replicaStateCompletableFuture = reconcileClusterState(
+			final CompletableFuture<ReplicaClusterState> replicaStateCompletableFuture = reconcileClusterState(
 				initialEnvironment, initialReplicaState, getQuorumSize(),
 				// onProgress
-				()-> lastProgressTimestamp.set(OffsetDateTime.now())
+				() -> lastProgressTimestamp.set(OffsetDateTime.now())
 			);
 			final ReconciliationDeadlineTask cancellationTask = new ReconciliationDeadlineTask(
 				this.scheduler,
@@ -358,18 +360,17 @@ public class ClusterManagement implements AutoCloseable {
 	 * @param initialReplicaState the initial state of the replica used for reconciliation
 	 * @param quorumSize          the minimum number of responses required to achieve quorum
 	 * @param onProgress          a callback invoked whenever progress is made during reconciliation
-	 *
 	 * @return a {@link CompletableFuture} that completes with the reconciliation result
 	 * or fails if no valid quorum including a leader can be established
 	 */
 	@Nonnull
-	private CompletableFuture<ReplicaState> reconcileClusterState(
+	private CompletableFuture<ReplicaClusterState> reconcileClusterState(
 		@Nonnull ClusterEnvironment initialEnvironment,
-		@Nonnull ReplicaState initialReplicaState,
+		@Nonnull ReplicaClusterState initialReplicaState,
 		int quorumSize,
 		@Nonnull Runnable onProgress
 	) {
-		final CompletableFuture<PrimaryState> decision = new CompletableFuture<>();
+		final CompletableFuture<ReplicaState> decision = new CompletableFuture<>();
 		final InetAddress[] inetAddresses = initialEnvironment.clusterMembers();
 		final InetAddress selfInetAddress = initialEnvironment.clusterMembers()[initialReplicaState.replicaNumber()];
 
@@ -446,28 +447,20 @@ public class ClusterManagement implements AutoCloseable {
 					);
 
 					// update reconciliation result
-					final PrimaryState decisionLeaderState = reconciliationResult.updateIfHigher(
+					final ReplicaState primaryState = reconciliationResult.updateIfHigher(
 						resp.environment().selfIndex(selfInetAddress), quorumSize, clusterSize, resp
 					);
 
 					// if the decision is made (we have quorum including leader) -> complete the decision future
-					if (decisionLeaderState != null) {
+					if (primaryState != null) {
 						log.info(
 							"Reconciliation decision reached! Leader found at replica index {}. " +
 								"Epoch={}, viewNumber={}",
-							decisionLeaderState.replicaState().replicaNumber(),
-							decisionLeaderState.epoch(),
-							decisionLeaderState.viewNumber()
+							primaryState.replicaClusterState().replicaNumber(),
+							primaryState.epoch(),
+							primaryState.viewNumber()
 						);
-						decision.complete(decisionLeaderState);
-						// cancel all other ongoing requests, we have what we wanted
-						final long remainingRequests = futures.stream()
-							.filter(it -> !it.isDone())
-							.count();
-						log.debug("Cancelling {} remaining recovery requests after decision.", remainingRequests);
-						futures.stream()
-							.filter(it -> !it.isDone())
-							.forEach(future -> future.cancel(true));
+						decision.complete(primaryState);
 					}
 				}
 			);
@@ -475,20 +468,53 @@ public class ClusterManagement implements AutoCloseable {
 
 		onProgress.run();
 
-		return decision.applyToEither(
-			// allOf completed future that never meets the condition
-			CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-				// If everybody finishes and condition never happened -> fail
-				.thenCompose(
-					v -> CompletableFuture.failedFuture(
-						new GenericEvitaInternalError(
-							"No view reached quorum including leader, this should not be possible!"))
-				),
-			vk -> {
-				onProgress.run();
-				return vk.replicaState();
-			}
-		);
+		// wait for either decision or allOf completion
+		return decision
+			.applyToEither(
+				// allOf completed future that never meets the condition
+				CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+					// If everybody finishes and condition never happened -> fail
+					.thenCompose(
+						v -> CompletableFuture.failedFuture(
+							new GenericEvitaInternalError(
+								"No view reached quorum including leader, this should not be possible!"))
+					),
+				vk -> {
+					// we have a decision, proceed with updating local state
+					onProgress.run();
+					// update local state to match the primary's state
+					return updateLocalState(
+						// the state to update from
+						initialReplicaState,
+						// the target state to update to (primary's state)
+						vk,
+						// provide access to all completed future results in real-time - i.e. states of individual replicas
+						() -> futures
+							.stream()
+							.filter(CompletableFuture::isDone)
+							.map(CompletableFuture::join)
+							// except primary and self
+							.filter(
+								it -> it.selfIndex() != initialReplicaState.replicaNumber() &&
+									it.selfIndex() != vk.replicaNumber()
+							)
+							.toList(),
+						// track progress
+						onProgress
+					);
+				}
+			)
+			.thenCompose(Function.identity());
+	}
+
+	@Nonnull
+	private CompletableFuture<ReplicaClusterState> updateLocalState(
+		@Nonnull ReplicaClusterState initialReplicaState,
+		@Nonnull ReplicaState primaryReplicaState,
+		@Nonnull Supplier<List<RecoveryResponse>> recoveryResponseSupplier,
+		@Nonnull Runnable onProgress
+	) {
+		return CompletableFuture.failedFuture(new UnsupportedOperationException("Not implemented yet!"));
 	}
 
 	/**
@@ -520,7 +546,7 @@ public class ClusterManagement implements AutoCloseable {
 		private ReconciliationDeadlineTask(
 			@Nonnull Scheduler scheduler,
 			@Nonnull AtomicReference<OffsetDateTime> lastProgressTimestamp,
-			@Nonnull CompletableFuture<ReplicaState> replicaStateCompletableFuture,
+			@Nonnull CompletableFuture<ReplicaClusterState> replicaStateCompletableFuture,
 			int selfIndex
 		) {
 			super(
