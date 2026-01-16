@@ -95,6 +95,7 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 			this.heartBeatDelay,
 			TimeUnit.MILLISECONDS
 		);
+		this.heartBeatTask.schedule();
 	}
 
 	@Override
@@ -125,6 +126,7 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 				.setResponseType(GrpcCaptureResponseType.CHANGE)
 				.build()
 		);
+		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 		this.subscription.request(1);
 	}
 

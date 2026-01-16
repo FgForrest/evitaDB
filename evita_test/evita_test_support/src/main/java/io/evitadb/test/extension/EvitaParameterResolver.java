@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -494,19 +494,19 @@ public class EvitaParameterResolver
 	 * Creates {@link ApiOptions} for {@link EvitaServer}.
 	 *
 	 * @param datasetName name of the dataset
-	 * @param dataSetInfo dataset info
 	 * @param evita       evitaDB instance
 	 * @param portManager port manager
+	 * @param enabledApiCodes
 	 */
 	@Nonnull
-	private static ApiOptions createApiOptions(
+	public static ApiOptions createApiOptions(
 		@Nonnull String datasetName,
-		@Nonnull DataSetInfo dataSetInfo,
 		@Nonnull Evita evita,
-		@Nonnull PortManager portManager
+		@Nonnull PortManager portManager,
+		@Nonnull String... enabledApiCodes
 	) {
 		final String[] unknownApis = Arrays
-			.stream(dataSetInfo.webApi())
+			.stream(enabledApiCodes)
 			.filter(it -> !AVAILABLE_PROVIDERS.containsKey(it))
 			.toArray(String[]::new);
 		if (ArrayUtils.isEmpty(unknownApis)) {
@@ -524,9 +524,9 @@ public class EvitaParameterResolver
 						)
 						.build()
 				);
-			final int[] ports = portManager.allocatePorts(datasetName, dataSetInfo.webApi().length);
+			final int[] ports = portManager.allocatePorts(datasetName, enabledApiCodes.length);
 			int portIndex = 0;
-			for (String webApiCode : dataSetInfo.webApi()) {
+			for (String webApiCode : enabledApiCodes) {
 				final AbstractApiOptions webApiConfig;
 				final Class<?> configurationClass = AVAILABLE_PROVIDERS.get(webApiCode).getConfigurationClass();
 				try {
@@ -1022,7 +1022,8 @@ public class EvitaParameterResolver
 								evitaServer = null;
 							} else {
 								final ApiOptions apiOptions = createApiOptions(
-									dataSetToUse, dataSetInfo, evita, getPortManager());
+									dataSetToUse, evita, getPortManager(), dataSetInfo.webApi()
+								);
 								evitaServer = openWebApi(evita, apiOptions);
 							}
 							// call method that initializes the dataset
