@@ -135,6 +135,7 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 				.setResponseType(GrpcCaptureResponseType.CHANGE)
 				.build()
 		);
+		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 		this.subscription.request(1);
 	}
 

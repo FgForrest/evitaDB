@@ -228,7 +228,7 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 			Thread.sleep(TimeUnit.MINUTES.toMillis(TEST_DURATION_MINUTES));
 
 			// Verify results
-			this.verifyHeartbeats(subscriber);
+			LongRunningCdcHeartbeatTest.verifyHeartbeats(subscriber);
 
 			log.info(
 				"System CDC test passed: {} heartbeats received, {} missed",
@@ -263,7 +263,7 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 			Thread.sleep(TimeUnit.MINUTES.toMillis(TEST_DURATION_MINUTES));
 
 			// Verify results
-			this.verifyHeartbeats(subscriber);
+			LongRunningCdcHeartbeatTest.verifyHeartbeats(subscriber);
 
 			log.info(
 				"Catalog CDC test passed: {} heartbeats received, {} missed",
@@ -277,7 +277,7 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 	 *
 	 * @param subscriber subscriber to verify
 	 */
-	private void verifyHeartbeats(@Nonnull final HeartbeatTrackingSubscriber<?> subscriber) {
+	private static void verifyHeartbeats(@Nonnull final HeartbeatTrackingSubscriber<?> subscriber) {
 		assertNull(subscriber.getError(), "Should not have received any errors");
 
 		final int expectedMinHeartbeats = (TEST_DURATION_MINUTES * 60) / EXPECTED_HEARTBEAT_INTERVAL_SECONDS - 5;
