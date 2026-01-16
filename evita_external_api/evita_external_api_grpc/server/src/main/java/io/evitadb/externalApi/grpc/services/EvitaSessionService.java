@@ -2364,6 +2364,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					.setResponseType(GrpcCaptureResponseType.CHANGE)
 					.build()
 			);
+			this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 			this.subscription.request(1);
 		}
 

@@ -1157,6 +1157,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				this.heartBeatDelay,
 				TimeUnit.MILLISECONDS
 			);
+			this.heartBeatTask.schedule();
 		}
 
 		@Override
@@ -1187,6 +1188,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.setResponseType(GrpcCaptureResponseType.CHANGE)
 					.build()
 			);
+			this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 			this.subscription.request(1);
 		}
 
