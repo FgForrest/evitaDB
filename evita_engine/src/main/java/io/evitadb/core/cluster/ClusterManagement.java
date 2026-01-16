@@ -45,6 +45,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.net.InetAddress;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -77,14 +78,14 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Slf4j
 public class ClusterManagement implements AutoCloseable {
-	/* TODO CHANGE TO ANOTHER SCHEDULED JOB THAT WOULD CANCEL THE FUTURE, POSTPONE DEADLINE IF STILL PROGRESSING */
-	private static final Duration RECONCILIATION_TIMEOUT = Duration.ofMinutes(10);
+	private static final Duration RECONCILIATION_TIMEOUT = Duration.ofMinutes(1);
 	private static final Duration RECONCILIATION_RETRY_DELAY = Duration.ofSeconds(1);
 	@Nonnull
 	private final ViewStampedReplicationService viewStampedReplicationService;
 	@Nonnull
 	private final AtomicReference<ReplicaState> replicaState;
 	private final ScheduledTask clusterReconciliationTask;
+	private final Scheduler scheduler;
 
 	/**
 	 * Initializes the {@link EnvironmentService} based on the provided {@link ClusterOptions}.
@@ -212,6 +213,7 @@ public class ClusterManagement implements AutoCloseable {
 			TimeUnit.SECONDS
 		);
 		this.clusterReconciliationTask.scheduleImmediately();
+		this.scheduler = scheduler;
 
 		log.info(
 			"Cluster management initialized for replica {} with {} cluster members. " +
@@ -303,19 +305,34 @@ public class ClusterManagement implements AutoCloseable {
 	) {
 		log.info(
 			"Starting cluster state reconciliation for replica {}. " +
-				"Cluster size: {}, quorum required: {}, timeout: {} ms",
+				"Cluster size: {}, quorum required: {}, timeout (no progress): {} ms",
 			initialReplicaState.replicaNumber(),
 			initialEnvironment.clusterMembers().length,
 			getQuorumSize(),
 			RECONCILIATION_TIMEOUT.toMillis()
 		);
 
+		final AtomicReference<OffsetDateTime> lastProgressTimestamp = new AtomicReference<>(OffsetDateTime.now());
 		final ReplicaState reconciliationResult;
 		try {
 			// first we need to resolve replica status
-			reconciliationResult = reconcileClusterState(
-				initialEnvironment, initialReplicaState, getQuorumSize()
-			).get(RECONCILIATION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+			final CompletableFuture<ReplicaState> replicaStateCompletableFuture = reconcileClusterState(
+				initialEnvironment, initialReplicaState, getQuorumSize(),
+				// onProgress
+				()-> lastProgressTimestamp.set(OffsetDateTime.now())
+			);
+			final ReconciliationDeadlineTask cancellationTask = new ReconciliationDeadlineTask(
+				this.scheduler,
+				lastProgressTimestamp,
+				replicaStateCompletableFuture,
+				initialEnvironment.selfIndex()
+			);
+			// cleanup cancellation task
+			try (cancellationTask) {
+				cancellationTask.schedule();
+				// we're setting up a separate task, that will cancel the reconciliation if no progress is made
+				reconciliationResult = replicaStateCompletableFuture.join();
+			}
 		} catch (Exception e) {
 			log.error(
 				"Failed to reconcile cluster state during startup! " +
@@ -337,9 +354,11 @@ public class ClusterManagement implements AutoCloseable {
 	 * including a leader is achieved, a reconciliation result is returned. If no such condition
 	 * is met, the method fails with an error.
 	 *
-	 * @param initialEnvironment   the initial environment configuration of the cluster
-	 * @param initialReplicaState  the initial state of the replica used for reconciliation
-	 * @param quorumSize           the minimum number of responses required to achieve quorum
+	 * @param initialEnvironment  the initial environment configuration of the cluster
+	 * @param initialReplicaState the initial state of the replica used for reconciliation
+	 * @param quorumSize          the minimum number of responses required to achieve quorum
+	 * @param onProgress          a callback invoked whenever progress is made during reconciliation
+	 *
 	 * @return a {@link CompletableFuture} that completes with the reconciliation result
 	 * or fails if no valid quorum including a leader can be established
 	 */
@@ -347,7 +366,8 @@ public class ClusterManagement implements AutoCloseable {
 	private CompletableFuture<ReplicaState> reconcileClusterState(
 		@Nonnull ClusterEnvironment initialEnvironment,
 		@Nonnull ReplicaState initialReplicaState,
-		int quorumSize
+		int quorumSize,
+		@Nonnull Runnable onProgress
 	) {
 		final CompletableFuture<PrimaryState> decision = new CompletableFuture<>();
 		final InetAddress[] inetAddresses = initialEnvironment.clusterMembers();
@@ -401,6 +421,7 @@ public class ClusterManagement implements AutoCloseable {
 			// after each response arrives
 			futureRecoveryResponse.whenComplete(
 				(resp, err) -> {
+					onProgress.run();
 					// accept only successful responses until we have a decision
 					if (err != null) {
 						log.error("Recovery request failed for peer {} with error: {}", peerIndex, err.getMessage());
@@ -452,6 +473,8 @@ public class ClusterManagement implements AutoCloseable {
 			);
 		}
 
+		onProgress.run();
+
 		return decision.applyToEither(
 			// allOf completed future that never meets the condition
 			CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
@@ -461,8 +484,10 @@ public class ClusterManagement implements AutoCloseable {
 						new GenericEvitaInternalError(
 							"No view reached quorum including leader, this should not be possible!"))
 				),
-			/* TODO JNO - fetch state */
-			vk -> vk.replicaState()
+			vk -> {
+				onProgress.run();
+				return vk.replicaState();
+			}
 		);
 	}
 
@@ -477,6 +502,50 @@ public class ClusterManagement implements AutoCloseable {
 	 */
 	private int getQuorumSize() {
 		return this.replicaState.get().getQuorum();
+	}
+
+	/**
+	 * Task that monitors the progress of the cluster reconciliation and cancels it if the deadline is reached.
+	 */
+	private static class ReconciliationDeadlineTask extends ScheduledTask {
+
+		/**
+		 * Creates a new instance of the task.
+		 *
+		 * @param scheduler                     the scheduler to use for task execution
+		 * @param lastProgressTimestamp         the timestamp of the last progress made
+		 * @param replicaStateCompletableFuture the future to cancel if the deadline is reached
+		 * @param selfIndex                     the index of the current replica
+		 */
+		private ReconciliationDeadlineTask(
+			@Nonnull Scheduler scheduler,
+			@Nonnull AtomicReference<OffsetDateTime> lastProgressTimestamp,
+			@Nonnull CompletableFuture<ReplicaState> replicaStateCompletableFuture,
+			int selfIndex
+		) {
+			super(
+				null,
+				"replicaInitializationCancellation",
+				scheduler,
+				() -> {
+					final OffsetDateTime lastProgress = lastProgressTimestamp.get();
+					final OffsetDateTime now = OffsetDateTime.now();
+					final OffsetDateTime deadline = lastProgress.plus(RECONCILIATION_TIMEOUT);
+					if (deadline.isBefore(now)) {
+						log.error(
+							"Cluster reconciliation timed out after {} ms for replica {}! " +
+								"Cluster cannot start properly without successful reconciliation.",
+							RECONCILIATION_TIMEOUT.toMillis(),
+							selfIndex
+						);
+						replicaStateCompletableFuture.cancel(true);
+					}
+					return Math.max(0L, RECONCILIATION_TIMEOUT.minus(Duration.between(now, deadline)).toMillis());
+				},
+				RECONCILIATION_TIMEOUT.toMillis(),
+				TimeUnit.MILLISECONDS
+			);
+		}
 	}
 
 }
