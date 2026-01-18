@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,9 +25,12 @@ package io.evitadb.store.wal.supplier;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.model.StorageRecord.StorageRecordWithChecksum;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.utils.Assert;
 
@@ -52,7 +55,7 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 		long requestedCatalogVersion,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull StorageSettings storageSettings,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
@@ -60,7 +63,7 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 		@Nullable Runnable onClose
 	) {
 		super(
-			catalogVersion, walFileNameProvider, catalogStoragePath, storageOptions,
+			catalogVersion, walFileNameProvider, catalogStoragePath, storageSettings,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			avoidPartiallyFilledBuffer, onClose
 		);
@@ -82,8 +85,24 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 				//noinspection unchecked
 				return (T) readMutation();
 			} else {
+				// All mutations in the transaction have been read, verify the checksum
+				final long readCumulativeChecksum = getObservableInput().simpleLongRead();
+				final Checksum checksumCalculator = Objects.requireNonNull(this.cumulativeChecksum);
+				Assert.isPremiseValid(
+					checksumCalculator.equalsTo(readCumulativeChecksum),
+					() -> new WriteAheadLogCorruptedException(
+						this.walFile.toPath(),
+						this.transactionMutation.getTransactionSpan().endPosition(),
+						checksumCalculator.getValue(),
+						readCumulativeChecksum
+					)
+				);
+				this.transactionMutation.withCumulativeChecksum(readCumulativeChecksum);
+				checksumCalculator.update(readCumulativeChecksum);
+
 				// advance position to the end of the last transaction
-				this.filePosition += this.transactionMutation.getTransactionSpan().recordLength();
+				this.filePosition += this.transactionMutation.getTransactionSpan()
+					.recordLength() + AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
 				try {
 					// check the entire transaction was written
 					final long currentFileLength = this.walFile.length();
@@ -110,7 +129,8 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 						// we've reached EOF or the tx mutation hasn't been yet completely written
 						return null;
 					} else {
-						final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
+						final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan()
+							.recordLength() + AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
 						if (
 							this.avoidPartiallyFilledBuffer ?
 								// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
@@ -142,13 +162,21 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 	 */
 	@Nonnull
 	private Mutation readMutation() {
-		Assert.isPremiseValid(
-			this.observableInput != null,
-			"Observable input must be set before reading a mutation."
-		);
-		final StorageRecord<Mutation> storageRecord = StorageRecord.read(
-			this.observableInput, (stream, length) -> (Mutation) this.kryo.readClassAndObject(stream)
-		);
+		final StorageRecord<Mutation> storageRecord;
+		if (this.cumulativeChecksum == null) {
+			storageRecord = StorageRecord.read(
+				getObservableInput(), (stream, length) -> (Mutation) this.kryo.readClassAndObject(stream)
+			);
+		} else {
+			final StorageRecordWithChecksum<Mutation> storageRecordWithChecksum = StorageRecord.readWithChecksum(
+				getObservableInput(), (stream, length) -> (Mutation) this.kryo.readClassAndObject(stream)
+			);
+			storageRecord = storageRecordWithChecksum.record();
+			this.cumulativeChecksum.combine(
+				storageRecordWithChecksum.checksum(),
+				storageRecord.fileLocation().recordLength()
+			);
+		}
 		return Objects.requireNonNull(storageRecord.payload());
 	}
 

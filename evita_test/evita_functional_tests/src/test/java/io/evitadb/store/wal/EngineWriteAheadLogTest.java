@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,10 +37,13 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.wal.model.EngineTransactionChanges;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.FileUtils;
@@ -71,6 +74,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @DisplayName("Engine Write-Ahead Log functionality tests")
 class EngineWriteAheadLogTest {
+	private static final StorageSettings LARGE_FILE_STORAGE_SETTINGS = new StorageSettings(
+		StorageOptions.builder()
+			.compress(false)
+			.build(),
+		TransactionOptions.builder()
+			.walFileSizeBytes(Long.MAX_VALUE)
+			.build()
+	);
 	private final Path walDirectory = Path.of(System.getProperty("java.io.tmpdir"))
 		.resolve("evita")
 		.resolve(getClass().getSimpleName());
@@ -82,15 +93,9 @@ class EngineWriteAheadLogTest {
 		}
 	};
 	private final Path isolatedWalFilePath = this.walDirectory.resolve("isolatedWal.tmp");
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
-		EnginePersistenceService.ENGINE_NAME,
-		StorageOptions.builder()
-			.compress(false)
-			.build(),
-		Mockito.mock(Scheduler.class)
-	);
+	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(Mockito.mock(Scheduler.class));
 	private final CatalogOffHeapMemoryManager offHeapMemoryManager = new CatalogOffHeapMemoryManager(
-		EnginePersistenceService.ENGINE_NAME, 10_000_000, 128
+		EnginePersistenceService.ENGINE_NAME, 10_000_000, 128, ChecksumFactory.NO_OP
 	);
 	private EngineMutationLog wal;
 
@@ -148,13 +153,10 @@ class EngineWriteAheadLogTest {
 	private EngineMutationLog createEngineWalWithLargeSize() {
 		return new EngineMutationLog(
 			0L,
-			EnginePersistenceService::getWalFileName,
+			new LogFileRecordReference(EnginePersistenceService::getWalFileName),
 			this.walDirectory,
 			this.kryoPool,
-			StorageOptions.builder()
-				.compress(false)
-				.build(),
-			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
+			LARGE_FILE_STORAGE_SETTINGS,
 			Mockito.mock(Scheduler.class)
 		);
 	}
@@ -172,11 +174,12 @@ class EngineWriteAheadLogTest {
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.isolatedWalFilePath,
-				StorageOptions.builder(StorageOptions.temporary())
-					.compress(false)
-					.build(),
+				StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+				false,
 				this.observableOutputKeeper,
-				this.offHeapMemoryManager
+				this.offHeapMemoryManager,
+				LARGE_FILE_STORAGE_SETTINGS,
+				LARGE_FILE_STORAGE_SETTINGS
 			)
 		);
 

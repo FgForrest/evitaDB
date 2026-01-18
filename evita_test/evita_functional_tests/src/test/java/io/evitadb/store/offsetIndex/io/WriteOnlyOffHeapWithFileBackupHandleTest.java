@@ -25,6 +25,9 @@ package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.checksum.Crc32CChecksumCalculatorFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.UUIDUtil;
@@ -32,6 +35,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,13 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle");
-	private final StorageOptions storageOptions = StorageOptions.builder()
-		.storageDirectory(this.targetDirectory)
-		.computeCRC32(true)
-		.build();
-	private final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
-		TEST_CATALOG,
-		this.storageOptions,
+	private final ObservableOutputKeeper outputKeeper = ObservableOutputKeeper._internalBuild(
 		Mockito.mock(Scheduler.class)
 	);
 
@@ -61,10 +59,9 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteDataToOffHeapChunk() {
 		try (
-			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 32, 1);
-			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), this.storageOptions, this.outputKeeper, memoryManager
-			)
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 32, 1, ChecksumFactory.NO_OP);
+			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = createWriteHandle(memoryManager)
 		) {
 			writeHandle.checkAndExecuteAndSync(
 				"write some data",
@@ -88,10 +85,9 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteLargeDataFirstToOffHeapChunkThatAutomaticallySwitchesToTemporaryFileWithSync() {
 		try (
-			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 32, 1);
-			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), this.storageOptions, this.outputKeeper, memoryManager
-			)
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 32, 1, ChecksumFactory.NO_OP);
+			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = createWriteHandle(memoryManager)
 		) {
 			for (int i = 0; i < 5; i++) {
 				int index = i;
@@ -120,10 +116,9 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteLargeDataFirstToOffHeapChunkThatAutomaticallySwitchesToTemporaryFileWithoutSync() {
 		try (
-			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 32, 1);
-			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), this.storageOptions, this.outputKeeper, memoryManager
-			)
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 32, 1, ChecksumFactory.NO_OP);
+			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = createWriteHandle(memoryManager)
 		) {
 			for (int i = 0; i < 5; i++) {
 				int index = i;
@@ -156,10 +151,9 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	void shouldStartDirectlyWithFileBackupIfThereIsNoFreeMemoryRegionAvailable() {
 
 		try (
-			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 32, 1);
-			final WriteOnlyOffHeapWithFileBackupHandle realMemoryHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), this.storageOptions, this.outputKeeper, memoryManager
-			)
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 32, 1, ChecksumFactory.NO_OP);
+			final WriteOnlyOffHeapWithFileBackupHandle realMemoryHandle = createWriteHandle(memoryManager)
 		) {
 			// we need to write at least one byte to the real memory handle to force the memory manager
 			// to allocate the memory region
@@ -171,9 +165,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 			);
 			// because there is only one region available - this will force the handle to use the file backup immediately
 			try (
-				final WriteOnlyOffHeapWithFileBackupHandle forcedFileHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-					this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), this.storageOptions, this.outputKeeper, memoryManager
-				)
+				final WriteOnlyOffHeapWithFileBackupHandle forcedFileHandle = createWriteHandle(memoryManager)
 			) {
 				for (int i = 0; i < 5; i++) {
 					int index = i;
@@ -199,4 +191,18 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 			}
 		}
 	}
+
+	@Nonnull
+	private WriteOnlyOffHeapWithFileBackupHandle createWriteHandle(@Nonnull CatalogOffHeapMemoryManager memoryManager) {
+		return new WriteOnlyOffHeapWithFileBackupHandle(
+			this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"),
+			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+			false,
+			this.outputKeeper,
+			memoryManager,
+			Crc32CChecksumCalculatorFactory.INSTANCE,
+			CompressionFactory.NO_COMPRESSION
+		);
+	}
+
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,8 +26,6 @@ package io.evitadb.store.wal;
 import com.carrotsearch.hppc.LongSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -47,6 +45,8 @@ import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.spi.store.catalog.wal.model.CatalogTransactionChanges;
 import io.evitadb.spi.store.catalog.wal.model.EntityCollectionChanges;
+import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -63,7 +63,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -131,25 +130,38 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 		);
 	}
 
+	/**
+	 * Creates a new CatalogWriteAheadLog by opening an existing WAL file.
+	 * Initializes the WAL from a previous state, restoring the cumulative checksum and continuing
+	 * from the last processed version.
+	 *
+	 * @param catalogVersion         the last processed catalog version number
+	 * @param catalogName            the name of the catalog, or null for system catalog
+	 * @param logFileRecordReference reference to the WAL file including its cumulative checksum
+	 * @param storageFolder          the directory where WAL files are stored
+	 * @param kryoPool               pool of Kryo instances for serialization
+	 * @param storageSettings        storage configuration including checksum and compression factories
+	 * @param scheduler              scheduler for background tasks
+	 * @param bootstrapFileTrimmer   callback to trim the bootstrap file after WAL purge
+	 * @param onWalPurgeCallback     callback invoked when WAL files are purged
+	 */
 	public CatalogWriteAheadLog(
 		long catalogVersion,
 		@Nullable String catalogName,
-		@Nonnull IntFunction<String> walFileNameProvider,
+		@Nonnull LogFileRecordReference logFileRecordReference,
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull Scheduler scheduler,
 		@Nonnull LongConsumer bootstrapFileTrimmer,
 		@Nonnull WalPurgeCallback onWalPurgeCallback
 	) {
 		super(
 			catalogVersion,
-			walFileNameProvider,
+			logFileRecordReference,
 			storageFolder,
 			kryoPool,
-			storageOptions,
-			transactionOptions,
+			storageSettings,
 			scheduler
 		);
 		this.catalogName = catalogName;
@@ -158,28 +170,34 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 	}
 
 	/**
-	 * Constructor for internal use only. It is used to create a new WAL file with the given parameters.
+	 * Creates a new CatalogWriteAheadLog for internal use only.
+	 * This constructor creates a WAL without bootstrap file trimming or purge callbacks,
+	 * typically used for testing or specific internal scenarios.
+	 *
+	 * @param catalogVersion         the last processed catalog version number
+	 * @param catalogName            the name of the catalog, or null for system catalog
+	 * @param logFileRecordReference reference to the WAL file including its cumulative checksum
+	 * @param storageFolder          the directory where WAL files are stored
+	 * @param kryoPool               pool of Kryo instances for serialization
+	 * @param storageSettings        storage configuration including checksum and compression factories
+	 * @param scheduler              scheduler for background tasks
 	 */
 	public CatalogWriteAheadLog(
 		long catalogVersion,
 		@Nullable String catalogName,
-		@Nonnull IntFunction<String> walFileNameProvider,
+		@Nonnull LogFileRecordReference logFileRecordReference,
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler,
-		int walFileIndex
+		@Nonnull StorageSettings storageSettings,
+		@Nonnull Scheduler scheduler
 	) {
 		super(
 			catalogVersion,
-			walFileNameProvider,
+			logFileRecordReference,
 			storageFolder,
 			kryoPool,
-			storageOptions,
-			transactionOptions,
-			scheduler,
-			walFileIndex
+			storageSettings,
+			scheduler
 		);
 		this.catalogName = catalogName;
 		this.bootstrapFileTrimmer = null;

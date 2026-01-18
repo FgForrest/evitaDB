@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,12 +25,14 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.KryoSerializationException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
@@ -42,7 +44,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.zip.CRC32C;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
@@ -58,20 +59,21 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  * operation that allows it to skim through random record locations of the file and read records one by one. Reading
  * buffer size is automatically adapted to expected record size SSD page size is effectively used (see
  * https://www.extremetech.com/extreme/210492-extremetech-explains-how-do-ssds-work).
- * Use {@link ObservableInput#ObservableInput(InputStream)} method to use recommended settings for SSD drives.
+ * Use {@link ObservableInput#ObservableInput(InputStream, Checksum, Inflater)} method to use
+ * recommended settings for SSD drives.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
 public class ObservableInput<T extends InputStream> extends Input {
 	/**
-	 * CRC32C computation instance. Reused - instantiated only once.
+	 * Checksum computation instance. Reused - instantiated only once.
 	 */
-	private CRC32C crc32C;
+	private final Checksum checksum;
 	/**
 	 * Inflater instance. Reused - instantiated only once.
 	 */
-	private Inflater inflater;
+	private final Inflater inflater;
 	/**
 	 * Input buffer for decompression.
 	 */
@@ -148,6 +150,20 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 */
 	private boolean readingPayload;
 	/**
+	 * Internal flag that is set to true only when {@link #markCumulativeChecksumStart()} method was called input should calculate
+	 * cumulative checksum for all data read since then.
+	 */
+	private boolean cumulatingChecksum;
+	/**
+	 * Holds cumulative checksum value calculated since {@link #markCumulativeChecksumStart()} was called. This checsum
+	 * doesn't contain the checksum of the checksum field itself.
+	 */
+	private long cumulativeChecksum;
+	/**
+	 * Holds length of the cumulative checksum field that is being read when {@link #cumulatingChecksum} is true.
+	 */
+	private int cumulativeChecksumLength;
+	/**
 	 * Internal flag that is set to true only when {@link #markEnd(byte)}  method is running - which means that space
 	 * for the tail no longer needs to be kept in reserve.
 	 */
@@ -177,18 +193,63 @@ public class ObservableInput<T extends InputStream> extends Input {
 
 	/**
 	 * Initializes ObservableInput with recommended settings for SSD drives.
+	 *
+	 * @param inputStream the input stream to read serialized data from
+	 * @param checksum    the checksum instance for verifying data integrity
+	 * @param inflater    the inflater for optional data decompression, or null if compression is disabled
 	 */
-	public ObservableInput(@Nonnull T inputStream) {
-		this(inputStream, 16_384);
+	public ObservableInput(
+		@Nonnull T inputStream,
+		@Nonnull Checksum checksum,
+		@Nullable Inflater inflater
+	) {
+		this(inputStream, 16_384, checksum, inflater);
 	}
 
-	public ObservableInput(@Nonnull T inputStream, int bufferSize) {
+	/**
+	 * Creates an ObservableInput with specified buffer size.
+	 *
+	 * @param inputStream the input stream to read serialized data from
+	 * @param bufferSize  the size of the internal byte buffer
+	 * @param checksum    the checksum instance for verifying data integrity
+	 * @param inflater    the inflater for optional data decompression, or null if compression is disabled
+	 */
+	public ObservableInput(
+		@Nonnull T inputStream,
+		int bufferSize,
+		@Nonnull Checksum checksum,
+		@Nullable Inflater inflater
+	) {
 		super(inputStream, bufferSize);
+		this.checksum = checksum;
+		this.inflater = inflater;
+		if (this.inflater != null) {
+			this.decompressionBuffer = new byte[bufferSize];
+		}
+
 	}
 
-	public ObservableInput(@Nonnull T inputStream, @Nonnull byte[] buffer) {
+	/**
+	 * Creates an ObservableInput with a pre-allocated buffer.
+	 *
+	 * @param inputStream the input stream to read serialized data from
+	 * @param buffer      the pre-allocated byte buffer for buffering reads
+	 * @param checksum    the checksum instance for verifying data integrity
+	 * @param inflater    the inflater for optional data decompression, or null if compression is disabled
+	 */
+	public ObservableInput(
+		@Nonnull T inputStream,
+		@Nonnull byte[] buffer,
+		@Nonnull Checksum checksum,
+		@Nullable Inflater inflater
+	) {
 		super(buffer);
 		setInputStream(inputStream);
+		this.checksum = checksum;
+		this.inflater = inflater;
+		if (this.inflater == null) {
+			this.decompressionBuffer = new byte[buffer.length];
+		}
 	}
 
 	@Override
@@ -281,6 +342,35 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
+	 * Marks the start of a checksum calculation by resetting the current checksum
+	 * state and enabling cumulative checksum calculation. This method ensures
+	 * that the checksum start cannot be marked if the system is currently reading
+	 * a payload.
+	 */
+	public void markCumulativeChecksumStart() {
+		Assert.isPremiseValid(
+			!this.readingPayload,
+			"Cannot mark checksum start while reading payload!"
+		);
+		this.checksum.reset();
+		this.cumulatingChecksum = true;
+		this.cumulativeChecksumLength = 0;
+		this.cumulativeChecksum = 0L;
+	}
+
+	/**
+	 * Marks the end of the checksum computation and retrieves the computed checksum value.
+	 *
+	 * @return the computed checksum value as a long.
+	 */
+	public long markCumulativeChecksumEnd() {
+		this.cumulatingChecksum = false;
+		this.cumulativeChecksumLength = 0;
+		this.cumulativeChecksum = 0L;
+		return this.checksum.getValue();
+	}
+
+	/**
 	 * This method overrides default implementation by uncompressing data from the inflater if the record is compressed.
 	 * The read from the underlying stream is performed only when the inflater needs more data to uncompress.
 	 *
@@ -307,13 +397,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 					}
 					if (this.inflater.needsInput()) {
 						// update CRC32C checksum before the buffer gets overwritten
-						if (this.crc32C != null) {
-							this.crc32C.update(
-								this.decompressionBuffer,
-								this.decompressionBufferStart,
-								this.decompressionBufferPeek - this.decompressionBufferStart
-							);
-						}
+						this.checksum.update(
+							this.decompressionBuffer,
+							this.decompressionBufferStart,
+							this.decompressionBufferPeek - this.decompressionBufferStart
+						);
 						// check how much data has been read from the decompression buffer so far
 						final int currentlyReadBytes = Math.toIntExact(this.inflater.getBytesRead());
 						final int leftToRead = this.expectedPayloadLength - currentlyReadBytes;
@@ -667,9 +755,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 			() -> new CorruptedRecordException("Record is compressed and ObservableInput has compression support disabled!")
 		);
 		this.readingPayload = true;
-		if (this.crc32C != null) {
-			this.crc32C.reset();
-		}
+		this.checksum.update(this.buffer, this.startPosition, this.position - this.startPosition);
+		this.cumulativeChecksum = this.checksum.getValue();
+		this.cumulativeChecksumLength += this.accumulatedLength + this.position - this.startPosition;
+		this.checksum.reset();
+
 		if (this.inflater != null && this.compressed) {
 			this.inflater.reset();
 			// now we need to reset the limit in the buffer - since it may have been already filled with
@@ -707,7 +797,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
 
 			if (this.payloadStartPosition != -1) {
-				// compute the final part of the payload that hasn't been added to accumulated length and CRC32 checksum
+				// compute the final part of the payload that hasn't been added to accumulated length and checksum
 				final int payloadLength;
 				final int totalLength;
 				final int bytesReadSinceLastFill;
@@ -743,31 +833,33 @@ public class ObservableInput<T extends InputStream> extends Input {
 					bytesReadSinceLastFill = 0;
 					bytesSavedByCompression = 0;
 				}
-				// do we need to verify checksum?
-				if (this.crc32C == null || !BitUtils.isBitSet(controlByte, StorageRecord.CRC32_BIT)) {
-					// skip CRC32 checksum - it will not be verified
-					super.skip(8);
+				if (bytesSavedByCompression > 0) {
+					// update checksum with the rest of the decompression buffer (it was swapped with the buffer)
+					this.checksum.update(this.buffer, this.decompressionBufferStart, bytesReadSinceLastFill);
 				} else {
-					if (bytesSavedByCompression > 0) {
-						// update CRC32 checksum with the rest of the decompression buffer (it was swapped with the buffer)
-						this.crc32C.update(this.buffer, this.decompressionBufferStart, bytesReadSinceLastFill);
-					} else {
-						// otherwise, update CRC32 checksum with the final payload part
-						this.crc32C.update(this.buffer, this.payloadStartPosition, payloadLength);
-					}
-					// update CRC32C checksum with the control byte
-					this.crc32C.update(controlByte);
-					// verify checksum
-					final long computedChecksum = this.crc32C.getValue();
-					final long loadedChecksum = readLong();
-					isPremiseValid(
-						computedChecksum == loadedChecksum,
-						() -> new CorruptedRecordException(
-							"Invalid checksum - data probably corrupted " +
-								"(record should have got CRC32C " + loadedChecksum + ", but was " + computedChecksum + ").",
-							loadedChecksum, computedChecksum
-						)
-					);
+					// otherwise, update checksum with the final payload part
+					this.checksum.update(this.buffer, this.payloadStartPosition, payloadLength);
+				}
+				final long payloadChecksum = this.checksum.getValue();
+				// update CRC32C checksum with the control byte
+				this.checksum.update(controlByte);
+				// verify checksum
+				final long loadedChecksum = readLong();
+				// do we need to verify checksum?
+				isPremiseValid(
+					!BitUtils.isBitSet(controlByte, StorageRecord.CRC32_BIT) || this.checksum.equalsTo(loadedChecksum),
+					() -> new CorruptedRecordException(
+						"Invalid checksum - data probably corrupted " +
+							"(record should have got CRC32C " + loadedChecksum + ", but was " + this.checksum.getValue() + ").",
+						loadedChecksum, this.checksum.getValue()
+					)
+				);
+				// if cumulative checksum is cumulated, update it with current record checksum
+				if (this.cumulatingChecksum) {
+					this.checksum.reset();
+					this.checksum.combine(this.cumulativeChecksum, this.cumulativeChecksumLength);
+					this.checksum.combine(payloadChecksum, this.expectedPayloadLength);
+					this.checksum.update(loadedChecksum);
 				}
 				// compute the length of the record, that has been read and compare with expectations
 				this.accumulatedLength += totalLength + TAIL_MANDATORY_SPACE;
@@ -797,28 +889,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 			this.accumulatedLength = 0;
 			this.readingTail = false;
 		}
-	}
-
-	/**
-	 * Enables CRC32C checksum verification after record has been read from the file.
-	 */
-	public ObservableInput<T> computeCRC32() {
-		if (this.crc32C == null) {
-			this.crc32C = new CRC32C();
-		}
-		return this;
-	}
-
-	/**
-	 * Enables compress support for each record payload.
-	 */
-	@Nonnull
-	public ObservableInput<T> compress() {
-		if (this.inflater == null) {
-			this.inflater = new Inflater(true);
-			this.decompressionBuffer = new byte[this.buffer.length];
-		}
-		return this;
 	}
 
 	/**
@@ -1007,25 +1077,31 @@ public class ObservableInput<T extends InputStream> extends Input {
 
 	/**
 	 * This method handles flag manipulation and accumulator updates. It also tracks of the data movements in the buffer
-	 * and updates moving CRC32 hash computation when data in the buffer is about to be rewritten with the new content.
+	 * and updates moving hash computation when data in the buffer is about to be rewritten with the new content.
 	 */
 	private void updateLostBuffer(int offset, int count) {
 		if (!this.compressed && count > 0) {
 			// recompute accumulated length since the start of the record
 			if (this.lastCount != -1) {
 				if (!this.readingTail) {
-					this.accumulatedLength += this.position - (this.startPosition - offset);
+					// when wrapping over the buffer boundary we need to update accumulated lengths
+					final int readLength = this.position - (this.startPosition - offset);
+					if (!this.readingPayload) {
+						// and update checksum id by the read contents
+						/* TODO JNO - why consumed length is calculated differently than readLength? */
+						final int consumedLength = this.lastCount - (this.startPosition - this.lastOffset);
+						this.checksum.update(this.buffer, this.startPosition, consumedLength);
+					}
+					this.accumulatedLength += readLength;
 					// update payload start positions - we're going to rewrite the buffer so the sensible payload start changes
 					this.startPosition = offset;
 				}
 				// we're reading payload - we have to recompute accumulated length
 				if (this.readingPayload) {
-					// and if crc32 checksum is enabled update id by the read contents
-					// when the content is compressed the crc32 checksum is computed in `fill` method
-					if (this.crc32C != null) {
-						final int consumedLength = this.lastCount - (this.payloadStartPosition - this.lastOffset);
-						this.crc32C.update(this.buffer, this.payloadStartPosition, consumedLength);
-					}
+					// update checksum id by the read contents
+					// when the content is compressed the checksum is computed in `fill` method
+					final int consumedLength = this.lastCount - (this.payloadStartPosition - this.lastOffset);
+					this.checksum.update(this.buffer, this.payloadStartPosition, consumedLength);
 					// update payload start positions - we're going to rewrite the buffer so the sensible payload start changes
 					this.payloadStartPosition = offset;
 				}

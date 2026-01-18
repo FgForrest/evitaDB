@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.wal.EngineMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
@@ -69,7 +70,6 @@ import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.offsetIndex.model.StorageRecord.read;
@@ -91,12 +91,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	/**
 	 * Storage configuration options.
 	 */
-	private final StorageOptions storageOptions;
-
-	/**
-	 * Transaction configuration options.
-	 */
-	private final TransactionOptions transactionOptions;
+	private final StorageSettings storageSettings;
 
 	/**
 	 * Scheduler for asynchronous operations.
@@ -180,25 +175,27 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler
 	) {
-		this.storageOptions = storageOptions;
-		this.transactionOptions = transactionOptions;
+		this.storageSettings = new StorageSettings(storageOptions, transactionOptions);
 		this.scheduler = scheduler;
 
 		// Initialize off-heap memory manager with transaction memory limits
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
-			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
-			transactionOptions.transactionMemoryRegionCount()
+			this.storageSettings.transactionMemoryBufferLimitSizeBytes(),
+			this.storageSettings.transactionMemoryRegionCount(),
+			this.storageSettings
 		);
 
 		// Create output keeper for observing and managing outputs
 		this.observableOutputKeeper = new ObservableOutputKeeper(
-			storageOptions,
+			this.storageSettings.outputBufferSize(),
+			this.storageSettings.lockTimeoutSeconds(),
+			this.storageSettings.waitOnCloseSeconds(),
 			scheduler
 		);
 
 		// Try to acquire lock over storage directory to ensure exclusive access
-		this.folderLock = new FolderLock(storageOptions.storageDirectory());
-		this.bootstrapFilePath = storageOptions.storageDirectory()
+		this.folderLock = new FolderLock(this.storageSettings.storageDirectory());
+		this.bootstrapFilePath = this.storageSettings.storageDirectory()
 		                                       .resolve(EnginePersistenceService.getBootstrapFileName());
 
 		// We need to do this before we create the write handle, because it will create the file if it doesn't exist.
@@ -208,17 +205,21 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		if (bootstrapFileExists) {
 			this.engineState = readEngineState();
 			this.created = false;
-			this.engineState = syncEngineStateByFolderContents(storageOptions, this.engineState);
+			this.engineState = syncEngineStateByFolderContents(this.storageSettings, this.engineState);
 		} else {
-			this.engineState = createNewEngineState(storageOptions);
+			this.engineState = createNewEngineState(this.storageSettings);
 			this.created = true;
 		}
+
+		final LogFileRecordReference logFileRecordReference = this.engineState.walReference() == null ?
+			new LogFileRecordReference(EnginePersistenceService::getWalFileName) : this.engineState.walReference();
 
 		// Initialize the write-ahead log if there are any WAL files present
 		this.mutationLog = createWalIfAnyWalFilePresent(
 			this.engineState.version(),
-			EnginePersistenceService::getWalFileName,
-			storageOptions, transactionOptions, scheduler,
+			logFileRecordReference,
+			this.storageSettings,
+			scheduler,
 			this.walKryoPool
 		);
 	}
@@ -227,8 +228,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * Creates a CatalogWriteAheadLog if there are any WAL files present in the catalog file path.
 	 *
 	 * @param version            the version of the engine
-	 * @param storageOptions     the storage options
-	 * @param transactionOptions the transaction options
+	 * @param storageSettings     the storage options
 	 * @param scheduler          the executor service
 	 * @param kryoPool           the Kryo pool
 	 * @return a EngineMutationLog object if WAL files are present, otherwise null
@@ -236,21 +236,20 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	@Nullable
 	static EngineMutationLog createWalIfAnyWalFilePresent(
 		long version,
-		@Nonnull IntFunction<String> walFileNameProvider,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull LogFileRecordReference logFileRecordReference,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull Scheduler scheduler,
 		@Nonnull Pool<Kryo> kryoPool
 	) {
-		final Path storageFolder = storageOptions.storageDirectory();
+		final Path storageFolder = storageSettings.storageDirectory();
 		final File[] walFiles = storageFolder
 			.toFile()
 			.listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX));
 		return walFiles == null || walFiles.length == 0 ?
 			null :
 			new EngineMutationLog(
-				version, walFileNameProvider, storageFolder, kryoPool,
-				storageOptions, transactionOptions, scheduler
+				version, logFileRecordReference, storageFolder, kryoPool,
+				storageSettings, scheduler
 			);
 	}
 
@@ -292,7 +291,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				FileType.ENGINE,
 				"engine",
 				tmpFile,
-				this.storageOptions,
+				this.storageSettings.outputBufferSize(),
+				this.storageSettings.syncWrites(),
+				this.storageSettings,
+				this.storageSettings,
 				this.observableOutputKeeper
 			)
 		) {
@@ -340,11 +342,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			if (this.mutationLog == null) {
 				this.mutationLog = new EngineMutationLog(
 					getVersion(),
-					EnginePersistenceService::getWalFileName,
-					this.storageOptions.storageDirectory(),
+					new LogFileRecordReference(EnginePersistenceService::getWalFileName),
+					this.storageSettings.storageDirectory(),
 					this.walKryoPool,
-					this.storageOptions,
-					this.transactionOptions,
+					this.storageSettings,
 					this.scheduler
 				);
 			}
@@ -352,11 +353,14 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			// Initialize handle for writing WAL data to off-heap memory
 			try (
 				final WriteOnlyOffHeapWithFileBackupHandle logWriteHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-					this.transactionOptions.transactionWorkDirectory().resolve(transactionId + ".tmp"),
-					this.storageOptions,
+					this.storageSettings.transactionWorkDirectory().resolve(transactionId + ".tmp"),
+					this.storageSettings.outputBufferSize(),
+					this.storageSettings.syncWrites(),
 					this.observableOutputKeeper,
-					this.offHeapMemoryManager
-				)
+					this.offHeapMemoryManager,
+					this.storageSettings,
+					this.storageSettings
+			)
 			) {
 
 				// Write the mutation to the WAL and get its size in bytes
@@ -445,7 +449,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	@Override
 	public void truncateWriteAheadLog(@Nonnull LogFileRecordReference walReference) {
 		if (walReference.fileLocation() != null) {
-			final Path filePath = walReference.toFilePath(this.storageOptions.storageDirectory());
+			final Path filePath = walReference.toFilePath(this.storageSettings.storageDirectory());
 			if (filePath.toFile().length() > walReference.fileLocation().endPosition()) {
 				try (RandomAccessFile randomAccessFile = new RandomAccessFile(filePath.toFile(), "rw")) {
 					log.info(
@@ -509,7 +513,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				FileType.ENGINE,
 				"engine",
 				this.bootstrapFilePath,
-				this.storageOptions
+				this.storageSettings,
+				this.storageSettings
 			)
 		) {
 			//noinspection unchecked
@@ -539,18 +544,18 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * It identifies catalogs present on disk, updates the active and inactive catalog lists in the current engine state,
 	 * adds newly discovered catalogs as inactive, and persists any changes to storage.
 	 *
-	 * @param storageOptions configuration options for persistent storage, including the storage directory
+	 * @param storageSettings configuration options for persistent storage, including the storage directory
 	 * @param engineState the current engine state to be synchronized with the storage directory contents
 	 * @return a new {@link EngineState} instance with updated active and inactive catalog lists,
 	 *         or the original engine state if no changes are detected
 	 */
 	@Nonnull
 	private EngineState<LogFileRecordReference> syncEngineStateByFolderContents(
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull EngineState<LogFileRecordReference> engineState
 	) {
 		// Detect catalogs present on disk and reduce to only previously unknown ones
-		final Path[] directories = FileUtils.listDirectories(storageOptions.storageDirectory());
+		final Path[] directories = FileUtils.listDirectories(storageSettings.storageDirectory());
 		final LinkedHashSet<String> catalogsOnDisk = new LinkedHashSet<>(directories.length << 1);
 		for (final Path dir : directories) {
 			catalogsOnDisk.add(dir.getName(dir.getNameCount() - 1).toString());
@@ -613,13 +618,13 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	/**
 	 * Creates a new engine state with default values.
 	 *
-	 * @param storageOptions storage configuration options
+	 * @param storageSettings storage configuration options
 	 * @return newly created engine state
 	 */
 	@Nonnull
-	private EngineState<LogFileRecordReference> createNewEngineState(@Nonnull StorageOptions storageOptions) {
+	private EngineState<LogFileRecordReference> createNewEngineState(@Nonnull StorageSettings storageSettings) {
 		// Get all directories in the storage directory to identify active catalogs
-		final Path[] directories = FileUtils.listDirectories(storageOptions.storageDirectory());
+		final Path[] directories = FileUtils.listDirectories(storageSettings.storageDirectory());
 
 		// Create new engine state with initial values
 		final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(

@@ -24,6 +24,7 @@
 package io.evitadb.core.engine;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import org.junit.jupiter.api.DisplayName;
@@ -41,21 +42,22 @@ import static org.mockito.Mockito.when;
 @DisplayName("ExpandedEngineState builder and state transitions")
 class ExpandedEngineStateTest {
 
-	private static EngineState engineState(
+	private static EngineState<LogRecordReference> engineState(
 		long version,
 		String[] active,
 		String[] inactive,
 		String[] readOnly,
 		@Nullable LogFileRecordReference wal
 	) {
-		return EngineState.builder()
-		                  .storageProtocolVersion(1)
-		                  .version(version)
-		                  .activeCatalogs(active)
-		                  .inactiveCatalogs(inactive)
-		                  .readOnlyCatalogs(readOnly)
-		                  .walFileReference(wal)
-		                  .build();
+		return EngineState
+			.builder()
+			.storageProtocolVersion(1)
+			.version(version)
+			.activeCatalogs(active)
+			.inactiveCatalogs(inactive)
+			.readOnlyCatalogs(readOnly)
+			.walFileReference(wal)
+			.build();
 	}
 
 	@Nonnull
@@ -72,8 +74,8 @@ class ExpandedEngineStateTest {
 	@Test
 	@DisplayName("create() should reflect base state and catalogs")
 	void shouldCreateExpandedSnapshotFromEngineState() {
-		final LogFileRecordReference wal = new LogFileRecordReference(i -> "wal-" + i, 3, null);
-		final EngineState base = engineState(
+		final LogFileRecordReference wal = new LogFileRecordReference(i -> "wal-" + i, 3, null, 0L);
+		final EngineState<LogRecordReference> base = engineState(
 			7L,
 			new String[]{},
 			new String[]{"bInactive", "cRO"},
@@ -99,11 +101,11 @@ class ExpandedEngineStateTest {
 	@Test
 	@DisplayName("engineState(wal, version) should update WAL and change version")
 	void shouldUpdateWalWhenEngineStateRequested() {
-		final EngineState base = engineState(1L, new String[0], new String[0], new String[0], null);
+		final EngineState<LogRecordReference> base = engineState(1L, new String[0], new String[0], new String[0], null);
 		final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
 
-		final LogFileRecordReference newWal = new LogFileRecordReference(i -> "wal-" + i, 5, null);
-		final EngineState updated = expanded.engineState(newWal, 2L);
+		final LogFileRecordReference newWal = new LogFileRecordReference(i -> "wal-" + i, 5, null, 0L);
+		final EngineState<LogRecordReference> updated = expanded.engineState(newWal, 2L);
 
 		assertEquals(2L, updated.version());
 		assertSame(newWal, updated.walReference());
@@ -115,7 +117,7 @@ class ExpandedEngineStateTest {
 	@Test
 	@DisplayName("withCatalog(Contract) should keep inactive")
 	void shouldKeepCatalogInactiveWhenContractProvided() {
-		final EngineState base = engineState(10L, new String[0], new String[0], new String[0], null);
+		final EngineState<LogRecordReference> base = engineState(10L, new String[0], new String[0], new String[0], null);
 		final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
 
 		final CatalogContract cc = contract("beta", 7);
@@ -131,7 +133,7 @@ class ExpandedEngineStateTest {
 	@DisplayName("Builder should stage operations and bump version once on build")
 	void shouldBumpVersionOnceWhenBuilderBuilds() {
 		final CatalogContract cc = contract("beta", 2);
-		final EngineState base = engineState(3L, new String[0], new String[0], new String[0], null);
+		final EngineState<LogRecordReference> base = engineState(3L, new String[0], new String[0], new String[0], null);
 		final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
 
 		final ExpandedEngineState built = ExpandedEngineState

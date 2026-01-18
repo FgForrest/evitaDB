@@ -34,6 +34,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder.StreamDirection;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionFileLocation;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
@@ -99,7 +100,7 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 		long position = 0L;
 
 		inputStream.seek(position);
-		this.input = new ObservableInput<>(inputStream);
+		this.input = new ObservableInput<>(inputStream, Checksum.NO_OP, null);
 
 		final byte[] descriptorByteBufferArray = new byte[DiskRingBuffer.LEAD_DESCRIPTOR_BYTE_SIZE];
 		final ByteBuffer descriptorByteBuffer = ByteBuffer.allocate(DiskRingBuffer.LEAD_DESCRIPTOR_BYTE_SIZE);

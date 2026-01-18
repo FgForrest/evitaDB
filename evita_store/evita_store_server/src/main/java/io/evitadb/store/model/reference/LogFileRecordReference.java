@@ -39,12 +39,27 @@ import java.util.function.IntFunction;
  * @param walFileNameProvider Lambda function that provides the name of the WAL file based on the file index.
  * @param fileIndex           The index of the WAL file incremented each time the WAL file is rotated.
  * @param fileLocation        The location of the last processed transaction of the WAL file.
+ * @param cumulativeChecksum  The cumulative CRC32C checksum computed over all bytes written to the WAL file
+ *                            from the beginning up to the end of this transaction. This checksum is used to
+ *                            verify WAL integrity and detect corruption.
  */
 public record LogFileRecordReference(
 	@Nonnull IntFunction<String> walFileNameProvider,
 	int fileIndex,
-	@Nullable FileLocation fileLocation
+	@Nullable FileLocation fileLocation,
+	long cumulativeChecksum
 ) implements LogRecordReference, CatalogVariableContentFileReference {
+
+	/**
+	 * Constructor representing initial version of the WAL file reference with zero cumulative checksum.
+	 *
+	 * @param walFileNameProvider Lambda function that provides the name of the WAL file based on the file index.
+	 */
+	public LogFileRecordReference(
+		@Nonnull IntFunction<String> walFileNameProvider
+	) {
+		this(walFileNameProvider, 0, null, 0L);
+	}
 
 	@Override
 	@Nonnull
@@ -57,20 +72,23 @@ public record LogFileRecordReference(
 	@Override
 	@Nonnull
 	public LogFileRecordReference incrementAndGet() {
-		return new LogFileRecordReference(this.walFileNameProvider, this.fileIndex + 1, null);
+		return new LogFileRecordReference(this.walFileNameProvider, this.fileIndex + 1, null, this.cumulativeChecksum);
 	}
 
 	@Override
 	public boolean equals(Object o) {
 		if (!(o instanceof final LogFileRecordReference that)) return false;
 
-		return this.fileIndex == that.fileIndex && Objects.equals(this.fileLocation, that.fileLocation);
+		return this.fileIndex == that.fileIndex &&
+			this.cumulativeChecksum == that.cumulativeChecksum &&
+			Objects.equals(this.fileLocation, that.fileLocation);
 	}
 
 	@Override
 	public int hashCode() {
 		int result = this.fileIndex;
 		result = 31 * result + Objects.hashCode(this.fileLocation);
+		result = 31 * result + Long.hashCode(this.cumulativeChecksum);
 		return result;
 	}
 
@@ -80,6 +98,7 @@ public record LogFileRecordReference(
 		return "LogFileRecordReference{" +
 			"fileIndex=" + this.fileIndex +
 			", location=" + this.fileLocation +
+			", cumulativeChecksum=" + this.cumulativeChecksum +
 			'}';
 	}
 }

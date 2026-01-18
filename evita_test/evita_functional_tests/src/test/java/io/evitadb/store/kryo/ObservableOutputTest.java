@@ -23,6 +23,8 @@
 
 package io.evitadb.store.kryo;
 
+import io.evitadb.store.checksum.Crc32CChecksumCalculatorFactory;
+import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.shared.model.FileLocation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,7 +48,7 @@ public class ObservableOutputTest {
 	void shouldReportExactWrittenBytesWithoutCompression() {
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		final ObservableOutput<ByteArrayOutputStream> out =
-			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L).computeCRC32();
+			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L, Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(), null);
 
 		// write multiple records without compression
 		for (int i = 0; i < 50; i++) {
@@ -62,7 +64,11 @@ public class ObservableOutputTest {
 	void shouldReportExactWrittenBytesWithCompression() {
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		final ObservableOutput<ByteArrayOutputStream> out =
-			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L).computeCRC32().compress();
+			new ObservableOutput<>(
+				baos, DEFAULT_BUFFER, 0L,
+				Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+				ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
+			);
 
 		// write alternating compressible and incompressible payloads
 		final Random rnd = new Random(42);
@@ -88,7 +94,11 @@ public class ObservableOutputTest {
 	void shouldMaintainCorrectFileLocationOffsetsWithCompression() {
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		final ObservableOutput<ByteArrayOutputStream> out =
-			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L).computeCRC32().compress();
+			new ObservableOutput<>(
+				baos, DEFAULT_BUFFER, 0L,
+				Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+				ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
+			);
 
 		for (int i = 0; i < 100; i++) {
 			final byte[] payload = ("X").repeat(1024).getBytes(StandardCharsets.UTF_8);
@@ -104,7 +114,11 @@ public class ObservableOutputTest {
 	void shouldMatchWrittenBytesUnderRandomPayloadsAndCompression() {
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		final ObservableOutput<ByteArrayOutputStream> out =
-			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L).computeCRC32().compress();
+			new ObservableOutput<>(
+				baos, DEFAULT_BUFFER, 0L,
+				Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+				ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
+			);
 
 		final Random rnd = new Random(123);
 		for (int i = 0; i < 1000; i++) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,13 +25,15 @@ package io.evitadb.store.wal.supplier;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -64,6 +66,11 @@ import static java.util.Optional.ofNullable;
 abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Supplier<T>, Closeable
 	permits MutationSupplier, ReverseMutationSupplier {
 	/**
+	 * This flag is used to prevent the observable input from reading the next transaction mutation if there is not
+	 * enough data already written to fully fill the buffer of the observable input.
+	 */
+	protected final boolean avoidPartiallyFilledBuffer;
+	/**
 	 * The Kryo pool for serializing {@link TransactionMutation} (given by outside).
 	 */
 	protected final Pool<Kryo> catalogKryoPool;
@@ -72,17 +79,13 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 */
 	protected final Kryo kryo;
 	/**
-	 * The function that provides the name of the WAL file based on the index.
-	 */
-	protected final IntFunction<String> walFileNameProvider;
-	/**
 	 * Path to the storage folder where the WAL file is stored.
 	 */
 	protected final Path storageFolder;
 	/**
 	 * The storage options from evita configuration.
 	 */
-	protected final StorageOptions storageOptions;
+	protected final StorageSettings storageSettings;
 	/**
 	 * The cache of already scanned WAL files. The locations might not be complete, but they will be always cover
 	 * the start of the particular WAL file, but they may be later appended with new records that are not yet scanned
@@ -90,10 +93,13 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 */
 	protected final ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache;
 	/**
-	 * This flag is used to prevent the observable input from reading the next transaction mutation if there is not
-	 * enough data already written to fully fill the buffer of the observable input.
+	 * The function that provides the name of the WAL file based on the index.
 	 */
-	protected final boolean avoidPartiallyFilledBuffer;
+	protected final IntFunction<String> walFileNameProvider;
+	/**
+	 * Callback to be executed when the supplier is closed.
+	 */
+	private final Runnable onClose;
 	/**
 	 * The Write-Ahead Log (WAL) file reference
 	 */
@@ -111,6 +117,10 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 */
 	@Nullable protected TransactionMutationWithLocation transactionMutation;
 	/**
+	 * Cumulative checksum that precedes the current transaction mutation.
+	 */
+	@Nullable protected Checksum cumulativeChecksum;
+	/**
 	 * The current position in the WAL file.
 	 */
 	protected long filePosition;
@@ -122,16 +132,40 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 * The number of transactions read from the WAL file.
 	 */
 	@Getter protected int transactionsRead;
-	/**
-	 * Callback to be executed when the supplier is closed.
-	 */
-	private final Runnable onClose;
 
+	/**
+	 * Calculates the starting position of the next transaction in the WAL file based on the current file position
+	 * and the record length of the given transaction mutation.
+	 *
+	 * @param currentPosition                 the current position in the WAL file
+	 * @param transactionMutationWithLocation an instance of {@link TransactionMutationWithLocation} containing
+	 *                                        the transaction information and its file location.
+	 * @return the starting position of the next transaction in the WAL file as a long value.
+	 */
+	private static long calculateNextTransactionStartPosition(
+		long currentPosition, @Nonnull TransactionMutationWithLocation transactionMutationWithLocation
+	) {
+		return currentPosition + transactionMutationWithLocation.getTransactionSpan().recordLength();
+	}
+
+	/**
+	 * Creates a new AbstractMutationSupplier for reading transactions from a WAL file.
+	 *
+	 * @param version                        the starting version to read from
+	 * @param walFileNameProvider            function to generate WAL file names from file index
+	 * @param storageFolder                  the directory where WAL files are stored
+	 * @param storageSettings                storage configuration including checksum and compression factories
+	 * @param walFileIndex                   the index of the WAL file to read
+	 * @param catalogKryoPool                pool of Kryo instances for deserialization
+	 * @param transactionLocationsCache      cache of transaction locations within WAL files
+	 * @param avoidPartiallyFilledBuffer     whether to avoid partially filled buffers during reads
+	 * @param onClose                        optional callback to run when the supplier is closed
+	 */
 	public AbstractMutationSupplier(
 		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull StorageSettings storageSettings,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
@@ -142,7 +176,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		this.walFileIndex = walFileIndex;
 		this.walFileNameProvider = walFileNameProvider;
 		this.storageFolder = storageFolder;
-		this.storageOptions = storageOptions;
+		this.storageSettings = storageSettings;
 		this.transactionLocationsCache = transactionLocationsCache;
 		this.avoidPartiallyFilledBuffer = avoidPartiallyFilledBuffer;
 		this.onClose = onClose;
@@ -159,35 +193,40 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 					new RandomAccessFileInputStream(
 						new RandomAccessFile(this.walFile, "r"),
 						true
-					)
+					),
+					this.storageSettings.createChecksum(),
+					this.storageSettings.createDecompressor().orElse(null)
 				);
-				if (this.storageOptions.computeCRC32C()) {
-					this.observableInput.computeCRC32();
-				}
-				if (this.storageOptions.compress()) {
-					this.observableInput.compress();
-				}
 				// fast path if the record is found in cache
 				Optional<TransactionMutationWithLocation> initialTransactionMutation;
+				long lastCumulativeChecksumRead = 0L;
 				do {
 					this.filePosition = ofNullable(this.transactionLocationsCache.get(this.walFileIndex))
 						.filter(it -> !it.wasCut())
 						.map(it -> it.findNearestLocation(version))
-						.orElse(0L);
+						.orElse((long) AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
 
-					this.observableInput.seekWithUnknownLength(this.filePosition);
+					this.observableInput.seekWithUnknownLength(this.filePosition - AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+					// read and initialize cumulative checksum
+					lastCumulativeChecksumRead = this.observableInput.simpleLongRead();
 
 					final long walFileLength = this.walFile.length();
 					initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 					// move cursor to the end of the lead mutation
 					while (initialTransactionMutation.map(it -> it.getVersion() < version).orElse(false)) {
 						// move cursor to the next transaction mutation
-						this.filePosition += initialTransactionMutation.get().getTransactionSpan().recordLength();
+						this.filePosition = calculateNextTransactionStartPosition(
+							this.filePosition, initialTransactionMutation.get()
+						);
 						this.observableInput.seekWithUnknownLength(this.filePosition);
 						// read content length and leading transaction mutation
 						initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 						// if the file is shorter than the expected size of the transaction mutation, we've reached EOF
-						if (initialTransactionMutation.map(it -> walFileLength < this.filePosition + it.getTransactionSpan().recordLength()).orElse(true)) {
+						if (
+							initialTransactionMutation
+								.map(it -> walFileLength < calculateNextTransactionStartPosition(this.filePosition, it))
+								.orElse(true)
+						) {
 							initialTransactionMutation = empty();
 							break;
 						}
@@ -199,6 +238,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 				);
 				// we've reached the first transaction mutation with the catalog version >= requested catalog version
 				this.transactionMutation = initialTransactionMutation.orElse(null);
+				this.cumulativeChecksum = storageSettings.createCumulativeChecksum(lastCumulativeChecksumRead);
 			} catch (BufferUnderflowException e) {
 				// we've reached EOF or the tx mutation hasn't been yet completely written
 				if (this.observableInput != null) {
@@ -234,7 +274,24 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	}
 
 	/**
+	 * Retrieves the observable input stream for reading mutation transactions.
+	 * Ensures that the observable input is set before accessing it.
+	 *
+	 * @return an instance of {@link ObservableInput} wrapping a {@link RandomAccessFileInputStream}.
+	 * @throws IllegalStateException if the observable input is null.
+	 */
+	@Nonnull
+	protected ObservableInput<RandomAccessFileInputStream> getObservableInput() {
+		Assert.isPremiseValid(
+			this.observableInput != null,
+			"Observable input must be set before reading a mutation."
+		);
+		return this.observableInput;
+	}
+
+	/**
 	 * Moves pointers to the next Write-Ahead-Log (WAL) file.
+	 *
 	 * @param delta The delta that should be applied to index to move to the next/prev WAL file
 	 */
 	protected boolean moveToNextWalFile(int delta) {
@@ -255,14 +312,10 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 					new RandomAccessFileInputStream(
 						new RandomAccessFile(nextWalFile, "r"),
 						true
-					)
+					),
+					this.storageSettings.createChecksum(),
+					this.storageSettings.createDecompressor().orElse(null)
 				);
-				if (this.storageOptions.computeCRC32C()) {
-					this.observableInput.computeCRC32();
-				}
-				if (this.storageOptions.compress()) {
-					this.observableInput.compress();
-				}
 
 				return true;
 			} catch (FileNotFoundException ignored) {
@@ -281,7 +334,8 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 * @return the transaction mutation read from the input stream
 	 */
 	@Nonnull
-	protected Optional<TransactionMutationWithLocation> readAndRecordTransactionMutation(long startPosition, long fileSize) {
+	protected Optional<TransactionMutationWithLocation> readAndRecordTransactionMutation(
+		long startPosition, long fileSize) {
 		final ObservableInput<RandomAccessFileInputStream> theObservableInput = this.observableInput;
 		Assert.isPremiseValid(
 			this.observableInput != null,
@@ -298,8 +352,11 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		// the expected total length of current transaction (leading mutation plus all other mutations)
 		final int contentLength = theObservableInput.simpleIntRead();
 
-		if (startPosition + 4 + contentLength > fileSize) {
-			// we've reached EOF
+		// Account for checksum size in the full record length
+		final int fullRecordLength = 4 + contentLength + AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
+
+		if (startPosition + fullRecordLength > fileSize) {
+			// we've reached EOF (not enough space for content + checksum)
 			return empty();
 		}
 
@@ -322,7 +379,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		return of(
 			new TransactionMutationWithLocation(
 				transactionMutation,
-				new FileLocation(this.filePosition, contentLength + 4),
+				new FileLocation(this.filePosition, fullRecordLength),
 				this.walFileIndex
 			)
 		);

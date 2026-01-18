@@ -25,6 +25,7 @@ package io.evitadb.api.configuration;
 
 import io.evitadb.utils.UUIDUtil;
 import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -80,8 +81,8 @@ import static java.util.Optional.ofNullable;
 public record StorageOptions(
 	@Nonnull Path storageDirectory,
 	@Nonnull Path workDirectory,
-	long lockTimeoutSeconds,
-	long waitOnCloseSeconds,
+	int lockTimeoutSeconds,
+	int waitOnCloseSeconds,
 	int outputBufferSize,
 	@Nullable Integer maxOpenedReadHandles,
 	boolean syncWrites,
@@ -188,8 +189,8 @@ public record StorageOptions(
 	public StorageOptions(
 		@Nullable Path storageDirectory,
 		@Nullable Path workDirectory,
-		long lockTimeoutSeconds,
-		long waitOnCloseSeconds,
+		int lockTimeoutSeconds,
+		int waitOnCloseSeconds,
 		int outputBufferSize,
 		@Nullable Integer maxOpenedReadHandles,
 		boolean syncWrites,
@@ -227,13 +228,13 @@ public record StorageOptions(
 	 * Standard builder pattern implementation.
 	 */
 	@ToString
-	@lombok.extern.slf4j.Slf4j
+	@Slf4j
 	public static class Builder {
 
 		private Path storageDirectory = DEFAULT_DATA_DIRECTORY;
 		private Path workDirectory = randomize(DEFAULT_WORK_DIRECTORY);
-		private long lockTimeoutSeconds = DEFAULT_LOCK_TIMEOUT_SECONDS;
-		private long waitOnCloseSeconds = DEFAULT_WAIT_ON_CLOSE_SECONDS;
+		private int lockTimeoutSeconds = DEFAULT_LOCK_TIMEOUT_SECONDS;
+		private int waitOnCloseSeconds = DEFAULT_WAIT_ON_CLOSE_SECONDS;
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
 		private int maxOpenedReadHandles = DEFAULT_MAX_OPENED_READ_HANDLES;
 		private boolean syncWrites = DEFAULT_SYNC_WRITES;
@@ -276,13 +277,13 @@ public record StorageOptions(
 		}
 
 		@Nonnull
-		public Builder lockTimeoutSeconds(long lockTimeoutSeconds) {
+		public Builder lockTimeoutSeconds(int lockTimeoutSeconds) {
 			this.lockTimeoutSeconds = lockTimeoutSeconds;
 			return this;
 		}
 
 		@Nonnull
-		public Builder waitOnCloseSeconds(long waitOnCloseSeconds) {
+		public Builder waitOnCloseSeconds(int waitOnCloseSeconds) {
 			this.waitOnCloseSeconds = waitOnCloseSeconds;
 			return this;
 		}

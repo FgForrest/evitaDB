@@ -23,6 +23,7 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import io.evitadb.store.checksum.Checksum;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 class OffHeapMemoryOutputStreamTest {
-	private final OffHeapMemoryOutputStream outputStream = new OffHeapMemoryOutputStream();
+	private final OffHeapMemoryOutputStream outputStream = new OffHeapMemoryOutputStream(Checksum.NO_OP);
 
 	@BeforeEach
 	void setUp() {

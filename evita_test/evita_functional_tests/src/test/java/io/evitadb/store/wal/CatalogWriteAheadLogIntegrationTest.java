@@ -41,12 +41,14 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.AbstractMutationLog.FirstAndLastVersionsInWalFile;
@@ -97,8 +99,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class CatalogWriteAheadLogIntegrationTest {
 	private final Path walDirectory = Path.of(System.getProperty("java.io.tmpdir"))
-	                                      .resolve("evita")
-	                                      .resolve(getClass().getSimpleName());
+		.resolve("evita")
+		.resolve(getClass().getSimpleName());
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
 		protected Kryo create() {
@@ -106,18 +108,15 @@ public class CatalogWriteAheadLogIntegrationTest {
 		}
 	};
 	private final Path isolatedWalFilePath = this.walDirectory.resolve("isolatedWal.tmp");
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
-		TEST_CATALOG,
-		StorageOptions.builder()
-		              /* there are tests that rely on standard size of mutations on disk in this class */
-		              .compress(false)
-		              .build(),
+	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(
 		Mockito.mock(Scheduler.class)
 	);
 	private final CatalogOffHeapMemoryManager noOffHeapMemoryManager = new CatalogOffHeapMemoryManager(
-		TEST_CATALOG, 0, 0);
+		TEST_CATALOG, 0, 0, ChecksumFactory.NO_OP
+	);
 	private final CatalogOffHeapMemoryManager bigOffHeapMemoryManager = new CatalogOffHeapMemoryManager(
-		TEST_CATALOG, 10_000_000, 128);
+		TEST_CATALOG, 10_000_000, 128, ChecksumFactory.NO_OP
+	);
 	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
 	private final MockCatalogVersionConsumer offsetConsumer = new MockCatalogVersionConsumer();
 	private CatalogWriteAheadLog wal;
@@ -161,12 +160,12 @@ public class CatalogWriteAheadLogIntegrationTest {
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				isolatedWalFilePath,
-				StorageOptions.builder(StorageOptions.temporary())
-				              /* there are tests that rely on standard size of mutations on disk in this class */
-				              .compress(false)
-				              .build(),
+				StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+				false,
 				observableOutputKeeper,
-				offHeapMemoryManager
+				offHeapMemoryManager,
+				ChecksumFactory.NO_OP,
+				null
 			)
 		);
 
@@ -322,7 +321,8 @@ public class CatalogWriteAheadLogIntegrationTest {
 				new LogFileRecordReference(
 					index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 					transactionMutation.getWalFileIndex(),
-					transactionMutation.getTransactionSpan()
+					transactionMutation.getTransactionSpan(),
+					transactionMutation.getCumulativeChecksumOrThrow()
 				)
 			);
 			assertTrue(txId.isPresent());
@@ -336,7 +336,8 @@ public class CatalogWriteAheadLogIntegrationTest {
 			new LogFileRecordReference(
 				index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 				transactionMutation.getWalFileIndex(),
-				transactionMutation.getTransactionSpan()
+				transactionMutation.getTransactionSpan(),
+				transactionMutation.getCumulativeChecksumOrThrow()
 			)
 		);
 		assertFalse(txId.isPresent());
@@ -383,17 +384,19 @@ public class CatalogWriteAheadLogIntegrationTest {
 		return new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
-			index -> getWalFileName(TEST_CATALOG, index),
+			new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
 			this.walDirectory,
 			this.catalogKryoPool,
-			StorageOptions.builder()
-			              /* there are tests that rely on standard size of mutations on disk in this class */
-			              .compress(false)
-			              .build(),
-			TransactionOptions.builder()
-			                  .walFileCountKept(5)
-			                  .walFileSizeBytes(16_384)
-			                  .build(),
+			new StorageSettings(
+				StorageOptions.builder()
+					/* there are tests that rely on standard size of mutations on disk in this class */
+					.compress(false)
+					.build(),
+				TransactionOptions.builder()
+					.walFileCountKept(5)
+					.walFileSizeBytes(16_384)
+					.build()
+			),
 			Mockito.mock(Scheduler.class),
 			this.offsetConsumer,
 			firstActiveCatalogVersion -> {
@@ -406,14 +409,18 @@ public class CatalogWriteAheadLogIntegrationTest {
 		return new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
-			index -> getWalFileName(TEST_CATALOG, index),
+			new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
 			this.walDirectory,
 			this.catalogKryoPool,
-			StorageOptions.builder()
-			              /* there are tests that rely on standard size of mutations on disk in this class */
-			              .compress(false)
-			              .build(),
-			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
+			new StorageSettings(
+				StorageOptions.builder()
+					/* there are tests that rely on standard size of mutations on disk in this class */
+					.compress(false)
+					.build(),
+				TransactionOptions.builder()
+					.walFileSizeBytes(Long.MAX_VALUE)
+					.build()
+			),
 			Mockito.mock(Scheduler.class),
 			this.offsetConsumer,
 			firstActiveCatalogVersion -> {
@@ -456,7 +463,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 		@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
 		long lastCatalogVersion = startIndex;
 		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedMutationStream(startIndex + 1)
-		                                                                .iterator();
+			.iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;
@@ -492,9 +499,9 @@ public class CatalogWriteAheadLogIntegrationTest {
 	) {
 		long firstCatalogVersion = -1L;
 		long catalogVersion = startIndex + 1;
-		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedReversedMutationStream(
-			                                                            catalogVersion)
-		                                                                .iterator();
+		final Iterator<CatalogBoundMutation> mutationIterator = this.wal
+			.getCommittedReversedMutationStream(catalogVersion)
+			.iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;

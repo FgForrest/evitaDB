@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@ package io.evitadb.store.wal.supplier;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.utils.Assert;
@@ -36,6 +36,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.IntFunction;
@@ -51,14 +52,14 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 		long catalogVersion,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull StorageSettings storageSettings,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
 		@Nullable Runnable onClose
 	) {
 		super(
-			catalogVersion, walFileNameProvider, catalogStoragePath, storageOptions,
+			catalogVersion, walFileNameProvider, catalogStoragePath, storageSettings,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			false, onClose
 		);
@@ -91,6 +92,19 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 				//noinspection unchecked
 				return (T) storageRecord.payload();
 			} else {
+				// All mutations in the transaction have been read, verify the checksum
+				final long readCumulativeChecksum = getObservableInput().simpleLongRead();
+				Assert.isPremiseValid(
+					Objects.requireNonNull(this.cumulativeChecksum).equalsTo(readCumulativeChecksum),
+					() -> new WriteAheadLogCorruptedException(
+						this.walFile.toPath(),
+						this.transactionMutation.getTransactionSpan().endPosition(),
+						Objects.requireNonNull(this.cumulativeChecksum).getValue(),
+						readCumulativeChecksum
+					)
+				);
+				this.transactionMutation.withCumulativeChecksum(readCumulativeChecksum);
+				/* TODO JNO - tady asi kumulativní nebude fungovat */
 				this.transactionMutation = findPreviousTransactionMutation(this.transactionMutation);
 				this.mappedPositions = null;
 				this.mutationIndex = this.transactionMutation == null ? 0 : this.transactionMutation.getMutationCount();
@@ -129,12 +143,15 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 				newlyMappedPositions[i] = mutationLocation;
 				startingPosition = mutationLocation.startingPosition() + mutationLocation.recordLength();
 			}
+			// The mapped positions cover the mutations but not the checksum at the end
+			// recordLength includes: 4 (length) + content + CUMULATIVE_CRC32_SIZE
 			final long finalStartingPosition = startingPosition - this.transactionMutation.getTransactionSpan().startingPosition();
+			final int expectedLength = this.transactionMutation.getTransactionSpan().recordLength() - AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
 			Assert.isPremiseValid(
-				finalStartingPosition == this.transactionMutation.getTransactionSpan().recordLength(),
+				finalStartingPosition == expectedLength,
 				() -> new WriteAheadLogCorruptedException(
 					"Transaction mutation span is not fully mapped!",
-					"Transaction mutation span is not fully mapped (" + finalStartingPosition + " vs. " + this.transactionMutation.getTransactionSpan().recordLength() + ")!"
+					"Transaction mutation span is not fully mapped (" + finalStartingPosition + " vs. " + expectedLength + ")!"
 				)
 			);
 			this.mappedPositions = newlyMappedPositions;

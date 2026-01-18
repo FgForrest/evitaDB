@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.store.offsetIndex.io;
 
 
 import io.evitadb.core.metric.event.transaction.OffHeapMemoryAllocationChangeEvent;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -44,6 +45,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 @Slf4j
 public class OffHeapMemoryManager implements Closeable {
+	/**
+	 * Factory for creating checksums for off-heap memory output streams.
+	 * Each {@link OffHeapMemoryOutputStream} acquired from this manager receives a checksum instance
+	 * created by this factory for data integrity verification.
+	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#computeCRC32C()}.
+	 */
+	private final ChecksumFactory checksumFactory;
 	/**
 	 * The size of single region of {@link #memoryBlock} in Bytes.
 	 */
@@ -69,7 +77,11 @@ public class OffHeapMemoryManager implements Closeable {
 	 */
 	private int lastIndex = 0;
 
-	public OffHeapMemoryManager(long sizeInBytes, int regions) {
+	public OffHeapMemoryManager(
+		long sizeInBytes,
+		int regions,
+		@Nonnull ChecksumFactory checksumFactory
+	) {
 		this.sizeInBytes = sizeInBytes;
 		if (regions == 0 || sizeInBytes == 0) {
 			this.regionSize = 0;
@@ -88,6 +100,7 @@ public class OffHeapMemoryManager implements Closeable {
 
 			emitAllocationEvent(sizeInBytes, 0L);
 		}
+		this.checksumFactory = checksumFactory;
 	}
 
 	/**
@@ -103,7 +116,9 @@ public class OffHeapMemoryManager implements Closeable {
 			return Optional.empty();
 		}
 		final int regionCount = this.usedRegions.length();
-		final OffHeapMemoryOutputStream newOutputStream = new OffHeapMemoryOutputStream();
+		final OffHeapMemoryOutputStream newOutputStream = new OffHeapMemoryOutputStream(
+			this.checksumFactory.createChecksum()
+		);
 		final int occupiedIndex = findClearIndexAndSet(regionCount, this.lastIndex++, newOutputStream);
 		this.lastIndex = occupiedIndex;
 		if (occupiedIndex == -1) {
