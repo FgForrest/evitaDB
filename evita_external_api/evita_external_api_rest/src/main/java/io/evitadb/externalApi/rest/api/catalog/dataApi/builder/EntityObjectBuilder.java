@@ -464,7 +464,6 @@ public class EntityObjectBuilder {
 	private OpenApiTypeReference buildReferenceObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                  boolean localized) {
-		// todo lho implement interfaces
 		final OpenApiObject.Builder referenceObject = EntityReferenceDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(constructReferenceObjectName(entitySchema, referenceSchema, localized))

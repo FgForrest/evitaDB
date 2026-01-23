@@ -26,9 +26,10 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.refere
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Defines a unique (within a catalog) key for reference interface containing the referenced entity type only.
+ * It is a common interface for all reference definitions targeting the same entity type.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 public record ReferenceWithReferencedEntityKey(@Nonnull String referencedEntityType) {
 }

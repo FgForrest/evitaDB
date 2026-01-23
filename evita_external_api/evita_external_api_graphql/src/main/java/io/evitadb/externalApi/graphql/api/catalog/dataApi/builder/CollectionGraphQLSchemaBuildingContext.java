@@ -34,6 +34,7 @@ import io.evitadb.utils.Assert;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -53,14 +54,23 @@ public class CollectionGraphQLSchemaBuildingContext {
 	@Nonnull
 	private final EntitySchemaContract schema;
 
-	private GraphQLInputType headInputObject;
-	private GraphQLInputType filterByInputObject;
-	private GraphQLInputType orderByInputObject;
-	private GraphQLInputType listRequireInputObject;
-	private GraphQLInputType queryRequireInputObject;
+	@Nullable private GraphQLInputType headInputObject;
+	@Nullable private GraphQLInputType filterByInputObject;
+	@Nullable private GraphQLInputType orderByInputObject;
+	@Nullable private GraphQLInputType listRequireInputObject;
+	@Nullable private GraphQLInputType queryRequireInputObject;
 
-	// todo lho check count on demo dataset
-	@Nonnull private final Map<EntityReferenceKey, GraphQLObjectType> entityReferenceObjects = createHashMap(20);
+	@Nonnull private final Map<EntityReferenceKey, GraphQLObjectType> entityReferenceObjects;
+
+	public CollectionGraphQLSchemaBuildingContext(
+		@Nonnull CatalogGraphQLSchemaBuildingContext catalogCtx,
+		@Nonnull EntitySchemaContract schema
+	) {
+		this.catalogCtx = catalogCtx;
+		this.schema = schema;
+
+		this.entityReferenceObjects = createHashMap(this.schema.getReferences().size());
+	}
 
 	@Nonnull
 	public CatalogContract getCatalog() {

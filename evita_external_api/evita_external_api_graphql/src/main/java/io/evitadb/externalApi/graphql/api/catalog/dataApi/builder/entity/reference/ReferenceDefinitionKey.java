@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Defines a unique (within a catalog) key for a reference definition interfaces ({@link ReferenceDefinitionDescriptor}).
+ * Defines a unique (within a catalog) key for reference definition interfaces ({@link ReferenceDefinitionDescriptor}).
  * That is an interface containing all data from a reference definition, but it is not directly associated with a specific
  * entity type like {@link EntityReferenceDescriptor}.
  * This allows us to reuse this interface for multiple entity types with the same reference definition (based on data equality)

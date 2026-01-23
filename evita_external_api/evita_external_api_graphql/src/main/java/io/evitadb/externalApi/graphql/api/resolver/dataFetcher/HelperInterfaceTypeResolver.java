@@ -34,9 +34,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO lho docs
+ * Implementation of {@link TypeResolver} for interfaces that are not returned directly in queries, but rather act as
+ * generalization interfaces for client code reusability. Thus, these interfaces don't need to be resolved to target
+ * object types, because queries already return the object types that implement these interfaces.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class HelperInterfaceTypeResolver implements TypeResolver {

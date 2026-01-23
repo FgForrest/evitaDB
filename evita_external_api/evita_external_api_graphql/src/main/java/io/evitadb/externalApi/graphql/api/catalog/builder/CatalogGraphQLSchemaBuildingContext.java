@@ -28,6 +28,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.ReferenceDefinitionAttributesKey;
@@ -46,6 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
@@ -62,26 +64,26 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Getter @Nonnull private final Set<Currency> supportedCurrencies;
 	@Getter @Nonnull private final Collection<EntitySchemaContract> entitySchemas;
 
-	// todo lho check count on demo dataset, predict from input schema assuming every reference is unique
-
 	@Nullable private GraphQLInterfaceType referenceInterface = null;
-	@Nonnull private final Map<ReferenceWithReferencedEntityKey, GraphQLInterfaceType> referenceWithReferencedEntityInterfaces = createHashMap(20);
-	@Nonnull private final Map<ReferenceDefinitionKey, GraphQLInterfaceType> referenceDefinitionInterfaces = createHashMap(20);
-	@Nonnull private final Map<ReferenceDefinitionAttributesKey, GraphQLInterfaceType> referenceDefinitionAttributesInterfaces = createHashMap(20);
+	@Nonnull private final Map<ReferenceWithReferencedEntityKey, GraphQLInterfaceType> referenceWithReferencedEntityInterfaces;
+	@Nonnull private final Map<ReferenceDefinitionKey, GraphQLInterfaceType> referenceDefinitionInterfaces;
+	@Nonnull private final Map<ReferenceDefinitionAttributesKey, GraphQLInterfaceType> referenceDefinitionAttributesInterfaces;
 
-	@Nonnull private final Map<WithNamedReferenceKey, GraphQLInterfaceType> withNamedReferenceInterfaces = createHashMap(20);
+	@Nonnull private final Map<WithNamedReferenceKey, GraphQLInterfaceType> withNamedReferenceInterfaces;
 
 	@Nullable private GraphQLInterfaceType referencePageInterface = null;
-	@Nonnull private final Map<ReferenceWithReferencedEntityKey, GraphQLInterfaceType> referenceWithReferencedEntityPageInterfaces = createHashMap(20);
-	@Nonnull private final Map<ReferenceDefinitionKey, GraphQLInterfaceType> referenceDefinitionPageInterfaces = createHashMap(20);
+	@Nonnull private final Map<ReferenceWithReferencedEntityKey, GraphQLInterfaceType> referenceWithReferencedEntityPageInterfaces;
+	@Nonnull private final Map<ReferenceDefinitionKey, GraphQLInterfaceType> referenceDefinitionPageInterfaces;
 
 	@Nullable private GraphQLInterfaceType referenceStripInterface = null;
-	@Nonnull private final Map<ReferenceWithReferencedEntityKey, GraphQLInterfaceType> referenceWithReferencedEntityStripInterfaces = createHashMap(20);
-	@Nonnull private final Map<ReferenceDefinitionKey, GraphQLInterfaceType> referenceDefinitionStripInterfaces = createHashMap(20);
+	@Nonnull private final Map<ReferenceWithReferencedEntityKey, GraphQLInterfaceType> referenceWithReferencedEntityStripInterfaces;
+	@Nonnull private final Map<ReferenceDefinitionKey, GraphQLInterfaceType> referenceDefinitionStripInterfaces;
 
-	public CatalogGraphQLSchemaBuildingContext(@Nonnull GraphQLOptions config,
-	                                           @Nonnull Evita evita,
-	                                           @Nonnull CatalogContract catalog) {
+	public CatalogGraphQLSchemaBuildingContext(
+		@Nonnull GraphQLOptions config,
+		@Nonnull Evita evita,
+		@Nonnull CatalogContract catalog
+	) {
 		super(config, evita);
 		this.catalog = catalog;
 		this.supportedLocales = createHashSet(10);
@@ -95,6 +97,30 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 			this.supportedLocales.addAll(entitySchema.getLocales());
 			this.supportedCurrencies.addAll(entitySchema.getCurrencies());
 		}
+
+		// compute the number of all references across all collections in passed catalog to predict the following map sizes
+		final int totalReferencesCount = this.entitySchemas.stream()
+			.mapToInt(entitySchema -> entitySchema.getReferences().size())
+			.sum();
+
+		// compute the number of unique referenced entity types across all collections in passed catalog to predict the following map sizes
+		final int uniqueReferencedEntityTypesCount = this.entitySchemas.stream()
+			.flatMap(entitySchema -> entitySchema.getReferences().values().stream())
+			.map(ReferenceSchemaContract::getReferencedEntityType)
+			.collect(Collectors.toSet())
+			.size();
+
+		this.referenceWithReferencedEntityInterfaces = createHashMap(uniqueReferencedEntityTypesCount);
+		this.referenceDefinitionInterfaces = createHashMap(totalReferencesCount);
+		this.referenceDefinitionAttributesInterfaces = createHashMap(totalReferencesCount);
+
+		this.withNamedReferenceInterfaces = createHashMap(totalReferencesCount);
+
+		this.referenceWithReferencedEntityPageInterfaces = createHashMap(uniqueReferencedEntityTypesCount);
+		this.referenceDefinitionPageInterfaces = createHashMap(totalReferencesCount);
+
+		this.referenceWithReferencedEntityStripInterfaces = createHashMap(uniqueReferencedEntityTypesCount);
+		this.referenceDefinitionStripInterfaces = createHashMap(totalReferencesCount);
 	}
 
 	@Nonnull
