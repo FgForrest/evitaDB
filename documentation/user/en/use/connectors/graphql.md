@@ -132,11 +132,193 @@ In addition to user-defined collections, there is a "virtual" simplified collect
 that allows users to retrieve entities by global attributes without knowing the target collection. However, the `entity` "collection",
 has only limited set of queries available.
 
+#### Model
+
+The schema consists mainly of:
+
+- dynamic entity object types
+  - separate object types for each collection based on evitaDB internal schema
+- query constraint input types
+  - containers for querying entities based on evitaDB constraint definitions and evitaDB internal schema 
+- common util types
+  - enums, mutations, etc. 
+
+##### Reusability
+
+Even though most types are generated based on user-defined schema without any links among each other, there are some
+areas where we can automatically compute reusable interface types. This can greatly help the client code to 
+create reusable components.
+
+The reusable interface types can be found in:
+
+**Entity references** are split into several levels interface and object types based on generalization scopes:
+
+- generic reference to any entity
+  - can be accessed from any entity reference 
+- reference to a specific entity (e.g. `Category`)
+  - can be accessed from any entity reference that targets such an entity type 
+- reference to a specific entity with a set of attributes and group
+  - can be accessed from any entity reference that targets such a set of data 
+- a specific reference between specific source entity and target entity (e.g. `Product` -> `ParameterValues`)
+  - can be accessed only from the specific source entity 
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Example of entity reference interface hierarchy
+</NoteTitle>
+
+The following diagram shows the hierarchy of entity reference interfaces for `ParameterValues` entity referenced from `Product` entity.
+
+```mermaid
+classDiagram
+    class Reference {
+        <<interface>>
+        int referencePrimaryKey
+    }
+    class ParameterValuesReference {
+        <<interface>>
+        ParameterValue referencedEntity
+    }
+    class ParameterValuesXYZReferenceAttributes {
+        <<interface>>
+        String a
+        String b
+    }
+    class ParameterValuesXYZReference {
+        <<interface>>
+        Parameter groupEntity
+        ParameterValuesXYZReferenceAttributes attributes
+    }
+    class ProductParameterValuesReferenceAttributes {
+    }
+    class ProductParameterValuesReference {
+        ProductParameterValuesAttributes attributes
+    }
+    note for ProductParameterValuesReference "Attributes field is overridden with entity specific extension"
+
+    Reference <|-- ParameterValuesReference
+
+    ParameterValuesReference <|-- ParameterValuesXYZReference
+
+    ParameterValuesXYZReferenceAttributes <|-- ProductParameterValuesReferenceAttributes
+    ParameterValuesXYZReference <|-- ProductParameterValuesReference
+
+    class PaginatedList {
+        <<interface>>
+    }
+
+    class ReferencePage {
+        <<interface>>
+        Reference[] data
+    }
+    PaginatedList <|-- ReferencePage
+
+    class ParameterValuesReferencePage {
+        <<interface>>
+        ParameterValuesReference[] data
+    }
+    ReferencePage <|-- ParameterValuesReferencePage
+    note for ParameterValuesReferencePage "Data field is overridden with a reference with a specific referenced entity extension"
+
+    class ParameterValuesXYZReferencePage {
+        <<interface>>
+        ParameterValuesXYZReference[] data
+    }
+    ParameterValuesReferencePage <|-- ParameterValuesXYZReferencePage
+    note for ParameterValuesXYZReferencePage "Data field is overridden with a specific reference definition extension"
+
+    class StripList {
+        <<interface>>
+    }
+
+    class ReferenceStrip {
+        <<interface>>
+        Reference[] data
+    }
+    StripList <|-- ReferenceStrip
+
+    class ParameterValuesReferenceStrip {
+        <<interface>>
+        ParameterValuesReference[] data
+    }
+    ReferenceStrip <|-- ParameterValuesReferenceStrip
+    note for ParameterValuesReferenceStrip "Data field is overridden with a reference with a specific referenced entity extension"
+
+    class ParameterValuesXYZReferenceStrip {
+        <<interface>>
+        ParameterValuesXYZReference[] data
+    }
+    ParameterValuesReferenceStrip <|-- ParameterValuesXYZReferenceStrip
+    note for ParameterValuesXYZReferenceStrip "Data field is overridden with a specific reference definition extension"
+
+    class ProductParameterValuesReferencePage {
+        ProductParameterValuesReference[] data
+    }
+    note for ProductParameterValuesReferencePage "Data field is overridden with entity specific extension"
+    ParameterValuesXYZReferencePage <|-- ProductParameterValuesReferencePage
+
+    class ProductParameterValuesReferenceStrip {
+        ProductParameterValuesReference[] data
+    }
+    note for ProductParameterValuesReferenceStrip "Data field is overridden with entity specific extension"
+    ParameterValuesXYZReferenceStrip <|-- ProductParameterValuesReferenceStrip
+```
+</Note>
+
+To also be able to reuse inline reference filtering and ordering, a `With*Reference `interface is generated for
+each combination of reference namem referenced entity type, set of attributes and a group. Each source entity than
+implements such interface that matches its reference definition.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Example `With*Reference` interface hierarchy
+</NoteTitle>
+
+The following diagram shows the hierarchy of `With*Reference` interfaces for `ParameterValues` entity available on `Product`
+entity.
+
+```mermaid
+classDiagram
+
+    class WithParameterValuesXYZ1Reference {
+        <<interface>>
+        ParameterValuesXYZReference[] parameterValues
+        ParameterValuesXYZReferencePage parameterValuesPage
+        ParameterValuesXYZReferenceStrip parameterValuesStrip
+    }
+
+    class Product {
+        ProductParameterValuesReference[] parameterValues
+        ProductParameterValuesReferencePage parameterValuesPage
+        ProductParameterValuesReferenceStrip parameterValuesStrip
+    }
+    note for Product "Product entity extends reference types with its own extending the generic ones"
+
+    WithParameterValuesXYZ1Reference <|-- Product
+```
+
+</Note>
+
+<Note type="info">
+
+We explore other places where we could generate reusable interface types based on real-world use-cases. 
+We don't want to overcomplicate the API schema just for the sake of it. 
+
+</Note>
+  
 ### Structure of catalog schema APIs
 
 A single <Term>catalog schema API</Term> for a single catalog contains only basic queries and mutations for each
 [collection](/documentation/user/en/use/data-model.md#collection) and parent [catalog](/documentation/user/en/use/data-model.md#catalog)
 to retrieve or change its schema.
+
+#### Model
+
+The schema consists mainly of dynamically generated object types representing different schema components.
 
 ### Structure of system API
 
