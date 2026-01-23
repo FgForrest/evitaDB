@@ -91,6 +91,36 @@ In addition to user-defined collections, there is a "virtual" simplified collect
 that allows users to retrieve entities by global attributes without knowing the target collection. However, the `entity` "collection",
 has only limited set of endpoints available.
 
+#### Model
+
+The schema consists mainly of:
+
+- dynamic entity object types
+    - separate object types for each collection based on evitaDB internal schema
+- dynamic schema object types
+- query constraint input types
+    - containers for querying entities based on evitaDB constraint definitions and evitaDB internal schema
+- common util types
+    - enums, mutations, etc.
+
+##### Reusability
+
+Even though most types are generated based on user-defined schema without any links among each other, there are some
+areas where we can automatically compute reusable interface types. This can greatly help the client code to
+create reusable components.
+
+The reusable interface types can be found in:
+
+**Data chunks**. There are two base implementations: paginated lists
+and strip lists. Usually entities and references implement their own extensions of these interfaces.
+
+<Note type="info">
+
+We explore other places where we could generate reusable interface types based on real-world use-cases.
+We don't want to overcomplicate the API schema just for the sake of it.
+
+</Note>
+
 ### Structure of system API
 
 There is nothing special about the <Term>system API</Term>, just a set of basic endpoints.

@@ -151,6 +151,9 @@ create reusable components.
 
 The reusable interface types can be found in:
 
+**Data chunks**. There are two base implementations: paginated lists
+and strip lists. Usually entities and references implement their own extensions of these interfaces.
+
 **Entity references** are split into several levels of interface and object types based on generalization scopes:
 
 - generic reference to any entity
