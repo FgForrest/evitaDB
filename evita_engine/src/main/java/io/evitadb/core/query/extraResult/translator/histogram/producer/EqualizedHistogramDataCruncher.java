@@ -43,16 +43,49 @@ import java.util.function.ToIntFunction;
  * between $10-$50 and 10% cost $50-$1000, equal-width buckets would place most records in the first
  * bucket. Equalized buckets distribute records more evenly across buckets.
  *
- * Algorithm:
+ * ## Algorithm
+ *
  * 1. Calculate total weight (sum of all record counts)
  * 2. Calculate cumulative frequency for each unique value
  * 3. Position bucket boundaries at points where cumulative frequency crosses threshold (i/bucketCount)
  * 4. Count actual occurrences in each resulting bucket
  *
+ * ## Optimization Note
+ *
+ * Unlike {@link HistogramDataCruncher} which benefits from a separate `createOptimalHistogram` factory
+ * method to reduce empty buckets, the equalized histogram algorithm **inherently avoids empty buckets**
+ * because bucket boundaries are placed at actual data value transitions based on cumulative frequency.
+ * Therefore, using {@link BucketCountMode#ADAPTIVE} provides full optimization for equalized histograms
+ * without requiring any additional recomputation logic.
+ *
  * @param <T> the type of source data elements
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherContract<T> {
+
+	/**
+	 * Defines how the histogram handles the case when fewer distinct values exist
+	 * than the requested bucket count.
+	 */
+	public enum BucketCountMode {
+		/**
+		 * Always return exactly the requested number of buckets.
+		 * If data has fewer distinct values, pad with empty buckets distributed
+		 * proportionally across gaps between data buckets.
+		 */
+		EXACT,
+		/**
+		 * Return fewer buckets when data is sparse (fewer distinct values than
+		 * requested buckets). This avoids unnecessary empty buckets.
+		 *
+		 * For equalized histograms, ADAPTIVE mode provides full optimization because
+		 * the cumulative frequency algorithm inherently places bucket boundaries at
+		 * data value transitions, resulting in non-empty buckets. No additional
+		 * recomputation is needed beyond what ADAPTIVE already provides.
+		 */
+		ADAPTIVE
+	}
+
 	/**
 	 * Contains requested maximal bucket count.
 	 */
@@ -81,6 +114,10 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * Function that converts int threshold/value to {@link BigDecimal}.
 	 */
 	private final IntFunction<BigDecimal> toBigDecimalConverter;
+	/**
+	 * Defines how the histogram handles sparse data (fewer distinct values than requested buckets).
+	 */
+	private final BucketCountMode bucketCountMode;
 
 	/**
 	 * Creates a new EqualizedHistogramDataCruncher that computes histogram using cumulative frequency distribution.
@@ -92,6 +129,8 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * @param thresholdRetriever   function to extract threshold value from source item
 	 * @param weightRetriever      function to extract weight (record count) from source item
 	 * @param toBigDecimalConverter function to convert int threshold to BigDecimal
+	 * @param bucketCountMode      defines how to handle sparse data (EXACT pads with empty buckets,
+	 *                             ADAPTIVE allows fewer buckets)
 	 */
 	public EqualizedHistogramDataCruncher(
 		@Nonnull String histogramType,
@@ -100,7 +139,8 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		@Nonnull T[] sourceData,
 		@Nonnull ToIntFunction<T> thresholdRetriever,
 		@Nonnull ToIntFunction<T> weightRetriever,
-		@Nonnull IntFunction<BigDecimal> toBigDecimalConverter
+		@Nonnull IntFunction<BigDecimal> toBigDecimalConverter,
+		@Nonnull BucketCountMode bucketCountMode
 	) {
 		Assert.isTrue(
 			bucketCount > 1,
@@ -110,68 +150,12 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		this.limitDecimalPlacesTo = limitDecimalPlacesTo;
 		this.sourceData = sourceData;
 		this.toBigDecimalConverter = toBigDecimalConverter;
+		this.bucketCountMode = bucketCountMode;
 		this.firstThreshold = thresholdRetriever.applyAsInt(sourceData[0]);
 		this.lastThreshold = thresholdRetriever.applyAsInt(sourceData[sourceData.length - 1]);
 
 		// compute histogram using cumulative frequency algorithm
 		this.histogram = computeEqualizedHistogram(thresholdRetriever, weightRetriever);
-	}
-
-	/**
-	 * Helper method that creates an optimized histogram, potentially with fewer buckets if data is sparse.
-	 * This mirrors the optimization logic in {@link HistogramDataCruncher#createOptimalHistogram}.
-	 *
-	 * @param histogramType        name of the histogram (for error messages)
-	 * @param stepCount            requested number of buckets
-	 * @param allowedDecimalPlaces maximum decimal places in threshold values
-	 * @param sourceData           array of source data items (must be sorted)
-	 * @param thresholdRetriever   function to extract threshold value from source item
-	 * @param weightRetriever      function to extract weight from source item
-	 * @param toBigDecimalConverter function to convert int to BigDecimal
-	 * @return optimized histogram cruncher
-	 */
-	public static <T> EqualizedHistogramDataCruncher<T> createOptimalHistogram(
-		@Nonnull String histogramType,
-		int stepCount,
-		int allowedDecimalPlaces,
-		@Nonnull T[] sourceData,
-		@Nonnull ToIntFunction<T> thresholdRetriever,
-		@Nonnull ToIntFunction<T> weightRetriever,
-		@Nonnull IntFunction<BigDecimal> toBigDecimalConverter
-	) {
-		// first compute the histogram with requested bucket count
-		final EqualizedHistogramDataCruncher<T> firstShot = new EqualizedHistogramDataCruncher<>(
-			histogramType,
-			stepCount,
-			allowedDecimalPlaces,
-			sourceData,
-			thresholdRetriever,
-			weightRetriever,
-			toBigDecimalConverter
-		);
-
-		// count non-empty buckets
-		int nonEmptyBuckets = 0;
-		for (CacheableBucket bucket : firstShot.getHistogram()) {
-			if (bucket.occurrences() > 0) {
-				nonEmptyBuckets++;
-			}
-		}
-
-		// if we have very few non-empty buckets, recompute with smaller bucket count
-		if (nonEmptyBuckets <= 2 && stepCount > 2) {
-			return new EqualizedHistogramDataCruncher<>(
-				histogramType,
-				2,
-				allowedDecimalPlaces,
-				sourceData,
-				thresholdRetriever,
-				weightRetriever,
-				toBigDecimalConverter
-			);
-		}
-
-		return firstShot;
 	}
 
 	/**
@@ -325,6 +309,83 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 					.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
 				bucketCounts[i]
 			);
+		}
+
+		// Step 4: Pad with empty buckets if EXACT mode and we have fewer buckets than requested
+		if (this.bucketCountMode == BucketCountMode.EXACT && result.length < this.bucketCount) {
+			return padWithEmptyBuckets(result);
+		}
+
+		return result;
+	}
+
+	/**
+	 * Pads the histogram with empty buckets to reach the requested bucket count.
+	 * Empty buckets are distributed proportionally across gaps between data buckets.
+	 *
+	 * @param dataBuckets the data-containing buckets computed from cumulative frequency distribution
+	 * @return array with exactly {@link #bucketCount} buckets, including empty ones in gaps
+	 */
+	@Nonnull
+	private CacheableBucket[] padWithEmptyBuckets(@Nonnull CacheableBucket[] dataBuckets) {
+		// Cannot pad single bucket (no gaps to distribute empty buckets into)
+		if (dataBuckets.length <= 1) {
+			return dataBuckets;
+		}
+
+		final int emptyBucketsNeeded = this.bucketCount - dataBuckets.length;
+
+		// Calculate gaps between consecutive data buckets
+		final int gapCount = dataBuckets.length - 1;
+		final BigDecimal[] gapSizes = new BigDecimal[gapCount];
+		BigDecimal totalGapSize = BigDecimal.ZERO;
+
+		for (int i = 0; i < gapCount; i++) {
+			gapSizes[i] = dataBuckets[i + 1].threshold().subtract(dataBuckets[i].threshold());
+			totalGapSize = totalGapSize.add(gapSizes[i]);
+		}
+
+		// Distribute empty buckets proportionally to gap sizes
+		final int[] emptyPerGap = new int[gapCount];
+		int assigned = 0;
+		for (int i = 0; i < gapCount; i++) {
+			final double proportion = gapSizes[i].doubleValue() / totalGapSize.doubleValue();
+			emptyPerGap[i] = (int) Math.round(emptyBucketsNeeded * proportion);
+			assigned += emptyPerGap[i];
+		}
+
+		// Adjust rounding errors by adding/removing from largest gap
+		final int diff = emptyBucketsNeeded - assigned;
+		if (diff != 0) {
+			int largestGapIndex = 0;
+			for (int i = 1; i < gapCount; i++) {
+				if (gapSizes[i].compareTo(gapSizes[largestGapIndex]) > 0) {
+					largestGapIndex = i;
+				}
+			}
+			emptyPerGap[largestGapIndex] += diff;
+		}
+
+		// Build result array with data and empty buckets interleaved
+		final CacheableBucket[] result = new CacheableBucket[this.bucketCount];
+		int resultIndex = 0;
+
+		for (int i = 0; i < dataBuckets.length; i++) {
+			result[resultIndex++] = dataBuckets[i];
+
+			// Add empty buckets in the gap after this data bucket (except after the last one)
+			if (i < dataBuckets.length - 1 && emptyPerGap[i] > 0) {
+				final BigDecimal gapStart = dataBuckets[i].threshold();
+				final BigDecimal gapEnd = dataBuckets[i + 1].threshold();
+				final BigDecimal step = gapEnd.subtract(gapStart)
+					.divide(new BigDecimal(emptyPerGap[i] + 1), 10, RoundingMode.HALF_UP);
+
+				for (int j = 1; j <= emptyPerGap[i]; j++) {
+					final BigDecimal emptyThreshold = gapStart.add(step.multiply(new BigDecimal(j)))
+						.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP);
+					result[resultIndex++] = new CacheableBucket(emptyThreshold, 0);
+				}
+			}
 		}
 
 		return result;

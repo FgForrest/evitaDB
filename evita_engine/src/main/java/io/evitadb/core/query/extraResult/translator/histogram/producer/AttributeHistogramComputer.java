@@ -176,16 +176,18 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 					buckets,
 					bucket -> converter.applyAsInt((T) bucket.getValue()),
 					bucket -> bucket.getRecordIds().size(),
-					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces)
+					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
+					EqualizedHistogramDataCruncher.BucketCountMode.EXACT
 				);
-				case EQUALIZED_OPTIMIZED -> EqualizedHistogramDataCruncher.createOptimalHistogram(
+				case EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
 					histogramName,
 					bucketCount,
 					decimalPlaces,
 					buckets,
 					bucket -> converter.applyAsInt((T) bucket.getValue()),
 					bucket -> bucket.getRecordIds().size(),
-					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces)
+					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
+					EqualizedHistogramDataCruncher.BucketCountMode.ADAPTIVE
 				);
 			};
 		}

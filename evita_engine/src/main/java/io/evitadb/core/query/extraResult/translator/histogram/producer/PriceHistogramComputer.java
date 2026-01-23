@@ -188,13 +188,18 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 				"price histogram", bucketCount, indexedPricePlaces, priceRecords,
 				priceRetriever,
 				value -> 1,
-				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces)
+				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
+				EqualizedHistogramDataCruncher.BucketCountMode.EXACT
 			);
-			case EQUALIZED_OPTIMIZED -> EqualizedHistogramDataCruncher.createOptimalHistogram(
-				"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+			case EQUALIZED_OPTIMIZED -> new EqualizedHistogramDataCruncher<>(
+				"price histogram",
+				bucketCount,
+				indexedPricePlaces,
+				priceRecords,
 				priceRetriever,
 				value -> 1,
-				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces)
+				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
+				EqualizedHistogramDataCruncher.BucketCountMode.ADAPTIVE
 			);
 		};
 	}
