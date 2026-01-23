@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,10 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
@@ -182,6 +186,12 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		this.buildingContext.registerType(enumFrom(DataChunkType.class));
 
 		this.buildingContext.registerType(CollectionDescriptor.THIS.to(this.objectBuilderTransformer).build());
+
+		// should be used interface builder, but that is doable once we have a robust framework for creating interfaces in OpenAPI
+		this.buildingContext.registerType(ReferenceDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(DataChunkDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(PaginatedListDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(StripListDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 
 		this.entityObjectBuilder.buildCommonTypes();
 		this.fullResponseObjectBuilder.buildCommonTypes();

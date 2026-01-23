@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,6 +57,29 @@ public class ObjectDescriptorTest {
 
 		assertSame(Integer.class, ((PrimitivePropertyDataTypeDescriptor) keyDescriptor.type()).javaType());
 		assertSame(Boolean.class, ((PrimitivePropertyDataTypeDescriptor) valueDescriptor.type()).javaType());
+	}
+
+	@Test
+	void shouldConstructNameFromDynamicNames() {
+		assertConstructedObjectName("ProductReference", "*Reference", "Product");
+		assertConstructedObjectName("EntityWithProduct", "EntityWith*", "Product");
+		assertConstructedObjectName("ProductParameterReference", "*Reference", "Product", "Parameter");
+		assertConstructedObjectName("FilterContainerAbc123", "FilterContainer*", "ABC123");
+		assertConstructedObjectName("WithParameterAbc123Reference", "With*Reference", "Parameter", "ABC123");
+	}
+
+	private void assertConstructedObjectName(
+		@Nonnull String expectedName,
+		@Nonnull String objectNamePattern,
+		@Nonnull Object... dynamicNames
+	) {
+		assertEquals(
+			expectedName,
+			ObjectDescriptor.builder()
+				.name(objectNamePattern)
+				.build()
+				.name(dynamicNames)
+		);
 	}
 
 	@Nonnull

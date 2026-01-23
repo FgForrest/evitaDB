@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,10 +27,11 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
@@ -891,7 +892,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				resultPath(UPSERT_PRODUCT_PATH, Entities.STORE.toLowerCase(), ReferenceDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
+				resultPath(UPSERT_PRODUCT_PATH, Entities.STORE.toLowerCase(), ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
 				not(containsInRelativeOrder(1_000_000_000))
 			);
 
@@ -914,7 +915,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				resultPath(GET_PRODUCT_PATH, Entities.STORE.toLowerCase(), ReferenceDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
+				resultPath(GET_PRODUCT_PATH, Entities.STORE.toLowerCase(), ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
 				not(containsInRelativeOrder(1_000_000_000))
 			);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,11 +30,13 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.test.Entities;
@@ -1213,25 +1215,29 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), map()
 							.e("parameter", map()
-								.e(TYPENAME_FIELD, ReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
+								.e(TYPENAME_FIELD, EntityReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 								.e(
 									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 									.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 									.e(ATTRIBUTE_MARKET_SHARE, reference.getAttribute(ATTRIBUTE_MARKET_SHARE).toString()))
-								.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-									.e(TYPENAME_FIELD, "Parameter")
-									.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
-									.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
-									.e(
-										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))))
-								.e(ReferenceDescriptor.GROUP_ENTITY.name(), map()
-									.e(TYPENAME_FIELD, "ParameterGroup")
-									.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
-									.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
-									.e(
-										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))))))
+								.e(
+									ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(),
+									map()
+										.e(TYPENAME_FIELD, "Parameter")
+										.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
+										.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
+										.e(
+											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+											.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))))
+								.e(
+									ReferenceDefinitionDescriptor.GROUP_ENTITY.name(),
+									map()
+										.e(TYPENAME_FIELD, "ParameterGroup")
+										.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
+										.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
+										.e(
+											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+											.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))))))
 						.build()
 				)
 			);
@@ -1269,7 +1275,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				resultPath(GET_ENTITY_PATH, GlobalEntityDescriptor.TARGET_ENTITY, "store", ReferenceDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
+				resultPath(GET_ENTITY_PATH, GlobalEntityDescriptor.TARGET_ENTITY, "store", ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY, EntityDescriptor.PRIMARY_KEY),
 				containsInAnyOrder(
 					entity.getReferences(Entities.STORE)
 						.stream()

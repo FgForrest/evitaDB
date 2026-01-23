@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,18 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Represents {@link io.evitadb.dataType.PaginatedList} for references within entities.
+ * Represents {@link io.evitadb.dataType.PaginatedList} of {@link ReferenceDefinitionDescriptor#THIS_INTERFACE}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ * Note: this descriptor has a dynamic structure based on the referenced entity type.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-public interface ReferencePageDescriptor extends PaginatedListDescriptor {
+public interface ReferenceDefinitionPageDescriptor extends ReferenceWithReferencedEntityPageDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.from(PaginatedListDescriptor.THIS)
-		.name("*ReferencePage")
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(ReferenceWithReferencedEntityPageDescriptor.THIS_INTERFACE)
+		.name("*ReferencePage") // the name contains the referenced entity type and hash uniquely identifying the inner data (a group type and a set of attributes)
+		.description("Page of references %s entity%s according to pagination rules in input query.") // the rest of the description should be dynamically constructed based on present data
 		.build();
 }

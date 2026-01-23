@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,14 +53,13 @@ import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.*;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
@@ -1556,7 +1555,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                query {
 	                    queryProduct(
 	                        filterBy: {
-		                        attributeCodeInSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
                         ) {
                             __typename
@@ -3273,30 +3272,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e("parameter", map()
-						.e(TYPENAME_FIELD, ReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
+						.e(TYPENAME_FIELD, EntityReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 						.e(
 							AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 							.e(ATTRIBUTE_MARKET_SHARE, reference.getAttribute(ATTRIBUTE_MARKET_SHARE).toString())
 							.build())
-						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-							.e(TYPENAME_FIELD, "Parameter")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
-							.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
-							.e(
-								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))
+						.e(
+							ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(),
+							map()
+								.e(TYPENAME_FIELD, "Parameter")
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
+								.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
+								.e(
+									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+									.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))
+									.build())
 								.build())
-							.build())
-						.e(ReferenceDescriptor.GROUP_ENTITY.name(), map()
-							.e(TYPENAME_FIELD, "ParameterGroup")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
-							.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
-							.e(
-								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))
+						.e(
+							ReferenceDefinitionDescriptor.GROUP_ENTITY.name(),
+							map()
+								.e(TYPENAME_FIELD, "ParameterGroup")
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
+								.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
+								.e(
+									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+									.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))
+									.build())
 								.build())
-							.build())
 						.build())
 					.build();
 			}
@@ -3371,7 +3374,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.stream()
 					.map(reference ->
 						map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+							.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
 								.build())
 							.build())
@@ -3475,7 +3478,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					)
 					.map(reference ->
 						map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+							.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getPrimaryKey()))
 							.build())
 					.toList();
@@ -3556,7 +3559,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.limit(2)
 					.map(reference ->
 						map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+							.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
 							.build())
 					.toList())
@@ -3633,14 +3636,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 								return map()
 									.e(
-										ReferenceDescriptor.ATTRIBUTES.name(), map()
+										ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 											.e(
 												ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
 												reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
 											)
 									)
 									.e(
-										ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+										ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(
 												EntityDescriptor.PRIMARY_KEY.name(),
 												reference.getReferencedPrimaryKey()
@@ -3728,14 +3731,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.map(reference ->
 									     map()
 										     .e(
-											     ReferenceDescriptor.ATTRIBUTES.name(), map()
+											     ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 												     .e(
 													     ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
 													     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
 												     )
 										     )
 										     .e(
-											     ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											     ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 												     .e(
 													     EntityDescriptor.PRIMARY_KEY.name(),
 													     reference.getReferencedPrimaryKey()
@@ -3890,7 +3893,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										.e(
 											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
-										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
 											.e(VersionedDescriptor.VERSION.name(), referencedEntity.version()))
 										.build();
@@ -3989,7 +3992,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(ref -> map()
 							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
-							.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+							.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 								.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 							.build())
 						.toList()
@@ -4035,9 +4038,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										}
 									);
 									return map()
-										.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+										.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
-										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
 											.e(EntityDescriptor.VERSION.name(), referencedEntity.version()))
 										.build();
@@ -4054,9 +4057,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.stream()
 								.filter(ref -> !ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
 								.map(ref -> map()
-									.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+									.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 										.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
-									.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+									.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 										.e(EntityDescriptor.PRIMARY_KEY.name(), ref.getReferencedPrimaryKey()))
 									.build())
 								.toList()

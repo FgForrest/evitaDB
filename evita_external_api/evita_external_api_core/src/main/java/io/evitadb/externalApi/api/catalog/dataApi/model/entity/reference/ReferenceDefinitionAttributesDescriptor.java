@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,32 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Represents {@link io.evitadb.api.requestResponse.data.AttributesContract}.
+ * Represents {@link io.evitadb.api.requestResponse.data.AttributesContract} within {@link io.evitadb.api.requestResponse.data.ReferenceContract}.
+ * Specifically represents attributes in generic {@link ReferenceDefinitionDescriptor}
  *
  * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
  * descriptor are supposed to be dynamically registered to target generated DTO.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface AttributesDescriptor {
+public interface ReferenceDefinitionAttributesDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*Attributes")
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
+		.name("*ReferenceAttributes") // the name contains the referenced entity type and hash uniquely identifying the inner data (a group type and a set of attributes)
 		.description("""
 			Attributes allows defining set of data that are fetched in bulk along with the entity body.
 			Attributes may be used for fast filtering or can be used to sort along.
 			""")
-		.build();
-
-	/**
-	 * Same as `THIS` but will be used in global entity
-	 */
-	ObjectDescriptor THIS_GLOBAL = ObjectDescriptor.from(THIS)
-		.name("GlobalAttributes")
 		.build();
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,14 +74,14 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 @ToString
 public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 
-	private static final String STATUS_CODE_OK = String.valueOf(HttpStatus.OK);
-	private static final String STATUS_CODE_NO_CONTENT = String.valueOf(HttpStatus.NO_CONTENT);
-	private static final String STATUS_CODE_INTERNAL_SERVER_ERROR = String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR);
-	private static final String STATUS_CODE_METHOD_NOT_ALLOWED = String.valueOf(HttpStatus.METHOD_NOT_ALLOWED);
-	private static final String STATUS_CODE_NOT_FOUND = String.valueOf(HttpStatus.NOT_FOUND);
-	private static final String STATUS_CODE_NOT_ACCEPTABLE = String.valueOf(HttpStatus.NOT_ACCEPTABLE);
-	private static final String STATUS_CODE_UNSUPPORTED_MEDIA_TYPE = String.valueOf(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
-	private static final String STATUS_CODE_BAD_REQUEST = String.valueOf(HttpStatus.BAD_REQUEST);
+	private static final String STATUS_CODE_OK = String.valueOf(HttpStatus.OK.code());
+	private static final String STATUS_CODE_NO_CONTENT = String.valueOf(HttpStatus.NO_CONTENT.code());
+	private static final String STATUS_CODE_INTERNAL_SERVER_ERROR = String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.code());
+	private static final String STATUS_CODE_METHOD_NOT_ALLOWED = String.valueOf(HttpStatus.METHOD_NOT_ALLOWED.code());
+	private static final String STATUS_CODE_NOT_FOUND = String.valueOf(HttpStatus.NOT_FOUND.code());
+	private static final String STATUS_CODE_NOT_ACCEPTABLE = String.valueOf(HttpStatus.NOT_ACCEPTABLE.code());
+	private static final String STATUS_CODE_UNSUPPORTED_MEDIA_TYPE = String.valueOf(HttpStatus.UNSUPPORTED_MEDIA_TYPE.code());
+	private static final String STATUS_CODE_BAD_REQUEST = String.valueOf(HttpStatus.BAD_REQUEST.code());
 
 	@Nonnull @Getter protected final HttpMethod method;
 	@Nonnull @Getter protected final UriPath path;

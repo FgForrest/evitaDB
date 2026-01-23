@@ -69,6 +69,8 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.api.system.model.mutation.engine;
 	exports io.evitadb.externalApi.api.model.mutation;
 	exports io.evitadb.externalApi.api.system.resolver.mutation;
+	exports io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference;
+	exports io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute;
 
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;

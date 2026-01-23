@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,32 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-
 /**
- * Represents {@link io.evitadb.api.requestResponse.data.ReferenceContract}.
+ * Represents a reference to a specific entity. Extension of the fully generic {@link ReferenceDescriptor} that is generic
+ * for references targeting the specified entity type.
  *
- * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
- * descriptor are supposed to be dynamically registered to target generated DTO.
+ * Note: this descriptor has a dynamic structure based on the referenced entity type.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface ReferenceDescriptor extends AttributesProviderDescriptor {
+public interface ReferenceWithReferencedEntityDescriptor extends ReferenceDescriptor {
 
-	PropertyDescriptor REFERENCED_PRIMARY_KEY = PropertyDescriptor.builder()
-		.name("referencedPrimaryKey")
-		.description("""
-            Returns primary key of the referenced (internal or external) entity.
-			""")
-		.type(nonNull(Integer.class))
-		.build();
 	PropertyDescriptor REFERENCED_ENTITY = PropertyDescriptor.builder()
 		.name("referencedEntity")
 		.description("""
@@ -54,17 +43,9 @@ public interface ReferenceDescriptor extends AttributesProviderDescriptor {
 			""")
 		// type is expected to be a sealed entity
 		.build();
-	PropertyDescriptor GROUP_ENTITY = PropertyDescriptor.builder()
-		.name("groupEntity")
-		.description("""
-			Returns body of the referenced entity in case its fetching was requested via entity_groupFetch constraint.
-			""")
-		// type is expected to be a sealed entity
-		.build();
 
-
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*Reference")
-		.staticProperties(List.of(REFERENCED_PRIMARY_KEY))
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(ReferenceDescriptor.THIS_INTERFACE)
+		.name("*Reference") // name should contain the referenced entity type
+		.description("Represents a reference to %s entity.")
 		.build();
 }

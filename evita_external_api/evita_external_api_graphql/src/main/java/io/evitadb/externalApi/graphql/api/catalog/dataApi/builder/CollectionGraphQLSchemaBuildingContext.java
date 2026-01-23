@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,12 +28,18 @@ import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.EntityReferenceKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Collection context object for building entity collection-specific GraphQL schema.
@@ -48,11 +54,23 @@ public class CollectionGraphQLSchemaBuildingContext {
 	@Nonnull
 	private final EntitySchemaContract schema;
 
-	private GraphQLInputType headInputObject;
-	private GraphQLInputType filterByInputObject;
-	private GraphQLInputType orderByInputObject;
-	private GraphQLInputType listRequireInputObject;
-	private GraphQLInputType queryRequireInputObject;
+	@Nullable private GraphQLInputType headInputObject;
+	@Nullable private GraphQLInputType filterByInputObject;
+	@Nullable private GraphQLInputType orderByInputObject;
+	@Nullable private GraphQLInputType listRequireInputObject;
+	@Nullable private GraphQLInputType queryRequireInputObject;
+
+	@Nonnull private final Map<EntityReferenceKey, GraphQLObjectType> entityReferenceObjects;
+
+	public CollectionGraphQLSchemaBuildingContext(
+		@Nonnull CatalogGraphQLSchemaBuildingContext catalogCtx,
+		@Nonnull EntitySchemaContract schema
+	) {
+		this.catalogCtx = catalogCtx;
+		this.schema = schema;
+
+		this.entityReferenceObjects = createHashMap(this.schema.getReferences().size());
+	}
 
 	@Nonnull
 	public CatalogContract getCatalog() {
@@ -151,5 +169,20 @@ public class CollectionGraphQLSchemaBuildingContext {
 	@Nonnull
 	public Optional<GraphQLInputType> getQueryRequireInputObject() {
 		return Optional.ofNullable(this.queryRequireInputObject);
+	}
+
+	@Nonnull
+	public GraphQLObjectType getOrComputeEntityReferenceObject(
+		@Nonnull EntityReferenceKey key,
+		@Nonnull Supplier<GraphQLObjectType> entityReferenceObjectBuilder
+	) {
+		return this.entityReferenceObjects.computeIfAbsent(
+			key,
+			k -> {
+				final GraphQLObjectType newObject = entityReferenceObjectBuilder.get();
+				this.catalogCtx.registerType(newObject);
+				return newObject;
+			}
+		);
 	}
 }

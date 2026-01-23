@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,18 +21,20 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference;
 
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
- * Represents {@link io.evitadb.dataType.StripList} for references within entities.
+ * Defines a unique key for a single {@link io.evitadb.api.requestResponse.schema.AttributeSchemaContract reference attribute}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface ReferenceStripDescriptor extends StripListDescriptor {
+public record ReferenceAttributeKey(@Nonnull String name, @Nonnull Class<? extends Serializable> dataType) implements Comparable<ReferenceAttributeKey> {
 
-	ObjectDescriptor THIS = ObjectDescriptor.from(StripListDescriptor.THIS)
-		.name("*ReferenceStrip")
-		.build();
+	@Override
+	public int compareTo(ReferenceAttributeKey o) {
+		return this.name.compareTo(o.name);
+	}
 }
