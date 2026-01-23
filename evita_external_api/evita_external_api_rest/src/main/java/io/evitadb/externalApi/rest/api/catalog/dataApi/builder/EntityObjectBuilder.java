@@ -33,10 +33,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.*;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionPageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionStripDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceStripDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
@@ -487,7 +485,7 @@ public class EntityObjectBuilder {
 	private OpenApiProperty buildReferenceReferencedEntityObjectProperty(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                                                     boolean localized) {
 		final OpenApiTypeReference referencedEntityObject = buildReferenceReferencedEntityObject(referenceSchema, localized);
-		return ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY
+		return EntityReferenceDescriptor.REFERENCED_ENTITY
 			.to(this.propertyBuilderTransformer)
 			.type(referencedEntityObject)
 			.build();
@@ -516,7 +514,7 @@ public class EntityObjectBuilder {
 	private OpenApiProperty buildReferenceGroupEntityProperty(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                                          boolean localized) {
 		final OpenApiTypeReference groupEntityObject = buildReferenceGroupEntityObject(referenceSchema, localized);
-		return ReferenceDefinitionDescriptor.GROUP_ENTITY
+		return EntityReferenceDescriptor.GROUP_ENTITY
 			.to(this.propertyBuilderTransformer)
 			.type(nonNull(groupEntityObject))
 			.build();
@@ -586,7 +584,7 @@ public class EntityObjectBuilder {
 	                                                      @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                      boolean localized) {
 		return this.buildingContext.registerType(
-			ReferenceDefinitionPageDescriptor.THIS_INTERFACE
+			EntityReferencePageDescriptor.THIS
 				.to(this.objectBuilderTransformer)
 				.name(constructReferencePageObjectName(entitySchema, referenceSchema, localized))
 				.description(referenceSchema.getDescription())
@@ -602,7 +600,7 @@ public class EntityObjectBuilder {
 	                                                       @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                       boolean localized) {
 		return this.buildingContext.registerType(
-			ReferenceDefinitionStripDescriptor.THIS_INTERFACE
+			EntityReferenceStripDescriptor.THIS_INTERFACE
 				.to(this.objectBuilderTransformer)
 				.name(constructReferenceStripObjectName(entitySchema, referenceSchema, localized))
 				.description(referenceSchema.getDescription())

@@ -165,67 +165,44 @@ public record ObjectDescriptor(@Nonnull String name,
 			() -> new ExternalApiInternalError("Object name `" + this.name + "` is static, thus it doesn't support provided schema.")
 		);
 
-		// todo lho optimize?
+		Assert.isPremiseValid(
+			this.name.contains(NAME_WILDCARD_PLACEHOLDER),
+			() -> new ExternalApiInternalError("Object name `" + this.name + "` doesn't contain wildcard placeholder but is not static. This should never happen.")
+		);
+		Assert.isPremiseValid(
+			dynamicNames.length > 0,
+			() -> new ExternalApiInternalError("Object name requires at least one dynamic name.")
+		);
 
-		if (this.name.contains(NAME_WILDCARD_PLACEHOLDER)) {
-			Assert.isPremiseValid(
-				!this.name.contains(NAME_SINGLE_PLACEHOLDER),
-				() -> new ExternalApiInternalError("Object name `" + this.name + "` cannot contain both wildcard and single dynamic name placeholder.")
-			);
-			Assert.isPremiseValid(
-				dynamicNames.length > 0,
-				() -> new ExternalApiInternalError("Object name requires at least one dynamic name.")
-			);
-
-			final String dynamicName = Arrays.stream(dynamicNames)
-				.map(it -> {
-					if (it instanceof NamedSchemaContract namedSchemaContract) {
-						return namedSchemaContract.getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION);
-					} else {
-						return StringUtils.toSpecificCase(it.toString(), ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION);
-					}
-				})
-				.collect(Collectors.joining());
-
-			if (this.name.equals(NAME_WILDCARD_PLACEHOLDER)) {
-				return dynamicName;
-			} else if (this.name.startsWith(NAME_WILDCARD_PLACEHOLDER)) {
-				return dynamicName + this.name.substring(1);
-			} else if (this.name.endsWith(NAME_WILDCARD_PLACEHOLDER)) {
-				return this.name.substring(0, this.name.length() - 1) + dynamicName;
-			} else {
-				throw new ExternalApiInternalError("Unsupported placement of name wildcard. Wildcard must be at the beginning or at the end.");
-			}
-		} else if (this.name.contains(NAME_SINGLE_PLACEHOLDER)) {
-			final LinkedList<Object> dynamicNamesStack = new LinkedList<>(Arrays.asList(dynamicNames));
-			final Matcher nameSinglePlaceholderMatcher = NAME_SINGLE_PLACEHOLDER_PATTERN.matcher(this.name);
-
-			final StringBuilder replacedNameBuffer = new StringBuilder(this.name.length());
-			while (nameSinglePlaceholderMatcher.find()) {
-				final Object dynamicName = dynamicNamesStack.pop();
-				if (dynamicName == null) {
-					throw new ExternalApiInternalError("Not enough dynamic names provided for object name `" + this.name + "`.");
+		final String dynamicName = Arrays.stream(dynamicNames)
+			.filter(Objects::nonNull)
+			.map(it -> {
+				if (it instanceof NamedSchemaContract namedSchemaContract) {
+					return namedSchemaContract.getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION);
+				} else {
+					return StringUtils.toSpecificCase(it.toString(), ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION);
 				}
-				final String dynamicNameString = dynamicName instanceof NamedSchemaContract namedSchemaContract
-					? namedSchemaContract.getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION)
-					: StringUtils.toSpecificCase(dynamicName.toString(), ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION);
+			})
+			.collect(Collectors.joining());
 
-				nameSinglePlaceholderMatcher.appendReplacement(replacedNameBuffer, dynamicNameString);
-			}
-			nameSinglePlaceholderMatcher.appendTail(replacedNameBuffer);
-
-			if (!dynamicNamesStack.isEmpty()) {
-				throw new ExternalApiInternalError("Number of dynamic names is higher than number of placeholders in object name `" + this.name + "`.");
-			}
-
-			return replacedNameBuffer.toString();
+		if (this.name.equals(NAME_WILDCARD_PLACEHOLDER)) {
+			return dynamicName;
+		} else if (this.name.startsWith(NAME_WILDCARD_PLACEHOLDER)) {
+			return dynamicName + this.name.substring(1);
+		} else if (this.name.endsWith(NAME_WILDCARD_PLACEHOLDER)) {
+			return this.name.substring(0, this.name.length() - 1) + dynamicName;
 		} else {
-			throw new ExternalApiInternalError("Object name `" + this.name + "` doesn't contain any wildcard placeholder. This should never happen.");
+			final String[] nameParts = NAME_WILDCARD_PLACEHOLDER_PATTERN.split(this.name);
+			Assert.isPremiseValid(
+				nameParts.length == 2,
+				() -> new ExternalApiInternalError("There may be only one wildcard placeholder in object name.")
+			);
+			return nameParts[0] + dynamicName + nameParts[1];
 		}
 	}
 
 	public boolean isNameStatic() {
-		return !this.name.contains(NAME_WILDCARD_PLACEHOLDER) && !this.name.contains(NAME_SINGLE_PLACEHOLDER);
+		return !this.name.contains(NAME_WILDCARD_PLACEHOLDER);
 	}
 
 	@Nullable

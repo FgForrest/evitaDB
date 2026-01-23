@@ -34,7 +34,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 public interface ReferenceDefinitionStripDescriptor extends ReferenceWithReferencedEntityStripDescriptor {
 
 	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(ReferenceWithReferencedEntityStripDescriptor.THIS_INTERFACE)
-		.name("$$ReferenceStrip") // the name contains the referenced entity type and hash uniquely identifying the inner data (a group type and a set of attributes)
+		.name("*ReferenceStrip") // the name contains the referenced entity type and hash uniquely identifying the inner data (a group type and a set of attributes)
 		.description("Strip of references %s entity%s according to offset and limit rules in input query.") // the rest of the description should be dynamically constructed based on present data
 		.build();
 }

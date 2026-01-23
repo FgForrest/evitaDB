@@ -29,8 +29,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordStripDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionPageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
@@ -89,14 +89,14 @@ public class DataApiNamesConstructor {
 	public static String constructReferencePageObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                      @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                      boolean localized) {
-		return ReferenceDefinitionPageDescriptor.THIS_INTERFACE.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
+		return EntityReferencePageDescriptor.THIS_INTERFACE.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
 	}
 
 	@Nonnull
 	public static String constructReferenceStripObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                      @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                      boolean localized) {
-		return ReferenceDefinitionStripDescriptor.THIS_INTERFACE.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
+		return EntityReferenceStripDescriptor.THIS_INTERFACE.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
 	}
 
 	@Nonnull

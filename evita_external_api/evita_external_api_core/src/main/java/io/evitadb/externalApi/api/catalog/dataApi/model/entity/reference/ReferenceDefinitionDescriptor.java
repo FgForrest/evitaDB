@@ -56,7 +56,7 @@ public interface ReferenceDefinitionDescriptor extends ReferenceWithReferencedEn
 		.build();
 
 	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(ReferenceWithReferencedEntityDescriptor.THIS_INTERFACE)
-		.name("$$Reference") // the name contains the referenced entity type and hash uniquely identifying the inner data (a group type and a set of attributes)
+		.name("*Reference") // the name contains the referenced entity type and hash uniquely identifying the inner data (a group type and a set of attributes)
 		.description("Represents a reference to %s entity%s") // the rest of the description should be dynamically constructed based on present data
 		.build();
 }

@@ -45,7 +45,7 @@ public interface ReferenceWithReferencedEntityDescriptor extends ReferenceDescri
 		.build();
 
 	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(ReferenceDescriptor.THIS_INTERFACE)
-		.name("$Reference") // name should contain the referenced entity type
+		.name("*Reference") // name should contain the referenced entity type
 		.description("Represents a reference to %s entity.")
 		.build();
 }

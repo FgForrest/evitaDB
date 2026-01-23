@@ -232,8 +232,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		this.buildingContext.registerType(scalarEnum);
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 
-		// todo lho add these interface to REST? (but we need some better way to define interfaces in REST API), use it for entities as well
-
 		final GraphQLInterfaceType dataChunkInterface = DataChunkDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
 		this.buildingContext.registerType(dataChunkInterface);
 		this.buildingContext.registerTypeResolver(dataChunkInterface, HelperInterfaceTypeResolver.getInstance());

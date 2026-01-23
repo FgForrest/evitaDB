@@ -38,11 +38,11 @@ public class UnionDescriptorTest {
 
 	@Test
 	void shouldConstructNameFromDynamicNames() {
-		assertConstructedUnionName("ProductReference", "$Reference", "Product");
-		assertConstructedUnionName("ProductWithParameterReference", "$With$Reference", "Product", "Parameter");
-		assertConstructedUnionName("EntityWithProduct", "EntityWith$", "Product");
+		assertConstructedUnionName("ProductReference", "*Reference", "Product");
+		assertConstructedUnionName("EntityWithProduct", "EntityWith*", "Product");
 		assertConstructedUnionName("ProductParameterReference", "*Reference", "Product", "Parameter");
 		assertConstructedUnionName("FilterContainerAbc123", "FilterContainer*", "ABC123");
+		assertConstructedUnionName("WithParameterAbc123Reference", "With*Reference", "Parameter", "ABC123");
 	}
 
 	private void assertConstructedUnionName(

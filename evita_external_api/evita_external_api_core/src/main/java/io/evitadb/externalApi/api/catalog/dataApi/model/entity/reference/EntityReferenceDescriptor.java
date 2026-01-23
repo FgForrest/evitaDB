@@ -36,7 +36,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 public interface EntityReferenceDescriptor extends ReferenceDefinitionDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(ReferenceDescriptor.THIS_INTERFACE)
-		.name("$$Reference") // the name consists of the source entity type and the reference name
+		.name("*Reference") // the name consists of the source entity type and the reference name
 		.description("Represents a reference to %s entity%s") // the rest of the description should be dynamically constructed based on present data
 		.build();
 }

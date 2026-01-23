@@ -54,7 +54,7 @@ public interface WithNamedReferenceDescriptor {
 		.build();
 
 	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
-		.name("With$$Reference")
+		.name("With*Reference")
 		.description("Enriches entity with fields to reference of name %s and type %s with parameters defined by %s hash.")
 		.build();
 }

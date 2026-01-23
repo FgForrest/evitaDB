@@ -39,9 +39,6 @@ public interface TypeDescriptor {
 	String NAME_WILDCARD_PLACEHOLDER = "*";
 	Pattern NAME_WILDCARD_PLACEHOLDER_PATTERN = Pattern.compile("\\" + NAME_WILDCARD_PLACEHOLDER);
 
-	String NAME_SINGLE_PLACEHOLDER = "$";
-	Pattern NAME_SINGLE_PLACEHOLDER_PATTERN = Pattern.compile("\\" + NAME_SINGLE_PLACEHOLDER);
-
 	String name();
 
 	@Nonnull

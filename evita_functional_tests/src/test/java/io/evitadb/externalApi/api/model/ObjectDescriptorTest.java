@@ -61,11 +61,11 @@ public class ObjectDescriptorTest {
 
 	@Test
 	void shouldConstructNameFromDynamicNames() {
-		assertConstructedObjectName("ProductReference", "$Reference", "Product");
-		assertConstructedObjectName("ProductWithParameterReference", "$With$Reference", "Product", "Parameter");
-		assertConstructedObjectName("EntityWithProduct", "EntityWith$", "Product");
+		assertConstructedObjectName("ProductReference", "*Reference", "Product");
+		assertConstructedObjectName("EntityWithProduct", "EntityWith*", "Product");
 		assertConstructedObjectName("ProductParameterReference", "*Reference", "Product", "Parameter");
 		assertConstructedObjectName("FilterContainerAbc123", "FilterContainer*", "ABC123");
+		assertConstructedObjectName("WithParameterAbc123Reference", "With*Reference", "Parameter", "ABC123");
 	}
 
 	private void assertConstructedObjectName(

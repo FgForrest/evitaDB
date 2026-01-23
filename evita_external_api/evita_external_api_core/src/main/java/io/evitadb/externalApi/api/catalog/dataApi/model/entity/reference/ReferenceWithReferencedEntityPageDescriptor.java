@@ -35,7 +35,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 public interface ReferenceWithReferencedEntityPageDescriptor extends ReferencePageDescriptor {
 
 	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(ReferencePageDescriptor.THIS_INTERFACE)
-		.name("$ReferencePage") // name consists of the referenced entity type
+		.name("*ReferencePage") // name consists of the referenced entity type
 		.description("Page of references to %s entity according to pagination rules in input query.")
 		.build();
 }

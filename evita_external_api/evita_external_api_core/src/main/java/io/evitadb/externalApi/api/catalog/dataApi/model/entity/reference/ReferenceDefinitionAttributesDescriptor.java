@@ -37,7 +37,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 public interface ReferenceDefinitionAttributesDescriptor {
 
 	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
-		.name("$$ReferenceAttributes") // the name contains the referenced entity type and hash uniquely identifying the inner data (a group type and a set of attributes)
+		.name("*ReferenceAttributes") // the name contains the referenced entity type and hash uniquely identifying the inner data (a group type and a set of attributes)
 		.description("""
 			Attributes allows defining set of data that are fetched in bulk along with the entity body.
 			Attributes may be used for fast filtering or can be used to sort along.

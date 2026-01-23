@@ -51,9 +51,7 @@ import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
@@ -324,15 +322,15 @@ public class EntityJsonSerializer {
 	                                            @Nonnull EntitySchemaContract entitySchema) {
 		final ObjectNode referenceNode = this.objectJsonSerializer.objectNode();
 
-		referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
+		referenceNode.putIfAbsent(EntityReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
 
 		reference.getReferencedEntity().ifPresent(sealedEntity ->
-			referenceNode.putIfAbsent(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(ctx, sealedEntity)));
+			referenceNode.putIfAbsent(EntityReferenceDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(ctx, sealedEntity)));
 
 		reference.getGroupEntity()
 			.map(EntityClassifier.class::cast)
 			.or(reference::getGroup)
-			.ifPresent(groupEntity -> referenceNode.putIfAbsent(ReferenceDefinitionDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(ctx, groupEntity)));
+			.ifPresent(groupEntity -> referenceNode.putIfAbsent(EntityReferenceDescriptor.GROUP_ENTITY.name(), serializeSingleEntity(ctx, groupEntity)));
 
 		final ReferenceSchemaContract referenceSchema = reference.getReferenceSchema()
 			.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find reference schema for `" + reference.getReferenceName() + "` in entity schema `" + entitySchema.getName() + "`."));
