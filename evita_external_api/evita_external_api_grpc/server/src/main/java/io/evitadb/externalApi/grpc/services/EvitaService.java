@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
@@ -43,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilit
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
@@ -63,11 +65,11 @@ import io.evitadb.utils.UUIDUtil;
 import io.grpc.Metadata;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -75,6 +77,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.function.IntConsumer;
+import java.util.function.LongSupplier;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
@@ -244,8 +247,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.orElse(false);
 
 				responseObserver.onNext(GrpcEvitaSessionTerminationResponse.newBuilder()
-					.setTerminated(terminated)
-					.build());
+					                        .setTerminated(terminated)
+					                        .build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -266,8 +269,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		executeWithClientContext(
 			() -> {
 				responseObserver.onNext(GrpcCatalogNamesResponse.newBuilder()
-					.addAllCatalogNames(this.evita.getCatalogNames())
-					.build());
+					                        .addAllCatalogNames(this.evita.getCatalogNames())
+					                        .build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -328,7 +331,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void deleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest
-		                                  request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
+		request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
 				final String catalogName = request.getCatalogName();
@@ -336,23 +339,23 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.ifPresentOrElse(
 						catalog ->
 							this.evita.deleteCatalogIfExistsWithProgress(catalogName)
-					                     .ifPresentOrElse(
-							voidProgress -> voidProgress.onCompletion()
-						                            .whenComplete(
-									(__, throwable) -> {
-										if (throwable == null) {
-											responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(true).build());
-										} else {
-											responseObserver.onError(throwable);
-										}
+								.ifPresentOrElse(
+									voidProgress -> voidProgress.onCompletion()
+										.whenComplete(
+											(__, throwable) -> {
+												if (throwable == null) {
+													responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(true).build());
+												} else {
+													responseObserver.onError(throwable);
+												}
+												responseObserver.onCompleted();
+											}
+										),
+									() -> {
+										responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(false).build());
 										responseObserver.onCompleted();
 									}
 								),
-								() -> {
-									responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(false).build());
-									responseObserver.onCompleted();
-								}
-							),
 						() -> {
 							responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(false).build());
 							responseObserver.onCompleted();
@@ -381,17 +384,17 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					responseObserver.onCompleted();
 				} else {
 					this.evita.applyMutation(engineMutation)
-					          .onCompletion()
-					          .whenComplete(
-								  (__, throwable) -> {
-									  if (throwable == null) {
-										  responseObserver.onNext(GrpcApplyMutationResponse.newBuilder().build());
-									  } else {
-										  responseObserver.onError(throwable);
-									  }
-									  responseObserver.onCompleted();
-								  }
-					          );
+						.onCompletion()
+						.whenComplete(
+							(__, throwable) -> {
+								if (throwable == null) {
+									responseObserver.onNext(GrpcApplyMutationResponse.newBuilder().build());
+								} else {
+									responseObserver.onError(throwable);
+								}
+								responseObserver.onCompleted();
+							}
+						);
 				}
 			},
 			this.evita.getRequestExecutor(),
@@ -451,8 +454,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void renameCatalog(GrpcRenameCatalogRequest request, StreamObserver<GrpcRenameCatalogResponse> responseObserver) {
 		executeWithClientContext(
 			() -> this.evita.renameCatalogWithProgress(request.getCatalogName(), request.getNewCatalogName())
-		                .onCompletion()
-		                .whenComplete(
+				.onCompletion()
+				.whenComplete(
 					(commitVersions, throwable) -> {
 						if (throwable == null) {
 							responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
@@ -514,8 +517,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void replaceCatalog(GrpcReplaceCatalogRequest request, StreamObserver<GrpcReplaceCatalogResponse> responseObserver) {
 		executeWithClientContext(
 			() -> this.evita.replaceCatalogWithProgress(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced())
-		                .onCompletion()
-		                .whenComplete(
+				.onCompletion()
+				.whenComplete(
 					(commitVersions, throwable) -> {
 						if (throwable == null) {
 							responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
@@ -585,12 +588,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
 				final EvitaSessionContract session = this.evita.createSession(new SessionTraits(catalogName, flags));
 				responseObserver.onNext(GrpcEvitaSessionResponse.newBuilder()
-					.setCatalogId(session.getCatalogId().toString())
-					.setSessionId(session.getId().toString())
-					.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
-					.setCommitBehaviour(toGrpcCommitBehavior(session.getCommitBehavior()))
-					.setSessionType(sessionType)
-					.build());
+					                        .setCatalogId(session.getCatalogId().toString())
+					                        .setSessionId(session.getId().toString())
+					                        .setCatalogState(toGrpcCatalogState(session.getCatalogState()))
+					                        .setCommitBehaviour(toGrpcCommitBehavior(session.getCommitBehavior()))
+					                        .setSessionType(sessionType)
+					                        .build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -623,6 +626,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			}
 		);
 
+		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			() -> {
 				try {
@@ -633,7 +637,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							toCaptureContent(request.getContent())
 						)
 					).subscribe(
-						new ChangeSystemCaptureSubscriber(responseObserver, subscriptionFuture)
+						new ChangeSystemCaptureSubscriber(
+							responseObserver,
+							subscriptionFuture,
+							serviceRequestContext
+						)
 					);
 				} catch (RuntimeException e) {
 					subscriptionFuture.completeExceptionally(e);
@@ -1107,11 +1115,23 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * It is specifically designed for managing a subscription lifecycle and handling events
 	 * of type {@link ChangeSystemCapture} within the context of gRPC communication.
 	 */
-	@RequiredArgsConstructor
 	private static class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCapture> {
 		private final StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver;
 		private final CompletableFuture<Subscription> subscriptionFuture;
+		private final ServiceRequestContext serviceContext;
+		private final long responseTimeoutMillis;
 		private Subscription subscription;
+
+		public ChangeSystemCaptureSubscriber(
+			@Nonnull StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver,
+			@Nonnull CompletableFuture<Subscription> subscriptionFuture,
+			@Nonnull ServiceRequestContext serviceContext
+		) {
+			this.responseObserver = responseObserver;
+			this.subscriptionFuture = subscriptionFuture;
+			this.serviceContext = serviceContext;
+			this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
+		}
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
@@ -1140,6 +1160,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.setResponseType(GrpcCaptureResponseType.CHANGE)
 					.build()
 			);
+			this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 			this.subscription.request(1);
 		}
 
@@ -1153,6 +1174,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		public void onComplete() {
 			this.responseObserver.onCompleted();
 		}
+
 	}
 
 	/**
@@ -1179,8 +1201,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				this.percentDone = percentDoneCurrently;
 				final GrpcApplyMutationWithProgressResponse response =
 					GrpcApplyMutationWithProgressResponse.newBuilder()
-					                                     .setProgressInPercent(this.percentDone)
-					                                     .build();
+						.setProgressInPercent(this.percentDone)
+						.build();
 				this.responseObserver.onNext(response);
 				this.lastUpdate = System.currentTimeMillis();
 			}

@@ -28,6 +28,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -38,6 +39,10 @@ import java.util.concurrent.TimeUnit;
  */
 public class EvitaClientTimedOutException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 2851586704630027921L;
+
+	public EvitaClientTimedOutException(@Nonnull Duration duration) {
+		super("Evita client call hasn't finished in " + duration + "!");
+	}
 
 	public EvitaClientTimedOutException(long timeout, @Nonnull TimeUnit unit) {
 		super("Evita client call hasn't finished in " + timeout + " " + unit.name().toLowerCase() + "!");

@@ -27,12 +27,14 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.ClientFactoryBuilder;
+import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.client.retry.RetryRule;
 import com.linecorp.armeria.client.retry.RetryingClient;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
@@ -113,6 +115,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
+import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
@@ -744,6 +747,11 @@ public class EvitaClient implements EvitaContract {
 			.setMutation(DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation))
 			.build();
 
+		final Duration streamingTimeout = Duration.of(
+			this.configuration.streamingTimeout(),
+			this.configuration.timeoutUnit().toChronoUnit()
+		);
+
 		//noinspection unchecked
 		return Objects.requireNonNull(
 			executeWithStreamingEvitaService(
@@ -769,6 +777,9 @@ public class EvitaClient implements EvitaContract {
 							if (grpcResponse.hasCatalogSchemaVersion()) {
 								this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion().getValue();
 							}
+
+							// postpone timeout with each message received
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, streamingTimeout);
 
 							if (progressObserver != null) {
 								progressObserver.accept(grpcResponse.getProgressInPercent());
@@ -965,6 +976,10 @@ public class EvitaClient implements EvitaContract {
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeSystemCaptureProcessor(
 						this.configuration.changeCaptureQueueSize(),
+						Duration.of(
+							this.configuration.streamingTimeout(),
+							this.configuration.streamingTimeoutUnit().toChronoUnit()
+						),
 						this.executor,
 						subscriber -> executeWithStreamingEvitaService(
 							evitaService -> {
