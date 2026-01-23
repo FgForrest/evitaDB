@@ -40,7 +40,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.EntityO
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.EntityObjectLocaleDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.EntityObjectPriceDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.EntityObjectReferenceDecorator;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.ReferenceInterfaceBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.attribute.AttributeFieldBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
@@ -86,16 +87,120 @@ public class EntityObjectBuilder {
 		this.interfaceBuilderTransformer = interfaceBuilderTransformer;
 		this.objectBuilderTransformer = objectBuilderTransformer;
 
+		final AttributeFieldBuilder attributeFieldBuilder = new AttributeFieldBuilder(argumentBuilderTransformer);
+		final ReferenceInterfaceBuilder referenceInterfaceBuilder = new ReferenceInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer
+		);
+		final ReferenceWithReferencedEntityInterfaceBuilder referenceWithReferencedEntityInterfaceBuilder = new ReferenceWithReferencedEntityInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer,
+			fieldBuilderTransformer
+		);
+		final ReferenceDefinitionAttributesInterfaceBuilder referenceDefinitionAttributesInterfaceBuilder = new ReferenceDefinitionAttributesInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer,
+			attributeFieldBuilder
+		);
+		final ReferenceDefinitionInterfaceBuilder referenceDefinitionInterfaceBuilder = new ReferenceDefinitionInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer,
+			fieldBuilderTransformer,
+			referenceInterfaceBuilder,
+			referenceWithReferencedEntityInterfaceBuilder,
+			referenceDefinitionAttributesInterfaceBuilder
+		);
+
+		final EntityReferenceAttributesObjectBuilder entityReferenceAttributesObjectBuilder = new EntityReferenceAttributesObjectBuilder(
+			buildingContext,
+			objectBuilderTransformer,
+			attributeFieldBuilder,
+			referenceDefinitionAttributesInterfaceBuilder
+		);
+		final EntityReferenceObjectBuilder entityReferenceObjectBuilder = new EntityReferenceObjectBuilder(
+			buildingContext,
+			fieldBuilderTransformer,
+			objectBuilderTransformer,
+			referenceInterfaceBuilder,
+			referenceWithReferencedEntityInterfaceBuilder,
+			referenceDefinitionInterfaceBuilder,
+			entityReferenceAttributesObjectBuilder
+		);
+
+		final ReferencePageInterfaceBuilder referencePageInterfaceBuilder = new ReferencePageInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer
+		);
+		final ReferenceWithReferencedEntityPageInterfaceBuilder referenceWithReferencedEntityPageInterfaceBuilder = new ReferenceWithReferencedEntityPageInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer,
+			fieldBuilderTransformer,
+			referencePageInterfaceBuilder,
+			referenceWithReferencedEntityInterfaceBuilder
+		);
+		final ReferenceDefinitionPageInterfaceBuilder referenceDefinitionPageInterfaceBuilder = new ReferenceDefinitionPageInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer,
+			fieldBuilderTransformer,
+			referencePageInterfaceBuilder,
+			referenceWithReferencedEntityPageInterfaceBuilder,
+			referenceDefinitionInterfaceBuilder
+		);
+		final EntityReferencePageObjectBuilder entityReferencePageObjectBuilder = new EntityReferencePageObjectBuilder(
+			objectBuilderTransformer,
+			fieldBuilderTransformer,
+			referencePageInterfaceBuilder,
+			referenceWithReferencedEntityPageInterfaceBuilder,
+			referenceDefinitionPageInterfaceBuilder,
+			entityReferenceObjectBuilder
+		);
+
+		final WithNamedReferenceInterfaceBuilder withNamedReferenceInterfaceBuilder = new WithNamedReferenceInterfaceBuilder(
+			buildingContext,
+			filterConstraintSchemaBuilder,
+			orderConstraintSchemaBuilder,
+			argumentBuilderTransformer,
+			interfaceBuilderTransformer,
+			fieldBuilderTransformer,
+			referenceDefinitionInterfaceBuilder,
+			referenceDefinitionPageInterfaceBuilder
+		);
+
 		this.entityObjectDecorators = List.of(
 			new EntityObjectLocaleDecorator(fieldBuilderTransformer),
-			new EntityObjectHierarchyDecorator(buildingContext, constraintSchemaBuildingContext, filterConstraintSchemaBuilder, argumentBuilderTransformer, fieldBuilderTransformer),
-			new EntityObjectAttributeDecorator(buildingContext, argumentBuilderTransformer, fieldBuilderTransformer, objectBuilderTransformer),
-			new EntityObjectAssociatedDataDecorator(buildingContext, argumentBuilderTransformer, objectBuilderTransformer, fieldBuilderTransformer, cdoObjectMapper),
-			new EntityObjectPriceDecorator(buildingContext, argumentBuilderTransformer, objectBuilderTransformer, fieldBuilderTransformer),
-			new EntityObjectReferenceDecorator(
+			new EntityObjectHierarchyDecorator(
 				buildingContext,
+				constraintSchemaBuildingContext,
+				filterConstraintSchemaBuilder,
 				argumentBuilderTransformer,
 				fieldBuilderTransformer
+			),
+			new EntityObjectAttributeDecorator(
+				buildingContext,
+				argumentBuilderTransformer,
+				fieldBuilderTransformer,
+				objectBuilderTransformer,
+				attributeFieldBuilder
+			),
+			new EntityObjectAssociatedDataDecorator(
+				buildingContext,
+				argumentBuilderTransformer,
+				objectBuilderTransformer,
+				fieldBuilderTransformer,
+				cdoObjectMapper
+			),
+			new EntityObjectPriceDecorator(
+				buildingContext,
+				argumentBuilderTransformer,
+				objectBuilderTransformer,
+				fieldBuilderTransformer
+			),
+			new EntityObjectReferenceDecorator(
+				buildingContext,
+				interfaceBuilderTransformer,
+				withNamedReferenceInterfaceBuilder,
+				entityReferenceObjectBuilder,
+				entityReferencePageObjectBuilder
 			)
 		);
 	}

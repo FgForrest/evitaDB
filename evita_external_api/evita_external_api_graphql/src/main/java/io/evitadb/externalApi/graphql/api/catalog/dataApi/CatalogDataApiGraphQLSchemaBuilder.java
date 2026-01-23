@@ -247,7 +247,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		this.buildingContext.registerTypeResolver(stripListInterface, HelperInterfaceTypeResolver.getInstance());
 
 		this.entityObjectBuilder.buildCommonTypes();
-		this.globalEntityObjectBuilder.build();
+		this.buildingContext.registerType(this.globalEntityObjectBuilder.build());
 
 		this.fullResponseObjectBuilder.buildCommonTypes();
 	}
@@ -367,14 +367,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.type(typeRef(GlobalEntityDescriptor.THIS.name()));
 
 		// build globally unique attribute filters
-		final List<GlobalAttributeSchemaContract> globalAttributes = this.buildingContext.getCatalog()
-		                                                                                 .getSchema()
-		                                                                                 .getAttributes()
-		                                                                                 .values()
-		                                                                                 .stream()
-		                                                                                 .filter(
-			                                                                                 GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
-		                                                                                 .toList();
+		final List<GlobalAttributeSchemaContract> globalAttributes = this.buildingContext
+			.getCatalog()
+			.getSchema()
+			.getAttributes()
+			.values()
+			.stream()
+			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
+			.toList();
 		if (globalAttributes.isEmpty()) {
 			// this field doesn't make sense without global attributes as user wouldn't have way to query any entity
 			return null;
@@ -390,9 +390,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.forEach(getUnknownEntityFieldBuilder::argument);
 
 		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
-			getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.LOCALE
-				                                      .to(this.argumentBuilderTransformer)
-				                                      .type(typeRef(LOCALE_ENUM.name())));
+			getUnknownEntityFieldBuilder.argument(
+				UnknownEntityHeaderDescriptor.LOCALE
+					.to(this.argumentBuilderTransformer)
+					.type(typeRef(LOCALE_ENUM.name()))
+			);
 		}
 
 		getUnknownEntityFieldBuilder

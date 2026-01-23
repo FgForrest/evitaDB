@@ -66,6 +66,7 @@ public class WithNamedReferenceInterfaceBuilder {
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
 
 	@Nonnull private final ReferenceDefinitionInterfaceBuilder referenceDefinitionInterfaceBuilder;
+	@Nonnull private final ReferenceDefinitionPageInterfaceBuilder referenceDefinitionPageInterfaceBuilder;
 
 	/**
 	 * It obtains from cache or creates a new interface for the passed reference schema. If another reference schema
@@ -78,7 +79,7 @@ public class WithNamedReferenceInterfaceBuilder {
 	 * - evitaDB core treats each {@link ReferenceSchemaContract} as separate schema with no interlinked between each other
 	 */
 	@Nonnull
-	public GraphQLInterfaceType build(
+	public GraphQLInterfaceType getOrBuild(
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityObjectVariant fieldsVariant
@@ -117,7 +118,7 @@ public class WithNamedReferenceInterfaceBuilder {
 				final GraphQLInputType orderArgumentType = this.orderConstraintSchemaBuilder.build(referenceDataLocator);
 
 				// the target named reference interface for the reference definition
-				final GraphQLInterfaceType referenceDefinitionInterface = this.referenceDefinitionInterfaceBuilder.build(
+				final GraphQLInterfaceType referenceDefinitionInterface = this.referenceDefinitionInterfaceBuilder.getOrBuild(
 					collectionBuildingContext,
 					referenceSchema
 				);
@@ -134,6 +135,7 @@ public class WithNamedReferenceInterfaceBuilder {
 				if (EntityObjectVariant.DEFAULT.equals(fieldsVariant) && isReferenceList(referenceSchema)) {
 					interfaceBuilder.field(
 						buildReferencePageField(
+							collectionBuildingContext,
 							referenceSchema,
 							filterArgumentType,
 							orderArgumentType,
@@ -141,14 +143,15 @@ public class WithNamedReferenceInterfaceBuilder {
 						)
 					);
 
-					interfaceBuilder.field(
-						buildReferenceStripField(
-							referenceSchema,
-							filterArgumentType,
-							orderArgumentType,
-							referenceDefinitionInterface
-						)
-					);
+					// todo lho
+//					interfaceBuilder.field(
+//						buildReferenceStripFieldbuildReferenceStripField(
+//							referenceSchema,
+//							filterArgumentType,
+//							orderArgumentType,
+//							referenceDefinitionInterface
+//						)
+//					);
 				}
 
 				return interfaceBuilder.build();
@@ -199,6 +202,7 @@ public class WithNamedReferenceInterfaceBuilder {
 
 	@Nonnull
 	private GraphQLFieldDefinition buildReferencePageField(
+		@Nonnull CollectionGraphQLSchemaBuildingContext colectionBuildingContext,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull GraphQLInputType filterArgumentType,
 		@Nonnull GraphQLInputType orderArgumentType,
@@ -209,8 +213,7 @@ public class WithNamedReferenceInterfaceBuilder {
 			.name(WithNamedReferenceDescriptor.REFERENCE_PAGE.name(referenceSchema))
 			.description(referenceSchema.getDescription())
 			.deprecate(referenceSchema.getDeprecationNotice())
-			// todo lho impl
-//			.type(buildReferencePageObject(referenceSchema))
+			.type(this.referenceDefinitionPageInterfaceBuilder.getOrBuild(colectionBuildingContext, referenceSchema))
 			.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
 				.to(this.argumentBuilderTransformer)
 				.type(filterArgumentType))

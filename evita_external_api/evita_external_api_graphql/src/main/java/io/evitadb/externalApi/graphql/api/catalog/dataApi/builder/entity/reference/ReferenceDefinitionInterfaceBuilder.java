@@ -61,7 +61,7 @@ public class ReferenceDefinitionInterfaceBuilder {
 	@Nonnull private final ReferenceDefinitionAttributesInterfaceBuilder referenceDefinitionAttributesInterfaceBuilder;
 
 	@Nonnull
-	public GraphQLInterfaceType build(
+	public GraphQLInterfaceType getOrBuild(
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
@@ -84,11 +84,11 @@ public class ReferenceDefinitionInterfaceBuilder {
 					.name(interfaceName)
 					.description(constructDescription(referenceSchema));
 
-				// add interfaces and their fields
+				// add dynamic interfaces and their fields
 
 				final GraphQLInterfaceType[] interfaces = new GraphQLInterfaceType[] {
-					this.referenceInterfaceBuilder.build(),
-					this.referenceWithReferencedEntityInterfaceBuilder.build(referenceSchema)
+					this.referenceInterfaceBuilder.getOrBuild(),
+					this.referenceWithReferencedEntityInterfaceBuilder.getOrBuild(referenceSchema)
 				};
 				for (final GraphQLInterfaceType interfaceType : interfaces) {
 					interfaceBuilder.withInterface(interfaceType);
@@ -177,7 +177,7 @@ public class ReferenceDefinitionInterfaceBuilder {
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final GraphQLInterfaceType attributesInterface = this.referenceDefinitionAttributesInterfaceBuilder.build(
+		final GraphQLInterfaceType attributesInterface = this.referenceDefinitionAttributesInterfaceBuilder.getOrBuild(
 			collectionBuildingContext,
 			referenceSchema
 		);

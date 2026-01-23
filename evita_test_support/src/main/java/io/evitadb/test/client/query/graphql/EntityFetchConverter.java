@@ -44,9 +44,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.Attribu
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceWithGroupDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BigDecimalFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
@@ -599,7 +599,7 @@ public class EntityFetchConverter extends RequireConverter {
 
 		referenceContent.getGroupEntityRequirement().ifPresent(groupEntityRequirement ->
 			referenceBuilder.addObjectField(
-				ReferenceWithGroupDescriptor.GROUP_ENTITY,
+				ReferenceDefinitionDescriptor.GROUP_ENTITY,
 				referencedGroupEntityBuilder -> convert(
 					referencedGroupEntityBuilder,
 					referenceSchema.getReferencedGroupType(),

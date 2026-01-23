@@ -42,10 +42,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceWithGroupDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
@@ -669,7 +669,7 @@ public class EntityFetchRequireResolver {
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final List<SelectedField> groupFields = referenceBodyFields.getImmediateFields(
-			ReferenceWithGroupDescriptor.GROUP_ENTITY.name()
+			ReferenceDefinitionDescriptor.GROUP_ENTITY.name()
 		);
 		if (groupFields.isEmpty()) {
 			return null;

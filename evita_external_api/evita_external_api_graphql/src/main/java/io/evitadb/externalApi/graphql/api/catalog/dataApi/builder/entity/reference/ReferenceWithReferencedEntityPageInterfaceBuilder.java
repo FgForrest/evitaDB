@@ -25,52 +25,68 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.refere
 
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInterfaceType;
-import graphql.schema.GraphQLOutputType;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityPageDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
+import static graphql.schema.GraphQLList.list;
+import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 
 /**
- * Builds interface from {@link ReferenceWithReferencedEntityDescriptor} for a specific reference entity type.
+ * Builds interface from {@link ReferenceWithReferencedEntityPageDescriptor} for a specific reference entity type.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
-public class ReferenceWithReferencedEntityInterfaceBuilder {
+public class ReferenceWithReferencedEntityPageInterfaceBuilder {
 
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+
+	@Nonnull private final ReferencePageInterfaceBuilder referencePageInterfaceBuilder;
+	@Nonnull private final ReferenceWithReferencedEntityInterfaceBuilder referenceWithReferencedEntityInterfaceBuilder;
 
 	@Nonnull
 	public GraphQLInterfaceType getOrBuild(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final String referencedEntityType = referenceSchema.getReferencedEntityType();
 
 		final ReferenceWithReferencedEntityKey key = new ReferenceWithReferencedEntityKey(referencedEntityType);
-		return this.buildingContext.getOrComputeReferenceWithReferencedEntityInterface(
+		return this.buildingContext.getOrComputeReferenceWithReferencedEntityPageInterface(
 			key,
 			() -> {
-				final String interfaceName = ReferenceWithReferencedEntityDescriptor.THIS_INTERFACE.name(referencedEntityType);
+				final String interfaceName = ReferenceWithReferencedEntityPageDescriptor.THIS_INTERFACE.name(referencedEntityType);
 
-				final GraphQLInterfaceType.Builder interfaceBuilder = ReferenceWithReferencedEntityDescriptor.THIS_INTERFACE
+				final GraphQLInterfaceType.Builder interfaceBuilder = ReferenceWithReferencedEntityPageDescriptor.THIS_INTERFACE
 					.to(this.interfaceBuilderTransformer)
 					.name(interfaceName)
-					.description(ReferenceWithReferencedEntityDescriptor.THIS_INTERFACE.description(referencedEntityType));
+					.description(ReferenceWithReferencedEntityPageDescriptor.THIS_INTERFACE.description(referencedEntityType));
+
+				// add dynamic interfaces and their fields
+
+				interfaceBuilder.withInterface(typeRef(DataChunkDescriptor.THIS_INTERFACE.name()));
+				interfaceBuilder.withInterface(typeRef(PaginatedListDescriptor.THIS_INTERFACE.name()));
+
+				final GraphQLInterfaceType referencePageInterface = this.referencePageInterfaceBuilder.getOrBuild();
+				interfaceBuilder.withInterface(
+					referencePageInterface
+				);
+				for (final GraphQLFieldDefinition field : referencePageInterface.getFieldDefinitions()) {
+					interfaceBuilder.field(field);
+				}
 
 				// add custom fields
 
 				interfaceBuilder.field(
-					buildReferencedEntityField(referenceSchema)
+					buildDataField(referenceSchema)
 				);
 
 				return interfaceBuilder.build();
@@ -79,29 +95,12 @@ public class ReferenceWithReferencedEntityInterfaceBuilder {
 	}
 
 	@Nonnull
-	private GraphQLFieldDefinition buildReferencedEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema;
-		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			referencedEntitySchema = this.buildingContext
-				.getSchema()
-				.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-		} else {
-			referencedEntitySchema = null;
-		}
-		final GraphQLOutputType referencedEntityObject = buildReferencedEntityObject(referencedEntitySchema);
+	private GraphQLFieldDefinition buildDataField(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final GraphQLInterfaceType referenceWithReferencedEntityInterface = this.referenceWithReferencedEntityInterfaceBuilder.getOrBuild(referenceSchema);
 
-		return ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY
+		return ReferenceWithReferencedEntityPageDescriptor.DATA
 			.to(this.fieldBuilderTransformer)
-			.type(referencedEntityObject)
+			.type(nonNull(list(nonNull(referenceWithReferencedEntityInterface))))
 			.build();
-	}
-
-	@Nonnull
-	private static GraphQLOutputType buildReferencedEntityObject(@Nullable EntitySchemaContract referencedEntitySchema) {
-		if (referencedEntitySchema != null) {
-			return typeRef(EntityDescriptor.THIS.name(referencedEntitySchema));
-		} else {
-			return typeRef(EntityDescriptor.THIS_REFERENCE.name());
-		}
 	}
 }

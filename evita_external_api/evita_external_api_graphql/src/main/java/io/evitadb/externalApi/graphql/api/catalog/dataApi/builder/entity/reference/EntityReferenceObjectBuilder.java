@@ -37,6 +37,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGrap
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.AttributesDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ReferenceGroupDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ReferencedEntityDataFetcher;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
 import lombok.RequiredArgsConstructor;
 
@@ -46,7 +47,6 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 
 import static graphql.schema.GraphQLNonNull.nonNull;
-import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 
 /**
@@ -59,6 +59,7 @@ public class EntityReferenceObjectBuilder {
 
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
 
 	@Nonnull private final ReferenceInterfaceBuilder referenceInterfaceBuilder;
 	@Nonnull private final ReferenceWithReferencedEntityInterfaceBuilder referenceWithReferencedEntityInterfaceBuilder;
@@ -66,7 +67,7 @@ public class EntityReferenceObjectBuilder {
 	@Nonnull private final EntityReferenceAttributesObjectBuilder entityReferenceAttributesObjectBuilder;
 
 	@Nonnull
-	public GraphQLOutputType build(
+	public GraphQLOutputType getOrBuild(
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
@@ -86,16 +87,17 @@ public class EntityReferenceObjectBuilder {
 				final String referencedGroupType = referenceSchema.getReferencedGroupType();
 				final boolean hasAttributes = !referenceSchema.getAttributes().isEmpty();
 
-				final GraphQLObjectType.Builder objectBuilder = newObject()
+				final GraphQLObjectType.Builder objectBuilder = EntityReferenceDescriptor.THIS
+					.to(this.objectBuilderTransformer)
 					.name(objectName)
 					.description(constructDescription(referenceSchema));
 
-				// add interfaces
+				// add dynamic interfaces
 
 				final GraphQLInterfaceType[] interfaces = new GraphQLInterfaceType[] {
-					this.referenceInterfaceBuilder.build(),
-					this.referenceWithReferencedEntityInterfaceBuilder.build(referenceSchema),
-					this.referenceDefinitionInterfaceBuilder.build(collectionBuildingContext, referenceSchema)
+					this.referenceInterfaceBuilder.getOrBuild(),
+					this.referenceWithReferencedEntityInterfaceBuilder.getOrBuild(referenceSchema),
+					this.referenceDefinitionInterfaceBuilder.getOrBuild(collectionBuildingContext, referenceSchema)
 				};
 
 				for (final GraphQLInterfaceType interfaceType : interfaces) {

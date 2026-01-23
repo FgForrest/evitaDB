@@ -43,7 +43,7 @@ public class ReferenceStripInterfaceBuilder {
 	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 
 	@Nonnull
-	public GraphQLInterfaceType build() {
+	public GraphQLInterfaceType getOrBuild() {
 		return this.buildingContext.getOrComputeReferenceStripInterface(
 			() -> ReferenceStripDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build()
 		);

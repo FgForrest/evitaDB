@@ -43,7 +43,7 @@ public class ReferencePageInterfaceBuilder {
 	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 
 	@Nonnull
-	public GraphQLInterfaceType build() {
+	public GraphQLInterfaceType getOrBuild() {
 		return this.buildingContext.getOrComputeReferencePageInterface(
 			() -> ReferencePageDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build()
 		);

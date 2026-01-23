@@ -47,8 +47,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceWithGroupDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
@@ -2747,7 +2747,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 								.build())
 							.build())
 						.e(
-							ReferenceWithGroupDescriptor.GROUP_ENTITY.name(), map()
+							ReferenceDefinitionDescriptor.GROUP_ENTITY.name(), map()
 							.e(TYPENAME_FIELD, "ParameterGroup")
 							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())

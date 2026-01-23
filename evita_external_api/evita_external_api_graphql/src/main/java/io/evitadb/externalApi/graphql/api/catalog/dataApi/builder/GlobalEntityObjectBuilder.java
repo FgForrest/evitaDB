@@ -27,9 +27,9 @@ import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.attribute.AttributeFieldBuilder;
@@ -40,7 +40,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.e
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -53,7 +52,6 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-@RequiredArgsConstructor
 public class GlobalEntityObjectBuilder {
 
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
@@ -63,11 +61,26 @@ public class GlobalEntityObjectBuilder {
 
 	@Nonnull private final AttributeFieldBuilder attributeFieldBuilder;
 
+	public GlobalEntityObjectBuilder(
+		@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
+		@Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
+		@Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
+		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer
+	) {
+		this.buildingContext = buildingContext;
+		this.argumentBuilderTransformer = argumentBuilderTransformer;
+		this.objectBuilderTransformer = objectBuilderTransformer;
+		this.fieldBuilderTransformer = fieldBuilderTransformer;
+
+		this.attributeFieldBuilder = new AttributeFieldBuilder(argumentBuilderTransformer);
+	}
+
 	@Nonnull
 	public GraphQLObjectType build() {
 		final CatalogSchemaContract catalogSchema = this.buildingContext.getSchema();
 
-		final GraphQLObjectType.Builder globalEntityObjectBuilder = GlobalEntityDescriptor.THIS.to(this.objectBuilderTransformer);
+		final GraphQLObjectType.Builder globalEntityObjectBuilder = GlobalEntityDescriptor.THIS.to(
+			this.objectBuilderTransformer);
 
 		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
 			globalEntityObjectBuilder.field(EntityDescriptor.LOCALES.to(this.fieldBuilderTransformer));

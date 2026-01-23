@@ -35,8 +35,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.Attribu
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceWithGroupDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.test.Entities;
@@ -1167,7 +1167,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 										.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))))
 							.e(
-								ReferenceWithGroupDescriptor.GROUP_ENTITY.name(),
+								ReferenceDefinitionDescriptor.GROUP_ENTITY.name(),
 								map()
 									.e(TYPENAME_FIELD, "ParameterGroup")
 									.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())

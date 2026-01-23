@@ -51,7 +51,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.e
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -64,7 +63,6 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-@RequiredArgsConstructor
 public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 
 	private static final PriceBigDecimalDataFetcher PRICE_WITH_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(
@@ -79,7 +77,21 @@ public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
 
-	@Nonnull private final PriceBigDecimalFieldDecorator priceFieldDecorator = new PriceBigDecimalFieldDecorator(this.argumentBuilderTransformer);
+	@Nonnull private final PriceBigDecimalFieldDecorator priceFieldDecorator;
+
+	public EntityObjectPriceDecorator(
+		@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
+		@Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
+		@Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
+		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer
+	) {
+		this.buildingContext = buildingContext;
+		this.argumentBuilderTransformer = argumentBuilderTransformer;
+		this.objectBuilderTransformer = objectBuilderTransformer;
+		this.fieldBuilderTransformer = fieldBuilderTransformer;
+
+		this.priceFieldDecorator = new PriceBigDecimalFieldDecorator(this.argumentBuilderTransformer);
+	}
 
 	@Override
 	public void prepare() {
@@ -197,21 +209,21 @@ public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 			.to(this.fieldBuilderTransformer)
 			// TOBEDONE #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
-				.to(this.argumentBuilderTransformer))
+				          .to(this.argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS
-				.to(this.argumentBuilderTransformer))
+				          .to(this.argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.CURRENCY
-				.to(this.argumentBuilderTransformer)
-				.type(typeRef(CURRENCY_ENUM.name())))
+				          .to(this.argumentBuilderTransformer)
+				          .type(typeRef(CURRENCY_ENUM.name())))
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_IN
-				.to(this.argumentBuilderTransformer))
+				          .to(this.argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_NOW
-				.to(this.argumentBuilderTransformer));
+				          .to(this.argumentBuilderTransformer));
 
 		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
 			fieldBuilder.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
-				.to(this.argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())));
+				                      .to(this.argumentBuilderTransformer)
+				                      .type(typeRef(LOCALE_ENUM.name())));
 		}
 
 		return new BuiltFieldDescriptor(fieldBuilder.build(), PriceForSaleDataFetcher.getInstance());
@@ -223,14 +235,14 @@ public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 			EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE
 				.to(this.fieldBuilderTransformer)
 				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS
-					.to(this.argumentBuilderTransformer))
+					          .to(this.argumentBuilderTransformer))
 				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.CURRENCY
-					.to(this.argumentBuilderTransformer)
-					.type(typeRef(CURRENCY_ENUM.name())))
+					          .to(this.argumentBuilderTransformer)
+					          .type(typeRef(CURRENCY_ENUM.name())))
 				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_IN
-					.to(this.argumentBuilderTransformer))
+					          .to(this.argumentBuilderTransformer))
 				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_NOW
-					.to(this.argumentBuilderTransformer))
+					          .to(this.argumentBuilderTransformer))
 				.build(),
 			MultiplePricesForSaleAvailableDataFetcher.getInstance()
 		);
@@ -242,21 +254,21 @@ public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 			.to(this.fieldBuilderTransformer)
 			// TOBEDONE #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
-				.to(this.argumentBuilderTransformer))
+				          .to(this.argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS
-				.to(this.argumentBuilderTransformer))
+				          .to(this.argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.CURRENCY
-				.to(this.argumentBuilderTransformer)
-				.type(typeRef(CURRENCY_ENUM.name())))
+				          .to(this.argumentBuilderTransformer)
+				          .type(typeRef(CURRENCY_ENUM.name())))
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_IN
-				.to(this.argumentBuilderTransformer))
+				          .to(this.argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_NOW
-				.to(this.argumentBuilderTransformer));
+				          .to(this.argumentBuilderTransformer));
 
 		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
 			fieldBuilder.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
-				.to(this.argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())));
+				                      .to(this.argumentBuilderTransformer)
+				                      .type(typeRef(LOCALE_ENUM.name())));
 		}
 
 		return new BuiltFieldDescriptor(fieldBuilder.build(), AllPricesForSaleDataFetcher.getInstance());
@@ -268,15 +280,15 @@ public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.PRICE
 			.to(this.fieldBuilderTransformer)
 			.argument(PriceFieldHeaderDescriptor.PRICE_LIST
-				.to(this.argumentBuilderTransformer))
+				          .to(this.argumentBuilderTransformer))
 			.argument(PriceFieldHeaderDescriptor.CURRENCY
-				.to(this.argumentBuilderTransformer)
-				.type(typeRef(CURRENCY_ENUM.name())));
+				          .to(this.argumentBuilderTransformer)
+				          .type(typeRef(CURRENCY_ENUM.name())));
 
 		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
 			fieldBuilder.argument(PriceFieldHeaderDescriptor.LOCALE
-				.to(this.argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())));
+				                      .to(this.argumentBuilderTransformer)
+				                      .type(typeRef(LOCALE_ENUM.name())));
 		}
 
 		return new BuiltFieldDescriptor(fieldBuilder.build(), PriceDataFetcher.getInstance());
@@ -287,15 +299,15 @@ public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 		final GraphQLFieldDefinition.Builder fieldBuilder = EntityDescriptor.PRICES
 			.to(this.fieldBuilderTransformer)
 			.argument(PricesFieldHeaderDescriptor.PRICE_LISTS
-				.to(this.argumentBuilderTransformer))
+				          .to(this.argumentBuilderTransformer))
 			.argument(PricesFieldHeaderDescriptor.CURRENCY
-				.to(this.argumentBuilderTransformer)
-				.type(typeRef(CURRENCY_ENUM.name())));
+				          .to(this.argumentBuilderTransformer)
+				          .type(typeRef(CURRENCY_ENUM.name())));
 
 		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
 			fieldBuilder.argument(PricesFieldHeaderDescriptor.LOCALE
-				.to(this.argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())));
+				                      .to(this.argumentBuilderTransformer)
+				                      .type(typeRef(LOCALE_ENUM.name())));
 		}
 
 		return new BuiltFieldDescriptor(fieldBuilder.build(), PricesDataFetcher.getInstance());

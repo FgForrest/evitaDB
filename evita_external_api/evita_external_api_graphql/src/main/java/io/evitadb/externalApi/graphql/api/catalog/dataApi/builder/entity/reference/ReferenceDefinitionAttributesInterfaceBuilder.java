@@ -48,7 +48,7 @@ public class ReferenceDefinitionAttributesInterfaceBuilder {
 	@Nonnull private final AttributeFieldBuilder attributeFieldBuilder;
 
 	@Nonnull
-	public GraphQLInterfaceType build(
+	public GraphQLInterfaceType getOrBuild(
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {

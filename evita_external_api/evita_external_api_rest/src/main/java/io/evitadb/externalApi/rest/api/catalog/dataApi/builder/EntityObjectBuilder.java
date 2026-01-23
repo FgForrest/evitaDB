@@ -33,6 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.*;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
@@ -515,7 +516,7 @@ public class EntityObjectBuilder {
 	private OpenApiProperty buildReferenceGroupEntityProperty(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                                          boolean localized) {
 		final OpenApiTypeReference groupEntityObject = buildReferenceGroupEntityObject(referenceSchema, localized);
-		return ReferenceWithGroupDescriptor.GROUP_ENTITY
+		return ReferenceDefinitionDescriptor.GROUP_ENTITY
 			.to(this.propertyBuilderTransformer)
 			.type(nonNull(groupEntityObject))
 			.build();

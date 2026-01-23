@@ -57,6 +57,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.*;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHistogramDescriptor;
@@ -3289,7 +3290,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									.build())
 								.build())
 						.e(
-							ReferenceWithGroupDescriptor.GROUP_ENTITY.name(),
+							ReferenceDefinitionDescriptor.GROUP_ENTITY.name(),
 							map()
 								.e(TYPENAME_FIELD, "ParameterGroup")
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
@@ -3635,7 +3636,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 								return map()
 									.e(
-										ReferenceWithAttributesDescriptor.ATTRIBUTES.name(), map()
+										ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 											.e(
 												ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
 												reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
@@ -3730,7 +3731,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.map(reference ->
 									     map()
 										     .e(
-											     ReferenceWithAttributesDescriptor.ATTRIBUTES.name(), map()
+											     ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 												     .e(
 													     ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
 													     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
@@ -3991,7 +3992,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(ref -> map()
 							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
-							.e(ReferenceWithAttributesDescriptor.ATTRIBUTES.name(), map()
+							.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 								.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 							.build())
 						.toList()
@@ -4037,7 +4038,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										}
 									);
 									return map()
-										.e(ReferenceWithAttributesDescriptor.ATTRIBUTES.name(), map()
+										.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
@@ -4056,7 +4057,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.stream()
 								.filter(ref -> !ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
 								.map(ref -> map()
-									.e(ReferenceWithAttributesDescriptor.ATTRIBUTES.name(), map()
+									.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 										.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 									.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 										.e(EntityDescriptor.PRIMARY_KEY.name(), ref.getReferencedPrimaryKey()))

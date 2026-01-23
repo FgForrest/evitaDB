@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.model;
 
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInterfaceType;
+import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLTypeReference;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
@@ -59,6 +60,20 @@ public class ObjectDescriptorToGraphQLInterfaceTransformer implements ObjectDesc
 			.map(this.fieldBuilderTransformer)
 			.forEach(interfaceBuilder::field);
 
+		addImplementedInterfaces(interfaceBuilder, objectDescriptor);
+
 		return interfaceBuilder;
+	}
+
+	private void addImplementedInterfaces(
+		@Nonnull GraphQLInterfaceType.Builder interfaceBuilder,
+		@Nonnull ObjectDescriptor objectDescriptor
+	) {
+		if (objectDescriptor.interfaceDescriptor() != null && objectDescriptor.interfaceDescriptor().isNameStatic()) {
+			interfaceBuilder.withInterface(GraphQLTypeReference.typeRef(objectDescriptor.interfaceDescriptor().name()));
+
+			// GQL requires that objects implement interfaces recursively
+			addImplementedInterfaces(interfaceBuilder, objectDescriptor.interfaceDescriptor());
+		}
 	}
 }

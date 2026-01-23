@@ -42,9 +42,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceWithGroupDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
@@ -489,7 +489,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 		reference.getGroupEntity()
 			.map(it -> (EntityClassifier) it)
 			.or(reference::getGroup)
-			.ifPresent(groupEntity -> dto.e(ReferenceWithGroupDescriptor.GROUP_ENTITY.name(), createEntityDto(groupEntity, localized)));
+			.ifPresent(groupEntity -> dto.e(ReferenceDefinitionDescriptor.GROUP_ENTITY.name(), createEntityDto(groupEntity, localized)));
 
 		createAttributesDto(dto, locales, reference, localized);
 

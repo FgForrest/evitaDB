@@ -23,13 +23,14 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference;
 
-import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceAttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionAttributesDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.attribute.AttributeFieldBuilder;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
@@ -47,8 +48,10 @@ import javax.annotation.Nonnull;
 @RequiredArgsConstructor
 public class EntityReferenceAttributesObjectBuilder {
 
+	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
 
+	@Nonnull private final AttributeFieldBuilder attributeFieldBuilder;
 	@Nonnull private final ReferenceDefinitionAttributesInterfaceBuilder referenceDefinitionAttributesInterfaceBuilder;
 
 	@Nonnull
@@ -66,21 +69,29 @@ public class EntityReferenceAttributesObjectBuilder {
 			referenceSchema
 		);
 
-		final GraphQLObjectType.Builder interfaceBuilder = EntityReferenceAttributesDescriptor.THIS
+		final GraphQLObjectType.Builder objectBuilder = EntityReferenceAttributesDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(objectName);
 
-		// add interfaces and their fields
+		// add dynamic interfaces
 
-		final GraphQLInterfaceType referenceDefinitionAttributesInterface = this.referenceDefinitionAttributesInterfaceBuilder.build(
+		final GraphQLInterfaceType referenceDefinitionAttributesInterface = this.referenceDefinitionAttributesInterfaceBuilder.getOrBuild(
 			collectionBuildingContext,
 			referenceSchema
 		);
-		interfaceBuilder.withInterface(referenceDefinitionAttributesInterface);
-		for (final GraphQLFieldDefinition field : referenceDefinitionAttributesInterface.getFieldDefinitions()) {
-			interfaceBuilder.field(field);
-		}
+		objectBuilder.withInterface(referenceDefinitionAttributesInterface);
 
-		return interfaceBuilder.build();
+		// override attribute fields
+
+		referenceSchema.getAttributes().values().forEach(
+			attributeSchema ->
+				this.buildingContext.registerFieldToObject(
+					objectName,
+					objectBuilder,
+					this.attributeFieldBuilder.buildFieldDescriptor(attributeSchema, true)
+				)
+		);
+
+		return objectBuilder.build();
 	}
 }
