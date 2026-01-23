@@ -149,6 +149,7 @@ public record ObjectDescriptor(@Nonnull String name,
 			));
 	}
 
+	@Override
 	@Nonnull
 	public String name() {
 		Assert.isPremiseValid(
@@ -158,6 +159,7 @@ public record ObjectDescriptor(@Nonnull String name,
 		return this.name;
 	}
 
+	@Override
 	@Nonnull
 	public String name(@Nonnull Object... dynamicNames) {
 		Assert.isPremiseValid(
@@ -201,10 +203,12 @@ public record ObjectDescriptor(@Nonnull String name,
 		}
 	}
 
+	@Override
 	public boolean isNameStatic() {
 		return !this.name.contains(NAME_WILDCARD_PLACEHOLDER);
 	}
 
+	@Override
 	@Nullable
 	public String description(@Nonnull Object... args) {
 		if (this.description == null) {

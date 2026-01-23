@@ -71,6 +71,7 @@ public class EntityObjectReferenceDecorator implements EntityObjectDecorator {
 	@Nonnull private final EntityReferencePageObjectBuilder entityReferencePageObjectBuilder;
 	@Nonnull private final EntityReferenceStripObjectBuilder entityReferenceStripObjectBuilder;
 
+	@Override
 	public void decorate(
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 		@Nonnull EntityObjectVariant variant,
