@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcCatalogVersionAtRequest() {
+    timeFlow_ = 0;
   }
 
   @java.lang.Override
@@ -105,6 +106,34 @@ private static final long serialVersionUID = 0L;
     return theMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : theMoment_;
   }
 
+  public static final int TIMEFLOW_FIELD_NUMBER = 2;
+  private int timeFlow_ = 0;
+  /**
+   * <pre>
+   * Signalizes whether the returned version should be the closest one before the specified moment
+   * or the closest one after the specified moment
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTimeFlow timeFlow = 2;</code>
+   * @return The enum numeric value on the wire for timeFlow.
+   */
+  @java.lang.Override public int getTimeFlowValue() {
+    return timeFlow_;
+  }
+  /**
+   * <pre>
+   * Signalizes whether the returned version should be the closest one before the specified moment
+   * or the closest one after the specified moment
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTimeFlow timeFlow = 2;</code>
+   * @return The timeFlow.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcTimeFlow getTimeFlow() {
+    io.evitadb.externalApi.grpc.generated.GrpcTimeFlow result = io.evitadb.externalApi.grpc.generated.GrpcTimeFlow.forNumber(timeFlow_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTimeFlow.UNRECOGNIZED : result;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -122,6 +151,9 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       output.writeMessage(1, getTheMoment());
     }
+    if (timeFlow_ != io.evitadb.externalApi.grpc.generated.GrpcTimeFlow.AFTER.getNumber()) {
+      output.writeEnum(2, timeFlow_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -134,6 +166,10 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getTheMoment());
+    }
+    if (timeFlow_ != io.evitadb.externalApi.grpc.generated.GrpcTimeFlow.AFTER.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(2, timeFlow_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -155,6 +191,7 @@ private static final long serialVersionUID = 0L;
       if (!getTheMoment()
           .equals(other.getTheMoment())) return false;
     }
+    if (timeFlow_ != other.timeFlow_) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -170,6 +207,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + THEMOMENT_FIELD_NUMBER;
       hash = (53 * hash) + getTheMoment().hashCode();
     }
+    hash = (37 * hash) + TIMEFLOW_FIELD_NUMBER;
+    hash = (53 * hash) + timeFlow_;
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -316,6 +355,7 @@ private static final long serialVersionUID = 0L;
         theMomentBuilder_.dispose();
         theMomentBuilder_ = null;
       }
+      timeFlow_ = 0;
       return this;
     }
 
@@ -355,6 +395,9 @@ private static final long serialVersionUID = 0L;
             ? theMoment_
             : theMomentBuilder_.build();
         to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000002) != 0)) {
+        result.timeFlow_ = timeFlow_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -406,6 +449,9 @@ private static final long serialVersionUID = 0L;
       if (other.hasTheMoment()) {
         mergeTheMoment(other.getTheMoment());
       }
+      if (other.timeFlow_ != 0) {
+        setTimeFlowValue(other.getTimeFlowValue());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -439,6 +485,11 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000001;
               break;
             } // case 10
+            case 16: {
+              timeFlow_ = input.readEnum();
+              bitField0_ |= 0x00000002;
+              break;
+            } // case 16
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -600,7 +651,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime theMoment = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getTheMomentFieldBuilder() {
       if (theMomentBuilder_ == null) {
         theMomentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -611,6 +662,84 @@ private static final long serialVersionUID = 0L;
         theMoment_ = null;
       }
       return theMomentBuilder_;
+    }
+
+    private int timeFlow_ = 0;
+    /**
+     * <pre>
+     * Signalizes whether the returned version should be the closest one before the specified moment
+     * or the closest one after the specified moment
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTimeFlow timeFlow = 2;</code>
+     * @return The enum numeric value on the wire for timeFlow.
+     */
+    @java.lang.Override public int getTimeFlowValue() {
+      return timeFlow_;
+    }
+    /**
+     * <pre>
+     * Signalizes whether the returned version should be the closest one before the specified moment
+     * or the closest one after the specified moment
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTimeFlow timeFlow = 2;</code>
+     * @param value The enum numeric value on the wire for timeFlow to set.
+     * @return This builder for chaining.
+     */
+    public Builder setTimeFlowValue(int value) {
+      timeFlow_ = value;
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Signalizes whether the returned version should be the closest one before the specified moment
+     * or the closest one after the specified moment
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTimeFlow timeFlow = 2;</code>
+     * @return The timeFlow.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcTimeFlow getTimeFlow() {
+      io.evitadb.externalApi.grpc.generated.GrpcTimeFlow result = io.evitadb.externalApi.grpc.generated.GrpcTimeFlow.forNumber(timeFlow_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTimeFlow.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Signalizes whether the returned version should be the closest one before the specified moment
+     * or the closest one after the specified moment
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTimeFlow timeFlow = 2;</code>
+     * @param value The timeFlow to set.
+     * @return This builder for chaining.
+     */
+    public Builder setTimeFlow(io.evitadb.externalApi.grpc.generated.GrpcTimeFlow value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      bitField0_ |= 0x00000002;
+      timeFlow_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Signalizes whether the returned version should be the closest one before the specified moment
+     * or the closest one after the specified moment
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTimeFlow timeFlow = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearTimeFlow() {
+      bitField0_ = (bitField0_ & ~0x00000002);
+      timeFlow_ = 0;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

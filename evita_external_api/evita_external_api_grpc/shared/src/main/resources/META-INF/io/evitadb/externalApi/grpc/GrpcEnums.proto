@@ -789,3 +789,13 @@ enum GrpcReferenceIndexType {
   REFERENCE_INDEX_TYPE_FOR_FILTERING_AND_PARTITIONING = 2;
 
 }
+
+// Enum represents time flow direction for time-based filtering.
+enum GrpcTimeFlow {
+
+  // Time flows forward - from past to future.
+  AFTER = 0;
+  // Time flows backward - from future to past.
+  BEFORE = 1;
+
+}

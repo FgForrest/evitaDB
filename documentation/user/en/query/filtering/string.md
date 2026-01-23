@@ -40,7 +40,7 @@ for the occurrence of the string. The constraint behaves exactly like the <LS to
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the searched string anywhere in the attribute value.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products having a `epix` string in the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-contains.evitaql)
 </SourceCodeTabs>
@@ -100,7 +100,7 @@ and checks if it starts with the specified string. The constraint behaves exactl
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the search string at the beginning of the attribute value.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products having a `garmin` string at the beginning of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-starts-with.evitaql)
 </SourceCodeTabs>
@@ -161,7 +161,7 @@ and checks if it ends with the specified string. The constraint behaves exactly 
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the search string at the end of the attribute value.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products having a `solar` string at the end of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-ends-with.evitaql)
 </SourceCodeTabs>

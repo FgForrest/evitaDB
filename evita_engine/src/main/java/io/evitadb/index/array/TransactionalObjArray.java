@@ -23,7 +23,7 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -40,8 +40,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
-import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 
 
 /**

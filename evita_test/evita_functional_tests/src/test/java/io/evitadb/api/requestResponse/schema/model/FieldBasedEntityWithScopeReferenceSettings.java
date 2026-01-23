@@ -1,0 +1,109 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023-2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.api.requestResponse.schema.model;
+
+import io.evitadb.api.requestResponse.data.annotation.Attribute;
+import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
+import io.evitadb.api.requestResponse.data.annotation.Reference;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.ScopeReferenceSettings;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.dataType.Scope;
+
+import java.io.Serializable;
+
+/**
+ * Example class for ClassSchemaAnalyzerTest demonstrating ScopeReferenceSettings usage with fields.
+ * This entity shows how to configure different reference settings for different scopes using field annotations.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ */
+@Entity
+public class FieldBasedEntityWithScopeReferenceSettings {
+
+	@PrimaryKey
+	private int id;
+
+	@Attribute
+	private String code;
+
+	/**
+	 * Reference with scope-specific settings - indexed and faceted in LIVE scope only.
+	 */
+	@Reference(
+		managed = false,
+		scope = {
+			@ScopeReferenceSettings(
+				scope = Scope.LIVE,
+				indexed = ReferenceIndexType.FOR_FILTERING,
+				faceted = true
+			)
+		}
+	)
+	private Brand marketingBrand;
+
+	/**
+	 * Reference with different settings for different scopes.
+	 */
+	@Reference(
+		managed = false,
+		scope = {
+			@ScopeReferenceSettings(
+				scope = Scope.LIVE,
+				indexed = ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+				faceted = true
+			),
+			@ScopeReferenceSettings(
+				scope = Scope.ARCHIVED,
+				indexed = ReferenceIndexType.FOR_FILTERING
+			)
+		}
+	)
+	private Brand[] supplierBrands;
+
+	/**
+	 * Reference with no scope settings - should use defaults (LIVE scope only).
+	 */
+	@Reference(managed = false, indexed = ReferenceIndexType.FOR_FILTERING, faceted = true)
+	private Brand defaultBrand;
+
+	public static class Brand implements Serializable {
+
+		@ReferencedEntity
+		private int brand;
+
+		@ReferencedEntityGroup
+		private int brandGroup;
+
+		@Attribute
+		private String market;
+
+		@Attribute
+		private int inceptionYear;
+
+	}
+
+}

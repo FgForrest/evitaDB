@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -242,6 +242,33 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder getInfrastructureMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+   * @return Whether the timestamp field is set.
+   */
+  boolean hasTimestamp();
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+   * @return The timestamp.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getTimestamp();
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getTimestampOrBuilder();
 
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.BodyCase getBodyCase();
 }

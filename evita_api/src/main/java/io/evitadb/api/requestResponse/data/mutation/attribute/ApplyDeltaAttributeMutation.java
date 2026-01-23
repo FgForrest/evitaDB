@@ -28,6 +28,10 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.AttributeDeltaConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.utils.Assert;
@@ -39,6 +43,8 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Increments or decrements existing numeric value by specified delta (negative number produces decremental of
@@ -178,6 +184,25 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 	@Override
 	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
 		return new ApplyDeltaAttributeMutation<>(this.attributeKey, this.delta, this.requiredRangeAfterApplication, newDecisiveTimestamp);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return conflictPolicies.contains(ConflictPolicy.ENTITY_ATTRIBUTE) ?
+			Stream.of(
+				new AttributeDeltaConflictKey(
+					context.getEntityType(),
+					context.getEntityPrimaryKey(),
+					this.attributeKey,
+					this.delta,
+                    this.requiredRangeAfterApplication
+				)
+			) :
+			Stream.empty();
 	}
 
 	@Override

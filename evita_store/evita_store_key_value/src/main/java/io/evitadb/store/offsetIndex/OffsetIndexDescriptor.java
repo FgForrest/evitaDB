@@ -24,14 +24,14 @@
 package io.evitadb.store.offsetIndex;
 
 import com.esotericsoftware.kryo.Kryo;
-import io.evitadb.store.compressor.ReadOnlyKeyCompressor;
-import io.evitadb.store.compressor.ReadWriteKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
-import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 

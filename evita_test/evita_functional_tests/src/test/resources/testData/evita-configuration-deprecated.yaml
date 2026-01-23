@@ -1,0 +1,18 @@
+storage:
+  exportDirectory: "${java.io.tmpdir}/evita/deprecated-export"
+  exportDirectorySizeLimitBytes: 536870912
+  exportFileHistoryExpirationSeconds: 86400
+
+api:
+  keepAlive: false
+  endpoints:
+    graphQL:
+      tlsEnabled: false
+    rest:
+      tlsEnabled: false
+    gRPC:
+      tlsEnabled: false
+    lab:
+      tlsEnabled: false
+    observability:
+      tlsEnabled: true

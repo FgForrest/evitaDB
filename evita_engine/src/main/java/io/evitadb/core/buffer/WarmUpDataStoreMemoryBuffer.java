@@ -23,12 +23,12 @@
 
 package io.evitadb.core.buffer;
 
-import io.evitadb.core.EntityCollection;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -39,7 +39,7 @@ import java.util.function.IntFunction;
 
 /**
  * WarmUpDataStoreMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
- * storage that keeps frequently changed data in the {@link DataStoreIndexMemoryBuffer} buffer and flushes them at
+ * storage that keeps frequently changed data in the {@link DataStoreMemoryBuffer} buffer and flushes them at
  * the session closing to avoid persistence of large indexes with each update (which would drastically slow initial bulk
  * database setup).
  *

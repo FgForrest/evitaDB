@@ -31,7 +31,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
-import io.evitadb.core.UnusableCatalog;
+import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder;

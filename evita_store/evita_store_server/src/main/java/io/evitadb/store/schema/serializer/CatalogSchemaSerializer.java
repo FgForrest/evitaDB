@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;

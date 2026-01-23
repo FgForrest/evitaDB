@@ -180,7 +180,16 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 		implements EntityReferenceContract, Droppable, Serializable, ContentComparator<GroupEntityReference> {
 		@Serial private static final long serialVersionUID = 7432447904441796055L;
 
-		@Nonnull
+        public GroupEntityReference(@Nonnull String referencedEntity, int primaryKey) {
+            this(
+                referencedEntity,
+                primaryKey,
+                1,
+                false
+            );
+        }
+
+        @Nonnull
 		@Override
 		public String getType() {
 			return this.referencedEntity;

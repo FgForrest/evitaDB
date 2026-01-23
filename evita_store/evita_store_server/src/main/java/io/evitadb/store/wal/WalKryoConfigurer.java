@@ -87,10 +87,12 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundSchemaIndexedMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConflictKeys;
 import io.evitadb.dataType.Scope;
-import io.evitadb.store.dataType.serializer.EnumNameSerializer;
-import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
+import io.evitadb.store.entity.serializer.EnumNameSerializer;
+import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.wal.data.EntityRemoveMutationSerializer;
+import io.evitadb.store.wal.data.EntityRemoveMutationWithConflictKeysSerializer;
 import io.evitadb.store.wal.data.EntityUpsertMutationSerializer;
 import io.evitadb.store.wal.data.associatedData.RemoveAssociatedDataMutationSerializer;
 import io.evitadb.store.wal.data.associatedData.UpsertAssociatedDataMutationSerializer;
@@ -347,6 +349,8 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SetCatalogMutabilityMutation.class, new SerialVersionBasedSerializer<>(new SetCatalogMutabilityMutationSerializer(), SetCatalogMutabilityMutation.class), index++);
 		kryo.register(DuplicateCatalogMutation.class, new SerialVersionBasedSerializer<>(new DuplicateCatalogMutationSerializer(), DuplicateCatalogMutation.class), index++);
 		kryo.register(RestoreCatalogSchemaMutation.class, new SerialVersionBasedSerializer<>(new RestoreCatalogSchemaMutationSerializer(), RestoreCatalogSchemaMutation.class), index++);
+
+		kryo.register(EntityRemoveMutationWithConflictKeys.class, new EntityRemoveMutationWithConflictKeysSerializer(), index++);
 
 		Assert.isPremiseValid(index < 801, "Index count overflow.");
 	}

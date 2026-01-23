@@ -28,9 +28,9 @@ import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.core.Catalog;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.store.spi.IsolatedWalPersistenceService;
+import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -63,6 +63,11 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	 * builds on.
 	 */
 	@Nonnull private final Catalog catalog;
+	/**
+	 * Contains the catalog version at the start of the transaction. This is used to identify conflicts with other
+	 * transactions running in parallel.
+	 */
+	private final long catalogVersionAtTransactionStart;
 	/**
 	 * Contains the catalog schema version at the start of the transaction. This is used to calculate the difference
 	 * between the version at the start and the end.
@@ -101,6 +106,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 		@Nonnull CommitProgressRecord commitProgress
 	) {
 		this.catalog = catalog;
+		this.catalogVersionAtTransactionStart = catalog.getVersion();
 		this.catalogSchemaVersionAtTransactionStart = catalog.getSchema().version();
 		this.transactionId = transactionId;
 		this.walPersistenceServiceFactory = walPersistenceServiceFactory;
@@ -128,6 +134,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 			if (this.walPersistenceService != null) {
 				// this invokes the asynchronous action of copying the isolated WAL to the shared one
 				this.catalog.commitWal(
+					this.catalogVersionAtTransactionStart,
 					this.transactionId,
 					this.catalogSchemaVersionAtTransactionStart,
 					this.walPersistenceService,

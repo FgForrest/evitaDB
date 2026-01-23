@@ -23,7 +23,7 @@
 
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.rest.RestProviderRegistrar;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 
 /**
  * Module contains REST API for evitaDB.

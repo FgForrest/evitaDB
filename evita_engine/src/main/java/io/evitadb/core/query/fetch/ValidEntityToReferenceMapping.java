@@ -105,11 +105,9 @@ class ValidEntityToReferenceMapping {
 			this.knownEntityPrimaryKeys == null,
 			"Known entity primary keys are not expected to be initialized here."
 		);
-		final int expectedSize = referencedPrimaryKeys.size();
 		final RepresentativeMapping matchingReferencedPrimaryKeys = ofNullable(this.mapping.get(entityPrimaryKey))
 			.orElseGet(() -> {
-				final RepresentativeMapping theSet = new RepresentativeMapping(
-					this.representativeKeyProducer, expectedSize);
+				final RepresentativeMapping theSet = new RepresentativeMapping(this.representativeKeyProducer);
 				this.mapping.put(entityPrimaryKey, theSet);
 				return theSet;
 			});
@@ -175,34 +173,38 @@ class ValidEntityToReferenceMapping {
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
 		@Nonnull Bitmap entityPrimaryKeys
 	) {
-		final OfInt it1 = entityPrimaryKeys.iterator();
-		while (it1.hasNext()) {
-			final int entityPk = it1.nextInt();
-			final RepresentativeMapping mappingForEntity = this.mapping.get(entityPk);
-			if (mappingForEntity != null) {
-				mappingForEntity.restrictTo(representativeReferenceKey);
+		if (representativeReferenceKey.representativeAttributeValues().length == 0) {
+			if (this.knownEntityPrimaryKeys == null) {
+				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+				for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
+					writer.add(entry.key);
+				}
+				this.knownEntityPrimaryKeys = writer.get();
 			}
-		}
-
-		if (this.knownEntityPrimaryKeys == null) {
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
-				writer.add(entry.key);
+			final RoaringBitmap invalidRecords = RoaringBitmap.andNot(
+				this.knownEntityPrimaryKeys,
+				RoaringBitmapBackedBitmap.getRoaringBitmap(
+					entityPrimaryKeys
+				)
+			);
+			final int referencedEntityPk = representativeReferenceKey.primaryKey();
+			final PeekableIntIterator it2 = invalidRecords.getIntIterator();
+			while (it2.hasNext()) {
+				this.mapping
+					.get(it2.next())
+					.removeAll(pk -> pk == referencedEntityPk);
 			}
-			this.knownEntityPrimaryKeys = writer.get();
-		}
-		final RoaringBitmap invalidRecords = RoaringBitmap.andNot(
-			this.knownEntityPrimaryKeys,
-			RoaringBitmapBackedBitmap.getRoaringBitmap(
-				entityPrimaryKeys
-			)
-		);
-		final int referencedEntityPk = representativeReferenceKey.primaryKey();
-		final PeekableIntIterator it2 = invalidRecords.getIntIterator();
-		while (it2.hasNext()) {
-			this.mapping
-				.get(it2.next())
-				.removeAll(pk -> pk == referencedEntityPk);
+		} else {
+			final OfInt it1 = entityPrimaryKeys.iterator();
+			while (it1.hasNext()) {
+				final int entityPk = it1.nextInt();
+				RepresentativeMapping mappingForEntity = this.mapping.get(entityPk);
+				if (mappingForEntity == null) {
+					mappingForEntity = new RepresentativeMapping(this.representativeKeyProducer);
+					this.mapping.put(entityPk, mappingForEntity);
+				}
+				mappingForEntity.restrictTo(representativeReferenceKey, entityPrimaryKeys);
+			}
 		}
 	}
 
@@ -211,7 +213,7 @@ class ValidEntityToReferenceMapping {
 	 */
 	public boolean isReferenceSelected(int entityPrimaryKey, @Nonnull ReferenceDecorator reference) {
 		return ofNullable(this.mapping.get(entityPrimaryKey))
-			.map(it -> it.contains(reference))
+			.map(it -> it.contains(entityPrimaryKey, reference))
 			.orElse(false);
 	}
 

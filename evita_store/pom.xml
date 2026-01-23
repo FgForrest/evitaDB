@@ -30,14 +30,14 @@
     <parent>
         <groupId>io.evitadb</groupId>
         <artifactId>evita_root</artifactId>
-        <version>2025.8-SNAPSHOT</version>
+        <version>2026.1-SNAPSHOT</version>
     </parent>
 
     <modules>
-	    <module>evita_store_common</module>
 	    <module>evita_store_key_value</module>
 	    <module>evita_store_entity</module>
 	    <module>evita_store_server</module>
+	    <module>evita_traffic_engine</module>
     </modules>
 
     <dependencies>

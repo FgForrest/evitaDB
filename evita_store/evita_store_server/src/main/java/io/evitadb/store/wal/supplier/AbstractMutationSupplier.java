@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableInput;
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -171,6 +171,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 				Optional<TransactionMutationWithLocation> initialTransactionMutation;
 				do {
 					this.filePosition = ofNullable(this.transactionLocationsCache.get(this.walFileIndex))
+						.filter(it -> !it.wasCut())
 						.map(it -> it.findNearestLocation(version))
 						.orElse(0L);
 

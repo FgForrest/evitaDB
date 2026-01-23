@@ -29,8 +29,8 @@ import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor.Tran
 import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges;
 import io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges;
 import io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview;
-import io.evitadb.store.spi.model.wal.CatalogTransactionChanges;
-import io.evitadb.store.spi.model.wal.EntityCollectionChanges;
+import io.evitadb.spi.store.catalog.wal.model.CatalogTransactionChanges;
+import io.evitadb.spi.store.catalog.wal.model.EntityCollectionChanges;
 
 import javax.annotation.Nonnull;
 

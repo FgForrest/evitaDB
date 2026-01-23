@@ -1,6 +1,6 @@
 ---
 title: Choosing HTTP server for evitaDB
-perex: We plan to provide several ways to communicate with evitaDB clients. For that we needed some universal HTTP server that would serve at least most of the requests.
+perex: We plan to provide several ways to communicate with evitaDB clients. For that we needed some universal HTTP server that would handle network traffic.
 date: '17.6.2022'
 author: 'Lukáš Hornych, Jan Novotný'
 motive: assets/images/03-choosing-http-server.png

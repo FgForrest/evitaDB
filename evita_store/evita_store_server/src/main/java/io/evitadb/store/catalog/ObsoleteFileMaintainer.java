@@ -23,13 +23,14 @@
 
 package io.evitadb.store.catalog;
 
-import io.evitadb.core.CatalogConsumersListener;
+import io.evitadb.core.catalog.CatalogConsumersListener;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
-import io.evitadb.store.spi.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
@@ -51,10 +52,10 @@ import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
-import static io.evitadb.store.spi.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
-import static io.evitadb.store.spi.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
-import static io.evitadb.store.spi.CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName;
-import static io.evitadb.store.spi.CatalogPersistenceService.getIndexFromCatalogFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getIndexFromCatalogFileName;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -163,14 +164,21 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * asynchronous file removal. This method does nothing when time travel is enabled, because the files are removed
 	 * when WAL files are removed and this logic is executed in {@link ObsoleteWalPurgeCallback} callback.
 	 *
-	 * @param lastKnownMinimalActiveVersion the minimal catalog version that is still being used, NULL when there is no
-	 *                                      active session
+	 * @param lastKnownMinimalActiveVersionRead the minimal catalog version that is still being read from
+	 * @param lastKnownMinimalActiveVersionWritten the minimal catalog version that is still being written on top of
 	 */
 	@Override
-	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+	public void catalogConsumersLeft(
+		long lastKnownMinimalActiveVersionRead,
+		long lastKnownMinimalActiveVersionWritten
+	) {
 		assertNotClosed();
 		// immediate file purging on catalog version exchange is not used when time travel is enabled
 		if (!this.timeTravelEnabled) {
+			final long lastKnownMinimalActiveVersion = Math.min(
+				lastKnownMinimalActiveVersionRead,
+				lastKnownMinimalActiveVersionWritten
+			);
 			if (lastKnownMinimalActiveVersion > 0L && this.firstCatalogVersion.get() < lastKnownMinimalActiveVersion) {
 				this.lastKnownMinimalActiveVersion.accumulateAndGet(
 					lastKnownMinimalActiveVersion,
@@ -282,16 +290,17 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		// when time travel is enabled, the files are removed only when bootstrap records is purged
 		if (!this.timeTravelEnabled) {
 			if (maintainedFile.path().toFile().delete()) {
-				/* TODO JNO - remove, just for debugging purposes */
-				log.info("Deleted obsolete file:" + maintainedFile.path(), new RuntimeException("Stack trace"));
+				if (log.isDebugEnabled()) {
+					log.debug("Deleted obsolete file: {}", maintainedFile.path(), new RuntimeException("Stack trace"));
+				}
 			} else {
-				log.warn("Could not delete obsolete file {}", maintainedFile.path());
+				log.warn("Could not delete the obsolete file {}", maintainedFile.path());
 			}
 		}
 	}
 
 	/**
-	 * Record that represents single entry of maintained file.
+	 * Record that represents a single entry of the maintained file.
 	 *
 	 * @param catalogVersion the last catalog version that may use the file
 	 * @param path           the path of the file
@@ -313,7 +322,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 */
 	public record DataFilesBulkInfo(
 		@Nonnull CatalogBootstrap bootstrapRecord,
-		@Nonnull CatalogHeader catalogHeader
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader
 	) {
 
 	}

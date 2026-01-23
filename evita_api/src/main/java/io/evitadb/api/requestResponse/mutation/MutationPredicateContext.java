@@ -24,15 +24,16 @@
 package io.evitadb.api.requestResponse.mutation;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.function.Supplier;
 
 import static java.util.OptionalInt.of;
 
@@ -47,9 +48,11 @@ public class MutationPredicateContext {
 	@Getter private final StreamDirection direction;
 	@Getter private long version = 0L;
 	@Getter private int index = 0;
+	@Getter private OffsetDateTime timestamp;
 	@Nullable @Getter private String entityType;
 	@Nullable private Integer entityPrimaryKey;
 	private int mutationCount = 0;
+	private boolean doAdvance = true;
 
 	/**
 	 * Returns the last known primary key of the entity. Might reflect current mutation entity or when the mutation is
@@ -116,12 +119,15 @@ public class MutationPredicateContext {
 	 * Sets the version from leading transactional mutation to the context. All mutations in the same atomic context
 	 * (transactional) share the same version.
 	 * @param version the version to be set
+	 * @param mutationCount the total number of mutations in the transaction
+	 * @param timestamp the timestamp when the operation was performed
 	 */
-	public void setVersion(long version, int mutationCount) {
+	public void setVersion(long version, int mutationCount, @Nonnull OffsetDateTime timestamp) {
 		this.version = version;
 		this.entityPrimaryKey = null;
 		this.entityType = null;
 		this.mutationCount = mutationCount;
+		this.timestamp = timestamp;
 		this.index = 0;
 	}
 
@@ -129,17 +135,42 @@ public class MutationPredicateContext {
 	 * Increments the last known index of the mutation. Used to track the position of the mutation in the transaction.
 	 */
 	public void advance() {
-		if (this.direction == StreamDirection.FORWARD) {
-			this.index++;
-		} else if (this.index == 0 && this.direction == StreamDirection.REVERSE) {
-			this.index = this.mutationCount;
-		} else {
-			this.index--;
+		if (this.doAdvance) {
+			if (this.direction == StreamDirection.FORWARD) {
+				this.index++;
+			} else if (this.index == 0 && this.direction == StreamDirection.REVERSE) {
+				this.index = this.mutationCount;
+			} else {
+				this.index--;
+			}
+			Assert.isPremiseValid(
+				this.index >= 0 && this.index <= this.mutationCount,
+				"Index " + this.index + " is out of bounds <0," + this.mutationCount + ">!"
+			);
 		}
-		Assert.isPremiseValid(
-			this.index >= 0 && this.index <= this.mutationCount,
-			"Index " + this.index + " is out of bounds <0," + this.mutationCount + ">!"
-		);
 	}
 
+	/**
+	 * Prevents advancement of the mutation context temporarily while executing the provided lambda.
+	 * This method ensures that nested calls are not allowed by validating the current state before execution.
+	 * After the lambda's execution, the advancement state is reverted to its original value.
+	 *
+	 * @param lambda the code to execute while preventing the mutation context from advancing.
+	 *                 Must not be null.
+	 * @throws IllegalArgumentException if the lambda is null or nested calls are attempted.
+	 * @return the result of the lambda execution.
+	 */
+	@Nonnull
+	public <T> T doNotAdvance(@Nonnull Supplier<T> lambda) {
+		try {
+			Assert.isPremiseValid(
+				this.doAdvance,
+				"Nested doNotAdvance() calls are not allowed!"
+			);
+			this.doAdvance = false;
+			return lambda.get();
+		} finally {
+			this.doAdvance = true;
+		}
+	}
 }

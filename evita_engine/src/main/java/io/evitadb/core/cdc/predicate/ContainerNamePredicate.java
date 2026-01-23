@@ -23,6 +23,8 @@
 
 package io.evitadb.core.cdc.predicate;
 
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
@@ -32,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -54,8 +57,15 @@ public class ContainerNamePredicate extends MutationPredicate {
 			return this.classifierName.contains(namedMutation.containerName());
 		} else if (mutation instanceof NamedSchemaMutation namedMutation) {
 			return this.classifierName.contains(namedMutation.containerName());
-		} else {
-			return true;
+		} else if (mutation instanceof EntityMutation em) {
+			final List<? extends LocalMutation<?, ?>> localMutations = em.getLocalMutations();
+			for (LocalMutation<?, ?> localMutation : localMutations) {
+				if (localMutation instanceof NamedLocalMutation<?, ?> namedMutation &&
+					this.classifierName.contains(namedMutation.containerName())) {
+					return true;
+				}
+			}
 		}
+		return false;
 	}
 }

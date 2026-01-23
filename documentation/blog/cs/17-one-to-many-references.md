@@ -4,9 +4,10 @@ perex: |
   Práce s referencemi typu "jeden k mnoha" je v datových modelech velmi častá a skýtá celou řadu problémů, které nejsou na první pohled patrné. Pokud sama databáze nenabízí dostatek nástrojů a výrazových prostředků k jejich řešení, je nucen tyto problémy řešit sám aplikační programátor, což obvykle vede k nemalému navýšení pracnosti a problémům s výkonem. Ve verzi `2025.5` evitaDB přináší nové možnosti práce s těmito typy referencí, které pomáhají řešit časté scénáře v e-commerce aplikacích.
 date: '25.03.2025'
 author: 'Ing. Jan Novotný'
-motive: assets/images/17-one-to-many-references.png
+motive: ../en/assets/images/17-one-to-many-references.png
 proofreading: 'todo'
 draft: true
+commit: 497d4a33390ad75f115c160a74469b8054886b0e
 ---
 
 ## Třídění podle 1:N referencí

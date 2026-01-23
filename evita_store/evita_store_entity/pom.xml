@@ -32,13 +32,18 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_store</artifactId>
-		<version>2025.8-SNAPSHOT</version>
+		<version>2026.1-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_store_common</artifactId>
+			<artifactId>evita_store_key_value</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_engine</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>

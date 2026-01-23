@@ -42,7 +42,6 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -69,12 +68,12 @@ import static java.util.Optional.ofNullable;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class ModifyAttributeSchemaTypeMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, NamedSchemaMutation {
+	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -4704241145075202389L;
-	@Nonnull @Getter private final String name;
 	@Nonnull @Getter private final Class<? extends Serializable> type;
 	@Getter private final int indexedDecimalPlaces;
 
@@ -83,10 +82,10 @@ public class ModifyAttributeSchemaTypeMutation
 		@Nonnull Class<? extends Serializable> type,
 		int indexedDecimalPlaces
 	) {
+		super(name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
 		}
-		this.name = name;
 		this.type = type;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 	}
@@ -249,12 +248,6 @@ public class ModifyAttributeSchemaTypeMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

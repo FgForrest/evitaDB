@@ -31,8 +31,11 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -49,6 +52,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -92,12 +96,6 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		return CommitVersions.class;
 	}
 
-	@Nonnull
-	@Override
-	public Stream<ConflictKey> getConflictKeys() {
-		return Stream.of(new CatalogConflictKey(this.catalogName));
-	}
-
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
@@ -139,21 +137,32 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 			return Stream.concat(
 				catalogMutation,
 				Arrays.stream(this.schemaMutations)
-				      .filter(predicate)
-				      .flatMap(m -> m.toChangeCatalogCapture(predicate, content))
+					.filter(predicate)
+					.flatMap(m -> context.doNotAdvance(
+						() -> m.toChangeCatalogCapture(predicate, content)))
 			);
 		} else {
 			final AtomicInteger index = new AtomicInteger(this.schemaMutations.length);
 			return Stream.concat(
 				Stream.generate(() -> null)
-				      .takeWhile(x -> index.get() > 0)
-				      .map(x -> this.schemaMutations[index.decrementAndGet()])
-				      .filter(predicate)
-				      .flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
+					.takeWhile(x -> index.get() > 0)
+					.map(x -> this.schemaMutations[index.decrementAndGet()])
+					.filter(predicate)
+					.flatMap(x -> context.doNotAdvance(
+						() -> x.toChangeCatalogCapture(predicate, content))),
 				catalogMutation
 			);
 
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.of(new CatalogConflictKey(this.catalogName));
 	}
 
 	@Override

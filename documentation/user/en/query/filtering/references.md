@@ -44,7 +44,7 @@ have the `category` attribute set to `alternativeProduct`. There can be differen
 alternative products, for example spare parts and so on - that's why we need to specify the `category` attribute in
 the filtering constraint.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product with at least one `relatedProducts` reference of `alternativeProduct` category](/documentation/user/en/query/filtering/examples/references/reference-having.evitaql)
 </SourceCodeTabs>
@@ -82,7 +82,7 @@ Returns the following result:
 If we wanted to query for products that have at least one related product reference of any `category` type, we could use
 the following simplified query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Product with at least one `relatedProducts` reference of any category](/documentation/user/en/query/filtering/examples/references/reference-having-any.evitaql)
 </SourceCodeTabs>
@@ -121,7 +121,7 @@ Another frequently used use-case is to query for entities that have at least one
 certain primary key. For example, we want to query for products that are related to `brand` with primary key `66465`.
 This can be achieved by following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products referencing `brand` of particular primary key](/documentation/user/en/query/filtering/examples/references/reference-having-exact-id.evitaql)
 </SourceCodeTabs>
@@ -180,7 +180,7 @@ of [filtering operators](../basics.md#filter-by).
 
 Let's use our previous example to query for products that relate to `brand` with particular attribute `code`:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products referencing `brand` of with code `apple`](/documentation/user/en/query/filtering/examples/references/entity-having.evitaql)
 
@@ -250,7 +250,7 @@ To demonstrate the cooperation between the `facetHaving` constraint inside `user
 requirement, let's query for products in category *e-readers* and request the facet summary for reference `brand`.
 At the same time, let's pretend that the user has already checked the *amazon* facet:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet having example](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql)
 
@@ -323,7 +323,7 @@ the category options, it should automatically select all subcategories as well, 
 To achieve this, you can use the `includingChildren` constraint within the `facetHaving` constraint. The query is also
 restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet including children example](/documentation/user/en/query/filtering/examples/references/facet-including-children.evitaql)
 
@@ -390,7 +390,7 @@ to match it.
 To better understand how the `includingChildrenHaving` constraint works, let's look at an example (the query is also
 restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet including children having example](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.evitaql)
 
@@ -462,7 +462,7 @@ is applied to the result of the `includingChildrenHaving` constraint.
 To better understand how the `includingChildrenExcept` constraint works, let's look at an example (the query is also
 restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet including children except example](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.evitaql)
 

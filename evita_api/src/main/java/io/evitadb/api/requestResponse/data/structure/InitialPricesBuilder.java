@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesEditor.PricesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
@@ -136,7 +138,8 @@ public class InitialPricesBuilder implements PricesBuilder {
 		}
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed
@@ -149,7 +152,8 @@ public class InitialPricesBuilder implements PricesBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
@@ -164,7 +168,8 @@ public class InitialPricesBuilder implements PricesBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed
@@ -177,7 +182,8 @@ public class InitialPricesBuilder implements PricesBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
@@ -192,7 +198,8 @@ public class InitialPricesBuilder implements PricesBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
 		assertPricesAllowed(this.entitySchema, currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
@@ -200,35 +207,73 @@ public class InitialPricesBuilder implements PricesBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder removeAllPrices() {
 		assertPricesAllowed(this.entitySchema);
 		this.prices.clear();
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		assertPricesAllowed(this.entitySchema);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder removePriceInnerRecordHandling() {
 		assertPricesAllowed(this.entitySchema);
 		this.priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder removeAllNonTouchedPrices() {
 		assertPricesAllowed(this.entitySchema);
 		// do nothing - every price in initial prices builder is touched
 		return this;
 	}
 
-	@Override
+    @Nonnull
+    @Override
+    public PricesBuilder mutateInnerPriceHandling(@Nonnull SetPriceInnerRecordHandlingMutation mutation) {
+        this.setPriceInnerRecordHandling(mutation.getPriceInnerRecordHandling());
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public PricesBuilder mutatePrice(@Nonnull PriceMutation priceMutation) {
+        if (priceMutation instanceof UpsertPriceMutation lm) {
+            final PriceKey priceKey = lm.getPriceKey();
+            this.setPrice(
+                priceKey.priceId(),
+                priceKey.priceList(),
+                priceKey.currency(),
+                lm.getInnerRecordId(),
+                lm.getPriceWithoutTax(),
+                lm.getTaxRate(),
+                lm.getPriceWithTax(),
+                lm.getValidity(),
+                lm.isIndexed()
+            );
+        } else if (priceMutation instanceof RemovePriceMutation lm) {
+            final PriceKey priceKey = lm.getPriceKey();
+            this.removePrice(
+                priceKey.priceId(),
+                priceKey.priceList(),
+                priceKey.currency()
+            );
+        }
+        return this;
+    }
+
+    @Override
 	public boolean pricesAvailable() {
 		return true;
 	}

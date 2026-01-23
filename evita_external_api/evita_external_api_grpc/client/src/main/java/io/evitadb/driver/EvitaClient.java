@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,14 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.ClientFactoryBuilder;
+import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.client.retry.RetryRule;
 import com.linecorp.armeria.client.retry.RetryingClient;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
@@ -112,6 +114,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
+import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
@@ -215,6 +218,11 @@ public class EvitaClient implements EvitaContract {
 	 * Callback that will be called when session is closed.
 	 */
 	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
+	/**
+	 * Duration to extend the response timeout for each received message.
+	 * This helps keep the streaming connection alive as long as messages are being received.
+	 */
+	private final Duration streamingTimeout;
 
 	/**
 	 * Transforms the given Throwable into a RuntimeException based on its type.
@@ -322,6 +330,10 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
 	) {
 		this.configuration = configuration;
+		this.streamingTimeout = Duration.of(
+			this.configuration.streamingTimeout(),
+			this.configuration.streamingTimeoutUnit().toChronoUnit()
+		);
 		this.onSessionCreationCallback = onSessionCreationCallback == null ?
 			Functions.noOpConsumer() : onSessionCreationCallback;
 		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
@@ -761,6 +773,7 @@ public class EvitaClient implements EvitaContract {
 			.newBuilder()
 			.setMutation(DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation))
 			.build();
+		final Duration streamingTimeout = this.streamingTimeout;
 
 		//noinspection unchecked
 		return Objects.requireNonNull(
@@ -787,6 +800,9 @@ public class EvitaClient implements EvitaContract {
 							if (grpcResponse.hasCatalogSchemaVersion()) {
 								this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion().getValue();
 							}
+
+							// postpone timeout with each message received
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, streamingTimeout);
 
 							if (progressObserver != null) {
 								progressObserver.accept(grpcResponse.getProgressInPercent());
@@ -983,13 +999,14 @@ public class EvitaClient implements EvitaContract {
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeSystemCaptureProcessor(
 						this.configuration.changeCaptureQueueSize(),
+						this.streamingTimeout,
 						this.executor,
 						subscriber -> executeWithStreamingEvitaService(
 							evitaService -> {
 								evitaService.registerSystemChangeCapture(
-								ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(
-									(ChangeSystemCaptureRequest) theRequest),
-								subscriber
+									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(
+										(ChangeSystemCaptureRequest) theRequest),
+										subscriber
 								);
 								return null;
 							}
@@ -1092,10 +1109,7 @@ public class EvitaClient implements EvitaContract {
 	) {
 		try {
 			return lambda.apply(
-				this.evitaServiceStub.withDeadlineAfter(
-					this.configuration.streamingTimeout(),
-					this.configuration.streamingTimeoutUnit()
-				)
+				this.evitaServiceStub.withDeadlineAfter(this.streamingTimeout)
 			);
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(

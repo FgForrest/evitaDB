@@ -24,15 +24,15 @@
 package io.evitadb.store.index;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
-import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
+import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.index.serializer.AttributeIndexKeySerializer;
 import io.evitadb.store.index.serializer.ReferenceNameKeySerializer;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
-import io.evitadb.store.spi.model.storageParts.index.ReferenceNameKey;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

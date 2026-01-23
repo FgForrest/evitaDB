@@ -27,8 +27,8 @@ package io.evitadb.store.engine;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.store.spi.EnginePersistenceService;
-import io.evitadb.store.spi.EnginePersistenceServiceFactory;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
 
 import javax.annotation.Nonnull;
 

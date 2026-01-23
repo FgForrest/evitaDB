@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>2025.8-SNAPSHOT</version>
+		<version>2026.1-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -42,10 +42,6 @@
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_engine</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_store_common</artifactId>
 		</dependency>
 
 		<dependency>

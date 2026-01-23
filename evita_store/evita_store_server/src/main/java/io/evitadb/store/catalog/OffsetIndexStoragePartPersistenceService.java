@@ -29,18 +29,19 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
+import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
+import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.StoragePartPersistenceService;
-import io.evitadb.store.spi.exception.PersistenceServiceClosed;
+import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 
 import javax.annotation.Nonnull;
@@ -59,7 +60,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class OffsetIndexStoragePartPersistenceService implements StoragePartPersistenceService {
+public class OffsetIndexStoragePartPersistenceService implements StoragePartPersistenceService<PersistentStorageDescriptor> {
 	/**
 	 * Name of the catalog the persistence service relates to - used for observability.
 	 */
@@ -128,7 +129,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Nonnull
 	@Override
-	public StoragePartPersistenceService createTransactionalService(@Nonnull UUID transactionId) {
+	public StoragePartPersistenceService<PersistentStorageDescriptor> createTransactionalService(@Nonnull UUID transactionId) {
 		return new TransactionalStoragePartPersistenceService(
 			this.catalogVersion,
 			transactionId,
@@ -206,7 +207,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	}
 
 	@Override
-	public <T extends StoragePart> int countStorageParts(long catalogVersion) {
+	public int countStorageParts(long catalogVersion) {
 		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.count(catalogVersion);
 		} else {

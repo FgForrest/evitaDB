@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 
 import java.util.Arrays;
 

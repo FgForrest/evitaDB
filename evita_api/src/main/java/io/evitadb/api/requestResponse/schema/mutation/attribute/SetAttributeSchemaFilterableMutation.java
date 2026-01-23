@@ -41,7 +41,6 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
@@ -73,13 +72,13 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaFilterableMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, NamedSchemaMutation {
+	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -382658973541254821L;
 
-	@Getter @Nonnull private final String name;
 	@Getter private final Scope[] filterableInScopes;
 
 	public SetAttributeSchemaFilterableMutation(@Nonnull String name, boolean filterable) {
@@ -94,7 +93,7 @@ public class SetAttributeSchemaFilterableMutation
 		@Nonnull String name,
 		@Nullable Scope[] filterableInScopes
 	) {
-		this.name = name;
+		super(name);
 		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
 	}
 
@@ -256,12 +255,6 @@ public class SetAttributeSchemaFilterableMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

@@ -24,7 +24,7 @@
 package io.evitadb.index.facet;
 
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;

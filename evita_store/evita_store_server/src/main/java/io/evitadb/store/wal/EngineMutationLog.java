@@ -40,7 +40,7 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
-import io.evitadb.store.spi.model.wal.EngineTransactionChanges;
+import io.evitadb.spi.store.catalog.wal.model.EngineTransactionChanges;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import lombok.extern.slf4j.Slf4j;
 

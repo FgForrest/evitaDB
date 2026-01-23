@@ -26,7 +26,7 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.core.Catalog;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
 import io.evitadb.core.metric.event.transaction.TransactionProcessedEvent;
@@ -96,14 +96,6 @@ public final class TrunkIncorporationTransactionStage
 			// emit queue event
 			task.transactionQueuedEvent().finish().commit();
 
-			synchronized (this) {
-				try {
-					this.wait(50);
-				} catch (InterruptedException e) {
-					throw new RuntimeException(e);
-				}
-			}
-
 			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.transactionManager.getCatalogName());
 			this.transactionManager.processTransactions(
 					task.catalogVersion(),
@@ -131,7 +123,8 @@ public final class TrunkIncorporationTransactionStage
 							0,
 							0
 						).commit();
-					});
+					}
+				);
 		}
 	}
 

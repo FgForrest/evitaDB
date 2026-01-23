@@ -30,14 +30,15 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.cdc.ChangeCaptureRingBuffer.OutsideScopeException;
+import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -112,10 +113,16 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	private final AtomicReference<Catalog> currentCatalog;
 
 	/**
+	 * The size of the ring buffer used to store recent change catalog captures.
+	 */
+	private final int bufferSize;
+
+	/**
 	 * Ring buffer that stores recent change catalog captures in memory for efficient access.
 	 * When the buffer is full, older entries are evicted.
 	 */
-	private final ChangeCaptureRingBuffer<ChangeCatalogCapture> lastCaptures;
+	@Nullable
+	private ChangeCaptureRingBuffer<ChangeCatalogCapture> lastCaptures;
 
 	/**
 	 * The maximum number of change catalog captures that can be buffered for each subscriber.
@@ -160,20 +167,12 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		@Nonnull Consumer<ChangeCatalogCriteriaBundle> onClose
 	) {
 		this.currentCatalog = new AtomicReference<>(catalog);
-		final long currentCatalogVersion = catalog.getVersion();
 		this.cdcExecutor = cdcExecutor;
 		this.onNextConsumer = onNextConsumer;
 		this.onClose = onClose;
-		// Initialize the ring buffer with the current catalog version
-		this.lastCaptures = new ChangeCaptureRingBuffer<>(
-			// we need to use the current catalog version plus one, because the current catalog version mutations will not
-			// be in memory, but only in the WAL, this version will enforce reading them from WAL
-			currentCatalogVersion + 1, 0,
-			currentCatalogVersion, bufferSize,
-			ChangeCatalogCapture.class
-		);
 		this.subscriberBufferSize = subscriberBufferSize;
 		this.criteria = criteria;
+		this.bufferSize = bufferSize;
 		// Create a shared predicate that will be used to filter mutations
 		this.sharedPredicate = this.criteria.createPredicate(null, null);
 	}
@@ -189,7 +188,9 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog catalog) {
 		// we don't actively check for non-closed condition here to speed up the process
 		this.currentCatalog.set(catalog);
-		this.lastCaptures.setEffectiveLastCatalogVersion(catalog.getVersion());
+		if (this.lastCaptures != null) {
+			this.lastCaptures.setEffectiveLastCatalogVersion(catalog.getVersion());
+		}
 		// notify all subscriptions that the catalog is now present in the live view
 		// each active subscription is notified to pull new data asynchronously from this instance
 		for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
@@ -218,11 +219,30 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @param mutation the mutation to process
 	 */
 	public void processMutation(@Nonnull CatalogBoundMutation mutation) {
-		// we don't actively check for non-closed condition here to speed up the process
-		// only process mutations that match our criteria
-		// convert the mutation to change catalog captures (if any) and add them to the ring buffer
-		mutation.toChangeCatalogCapture(this.sharedPredicate, ChangeCaptureContent.BODY)
-			.forEach(this.lastCaptures::offer);
+		if (this.lastCaptures == null && mutation instanceof TransactionMutation tm) {
+			this.lock.lock();
+			try {
+				if (this.lastCaptures == null) {
+					// Initialize the ring buffer with the current catalog version
+					this.lastCaptures = new ChangeCaptureRingBuffer<>(
+						getCatalog().getName(),
+						tm.getVersion(), 0,
+						tm.getVersion() + 1,
+						this.bufferSize,
+						ChangeCatalogCapture.class
+					);
+				}
+			} finally {
+				this.lock.unlock();
+			}
+		}
+		if (this.lastCaptures != null) {
+			// we don't actively check for non-closed condition here to speed up the process
+			// only process mutations that match our criteria
+			// convert the mutation to change catalog captures (if any) and add them to the ring buffer
+			mutation.toChangeCatalogCapture(this.sharedPredicate, ChangeCaptureContent.BODY)
+				.forEach(it -> this.lastCaptures.offer(it));
+		}
 	}
 
 	/**
@@ -232,7 +252,9 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @param catalogVersion the catalog version after which all mutations should be forgotten
 	 */
 	public void forgetMutationsAfter(long catalogVersion) {
-		this.lastCaptures.clearAllAfter(catalogVersion);
+		if (this.lastCaptures != null) {
+			this.lastCaptures.clearAllAfter(catalogVersion);
+		}
 	}
 
 	/**
@@ -299,7 +321,9 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			// Atomically set the closed flag to true if it was false
 			if (this.closed.compareAndSet(false, true)) {
 				this.versionSubscribersCount.clear();
-				this.lastCaptures.clearAll();
+				if (this.lastCaptures != null) {
+					this.lastCaptures.clearAll();
+				}
 				// cancel all subscriptions
 				for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
 					subscription.cancel();
@@ -341,13 +365,26 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @return the total count of lagging subscribers
 	 */
 	public int getLaggingSubscribersCount() {
-		final long startCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
-		// this method is not precise because it does not take index into the account, but is good enough and fast
-		return this.versionSubscribersCount.entrySet()
-			.stream()
-			.takeWhile(it -> it.getKey() < startCatalogVersion)
-			.mapToInt(Entry::getValue)
-			.sum();
+		if (this.lastCaptures == null) {
+			return 0;
+		} else {
+			final long startCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
+			// this method is not precise because it does not take index into the account, but is good enough and fast
+			return this.versionSubscribersCount.entrySet()
+				.stream()
+				.takeWhile(it -> it.getKey() < startCatalogVersion)
+				.mapToInt(Entry::getValue)
+				.sum();
+		}
+	}
+
+	/**
+	 * Emits observability events related to the ring buffer statistics.
+	 */
+	public void emitObservabilityEvents() {
+		if (this.lastCaptures != null) {
+			this.lastCaptures.emitObservabilityEvents();
+		}
 	}
 
 	/**
@@ -374,6 +411,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		UUID subscriberId;
 		DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription;
 		final AtomicBoolean created = new AtomicBoolean(false);
+		final Catalog catalogBeforeInsertion = this.currentCatalog.get();
 		// Keep trying until we successfully create a subscription with a unique ID
 		do {
 			subscriberId = UUIDUtil.randomUUID();
@@ -401,6 +439,12 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 				}
 			);
 		} while (!created.get());
+
+		final Catalog catalogAfterInsertion = this.currentCatalog.get();
+		if (catalogBeforeInsertion.getVersion() != catalogAfterInsertion.getVersion()) {
+			// if the catalog changed during the subscription creation, notify the subscriber to pull new data
+			subscription.notifySubscriber();
+		}
 
 		return subscription;
 	}
@@ -467,8 +511,9 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			final Optional<ChangeCatalogCapture> changeCatalogCapture = lastCapture.get();
 			if (log.isDebugEnabled() && changeCatalogCapture.isPresent()) {
 				log.debug(
-					"Read {} CDC events since the catalog version {}/{}, until {}/{}.",
+					"Read {} CDC events from catalog {} since the catalog version {}/{}, until {}/{}.",
 					sentEvents,
+					catalog.getName(),
 					walPointer.version(),
 					walPointer.index(),
 					changeCatalogCapture.get().version(),
@@ -476,7 +521,8 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 				);
 			} else if (log.isDebugEnabled()) {
 				log.debug(
-					"Read no new CDC events since the catalog version {}/{}, until end of visible catalog version {}.",
+					"Read no new CDC events from catalog {} since the catalog version {}/{}, until end of visible catalog version {}.",
+					catalog.getName(),
 					walPointer.version(),
 					walPointer.index(),
 					lastPublishedCatalogVersion
@@ -515,19 +561,21 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * appropriate locks.
 	 */
 	private void clearUnusedDataInRingBuffer() {
-		// clear unused data from the ring buffer / statistics
-		final long lowestAvailableCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
-		if (!this.versionSubscribersCount.isEmpty()) {
-			Long lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
-			// if the lowest available catalog version is lower than the lowest used catalog version
-			if (lowestUsedCatalogVersion != null && lowestAvailableCatalogVersion < lowestUsedCatalogVersion) {
-				// it means that we keep unnecessary data in the ring buffer and we may strip it
-				this.lastCaptures.clearAllUntil(lowestAvailableCatalogVersion);
-			} else {
-				// otherwise we may clear the statistics
-				while (lowestUsedCatalogVersion != null && lowestUsedCatalogVersion < lowestAvailableCatalogVersion) {
-					this.versionSubscribersCount.remove(lowestUsedCatalogVersion);
-					lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+		if (this.lastCaptures != null) {
+			// clear unused data from the ring buffer / statistics
+			final long lowestAvailableCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
+			if (!this.versionSubscribersCount.isEmpty()) {
+				Long lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+				// if the lowest available catalog version is lower than the lowest used catalog version
+				if (lowestUsedCatalogVersion != null && lowestAvailableCatalogVersion < lowestUsedCatalogVersion) {
+					// it means that we keep unnecessary data in the ring buffer and we may strip it
+					this.lastCaptures.clearAllUntil(lowestAvailableCatalogVersion);
+				} else {
+					// otherwise we may clear the statistics
+					while (lowestUsedCatalogVersion != null && lowestUsedCatalogVersion < lowestAvailableCatalogVersion) {
+						this.versionSubscribersCount.remove(lowestUsedCatalogVersion);
+						lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+					}
 				}
 			}
 		}
@@ -551,7 +599,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		Optional<ChangeCatalogCapture> lastCapture;
 
 		// Check if the requested version is older than what we have in the ring buffer
-		if (walPointer.version() < this.lastCaptures.getEffectiveStartCatalogVersion()) {
+		if (this.lastCaptures == null || walPointer.version() < this.lastCaptures.getEffectiveStartCatalogVersion()) {
 			// If so, we need to read the WAL from the disk and process manually
 			lastCapture = readWal(walPointer, changeCatalogCaptures);
 		} else {
@@ -586,10 +634,12 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			// If the first entry has no subscribers, we can clear it
 			this.versionSubscribersCount.remove(firstEntry.getKey());
 			// and clear the ring buffer as well
-			if (this.versionSubscribersCount.isEmpty()) {
-				this.lastCaptures.clearAll();
-			} else {
-				this.lastCaptures.clearAllUntil(this.versionSubscribersCount.firstKey());
+			if (this.lastCaptures != null) {
+				if (this.versionSubscribersCount.isEmpty()) {
+					this.lastCaptures.clearAll();
+				} else {
+					this.lastCaptures.clearAllUntil(this.versionSubscribersCount.firstKey());
+				}
 			}
 		}
 	}

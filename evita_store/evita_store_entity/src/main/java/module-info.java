@@ -21,9 +21,6 @@
  *   limitations under the License.
  */
 
-import io.evitadb.store.entity.service.EntityStoragePartRegistry;
-import io.evitadb.store.service.StoragePartRegistry;
-
 /**
  * Module contains logic connected with evitaDB entity model persistence. The logic is shared between server and Java
  * client.
@@ -31,21 +28,20 @@ import io.evitadb.store.service.StoragePartRegistry;
 module evita.store.entity {
 
 	exports io.evitadb.store.entity;
-	exports io.evitadb.store.entity.model.entity;
-	exports io.evitadb.store.entity.model.entity.price;
-	exports io.evitadb.store.entity.model.schema;
 	exports io.evitadb.store.entity.service;
 	exports io.evitadb.store.entity.serializer;
 
-	provides StoragePartRegistry with EntityStoragePartRegistry;
+	provides io.evitadb.store.shared.service.StoragePartRegistry with io.evitadb.store.entity.service.EntityStoragePartRegistry;
 
 	requires static lombok;
 	requires static jsr305;
-	requires com.esotericsoftware.kryo;
 
 	requires evita.api;
 	requires evita.common;
-	requires evita.store.core;
+	requires evita.engine;
+	requires evita.store.key.value;
 	requires com.carrotsearch.hppc;
+	requires com.esotericsoftware.kryo;
+	requires org.apache.commons.lang3;
 
 }

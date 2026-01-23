@@ -41,7 +41,7 @@ The `attributeInRange` checks whether the value in the second argument is within
 The value is within the range if it is equal to the start or end of the range or if it is between the start and end of
 the range.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products valid for December '23](/documentation/user/en/query/filtering/examples/range/attribute-in-range.evitaql)
 </SourceCodeTabs>
@@ -99,7 +99,7 @@ The `attributeInRangeNow` checks whether the current date and time is within the
 Current date and time is within the range if it is equal to the start or end of the range or if it is between the start
 and end of the range.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products valid now](/documentation/user/en/query/filtering/examples/range/attribute-in-range-now.evitaql)
 </SourceCodeTabs>

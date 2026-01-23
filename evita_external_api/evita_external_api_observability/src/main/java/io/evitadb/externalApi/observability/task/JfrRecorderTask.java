@@ -26,13 +26,14 @@ package io.evitadb.externalApi.observability.task;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.executor.ClientInfiniteCallableTask;
-import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.file.ExportFileService.ExportFileHandle;
+import io.evitadb.core.management.FileManagementService;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
+import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.utils.StringUtils;
 import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
@@ -82,13 +83,14 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 	/**
 	 * Export file service that manages the target file.
 	 */
-	private final ExportFileService exportFileService;
+	private final ExportService exportService;
 
 	public JfrRecorderTask(
 		@Nonnull String[] allowedEvents,
 		@Nullable Long maxSizeInBytes,
 		@Nullable Long maxAgeInSeconds,
-		@Nonnull ExportFileService exportFileService
+		@Nonnull ExportService exportService,
+		@Nonnull FileManagementService fileManagementService
 	) {
 		super(
 			JfrRecorderTask.class.getSimpleName(),
@@ -98,10 +100,10 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED, TaskTrait.NEEDS_TO_BE_STOPPED
 		);
 		this.recording = new Recording();
-		this.targetFile = exportFileService.createTempFile(
+		this.targetFile = fileManagementService.createTempFile(
 			"jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".jfr"
 		);
-		this.exportFileService = exportFileService;
+		this.exportService = exportService;
 	}
 
 	@Override
@@ -138,7 +140,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 				this.updateTaskNameAndTraits("JFR recording stopped (compressing output)");
 
 				final String fileName = "jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-				final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
+				final ExportFileHandle exportFileHandle = this.exportService.storeFile(
 					fileName + ".zip",
 					"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(settings.allowedEvents()) + ".",
 					"application/zip",
@@ -170,6 +172,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 				}
 			} catch (InterruptedException e) {
 				this.recording.stop();
+				Thread.currentThread().interrupt();
 				throw new GenericEvitaInternalError("JFR recording task finished abnormally (interrupt).", e);
 			}
 

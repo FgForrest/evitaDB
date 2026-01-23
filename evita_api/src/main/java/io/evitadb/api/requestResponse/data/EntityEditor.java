@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -82,6 +83,17 @@ public interface EntityEditor<W extends EntityEditor<W>>
 	 */
 	@Nonnull
 	W removeParent();
+
+    /**
+     * Incorporates the passed array of `mutation` in the returned {@link EntityEditor} right away. The editor allows
+     * modification of the entity internals and fabricates a new immutable copy of the entity with altered data.
+     * Returned {@link EntityEditor} is NOT THREAD SAFE.
+     *
+     * @param mutation the mutations to apply
+     * @return this editor instance for fluent chaining
+     */
+    @Nonnull
+    W mutate(@Nonnull LocalMutation<?,?>... mutation);
 
 	/**
 	 * Interface that simply combines {@link EntitySchemaEditor} and {@link EntitySchemaContract} entity contracts together.

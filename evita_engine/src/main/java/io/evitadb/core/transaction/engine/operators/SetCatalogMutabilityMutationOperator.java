@@ -27,10 +27,10 @@ package io.evitadb.core.transaction.engine.operators;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
-import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
-import io.evitadb.core.ExpandedEngineState;
-import io.evitadb.core.UnusableCatalog;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 

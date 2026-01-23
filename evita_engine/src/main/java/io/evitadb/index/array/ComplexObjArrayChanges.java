@@ -40,9 +40,9 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
-import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerFor;
-import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerForWithResult;
+import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
+import static io.evitadb.core.transaction.Transaction.suppressTransactionalMemoryLayerFor;
+import static io.evitadb.core.transaction.Transaction.suppressTransactionalMemoryLayerForWithResult;
 import static java.util.Optional.ofNullable;
 
 /**

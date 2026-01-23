@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -326,6 +326,8 @@ public class QueryPlan {
 					);
 				}
 
+				executionContext.finalizeTelemetry();
+
 				ofNullable(this.queryContext.getQueryFinishedEvent())
 					.ifPresent(
 						it -> it.finish(
@@ -377,9 +379,8 @@ public class QueryPlan {
 			}
 		}
 
-		if (executionContext.getEvitaRequest().isQueryTelemetryRequested()) {
-			extraResults.add(executionContext.finalizeAndGetTelemetry());
-		}
+		executionContext.getTelemetryRoot()
+			.ifPresent(extraResults::add);
 
 		return extraResults.toArray(EvitaResponseExtraResult[]::new);
 	}

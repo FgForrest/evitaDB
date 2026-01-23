@@ -28,6 +28,7 @@ import io.evitadb.api.exception.ConflictingEngineMutationException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
@@ -35,15 +36,15 @@ import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.*;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.ExpandedEngineState;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.engine.operators.*;
 import io.evitadb.function.Functions;
-import io.evitadb.store.spi.EnginePersistenceService;
-import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
@@ -54,9 +55,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,6 +68,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -215,9 +219,13 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EngineMutation<T> engineMutation,
 		@Nullable IntConsumer progressObserver
 	) {
+		final Set<ConflictKey> conflictKeys = engineMutation.collectConflictKeys(
+				new ConflictGenerationContext(), Collections.emptySet()
+			)
+			.collect(Collectors.toSet());
+
 		// on completion remove the mutation conflicting keys from the processed mutations
-		final Runnable onFinalize = () -> engineMutation.getConflictKeys()
-		                                                .forEach(this.processedEngineMutations::remove);
+		final Runnable onFinalize = () -> conflictKeys.forEach(this.processedEngineMutations::remove);
 
 		try {
 			if (this.engineStateLock.tryLock(this.engineMutationWaitIntervalInMillis, TimeUnit.MILLISECONDS)) {
@@ -225,12 +233,11 @@ public class EngineTransactionManager implements Closeable {
 				this.engineStateLock.lock();
 				try {
 					// verify that we can perform the mutation
-					verifyEngineMutationIsNotInConflictWithOthers(engineMutation);
+					verifyEngineMutationIsNotInConflictWithOthers(engineMutation, conflictKeys);
 					// verify that we can perform the mutation
 					engineMutation.verifyApplicability(this.evita);
 					// append the mutation to the WAL
-					engineMutation.getConflictKeys().forEach(
-						key -> this.processedEngineMutations.put(key, transactionId));
+					conflictKeys.forEach(key -> this.processedEngineMutations.put(key, transactionId));
 				} finally {
 					this.engineStateLock.unlock();
 				}
@@ -253,7 +260,6 @@ public class EngineTransactionManager implements Closeable {
 			onFinalize.run();
 			throw e;
 		} catch (InterruptedException e) {
-			// do nothing
 			Thread.currentThread().interrupt();
 			throw new TransactionTimedOutException("Interrupted while waiting for an engine state lock!");
 		} finally {
@@ -344,7 +350,7 @@ public class EngineTransactionManager implements Closeable {
 	private void truncateWalFile(@Nonnull ExpandedEngineState engineState) {
 		// if log contains unexpected content, truncate it
 		ofNullable(engineState.walFileReference())
-			.ifPresent(this.enginePersistenceService::truncateWalFile);
+			.ifPresent(this.enginePersistenceService::truncateWriteAheadLog);
 	}
 
 	/**
@@ -459,19 +465,19 @@ public class EngineTransactionManager implements Closeable {
 
 			// first store the mutation into the persistence service
 			final EngineMutation<?> engineMutation = engineStateUpdater.getEngineMutation();
-			final TransactionMutationWithWalFileReference txMutationWithWalFileReference = this.enginePersistenceService.appendWal(
+			final TransactionMutationWithWalReference txMutationWithWalReference = this.enginePersistenceService.appendWal(
 				nextStateVersion,
 				engineStateUpdater.getTransactionId(),
 				engineMutation
 			);
 			// notify system observer about the mutation
-			this.changeObserver.processMutation(txMutationWithWalFileReference.transactionMutation());
+			this.changeObserver.processMutation(txMutationWithWalReference.transactionMutation());
 			this.changeObserver.processMutation(engineMutation);
 
 			// create new engine state with the incremented version, and store it in the persistence service
 			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getEngineState());
 			final EngineState theEngineState = nextEngineState.engineState(
-				txMutationWithWalFileReference.walFileReference(),
+				txMutationWithWalReference.walReference(),
 				nextStateVersion
 			);
 			this.enginePersistenceService.storeEngineState(theEngineState);
@@ -492,21 +498,22 @@ public class EngineTransactionManager implements Closeable {
 	 * @param engineMutation the mutation to be checked for conflicts; must not be null
 	 * @throws ConflictingEngineMutationException if the provided mutation conflicts with already processed mutations
 	 */
-	private void verifyEngineMutationIsNotInConflictWithOthers(@Nonnull EngineMutation<?> engineMutation) {
-		engineMutation
-			.getConflictKeys()
-			.forEach(
-				conflictKey -> {
-					final UUID txUUID = this.processedEngineMutations.get(conflictKey);
-					if (txUUID != null) {
-						throw new ConflictingEngineMutationException(
-							"Engine mutation `" + engineMutation.getClass().getSimpleName() + "` with key `" +
-								conflictKey + "` is in conflict with already processed transaction `" +
-								txUUID + "`!"
-						);
-					}
+	private void verifyEngineMutationIsNotInConflictWithOthers(
+		@Nonnull EngineMutation<?> engineMutation,
+		@Nonnull Set<ConflictKey> conflictKeys
+	) {
+		conflictKeys.forEach(
+			conflictKey -> {
+				final UUID txUUID = this.processedEngineMutations.get(conflictKey);
+				if (txUUID != null) {
+					throw new ConflictingEngineMutationException(
+						"Engine mutation `" + engineMutation.getClass().getSimpleName() + "` with key `" +
+							conflictKey + "` is in conflict with already processed transaction `" +
+							txUUID + "`!"
+					);
 				}
-			);
+			}
+		);
 	}
 
 }

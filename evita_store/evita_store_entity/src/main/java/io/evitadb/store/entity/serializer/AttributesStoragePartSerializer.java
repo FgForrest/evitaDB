@@ -28,8 +28,8 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.store.entity.model.entity.AttributesStoragePart;
-import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Arrays;

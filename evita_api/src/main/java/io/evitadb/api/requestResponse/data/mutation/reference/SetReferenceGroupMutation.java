@@ -275,15 +275,6 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ComparableRefer
 		);
 	}
 
-	@Nonnull
-	@Override
-	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
-		return new SetReferenceGroupMutation(
-			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
-			this.groupType, this.groupPrimaryKey, this.decisiveTimestamp
-		);
-	}
-
 	@Override
 	public String toString() {
 		return "Set the reference group to `" + this.referenceKey + "`: " + this.groupPrimaryKey +

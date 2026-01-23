@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -150,7 +150,7 @@ public interface GrpcTransactionOverviewOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges transactionChanges = 7;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges> 
       getTransactionChangesList();
   /**
    * <pre>
@@ -175,7 +175,7 @@ public interface GrpcTransactionOverviewOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges transactionChanges = 7;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionChangesOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionChangesOrBuilder> 
       getTransactionChangesOrBuilderList();
   /**
    * <pre>

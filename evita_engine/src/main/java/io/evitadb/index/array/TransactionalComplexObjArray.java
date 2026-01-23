@@ -23,7 +23,7 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -44,8 +44,8 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
-import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static java.util.Optional.ofNullable;
 
 /**

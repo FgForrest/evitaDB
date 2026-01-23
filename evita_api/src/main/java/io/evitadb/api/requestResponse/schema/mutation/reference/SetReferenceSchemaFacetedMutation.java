@@ -62,7 +62,8 @@ import java.util.Optional;
 @Immutable
 @EqualsAndHashCode(callSuper = true)
 public class SetReferenceSchemaFacetedMutation
-	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
+	extends AbstractModifyReferenceDataSchemaMutation
+	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 4479269384430732059L;
 	@Getter private final Scope[] facetedInScopes;
 

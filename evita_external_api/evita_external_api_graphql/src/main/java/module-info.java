@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,12 +21,14 @@
  *   limitations under the License.
  */
 
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
+
 /**
  * Module contains GraphQL API for evitaDB.
  */
 module evita.external.api.graphql {
 
-	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+	uses CatalogPersistenceServiceFactory;
 	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 
 	provides io.evitadb.externalApi.http.ExternalApiProviderRegistrar with io.evitadb.externalApi.graphql.GraphQLProviderRegistrar;

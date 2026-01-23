@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,14 +23,14 @@
 
 package io.evitadb.store.entity.service;
 
-import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
-import io.evitadb.store.entity.model.entity.AttributesStoragePart;
-import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
-import io.evitadb.store.entity.model.entity.PricesStoragePart;
-import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.StoragePartRegistry;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
+import io.evitadb.store.shared.service.StoragePartRegistry;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;

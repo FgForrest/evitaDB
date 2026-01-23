@@ -29,6 +29,9 @@ message GrpcCatalogStateResponse {
 message GrpcCatalogVersionAtRequest {
   // Chosen moment in time for which the version of the catalog should be returned.
   GrpcOffsetDateTime theMoment = 1;
+  // Signalizes whether the returned version should be the closest one before the specified moment
+  // or the closest one after the specified moment
+  GrpcTimeFlow timeFlow = 2;
 }
 
 // Response to GrpcCatalogVersionAt request.
@@ -158,6 +161,8 @@ message GrpcRegisterChangeCatalogCaptureResponse {
   // The type of the response - when subscription is set-up, acknowledgement is sent
   // Then with each capture event, the type is set to `change`
   GrpcCaptureResponseType responseType = 3;
+  // Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+  GrpcHeartBeat heartBeat = 4;
 }
 
 // Request to GetCatalogSchema request.

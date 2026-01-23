@@ -8,17 +8,17 @@ module evita.store.key.value {
 	exports io.evitadb.store.offsetIndex.exception;
 	exports io.evitadb.store.offsetIndex.model;
 	exports io.evitadb.store.offsetIndex.io;
-
-	uses io.evitadb.store.service.StoragePartRegistry;
+	exports io.evitadb.store.shared.service;
+	exports io.evitadb.store.shared.model;
 
 	requires static lombok;
 	requires static jsr305;
-	requires org.slf4j;
-	requires com.esotericsoftware.kryo;
 
 	requires evita.api;
 	requires evita.common;
-	requires evita.store.core;
 	requires evita.engine;
+	requires com.esotericsoftware.kryo;
+	requires com.fasterxml.jackson.databind;
+	requires org.slf4j;
 
 }

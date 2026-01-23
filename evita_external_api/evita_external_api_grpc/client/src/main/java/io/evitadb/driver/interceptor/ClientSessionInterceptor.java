@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,16 +51,9 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 	private final String clientId;
 	private final SemVer version;
 
-	public ClientSessionInterceptor(
-		@Nonnull String clientId,
-		@Nullable SemVer clientVersion
-	) {
-		this.clientId = clientId;
-		this.version = clientVersion;
-	}
-
 	/**
-	 * Default constructor is used in tests.
+	 * Default constructor is used in documentation tests.
+	 * !!! DO NOT REMOVE !!!
 	 */
 	public ClientSessionInterceptor() {
 		this.clientId = null;
@@ -71,6 +64,14 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 			version = null;
 		}
 		this.version = version;
+	}
+
+	public ClientSessionInterceptor(
+		@Nonnull String clientId,
+		@Nullable SemVer clientVersion
+	) {
+		this.clientId = clientId;
+		this.version = clientVersion;
 	}
 
 	/**

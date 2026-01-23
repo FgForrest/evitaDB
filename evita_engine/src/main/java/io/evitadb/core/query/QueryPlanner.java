@@ -56,7 +56,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.store.spi.chunk.ExpressionBasedSlicer;
+import io.evitadb.spi.store.catalog.chunk.ExpressionBasedSlicer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.RandomUtils;

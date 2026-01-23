@@ -23,7 +23,7 @@
 
 package io.evitadb.index.bitmap;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -40,7 +40,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * This class envelopes simple primitive int bitmap and makes it transactional. This means, that the bitmap can be updated
@@ -58,7 +58,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final RoaringBitmap roaringBitmap;
-	private int memoizedCardinality;
+	private volatile int memoizedCardinality;
 
 	public TransactionalBitmap() {
 		this.roaringBitmap = new RoaringBitmap();

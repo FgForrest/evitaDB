@@ -27,11 +27,8 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -48,11 +45,14 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-@AllArgsConstructor
-abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSchemaMutation, NamedSchemaMutation {
+@EqualsAndHashCode(callSuper = true)
+abstract class AbstractModifyReferenceDataSchemaMutation extends AbstractReferenceDataSchemaMutation
+	implements ReferenceSchemaMutation {
 	@Serial private static final long serialVersionUID = 3160594356938000407L;
-	@Getter @Nonnull protected final String name;
+
+	AbstractModifyReferenceDataSchemaMutation(@Nonnull String name) {
+		super(name);
+	}
 
 	@Nonnull
 	@Override
@@ -106,9 +106,4 @@ abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSch
 		}
 	}
 
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
-	}
 }

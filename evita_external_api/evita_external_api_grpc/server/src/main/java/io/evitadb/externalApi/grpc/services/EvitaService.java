@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,14 +26,13 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
@@ -50,29 +49,28 @@ import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
-import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse.Builder;
-import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
+import io.evitadb.externalApi.grpc.services.subscriber.ChangeSystemCaptureSubscriber;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Metadata;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.function.IntConsumer;
 
@@ -623,6 +621,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			}
 		);
 
+		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			() -> {
 				try {
@@ -633,7 +632,13 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							toCaptureContent(request.getContent())
 						)
 					).subscribe(
-						new ChangeSystemCaptureSubscriber(responseObserver, subscriptionFuture)
+						new ChangeSystemCaptureSubscriber(
+							this.evita.getServiceExecutor(),
+							responseObserver,
+							subscriptionFuture,
+							() -> this.evita.getEngineState().version(),
+							serviceRequestContext
+						)
 					);
 				} catch (RuntimeException e) {
 					subscriptionFuture.completeExceptionally(e);
@@ -1097,62 +1102,6 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				})
 			.toCompletableFuture()
 			.join();
-	}
-
-	/**
-	 * A private static class implementing the {@link Subscriber} interface to handle
-	 * system change capture subscriptions. This class coordinates the receipt of change events,
-	 * processes them, and forwards the results to a response observer.
-	 *
-	 * It is specifically designed for managing a subscription lifecycle and handling events
-	 * of type {@link ChangeSystemCapture} within the context of gRPC communication.
-	 */
-	@RequiredArgsConstructor
-	private static class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCapture> {
-		private final StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver;
-		private final CompletableFuture<Subscription> subscriptionFuture;
-		private Subscription subscription;
-
-		@Override
-		public void onSubscribe(Subscription subscription) {
-			this.subscription = subscription;
-			this.subscriptionFuture.complete(subscription);
-
-			final GrpcRegisterSystemChangeCaptureResponse.Builder response = GrpcRegisterSystemChangeCaptureResponse
-				.newBuilder();
-			if (subscription instanceof ChangeCaptureSubscription ccs) {
-				response.setUuid(EvitaDataTypesConverter.toGrpcUuid(ccs.getSubscriptionId()));
-			}
-			this.responseObserver.onNext(
-				response
-					.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
-					.build()
-			);
-			subscription.request(1);
-		}
-
-		@Override
-		public void onNext(ChangeSystemCapture item) {
-			this.responseObserver.onNext(
-				GrpcRegisterSystemChangeCaptureResponse
-					.newBuilder()
-					.setCapture(ChangeCaptureConverter.toGrpcChangeSystemCapture(item))
-					.setResponseType(GrpcCaptureResponseType.CHANGE)
-					.build()
-			);
-			this.subscription.request(1);
-		}
-
-		@Override
-		public void onError(Throwable throwable) {
-			this.subscriptionFuture.completeExceptionally(throwable);
-			this.responseObserver.onError(throwable);
-		}
-
-		@Override
-		public void onComplete() {
-			this.responseObserver.onCompleted();
-		}
 	}
 
 	/**

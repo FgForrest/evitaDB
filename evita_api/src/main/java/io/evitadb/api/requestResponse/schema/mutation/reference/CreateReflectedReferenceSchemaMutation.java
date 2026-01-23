@@ -39,7 +39,6 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
@@ -74,11 +73,11 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class CreateReflectedReferenceSchemaMutation
-	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, NamedSchemaMutation {
+	extends AbstractReferenceDataSchemaMutation
+	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -3833868605223655352L;
-	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nullable private final Cardinality cardinality;
@@ -135,9 +134,9 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
 	) {
+		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
-		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.cardinality = cardinality;
@@ -304,12 +303,6 @@ public class CreateReflectedReferenceSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

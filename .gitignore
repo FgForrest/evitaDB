@@ -84,6 +84,16 @@ fabric.properties
 /evita_performance_tests/src/local_docker_automation/*.log
 /**/dependency-reduced-pom.xml
 
-
 ### VisualStudioCode ###
 .vscode/*
+
+### Claude settings
+/.claude/settings.local.json
+
+### Data
+
+/data/*
+/evita_server/evita-server-certificates/*
+/evita_server/logs
+/evita_test/evita_functional_tests/evita-server-certificates/*
+/evita_test/evita_functional_tests/export/*

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.core.query.sort.reference.sorter;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
@@ -95,7 +96,9 @@ public class SequentialSorter implements Sorter {
 				Arrays.stream(atomicBlock)
 					.map(
 						it -> FormulaFactory.and(
-							new ConstantFormula(new BaseBitmap(recordsToSort)),
+							recordsToSort.isEmpty() ?
+								EmptyFormula.INSTANCE :
+								new ConstantFormula(new BaseBitmap(recordsToSort)),
 							it.getAllPrimaryKeysFormula()
 						)
 					)

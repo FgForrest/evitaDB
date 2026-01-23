@@ -28,8 +28,8 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.utils.Assert;
 
@@ -160,9 +160,10 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 			}
 		}
 		final long previousCatalogVersion = currentTxMutation.getVersion() - 1;
-		this.filePosition = this.transactionLocationsCache.computeIfAbsent(
+		this.filePosition = this.transactionLocationsCache.compute(
 			this.walFileIndex,
-			(index) -> new TransactionLocations()
+			(index, existing) ->
+				existing == null || existing.wasCut() ? new TransactionLocations() : existing
 		).findNearestLocation(previousCatalogVersion);
 
 		Assert.isPremiseValid(

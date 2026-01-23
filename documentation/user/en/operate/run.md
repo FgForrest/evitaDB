@@ -187,6 +187,7 @@ Each folder will contain one or more files representing the contents of the cata
 
 More details about the folder structure and file contents are documented in the
 [back-up and restore chapter](../operate/backup-restore.md).
+
 </Note>
 
 ### Configure the evitaDB in the container
@@ -264,6 +265,7 @@ You can take advantage of all the following variables:
 </NoteTitle>
 
 You can also provide the entire configuration YAML file using a special volume in the following way:
+
 </Note>
 
 ```shell
@@ -279,9 +281,11 @@ You need to replace `__config_file__` with the path to the YAML file and `__data
 existing folders on the host file system.
 
 <Note type="info">
+
 The contents should match the default configuration file
 <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass>, but you can specify constants instead
 of variables in certain settings.
+
 </Note>
 
 ### Check the container status
@@ -295,8 +299,10 @@ CONTAINER ID   IMAGE                    COMMAND            CREATED         STATU
 ```
 
 <Note type="info">
+
 If you are using the host network stack (`--net=host`), you won't see any ports in the output. If you use [remap/open ports](#open--remap-ports)
 you will also see the ports configuration here.
+
 </Note>
 
 ### Check statuses of the APIs

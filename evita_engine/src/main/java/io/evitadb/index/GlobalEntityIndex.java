@@ -24,8 +24,8 @@
 package io.evitadb.index;
 
 import io.evitadb.api.exception.EntityNotManagedException;
-import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;

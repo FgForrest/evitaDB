@@ -27,9 +27,9 @@ package io.evitadb.core.buffer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

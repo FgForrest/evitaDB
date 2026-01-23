@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -172,6 +172,44 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType.UNRECOGNIZED : result;
   }
 
+  public static final int HEARTBEAT_FIELD_NUMBER = 4;
+  private io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat_;
+  /**
+   * <pre>
+   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+   * @return Whether the heartBeat field is set.
+   */
+  @java.lang.Override
+  public boolean hasHeartBeat() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+   * @return The heartBeat.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcHeartBeat getHeartBeat() {
+    return heartBeat_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.getDefaultInstance() : heartBeat_;
+  }
+  /**
+   * <pre>
+   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder getHeartBeatOrBuilder() {
+    return heartBeat_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.getDefaultInstance() : heartBeat_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -195,6 +233,9 @@ private static final long serialVersionUID = 0L;
     if (responseType_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType.ACKNOWLEDGEMENT.getNumber()) {
       output.writeEnum(3, responseType_);
     }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(4, getHeartBeat());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -215,6 +256,10 @@ private static final long serialVersionUID = 0L;
     if (responseType_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType.ACKNOWLEDGEMENT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(3, responseType_);
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(4, getHeartBeat());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -242,6 +287,11 @@ private static final long serialVersionUID = 0L;
           .equals(other.getCapture())) return false;
     }
     if (responseType_ != other.responseType_) return false;
+    if (hasHeartBeat() != other.hasHeartBeat()) return false;
+    if (hasHeartBeat()) {
+      if (!getHeartBeat()
+          .equals(other.getHeartBeat())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -263,6 +313,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + RESPONSETYPE_FIELD_NUMBER;
     hash = (53 * hash) + responseType_;
+    if (hasHeartBeat()) {
+      hash = (37 * hash) + HEARTBEAT_FIELD_NUMBER;
+      hash = (53 * hash) + getHeartBeat().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -399,6 +453,7 @@ private static final long serialVersionUID = 0L;
               .alwaysUseFieldBuilders) {
         getUuidFieldBuilder();
         getCaptureFieldBuilder();
+        getHeartBeatFieldBuilder();
       }
     }
     @java.lang.Override
@@ -416,6 +471,11 @@ private static final long serialVersionUID = 0L;
         captureBuilder_ = null;
       }
       responseType_ = 0;
+      heartBeat_ = null;
+      if (heartBeatBuilder_ != null) {
+        heartBeatBuilder_.dispose();
+        heartBeatBuilder_ = null;
+      }
       return this;
     }
 
@@ -464,6 +524,12 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000004) != 0)) {
         result.responseType_ = responseType_;
+      }
+      if (((from_bitField0_ & 0x00000008) != 0)) {
+        result.heartBeat_ = heartBeatBuilder_ == null
+            ? heartBeat_
+            : heartBeatBuilder_.build();
+        to_bitField0_ |= 0x00000004;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -521,6 +587,9 @@ private static final long serialVersionUID = 0L;
       if (other.responseType_ != 0) {
         setResponseTypeValue(other.getResponseTypeValue());
       }
+      if (other.hasHeartBeat()) {
+        mergeHeartBeat(other.getHeartBeat());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -566,6 +635,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000004;
               break;
             } // case 24
+            case 34: {
+              input.readMessage(
+                  getHeartBeatFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000008;
+              break;
+            } // case 34
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -973,6 +1049,163 @@ private static final long serialVersionUID = 0L;
       responseType_ = 0;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcHeartBeat, io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.Builder, io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder> heartBeatBuilder_;
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     * @return Whether the heartBeat field is set.
+     */
+    public boolean hasHeartBeat() {
+      return ((bitField0_ & 0x00000008) != 0);
+    }
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     * @return The heartBeat.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcHeartBeat getHeartBeat() {
+      if (heartBeatBuilder_ == null) {
+        return heartBeat_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.getDefaultInstance() : heartBeat_;
+      } else {
+        return heartBeatBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     */
+    public Builder setHeartBeat(io.evitadb.externalApi.grpc.generated.GrpcHeartBeat value) {
+      if (heartBeatBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        heartBeat_ = value;
+      } else {
+        heartBeatBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     */
+    public Builder setHeartBeat(
+        io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.Builder builderForValue) {
+      if (heartBeatBuilder_ == null) {
+        heartBeat_ = builderForValue.build();
+      } else {
+        heartBeatBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     */
+    public Builder mergeHeartBeat(io.evitadb.externalApi.grpc.generated.GrpcHeartBeat value) {
+      if (heartBeatBuilder_ == null) {
+        if (((bitField0_ & 0x00000008) != 0) &&
+          heartBeat_ != null &&
+          heartBeat_ != io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.getDefaultInstance()) {
+          getHeartBeatBuilder().mergeFrom(value);
+        } else {
+          heartBeat_ = value;
+        }
+      } else {
+        heartBeatBuilder_.mergeFrom(value);
+      }
+      if (heartBeat_ != null) {
+        bitField0_ |= 0x00000008;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     */
+    public Builder clearHeartBeat() {
+      bitField0_ = (bitField0_ & ~0x00000008);
+      heartBeat_ = null;
+      if (heartBeatBuilder_ != null) {
+        heartBeatBuilder_.dispose();
+        heartBeatBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.Builder getHeartBeatBuilder() {
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return getHeartBeatFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder getHeartBeatOrBuilder() {
+      if (heartBeatBuilder_ != null) {
+        return heartBeatBuilder_.getMessageOrBuilder();
+      } else {
+        return heartBeat_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.getDefaultInstance() : heartBeat_;
+      }
+    }
+    /**
+     * <pre>
+     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcHeartBeat, io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.Builder, io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder>
+        getHeartBeatFieldBuilder() {
+      if (heartBeatBuilder_ == null) {
+        heartBeatBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcHeartBeat, io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.Builder, io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder>(
+                getHeartBeat(),
+                getParentForChildren(),
+                isClean());
+        heartBeat_ = null;
+      }
+      return heartBeatBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -42,7 +42,6 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
@@ -71,13 +70,12 @@ import java.util.stream.Collectors;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaUniqueMutation
+	extends AbstractAttributeSchemaMutation
 	implements GlobalAttributeSchemaMutation, EntityAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, NamedSchemaMutation {
+	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -6712334156291456184L;
-
-	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
 
 	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nonnull AttributeUniquenessType unique) {
@@ -89,7 +87,7 @@ public class SetAttributeSchemaUniqueMutation
 
 	@SerializableCreator
 	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nullable ScopedAttributeUniquenessType[] uniqueInScopes) {
-		this.name = name;
+		super(name);
 		this.uniqueInScopes = uniqueInScopes == null ?
 			new ScopedAttributeUniquenessType[]{
 				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE)
@@ -261,12 +259,6 @@ public class SetAttributeSchemaUniqueMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

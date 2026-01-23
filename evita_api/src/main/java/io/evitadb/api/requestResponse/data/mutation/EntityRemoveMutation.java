@@ -40,6 +40,11 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.EntityConflictKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -55,6 +60,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -172,6 +178,21 @@ public class EntityRemoveMutation implements EntityMutation {
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		if (conflictPolicies.contains(ConflictPolicy.ENTITY)) {
+			return Stream.of(new EntityConflictKey(this.entityType, this.entityPrimaryKey));
+		} else if (conflictPolicies.contains(ConflictPolicy.COLLECTION)) {
+			return Stream.of(new CollectionConflictKey(this.entityType));
+		} else {
+			return Stream.empty();
+		}
 	}
 
 	@Nonnull

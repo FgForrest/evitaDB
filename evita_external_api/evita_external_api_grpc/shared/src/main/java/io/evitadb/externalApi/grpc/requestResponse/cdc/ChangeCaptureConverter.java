@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,21 +30,25 @@ import io.evitadb.api.requestResponse.cdc.*;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
-import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.data.mutation.associatedData.AssociatedDataMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingInfrastructureMutationConverter;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VersionUtils.SemVer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 
 /**
@@ -180,6 +184,24 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
+	 * Converts a {@link GrpcUuid} and a {@link GrpcHeartBeat} into a {@link HeartBeat}.
+	 *
+	 * @param grpcUuid the unique identifier of the subscription in gRPC format
+	 * @param grpcHeartBeat the gRPC representation of the heartbeat event containing metadata about the event
+	 * @return the converted {@link HeartBeat} instance
+	 */
+	@Nonnull
+	public static HeartBeat toHeartBeat(@Nonnull GrpcUuid grpcUuid, @Nonnull GrpcHeartBeat grpcHeartBeat) {
+		return new HeartBeat(
+			EvitaDataTypesConverter.toUuid(grpcUuid),
+			grpcHeartBeat.getIndex(),
+			EvitaDataTypesConverter.toOffsetDateTime(grpcHeartBeat.getTimestamp()),
+			grpcHeartBeat.getLastObservedVersion(),
+			grpcHeartBeat.getMillisToNextHeartbeat()
+		);
+	}
+
+	/**
 	 * Converts {@link GrpcChangeCatalogCapture} to {@link ChangeCatalogCapture}.
 	 *
 	 * @param changeCatalogCapture the change catalog capture to convert
@@ -209,6 +231,7 @@ public class ChangeCaptureConverter {
 		return new ChangeCatalogCapture(
 			changeCatalogCapture.getVersion().getValue(),
 			changeCatalogCapture.getIndex().getValue(),
+			EvitaDataTypesConverter.toOffsetDateTime(changeCatalogCapture.getTimestamp()),
 			EvitaEnumConverter.toCaptureArea(changeCatalogCapture.getArea()),
 			changeCatalogCapture.hasEntityType() ? changeCatalogCapture.getEntityType().getValue() : null,
 			changeCatalogCapture.hasEntityPrimaryKey() ? changeCatalogCapture.getEntityPrimaryKey().getValue() : null,
@@ -225,12 +248,14 @@ public class ChangeCaptureConverter {
 	 */
 	@Nonnull
 	public static GrpcChangeCatalogCapture toGrpcChangeCatalogCapture(
-		@Nonnull ChangeCatalogCapture changeCatalogCapture
+		@Nonnull ChangeCatalogCapture changeCatalogCapture,
+		@Nullable SemVer clientVersion
 	) {
 		final Builder builder = GrpcChangeCatalogCapture
 			.newBuilder()
 			.setVersion(Int64Value.of(changeCatalogCapture.version()))
 			.setIndex(Int32Value.of(changeCatalogCapture.index()))
+			.setTimestamp(EvitaDataTypesConverter.toGrpcOffsetDateTime(changeCatalogCapture.timestamp()))
 			.setArea(EvitaEnumConverter.toGrpcChangeCaptureArea(
 				changeCatalogCapture.area()))
 			.setOperation(EvitaEnumConverter.toGrpcOperation(
@@ -241,15 +266,21 @@ public class ChangeCaptureConverter {
 		if (changeCatalogCapture.entityPrimaryKey() != null) {
 			builder.setEntityPrimaryKey(Int32Value.of(changeCatalogCapture.entityPrimaryKey()));
 		}
-		if (changeCatalogCapture.body() instanceof EntityMutation entityMutation) {
-			builder.setEntityMutation(DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation));
-		} else if (changeCatalogCapture.body() instanceof LocalMutation<?, ?> localMutation) {
-			builder.setLocalMutation(DelegatingLocalMutationConverter.INSTANCE.convert(localMutation));
-		} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation schemaMutation) {
-			builder.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation));
-		} else if (changeCatalogCapture.body() instanceof TransactionMutation transactionMutation) {
-			builder.setInfrastructureMutation(DelegatingInfrastructureMutationConverter.INSTANCE.convert(transactionMutation));
-		}
+
+		AssociatedDataMutationConverter.doWithClientVersion(
+			clientVersion,
+			() -> {
+				if (changeCatalogCapture.body() instanceof EntityMutation entityMutation) {
+					builder.setEntityMutation(DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation));
+				} else if (changeCatalogCapture.body() instanceof LocalMutation<?, ?> localMutation) {
+					builder.setLocalMutation(DelegatingLocalMutationConverter.INSTANCE.convert(localMutation));
+				} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation schemaMutation) {
+					builder.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation));
+				} else if (changeCatalogCapture.body() instanceof TransactionMutation transactionMutation) {
+					builder.setInfrastructureMutation(DelegatingInfrastructureMutationConverter.INSTANCE.convert(transactionMutation));
+				}
+			}
+		);
 		return builder.build();
 	}
 
@@ -264,6 +295,7 @@ public class ChangeCaptureConverter {
 		return new ChangeSystemCapture(
 			changeSystemCapture.getVersion(),
 			changeSystemCapture.getIndex(),
+			EvitaDataTypesConverter.toOffsetDateTime(changeSystemCapture.getTimestamp()),
 			EvitaEnumConverter.toOperation(changeSystemCapture.getOperation()),
 			DelegatingEngineMutationConverter.INSTANCE.convert(changeSystemCapture.getSystemMutation())
 		);
@@ -281,6 +313,7 @@ public class ChangeCaptureConverter {
 			.newBuilder()
 			.setVersion(capture.version())
 			.setIndex(capture.index())
+			.setTimestamp(EvitaDataTypesConverter.toGrpcOffsetDateTime(capture.timestamp()))
 			.setOperation(
 				EvitaEnumConverter.toGrpcOperation(
 					capture.operation()));

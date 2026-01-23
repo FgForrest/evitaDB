@@ -24,6 +24,8 @@
 package io.evitadb.core.cdc;
 
 
+import java.io.Serializable;
+
 /**
  * A record representing a position in the Write-Ahead Log (WAL).
  * It consists of a catalog version and an index within that version.
@@ -34,5 +36,14 @@ package io.evitadb.core.cdc;
 record WalPointer(
 	long version,
 	int index
-) {
+) implements Serializable, Comparable<WalPointer> {
+
+	@Override
+	public int compareTo(WalPointer o) {
+		int versionComparison = Long.compare(this.version, o.version);
+		if (versionComparison != 0) {
+			return versionComparison;
+		}
+		return Integer.compare(this.index, o.index);
+	}
 }

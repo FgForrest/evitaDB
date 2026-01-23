@@ -227,7 +227,7 @@ On smaller screens, you'll display the preferred language switch after clicking 
 </LS>
 
 
-Other Custom component aware of the user preferred language is [above shown `<SourceCodeTabs/>`](#result-1).
+Other Custom component aware of the user preferred language is [above shown `<SourceCodeTabs/>`](#result).
 
 ## Page indexes and print support
 

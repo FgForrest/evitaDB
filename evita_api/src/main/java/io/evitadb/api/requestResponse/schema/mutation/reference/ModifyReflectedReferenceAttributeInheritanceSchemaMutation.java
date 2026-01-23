@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -103,7 +104,7 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		Assert.isPremiseValid(
 			referenceSchema instanceof ReflectedReferenceSchema,
-			"Reference schema `" + referenceSchema.getName() + "` is represent standard reference and not " +
+			"Reference schema `" + referenceSchema.getName() + "` represents standard reference and not " +
 				"the reflected one! Cannot be mutated by this mutation!"
 		);
 		return ((ReflectedReferenceSchema) referenceSchema).withAttributeInheritance(
@@ -123,7 +124,7 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = mutate(entitySchema, theSchema);
+			final ReferenceSchemaContract updatedReferenceSchema = Objects.requireNonNull(mutate(entitySchema, theSchema));
 			return replaceReferenceSchema(entitySchema, theSchema, updatedReferenceSchema);
 		}
 	}

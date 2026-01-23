@@ -42,7 +42,7 @@ import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.store.spi.chunk.PageTransformerWithSlicer;
+import io.evitadb.spi.store.catalog.chunk.PageTransformerWithSlicer;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;

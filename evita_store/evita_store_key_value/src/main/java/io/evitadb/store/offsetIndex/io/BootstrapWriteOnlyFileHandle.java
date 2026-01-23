@@ -25,7 +25,8 @@ package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.FileType;
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.utils.Assert;
@@ -133,10 +134,10 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 					this.handleLock.unlock();
 				}
 			}
-			throw new StorageException(operation + " within timeout!");
+			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new StorageException(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!");
 		}
 	}
 
@@ -153,10 +154,10 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 					this.handleLock.unlock();
 				}
 			}
-			throw new StorageException(operation + " within timeout!");
+			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new StorageException(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!");
 		}
 	}
 
@@ -173,10 +174,10 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 					this.handleLock.unlock();
 				}
 			}
-			throw new StorageException(operation + " within timeout!");
+			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new StorageException(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!");
 		}
 	}
 
@@ -201,7 +202,7 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 			this.observableOutput.close();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new StorageException("Failed to close file due to interrupt!");
+			throw new GenericEvitaInternalError("Failed to close file due to interrupt!");
 		} finally {
 			this.handleLock.unlock();
 		}

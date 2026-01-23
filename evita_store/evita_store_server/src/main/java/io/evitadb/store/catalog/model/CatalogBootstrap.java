@@ -23,10 +23,10 @@
 
 package io.evitadb.store.catalog.model;
 
-import io.evitadb.store.model.FileLocation;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.spi.PersistenceService;
-import io.evitadb.store.spi.model.CatalogHeader;
+import io.evitadb.store.shared.model.FileLocation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
@@ -79,12 +78,11 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-public class CreateAttributeSchemaMutation
-	implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation, NamedSchemaMutation {
+@EqualsAndHashCode(callSuper = true)
+public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutation
+	implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = -469815390440407270L;
 
-	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
@@ -140,11 +138,11 @@ public class CreateAttributeSchemaMutation
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
 	) {
+		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
 		}
-		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.uniqueInScopes = uniqueInScopes == null ?
@@ -415,12 +413,6 @@ public class CreateAttributeSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

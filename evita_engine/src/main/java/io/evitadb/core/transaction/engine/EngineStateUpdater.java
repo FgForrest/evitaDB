@@ -25,7 +25,7 @@ package io.evitadb.core.transaction.engine;
 
 
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.core.ExpandedEngineState;
+import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.function.LongObjectFunction;
 
 import javax.annotation.Nonnull;
@@ -33,7 +33,7 @@ import java.util.UUID;
 
 /**
  * Functional interface used by {@link io.evitadb.core.transaction.engine.EngineTransactionManager}
- * to transition the {@link io.evitadb.core.ExpandedEngineState} during engine mutations.
+ * to transition the {@link ExpandedEngineState} during engine mutations.
  *
  * It extends {@link java.util.function.UnaryOperator} and therefore implements one method
  * {@code apply(ExpandedEngineState)} that must return the next state. Implementations are executed

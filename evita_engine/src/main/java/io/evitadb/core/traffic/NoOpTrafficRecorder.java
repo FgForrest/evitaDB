@@ -29,9 +29,9 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.file.ExportFileService;
-import io.evitadb.store.spi.SessionSink;
-import io.evitadb.store.spi.TrafficRecorder;
+import io.evitadb.core.management.FileManagementService;
+import io.evitadb.spi.store.catalog.trafficRecorder.SessionSink;
+import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -53,7 +53,7 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 	@Override
 	public void init(
 		@Nonnull String catalogName,
-		@Nonnull ExportFileService exportFileService,
+		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Scheduler scheduler,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TrafficRecordingOptions recordingOptions

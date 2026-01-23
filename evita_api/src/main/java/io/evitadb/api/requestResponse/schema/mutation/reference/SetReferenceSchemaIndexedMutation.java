@@ -67,7 +67,8 @@ import java.util.stream.Collectors;
 @Immutable
 @EqualsAndHashCode(callSuper = true)
 public class SetReferenceSchemaIndexedMutation
-	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
+	extends AbstractModifyReferenceDataSchemaMutation
+	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -5386807849414938326L;
 	@Getter private final ScopedReferenceIndexType[] indexedInScopes;
 
