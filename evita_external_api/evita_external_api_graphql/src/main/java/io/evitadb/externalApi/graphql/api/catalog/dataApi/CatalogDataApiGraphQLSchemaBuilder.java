@@ -44,6 +44,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityRemoveMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationUnionDescriptor;
@@ -80,7 +81,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Gra
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.HeadConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.ReferenceInterfaceBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.mutation.CatalogDataMutationUnionDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionSizeDataFetcher;
@@ -138,7 +138,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final RequireConstraintSchemaBuilder mainQueryRequireConstraintSchemaBuilder;
 	@Nonnull private final RequireConstraintSchemaBuilder mainListRequireConstraintSchemaBuilder;
 
-	@Nonnull private final ReferenceInterfaceBuilder referenceInterfaceBuilder;
 	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
 	@Nonnull private final GlobalEntityObjectBuilder globalEntityObjectBuilder;
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
@@ -172,10 +171,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			new AtomicReference<>(this.filterConstraintSchemaBuilder)
 		);
 
-		this.referenceInterfaceBuilder = new ReferenceInterfaceBuilder(
-			this.buildingContext,
-			this.interfaceBuilderTransformer
-		);
 		this.entityObjectBuilder = new EntityObjectBuilder(
 			this.buildingContext,
 			this.constraintContext,
@@ -197,6 +192,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			this.buildingContext,
 			this.argumentBuilderTransformer,
 			this.objectBuilderTransformer,
+			this.interfaceBuilderTransformer,
 			this.inputObjectBuilderTransformer,
 			this.fieldBuilderTransformer,
 			this.inputFieldBuilderTransformer,
@@ -246,6 +242,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		this.entityObjectBuilder.buildCommonTypes();
 		this.buildingContext.registerType(this.globalEntityObjectBuilder.build());
+
+		final GraphQLInterfaceType facetStatisticsInterface = FacetStatisticsDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(facetStatisticsInterface);
+		this.buildingContext.registerTypeResolver(facetStatisticsInterface, HelperInterfaceTypeResolver.getInstance());
 
 		this.fullResponseObjectBuilder.buildCommonTypes();
 	}

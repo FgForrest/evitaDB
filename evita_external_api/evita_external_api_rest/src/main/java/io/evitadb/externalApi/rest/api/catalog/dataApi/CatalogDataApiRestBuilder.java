@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
@@ -188,12 +189,14 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		this.buildingContext.registerType(CollectionDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// should be used interface builder, but that is doable once we have a robust framework for creating interfaces in OpenAPI
-		this.buildingContext.registerType(ReferenceDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(DataChunkDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(PaginatedListDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(StripListDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 
 		this.entityObjectBuilder.buildCommonTypes();
+		// should be used interface builder, but that is doable once we have a robust framework for creating interfaces in OpenAPI
+		this.buildingContext.registerType(ReferenceDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(FacetStatisticsDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.fullResponseObjectBuilder.buildCommonTypes();
 	}
 
