@@ -66,7 +66,7 @@ ones.
 There isn't a single GraphQL API instance for the whole evitaDB instance. Instead, each evitaDB [catalog](/documentation/user/en/use/data-model.md#catalog)
 has its own GraphQL API (actually each catalog has two GraphQL
 API instances, but more on that later) on its own URL with data only from that particular catalog.
-In addition, there is one another GraphQL API instance that is reserved for evitaDB administration
+In addition, there is another GraphQL API instance that is reserved for evitaDB administration
 (e.g. creating new catalogs, removing existing catalogs) called <Term>system API</Term>.
 
 Each GraphQL API instance URL starts with `/gql`, followed by the URL-formatted catalog name for specific
@@ -114,8 +114,8 @@ with its own relevant GraphQL schema:
 
 - `/gql/fashion` - a <Term>catalog data API</Term> to query or update the actual data of the `fashion` catalog
 - `/gql/fashion/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `fashion` catalog
-- `/gql/electronic` - a <Term>catalog data API</Term> to query or update the actual data of the `electronic` catalog
-- `/gql/electronic/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `electronic` catalog
+- `/gql/electronics` - a <Term>catalog data API</Term> to query or update the actual data of the `electronics` catalog
+- `/gql/electronics/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `electronics` catalog
 - `/gql/system` - the <Term>system API</Term> to manage evitaDB itself
 
 </Note>
@@ -151,7 +151,7 @@ create reusable components.
 
 The reusable interface types can be found in:
 
-**Entity references** are split into several levels interface and object types based on generalization scopes:
+**Entity references** are split into several levels of interface and object types based on generalization scopes:
 
 - generic reference to any entity
   - can be accessed from any entity reference 
@@ -267,9 +267,9 @@ classDiagram
 ```
 </Note>
 
-To also be able to reuse inline reference filtering and ordering, a `With*Reference `interface is generated for
-each combination of reference namem referenced entity type, set of attributes and a group. Each source entity than
-implements such interface that matches its reference definition.
+To also be able to reuse inline reference filtering and ordering, a `With*Reference` interface is generated for
+each combination of reference name, referenced entity type, set of attributes and a group. Each source entity then
+implements such an interface that matches its reference definition.
 
 <Note type="info">
 
@@ -349,11 +349,11 @@ standard tools. However, below are our recommendations for tools etc. that we us
 
 ### Recommended IDEs
 
-We've developed our own GUI tool called [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) which supports GraphQL with usefull tools (e.g. data visualisations).
+We've developed our own GUI tool called [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) which supports GraphQL with useful tools (e.g. data visualizations).
 It also has other useful tools for exploring evitaDB instances, not just using GraphQL API.
-Therefore, this is our recommened chose of IDE for our APIs.
+Therefore, this is our recommended choice of IDE for our APIs.
 
-However if you want to use a generic GraphQL tool, we have recommendations for that too.
+However, if you want to use a generic GraphQL tool, we have recommendations for that too.
 During development, we have come across and tried several tools for consuming GraphQL APIs, but there are only a few that we can recommend.
 
 For a desktop IDE to test and explore GraphQL APIs, the [Altair](https://altairgraphql.dev/) client proved to be a great help. It is a
@@ -369,8 +369,8 @@ If you are looking for a web-based client that you can integrate into your appli
 
 The basic idea of using the IDE is to first fetch the GraphQL API schema from one of the above-mentioned URLs that are
 exposed by evitaDB. Then explore the API schema using the IDE's docs/API schema explorer and start typing a query or mutation to send to the server.
-In case of e.g. the [Altair](https://altairgraphql.dev/) you don't even need to explore the API schema manually because
-Altair has, like many others, has a code-completion in its editor based on the retrieved API schema.
+In the case of e.g. [Altair](https://altairgraphql.dev/), you don't even need to explore the API schema manually because
+Altair, like many others, has code-completion in its editor based on the retrieved API schema.
 
 ### Recommended client libraries
 
