@@ -56,7 +56,7 @@ mvn clean install
 - **Display names**: Use `@DisplayName` for entire class and for test methods to provide clear descriptions (do not repeat class description content in method descriptions)
 - **Coverage**: Automatically generate test cases for all public methods
 - for running tests try to use IntelliJ MCP, when not possible use Maven, 
-  prefer running indiviual test classes over running entire test suite, if you run entire test suite use profile `unitAndFunctional`
+  prefer running individual test classes over running entire test suite, if you run entire test suite use profile `unitAndFunctional`
 
 ## Project Organization
 
