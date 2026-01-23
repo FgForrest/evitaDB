@@ -32,20 +32,18 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.*;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferencePageDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder.EntityObjectVariant;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.EntityReferenceObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.EntityReferencePageObjectBuilder;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.ReferencePageInterfaceBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.EntityReferenceStripObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.WithNamedReferenceInterfaceBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ReferenceChunkDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ReferenceDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.ReferencesDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.HelperInterfaceTypeResolver;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -71,8 +69,7 @@ public class EntityObjectReferenceDecorator implements EntityObjectDecorator {
 	@Nonnull private final WithNamedReferenceInterfaceBuilder withNamedReferenceInterfaceBuilder;
 	@Nonnull private final EntityReferenceObjectBuilder entityReferenceObjectBuilder;
 	@Nonnull private final EntityReferencePageObjectBuilder entityReferencePageObjectBuilder;
-	// todo lho
-//	@Nonnull private final EntityReferenceStripObjectBuilder entityReferenceStripObjectBuilder;
+	@Nonnull private final EntityReferenceStripObjectBuilder entityReferenceStripObjectBuilder;
 
 	public void decorate(
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
@@ -135,16 +132,15 @@ public class EntityObjectReferenceDecorator implements EntityObjectDecorator {
 					withReferenceInterface
 				)
 			);
-			// todo lho
-//			this.buildingContext.registerFieldToObject(
-//				entityObjectName,
-//				entityObjectBuilder,
-//				buildReferenceStripField(
-//					collectionBuildingContext,
-//					referenceSchema,
-//					withReferenceInterface
-//				)
-//			);
+			this.buildingContext.registerFieldToObject(
+				entityObjectName,
+				entityObjectBuilder,
+				buildReferenceStripField(
+					collectionBuildingContext,
+					referenceSchema,
+					withReferenceInterface
+				)
+			);
 		}
 	}
 
@@ -214,33 +210,32 @@ public class EntityObjectReferenceDecorator implements EntityObjectDecorator {
 		);
 	}
 
-	// todo lho
-//	@Nonnull
-//	private BuiltFieldDescriptor buildReferenceStripField(
-//		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
-//		@Nonnull ReferenceSchemaContract referenceSchema,
-//		@Nonnull GraphQLInterfaceType withReferenceInterface
-//	) {
-//		final String fieldName = EntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
-//
-//		final GraphQLFieldDefinition fieldTemplate = withReferenceInterface.getFieldDefinition(fieldName);
-//		Assert.isPremiseValid(
-//			fieldTemplate != null,
-//			() -> new GraphQLSchemaBuildingError(
-//				"No reference strip field found.",
-//				"No reference strip field for reference `" + referenceSchema.getName() + "` found in `WithReference` interface."
-//			)
-//		);
-//
-//		final GraphQLFieldDefinition referenceStripField = newFieldDefinition(fieldTemplate)
-//			.type(this.entityReferenceStripObjectBuilder.build(collectionBuildingContext, referenceSchema))
-//			.build();
-//
-//		return new BuiltFieldDescriptor(
-//			referenceStripField,
-//			new ReferenceChunkDataFetcher(referenceSchema)
-//		);
-//	}
+	@Nonnull
+	private BuiltFieldDescriptor buildReferenceStripField(
+		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull GraphQLInterfaceType withReferenceInterface
+	) {
+		final String fieldName = EntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
+
+		final GraphQLFieldDefinition fieldTemplate = withReferenceInterface.getFieldDefinition(fieldName);
+		Assert.isPremiseValid(
+			fieldTemplate != null,
+			() -> new GraphQLSchemaBuildingError(
+				"No reference strip field found.",
+				"No reference strip field for reference `" + referenceSchema.getName() + "` found in `WithReference` interface."
+			)
+		);
+
+		final GraphQLFieldDefinition referenceStripField = newFieldDefinition(fieldTemplate)
+			.type(this.entityReferenceStripObjectBuilder.build(collectionBuildingContext, referenceSchema))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			referenceStripField,
+			new ReferenceChunkDataFetcher(referenceSchema)
+		);
+	}
 
 	private static boolean isReferenceList(@Nonnull ReferenceSchemaContract referenceSchema) {
 		return referenceSchema.getCardinality().getMax() > 1;

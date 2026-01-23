@@ -67,6 +67,7 @@ public class WithNamedReferenceInterfaceBuilder {
 
 	@Nonnull private final ReferenceDefinitionInterfaceBuilder referenceDefinitionInterfaceBuilder;
 	@Nonnull private final ReferenceDefinitionPageInterfaceBuilder referenceDefinitionPageInterfaceBuilder;
+	@Nonnull private final ReferenceDefinitionStripInterfaceBuilder referenceDefinitionStripInterfaceBuilder;
 
 	/**
 	 * It obtains from cache or creates a new interface for the passed reference schema. If another reference schema
@@ -143,15 +144,15 @@ public class WithNamedReferenceInterfaceBuilder {
 						)
 					);
 
-					// todo lho
-//					interfaceBuilder.field(
-//						buildReferenceStripFieldbuildReferenceStripField(
-//							referenceSchema,
-//							filterArgumentType,
-//							orderArgumentType,
-//							referenceDefinitionInterface
-//						)
-//					);
+					interfaceBuilder.field(
+						buildReferenceStripField(
+							collectionBuildingContext,
+							referenceSchema,
+							filterArgumentType,
+							orderArgumentType,
+							referenceDefinitionInterface
+						)
+					);
 				}
 
 				return interfaceBuilder.build();
@@ -202,7 +203,7 @@ public class WithNamedReferenceInterfaceBuilder {
 
 	@Nonnull
 	private GraphQLFieldDefinition buildReferencePageField(
-		@Nonnull CollectionGraphQLSchemaBuildingContext colectionBuildingContext,
+		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull GraphQLInputType filterArgumentType,
 		@Nonnull GraphQLInputType orderArgumentType,
@@ -213,7 +214,7 @@ public class WithNamedReferenceInterfaceBuilder {
 			.name(WithNamedReferenceDescriptor.REFERENCE_PAGE.name(referenceSchema))
 			.description(referenceSchema.getDescription())
 			.deprecate(referenceSchema.getDeprecationNotice())
-			.type(this.referenceDefinitionPageInterfaceBuilder.getOrBuild(colectionBuildingContext, referenceSchema))
+			.type(this.referenceDefinitionPageInterfaceBuilder.getOrBuild(collectionBuildingContext, referenceSchema))
 			.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
 				.to(this.argumentBuilderTransformer)
 				.type(filterArgumentType))
@@ -229,6 +230,7 @@ public class WithNamedReferenceInterfaceBuilder {
 
 	@Nonnull
 	private GraphQLFieldDefinition buildReferenceStripField(
+		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull GraphQLInputType filterArgumentType,
 		@Nonnull GraphQLInputType orderArgumentType,
@@ -239,8 +241,7 @@ public class WithNamedReferenceInterfaceBuilder {
 			.name(WithNamedReferenceDescriptor.REFERENCE_STRIP.name(referenceSchema))
 			.description(referenceSchema.getDescription())
 			.deprecate(referenceSchema.getDeprecationNotice())
-			// todo lho impl
-//			.type(buildReferenceStripObject(referenceSchema))
+			.type(this.referenceDefinitionStripInterfaceBuilder.getOrBuild(collectionBuildingContext, referenceSchema))
 			.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
 				.to(this.argumentBuilderTransformer)
 				.type(filterArgumentType))

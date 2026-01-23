@@ -96,7 +96,7 @@ public class DataApiNamesConstructor {
 	public static String constructReferenceStripObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                      @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                      boolean localized) {
-		return ReferenceDefinitionStripDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
+		return ReferenceDefinitionStripDescriptor.THIS_INTERFACE.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
 	}
 
 	@Nonnull

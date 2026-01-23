@@ -602,7 +602,7 @@ public class EntityObjectBuilder {
 	                                                       @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                       boolean localized) {
 		return this.buildingContext.registerType(
-			ReferenceDefinitionStripDescriptor.THIS
+			ReferenceDefinitionStripDescriptor.THIS_INTERFACE
 				.to(this.objectBuilderTransformer)
 				.name(constructReferenceStripObjectName(entitySchema, referenceSchema, localized))
 				.description(referenceSchema.getDescription())

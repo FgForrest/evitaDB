@@ -155,6 +155,34 @@ public class EntityObjectBuilder {
 			entityReferenceObjectBuilder
 		);
 
+		final ReferenceStripInterfaceBuilder referenceStripInterfaceBuilder = new ReferenceStripInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer
+		);
+		final ReferenceWithReferencedEntityStripInterfaceBuilder referenceWithReferencedEntityStripInterfaceBuilder = new ReferenceWithReferencedEntityStripInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer,
+			fieldBuilderTransformer,
+			referenceStripInterfaceBuilder,
+			referenceWithReferencedEntityInterfaceBuilder
+		);
+		final ReferenceDefinitionStripInterfaceBuilder referenceDefinitionStripInterfaceBuilder = new ReferenceDefinitionStripInterfaceBuilder(
+			buildingContext,
+			interfaceBuilderTransformer,
+			fieldBuilderTransformer,
+			referenceStripInterfaceBuilder,
+			referenceWithReferencedEntityStripInterfaceBuilder,
+			referenceDefinitionInterfaceBuilder
+		);
+		final EntityReferenceStripObjectBuilder entityReferenceStripObjectBuilder = new EntityReferenceStripObjectBuilder(
+			objectBuilderTransformer,
+			fieldBuilderTransformer,
+			referenceStripInterfaceBuilder,
+			referenceWithReferencedEntityStripInterfaceBuilder,
+			referenceDefinitionStripInterfaceBuilder,
+			entityReferenceObjectBuilder
+		);
+
 		final WithNamedReferenceInterfaceBuilder withNamedReferenceInterfaceBuilder = new WithNamedReferenceInterfaceBuilder(
 			buildingContext,
 			filterConstraintSchemaBuilder,
@@ -163,7 +191,8 @@ public class EntityObjectBuilder {
 			interfaceBuilderTransformer,
 			fieldBuilderTransformer,
 			referenceDefinitionInterfaceBuilder,
-			referenceDefinitionPageInterfaceBuilder
+			referenceDefinitionPageInterfaceBuilder,
+			referenceDefinitionStripInterfaceBuilder
 		);
 
 		this.entityObjectDecorators = List.of(
@@ -200,7 +229,8 @@ public class EntityObjectBuilder {
 				interfaceBuilderTransformer,
 				withNamedReferenceInterfaceBuilder,
 				entityReferenceObjectBuilder,
-				entityReferencePageObjectBuilder
+				entityReferencePageObjectBuilder,
+				entityReferenceStripObjectBuilder
 			)
 		);
 	}
