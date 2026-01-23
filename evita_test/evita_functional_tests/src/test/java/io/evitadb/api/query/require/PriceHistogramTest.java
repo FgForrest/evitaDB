@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,9 +49,22 @@ class PriceHistogramTest {
 	}
 
 	@Test
+	void shouldCreateWithEqualizedBehavior() {
+		final PriceHistogram priceHistogram1 = priceHistogram(20, HistogramBehavior.EQUALIZED);
+		assertEquals(20, priceHistogram1.getRequestedBucketCount());
+		assertEquals(HistogramBehavior.EQUALIZED, priceHistogram1.getBehavior());
+
+		final PriceHistogram priceHistogram2 = priceHistogram(20, HistogramBehavior.EQUALIZED_OPTIMIZED);
+		assertEquals(20, priceHistogram2.getRequestedBucketCount());
+		assertEquals(HistogramBehavior.EQUALIZED_OPTIMIZED, priceHistogram2.getBehavior());
+	}
+
+	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(priceHistogram(20).isApplicable());
 		assertTrue(priceHistogram(20, HistogramBehavior.OPTIMIZED).isApplicable());
+		assertTrue(priceHistogram(20, HistogramBehavior.EQUALIZED).isApplicable());
+		assertTrue(priceHistogram(20, HistogramBehavior.EQUALIZED_OPTIMIZED).isApplicable());
 	}
 
 	@Test

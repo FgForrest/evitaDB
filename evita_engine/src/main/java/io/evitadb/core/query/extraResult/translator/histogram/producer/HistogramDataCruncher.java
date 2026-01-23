@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2020
  */
-public class HistogramDataCruncher<T> {
+public class HistogramDataCruncher<T> implements HistogramDataCruncherContract<T> {
 	/**
 	 * Contains requested maximal bucket count.
 	 */
@@ -69,7 +69,7 @@ public class HistogramDataCruncher<T> {
 	/**
 	 * Contains array of output data (buckets in histogram).
 	 */
-	@Getter private final CacheableBucket[] histogram;
+	private final CacheableBucket[] histogram;
 	/**
 	 * Internal variable containing optimal threshold step between buckets.
 	 */
@@ -229,8 +229,19 @@ public class HistogramDataCruncher<T> {
 	}
 
 	/**
+	 * Returns the computed histogram as an array of buckets.
+	 */
+	@Nonnull
+	@Override
+	public CacheableBucket[] getHistogram() {
+		return this.histogram;
+	}
+
+	/**
 	 * Returns maximal value found in the input data.
 	 */
+	@Nonnull
+	@Override
 	public BigDecimal getMaxValue() {
 		return this.toBigDecimalConverter.apply(this.lastThreshold).setScale(this.limitDecimalPlacesTo, RoundingMode.UP);
 	}

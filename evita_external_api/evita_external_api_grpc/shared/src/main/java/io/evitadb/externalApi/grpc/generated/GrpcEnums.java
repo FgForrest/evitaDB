@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -100,8 +100,9 @@ public final class GrpcEnums {
       "\023WITHOUT_USER_FILTER\020\001\0221\n-COMPLETE_FILTE" +
       "R_EXCLUDING_SELF_IN_USER_FILTER\020\002*B\n\022Grp" +
       "cStatisticsType\022\022\n\016CHILDREN_COUNT\020\000\022\030\n\024Q" +
-      "UERIED_ENTITY_COUNT\020\001*4\n\025GrpcHistogramBe" +
-      "havior\022\014\n\010STANDARD\020\000\022\r\n\tOPTIMIZED\020\001*7\n\036G" +
+      "UERIED_ENTITY_COUNT\020\001*\\\n\025GrpcHistogramBe" +
+      "havior\022\014\n\010STANDARD\020\000\022\r\n\tOPTIMIZED\020\001\022\r\n\tE" +
+      "QUALIZED\020\002\022\027\n\023EQUALIZED_OPTIMIZED\020\003*7\n\036G" +
       "rpcManagedReferencesBehaviour\022\007\n\003ANY\020\000\022\014" +
       "\n\010EXISTING\020\001*P\n\034GrpcPriceInnerRecordHand" +
       "ling\022\010\n\004NONE\020\000\022\020\n\014LOWEST_PRICE\020\001\022\007\n\003SUM\020" +

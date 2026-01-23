@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -356,6 +356,43 @@ class HistogramDataCruncherTest {
 			new BigDecimal(30),
 			cruncher.getMaxValue()
 		);
+	}
+
+	@Test
+	void computeHistogramFromHeavilySkewedData() {
+		// Data heavily skewed to low values - demonstrates STANDARD behavior limitation
+		final HistogramDataCruncher<Integer> cruncher = createIntCruncher(
+			4,
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 100
+		);
+		// With STANDARD behavior, most records end up in first bucket
+		assertArrayEquals(
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(1), 9),
+				new CacheableBucket(new BigDecimal(26), 0),
+				new CacheableBucket(new BigDecimal(51), 0),
+				new CacheableBucket(new BigDecimal(76), 1)
+			},
+			cruncher.getHistogram()
+		);
+		assertEquals(new BigDecimal(100), cruncher.getMaxValue());
+	}
+
+	@Test
+	void computeOptimalHistogramFromHeavilySkewedData() {
+		final HistogramDataCruncher<Integer> cruncher = createOptimalCruncher(
+			4,
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 100
+		);
+		// OPTIMIZED reduces buckets when there are large gaps
+		assertArrayEquals(
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(1), 9),
+				new CacheableBucket(new BigDecimal(51), 1)
+			},
+			cruncher.getHistogram()
+		);
+		assertEquals(new BigDecimal(100), cruncher.getMaxValue());
 	}
 
 	@Nonnull

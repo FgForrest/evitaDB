@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -129,10 +129,11 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	private CacheableHistogramContract memoizedResult;
 
 	/**
-	 * Method creates instance of {@link HistogramDataCruncher} that computes optimal histogram for the attribute.
+	 * Method creates instance of histogram data cruncher that computes optimal histogram for the attribute.
+	 * Returns either {@link HistogramDataCruncher} or {@link EqualizedHistogramDataCruncher} based on behavior.
 	 */
 	@Nullable
-	private static <T extends Comparable<T>> HistogramDataCruncher<T> createHistogramDataCruncher(
+	private static <T extends Comparable<T>> HistogramDataCruncherContract<?> createHistogramDataCruncher(
 		@Nonnull AttributeHistogramComputer histogramComputer,
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
@@ -145,39 +146,48 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			final AttributeHistogramRequest attributeHistogramRequest = histogramComputer.getRequest();
 			final ToIntFunction<T> converter = createNumberToIntegerConverter(attributeHistogramRequest);
 			final int decimalPlaces = attributeHistogramRequest.getDecimalPlaces();
-			if (behavior == HistogramBehavior.OPTIMIZED) {
-				//noinspection unchecked
-				return (HistogramDataCruncher<T>) HistogramDataCruncher.createOptimalHistogram(
-					" attribute `" + histogramComputer.getAttributeName() + "` histogram",
+			final String histogramName = " attribute `" + histogramComputer.getAttributeName() + "` histogram";
+
+			return switch (behavior) {
+				case STANDARD -> new HistogramDataCruncher<>(
+					histogramName,
 					bucketCount,
 					decimalPlaces,
-					// combine all together - we want to have single bucket for single distinct value
 					buckets,
-					// value in the bucket represents the distinct value
 					bucket -> converter.applyAsInt((T) bucket.getValue()),
-					// number of records in the bucket represents the weight of it
 					bucket -> bucket.getRecordIds().size(),
-					// conversion method from / to BigDecimal that use histogramRequest#decimalPlaces for the conversion
 					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
 					value -> decimalPlaces == 0 ? value.intValueExact() : value.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).intValueExact()
 				);
-			} else {
-				//noinspection unchecked
-				return (HistogramDataCruncher<T>) new HistogramDataCruncher<>(
-					" attribute `" + histogramComputer.getAttributeName() + "` histogram",
+				case OPTIMIZED -> HistogramDataCruncher.createOptimalHistogram(
+					histogramName,
 					bucketCount,
 					decimalPlaces,
-					// combine all together - we want to have single bucket for single distinct value
 					buckets,
-					// value in the bucket represents the distinct value
 					bucket -> converter.applyAsInt((T) bucket.getValue()),
-					// number of records in the bucket represents the weight of it
 					bucket -> bucket.getRecordIds().size(),
-					// conversion method from / to BigDecimal that use histogramRequest#decimalPlaces for the conversion
 					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
 					value -> decimalPlaces == 0 ? value.intValueExact() : value.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).intValueExact()
 				);
-			}
+				case EQUALIZED -> new EqualizedHistogramDataCruncher<>(
+					histogramName,
+					bucketCount,
+					decimalPlaces,
+					buckets,
+					bucket -> converter.applyAsInt((T) bucket.getValue()),
+					bucket -> bucket.getRecordIds().size(),
+					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces)
+				);
+				case EQUALIZED_OPTIMIZED -> EqualizedHistogramDataCruncher.createOptimalHistogram(
+					histogramName,
+					bucketCount,
+					decimalPlaces,
+					buckets,
+					bucket -> converter.applyAsInt((T) bucket.getValue()),
+					bucket -> bucket.getRecordIds().size(),
+					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces)
+				);
+			};
 		}
 	}
 
@@ -359,7 +369,11 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	@Override
 	public long getOperationCost() {
 		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
-		return this.behavior == HistogramBehavior.STANDARD ? 2213 : 3320;
+		// equalized variants have similar cost structure
+		return switch (this.behavior) {
+			case STANDARD, EQUALIZED -> 2213;
+			case OPTIMIZED, EQUALIZED_OPTIMIZED -> 3320;
+		};
 	}
 
 	@Override
@@ -382,14 +396,14 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			final ValueToRecordBitmap[] histogramBuckets = computeNarrowedHistogramBuckets(
 				this, this.filterFormula, this.request.comparator()
 			);
-			final HistogramDataCruncher<?> optimalHistogram = createHistogramDataCruncher(
+			final HistogramDataCruncherContract<?> histogramCruncher = createHistogramDataCruncher(
 				this, this.bucketCount, this.behavior, histogramBuckets
 			);
 
-			if (optimalHistogram != null) {
+			if (histogramCruncher != null) {
 				this.memoizedResult = new CacheableHistogram(
-					optimalHistogram.getHistogram(),
-					optimalHistogram.getMaxValue()
+					histogramCruncher.getHistogram(),
+					histogramCruncher.getMaxValue()
 				);
 			} else {
 				this.memoizedResult = CacheableHistogramContract.EMPTY;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -146,6 +146,59 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 */
 	private CacheableHistogramContract memoizedResult;
 
+	/**
+	 * Method creates instance of histogram data cruncher that computes optimal histogram for prices.
+	 * Returns either {@link HistogramDataCruncher} or {@link EqualizedHistogramDataCruncher} based on behavior.
+	 *
+	 * @param bucketCount        requested number of buckets
+	 * @param behavior           histogram behavior (STANDARD, OPTIMIZED, EQUALIZED, EQUALIZED_OPTIMIZED)
+	 * @param indexedPricePlaces number of decimal places for price indexing
+	 * @param priceRecords       sorted array of price records
+	 * @param priceRetriever     function to extract price value from price record
+	 * @return histogram data cruncher or null if price records are empty
+	 */
+	@Nullable
+	private static HistogramDataCruncherContract<PriceRecordContract> createHistogramDataCruncher(
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		int indexedPricePlaces,
+		@Nonnull PriceRecordContract[] priceRecords,
+		@Nonnull ToIntFunction<PriceRecordContract> priceRetriever
+	) {
+		if (ArrayUtils.isEmpty(priceRecords)) {
+			return null;
+		}
+
+		return switch (behavior) {
+			case STANDARD -> new HistogramDataCruncher<>(
+				"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+				priceRetriever,
+				value -> 1,
+				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
+				value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
+			);
+			case OPTIMIZED -> HistogramDataCruncher.createOptimalHistogram(
+				"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+				priceRetriever,
+				value -> 1,
+				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
+				value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
+			);
+			case EQUALIZED -> new EqualizedHistogramDataCruncher<>(
+				"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+				priceRetriever,
+				value -> 1,
+				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces)
+			);
+			case EQUALIZED_OPTIMIZED -> EqualizedHistogramDataCruncher.createOptimalHistogram(
+				"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+				priceRetriever,
+				value -> 1,
+				value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces)
+			);
+		};
+	}
+
 	public PriceHistogramComputer(
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
@@ -249,7 +302,11 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	@Override
 	public long getOperationCost() {
 		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
-		return this.behavior == HistogramBehavior.STANDARD ? 7511 : 11267;
+		// equalized variants have similar cost structure
+		return switch (this.behavior) {
+			case STANDARD, EQUALIZED -> 7511;
+			case OPTIMIZED, EQUALIZED_OPTIMIZED -> 11267;
+		};
 	}
 
 	@Override
@@ -317,31 +374,19 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 				// sort prices by price in ascending order (histograms are always sorted from low to high value)
 				Arrays.sort(priceRecords, priceComparator);
 
-				// use histogram data cruncher to produce the histogram
-				final HistogramDataCruncher<PriceRecordContract> resultHistogram;
-				if (this.behavior == HistogramBehavior.OPTIMIZED) {
-					resultHistogram = HistogramDataCruncher.createOptimalHistogram(
-						"price histogram", this.bucketCount, this.indexedPricePlaces, priceRecords,
-						priceRetriever,
-						value -> 1,
-						value -> this.indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * this.indexedPricePlaces),
-						value -> this.indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(this.indexedPricePlaces).intValueExact()
+				// create cruncher that will compute the histogram
+				final HistogramDataCruncherContract<PriceRecordContract> histogramCruncher = createHistogramDataCruncher(
+					this.bucketCount, this.behavior, this.indexedPricePlaces, priceRecords, priceRetriever
+				);
+
+				if (histogramCruncher != null) {
+					this.memoizedResult = new CacheableHistogram(
+						histogramCruncher.getHistogram(),
+						histogramCruncher.getMaxValue()
 					);
 				} else {
-					resultHistogram = new HistogramDataCruncher<>(
-						"price histogram", this.bucketCount, this.indexedPricePlaces, priceRecords,
-						priceRetriever,
-						value -> 1,
-						value -> this.indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * this.indexedPricePlaces),
-						value -> this.indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(this.indexedPricePlaces).intValueExact()
-					);
+					this.memoizedResult = CacheableHistogramContract.EMPTY;
 				}
-
-				// and finish
-				this.memoizedResult = new CacheableHistogram(
-					resultHistogram.getHistogram(),
-					resultHistogram.getMaxValue()
-				);
 			} else {
 				this.memoizedResult = CacheableHistogramContract.EMPTY;
 			}

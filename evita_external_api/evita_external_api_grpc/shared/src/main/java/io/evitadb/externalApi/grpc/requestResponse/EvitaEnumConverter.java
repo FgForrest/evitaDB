@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -356,6 +356,8 @@ public class EvitaEnumConverter {
 		return switch (grpcHistogramBehavior.getNumber()) {
 			case 0 -> HistogramBehavior.STANDARD;
 			case 1 -> HistogramBehavior.OPTIMIZED;
+			case 2 -> HistogramBehavior.EQUALIZED;
+			case 3 -> HistogramBehavior.EQUALIZED_OPTIMIZED;
 			default ->
 				throw new GenericEvitaInternalError("Unrecognized remote histogram behavior: " + grpcHistogramBehavior);
 		};
@@ -372,6 +374,8 @@ public class EvitaEnumConverter {
 		return switch (histogramBehavior) {
 			case STANDARD -> GrpcHistogramBehavior.STANDARD;
 			case OPTIMIZED -> GrpcHistogramBehavior.OPTIMIZED;
+			case EQUALIZED -> GrpcHistogramBehavior.EQUALIZED;
+			case EQUALIZED_OPTIMIZED -> GrpcHistogramBehavior.EQUALIZED_OPTIMIZED;
 		};
 	}
 
