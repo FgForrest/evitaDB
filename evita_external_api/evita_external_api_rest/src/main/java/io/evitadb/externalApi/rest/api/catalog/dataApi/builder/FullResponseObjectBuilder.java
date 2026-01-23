@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordPageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
@@ -36,7 +38,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResults
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
@@ -87,6 +89,10 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
 
 	public void buildCommonTypes() {
+		// these should be generated using interface transformer, but we need a robust framework for that
+		this.buildingContext.registerType(RecordPageDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RecordStripDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
+
 		this.buildingContext.registerType(BucketDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(HistogramDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(QueryTelemetryDescriptor.THIS.to(this.objectBuilderTransformer).build());
@@ -133,9 +139,10 @@ public class FullResponseObjectBuilder {
 	                                                   boolean localized) {
 		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchema, localized));
 
-		final OpenApiObject recordPageObject = RecordPageDescriptor.THIS
+		final OpenApiObject recordPageObject = EntityRecordPageDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(constructRecordPageObjectName(entitySchema, localized))
+			.description(EntityRecordPageDescriptor.THIS.description(entitySchema))
 			.property(buildDataChunkDataProperty(entityObject))
 			.property(createDataChunkDiscriminatorProperty())
 			.build();
@@ -148,9 +155,10 @@ public class FullResponseObjectBuilder {
 	                                                    boolean localized) {
 		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchema, localized));
 
-		final OpenApiObject recordStripObject = RecordStripDescriptor.THIS
+		final OpenApiObject recordStripObject = EntityRecordStripDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(constructRecordStripObjectName(entitySchema, localized))
+			.description(EntityRecordStripDescriptor.THIS.description(entitySchema))
 			.property(buildDataChunkDataProperty(entityObject))
 			.property(createDataChunkDiscriminatorProperty())
 			.build();
@@ -386,10 +394,10 @@ public class FullResponseObjectBuilder {
 			null;
 		final OpenApiTypeReference facetEntityObject = buildReferencedEntityObject(facetEntitySchema, localized);
 
-		final OpenApiObject facetStatisticsObject = FacetStatisticsDescriptor.THIS
+		final OpenApiObject facetStatisticsObject = EntityFacetStatisticsDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(constructFacetStatisticsObjectName(entitySchema, referenceSchema, localized))
-			.property(FacetStatisticsDescriptor.FACET_ENTITY
+			.property(EntityFacetStatisticsDescriptor.FACET_ENTITY
 				.to(this.propertyBuilderTransformer)
 				.type(facetEntityObject))
 			.build();

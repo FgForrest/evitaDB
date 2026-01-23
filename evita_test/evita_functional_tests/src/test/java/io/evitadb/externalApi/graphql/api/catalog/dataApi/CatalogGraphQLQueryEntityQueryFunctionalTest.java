@@ -65,7 +65,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResults
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
@@ -8140,7 +8140,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		return map()
 			.e(TYPENAME_FIELD, ResponseDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			.e(ResponseDescriptor.RECORD_PAGE.name(), map()
-				.e(TYPENAME_FIELD, RecordPageDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+				.e(TYPENAME_FIELD, EntityRecordPageDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 				.e(
 					DataChunkDescriptor.DATA.name(), entities.stream()
 					                                         .map(entityMapper)
@@ -8247,14 +8247,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
@@ -8284,14 +8285,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
@@ -8312,7 +8314,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.e(
@@ -8320,9 +8323,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
@@ -8351,7 +8355,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.e(
@@ -8359,9 +8364,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())

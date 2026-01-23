@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
@@ -4088,12 +4088,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						.stream()
 						.map(facetStatistics -> {
 							final MapBuilder facetStatisticsDto = map()
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
 
 							Optional.ofNullable(facetStatistics.getImpact())
-								.ifPresent(impact -> facetStatisticsDto.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+								.ifPresent(impact -> facetStatisticsDto.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
 									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
@@ -4123,12 +4124,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						.stream()
 						.map(facetStatistics -> {
 							final MapBuilder facetStatisticsDto = map()
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
 
 							Optional.ofNullable(facetStatistics.getImpact())
-								.ifPresent(impact -> facetStatisticsDto.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+								.ifPresent(impact -> facetStatisticsDto.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
 									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())

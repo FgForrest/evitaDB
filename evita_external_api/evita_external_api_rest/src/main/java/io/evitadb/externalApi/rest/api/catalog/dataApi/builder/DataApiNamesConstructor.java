@@ -27,15 +27,15 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.RecordStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordPageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferencePageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
@@ -111,12 +111,12 @@ public class DataApiNamesConstructor {
 
 	@Nonnull
 	public static String constructRecordPageObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
-		return RecordPageDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
+		return EntityRecordPageDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
 	}
 
 	@Nonnull
 	public static String constructRecordStripObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
-		return RecordStripDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
+		return EntityRecordStripDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
 	}
 
 	@Nonnull
@@ -135,7 +135,7 @@ public class DataApiNamesConstructor {
 	public static String constructFacetStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                        @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                        boolean localized) {
-		return FacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
+		return EntityFacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
 	}
 
 	@Nonnull

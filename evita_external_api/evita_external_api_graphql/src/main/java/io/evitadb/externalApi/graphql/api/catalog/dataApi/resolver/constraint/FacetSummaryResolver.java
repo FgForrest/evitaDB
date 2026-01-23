@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypeP
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetGroupStatisticsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetStatisticsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
@@ -194,7 +194,7 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 	private static FacetStatisticsDepth resolveStatisticsDepth(@Nonnull SelectedField field) {
 		final boolean impactNeeded = SelectionSetAggregator.getImmediateFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet())
 			.stream()
-			.anyMatch(f2 -> SelectionSetAggregator.containsImmediate(FacetStatisticsDescriptor.IMPACT.name(), f2.getSelectionSet()));
+			.anyMatch(f2 -> SelectionSetAggregator.containsImmediate(EntityFacetStatisticsDescriptor.IMPACT.name(), f2.getSelectionSet()));
 		return impactNeeded ? FacetStatisticsDepth.IMPACT : FacetStatisticsDepth.COUNTS;
 	}
 
@@ -235,11 +235,11 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 
 		return facetStatisticsFields.stream()
 			.findFirst() // we support only one facet statistics field
-			.map(facetStatisticsField -> SelectionSetAggregator.getImmediateFields(FacetStatisticsDescriptor.FACET_ENTITY.name(), facetStatisticsField.getSelectionSet()))
+			.map(facetStatisticsField -> SelectionSetAggregator.getImmediateFields(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), facetStatisticsField.getSelectionSet()))
 			.flatMap(facetEntityFields -> {
 				Assert.isTrue(
 					facetEntityFields.size() <= 1,
-					() -> new GraphQLInvalidResponseUsageException("There can be only one `" + FacetStatisticsDescriptor.FACET_ENTITY.name() + "` field for reference `" + referenceName + "`.")
+					() -> new GraphQLInvalidResponseUsageException("There can be only one `" + EntityFacetStatisticsDescriptor.FACET_ENTITY.name() + "` field for reference `" + referenceName + "`.")
 				);
 
 				return facetEntityFields.stream()
