@@ -1,5 +1,0 @@
-### Download GraphQL schema
-GET https://localhost:5555/gql/evita
-Accept: application/graphql
-
->> graphql-schema.graphql
