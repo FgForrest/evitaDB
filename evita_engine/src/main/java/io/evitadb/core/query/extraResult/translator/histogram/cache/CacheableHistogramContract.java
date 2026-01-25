@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -90,11 +90,6 @@ public interface CacheableHistogramContract extends Serializable {
 		public int estimateSize() {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE;
 		}
-
-		@Override
-		public String toString() {
-			return "EMPTY HISTOGRAM";
-		}
 	};
 
 	/**
@@ -144,6 +139,26 @@ public interface CacheableHistogramContract extends Serializable {
 	HistogramContract convertToHistogram(@Nonnull Predicate<BigDecimal> requestedPredicate);
 
 	/**
+	 * Converts the histogram represented by the current instance into a formatted string.
+	 * The string representation includes details about the buckets, their thresholds, occurrences,
+	 * and other histogram-specific data.
+	 *
+	 * @return A textual representation of the histogram, formatted to summarize its structure and data.
+	 */
+	@Nonnull
+	default String asString() {
+		final CacheableBucket[] buckets = getBuckets();
+		return HistogramContract.formatHistogram(
+			buckets.length,
+			index -> buckets[index].threshold(),
+			index -> buckets[index].occurrences(),
+			index -> false,
+			getMax(),
+			getOverallCount()
+		);
+	}
+
+	/**
 	 * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 	 *
 	 * @param threshold   Contains threshold (left bound - inclusive) of the bucket.
@@ -156,5 +171,15 @@ public interface CacheableHistogramContract extends Serializable {
 	) implements Serializable {
 		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE;
 		@Serial private static final long serialVersionUID = 4216355542992506073L;
+
+		@Nonnull
+		@Override
+		public String toString() {
+			return '[' +
+				String.valueOf(this.threshold) +
+				": " + this.occurrences +
+				')';
+		}
+
 	}
 }

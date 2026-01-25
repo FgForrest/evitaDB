@@ -26,12 +26,18 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.EqualizedHistogramDataCruncher.BucketCountMode;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Random;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -184,7 +190,8 @@ class EqualizedHistogramDataCruncherTest {
 		// Data with uneven distribution: 30 at value 10, 5 at value 20, 5 at value 30
 		// Total weight = 40, 4 buckets requested, 3 distinct values
 		// With EXACT mode: need 1 empty bucket, distributed between 2 equal gaps (10-20 and 20-30)
-		// With equal gaps and rounding, the empty bucket goes in second gap (index 1)
+		// With floor + largest-remainder method, equal gaps get floor(0.5)=0 each,
+		// then the 1 remaining bucket goes to the first gap
 		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
 			4,
 			// 30 items at value 10
@@ -196,12 +203,12 @@ class EqualizedHistogramDataCruncherTest {
 			// 5 items at value 30
 			30, 30, 30, 30, 30
 		);
-		// Empty bucket placed at midpoint of second gap: 20 + 10/2 = 25
+		// Empty bucket placed at midpoint of first gap: 10 + 10/2 = 15
 		assertArrayEquals(
 			new CacheableBucket[]{
 				new CacheableBucket(new BigDecimal(10), 30),
+				new CacheableBucket(new BigDecimal(15), 0),
 				new CacheableBucket(new BigDecimal(20), 5),
-				new CacheableBucket(new BigDecimal(25), 0),
 				new CacheableBucket(new BigDecimal(30), 5)
 			},
 			cruncher.getHistogram()
@@ -248,11 +255,12 @@ class EqualizedHistogramDataCruncherTest {
 		);
 		// Gap is 2 (from 1 to 3), divided into 3 segments for 2 empty buckets
 		// Empty thresholds at 1 + 2/3 ≈ 1.67 → 2, 1 + 4/3 ≈ 2.33 → 2
-		// With integer precision, both empty buckets get threshold 2
+		// With integer precision, both would round to 2, but monotonicity enforcement
+		// ensures we don't create duplicate thresholds - second bucket would be at 3
+		// which equals gapEnd, so it's skipped. Result: only 1 empty bucket fits.
 		assertArrayEquals(
 			new CacheableBucket[]{
 				new CacheableBucket(new BigDecimal(1), 9),
-				new CacheableBucket(new BigDecimal(2), 0),
 				new CacheableBucket(new BigDecimal(2), 0),
 				new CacheableBucket(new BigDecimal(3), 1)
 			},
@@ -285,25 +293,25 @@ class EqualizedHistogramDataCruncherTest {
 		// Requesting 10 buckets with only 3 distinct values in EXACT mode
 		// Should produce exactly 10 buckets: 3 data + 7 empty distributed in gaps
 		// Two equal gaps (100-200, 200-300), each size 100
-		// 7 empty: round(7*0.5)=4 each, but 8>7, so subtract 1 from first gap
-		// Result: 3 in first gap, 4 in second gap
+		// With floor + largest-remainder: floor(3.5)=3 each, 1 remaining goes to first
+		// Result: 4 in first gap, 3 in second gap
 		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
 			10,
 			100, 200, 300
 		);
-		// First gap [100, 200]: 3 empty buckets at 100 + 100/4 = 125, 150, 175
-		// Second gap [200, 300]: 4 empty buckets at 200 + 100/5 = 220, 240, 260, 280
+		// First gap [100, 200]: 4 empty buckets at 100 + 100/5*i = 120, 140, 160, 180
+		// Second gap [200, 300]: 3 empty buckets at 200 + 100/4*i = 225, 250, 275
 		assertArrayEquals(
 			new CacheableBucket[]{
 				new CacheableBucket(new BigDecimal(100), 1),
-				new CacheableBucket(new BigDecimal(125), 0),
-				new CacheableBucket(new BigDecimal(150), 0),
-				new CacheableBucket(new BigDecimal(175), 0),
+				new CacheableBucket(new BigDecimal(120), 0),
+				new CacheableBucket(new BigDecimal(140), 0),
+				new CacheableBucket(new BigDecimal(160), 0),
+				new CacheableBucket(new BigDecimal(180), 0),
 				new CacheableBucket(new BigDecimal(200), 1),
-				new CacheableBucket(new BigDecimal(220), 0),
-				new CacheableBucket(new BigDecimal(240), 0),
-				new CacheableBucket(new BigDecimal(260), 0),
-				new CacheableBucket(new BigDecimal(280), 0),
+				new CacheableBucket(new BigDecimal(225), 0),
+				new CacheableBucket(new BigDecimal(250), 0),
+				new CacheableBucket(new BigDecimal(275), 0),
 				new CacheableBucket(new BigDecimal(300), 1)
 			},
 			cruncher.getHistogram()
@@ -531,6 +539,62 @@ class EqualizedHistogramDataCruncherTest {
 		assertEquals(2001, totalWeight, "Total weight should be 2001 (1000 + 1 + 1000)");
 	}
 
+	@Test
+	@DisplayName("ADAPTIVE handles extreme weight distribution - all buckets non-empty")
+	void adaptiveHandlesExtremeWeightDistributionAndJitter() {
+		// This test demonstrates that ADAPTIVE mode handles extreme weight distributions
+		// correctly. Even with very uneven weights, the equalized algorithm places
+		// boundaries at data value transitions, resulting in non-empty buckets.
+		//
+		// This is the key insight that makes separate optimization logic redundant:
+		// equalized histograms inherently avoid empty buckets because they use
+		// cumulative frequency, not fixed-width intervals.
+
+		// Extreme case: 3 distinct values with 1000:1:1000 weights
+		final ValueToRecordBitmap[] threeValueData = Stream.of(
+			createWeightedValue(10, 1000, 10),   // very heavy
+			createWeightedValue(50, 1, 1),       // very light
+			createWeightedValue(100, 1000, 50)   // very heavy
+		)
+			.flatMap(Stream::of)
+			.toArray(ValueToRecordBitmap[]::new);
+
+		final EqualizedHistogramDataCruncher<ValueToRecordBitmap> adaptiveCruncher =
+			new EqualizedHistogramDataCruncher<>(
+				"test histogram",
+				10, 0,
+				threeValueData,
+				it -> (int) it.getValue(),
+				bucket -> bucket.getRecordIds().size(),
+				BigDecimal::new,
+				BucketCountMode.ADAPTIVE
+			);
+
+		final CacheableBucket[] adaptiveResult = adaptiveCruncher.getHistogram();
+
+		// Count non-empty
+		int nonEmpty = 0;
+		for (CacheableBucket bucket : adaptiveResult) {
+			if (bucket.occurrences() > 0) {
+				nonEmpty++;
+			}
+		}
+
+		// The equalized algorithm produces all non-empty buckets
+		// because it places boundaries at value transitions, not arbitrary intervals
+		assertEquals(nonEmpty, adaptiveResult.length,
+		             "Equalized histogram should produce all non-empty buckets");
+		assertTrue(nonEmpty >= 2,
+		           "Equalized histogram should have at least 2 non-empty buckets");
+
+		// Verify total weight is preserved
+		int totalWeight = 0;
+		for (CacheableBucket bucket : adaptiveResult) {
+			totalWeight += bucket.occurrences();
+		}
+		assertEquals(2001, totalWeight, "Total weight should be 2001 (1000 + 1 + 1000)");
+	}
+
 	/**
 	 * Helper to create a ValueToRecordBitmap with specified value and weight (number of records).
 	 */
@@ -541,6 +605,24 @@ class EqualizedHistogramDataCruncherTest {
 			recordIds[i] = value * 10000 + i;  // unique record IDs
 		}
 		return new ValueToRecordBitmap(value, recordIds);
+	}
+
+	/**
+	 * Helper to create a ValueToRecordBitmap with specified value and weight (number of records).
+	 */
+	@Nonnull
+	private static ValueToRecordBitmap[] createWeightedValue(int value, int weight, int valueJitter) {
+		final Random rnd = new Random();
+		final Map<Integer, CompositeIntArray> recordIds = CollectionUtils.createHashMap(valueJitter);
+		for (int i = 0; i < weight; i++) {
+			recordIds.computeIfAbsent(
+				value + rnd.nextInt(valueJitter),
+				k -> new CompositeIntArray()
+			).add(value * 10000 + i);  // unique record IDs
+		}
+		return recordIds.entrySet().stream().map(it -> new ValueToRecordBitmap(it.getKey(), it.getValue().toArray()))
+			.sorted(Comparator.comparingInt(o -> (Integer) o.getValue()))
+			.toArray(ValueToRecordBitmap[]::new);
 	}
 
 	@Test
@@ -599,6 +681,44 @@ class EqualizedHistogramDataCruncherTest {
 			totalOccurrences += bucket.occurrences();
 		}
 		assertEquals(data.length, totalOccurrences, "All records should be accounted for");
+	}
+
+	@Test
+	@DisplayName("Should throw exception for empty source data")
+	void shouldThrowExceptionForEmptySourceData() {
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> new EqualizedHistogramDataCruncher<>(
+				"test histogram",
+				4, 0,
+				new Integer[]{},
+				value -> value,
+				value -> 1,
+				BigDecimal::new,
+				BucketCountMode.EXACT
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("Should maintain monotonicity when padding very close thresholds")
+	void shouldMaintainMonotonicityWhenPaddingCloseThresholds() {
+		// Create data with two very close values - when padded with many
+		// empty buckets, the rounding logic must ensure strict monotonicity
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			10, BucketCountMode.EXACT, 100, 101
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		// Verify strict monotonicity: each threshold must be > previous
+		for (int i = 1; i < histogram.length; i++) {
+			assertTrue(
+				histogram[i].threshold().compareTo(histogram[i - 1].threshold()) > 0,
+				"Thresholds must be strictly increasing, but bucket " + i +
+					" (" + histogram[i].threshold() + ") is not greater than bucket " +
+					(i - 1) + " (" + histogram[i - 1].threshold() + ")"
+			);
+		}
 	}
 
 	@Nonnull

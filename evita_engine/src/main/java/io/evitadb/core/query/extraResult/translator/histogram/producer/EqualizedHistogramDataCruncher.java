@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -145,6 +146,10 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		Assert.isTrue(
 			bucketCount > 1,
 			() -> new InvalidHistogramBucketCountException(histogramType, bucketCount)
+		);
+		Assert.isTrue(
+			!ArrayUtils.isEmpty(sourceData),
+			"Source data must not be empty to compute " + histogramType + " histogram!"
 		);
 		this.bucketCount = bucketCount;
 		this.limitDecimalPlacesTo = limitDecimalPlacesTo;
@@ -345,30 +350,38 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			totalGapSize = totalGapSize.add(gapSizes[i]);
 		}
 
-		// Distribute empty buckets proportionally to gap sizes
+		// Distribute empty buckets proportionally using floor + largest-remainder method
+		// This approach guarantees: no negative allocations, exact total, fair distribution
 		final int[] emptyPerGap = new int[gapCount];
+		final double[] remainders = new double[gapCount];
 		int assigned = 0;
+
 		for (int i = 0; i < gapCount; i++) {
-			final double proportion = gapSizes[i].doubleValue() / totalGapSize.doubleValue();
-			emptyPerGap[i] = (int) Math.round(emptyBucketsNeeded * proportion);
+			final double exactAllocation = emptyBucketsNeeded * gapSizes[i].doubleValue() / totalGapSize.doubleValue();
+			emptyPerGap[i] = (int) Math.floor(exactAllocation);
+			remainders[i] = exactAllocation - emptyPerGap[i];
 			assigned += emptyPerGap[i];
 		}
 
-		// Adjust rounding errors by adding/removing from largest gap
-		final int diff = emptyBucketsNeeded - assigned;
-		if (diff != 0) {
-			int largestGapIndex = 0;
+		// Distribute remaining buckets to gaps with largest remainders
+		int remaining = emptyBucketsNeeded - assigned;
+		while (remaining > 0) {
+			int maxRemainderIndex = 0;
 			for (int i = 1; i < gapCount; i++) {
-				if (gapSizes[i].compareTo(gapSizes[largestGapIndex]) > 0) {
-					largestGapIndex = i;
+				if (remainders[i] > remainders[maxRemainderIndex]) {
+					maxRemainderIndex = i;
 				}
 			}
-			emptyPerGap[largestGapIndex] += diff;
+			emptyPerGap[maxRemainderIndex]++;
+			remainders[maxRemainderIndex] = -1.0; // Mark as used
+			remaining--;
 		}
 
 		// Build result array with data and empty buckets interleaved
+		// Track last threshold to ensure strict monotonicity after rounding
 		final CacheableBucket[] result = new CacheableBucket[this.bucketCount];
 		int resultIndex = 0;
+		final BigDecimal minIncrement = BigDecimal.ONE.scaleByPowerOfTen(-this.limitDecimalPlacesTo);
 
 		for (int i = 0; i < dataBuckets.length; i++) {
 			result[resultIndex++] = dataBuckets[i];
@@ -380,12 +393,32 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 				final BigDecimal step = gapEnd.subtract(gapStart)
 					.divide(new BigDecimal(emptyPerGap[i] + 1), 10, RoundingMode.HALF_UP);
 
+				BigDecimal lastThreshold = gapStart;
 				for (int j = 1; j <= emptyPerGap[i]; j++) {
-					final BigDecimal emptyThreshold = gapStart.add(step.multiply(new BigDecimal(j)))
+					BigDecimal emptyThreshold = gapStart.add(step.multiply(new BigDecimal(j)))
 						.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP);
+
+					// Ensure strict monotonicity: each threshold must be > previous
+					if (emptyThreshold.compareTo(lastThreshold) <= 0) {
+						emptyThreshold = lastThreshold.add(minIncrement);
+					}
+
+					// Skip if would violate monotonicity with next data bucket
+					if (emptyThreshold.compareTo(gapEnd) >= 0) {
+						continue;
+					}
+
 					result[resultIndex++] = new CacheableBucket(emptyThreshold, 0);
+					lastThreshold = emptyThreshold;
 				}
 			}
+		}
+
+		// Trim array if some buckets were skipped to maintain monotonicity
+		if (resultIndex < this.bucketCount) {
+			final CacheableBucket[] trimmedResult = new CacheableBucket[resultIndex];
+			System.arraycopy(result, 0, trimmedResult, 0, resultIndex);
+			return trimmedResult;
 		}
 
 		return result;

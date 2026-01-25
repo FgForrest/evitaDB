@@ -129,7 +129,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcQueryPriceMode the {@link GrpcQueryPriceMode} to be converted
 	 * @return the converted {@link QueryPriceMode}
-	 * @throws EvitaInternalError if the remote query price mode is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote query price mode is unrecognized
 	 */
 	@Nonnull
 	public static QueryPriceMode toQueryPriceMode(@Nonnull GrpcQueryPriceMode grpcQueryPriceMode) {
@@ -160,7 +160,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcPriceContentMode the {@link GrpcPriceContentMode} to be converted
 	 * @return the converted {@link PriceContentMode}
-	 * @throws EvitaInternalError if an unrecognized remote price content mode is encountered
+	 * @throws EvitaInvalidUsageException if an unrecognized remote price content mode is encountered
 	 */
 	@Nonnull
 	public static PriceContentMode toPriceContentMode(@Nonnull GrpcPriceContentMode grpcPriceContentMode) {
@@ -193,7 +193,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcOrderDirection the {@link GrpcOrderDirection} to be converted
 	 * @return the converted {@link OrderDirection}
-	 * @throws EvitaInternalError if the remote order direction is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote order direction is unrecognized
 	 */
 	@Nonnull
 	public static OrderDirection toOrderDirection(@Nonnull GrpcOrderDirection grpcOrderDirection) {
@@ -224,7 +224,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcOrderBehaviour the {@link GrpcOrderBehaviour} to be converted
 	 * @return the converted {@link OrderBehaviour}
-	 * @throws EvitaInternalError if the remote order behaviour is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote order behaviour is unrecognized
 	 */
 	@Nonnull
 	public static OrderBehaviour toOrderBehaviour(@Nonnull GrpcOrderBehaviour grpcOrderBehaviour) {
@@ -256,7 +256,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcEmptyHierarchicalEntityBehaviour the {@link GrpcEmptyHierarchicalEntityBehaviour} to be converted
 	 * @return the converted {@link EmptyHierarchicalEntityBehaviour}
-	 * @throws EvitaInternalError if the remote empty hierarchical entity behaviour is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote empty hierarchical entity behaviour is unrecognized
 	 */
 	@Nonnull
 	public static EmptyHierarchicalEntityBehaviour toEmptyHierarchicalEntityBehaviour(@Nonnull GrpcEmptyHierarchicalEntityBehaviour grpcEmptyHierarchicalEntityBehaviour) {
@@ -287,7 +287,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcStatisticsBase the {@link GrpcStatisticsBase} to be converted
 	 * @return the converted {@link StatisticsBase}
-	 * @throws EvitaInternalError if the remote statistics base is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote statistics base is unrecognized
 	 */
 	@Nonnull
 	public static StatisticsBase toStatisticsBase(@Nonnull GrpcStatisticsBase grpcStatisticsBase) {
