@@ -423,13 +423,6 @@ class EqualizedHistogramDataCruncherTest {
 			}
 		}
 
-		// Key insight: Equalized algorithm produces all non-empty buckets
-		// because boundaries are placed at actual data value transitions
-		System.out.println("ADAPTIVE result (" + adaptiveHistogram.length + " buckets, " + nonEmptyAdaptive + " non-empty):");
-		for (CacheableBucket bucket : adaptiveHistogram) {
-			System.out.println("  threshold=" + bucket.threshold() + ", occurrences=" + bucket.occurrences());
-		}
-
 		// For equalized histograms, all buckets are non-empty because boundaries
 		// are placed at data value transitions, not arbitrary intervals
 		assertEquals(nonEmptyAdaptive, adaptiveHistogram.length,
@@ -482,10 +475,6 @@ class EqualizedHistogramDataCruncherTest {
 			},
 			adaptiveCruncher.getHistogram()
 		);
-
-		System.out.println("For 2 distinct values with 10 buckets requested:");
-		System.out.println("  ADAPTIVE result: " + adaptiveCruncher.getHistogram().length + " buckets");
-		System.out.println("  → ADAPTIVE alone provides optimal bucket count reduction");
 	}
 
 	@Test
@@ -525,12 +514,6 @@ class EqualizedHistogramDataCruncherTest {
 			if (bucket.occurrences() > 0) {
 				nonEmpty++;
 			}
-		}
-
-		System.out.println("\nExtreme case (3 values, 1000:1:1000 weights):");
-		System.out.println("ADAPTIVE result (" + adaptiveResult.length + " buckets, " + nonEmpty + " non-empty):");
-		for (CacheableBucket bucket : adaptiveResult) {
-			System.out.println("  threshold=" + bucket.threshold() + ", occurrences=" + bucket.occurrences());
 		}
 
 		// The equalized algorithm produces all non-empty buckets
