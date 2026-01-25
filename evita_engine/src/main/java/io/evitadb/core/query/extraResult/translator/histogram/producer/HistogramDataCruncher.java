@@ -122,6 +122,14 @@ public class HistogramDataCruncher<T> implements HistogramDataCruncherContract<T
 	 * Internal variable containing current count of empty thresholds in the row (this value is compared to {@link #longestSpace}.
 	 */
 	private int emptyBucketsInRow;
+	/**
+	 * Constant for BigDecimal value of 100.
+	 */
+	private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+	/**
+	 * Total weight (sum of all occurrences) used for calculating relative frequency.
+	 */
+	private final long totalWeight;
 
 	public HistogramDataCruncher(
 		@Nonnull String histogramType,
@@ -152,6 +160,13 @@ public class HistogramDataCruncher<T> implements HistogramDataCruncherContract<T
 		this.weightRetriever = weightRetriever;
 		this.toBigDecimalConverter = toBigDecimalConverter;
 		this.fromBigDecimalConverter = fromBigDecimalConverter;
+
+		// calculate total weight first for relative frequency computation
+		long totalWeight = 0;
+		for (int i = 0; i < sourceData.length; i++) {
+			totalWeight += weightRetriever.applyAsInt(sourceData[i]);
+		}
+		this.totalWeight = totalWeight;
 
 		// now compute the result
 		final CompositeObjectArray<CacheableBucket> elasticHistogram = new CompositeObjectArray<>(CacheableBucket.class, false);
@@ -296,10 +311,18 @@ public class HistogramDataCruncher<T> implements HistogramDataCruncherContract<T
 			// repeat until we cross the next threshold
 		} while (!this.finished && this.thresholdRetriever.applyAsInt(this.sourceData[this.sourceIndex]) < nextThreshold);
 
+		// calculate relative frequency: (occurrences / totalWeight) * 100
+		final BigDecimal relativeFrequency = this.totalWeight > 0
+			? BigDecimal.valueOf(distinctValues)
+				.multiply(ONE_HUNDRED)
+				.divide(BigDecimal.valueOf(this.totalWeight), 2, RoundingMode.HALF_UP)
+			: BigDecimal.ZERO;
+
 		// create bucket in the output histogram
 		final CacheableBucket result = new CacheableBucket(
 			this.currentStep.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
-			distinctValues
+			distinctValues,
+			relativeFrequency
 		);
 
 		// move next threshold as current threshold

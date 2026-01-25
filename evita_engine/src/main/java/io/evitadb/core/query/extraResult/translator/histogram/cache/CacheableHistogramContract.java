@@ -161,16 +161,24 @@ public interface CacheableHistogramContract extends Serializable {
 	/**
 	 * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 	 *
-	 * @param threshold   Contains threshold (left bound - inclusive) of the bucket.
-	 * @param occurrences Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
-	 *                    between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
+	 * @param threshold         Contains threshold (left bound - inclusive) of the bucket.
+	 * @param occurrences       Contains number of entity occurrences in this bucket - e.g. number of entities that
+	 *                          has monitored property value between previous bucket threshold (exclusive) and this
+	 *                          bucket threshold (inclusive)
+	 * @param relativeFrequency Relative frequency value used for visualization purposes.
+	 *                          For standard histograms: percentage of total occurrences (0-100), calculated as
+	 *                          `(occurrences / overallCount) * 100`.
+	 *                          For equalized histograms: value density calculated as `totalRange / bucketWidth`,
+	 *                          where higher values indicate denser data concentration (values packed into narrower
+	 *                          bucket range).
 	 */
 	record CacheableBucket(
 		@Nonnull BigDecimal threshold,
-		int occurrences
+		int occurrences,
+		@Nonnull BigDecimal relativeFrequency
 	) implements Serializable {
-		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE;
-		@Serial private static final long serialVersionUID = 4216355542992506073L;
+		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE * 2;
+		@Serial private static final long serialVersionUID = 4216355542992506074L;
 
 		@Nonnull
 		@Override
@@ -178,6 +186,7 @@ public interface CacheableHistogramContract extends Serializable {
 			return '[' +
 				String.valueOf(this.threshold) +
 				": " + this.occurrences +
+				" (" + this.relativeFrequency + "%)" +
 				')';
 		}
 

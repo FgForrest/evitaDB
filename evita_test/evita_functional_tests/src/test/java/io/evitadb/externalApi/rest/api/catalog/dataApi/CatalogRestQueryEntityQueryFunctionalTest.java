@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -3863,6 +3863,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
+					.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
 					.build())
 				.toList())
 			.e(HistogramDescriptor.MIN.name(), histogram.getMin().toString())
@@ -3883,6 +3884,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
+					.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
 					.build())
 				.toList())
 			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())

@@ -98,7 +98,8 @@ public class CacheableHistogram implements CacheableHistogramContract {
 					bucket -> new Bucket(
 						bucket.threshold(),
 						bucket.occurrences(),
-						requestedPredicate.test(bucket.threshold())
+						requestedPredicate.test(bucket.threshold()),
+						bucket.relativeFrequency()
 					)
 				)
 				.toArray(Bucket[]::new),

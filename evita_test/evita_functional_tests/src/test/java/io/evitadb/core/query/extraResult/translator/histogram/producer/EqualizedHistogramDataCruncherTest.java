@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -69,9 +68,9 @@ class EqualizedHistogramDataCruncherTest {
 	void equalizedHistogramFromSingleValue() {
 		// Single value should return single bucket regardless of requested bucket count
 		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(5, 100);
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(100), 1)
+				bucket(new BigDecimal(100), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -86,12 +85,12 @@ class EqualizedHistogramDataCruncherTest {
 		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(4, 100, 500);
 		// Gap between 100 and 500 is 400, distributed into 3 segments (2 empty buckets)
 		// Empty thresholds at 100 + 400/3 = 233, 100 + 2*400/3 = 367
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(100), 1),
-				new CacheableBucket(new BigDecimal(233), 0),
-				new CacheableBucket(new BigDecimal(367), 0),
-				new CacheableBucket(new BigDecimal(500), 1)
+				bucket(new BigDecimal(100), 1),
+				bucket(new BigDecimal(233), 0),
+				bucket(new BigDecimal(367), 0),
+				bucket(new BigDecimal(500), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -105,10 +104,10 @@ class EqualizedHistogramDataCruncherTest {
 		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
 			4, BucketCountMode.ADAPTIVE, 100, 500
 		);
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(100), 1),
-				new CacheableBucket(new BigDecimal(500), 1)
+				bucket(new BigDecimal(100), 1),
+				bucket(new BigDecimal(500), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -126,12 +125,12 @@ class EqualizedHistogramDataCruncherTest {
 		);
 		// Gap between 1 and 100 is 99, distributed into 3 segments (2 empty buckets)
 		// Empty thresholds at 1 + 99/3 = 34, 1 + 2*99/3 = 67
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(1), 9),
-				new CacheableBucket(new BigDecimal(34), 0),
-				new CacheableBucket(new BigDecimal(67), 0),
-				new CacheableBucket(new BigDecimal(100), 1)
+				bucket(new BigDecimal(1), 9),
+				bucket(new BigDecimal(34), 0),
+				bucket(new BigDecimal(67), 0),
+				bucket(new BigDecimal(100), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -147,10 +146,10 @@ class EqualizedHistogramDataCruncherTest {
 			4, BucketCountMode.ADAPTIVE,
 			1, 1, 1, 1, 1, 1, 1, 1, 1, 100
 		);
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(1), 9),
-				new CacheableBucket(new BigDecimal(100), 1)
+				bucket(new BigDecimal(1), 9),
+				bucket(new BigDecimal(100), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -172,12 +171,12 @@ class EqualizedHistogramDataCruncherTest {
 		);
 		// Each distinct value group has 10 items, target per bucket is 10
 		// So each distinct value should map to one bucket
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(10), 10),
-				new CacheableBucket(new BigDecimal(20), 10),
-				new CacheableBucket(new BigDecimal(30), 10),
-				new CacheableBucket(new BigDecimal(40), 10)
+				bucket(new BigDecimal(10), 10),
+				bucket(new BigDecimal(20), 10),
+				bucket(new BigDecimal(30), 10),
+				bucket(new BigDecimal(40), 10)
 			},
 			cruncher.getHistogram()
 		);
@@ -204,12 +203,12 @@ class EqualizedHistogramDataCruncherTest {
 			30, 30, 30, 30, 30
 		);
 		// Empty bucket placed at midpoint of first gap: 10 + 10/2 = 15
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(10), 30),
-				new CacheableBucket(new BigDecimal(15), 0),
-				new CacheableBucket(new BigDecimal(20), 5),
-				new CacheableBucket(new BigDecimal(30), 5)
+				bucket(new BigDecimal(10), 30),
+				bucket(new BigDecimal(15), 0),
+				bucket(new BigDecimal(20), 5),
+				bucket(new BigDecimal(30), 5)
 			},
 			cruncher.getHistogram()
 		);
@@ -231,11 +230,11 @@ class EqualizedHistogramDataCruncherTest {
 			// 5 items at value 30
 			30, 30, 30, 30, 30
 		);
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(10), 30),
-				new CacheableBucket(new BigDecimal(20), 5),
-				new CacheableBucket(new BigDecimal(30), 5)
+				bucket(new BigDecimal(10), 30),
+				bucket(new BigDecimal(20), 5),
+				bucket(new BigDecimal(30), 5)
 			},
 			cruncher.getHistogram()
 		);
@@ -258,11 +257,11 @@ class EqualizedHistogramDataCruncherTest {
 		// With integer precision, both would round to 2, but monotonicity enforcement
 		// ensures we don't create duplicate thresholds - second bucket would be at 3
 		// which equals gapEnd, so it's skipped. Result: only 1 empty bucket fits.
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(1), 9),
-				new CacheableBucket(new BigDecimal(2), 0),
-				new CacheableBucket(new BigDecimal(3), 1)
+				bucket(new BigDecimal(1), 9),
+				bucket(new BigDecimal(2), 0),
+				bucket(new BigDecimal(3), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -277,10 +276,10 @@ class EqualizedHistogramDataCruncherTest {
 			4, BucketCountMode.ADAPTIVE,
 			1, 2, 2, 2, 2, 2, 2, 2, 2, 3
 		);
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(1), 9),
-				new CacheableBucket(new BigDecimal(3), 1)
+				bucket(new BigDecimal(1), 9),
+				bucket(new BigDecimal(3), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -301,18 +300,18 @@ class EqualizedHistogramDataCruncherTest {
 		);
 		// First gap [100, 200]: 4 empty buckets at 100 + 100/5*i = 120, 140, 160, 180
 		// Second gap [200, 300]: 3 empty buckets at 200 + 100/4*i = 225, 250, 275
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(100), 1),
-				new CacheableBucket(new BigDecimal(120), 0),
-				new CacheableBucket(new BigDecimal(140), 0),
-				new CacheableBucket(new BigDecimal(160), 0),
-				new CacheableBucket(new BigDecimal(180), 0),
-				new CacheableBucket(new BigDecimal(200), 1),
-				new CacheableBucket(new BigDecimal(225), 0),
-				new CacheableBucket(new BigDecimal(250), 0),
-				new CacheableBucket(new BigDecimal(275), 0),
-				new CacheableBucket(new BigDecimal(300), 1)
+				bucket(new BigDecimal(100), 1),
+				bucket(new BigDecimal(120), 0),
+				bucket(new BigDecimal(140), 0),
+				bucket(new BigDecimal(160), 0),
+				bucket(new BigDecimal(180), 0),
+				bucket(new BigDecimal(200), 1),
+				bucket(new BigDecimal(225), 0),
+				bucket(new BigDecimal(250), 0),
+				bucket(new BigDecimal(275), 0),
+				bucket(new BigDecimal(300), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -328,11 +327,11 @@ class EqualizedHistogramDataCruncherTest {
 			10, BucketCountMode.ADAPTIVE,
 			100, 200, 300
 		);
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(100), 1),
-				new CacheableBucket(new BigDecimal(200), 1),
-				new CacheableBucket(new BigDecimal(300), 1)
+				bucket(new BigDecimal(100), 1),
+				bucket(new BigDecimal(200), 1),
+				bucket(new BigDecimal(300), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -348,9 +347,9 @@ class EqualizedHistogramDataCruncherTest {
 			100, 100, 100, 100, 100
 		);
 		// Should produce single bucket
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(100), 5)
+				bucket(new BigDecimal(100), 5)
 			},
 			cruncher.getHistogram()
 		);
@@ -374,10 +373,10 @@ class EqualizedHistogramDataCruncherTest {
 			BucketCountMode.ADAPTIVE
 		);
 		// Only 2 distinct values, ADAPTIVE mode caps to 2 buckets
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(100), 3),
-				new CacheableBucket(new BigDecimal(500), 2)
+				bucket(new BigDecimal(100), 3),
+				bucket(new BigDecimal(500), 2)
 			},
 			cruncher.getHistogram()
 		);
@@ -476,10 +475,10 @@ class EqualizedHistogramDataCruncherTest {
 			"ADAPTIVE should cap to 2 buckets for 2 distinct values");
 
 		// Verify bucket contents
-		assertArrayEquals(
+		assertBucketsEqual(
 			new CacheableBucket[]{
-				new CacheableBucket(new BigDecimal(100), 500),
-				new CacheableBucket(new BigDecimal(500), 500)
+				bucket(new BigDecimal(100), 500),
+				bucket(new BigDecimal(500), 500)
 			},
 			adaptiveCruncher.getHistogram()
 		);
@@ -792,6 +791,30 @@ class EqualizedHistogramDataCruncherTest {
 			value -> allowedDecimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * allowedDecimalPlaces),
 			bucketCountMode
 		);
+	}
+
+	/**
+	 * Helper method to create a CacheableBucket for comparison purposes.
+	 * Uses a placeholder relativeFrequency since the exact value is not the focus of most tests.
+	 */
+	@Nonnull
+	private static CacheableBucket bucket(@Nonnull BigDecimal threshold, int occurrences) {
+		// Placeholder relativeFrequency - the actual value will be calculated by the cruncher
+		return new CacheableBucket(threshold, occurrences, BigDecimal.ZERO);
+	}
+
+	/**
+	 * Custom assertion that compares only threshold and occurrences, ignoring relativeFrequency.
+	 * This is useful for tests that focus on bucket placement rather than relative frequency calculation.
+	 */
+	private static void assertBucketsEqual(@Nonnull CacheableBucket[] expected, @Nonnull CacheableBucket[] actual) {
+		assertEquals(expected.length, actual.length, "Bucket count mismatch");
+		for (int i = 0; i < expected.length; i++) {
+			assertEquals(expected[i].threshold(), actual[i].threshold(),
+				"Bucket " + i + " threshold mismatch");
+			assertEquals(expected[i].occurrences(), actual[i].occurrences(),
+				"Bucket " + i + " occurrences mismatch");
+		}
 	}
 
 }

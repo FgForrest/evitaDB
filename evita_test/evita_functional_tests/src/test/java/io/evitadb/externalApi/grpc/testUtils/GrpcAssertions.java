@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -645,6 +645,7 @@ public class GrpcAssertions {
 			assertEquals(expectedBucket.threshold(), EvitaDataTypesConverter.toBigDecimal(bucketThreshold));
 			assertEquals(expectedBucket.occurrences(), actualBucket.getOccurrences());
 			assertEquals(expectedBucket.requested(), actualBucket.getRequested());
+			assertEquals(expectedBucket.relativeFrequency(), EvitaDataTypesConverter.toBigDecimal(actualBucket.getRelativeFrequency()));
 		}
 	}
 

@@ -28,6 +28,9 @@ The histogram data structure is optimized for frontend rendering. It contains th
 - **`buckets`** - an *sorted* array of buckets, each of which contains the following fields:
   - **`threshold`** - the minimum value of the attribute in the bucket, the maximum value is the threshold of the next bucket (or `max` for the last bucket)
   - **`occurrences`** - the number of elements whose attribute value falls into the bucket
+  - **`relativeFrequency`** - a value used for visualizing bucket height in UI:
+    - For **standard histograms**: percentage of total occurrences (0-100), calculated as `(occurrences / overallCount) * 100`
+    - For **equalized histograms**: value density calculated as `totalRange / bucketWidth`, where higher values indicate denser data concentration (values packed into narrower bucket range)
   - **`requested`**:
     - contains `true` if the query didn't contain any [attributeBetween](../filtering/comparable.md#attribute-between)
       or [priceBetween](../filtering/price.md#price-between) constraints

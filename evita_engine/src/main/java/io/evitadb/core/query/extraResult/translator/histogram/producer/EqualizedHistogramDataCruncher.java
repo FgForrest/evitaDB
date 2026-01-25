@@ -211,6 +211,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		}
 
 		// Edge case: if all items have same threshold, return single bucket
+		// For single bucket, relativeFrequency is 100% (contains all data) or represents single point (no range)
 		if (distinctCount == 1) {
 			long totalWeight = 0;
 			for (int i = 0; i < this.sourceData.length; i++) {
@@ -220,7 +221,8 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 				new CacheableBucket(
 					this.toBigDecimalConverter.apply(this.firstThreshold)
 						.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
-					(int) totalWeight
+					(int) totalWeight,
+					BigDecimal.ONE // Single bucket covers entire range, normalized to 1
 				)
 			};
 		}
@@ -306,13 +308,34 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		bucketCounts[currentBucket] = bucketWeight;
 
 		// Step 3: Create CacheableBucket array, trimming any unused buckets
+		// Calculate relativeFrequency as totalRange / bucketWidth (value density)
 		final int actualBucketCount = currentBucket + 1;
+		final BigDecimal firstThresholdBD = this.toBigDecimalConverter.apply(this.firstThreshold);
+		final BigDecimal lastThresholdBD = this.toBigDecimalConverter.apply(this.lastThreshold);
+		final BigDecimal totalRange = lastThresholdBD.subtract(firstThresholdBD);
+
 		final CacheableBucket[] result = new CacheableBucket[actualBucketCount];
 		for (int i = 0; i < actualBucketCount; i++) {
+			final BigDecimal bucketStart = this.toBigDecimalConverter.apply(bucketThresholds[i]);
+			final BigDecimal bucketEnd = (i + 1 < actualBucketCount)
+				? this.toBigDecimalConverter.apply(bucketThresholds[i + 1])
+				: lastThresholdBD;
+			final BigDecimal bucketWidth = bucketEnd.subtract(bucketStart);
+
+			// relativeFrequency = totalRange / bucketWidth
+			// Higher values indicate denser data concentration (narrow bucket = high density)
+			final BigDecimal relativeFrequency;
+			if (bucketWidth.compareTo(BigDecimal.ZERO) > 0 && totalRange.compareTo(BigDecimal.ZERO) > 0) {
+				relativeFrequency = totalRange.divide(bucketWidth, 2, RoundingMode.HALF_UP);
+			} else {
+				// Edge case: zero width or zero range - use 1 as neutral value
+				relativeFrequency = BigDecimal.ONE;
+			}
+
 			result[i] = new CacheableBucket(
-				this.toBigDecimalConverter.apply(bucketThresholds[i])
-					.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
-				bucketCounts[i]
+				bucketStart.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
+				bucketCounts[i],
+				relativeFrequency
 			);
 		}
 
@@ -349,6 +372,11 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			gapSizes[i] = dataBuckets[i + 1].threshold().subtract(dataBuckets[i].threshold());
 			totalGapSize = totalGapSize.add(gapSizes[i]);
 		}
+
+		// Calculate total range for relativeFrequency computation
+		final BigDecimal firstThresholdBD = this.toBigDecimalConverter.apply(this.firstThreshold);
+		final BigDecimal lastThresholdBD = this.toBigDecimalConverter.apply(this.lastThreshold);
+		final BigDecimal totalRange = lastThresholdBD.subtract(firstThresholdBD);
 
 		// Distribute empty buckets proportionally using floor + largest-remainder method
 		// This approach guarantees: no negative allocations, exact total, fair distribution
@@ -408,7 +436,12 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 						continue;
 					}
 
-					result[resultIndex++] = new CacheableBucket(emptyThreshold, 0);
+					// Empty bucket width is the step size; compute relativeFrequency
+					final BigDecimal emptyBucketRelativeFrequency = step.compareTo(BigDecimal.ZERO) > 0
+						? totalRange.divide(step, 2, RoundingMode.HALF_UP)
+						: BigDecimal.ZERO;
+
+					result[resultIndex++] = new CacheableBucket(emptyThreshold, 0, emptyBucketRelativeFrequency);
 					lastThreshold = emptyThreshold;
 				}
 			}
