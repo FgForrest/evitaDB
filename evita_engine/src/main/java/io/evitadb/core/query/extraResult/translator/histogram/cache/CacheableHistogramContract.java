@@ -171,12 +171,11 @@ public interface CacheableHistogramContract extends Serializable {
 	 * @param occurrences       Contains number of entity occurrences in this bucket - e.g. number of entities that
 	 *                          has monitored property value between previous bucket threshold (exclusive) and this
 	 *                          bucket threshold (inclusive)
-	 * @param relativeFrequency Relative frequency value used for visualization purposes.
-	 *                          For standard histograms: percentage of total occurrences (0-100), calculated as
-	 *                          `(occurrences / overallCount) * 100`.
-	 *                          For equalized histograms: value density calculated as `totalRange / bucketWidth`,
-	 *                          where higher values indicate denser data concentration (values packed into narrower
-	 *                          bucket range).
+	 * @param relativeFrequency Relative frequency value for visualization (0-100 scale).
+	 *                          For standard histograms: `(occurrences / overallCount) * 100`.
+	 *                          For equalized histograms: normalized value density considering both
+	 *                          occurrences and bucket width. Raw frequency is `occurrences * (totalRange / bucketWidth)`,
+	 *                          then normalized so all values sum to 100. Empty buckets have relativeFrequency = 0.
 	 */
 	record CacheableBucket(
 		@Nonnull BigDecimal threshold,

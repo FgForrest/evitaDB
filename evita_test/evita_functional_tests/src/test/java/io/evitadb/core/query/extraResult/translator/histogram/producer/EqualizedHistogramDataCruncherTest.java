@@ -810,19 +810,30 @@ class EqualizedHistogramDataCruncherTest {
 	}
 
 	@Test
-	@DisplayName("Extended buckets have valid relativeFrequency (> 0)")
-	void extendedBucketsHaveValidRelativeFrequency() {
+	@DisplayName("Extended buckets have zero relativeFrequency (0 occurrences)")
+	void extendedBucketsHaveZeroRelativeFrequency() {
 		// Scenario requiring range extension
 		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
 			10, BucketCountMode.EXACT, 100, 101
 		);
 		final CacheableBucket[] histogram = cruncher.getHistogram();
 
-		// All buckets (including extended ones) should have relativeFrequency > 0
-		for (int i = 0; i < histogram.length; i++) {
-			assertTrue(
-				histogram[i].relativeFrequency().compareTo(BigDecimal.ZERO) > 0,
-				"Bucket " + i + " should have relativeFrequency > 0, but has " +
+		// Data buckets (first two) should have non-zero relativeFrequency
+		assertTrue(
+			histogram[0].relativeFrequency().compareTo(BigDecimal.ZERO) > 0,
+			"First data bucket should have relativeFrequency > 0"
+		);
+		assertTrue(
+			histogram[1].relativeFrequency().compareTo(BigDecimal.ZERO) > 0,
+			"Second data bucket should have relativeFrequency > 0"
+		);
+
+		// Extended buckets (index 2+) should have relativeFrequency = 0 (no occurrences)
+		for (int i = 2; i < histogram.length; i++) {
+			assertEquals(
+				0,
+				histogram[i].relativeFrequency().compareTo(BigDecimal.ZERO),
+				"Extended bucket " + i + " should have relativeFrequency = 0 (no occurrences), got " +
 					histogram[i].relativeFrequency()
 			);
 		}
@@ -856,6 +867,125 @@ class EqualizedHistogramDataCruncherTest {
 			assertTrue(bucket.threshold().scale() <= 2,
 				"Threshold scale should be <= 2, got: " + bucket.threshold().scale());
 		}
+	}
+
+	@Test
+	@DisplayName("Relative frequencies should sum to approximately 100")
+	void relativeFrequenciesShouldSumTo100() {
+		// Test with various data distributions
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			5, BucketCountMode.ADAPTIVE,
+			10, 10, 10, 20, 20, 30, 40, 50, 60, 70, 80, 90, 100
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		// Sum all relative frequencies
+		BigDecimal sum = BigDecimal.ZERO;
+		for (CacheableBucket bucket : histogram) {
+			sum = sum.add(bucket.relativeFrequency());
+		}
+
+		// Should sum to approximately 100 (allow small rounding error)
+		assertTrue(
+			sum.compareTo(new BigDecimal("99")) >= 0 && sum.compareTo(new BigDecimal("101")) <= 0,
+			"Relative frequencies should sum to ~100, but got " + sum
+		);
+	}
+
+	@Test
+	@DisplayName("Empty buckets should have zero relativeFrequency")
+	void emptyBucketsShouldHaveZeroRelativeFrequency() {
+		// EXACT mode creates empty buckets in gaps
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			10, BucketCountMode.EXACT, 100, 200, 300
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		for (int i = 0; i < histogram.length; i++) {
+			if (histogram[i].occurrences() == 0) {
+				assertEquals(
+					0,
+					histogram[i].relativeFrequency().compareTo(BigDecimal.ZERO),
+					"Empty bucket " + i + " should have relativeFrequency = 0, got " +
+						histogram[i].relativeFrequency()
+				);
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("Relative frequency reflects both occurrences and bucket width")
+	void relativeFrequencyReflectsOccurrencesAndWidth() {
+		// Two buckets with same width but different occurrences
+		// The bucket with more occurrences should have higher relative frequency
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			2, BucketCountMode.ADAPTIVE,
+			// 5 items at value 10
+			10, 10, 10, 10, 10,
+			// 1 item at value 20
+			20
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		assertEquals(2, histogram.length);
+		// First bucket has 5 occurrences, second has 1
+		// First bucket should have higher relative frequency since it has more data
+		// packed into same width range
+		assertTrue(
+			histogram[0].relativeFrequency().compareTo(histogram[1].relativeFrequency()) > 0,
+			"Bucket with more occurrences should have higher relative frequency. " +
+				"First: " + histogram[0].relativeFrequency() + ", Second: " + histogram[1].relativeFrequency()
+		);
+	}
+
+	@Test
+	@DisplayName("Single bucket should have 100 relativeFrequency")
+	void singleBucketShouldHave100RelativeFrequency() {
+		// All items have same value - single bucket
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			5, BucketCountMode.ADAPTIVE,
+			100, 100, 100, 100, 100
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		assertEquals(1, histogram.length, "Should produce single bucket");
+		assertEquals(
+			new BigDecimal("100"),
+			histogram[0].relativeFrequency(),
+			"Single bucket should have relativeFrequency = 100"
+		);
+	}
+
+	@Test
+	@DisplayName("Non-empty buckets in ADAPTIVE mode all have positive relative frequency summing to 100")
+	void nonEmptyBucketsHavePositiveRelativeFrequencySummingTo100() {
+		// ADAPTIVE mode produces only non-empty buckets
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			4, BucketCountMode.ADAPTIVE,
+			// Varied distribution
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 10 items at value 1
+			50, 50,                          // 2 items at value 50
+			100, 100, 100, 100               // 4 items at value 100
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		// All buckets should have positive relative frequency
+		for (int i = 0; i < histogram.length; i++) {
+			assertTrue(
+				histogram[i].relativeFrequency().compareTo(BigDecimal.ZERO) > 0,
+				"Non-empty bucket " + i + " should have relativeFrequency > 0"
+			);
+		}
+
+		// Sum should be approximately 100
+		BigDecimal sum = BigDecimal.ZERO;
+		for (CacheableBucket bucket : histogram) {
+			sum = sum.add(bucket.relativeFrequency());
+		}
+		assertTrue(
+			sum.compareTo(new BigDecimal("99")) >= 0 && sum.compareTo(new BigDecimal("101")) <= 0,
+			"Relative frequencies should sum to ~100, but got " + sum
+		);
 	}
 
 	@Nonnull

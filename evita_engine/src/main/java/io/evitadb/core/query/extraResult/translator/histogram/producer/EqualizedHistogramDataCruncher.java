@@ -65,6 +65,11 @@ import java.util.function.ToIntFunction;
 public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherContract<T> {
 
 	/**
+	 * Constant for 100 used in relative frequency normalization.
+	 */
+	private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+
+	/**
 	 * Defines how the histogram handles the case when fewer distinct values exist
 	 * than the requested bucket count.
 	 */
@@ -205,65 +210,47 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		@Nonnull ToIntFunction<T> thresholdRetriever,
 		@Nonnull ToIntFunction<T> weightRetriever
 	) {
-		// Step 1: Aggregate items by distinct threshold values
-		// Since source data is sorted, we can do this in a single pass
-		// Count distinct values first to size arrays appropriately
-		int distinctCount = 1;
-		int prevThreshold = thresholdRetriever.applyAsInt(this.sourceData[0]);
-		for (int i = 1; i < this.sourceData.length; i++) {
+		// Step 1: Aggregate items by distinct threshold values in a single pass
+		// Pre-allocate arrays to maximum possible size (sourceData.length)
+		// This avoids a separate counting pass over the data
+		final int[] distinctThresholds = new int[this.sourceData.length];
+		final int[] distinctWeights = new int[this.sourceData.length];
+
+		int distinctCount = 0;
+		long totalWeight = 0;
+		int prevThreshold = Integer.MIN_VALUE;
+
+		for (int i = 0; i < this.sourceData.length; i++) {
 			final int currentThreshold = thresholdRetriever.applyAsInt(this.sourceData[i]);
-			if (currentThreshold != prevThreshold) {
+			final int currentWeight = weightRetriever.applyAsInt(this.sourceData[i]);
+			totalWeight += currentWeight;
+
+			if (i == 0 || currentThreshold != prevThreshold) {
+				// new distinct value
+				distinctThresholds[distinctCount] = currentThreshold;
+				distinctWeights[distinctCount] = currentWeight;
 				distinctCount++;
 				prevThreshold = currentThreshold;
+			} else {
+				// same value, accumulate weight
+				distinctWeights[distinctCount - 1] += currentWeight;
 			}
 		}
 
 		// Edge case: if all items have same threshold, return single bucket
-		// For single bucket, relativeFrequency is 100% (contains all data) or represents single point (no range)
+		// For single bucket, relativeFrequency is 100 (contains all data)
 		if (distinctCount == 1) {
-			long totalWeight = 0;
-			for (int i = 0; i < this.sourceData.length; i++) {
-				totalWeight += weightRetriever.applyAsInt(this.sourceData[i]);
-			}
 			return new CacheableBucket[]{
 				new CacheableBucket(
 					this.toBigDecimalConverter.apply(this.firstThreshold)
 						.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
 					(int) totalWeight,
-					BigDecimal.ONE // Single bucket covers entire range, normalized to 1
+					ONE_HUNDRED // Single bucket contains 100% of data
 				)
 			};
 		}
 
-		// Build arrays of distinct values and their aggregated weights
-		final int[] distinctThresholds = new int[distinctCount];
-		final int[] distinctWeights = new int[distinctCount];
-
-		int distinctIndex = 0;
-		distinctThresholds[0] = thresholdRetriever.applyAsInt(this.sourceData[0]);
-		distinctWeights[0] = weightRetriever.applyAsInt(this.sourceData[0]);
-
-		for (int i = 1; i < this.sourceData.length; i++) {
-			final int currentThreshold = thresholdRetriever.applyAsInt(this.sourceData[i]);
-			final int currentWeight = weightRetriever.applyAsInt(this.sourceData[i]);
-
-			if (currentThreshold == distinctThresholds[distinctIndex]) {
-				// same value, accumulate weight
-				distinctWeights[distinctIndex] += currentWeight;
-			} else {
-				// new distinct value
-				distinctIndex++;
-				distinctThresholds[distinctIndex] = currentThreshold;
-				distinctWeights[distinctIndex] = currentWeight;
-			}
-		}
-
 		// Step 2: Calculate cumulative distribution and find bucket boundaries
-		// Calculate total weight
-		long totalWeight = 0;
-		for (int i = 0; i < distinctCount; i++) {
-			totalWeight += distinctWeights[i];
-		}
 
 		// Limit bucket count to number of distinct values (can't have more buckets than values)
 		final int effectiveBucketCount = Math.min(this.bucketCount, distinctCount);
@@ -315,36 +302,59 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		// Record count for last bucket
 		bucketCounts[currentBucket] = bucketWeight;
 
-		// Step 3: Create CacheableBucket array, trimming any unused buckets
-		// Calculate relativeFrequency as totalRange / bucketWidth (value density)
+		// Step 3: Create CacheableBucket array using primitive double for intermediate calculations
+		// Formula: rawRelativeFrequency = occurrences * (totalRange / bucketWidth)
+		// This rewards buckets with many occurrences packed into narrow ranges
+		// Using double for intermediate calculations is safe since final result is rounded to scale 2
 		final int actualBucketCount = currentBucket + 1;
-		final BigDecimal firstThresholdBD = this.toBigDecimalConverter.apply(this.firstThreshold);
-		final BigDecimal lastThresholdBD = this.toBigDecimalConverter.apply(this.lastThreshold);
-		final BigDecimal totalRange = lastThresholdBD.subtract(firstThresholdBD);
+		final double totalRangeD = (double) this.lastThreshold - this.firstThreshold;
 
-		final CacheableBucket[] result = new CacheableBucket[actualBucketCount];
+		// Pass 1: Calculate raw relative frequencies using primitive double
+		final double[] rawRelativeFrequencies = new double[actualBucketCount];
+		double sumRawFrequencies = 0.0;
+
 		for (int i = 0; i < actualBucketCount; i++) {
-			final BigDecimal bucketStart = this.toBigDecimalConverter.apply(bucketThresholds[i]);
-			final BigDecimal bucketEnd = (i + 1 < actualBucketCount)
-				? this.toBigDecimalConverter.apply(bucketThresholds[i + 1])
-				: lastThresholdBD;
-			final BigDecimal bucketWidth = bucketEnd.subtract(bucketStart);
+			final double bucketStartD = bucketThresholds[i];
+			final double bucketEndD = (i + 1 < actualBucketCount)
+				? bucketThresholds[i + 1]
+				: this.lastThreshold;
+			final double bucketWidthD = bucketEndD - bucketStartD;
 
-			// relativeFrequency = totalRange / bucketWidth
-			// Higher values indicate denser data concentration (narrow bucket = high density)
-			final BigDecimal relativeFrequency;
-			if (bucketWidth.compareTo(BigDecimal.ZERO) > 0 && totalRange.compareTo(BigDecimal.ZERO) > 0) {
-				relativeFrequency = totalRange.divide(bucketWidth, 2, RoundingMode.HALF_UP);
+			// rawRelativeFrequency = occurrences * (totalRange / bucketWidth)
+			// Empty buckets (0 occurrences) will have rawRelativeFrequency = 0
+			final double rawFrequency;
+			if (bucketCounts[i] == 0) {
+				rawFrequency = 0.0;
+			} else if (bucketWidthD > 0.0 && totalRangeD > 0.0) {
+				rawFrequency = (totalRangeD / bucketWidthD) * bucketCounts[i];
 			} else {
-				// Edge case: zero width or zero range - use 1 as neutral value
-				relativeFrequency = BigDecimal.ONE;
+				// Edge case: zero width or zero range - use occurrences directly
+				rawFrequency = bucketCounts[i];
 			}
 
-			result[i] = new CacheableBucket(
-				bucketStart.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
-				bucketCounts[i],
-				relativeFrequency
-			);
+			rawRelativeFrequencies[i] = rawFrequency;
+			sumRawFrequencies += rawFrequency;
+		}
+
+		// Pass 2: Normalize to 0-100 scale and create buckets
+		// Convert to BigDecimal only for final CacheableBucket values
+		final CacheableBucket[] result = new CacheableBucket[actualBucketCount];
+		for (int i = 0; i < actualBucketCount; i++) {
+			final BigDecimal threshold = this.toBigDecimalConverter.apply(bucketThresholds[i])
+				.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP);
+
+			final BigDecimal relativeFrequency;
+			if (sumRawFrequencies > 0.0) {
+				// Normalize: (rawFrequency / sum) * 100, then round to scale 2
+				final double normalizedFrequency = (rawRelativeFrequencies[i] / sumRawFrequencies) * 100.0;
+				relativeFrequency = BigDecimal.valueOf(normalizedFrequency)
+					.setScale(2, RoundingMode.HALF_UP);
+			} else {
+				// All raw frequencies are 0 (all buckets empty)
+				relativeFrequency = BigDecimal.ZERO;
+			}
+
+			result[i] = new CacheableBucket(threshold, bucketCounts[i], relativeFrequency);
 		}
 
 		// Step 4: Pad with empty buckets if EXACT mode and we have fewer buckets than requested
@@ -371,20 +381,16 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 
 		final int emptyBucketsNeeded = this.bucketCount - dataBuckets.length;
 
-		// Calculate gaps between consecutive data buckets
+		// Calculate gaps between consecutive data buckets using primitive double
 		final int gapCount = dataBuckets.length - 1;
-		final BigDecimal[] gapSizes = new BigDecimal[gapCount];
-		BigDecimal totalGapSize = BigDecimal.ZERO;
+		final double[] gapSizes = new double[gapCount];
+		double totalGapSize = 0.0;
 
 		for (int i = 0; i < gapCount; i++) {
-			gapSizes[i] = dataBuckets[i + 1].threshold().subtract(dataBuckets[i].threshold());
-			totalGapSize = totalGapSize.add(gapSizes[i]);
+			gapSizes[i] = dataBuckets[i + 1].threshold().doubleValue()
+				- dataBuckets[i].threshold().doubleValue();
+			totalGapSize += gapSizes[i];
 		}
-
-		// Calculate total range for relativeFrequency computation
-		final BigDecimal firstThresholdBD = this.toBigDecimalConverter.apply(this.firstThreshold);
-		final BigDecimal lastThresholdBD = this.toBigDecimalConverter.apply(this.lastThreshold);
-		final BigDecimal totalRange = lastThresholdBD.subtract(firstThresholdBD);
 
 		// Distribute empty buckets proportionally using floor + largest-remainder method
 		// This approach guarantees: no negative allocations, exact total, fair distribution
@@ -393,7 +399,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		int assigned = 0;
 
 		for (int i = 0; i < gapCount; i++) {
-			final double exactAllocation = emptyBucketsNeeded * gapSizes[i].doubleValue() / totalGapSize.doubleValue();
+			final double exactAllocation = emptyBucketsNeeded * gapSizes[i] / totalGapSize;
 			emptyPerGap[i] = (int) Math.floor(exactAllocation);
 			remainders[i] = exactAllocation - emptyPerGap[i];
 			assigned += emptyPerGap[i];
@@ -444,12 +450,8 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 						continue;
 					}
 
-					// Empty bucket width is the step size; compute relativeFrequency
-					final BigDecimal emptyBucketRelativeFrequency = step.compareTo(BigDecimal.ZERO) > 0
-						? totalRange.divide(step, 2, RoundingMode.HALF_UP)
-						: BigDecimal.ZERO;
-
-					result[resultIndex++] = new CacheableBucket(emptyThreshold, 0, emptyBucketRelativeFrequency);
+					// Empty buckets have 0 occurrences, so relativeFrequency = 0
+					result[resultIndex++] = new CacheableBucket(emptyThreshold, 0, BigDecimal.ZERO);
 					lastPlacedThreshold = emptyThreshold;
 				}
 			}
@@ -458,6 +460,9 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		// Extend range if some buckets couldn't fit in gaps due to monotonicity constraints
 		final int missingBuckets = this.bucketCount - resultIndex;
 		if (missingBuckets > 0) {
+			final BigDecimal firstThresholdBD = this.toBigDecimalConverter.apply(this.firstThreshold);
+			final BigDecimal lastThresholdBD = this.toBigDecimalConverter.apply(this.lastThreshold);
+			final BigDecimal totalRange = lastThresholdBD.subtract(firstThresholdBD);
 			resultIndex = extendRangeForMissingBuckets(result, resultIndex, missingBuckets, totalRange);
 		}
 
@@ -499,13 +504,8 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 			currentThreshold = currentThreshold.add(extensionStep)
 				.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP);
 
-			// relativeFrequency for extended buckets: use the step width relative to total range
-			final BigDecimal extendedBucketRelativeFrequency = extensionStep.compareTo(BigDecimal.ZERO) > 0
-				? dataRange.add(extensionStep.multiply(new BigDecimal(i + 1)))
-					.divide(extensionStep, 2, RoundingMode.HALF_UP)
-				: BigDecimal.ONE;
-
-			result[currentIndex++] = new CacheableBucket(currentThreshold, 0, extendedBucketRelativeFrequency);
+			// Extended buckets have 0 occurrences, so relativeFrequency = 0
+			result[currentIndex++] = new CacheableBucket(currentThreshold, 0, BigDecimal.ZERO);
 		}
 
 		// Update extended max threshold for getMaxValue()
