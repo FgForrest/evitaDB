@@ -266,9 +266,10 @@ public interface HistogramContract extends Serializable {
 	 * @param relativeFrequency Relative frequency value used for visualization purposes.
 	 *                          For standard histograms: percentage of total occurrences (0-100), calculated as
 	 *                          `(occurrences / overallCount) * 100`.
-	 *                          For equalized histograms: value density calculated as `totalRange / bucketWidth`,
-	 *                          where higher values indicate denser data concentration (values packed into narrower
-	 *                          bucket range).
+	 *                          For equalized histograms: normalized value density (0-100) that accounts for both
+	 *                          the number of occurrences in the bucket and its width. Raw density is calculated as
+	 *                          `occurrences * (totalRange / bucketWidth)`, then normalized so all buckets sum to 100.
+	 *                          Higher values indicate denser data concentration (more values packed into narrower range).
 	 */
 	record Bucket(
 		@Nonnull BigDecimal threshold,

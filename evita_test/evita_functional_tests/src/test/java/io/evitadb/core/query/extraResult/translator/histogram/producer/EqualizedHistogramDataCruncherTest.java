@@ -29,6 +29,7 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.Equalized
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.CollectionUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -48,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 @DisplayName("EqualizedHistogramDataCruncher tests")
 class EqualizedHistogramDataCruncherTest {
 
@@ -451,7 +453,7 @@ class EqualizedHistogramDataCruncherTest {
 
 		// For equalized histograms, all buckets are non-empty because boundaries
 		// are placed at data value transitions, not arbitrary intervals
-		assertEquals(nonEmptyAdaptive, adaptiveHistogram.length,
+		assertEquals(adaptiveHistogram.length, nonEmptyAdaptive,
 			"Equalized algorithm should produce all non-empty buckets");
 
 		// Verify data integrity
@@ -630,7 +632,9 @@ class EqualizedHistogramDataCruncherTest {
 	 */
 	@Nonnull
 	private static ValueToRecordBitmap[] createWeightedValue(int value, int weight, int valueJitter) {
-		final Random rnd = new Random();
+		final long seed = System.nanoTime();
+		log.info("createWeightedValue using seed: {} for value={}, weight={}, jitter={}", seed, value, weight, valueJitter);
+		final Random rnd = new Random(seed);
 		final Map<Integer, CompositeIntArray> recordIds = CollectionUtils.createHashMap(valueJitter);
 		for (int i = 0; i < weight; i++) {
 			recordIds.computeIfAbsent(

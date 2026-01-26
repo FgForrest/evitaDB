@@ -55,7 +55,6 @@ import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -320,7 +319,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcStatisticsType the {@link GrpcStatisticsType} to be converted
 	 * @return the converted {@link StatisticsType}
-	 * @throws EvitaInternalError if the given grpcStatisticsType is unrecognized
+	 * @throws EvitaInvalidUsageException if the given grpcStatisticsType is unrecognized
 	 */
 	@Nonnull
 	public static StatisticsType toStatisticsType(@Nonnull GrpcStatisticsType grpcStatisticsType) {
@@ -351,7 +350,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcHistogramBehavior the {@link GrpcHistogramBehavior} to be converted
 	 * @return the converted {@link HistogramBehavior}
-	 * @throws EvitaInternalError if the given grpcHistogramBehavior is unrecognized
+	 * @throws EvitaInvalidUsageException if the given grpcHistogramBehavior is unrecognized
 	 */
 	@Nonnull
 	public static HistogramBehavior toHistogramBehavior(@Nonnull GrpcHistogramBehavior grpcHistogramBehavior) {
@@ -386,7 +385,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcManagedReferencesBehaviour the {@link GrpcManagedReferencesBehaviour} to be converted
 	 * @return the converted {@link ManagedReferencesBehaviour}
-	 * @throws EvitaInternalError if the given grpcManagedReferencesBehaviour is unrecognized
+	 * @throws EvitaInvalidUsageException if the given grpcManagedReferencesBehaviour is unrecognized
 	 */
 	@Nonnull
 	public static ManagedReferencesBehaviour toManagedReferencesBehaviour(@Nonnull GrpcManagedReferencesBehaviour grpcManagedReferencesBehaviour) {
@@ -417,7 +416,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcAttributeSpecialValue the {@link GrpcAttributeSpecialValue} to be converted
 	 * @return the converted {@link AttributeSpecialValue}
-	 * @throws EvitaInternalError if the remote attribute special value is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote attribute special value is unrecognized
 	 */
 	@Nonnull
 	public static AttributeSpecialValue toAttributeSpecialValue(@Nonnull GrpcAttributeSpecialValue grpcAttributeSpecialValue) {
@@ -569,7 +568,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcPriceInnerRecordHandling the {@link GrpcPriceInnerRecordHandling} to be converted
 	 * @return the converted {@link PriceInnerRecordHandling}
-	 * @throws EvitaInternalError if the remote price inner record handling is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote price inner record handling is unrecognized
 	 */
 	@Nonnull
 	public static PriceInnerRecordHandling toPriceInnerRecordHandling(@Nonnull GrpcPriceInnerRecordHandling grpcPriceInnerRecordHandling) {
@@ -603,8 +602,7 @@ public class EvitaEnumConverter {
 	 * Converts {@link GrpcCardinality} to {@link Cardinality}.
 	 *
 	 * @param grpcCardinality the {@link GrpcCardinality} to be converted
-	 * @return the converted {@link Cardinality}, or null if grpcCardinality is 0
-	 * @throws EvitaInternalError if the grpcCardinality is unrecognized
+	 * @return the converted {@link Cardinality}, or empty if grpcCardinality is NOT_SPECIFIED or UNRECOGNIZED
 	 */
 	@Nonnull
 	public static Optional<Cardinality> toCardinality(@Nonnull GrpcCardinality grpcCardinality) {
@@ -645,7 +643,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcEvolutionMode the {@link GrpcCatalogEvolutionMode} to be converted
 	 * @return the converted {@link CatalogEvolutionMode}
-	 * @throws EvitaInternalError if the remote evolution mode is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote evolution mode is unrecognized
 	 */
 	@Nonnull
 	public static CatalogEvolutionMode toCatalogEvolutionMode(@Nonnull GrpcCatalogEvolutionMode grpcEvolutionMode) {
@@ -674,7 +672,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcEvolutionMode the {@link GrpcEvolutionMode} to be converted
 	 * @return the converted {@link EvolutionMode}
-	 * @throws EvitaInternalError if the remote evolution mode is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote evolution mode is unrecognized
 	 */
 	@Nonnull
 	public static EvolutionMode toEvolutionMode(@Nonnull GrpcEvolutionMode grpcEvolutionMode) {
@@ -719,7 +717,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcQueryPhase the {@link GrpcQueryPhase} to be converted
 	 * @return the converted {@link QueryPhase}
-	 * @throws EvitaInternalError if the remote query phase is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote query phase is unrecognized
 	 */
 	@Nonnull
 	public static QueryPhase toQueryPhase(@Nonnull GrpcQueryPhase grpcQueryPhase) {
@@ -789,7 +787,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param grpcEntityExistence the {@link GrpcEntityExistence} to be converted
 	 * @return the converted {@link EntityExistence}
-	 * @throws EvitaInternalError if the remote entity existence is unrecognized
+	 * @throws EvitaInvalidUsageException if the remote entity existence is unrecognized
 	 */
 	@Nonnull
 	public static EntityExistence toEntityExistence(@Nonnull GrpcEntityExistence grpcEntityExistence) {
@@ -822,7 +820,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param attributeSchemaClass the class of the attribute schema to be converted
 	 * @return the converted {@link GrpcAttributeSchemaType}
-	 * @throws EvitaInternalError if the attribute schema type is unrecognized
+	 * @throws GenericEvitaInternalError if the attribute schema type is unrecognized
 	 */
 	@Nonnull
 	public static GrpcAttributeSchemaType toGrpcAttributeSchemaType(@Nonnull Class<? extends AttributeSchemaContract> attributeSchemaClass) {
@@ -921,7 +919,7 @@ public class EvitaEnumConverter {
 	 *
 	 * @param commitBehaviour The GrpcCommitBehavior to convert.
 	 * @return The converted CommitBehavior.
-	 * @throws EvitaInternalError if the given commitBehaviour is unrecognized.
+	 * @throws GenericEvitaInternalError if the given commitBehaviour is unrecognized.
 	 */
 	@Nonnull
 	public static CommitBehavior toCommitBehavior(@Nonnull GrpcCommitBehavior commitBehaviour) {
