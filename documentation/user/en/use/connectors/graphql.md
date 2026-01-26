@@ -176,97 +176,91 @@ The following diagram shows the hierarchy of entity reference interfaces for `Pa
 
 ```mermaid
 classDiagram
-    class Reference {
-        <<interface>>
-        int referencePrimaryKey
-    }
-    class ParameterValuesReference {
-        <<interface>>
-        ParameterValue referencedEntity
-    }
-    class ParameterValuesXYZReferenceAttributes {
-        <<interface>>
-        String a
-        String b
-    }
-    class ParameterValuesXYZReference {
-        <<interface>>
-        Parameter groupEntity
-        ParameterValuesXYZReferenceAttributes attributes
-    }
-    class ProductParameterValuesReferenceAttributes {
-    }
-    class ProductParameterValuesReference {
-        ProductParameterValuesAttributes attributes
-    }
-    note for ProductParameterValuesReference "Attributes field is overridden with entity specific extension"
+  class Reference {
+    <<interface>>
+    int referencePrimaryKey
+  }
+  class ParameterValuesReference {
+    <<interface>>
+    ParameterValue referencedEntity
+  }
+  class ParameterValuesXYZReferenceAttributes {
+    <<interface>>
+    String a
+    String b
+  }
+  class ParameterValuesXYZReference {
+    <<interface>>
+    Parameter groupEntity
+    ParameterValuesXYZReferenceAttributes attributes
+  }
+  class ProductParameterValuesReferenceAttributes {
+  }
+  class ProductParameterValuesReference {
+    ProductParameterValuesAttributes attributes
+  }
+  ProductParameterValuesReference : Attributes field is overridden with entity specific extension
 
-    Reference <|-- ParameterValuesReference
+  Reference <|-- ParameterValuesReference
 
-    ParameterValuesReference <|-- ParameterValuesXYZReference
+  ParameterValuesReference <|-- ParameterValuesXYZReference
 
-    ParameterValuesXYZReferenceAttributes <|-- ProductParameterValuesReferenceAttributes
-    ParameterValuesXYZReference <|-- ProductParameterValuesReference
+  ParameterValuesXYZReferenceAttributes <|-- ProductParameterValuesReferenceAttributes
+  ParameterValuesXYZReference <|-- ProductParameterValuesReference
 
-    class PaginatedList {
-        <<interface>>
-    }
+  class PaginatedList {
+    <<interface>>
+  }
 
-    class ReferencePage {
-        <<interface>>
-        Reference[] data
-    }
-    PaginatedList <|-- ReferencePage
+  class ReferencePage {
+    <<interface>>
+    Reference[] data
+  }
+  PaginatedList <|-- ReferencePage
 
-    class ParameterValuesReferencePage {
-        <<interface>>
-        ParameterValuesReference[] data
-    }
-    ReferencePage <|-- ParameterValuesReferencePage
-    note for ParameterValuesReferencePage "Data field is overridden with a reference with a specific referenced entity extension"
+  class ParameterValuesReferencePage {
+    <<interface>>
+    ParameterValuesReference[] data
+  }
+  ReferencePage <|-- ParameterValuesReferencePage
 
-    class ParameterValuesXYZReferencePage {
-        <<interface>>
-        ParameterValuesXYZReference[] data
-    }
-    ParameterValuesReferencePage <|-- ParameterValuesXYZReferencePage
-    note for ParameterValuesXYZReferencePage "Data field is overridden with a specific reference definition extension"
+  class ParameterValuesXYZReferencePage {
+    <<interface>>
+    ParameterValuesXYZReference[] data
+  }
+  ParameterValuesReferencePage <|-- ParameterValuesXYZReferencePage
 
-    class StripList {
-        <<interface>>
-    }
+  class StripList {
+    <<interface>>
+  }
 
-    class ReferenceStrip {
-        <<interface>>
-        Reference[] data
-    }
-    StripList <|-- ReferenceStrip
+  class ReferenceStrip {
+    <<interface>>
+    Reference[] data
+  }
+  StripList <|-- ReferenceStrip
 
-    class ParameterValuesReferenceStrip {
-        <<interface>>
-        ParameterValuesReference[] data
-    }
-    ReferenceStrip <|-- ParameterValuesReferenceStrip
-    note for ParameterValuesReferenceStrip "Data field is overridden with a reference with a specific referenced entity extension"
+  class ParameterValuesReferenceStrip {
+    <<interface>>
+    ParameterValuesReference[] data
+  }
+  ReferenceStrip <|-- ParameterValuesReferenceStrip
 
-    class ParameterValuesXYZReferenceStrip {
-        <<interface>>
-        ParameterValuesXYZReference[] data
-    }
-    ParameterValuesReferenceStrip <|-- ParameterValuesXYZReferenceStrip
-    note for ParameterValuesXYZReferenceStrip "Data field is overridden with a specific reference definition extension"
+  class ParameterValuesXYZReferenceStrip {
+    <<interface>>
+    ParameterValuesXYZReference[] data
+  }
+  ParameterValuesReferenceStrip <|-- ParameterValuesXYZReferenceStrip
 
-    class ProductParameterValuesReferencePage {
-        ProductParameterValuesReference[] data
-    }
-    note for ProductParameterValuesReferencePage "Data field is overridden with entity specific extension"
-    ParameterValuesXYZReferencePage <|-- ProductParameterValuesReferencePage
+  class ProductParameterValuesReferencePage {
+    ProductParameterValuesReference[] data
+  }
+  ParameterValuesXYZReferencePage <|-- ProductParameterValuesReferencePage
 
-    class ProductParameterValuesReferenceStrip {
-        ProductParameterValuesReference[] data
-    }
-    note for ProductParameterValuesReferenceStrip "Data field is overridden with entity specific extension"
-    ParameterValuesXYZReferenceStrip <|-- ProductParameterValuesReferenceStrip
+  class ProductParameterValuesReferenceStrip {
+    ProductParameterValuesReference[] data
+  }
+  ParameterValuesXYZReferenceStrip <|-- ProductParameterValuesReferenceStrip
 ```
 </Note>
 
@@ -299,7 +293,6 @@ classDiagram
         ProductParameterValuesReferencePage parameterValuesPage
         ProductParameterValuesReferenceStrip parameterValuesStrip
     }
-    note for Product "Product entity extends reference types with its own extending the generic ones"
 
     WithParameterValuesXYZ1Reference <|-- Product
 ```
