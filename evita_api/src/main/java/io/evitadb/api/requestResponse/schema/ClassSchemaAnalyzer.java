@@ -98,6 +98,18 @@ import static java.util.Optional.ofNullable;
 @NotThreadSafe
 public class ClassSchemaAnalyzer {
 	/**
+	 * Set of annotation types that reference other schema elements and must be processed
+	 * after their corresponding defining annotations. These are annotations ending with
+	 * "Ref" suffix that depend on the main schema definitions being already present.
+	 */
+	private static final Set<Class<? extends Annotation>> DEPENDENT_ANNOTATIONS = Set.of(
+		ReferenceRef.class,
+		AttributeRef.class,
+		AssociatedDataRef.class,
+		PrimaryKeyRef.class,
+		PriceForSaleRef.class
+	);
+	/**
 	 * The model class representing the Entity model.
 	 */
 	private final Class<?> modelClass;
@@ -848,8 +860,22 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
+	 * Determines the processing priority for a member based on its annotations.
+	 * Members with "reference" annotations (ending with Ref suffix) that depend on
+	 * "defining" annotations are assigned higher priority values and processed later.
+	 *
+	 * @param member the member to classify
+	 * @return processing priority (0 = defining annotations, 1 = reference annotations)
+	 */
+	private static int getMemberProcessingPriority(@Nonnull MemberAccessor member) {
+		return member.hasAnyOf(DEPENDENT_ANNOTATIONS) ? 1 : 0;
+	}
+
+	/**
 	 * Analyzes all members of the model class for entity schema annotations.
 	 * Unifies the processing of methods, fields, and record components using the MemberAccessor abstraction.
+	 * Members are sorted by processing priority before iteration to ensure that defining annotations
+	 * (like @Reference) are processed before reference annotations (like @ReferenceRef).
 	 *
 	 * @param catalogBuilder the catalog schema builder
 	 * @param entityBuilder  the entity schema builder
@@ -858,7 +884,11 @@ public class ClassSchemaAnalyzer {
 		@Nonnull CatalogSchemaBuilder catalogBuilder,
 		@Nonnull EntitySchemaBuilder entityBuilder
 	) {
+		// Sort members by processing priority before iterating
+		// Priority 0: Defining annotations (@Reference, @Attribute, etc.) - processed first
+		// Priority 1: Reference annotations (@ReferenceRef, @AttributeRef, etc.) - processed last
 		getAllMemberAccessors(this.modelClass)
+			.sorted(Comparator.comparingInt(ClassSchemaAnalyzer::getMemberProcessingPriority))
 			.forEach(member -> {
 				// Primary key
 				final PrimaryKey primaryKeyAnnotation = member.getAnnotation(PrimaryKey.class);
@@ -1877,6 +1907,14 @@ public class ClassSchemaAnalyzer {
 		@Nonnull
 		String getDefiner();
 
+		/**
+		 * Checks if this member has any annotation whose type is present in the given set.
+		 *
+		 * @param annotationTypes set of annotation types to check for
+		 * @return true if member has at least one annotation from the set
+		 */
+		boolean hasAnyOf(@Nonnull Set<Class<? extends Annotation>> annotationTypes);
+
 	}
 
 	/**
@@ -1953,6 +1991,16 @@ public class ClassSchemaAnalyzer {
 			return this.field.toGenericString();
 		}
 
+		@Override
+		public boolean hasAnyOf(@Nonnull Set<Class<? extends Annotation>> annotationTypes) {
+			for (Annotation annotation : this.annotations) {
+				if (annotationTypes.contains(annotation.annotationType())) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 	}
 
 	/**
@@ -1993,6 +2041,16 @@ public class ClassSchemaAnalyzer {
 		@Nonnull
 		public String getDefiner() {
 			return this.recordComponent.toString();
+		}
+
+		@Override
+		public boolean hasAnyOf(@Nonnull Set<Class<? extends Annotation>> annotationTypes) {
+			for (Annotation annotation : this.recordComponent.getAnnotations()) {
+				if (annotationTypes.contains(annotation.annotationType())) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 	}
@@ -2037,6 +2095,16 @@ public class ClassSchemaAnalyzer {
 		@Nonnull
 		public String getDefiner() {
 			return this.method.toGenericString();
+		}
+
+		@Override
+		public boolean hasAnyOf(@Nonnull Set<Class<? extends Annotation>> annotationTypes) {
+			for (Annotation annotation : this.method.getAnnotations()) {
+				if (annotationTypes.contains(annotation.annotationType())) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 	}
