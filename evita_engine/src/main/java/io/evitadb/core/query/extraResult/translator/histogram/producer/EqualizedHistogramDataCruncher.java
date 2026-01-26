@@ -70,9 +70,10 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 */
 	public enum BucketCountMode {
 		/**
-		 * Always return exactly the requested number of buckets.
-		 * If data has fewer distinct values, pad with empty buckets distributed
-		 * proportionally across gaps between data buckets.
+		 * Returns exactly the requested number of buckets.
+		 * If data has fewer distinct values than requested buckets, empty buckets are added:
+		 * first distributed proportionally across gaps between data buckets, then any
+		 * remaining buckets extend the histogram range beyond the last data value.
 		 */
 		EXACT,
 		/**
@@ -111,6 +112,11 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	 * Internal variable containing last threshold int value.
 	 */
 	private final int lastThreshold;
+	/**
+	 * Internal variable containing the extended max threshold for EXACT mode.
+	 * May be greater than lastThreshold when range is extended to fit requested bucket count.
+	 */
+	private int extendedMaxThreshold;
 	/**
 	 * Function that converts int threshold/value to {@link BigDecimal}.
 	 */
@@ -158,6 +164,7 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 		this.bucketCountMode = bucketCountMode;
 		this.firstThreshold = thresholdRetriever.applyAsInt(sourceData[0]);
 		this.lastThreshold = thresholdRetriever.applyAsInt(sourceData[sourceData.length - 1]);
+		this.extendedMaxThreshold = this.lastThreshold;
 
 		// compute histogram using cumulative frequency algorithm
 		this.histogram = computeEqualizedHistogram(thresholdRetriever, weightRetriever);
@@ -173,12 +180,13 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 	}
 
 	/**
-	 * Returns maximal value found in the input data.
+	 * Returns maximal value in the histogram. For EXACT mode, this may be greater than the
+	 * maximum data value if the range was extended to accommodate the requested bucket count.
 	 */
 	@Nonnull
 	@Override
 	public BigDecimal getMaxValue() {
-		return this.toBigDecimalConverter.apply(this.lastThreshold)
+		return this.toBigDecimalConverter.apply(this.extendedMaxThreshold)
 			.setScale(this.limitDecimalPlacesTo, RoundingMode.UP);
 	}
 
@@ -421,14 +429,14 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 				final BigDecimal step = gapEnd.subtract(gapStart)
 					.divide(new BigDecimal(emptyPerGap[i] + 1), 10, RoundingMode.HALF_UP);
 
-				BigDecimal lastThreshold = gapStart;
+				BigDecimal lastPlacedThreshold = gapStart;
 				for (int j = 1; j <= emptyPerGap[i]; j++) {
 					BigDecimal emptyThreshold = gapStart.add(step.multiply(new BigDecimal(j)))
 						.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP);
 
 					// Ensure strict monotonicity: each threshold must be > previous
-					if (emptyThreshold.compareTo(lastThreshold) <= 0) {
-						emptyThreshold = lastThreshold.add(minIncrement);
+					if (emptyThreshold.compareTo(lastPlacedThreshold) <= 0) {
+						emptyThreshold = lastPlacedThreshold.add(minIncrement);
 					}
 
 					// Skip if would violate monotonicity with next data bucket
@@ -442,19 +450,71 @@ public class EqualizedHistogramDataCruncher<T> implements HistogramDataCruncherC
 						: BigDecimal.ZERO;
 
 					result[resultIndex++] = new CacheableBucket(emptyThreshold, 0, emptyBucketRelativeFrequency);
-					lastThreshold = emptyThreshold;
+					lastPlacedThreshold = emptyThreshold;
 				}
 			}
 		}
 
-		// Trim array if some buckets were skipped to maintain monotonicity
-		if (resultIndex < this.bucketCount) {
-			final CacheableBucket[] trimmedResult = new CacheableBucket[resultIndex];
-			System.arraycopy(result, 0, trimmedResult, 0, resultIndex);
-			return trimmedResult;
+		// Extend range if some buckets couldn't fit in gaps due to monotonicity constraints
+		final int missingBuckets = this.bucketCount - resultIndex;
+		if (missingBuckets > 0) {
+			resultIndex = extendRangeForMissingBuckets(result, resultIndex, missingBuckets, totalRange);
 		}
 
 		return result;
+	}
+
+	/**
+	 * Extends histogram range beyond last data value to accommodate missing buckets.
+	 * Updates {@link #extendedMaxThreshold} to reflect the new range.
+	 *
+	 * @param result         the bucket array being built
+	 * @param currentIndex   current write position in result array
+	 * @param missingBuckets number of empty buckets to add
+	 * @param dataRange      the original data range (last - first threshold)
+	 * @return new currentIndex after adding buckets
+	 */
+	private int extendRangeForMissingBuckets(
+		@Nonnull CacheableBucket[] result,
+		int currentIndex,
+		int missingBuckets,
+		@Nonnull BigDecimal dataRange
+	) {
+		final BigDecimal minIncrement = BigDecimal.ONE.scaleByPowerOfTen(-this.limitDecimalPlacesTo);
+		final BigDecimal lastThresholdBD = this.toBigDecimalConverter.apply(this.lastThreshold);
+
+		// Calculate extension step: use average bucket width or minimum increment
+		final BigDecimal extensionStep;
+		if (currentIndex > 1 && dataRange.compareTo(BigDecimal.ZERO) > 0) {
+			// Average width of existing buckets
+			extensionStep = dataRange.divide(new BigDecimal(currentIndex - 1), 10, RoundingMode.HALF_UP)
+				.max(minIncrement);
+		} else {
+			extensionStep = minIncrement;
+		}
+
+		// Add missing buckets after last data value
+		BigDecimal currentThreshold = lastThresholdBD;
+		for (int i = 0; i < missingBuckets; i++) {
+			currentThreshold = currentThreshold.add(extensionStep)
+				.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP);
+
+			// relativeFrequency for extended buckets: use the step width relative to total range
+			final BigDecimal extendedBucketRelativeFrequency = extensionStep.compareTo(BigDecimal.ZERO) > 0
+				? dataRange.add(extensionStep.multiply(new BigDecimal(i + 1)))
+					.divide(extensionStep, 2, RoundingMode.HALF_UP)
+				: BigDecimal.ONE;
+
+			result[currentIndex++] = new CacheableBucket(currentThreshold, 0, extendedBucketRelativeFrequency);
+		}
+
+		// Update extended max threshold for getMaxValue()
+		this.extendedMaxThreshold = currentThreshold
+			.scaleByPowerOfTen(this.limitDecimalPlacesTo)
+			.setScale(0, RoundingMode.UP)
+			.intValue();
+
+		return currentIndex;
 	}
 
 }

@@ -59,6 +59,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -420,7 +421,7 @@ public class ResponseConverter {
 			toBigDecimal(grpcBucket.getThreshold()),
 			grpcBucket.getOccurrences(),
 			grpcBucket.getRequested(),
-			toBigDecimal(grpcBucket.getRelativeFrequency())
+			grpcBucket.hasRelativeFrequency() ? toBigDecimal(grpcBucket.getRelativeFrequency()) : BigDecimal.ZERO
 		);
 	}
 }

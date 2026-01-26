@@ -247,25 +247,44 @@ class EqualizedHistogramDataCruncherTest {
 		// Test that items with same value are never split across buckets
 		// Data: 1, 2, 2, 2, 2, 2, 2, 2, 2, 3 (8 items at value 2)
 		// Algorithm produces 2 data buckets (1 with 9 items, 3 with 1 item)
-		// With EXACT mode and 4 buckets requested: need 2 empty buckets in gap [1, 3]
+		// With EXACT mode and 4 buckets requested: need 2 empty buckets
 		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
 			4,
 			1, 2, 2, 2, 2, 2, 2, 2, 2, 3
 		);
 		// Gap is 2 (from 1 to 3), divided into 3 segments for 2 empty buckets
 		// Empty thresholds at 1 + 2/3 ≈ 1.67 → 2, 1 + 4/3 ≈ 2.33 → 2
-		// With integer precision, both would round to 2, but monotonicity enforcement
-		// ensures we don't create duplicate thresholds - second bucket would be at 3
-		// which equals gapEnd, so it's skipped. Result: only 1 empty bucket fits.
-		assertBucketsEqual(
-			new CacheableBucket[]{
-				bucket(new BigDecimal(1), 9),
-				bucket(new BigDecimal(2), 0),
-				bucket(new BigDecimal(3), 1)
-			},
-			cruncher.getHistogram()
-		);
-		assertEquals(new BigDecimal(3), cruncher.getMaxValue());
+		// With integer precision, only 1 bucket fits in the gap (at 2).
+		// The second empty bucket extends the range beyond 3.
+		// EXACT mode guarantees exactly 4 buckets.
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+		assertEquals(4, histogram.length, "EXACT mode must return exactly 4 buckets");
+
+		// Bucket 0: data bucket at threshold 1 (contains 9 items: 1 at value 1, 8 at value 2)
+		assertEquals(new BigDecimal(1), histogram[0].threshold());
+		assertEquals(9, histogram[0].occurrences());
+
+		// Bucket 1: empty bucket in gap at threshold 2
+		assertEquals(new BigDecimal(2), histogram[1].threshold());
+		assertEquals(0, histogram[1].occurrences());
+
+		// Bucket 2: data bucket at threshold 3
+		assertEquals(new BigDecimal(3), histogram[2].threshold());
+		assertEquals(1, histogram[2].occurrences());
+
+		// Bucket 3: extended empty bucket at threshold 4
+		assertEquals(new BigDecimal(4), histogram[3].threshold());
+		assertEquals(0, histogram[3].occurrences());
+
+		// Verify strict monotonicity
+		for (int i = 1; i < histogram.length; i++) {
+			assertTrue(histogram[i].threshold().compareTo(histogram[i - 1].threshold()) > 0,
+				"Thresholds must be strictly increasing");
+		}
+
+		// Max value should be the extended threshold (4)
+		assertTrue(cruncher.getMaxValue().compareTo(new BigDecimal(3)) > 0,
+			"Max value should be extended beyond original data max");
 	}
 
 	@Test
@@ -561,7 +580,7 @@ class EqualizedHistogramDataCruncherTest {
 		final EqualizedHistogramDataCruncher<ValueToRecordBitmap> adaptiveCruncher =
 			new EqualizedHistogramDataCruncher<>(
 				"test histogram",
-				10, 0,
+				5, 0,
 				threeValueData,
 				it -> (int) it.getValue(),
 				bucket -> bucket.getRecordIds().size(),
@@ -717,6 +736,125 @@ class EqualizedHistogramDataCruncherTest {
 					" (" + histogram[i].threshold() + ") is not greater than bucket " +
 					(i - 1) + " (" + histogram[i - 1].threshold() + ")"
 			);
+		}
+	}
+
+	@Test
+	@DisplayName("EXACT mode guarantees requested bucket count by extending range")
+	void exactModeGuaranteesBucketCountByExtendingRange() {
+		// Data with very small gap that can't fit requested empty buckets
+		// Values 100, 101 with bucketCount=10 and limitDecimalPlacesTo=0
+		// Gap of 1 can only fit 0 empty buckets in the gap, so 8 must go to extension
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			10, BucketCountMode.EXACT, 100, 101
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		// EXACT mode must return exactly the requested bucket count
+		assertEquals(10, histogram.length,
+			"EXACT mode must return exactly 10 buckets");
+
+		// First bucket should be at 100, second at 101
+		assertEquals(new BigDecimal(100), histogram[0].threshold());
+		assertEquals(new BigDecimal(101), histogram[1].threshold());
+
+		// All data is in first two buckets
+		int totalOccurrences = 0;
+		for (CacheableBucket bucket : histogram) {
+			totalOccurrences += bucket.occurrences();
+		}
+		assertEquals(2, totalOccurrences, "Total occurrences should be 2");
+	}
+
+	@Test
+	@DisplayName("Extended buckets maintain strict monotonicity")
+	void extendedBucketsMaintainStrictMonotonicity() {
+		// Small gap scenario forcing range extension
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			15, BucketCountMode.EXACT, 100, 102
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		// Verify exact count
+		assertEquals(15, histogram.length,
+			"EXACT mode must return exactly 15 buckets");
+
+		// Verify all thresholds are strictly increasing including extended ones
+		for (int i = 1; i < histogram.length; i++) {
+			assertTrue(
+				histogram[i].threshold().compareTo(histogram[i - 1].threshold()) > 0,
+				"All thresholds must be strictly increasing, but bucket " + i +
+					" (" + histogram[i].threshold() + ") is not greater than bucket " +
+					(i - 1) + " (" + histogram[i - 1].threshold() + ")"
+			);
+		}
+	}
+
+	@Test
+	@DisplayName("getMaxValue returns extended max when range is extended")
+	void getMaxValueReturnsExtendedMax() {
+		// Small gap forcing extension - max should be > lastThreshold
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			10, BucketCountMode.EXACT, 100, 101
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+		final BigDecimal maxValue = cruncher.getMaxValue();
+
+		// Max value should be >= last bucket threshold
+		assertTrue(maxValue.compareTo(histogram[histogram.length - 1].threshold()) >= 0,
+			"Max value should be >= last bucket threshold");
+
+		// Max value should be > original data max (101) since range was extended
+		assertTrue(maxValue.compareTo(new BigDecimal(101)) > 0,
+			"Max value should be > 101 since range was extended");
+	}
+
+	@Test
+	@DisplayName("Extended buckets have valid relativeFrequency (> 0)")
+	void extendedBucketsHaveValidRelativeFrequency() {
+		// Scenario requiring range extension
+		final EqualizedHistogramDataCruncher<Integer> cruncher = createEqualizedIntCruncher(
+			10, BucketCountMode.EXACT, 100, 101
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		// All buckets (including extended ones) should have relativeFrequency > 0
+		for (int i = 0; i < histogram.length; i++) {
+			assertTrue(
+				histogram[i].relativeFrequency().compareTo(BigDecimal.ZERO) > 0,
+				"Bucket " + i + " should have relativeFrequency > 0, but has " +
+					histogram[i].relativeFrequency()
+			);
+		}
+	}
+
+	@Test
+	@DisplayName("EXACT mode with decimal places extends correctly")
+	void exactModeWithDecimalPlacesExtendsCorrectly() {
+		// Test with decimal places to ensure extension respects precision
+		final EqualizedHistogramDataCruncher<BigDecimal> cruncher = createEqualizedBigDecimalCruncher(
+			10, 2, 2, BucketCountMode.EXACT,
+			new BigDecimal("10.00"),
+			new BigDecimal("10.05")
+		);
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+
+		// Must return exactly 10 buckets
+		assertEquals(10, histogram.length,
+			"EXACT mode must return exactly 10 buckets");
+
+		// All thresholds must be strictly increasing
+		for (int i = 1; i < histogram.length; i++) {
+			assertTrue(
+				histogram[i].threshold().compareTo(histogram[i - 1].threshold()) > 0,
+				"Thresholds must be strictly increasing"
+			);
+		}
+
+		// All thresholds must have correct decimal scale
+		for (CacheableBucket bucket : histogram) {
+			assertTrue(bucket.threshold().scale() <= 2,
+				"Threshold scale should be <= 2, got: " + bucket.threshold().scale());
 		}
 	}
 

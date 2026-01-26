@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
@@ -137,6 +138,7 @@ public interface HistogramContract extends Serializable {
 			buckets.length,
 			index -> buckets[index].threshold(),
 			index -> buckets[index].occurrences(),
+			index -> buckets[index].relativeFrequency(),
 			index -> buckets[index].requested(),
 			getMax(),
 			getOverallCount()
@@ -148,17 +150,21 @@ public interface HistogramContract extends Serializable {
 	 * The resulting string includes details about the range, occurrences,
 	 * bar visualization, and percentages for each bucket.
 	 *
-	 * @param bucketCount       The number of buckets in the histogram. Must be non-negative.
-	 * @param thresholdProvider A function that provides the threshold value for a given bucket index.
-	 *                          The thresholds define the ranges of the buckets. Cannot be null.
-	 * @param occurrenceProvider A function that provides the occurrence count for a given bucket index.
-	 *                           The occurrences represent the frequency of data points within a bucket. Cannot be null.
-	 * @param requestedProvider  A predicate that determines whether a specific bucket is requested for special marking
-	 *                           in the visualization. Cannot be null.
-	 * @param max                The maximum value for the histogram's range. Used for defining the right bound
-	 *                           of the last bucket. Cannot be null.
-	 * @param overallCount       The total number of occurrences across all buckets. Used for calculating percentages.
-	 *                           Must be non-negative.
+	 * @param bucketCount               The number of buckets in the histogram. Must be non-negative.
+	 * @param thresholdProvider         A function that provides the threshold value for a given bucket index.
+	 *                                  The thresholds define the ranges of the buckets. Cannot be null.
+	 * @param occurrenceProvider        A function that provides the occurrence count for a given bucket index.
+	 *                                  The occurrences represent the frequency of data points within a bucket.
+	 *                                  Cannot be null.
+	 * @param relativeFrequencyProvider A function that provides the relative frequency value for a given bucket index.
+	 *                                  This value is used to calculate the visual bar width, allowing proper
+	 *                                  visualization for both standard and equalized histograms. Cannot be null.
+	 * @param requestedProvider         A predicate that determines whether a specific bucket is requested for
+	 *                                  special marking in the visualization. Cannot be null.
+	 * @param max                       The maximum value for the histogram's range. Used for defining the right bound
+	 *                                  of the last bucket. Cannot be null.
+	 * @param overallCount              The total number of occurrences across all buckets.
+	 *                                  Used for calculating percentages. Must be non-negative.
 	 * @return A non-null string representation of the formatted histogram, where each bucket's range,
 	 *         occurrences, bar visualization, and percentage are displayed in a human-readable format.
 	 *         If bucketCount is 0, returns "EMPTY HISTOGRAM".
@@ -168,6 +174,7 @@ public interface HistogramContract extends Serializable {
 		int bucketCount,
 		@Nonnull IntFunction<BigDecimal> thresholdProvider,
 		@Nonnull IntFunction<Integer> occurrenceProvider,
+		@Nonnull IntFunction<BigDecimal> relativeFrequencyProvider,
 		@Nonnull IntPredicate requestedProvider,
 		@Nonnull BigDecimal max,
 		int overallCount
@@ -177,8 +184,13 @@ public interface HistogramContract extends Serializable {
 		}
 
 		int maxOccurrences = 0;
+		BigDecimal maxRelativeFrequency = BigDecimal.ZERO;
 		for (int i = 0; i < bucketCount; i++) {
 			maxOccurrences = Math.max(maxOccurrences, occurrenceProvider.apply(i));
+			final BigDecimal rf = relativeFrequencyProvider.apply(i);
+			if (rf.compareTo(maxRelativeFrequency) > 0) {
+				maxRelativeFrequency = rf;
+			}
 		}
 		final int countWidth = Math.max(1, String.valueOf(maxOccurrences).length());
 		final int maxBarWidth = 40;
@@ -207,8 +219,13 @@ public interface HistogramContract extends Serializable {
 
 		for (int i = 0; i < bucketCount; i++) {
 			final int occurrences = occurrenceProvider.apply(i);
-			int barSize = maxOccurrences == 0 ? 0 : (int) Math.round((occurrences / (double) maxOccurrences) * maxBarWidth);
-			if (occurrences > 0 && barSize == 0) {
+			final BigDecimal relativeFrequency = relativeFrequencyProvider.apply(i);
+			int barSize = maxRelativeFrequency.compareTo(BigDecimal.ZERO) == 0
+				? 0
+				: relativeFrequency.multiply(BigDecimal.valueOf(maxBarWidth))
+					.divide(maxRelativeFrequency, 0, RoundingMode.HALF_UP)
+					.intValue();
+			if (relativeFrequency.compareTo(BigDecimal.ZERO) > 0 && barSize == 0) {
 				barSize = 1;
 			}
 			sb.append(String.format(Locale.ROOT, "%-" + rangeWidth + "s | %" + countWidth + "d ", ranges[i], occurrences));
@@ -263,8 +280,8 @@ public interface HistogramContract extends Serializable {
 			return '[' +
 				(this.requested ? "^" : "") + this.threshold +
 				": " + this.occurrences +
-				" (" + this.relativeFrequency + "%)" +
-				')';
+				" (" + this.relativeFrequency + ")" +
+				']';
 		}
 	}
 

@@ -152,6 +152,7 @@ public interface CacheableHistogramContract extends Serializable {
 			buckets.length,
 			index -> buckets[index].threshold(),
 			index -> buckets[index].occurrences(),
+			index -> buckets[index].relativeFrequency(),
 			index -> false,
 			getMax(),
 			getOverallCount()
@@ -186,8 +187,8 @@ public interface CacheableHistogramContract extends Serializable {
 			return '[' +
 				String.valueOf(this.threshold) +
 				": " + this.occurrences +
-				" (" + this.relativeFrequency + "%)" +
-				')';
+				" (" + this.relativeFrequency + ")" +
+				']';
 		}
 
 	}
