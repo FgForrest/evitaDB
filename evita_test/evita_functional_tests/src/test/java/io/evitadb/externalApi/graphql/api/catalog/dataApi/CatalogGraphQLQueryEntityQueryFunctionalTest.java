@@ -4541,6 +4541,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4616,6 +4617,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                        threshold
 		                                        occurrences
 		                                        requested
+		                                        relativeFrequency
 		                                    }
 		                                }
 		                            }
@@ -4665,6 +4667,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                        threshold
 		                                        occurrences
 		                                        requested
+		                                        relativeFrequency
 		                                    }
 		                                }
 		                            }
@@ -4675,6 +4678,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                        threshold
 	                                        occurrences
 	                                        requested
+	                                        relativeFrequency
 	                                    }
 	                                }
 	                            }
@@ -4738,6 +4742,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4822,6 +4827,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4896,6 +4902,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4912,6 +4919,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4978,6 +4986,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                            otherQuantity: quantity {
@@ -4990,6 +4999,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -5231,6 +5241,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                    }
@@ -5310,6 +5321,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                        threshold
 	                                        occurrences
 	                                        requested
+	                                        relativeFrequency
 	                                    }
 		                            }
 	                            }
@@ -5358,6 +5370,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                        threshold
 	                                        occurrences
 	                                        requested
+	                                        relativeFrequency
 	                                    }
 		                            }
 	                            }
@@ -5366,6 +5379,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
                                         threshold
                                         occurrences
                                         requested
+                                        relativeFrequency
                                     }
 	                            }
 		                    }
@@ -5434,6 +5448,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                    }
@@ -5518,6 +5533,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                    }
@@ -5593,6 +5609,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                        otherPriceHistogram: priceHistogram {
@@ -5605,6 +5622,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                    }
@@ -8170,6 +8188,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
+					.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
 					.build())
 				.toList())
 			.build();
@@ -8194,6 +8213,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
+					.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
 					.build())
 				.toList())
 			.build();

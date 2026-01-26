@@ -38,10 +38,12 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 
 ## Building
 
-- **Build Tool**: Maven
+- **Primary**: try to use IntelliJ MCP for building and running the project, when not possible use Maven
+- **CLI Build Tool**: Maven
 - **Java Version**: OpenJDK 17 (requires Maven toolchains configuration)
 
 Build command:
+
 ```shell
 mvn clean install
 ```
@@ -53,16 +55,20 @@ mvn clean install
 - **Test naming**: Use format `shouldDoSomethingWhenCondition` or `shouldThrowExceptionWhenCondition`
 - **Display names**: Use `@DisplayName` for entire class and for test methods to provide clear descriptions (do not repeat class description content in method descriptions)
 - **Coverage**: Automatically generate test cases for all public methods
+- for running tests try to use IntelliJ MCP, when not possible use Maven, 
+  prefer running individual test classes over running entire test suite, if you run entire test suite use profile `unitAndFunctional`
 
 ## Project Organization
 
 ### Core Modules
+
 - **evita_common**: Shared functions, exceptions, data types, and common utilities
 - **evita_query**: Query language (EvitaQL), query parser, and utilities for query handling
 - **evita_api**: Public API including data type conversions and basic structures
 - **evita_engine**: Implementation of the database engine core
 
 ### Storage Layer
+
 - **evita_store_key_value**: Key-value store implementation with binary serialization using Kryo
 - **evita_store_entity**: Entity storage format and Kryo serialization (shared between server and Java client)
 - **evita_store_server**: Server data structures persistence implementation
@@ -73,6 +79,7 @@ mvn clean install
 - **evita_export_s3**: Export service implementation for S3-compatible storage
 
 ### External APIs
+
 - **evita_external_api_core**: Shared logic for all web APIs, Armeria HTTP server integration
 - **evita_external_api_graphql**: GraphQL API implementation
 - **evita_external_api_grpc**: gRPC API implementation (includes shared stubs, server, and Java client driver)
@@ -82,10 +89,12 @@ mvn clean install
 - **evita_external_api_observability**: Observability API with Prometheus metrics and OpenTelemetry tracing
 
 ### Bundles
+
 - **evita_db**: Maven POM bundle for embedded evitaDB usage scenario
 - **evita_server**: Standalone server with all APIs bundled
 
 ### Testing Modules
+
 - **evita_test_support**: Utility classes for writing integration tests
 - **evita_functional_tests**: Test suite verifying functional correctness
 - **evita_performance_tests**: JMH-based performance tests

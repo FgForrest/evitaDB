@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,10 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Locale;
+import java.util.function.IntFunction;
+import java.util.function.IntPredicate;
 
 /**
  * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
@@ -126,22 +130,155 @@ public interface HistogramContract extends Serializable {
 	int estimateSize();
 
 	/**
+	 * Converts the histogram data into a formatted string representation.
+	 * The resulting string includes information about the range, occurrences, and percentages
+	 * for each bucket within the histogram, providing a detailed textual summary of the histogram's distribution.
+	 *
+	 * @return A non-null formatted string representation of the histogram.
+	 */
+	@Nonnull
+	default String asString() {
+		final Bucket[] buckets = getBuckets();
+		return formatHistogram(
+			buckets.length,
+			index -> buckets[index].threshold(),
+			index -> buckets[index].occurrences(),
+			index -> buckets[index].relativeFrequency(),
+			index -> buckets[index].requested(),
+			getMax(),
+			getOverallCount()
+		);
+	}
+
+	/**
+	 * Formats a histogram into a human-readable string representation.
+	 * The resulting string includes details about the range, occurrences,
+	 * bar visualization, and percentages for each bucket.
+	 *
+	 * @param bucketCount               The number of buckets in the histogram. Must be non-negative.
+	 * @param thresholdProvider         A function that provides the threshold value for a given bucket index.
+	 *                                  The thresholds define the ranges of the buckets. Cannot be null.
+	 * @param occurrenceProvider        A function that provides the occurrence count for a given bucket index.
+	 *                                  The occurrences represent the frequency of data points within a bucket.
+	 *                                  Cannot be null.
+	 * @param relativeFrequencyProvider A function that provides the relative frequency value for a given bucket index.
+	 *                                  This value is used to calculate the visual bar width, allowing proper
+	 *                                  visualization for both standard and equalized histograms. Cannot be null.
+	 * @param requestedProvider         A predicate that determines whether a specific bucket is requested for
+	 *                                  special marking in the visualization. Cannot be null.
+	 * @param max                       The maximum value for the histogram's range. Used for defining the right bound
+	 *                                  of the last bucket. Cannot be null.
+	 * @param overallCount              The total number of occurrences across all buckets.
+	 *                                  Used for calculating percentages. Must be non-negative.
+	 * @return A non-null string representation of the formatted histogram, where each bucket's range,
+	 *         occurrences, bar visualization, and percentage are displayed in a human-readable format.
+	 *         If bucketCount is 0, returns "EMPTY HISTOGRAM".
+	 */
+	@Nonnull
+	static String formatHistogram(
+		int bucketCount,
+		@Nonnull IntFunction<BigDecimal> thresholdProvider,
+		@Nonnull IntFunction<Integer> occurrenceProvider,
+		@Nonnull IntFunction<BigDecimal> relativeFrequencyProvider,
+		@Nonnull IntPredicate requestedProvider,
+		@Nonnull BigDecimal max,
+		int overallCount
+	) {
+		if (bucketCount == 0) {
+			return "EMPTY HISTOGRAM";
+		}
+
+		int maxOccurrences = 0;
+		BigDecimal maxRelativeFrequency = BigDecimal.ZERO;
+		for (int i = 0; i < bucketCount; i++) {
+			maxOccurrences = Math.max(maxOccurrences, occurrenceProvider.apply(i));
+			final BigDecimal rf = relativeFrequencyProvider.apply(i);
+			if (rf.compareTo(maxRelativeFrequency) > 0) {
+				maxRelativeFrequency = rf;
+			}
+		}
+		final int countWidth = Math.max(1, String.valueOf(maxOccurrences).length());
+		final int maxBarWidth = 40;
+		final String[] ranges = new String[bucketCount];
+		int rangeWidth = 0;
+
+		for (int i = 0; i < bucketCount; i++) {
+			final boolean hasNext = i + 1 < bucketCount;
+			final String range = thresholdProvider.apply(i).toPlainString() +
+				" - " +
+				(hasNext ? thresholdProvider.apply(i + 1).toPlainString() : max.toPlainString());
+			ranges[i] = range;
+			rangeWidth = Math.max(rangeWidth, range.length());
+		}
+
+		final String lineSeparator = System.lineSeparator();
+		final StringBuilder sb = new StringBuilder()
+			.append("Histogram[min=")
+			.append(thresholdProvider.apply(0).toPlainString())
+			.append(", max=")
+			.append(max.toPlainString())
+			.append(", overall=")
+			.append(overallCount)
+			.append(']')
+			.append(lineSeparator);
+
+		for (int i = 0; i < bucketCount; i++) {
+			final int occurrences = occurrenceProvider.apply(i);
+			final BigDecimal relativeFrequency = relativeFrequencyProvider.apply(i);
+			int barSize = maxRelativeFrequency.compareTo(BigDecimal.ZERO) == 0
+				? 0
+				: relativeFrequency.multiply(BigDecimal.valueOf(maxBarWidth))
+					.divide(maxRelativeFrequency, 0, RoundingMode.HALF_UP)
+					.intValue();
+			if (relativeFrequency.compareTo(BigDecimal.ZERO) > 0 && barSize == 0) {
+				barSize = 1;
+			}
+			sb.append(String.format(Locale.ROOT, "%-" + rangeWidth + "s | %" + countWidth + "d ", ranges[i], occurrences));
+			if (requestedProvider.test(i)) {
+				sb.append('^');
+			}
+			if (barSize > 0) {
+				for (int j = 0; j < barSize; j++) {
+					sb.append('#');
+				}
+			}
+			if (overallCount > 0) {
+				final double percentage = occurrences * 100.0d / overallCount;
+				sb.append(String.format(Locale.ROOT, " (%.1f%%)", percentage));
+			}
+			if (i + 1 < bucketCount) {
+				sb.append(lineSeparator);
+			}
+		}
+		return sb.toString();
+	}
+
+	/**
 	 * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 	 *
-	 * @param threshold   Contains threshold (left bound - inclusive) of the bucket.
-	 * @param occurrences Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
-	 *                    between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
-	 * @param requested   contains true if the query contained {@link AttributeBetween} or {@link PriceBetween}
-	 *                    constraint for particular attribute / price and the bucket threshold lies within the range
-	 *                    (inclusive) of the constraint. False otherwise.
+	 * @param threshold         Contains threshold (left bound - inclusive) of the bucket.
+	 * @param occurrences       Contains number of entity occurrences in this bucket - e.g. number of entities that
+	 *                          has monitored property value between previous bucket threshold (exclusive) and this
+	 *                          bucket threshold (inclusive)
+	 * @param requested         contains true if the query contained {@link AttributeBetween} or {@link PriceBetween}
+	 *                          constraint for particular attribute / price and the bucket threshold lies within the
+	 *                          range (inclusive) of the constraint. False otherwise.
+	 * @param relativeFrequency Relative frequency value used for visualization purposes.
+	 *                          For standard histograms: percentage of total occurrences (0-100), calculated as
+	 *                          `(occurrences / overallCount) * 100`.
+	 *                          For equalized histograms: normalized value density (0-100) that accounts for both
+	 *                          the number of occurrences in the bucket and its width. Raw density is calculated as
+	 *                          `occurrences * (totalRange / bucketWidth)`, then normalized so all buckets sum to 100.
+	 *                          Higher values indicate denser data concentration (more values packed into narrower range).
 	 */
 	record Bucket(
 		@Nonnull BigDecimal threshold,
 		int occurrences,
-		boolean requested
+		boolean requested,
+		@Nonnull BigDecimal relativeFrequency
 	) implements Serializable {
-		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE;
-		@Serial private static final long serialVersionUID = 4216355542992506073L;
+		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE * 2;
+		@Serial private static final long serialVersionUID = 4216355542992506074L;
 
 		@Nonnull
 		@Override
@@ -149,7 +286,9 @@ public interface HistogramContract extends Serializable {
 			return '[' +
 				(this.requested ? "^" : "") + this.threshold +
 				": " + this.occurrences +
-				')';
+				" (" + this.relativeFrequency + ")" +
+				']';
 		}
 	}
+
 }

@@ -29,34 +29,28 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
-import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 
 import java.math.BigDecimal;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link FlattenedFormula} from/to binary format.
+ * This {@link Serializer} implementation reads {@link FlattenedFormula} from binary format
+ * that was written before the `relativeFrequency` field was added to {@link CacheableBucket}.
+ *
+ * This serializer handles backward compatibility for cached histogram data that was serialized
+ * without the `relativeFrequency` field. When reading old data, it computes `relativeFrequency`
+ * from the occurrences and overall count as `(occurrences / overallCount) * 100`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @deprecated This serializer is deprecated and should not be used for writing new data.
  */
-public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormulaSerializer<FlattenedHistogramComputer> {
+@Deprecated(since = "2026.1", forRemoval = true)
+public class FlattenedHistogramComputerSerializer_2026_1 extends AbstractFlattenedFormulaSerializer<FlattenedHistogramComputer> {
 
 	@Override
 	public void write(Kryo kryo, Output output, FlattenedHistogramComputer object) {
-		output.writeLong(object.getRecordHash());
-		output.writeLong(object.getTransactionalIdHash());
-		writeBitmapIds(output, object.getTransactionalDataIds());
-
-		final CacheableHistogramContract histogram = object.compute();
-		kryo.writeObject(output, histogram.getMax());
-		final CacheableBucket[] buckets = histogram.getBuckets();
-		output.writeVarInt(buckets.length, true);
-		for (CacheableBucket bucket : buckets) {
-			output.writeVarInt(bucket.occurrences(), true);
-			kryo.writeObject(output, bucket.threshold());
-			kryo.writeObject(output, bucket.relativeFrequency());
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -66,12 +60,28 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		final long[] bitmapIds = readBitmapIds(input);
 		final BigDecimal max = kryo.readObject(input, BigDecimal.class);
 		final int bucketCount = input.readVarInt(true);
+
+		// First pass: read occurrences and thresholds, calculate overall count
+		final int[] occurrences = new int[bucketCount];
+		final BigDecimal[] thresholds = new BigDecimal[bucketCount];
+		int overallCount = 0;
+		for (int i = 0; i < bucketCount; i++) {
+			occurrences[i] = input.readVarInt(true);
+			thresholds[i] = kryo.readObject(input, BigDecimal.class);
+			overallCount += occurrences[i];
+		}
+
+		// Second pass: create buckets with computed relative frequency
 		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
-		for(int i = 0; i < bucketCount; i++) {
-			final int occurrences = input.readVarInt(true);
-			final BigDecimal threshold = kryo.readObject(input, BigDecimal.class);
-			final BigDecimal relativeFrequency = kryo.readObject(input, BigDecimal.class);
-			buckets[i] = new CacheableBucket(threshold, occurrences, relativeFrequency);
+		final BigDecimal overallCountBd = BigDecimal.valueOf(overallCount);
+		for (int i = 0; i < bucketCount; i++) {
+			// Old format doesn't have relativeFrequency - compute from occurrences/overallCount * 100
+			final BigDecimal relativeFrequency = overallCount > 0
+				? BigDecimal.valueOf(occurrences[i])
+					.multiply(BigDecimal.valueOf(100))
+					.divide(overallCountBd, 2, java.math.RoundingMode.HALF_UP)
+				: BigDecimal.ZERO;
+			buckets[i] = new CacheableBucket(thresholds[i], occurrences[i], relativeFrequency);
 		}
 
 		return new FlattenedHistogramComputer(

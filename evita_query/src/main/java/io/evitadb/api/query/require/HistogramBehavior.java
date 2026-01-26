@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,13 +35,27 @@ public enum HistogramBehavior {
 
 	/**
 	 * Histogram always contains the number of buckets you asked for. This is the default behaviour.
+	 * Bucket boundaries are positioned at equal intervals across the value range.
 	 */
 	STANDARD,
 	/**
 	 * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce and
 	 * there would be big gaps (empty buckets) between buckets. This leads to more compact histograms, which provide
 	 * better user experience.
+	 * Bucket boundaries are positioned at equal intervals across the value range.
 	 */
-	OPTIMIZED
+	OPTIMIZED,
+	/**
+	 * Histogram always contains the number of buckets you asked for.
+	 * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
+	 * approximately equal portion of total records. This provides better user experience when data is heavily skewed.
+	 */
+	EQUALIZED,
+	/**
+	 * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce.
+	 * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
+	 * approximately equal portion of total records. This provides better user experience when data is heavily skewed.
+	 */
+	EQUALIZED_OPTIMIZED
 
 }

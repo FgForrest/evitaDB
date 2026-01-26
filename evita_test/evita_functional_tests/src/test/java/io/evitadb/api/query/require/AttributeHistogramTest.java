@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,6 +49,19 @@ class AttributeHistogramTest {
 	}
 
 	@Test
+	void shouldCreateWithEqualizedBehavior() {
+		final AttributeHistogram attributeHistogram1 = attributeHistogram(20, HistogramBehavior.EQUALIZED, "a", "b");
+		assertEquals(20, attributeHistogram1.getRequestedBucketCount());
+		assertEquals(HistogramBehavior.EQUALIZED, attributeHistogram1.getBehavior());
+		assertArrayEquals(new String[]{"a", "b"}, attributeHistogram1.getAttributeNames());
+
+		final AttributeHistogram attributeHistogram2 = attributeHistogram(20, HistogramBehavior.EQUALIZED_OPTIMIZED, "a");
+		assertEquals(20, attributeHistogram2.getRequestedBucketCount());
+		assertEquals(HistogramBehavior.EQUALIZED_OPTIMIZED, attributeHistogram2.getBehavior());
+		assertArrayEquals(new String[]{"a"}, attributeHistogram2.getAttributeNames());
+	}
+
+	@Test
 	void shouldRecognizeApplicability() {
 		assertNull(attributeHistogram(20));
 		assertFalse(new AttributeHistogram(20).isApplicable());
@@ -56,6 +69,8 @@ class AttributeHistogramTest {
 		assertTrue(attributeHistogram(20, "a").isApplicable());
 		assertTrue(attributeHistogram(20, "a", "c").isApplicable());
 		assertTrue(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "c").isApplicable());
+		assertTrue(attributeHistogram(20, HistogramBehavior.EQUALIZED, "a", "c").isApplicable());
+		assertTrue(attributeHistogram(20, HistogramBehavior.EQUALIZED_OPTIMIZED, "a", "c").isApplicable());
 	}
 
 	@Test
