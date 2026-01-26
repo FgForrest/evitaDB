@@ -4294,10 +4294,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    filterBy: {
 		                        attributePriorityLessThan: "35000"
 		                    }
-		                    orderBy: {
-		                        attributeCreatedNatural: DESC,
-		                        attributeManufacturedNatural: ASC
-		                    }
+		                    orderBy: [
+		                        {
+			                        attributeCreatedNatural: DESC
+			                    },
+			                    {
+			                        attributeManufacturedNatural: ASC
+			                    }
+		                    ]
 		                ) {
 		                    recordStrip(limit: 30) {
 		                        data {
@@ -7986,6 +7990,63 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, DataChunkDescriptor.TOTAL_RECORD_COUNT), greaterThan(0));
+	}
+
+	@Test
+	@DisplayName("Should not allow defining multiple order constraints in one container")
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	void shouldNotAllowDefiningMultipleOrderConstraintsInOneContainer(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK,
+							priceValidInNow: true
+						},
+						orderBy: {
+							priceNatural: DESC,
+							attributeCodeNatural: ASC
+						}
+					) {
+						recordPage {
+							data {
+								primaryKey
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectErrorsAndThen();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK,
+							priceValidInNow: true
+						},
+						orderBy: [
+							{
+								priceNatural: DESC
+							},
+							{
+								attributeCodeNatural: ASC
+							}
+						]
+					) {
+						recordPage {
+							data {
+								primaryKey
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen();
 	}
 
 	@DisplayName("Should order by price")

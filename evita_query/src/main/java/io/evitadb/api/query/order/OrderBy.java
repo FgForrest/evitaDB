@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;

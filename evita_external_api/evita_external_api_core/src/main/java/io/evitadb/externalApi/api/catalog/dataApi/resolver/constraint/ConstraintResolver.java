@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -209,6 +209,18 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 */
 	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
 		return childParameter.uniqueChildren();
+	}
+
+	/**
+	 * Determines whether multiple inner constraints are allowed within a container.
+	 * <p>
+	 * Example: If `false` and a user query contains a container with multiple inner constraints, an error is returned to
+	 * a user.
+	 *
+	 * @return true if multiple inner constraints are permitted, false otherwise.
+	 */
+	protected boolean isAllowsMultipleInnerConstraintsInContainer() {
+		return true;
 	}
 
 	@Nonnull
@@ -810,6 +822,11 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 		//noinspection unchecked
 		final Map<String, Object> innerConstraints = (Map<String, Object>) value;
+		if (!isAllowsMultipleInnerConstraintsInContainer() && innerConstraints.size() > 1) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` expected to has container with only one nested constraint."
+			);
+		}
 		return innerConstraints.entrySet()
 			.stream()
 			.map(c -> resolve(resolveContext, c.getKey(), c.getValue()))
