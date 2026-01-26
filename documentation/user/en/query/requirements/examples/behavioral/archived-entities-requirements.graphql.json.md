@@ -7,27 +7,32 @@
     {
       "threshold" : "77.00",
       "occurrences" : 487,
-      "requested" : true
+      "requested" : true,
+      "relativeFrequency" : "53.34"
     },
     {
       "threshold" : "531.60",
       "occurrences" : 284,
-      "requested" : true
+      "requested" : true,
+      "relativeFrequency" : "31.11"
     },
     {
       "threshold" : "986.20",
       "occurrences" : 118,
-      "requested" : true
+      "requested" : true,
+      "relativeFrequency" : "12.92"
     },
     {
       "threshold" : "1440.80",
       "occurrences" : 21,
-      "requested" : true
+      "requested" : true,
+      "relativeFrequency" : "2.30"
     },
     {
       "threshold" : "1895.40",
       "occurrences" : 3,
-      "requested" : true
+      "requested" : true,
+      "relativeFrequency" : "0.33"
     }
   ]
 }
