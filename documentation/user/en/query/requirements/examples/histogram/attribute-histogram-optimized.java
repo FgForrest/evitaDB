@@ -27,13 +27,8 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 		return session.querySealedEntity(
 			query(
 				collection("Product"),
-				filterBy(
-					priceInPriceLists("basic"),
-					priceInCurrency(Currency.getInstance("EUR")),
-					priceValidInNow()
-				),
 				require(
-					priceHistogram(20, STANDARD)
+					attributeHistogram(20, OPTIMIZED, "width")
 				)
 			)
 		);

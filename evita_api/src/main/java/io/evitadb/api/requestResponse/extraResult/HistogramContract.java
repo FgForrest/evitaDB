@@ -33,7 +33,6 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
@@ -189,13 +188,8 @@ public interface HistogramContract extends Serializable {
 		}
 
 		int maxOccurrences = 0;
-		BigDecimal maxRelativeFrequency = BigDecimal.ZERO;
 		for (int i = 0; i < bucketCount; i++) {
 			maxOccurrences = Math.max(maxOccurrences, occurrenceProvider.apply(i));
-			final BigDecimal rf = relativeFrequencyProvider.apply(i);
-			if (rf.compareTo(maxRelativeFrequency) > 0) {
-				maxRelativeFrequency = rf;
-			}
 		}
 		final int countWidth = Math.max(1, String.valueOf(maxOccurrences).length());
 		final int maxBarWidth = 40;
@@ -222,14 +216,11 @@ public interface HistogramContract extends Serializable {
 			.append(']')
 			.append(lineSeparator);
 
+		final BigDecimal barWidthScale = BigDecimal.valueOf(maxBarWidth).scaleByPowerOfTen(-2);
 		for (int i = 0; i < bucketCount; i++) {
 			final int occurrences = occurrenceProvider.apply(i);
 			final BigDecimal relativeFrequency = relativeFrequencyProvider.apply(i);
-			int barSize = maxRelativeFrequency.compareTo(BigDecimal.ZERO) == 0
-				? 0
-				: relativeFrequency.multiply(BigDecimal.valueOf(maxBarWidth))
-					.divide(maxRelativeFrequency, 0, RoundingMode.HALF_UP)
-					.intValue();
+			int barSize = relativeFrequency.multiply(barWidthScale).intValue();
 			if (relativeFrequency.compareTo(BigDecimal.ZERO) > 0 && barSize == 0) {
 				barSize = 1;
 			}

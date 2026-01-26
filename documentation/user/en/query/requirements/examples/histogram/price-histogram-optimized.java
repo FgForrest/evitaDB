@@ -28,12 +28,13 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 			query(
 				collection("Product"),
 				filterBy(
+					attributeStartsWith("code", "alcatel"),
 					priceInPriceLists("basic"),
 					priceInCurrency(Currency.getInstance("EUR")),
 					priceValidInNow()
 				),
 				require(
-					priceHistogram(20, STANDARD)
+					priceHistogram(20, OPTIMIZED)
 				)
 			)
 		);
