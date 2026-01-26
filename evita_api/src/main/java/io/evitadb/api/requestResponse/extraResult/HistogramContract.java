@@ -88,6 +88,11 @@ public interface HistogramContract extends Serializable {
 		public int estimateSize() {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE;
 		}
+
+		@Override
+		public String toString() {
+			return "EMPTY HISTOGRAM";
+		}
 	};
 
 	/**

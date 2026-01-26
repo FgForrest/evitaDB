@@ -90,6 +90,11 @@ public interface CacheableHistogramContract extends Serializable {
 		public int estimateSize() {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE;
 		}
+
+		@Override
+		public String toString() {
+			return HistogramContract.EMPTY.toString();
+		}
 	};
 
 	/**

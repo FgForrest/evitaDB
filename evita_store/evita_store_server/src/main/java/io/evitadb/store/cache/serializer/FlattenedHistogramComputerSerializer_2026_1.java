@@ -39,8 +39,8 @@ import java.math.BigDecimal;
  * that was written before the `relativeFrequency` field was added to {@link CacheableBucket}.
  *
  * This serializer handles backward compatibility for cached histogram data that was serialized
- * without the `relativeFrequency` field. When reading old data, it defaults `relativeFrequency`
- * to {@link BigDecimal#ZERO}.
+ * without the `relativeFrequency` field. When reading old data, it computes `relativeFrequency`
+ * from the occurrences and overall count as `(occurrences / overallCount) * 100`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @deprecated This serializer is deprecated and should not be used for writing new data.
@@ -60,12 +60,28 @@ public class FlattenedHistogramComputerSerializer_2026_1 extends AbstractFlatten
 		final long[] bitmapIds = readBitmapIds(input);
 		final BigDecimal max = kryo.readObject(input, BigDecimal.class);
 		final int bucketCount = input.readVarInt(true);
-		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
+
+		// First pass: read occurrences and thresholds, calculate overall count
+		final int[] occurrences = new int[bucketCount];
+		final BigDecimal[] thresholds = new BigDecimal[bucketCount];
+		int overallCount = 0;
 		for (int i = 0; i < bucketCount; i++) {
-			final int occurrences = input.readVarInt(true);
-			final BigDecimal threshold = kryo.readObject(input, BigDecimal.class);
-			// Old format doesn't have relativeFrequency - default to ZERO
-			buckets[i] = new CacheableBucket(threshold, occurrences, BigDecimal.ZERO);
+			occurrences[i] = input.readVarInt(true);
+			thresholds[i] = kryo.readObject(input, BigDecimal.class);
+			overallCount += occurrences[i];
+		}
+
+		// Second pass: create buckets with computed relative frequency
+		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
+		final BigDecimal overallCountBd = BigDecimal.valueOf(overallCount);
+		for (int i = 0; i < bucketCount; i++) {
+			// Old format doesn't have relativeFrequency - compute from occurrences/overallCount * 100
+			final BigDecimal relativeFrequency = overallCount > 0
+				? BigDecimal.valueOf(occurrences[i])
+					.multiply(BigDecimal.valueOf(100))
+					.divide(overallCountBd, 2, java.math.RoundingMode.HALF_UP)
+				: BigDecimal.ZERO;
+			buckets[i] = new CacheableBucket(thresholds[i], occurrences[i], relativeFrequency);
 		}
 
 		return new FlattenedHistogramComputer(

@@ -48,9 +48,13 @@ public interface HistogramDataCruncherContract<T> {
 	CacheableBucket[] getHistogram();
 
 	/**
-	 * Returns the maximum value found in the input data.
+	 * Returns the maximum value (upper threshold) of the histogram range.
 	 *
-	 * @return maximum value as BigDecimal
+	 * Implementations may extend the histogram range beyond the maximum value
+	 * present in the input data, so this value is guaranteed to be greater than
+	 * or equal to the maximum input value, but not necessarily equal to it.
+	 *
+	 * @return maximum histogram threshold as {@link BigDecimal}
 	 */
 	@Nonnull
 	BigDecimal getMaxValue();
