@@ -3638,7 +3638,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									.e(
 										ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 											.e(
-												ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+												StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
 												reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
 											)
 									)
@@ -3733,7 +3733,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										     .e(
 											     ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 												     .e(
-													     ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+													     StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
 													     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
 												     )
 										     )
@@ -3892,7 +3892,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									return map()
 										.e(
 											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+											.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
 											.e(VersionedDescriptor.VERSION.name(), referencedEntity.version()))
@@ -3993,7 +3993,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.map(ref -> map()
 							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
 							.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+								.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 							.build())
 						.toList()
 				)
@@ -4039,7 +4039,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									);
 									return map()
 										.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
-											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+											.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
 											.e(EntityDescriptor.VERSION.name(), referencedEntity.version()))
@@ -4058,7 +4058,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.filter(ref -> !ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
 								.map(ref -> map()
 									.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+										.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 									.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 										.e(EntityDescriptor.PRIMARY_KEY.name(), ref.getReferencedPrimaryKey()))
 									.build())

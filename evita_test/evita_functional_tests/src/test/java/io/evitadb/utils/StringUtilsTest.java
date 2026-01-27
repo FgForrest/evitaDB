@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,9 +26,15 @@ package io.evitadb.utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import javax.annotation.Nonnull;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.StringUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -158,6 +164,10 @@ class StringUtilsTest {
 		assertEquals("fooBar", toCamelCase("FOO_BAR"));
 		assertEquals("fooBar09", toCamelCase("FOO_BAR09"));
 		assertEquals("fooBar09", toCamelCase("FOO_BAR_09"));
+		assertEquals("storeVisibleForB2c", toCamelCase("storeVisibleForB2C"));
+		assertEquals("fooBarAbc", toCamelCase("fooBarABC"));
+		assertEquals("fooAbBar", toCamelCase("fooABBar"));
+		assertEquals("fooABar", toCamelCase("fooABar"));
 	}
 
 	@Test
@@ -172,6 +182,10 @@ class StringUtilsTest {
 		assertEquals("FooBar", toPascalCase("FOO_BAR"));
 		assertEquals("FooBar09", toPascalCase("FOO_BAR09"));
 		assertEquals("FooBar09", toPascalCase("FOO_BAR_09"));
+		assertEquals("StoreVisibleForB2c", toPascalCase("storeVisibleForB2C"));
+		assertEquals("FooBarAbc", toPascalCase("fooBarABC"));
+		assertEquals("FooAbBar", toPascalCase("fooABBar"));
+		assertEquals("FooABar", toPascalCase("fooABar"));
 	}
 
 	@Test
@@ -187,6 +201,10 @@ class StringUtilsTest {
 		assertEquals("foo_bar09", toSnakeCase("FooBar09"));
 		assertEquals("foo_bar09", toSnakeCase("FOO_BAR09"));
 		assertEquals("foo_bar_09", toSnakeCase("FOO_BAR_09"));
+		assertEquals("store_visible_for_b2c", toSnakeCase("storeVisibleForB2C"));
+		assertEquals("foo_bar_abc", toSnakeCase("fooBarABC"));
+		assertEquals("foo_ab_bar", toSnakeCase("fooABBar"));
+		assertEquals("foo_a_bar", toSnakeCase("fooABar"));
 	}
 
 	@Test
@@ -202,6 +220,10 @@ class StringUtilsTest {
 		assertEquals("FOO_BAR09", toUpperSnakeCase("FooBar09"));
 		assertEquals("FOO_BAR09", toUpperSnakeCase("FOO_BAR09"));
 		assertEquals("FOO_BAR_09", toUpperSnakeCase("FOO_BAR_09"));
+		assertEquals("STORE_VISIBLE_FOR_B2C", toUpperSnakeCase("storeVisibleForB2C"));
+		assertEquals("FOO_BAR_ABC", toUpperSnakeCase("fooBarABC"));
+		assertEquals("FOO_AB_BAR", toUpperSnakeCase("fooABBar"));
+		assertEquals("FOO_A_BAR", toUpperSnakeCase("fooABar"));
 	}
 
 	@Test
@@ -217,6 +239,37 @@ class StringUtilsTest {
 		assertEquals("foo-bar09", toKebabCase("FooBar09"));
 		assertEquals("foo-bar09", toKebabCase("FOO_BAR09"));
 		assertEquals("foo-bar-09", toKebabCase("FOO_BAR_09"));
+		assertEquals("store-visible-for-b2c", toKebabCase("storeVisibleForB2C"));
+		assertEquals("foo-bar-abc", toKebabCase("fooBarABC"));
+		assertEquals("foo-ab-bar", toKebabCase("fooABBar"));
+		assertEquals("foo-a-bar", toKebabCase("fooABar"));
+	}
+
+	@ParameterizedTest
+	@MethodSource("shouldSplitStringWithCaseIntoWordsArguments")
+	void shouldSplitStringWithCaseIntoWords(List<String> expectedWords, String inputString) {
+		assertEquals(expectedWords, splitStringWithCaseIntoWords(inputString));
+	}
+
+	@Nonnull
+	static Stream<Arguments> shouldSplitStringWithCaseIntoWordsArguments() {
+		return Stream.of(
+			Arguments.of(List.of("Foo", "BAR"), "Foo.BAR"),
+			Arguments.of(List.of("FOO", "BAR", "09", "2"), "FOO.BAR:::09 2"),
+			Arguments.of(List.of("FOO", "BAR", "09", "2"), "FOO@BAR//09`2"),
+			Arguments.of(List.of("foo", "Bar"), "fooBar"),
+			Arguments.of(List.of("Foo", "Bar"), "FooBar"),
+			Arguments.of(List.of("foo", "bar"), "foo-bar"),
+			Arguments.of(List.of("foo", "bar"), "foo_bar"),
+			Arguments.of(List.of("FOO", "BAR"), "FOO_BAR"),
+			Arguments.of(List.of("Foo", "Bar09"), "FooBar09"),
+			Arguments.of(List.of("FOO", "BAR09"), "FOO_BAR09"),
+			Arguments.of(List.of("FOO", "BAR", "09"), "FOO_BAR_09"),
+			Arguments.of(List.of("store", "Visible", "For", "B2C"), "storeVisibleForB2C"),
+			Arguments.of(List.of("foo", "Bar", "ABC"), "fooBarABC"),
+			Arguments.of(List.of("foo", "AB", "Bar"), "fooABBar"),
+			Arguments.of(List.of("foo", "A", "Bar"), "fooABar")
+		);
 	}
 
 	@Test

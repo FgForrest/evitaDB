@@ -51,6 +51,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -2137,7 +2138,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				GET_PRODUCT_PATH + ".store." + AttributesProviderDescriptor.ATTRIBUTES.name() + "." + ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+				GET_PRODUCT_PATH + ".store." + AttributesProviderDescriptor.ATTRIBUTES.name() + "." + StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
 				containsInAnyOrder(
 					entity.getReferences(Entities.STORE)
 						.stream()
