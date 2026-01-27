@@ -215,22 +215,26 @@ class SessionKillerTest implements EvitaTestSupport {
 
 			final CompletableFuture<Void> future = CompletableFuture.runAsync(asyncCall);
 
-			// Wait for the method to start
-			assertTrue(methodStarted.await(5, TimeUnit.SECONDS));
+			try {
+				// Wait for the method to start
+				assertTrue(methodStarted.await(5, TimeUnit.SECONDS));
 
-			// Wait enough time for session to appear "old" based on lastCall timestamp
-			synchronized (this.evita) {
-				this.evita.wait(2000);
+				// Wait enough time for session to appear "old" based on lastCall timestamp
+				synchronized (this.evita) {
+					this.evita.wait(2000);
+				}
+
+				// At this point, the session's lastCall was set when the method started (2+ seconds ago)
+				// The atomic check should correctly identify that a method is still running
+				assertFalse(internalSession.isInactiveAndIdle(1L));
+
+				// Now allow the method to complete - this will update lastCall to current time
+				readyToComplete.countDown();
+				finishMethodCall.set(true);
+				future.join();
+			} finally {
+				future.cancel(true);
 			}
-
-			// At this point, the session's lastCall was set when the method started (2+ seconds ago)
-			// The atomic check should correctly identify that a method is still running
-			assertFalse(internalSession.isInactiveAndIdle(1L));
-
-			// Now allow the method to complete - this will update lastCall to current time
-			readyToComplete.countDown();
-			finishMethodCall.set(true);
-			future.join();
 
 			// Check if the session was killed while the method was still running
 			assertFalse(

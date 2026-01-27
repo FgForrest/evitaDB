@@ -541,13 +541,13 @@ final class EvitaSessionProxy implements InvocationHandler {
 			//   we read insideInvocation == 0
 			//
 			// Verified in: SessionKillerTest#shouldNotKillSessionWhenMethodCompletesJustBeforeTermination
-			final boolean methodRunning = this.insideInvocation.get() > 0;
-			if (methodRunning) {
+			if (this.insideInvocation.get() > 0) {
 				return false;
 			}
 			final long allowedInactivityInSeconds = (long) args[0];
 			final long inactivitySeconds = (System.currentTimeMillis() - this.lastCall.get()) / 1000;
-			return inactivitySeconds >= allowedInactivityInSeconds;
+			// if no method is running and inactivity time exceeded the allowed limit
+			return this.insideInvocation.get() <= 0 && inactivitySeconds >= allowedInactivityInSeconds;
 		} else if (method.equals(IS_ACTIVE)) {
 			// if we know that the session is being closed on proxy level
 			if (this.closeLambda.get() != null) {

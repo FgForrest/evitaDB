@@ -614,7 +614,7 @@ public final class SessionRegistry {
 					min = version;
 				}
 			}
-			return OptionalLong.of(min);
+			return min == Long.MAX_VALUE ? OptionalLong.empty() : OptionalLong.of(min);
 		}
 
 	}
