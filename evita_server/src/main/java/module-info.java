@@ -55,4 +55,5 @@ module evita.server {
 	requires evita.engine;
 	requires evita.external.api.core;
 	requires ch.qos.logback.classic;
+	requires com.linecorp.armeria;
 }
