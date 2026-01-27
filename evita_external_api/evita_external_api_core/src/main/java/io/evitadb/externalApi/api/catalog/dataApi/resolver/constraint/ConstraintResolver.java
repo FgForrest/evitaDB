@@ -823,8 +823,10 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		//noinspection unchecked
 		final Map<String, Object> innerConstraints = (Map<String, Object>) value;
 		if (!isAllowsMultipleInnerConstraintsInContainer() && innerConstraints.size() > 1) {
-			throw createQueryResolvingInternalError(
-				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` expected to has container with only one nested constraint."
+			throw createInvalidArgumentException(
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` contains multiple nested constraints in a single container. " +
+					"Due to JSON object property ordering being undefined, this can lead to non-deterministic results. " +
+					"Please use an array syntax where each constraint is in its own object, for example: [{ constraint1 }, { constraint2 }]."
 			);
 		}
 		return innerConstraints.entrySet()

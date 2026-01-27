@@ -1971,6 +1971,51 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	}
 
 	@Test
+	@DisplayName("Should not allow defining multiple order constraints in one container")
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	void shouldNotAllowDefiningMultipleOrderConstraintsInOneContainer(Evita evita, RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"priceInPriceLists": ["basic"],
+						"priceInCurrency": "CZK",
+						"priceValidInNow": true
+					},
+					"orderBy": [{
+						"priceNatural": "DESC",
+						"attributeCodeNatural": "ASC"
+					}]
+				}
+				""")
+			.executeAndExpectBadRequestAndThen();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"priceInPriceLists": ["basic"],
+						"priceInCurrency": "CZK",
+						"priceValidInNow": true
+					},
+					"orderBy": [
+						{
+							"priceNatural": "DESC"
+						},
+						{
+							"attributeCodeNatural": "ASC"
+						}
+					]
+				}
+				""")
+			.executeAndExpectOkAndThen();
+	}
+
+	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should order entities by complex query")
 	void shouldOrderEntitiesByComplexQuery(Evita evita, RestTester tester) {
