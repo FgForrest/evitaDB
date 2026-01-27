@@ -179,7 +179,7 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 * 4. Session is incorrectly terminated despite having recent activity
 	 *
 	 * Note: This method is implemented by the session proxy. The implementation in the underlying
-	 * session always returns false to prevent accidental termination if called directly.
+	 * session throws UnsupportedOperationException to indicate it must be called through the proxy.
 	 *
 	 * @param allowedInactivityInSeconds the minimum number of seconds of inactivity required
 	 * @return true if the session has been inactive for at least the specified duration AND no method is running

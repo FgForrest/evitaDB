@@ -28,6 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -176,6 +177,7 @@ class SessionKillerTest implements EvitaTestSupport {
 		// The key verification is that immediately after a method completes,
 		// isInactiveAndIdle returns false because lastCall was just updated.
 		final AtomicBoolean finishMethodCall = new AtomicBoolean(false);
+		final AtomicBoolean sessionWasUnexpectedlyKilled = new AtomicBoolean(false);
 		final CountDownLatch methodStarted = new CountDownLatch(1);
 		final CountDownLatch readyToComplete = new CountDownLatch(1);
 		try {
@@ -204,7 +206,10 @@ class SessionKillerTest implements EvitaTestSupport {
 				try {
 					session.query(query, EntityReference.class);
 				} catch (CollectionNotFoundException e) {
-					// expected
+					// expected - the query references an unknown entity
+				} catch (InstanceTerminatedException e) {
+					// session was killed while method was running - record this for assertion
+					sessionWasUnexpectedlyKilled.set(true);
 				}
 			};
 
@@ -227,6 +232,14 @@ class SessionKillerTest implements EvitaTestSupport {
 			finishMethodCall.set(true);
 			future.join();
 
+			// Check if the session was killed while the method was still running
+			assertFalse(
+				sessionWasUnexpectedlyKilled.get(),
+				"Session was unexpectedly killed while a method was still running. " +
+					"The SessionKiller should not terminate sessions with active method calls. " +
+					"This indicates the isInactiveAndIdle filter is not working correctly."
+			);
+
 			// KEY ASSERTION: Immediately after method completion, the lastCall was just updated,
 			// so session should NOT be considered inactive even though no method is currently running.
 			// This is the core of the race condition fix - we check both conditions atomically.
@@ -234,7 +247,22 @@ class SessionKillerTest implements EvitaTestSupport {
 
 			// Run SessionKiller - it should NOT kill the session because lastCall was just updated
 			this.sessionKiller.run();
-			assertTrue(session.isActive());
+			try {
+				assertTrue(
+					session.isActive(),
+					"Session was unexpectedly killed by SessionKiller despite having recent activity " +
+						"(lastCall was just updated after method completion). " +
+						"This indicates a race condition in the inactivity check."
+				);
+			} catch (InstanceTerminatedException e) {
+				throw new AssertionError(
+					"Session was unexpectedly terminated by SessionKiller despite having recent activity " +
+						"(lastCall was just updated after method completion). " +
+						"The atomic check in isInactiveAndIdle should have prevented this. " +
+						"This indicates a race condition in the inactivity check.",
+					e
+				);
+			}
 		} finally {
 			finishMethodCall.set(true);
 			readyToComplete.countDown();

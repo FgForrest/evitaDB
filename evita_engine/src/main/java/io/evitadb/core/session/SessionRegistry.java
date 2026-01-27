@@ -760,8 +760,12 @@ public final class SessionRegistry {
 			} catch (Throwable ex) {
 				throw handleUnexpectedException(ex, method, args);
 			} finally {
-				this.insideInvocation.decrementAndGet();
+				// IMPORTANT: Update lastCall BEFORE decrementing insideInvocation
+				// This ensures proper happens-before relationship with isInactiveAndIdle:
+				// - isInactiveAndIdle reads insideInvocation first, then lastCall
+				// - If it sees insideInvocation == 0, lastCall is guaranteed to be up-to-date
 				this.lastCall.set(System.currentTimeMillis());
+				this.insideInvocation.decrementAndGet();
 			}
 		}
 
@@ -884,12 +888,18 @@ public final class SessionRegistry {
 			} else if (method.equals(INACTIVITY_IN_SECONDS)) {
 				return (System.currentTimeMillis() - this.lastCall.get()) / 1000;
 			} else if (method.equals(IS_INACTIVE_AND_IDLE)) {
-				// Atomic check: only return true if BOTH conditions are met at the same instant
-				// This prevents race conditions where a method completes between the two checks
+				// IMPORTANT: Read insideInvocation FIRST, then lastCall
+				// Combined with the write order in invokeMethodSafely (lastCall first, then insideInvocation),
+				// this ensures proper happens-before relationship:
+				// - If we see insideInvocation == 0, the corresponding lastCall update is already visible
+				// - This prevents the race where: we read old lastCall, method completes, we read insideInvocation == 0
+				final boolean methodRunning = this.insideInvocation.get() > 0;
+				if (methodRunning) {
+					return false;
+				}
 				final long allowedInactivityInSeconds = (long) args[0];
 				final long inactivitySeconds = (System.currentTimeMillis() - this.lastCall.get()) / 1000;
-				final boolean methodRunning = this.insideInvocation.get() > 0;
-				return inactivitySeconds >= allowedInactivityInSeconds && !methodRunning;
+				return inactivitySeconds >= allowedInactivityInSeconds;
 			} else if (method.equals(IS_ACTIVE)) {
 				// if we know that the session is being closed on proxy level
 				if (this.closeLambda.get() != null) {
