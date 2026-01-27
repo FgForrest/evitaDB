@@ -30,6 +30,7 @@ import ch.qos.logback.core.CoreConstants;
 import ch.qos.logback.core.LayoutBase;
 import ch.qos.logback.core.util.CachingDateFormatter;
 import com.linecorp.armeria.common.RequestContext;
+import com.linecorp.armeria.common.logging.RequestLog;
 import com.linecorp.armeria.common.logging.RequestLogAccess;
 import com.linecorp.armeria.common.logging.RequestLogProperty;
 import io.evitadb.api.observability.trace.TracingContext;
@@ -148,8 +149,13 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 		if (requestContext != null) {
 			final RequestLogAccess logAccess = requestContext.log();
 			if (logAccess.isAvailable(RequestLogProperty.RESPONSE_END_TIME)) {
-				final long durationNanos = logAccess.ensureComplete().totalDurationNanos();
-				return durationNanos / 1_000_000L;
+				final RequestLog partialLog = logAccess.partial();
+				if (partialLog.isRequestComplete()) {
+					final long durationNanos = partialLog.totalDurationNanos();
+					return durationNanos / 1_000_000L;
+				} else {
+					return null;
+				}
 			}
 		}
 		return null;

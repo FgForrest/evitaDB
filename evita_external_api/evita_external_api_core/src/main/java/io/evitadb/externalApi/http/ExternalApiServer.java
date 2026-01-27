@@ -544,7 +544,8 @@ public class ExternalApiServer implements AutoCloseable {
 
 		if (apiOptions.accessLog()) {
 			serverBuilder
-				//* remote IP, remote host, remote logname, remote user, timestamp, request line, status code, length, header: Referer, header: User-Agent *//*
+				/* remote IP, remote host, remote logname, remote user, timestamp, request line, status code, length,
+				   header: Referer, header: User-Agent, total duration in milliseconds */
 				.accessLogWriter(
 					AccessLogWriter.custom("%a %h %l %u %t %r %s %b %{Referer}i %{User-Agent}i %{totalDurationMillis}L ms"),
 					gracefulShutdown
