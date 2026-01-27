@@ -166,6 +166,27 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	boolean methodIsRunning();
 
 	/**
+	 * Performs an atomic check to determine if the session is both inactive for at least the specified duration
+	 * AND no method is currently running. This method is designed to prevent race conditions where a method
+	 * completes between checking inactivity and checking if a method is running.
+	 *
+	 * The check is atomic - both conditions (inactivity duration and method running state) are evaluated
+	 * at the same instant, preventing scenarios where:
+	 *
+	 * 1. SessionKiller checks inactivity duration (session appears old)
+	 * 2. A long-running method completes, updating lastCall timestamp
+	 * 3. SessionKiller checks methodIsRunning (returns false)
+	 * 4. Session is incorrectly terminated despite having recent activity
+	 *
+	 * Note: This method is implemented by the session proxy. The implementation in the underlying
+	 * session always returns false to prevent accidental termination if called directly.
+	 *
+	 * @param allowedInactivityInSeconds the minimum number of seconds of inactivity required
+	 * @return true if the session has been inactive for at least the specified duration AND no method is running
+	 */
+	boolean isInactiveAndIdle(long allowedInactivityInSeconds);
+
+	/**
 	 * Invokes lambda once no method on the current object is running or immediately if there is no method running.
 	 * This method allows to execute code that needs to be executed when the session is not busy with any method.
 	 * When lambda is invoked, it is guaranteed that no other method starts running on the current object.

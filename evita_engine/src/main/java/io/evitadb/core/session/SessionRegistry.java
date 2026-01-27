@@ -479,6 +479,7 @@ public final class SessionRegistry {
 		private final static Method IS_METHOD_RUNNING;
 		private final static Method WHEN_METHOD_IS_NOT_RUNNING;
 		private final static Method INACTIVITY_IN_SECONDS;
+		private final static Method IS_INACTIVE_AND_IDLE;
 
 		static {
 			try {
@@ -486,6 +487,7 @@ public final class SessionRegistry {
 				IS_METHOD_RUNNING = EvitaInternalSessionContract.class.getMethod("methodIsRunning");
 				WHEN_METHOD_IS_NOT_RUNNING = EvitaInternalSessionContract.class.getMethod("executeWhenMethodIsNotRunning", Runnable.class);
 				INACTIVITY_IN_SECONDS = EvitaInternalSessionContract.class.getMethod("getInactivityDurationInSeconds");
+				IS_INACTIVE_AND_IDLE = EvitaInternalSessionContract.class.getMethod("isInactiveAndIdle", long.class);
 			} catch (NoSuchMethodException ex) {
 				throw new GenericEvitaInternalError("Method not found.", ex);
 			}
@@ -881,6 +883,13 @@ public final class SessionRegistry {
 				return null;
 			} else if (method.equals(INACTIVITY_IN_SECONDS)) {
 				return (System.currentTimeMillis() - this.lastCall.get()) / 1000;
+			} else if (method.equals(IS_INACTIVE_AND_IDLE)) {
+				// Atomic check: only return true if BOTH conditions are met at the same instant
+				// This prevents race conditions where a method completes between the two checks
+				final long allowedInactivityInSeconds = (long) args[0];
+				final long inactivitySeconds = (System.currentTimeMillis() - this.lastCall.get()) / 1000;
+				final boolean methodRunning = this.insideInvocation.get() > 0;
+				return inactivitySeconds >= allowedInactivityInSeconds && !methodRunning;
 			} else if (method.equals(IS_ACTIVE)) {
 				// if we know that the session is being closed on proxy level
 				if (this.closeLambda.get() != null) {
