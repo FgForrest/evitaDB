@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,9 +26,15 @@ package io.evitadb.utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import javax.annotation.Nonnull;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.StringUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -146,77 +152,164 @@ class StringUtilsTest {
 		assertEquals("foo-bar", toSpecificCase("fooBar", NamingConvention.KEBAB_CASE));
 	}
 
-	@Test
-	void shouldSwitchCaseToCamelCase() {
-		assertEquals("fooBar", toCamelCase("Foo.BAR"));
-		assertEquals("fooBar092", toCamelCase("FOO.BAR:::09 2"));
-		assertEquals("fooBar092", toCamelCase("FOO@BAR//09`2"));
-		assertEquals("fooBar", toCamelCase("fooBar"));
-		assertEquals("fooBar", toCamelCase("FooBar"));
-		assertEquals("fooBar", toCamelCase("foo-bar"));
-		assertEquals("fooBar", toCamelCase("foo_bar"));
-		assertEquals("fooBar", toCamelCase("FOO_BAR"));
-		assertEquals("fooBar09", toCamelCase("FOO_BAR09"));
-		assertEquals("fooBar09", toCamelCase("FOO_BAR_09"));
+	@ParameterizedTest
+	@MethodSource("shouldSwitchCaseToCamelCaseArguments")
+	void shouldSwitchCaseToCamelCase(String expected, String input) {
+		assertEquals(expected, toCamelCase(input));
 	}
 
-	@Test
-	void shouldSwitchCaseToPascalCase() {
-		assertEquals("FooBar", toPascalCase("Foo.BAR"));
-		assertEquals("FooBar092", toPascalCase("FOO.BAR:::09 2"));
-		assertEquals("FooBar092", toPascalCase("FOO@BAR//09`2"));
-		assertEquals("FooBar", toPascalCase("fooBar"));
-		assertEquals("FooBar", toPascalCase("FooBar"));
-		assertEquals("FooBar", toPascalCase("foo-bar"));
-		assertEquals("FooBar", toPascalCase("foo_bar"));
-		assertEquals("FooBar", toPascalCase("FOO_BAR"));
-		assertEquals("FooBar09", toPascalCase("FOO_BAR09"));
-		assertEquals("FooBar09", toPascalCase("FOO_BAR_09"));
+	@Nonnull
+	static Stream<Arguments> shouldSwitchCaseToCamelCaseArguments() {
+		return Stream.of(
+			Arguments.of("fooBar", "Foo.BAR"),
+			Arguments.of("fooBar092", "FOO.BAR:::09 2"),
+			Arguments.of("fooBar092", "FOO@BAR//09`2"),
+			Arguments.of("fooBar", "fooBar"),
+			Arguments.of("fooBar", "FooBar"),
+			Arguments.of("fooBar", "foo-bar"),
+			Arguments.of("fooBar", "foo_bar"),
+			Arguments.of("fooBar", "FOO_BAR"),
+			Arguments.of("fooBar09", "FOO_BAR09"),
+			Arguments.of("fooBar09", "FOO_BAR_09"),
+			Arguments.of("storeVisibleForB2c", "storeVisibleForB2C"),
+			Arguments.of("fooBarAbc", "fooBarABC"),
+			Arguments.of("fooAbBar", "fooABBar"),
+			Arguments.of("fooABar", "fooABar")
+		);
 	}
 
-	@Test
-	void shouldSwitchCaseToSnakeCase() {
-		assertEquals("foo_bar", toSnakeCase("Foo.BAR"));
-		assertEquals("foo_bar_09_2", toSnakeCase("FOO.BAR:::09 2"));
-		assertEquals("foo_bar_09_2", toSnakeCase("FOO@BAR//09`2"));
-		assertEquals("foo_bar", toSnakeCase("fooBar"));
-		assertEquals("foo_bar", toSnakeCase("FooBar"));
-		assertEquals("foo_bar", toSnakeCase("foo-bar"));
-		assertEquals("foo_bar", toSnakeCase("foo_bar"));
-		assertEquals("foo_bar", toSnakeCase("FOO_BAR"));
-		assertEquals("foo_bar09", toSnakeCase("FooBar09"));
-		assertEquals("foo_bar09", toSnakeCase("FOO_BAR09"));
-		assertEquals("foo_bar_09", toSnakeCase("FOO_BAR_09"));
+	@ParameterizedTest
+	@MethodSource("shouldSwitchCaseToPascalCaseArguments")
+	void shouldSwitchCaseToPascalCase(String expected, String input) {
+		assertEquals(expected, toPascalCase(input));
 	}
 
-	@Test
-	void shouldSwitchCaseToUpperSnakeCase() {
-		assertEquals("FOO_BAR", toUpperSnakeCase("Foo.BAR"));
-		assertEquals("FOO_BAR_09_2", toUpperSnakeCase("FOO.BAR:::09 2"));
-		assertEquals("FOO_BAR_09_2", toUpperSnakeCase("FOO@BAR//09`2"));
-		assertEquals("FOO_BAR", toUpperSnakeCase("fooBar"));
-		assertEquals("FOO_BAR", toUpperSnakeCase("FooBar"));
-		assertEquals("FOO_BAR", toUpperSnakeCase("foo-bar"));
-		assertEquals("FOO_BAR", toUpperSnakeCase("foo_bar"));
-		assertEquals("FOO_BAR", toUpperSnakeCase("FOO_BAR"));
-		assertEquals("FOO_BAR09", toUpperSnakeCase("FooBar09"));
-		assertEquals("FOO_BAR09", toUpperSnakeCase("FOO_BAR09"));
-		assertEquals("FOO_BAR_09", toUpperSnakeCase("FOO_BAR_09"));
+	@Nonnull
+	static Stream<Arguments> shouldSwitchCaseToPascalCaseArguments() {
+		return Stream.of(
+			Arguments.of("FooBar", "Foo.BAR"),
+			Arguments.of("FooBar092", "FOO.BAR:::09 2"),
+			Arguments.of("FooBar092", "FOO@BAR//09`2"),
+			Arguments.of("FooBar", "fooBar"),
+			Arguments.of("FooBar", "FooBar"),
+			Arguments.of("FooBar", "foo-bar"),
+			Arguments.of("FooBar", "foo_bar"),
+			Arguments.of("FooBar", "FOO_BAR"),
+			Arguments.of("FooBar09", "FOO_BAR09"),
+			Arguments.of("FooBar09", "FOO_BAR_09"),
+			Arguments.of("StoreVisibleForB2c", "storeVisibleForB2C"),
+			Arguments.of("FooBarAbc", "fooBarABC"),
+			Arguments.of("FooAbBar", "fooABBar"),
+			Arguments.of("FooABar", "fooABar")
+		);
 	}
 
-	@Test
-	void shouldSwitchCaseToKebabCase() {
-		assertEquals("foo-bar", toKebabCase("Foo.BAR"));
-		assertEquals("foo-bar-09-2", toKebabCase("FOO.BAR:::09 2"));
-		assertEquals("foo-bar-09-2", toKebabCase("FOO@BAR//09`2"));
-		assertEquals("foo-bar", toKebabCase("fooBar"));
-		assertEquals("foo-bar", toKebabCase("FooBar"));
-		assertEquals("foo-bar", toKebabCase("foo-bar"));
-		assertEquals("foo-bar", toKebabCase("foo_bar"));
-		assertEquals("foo-bar", toKebabCase("FOO_BAR"));
-		assertEquals("foo-bar09", toKebabCase("FooBar09"));
-		assertEquals("foo-bar09", toKebabCase("FOO_BAR09"));
-		assertEquals("foo-bar-09", toKebabCase("FOO_BAR_09"));
+	@ParameterizedTest
+	@MethodSource("shouldSwitchCaseToSnakeCaseArguments")
+	void shouldSwitchCaseToSnakeCase(String expected, String input) {
+		assertEquals(expected, toSnakeCase(input));
+	}
+
+	@Nonnull
+	static Stream<Arguments> shouldSwitchCaseToSnakeCaseArguments() {
+		return Stream.of(
+			Arguments.of("foo_bar", "Foo.BAR"),
+			Arguments.of("foo_bar_09_2", "FOO.BAR:::09 2"),
+			Arguments.of("foo_bar_09_2", "FOO@BAR//09`2"),
+			Arguments.of("foo_bar", "fooBar"),
+			Arguments.of("foo_bar", "FooBar"),
+			Arguments.of("foo_bar", "foo-bar"),
+			Arguments.of("foo_bar", "foo_bar"),
+			Arguments.of("foo_bar", "FOO_BAR"),
+			Arguments.of("foo_bar09", "FooBar09"),
+			Arguments.of("foo_bar09", "FOO_BAR09"),
+			Arguments.of("foo_bar_09", "FOO_BAR_09"),
+			Arguments.of("store_visible_for_b2c", "storeVisibleForB2C"),
+			Arguments.of("foo_bar_abc", "fooBarABC"),
+			Arguments.of("foo_ab_bar", "fooABBar"),
+			Arguments.of("foo_a_bar", "fooABar")
+		);
+	}
+
+	@ParameterizedTest
+	@MethodSource("shouldSwitchCaseToUpperSnakeCaseArguments")
+	void shouldSwitchCaseToUpperSnakeCase(String expected, String input) {
+		assertEquals(expected, toUpperSnakeCase(input));
+	}
+
+	@Nonnull
+	static Stream<Arguments> shouldSwitchCaseToUpperSnakeCaseArguments() {
+		return Stream.of(
+			Arguments.of("FOO_BAR", "Foo.BAR"),
+			Arguments.of("FOO_BAR_09_2", "FOO.BAR:::09 2"),
+			Arguments.of("FOO_BAR_09_2", "FOO@BAR//09`2"),
+			Arguments.of("FOO_BAR", "fooBar"),
+			Arguments.of("FOO_BAR", "FooBar"),
+			Arguments.of("FOO_BAR", "foo-bar"),
+			Arguments.of("FOO_BAR", "foo_bar"),
+			Arguments.of("FOO_BAR", "FOO_BAR"),
+			Arguments.of("FOO_BAR09", "FooBar09"),
+			Arguments.of("FOO_BAR09", "FOO_BAR09"),
+			Arguments.of("FOO_BAR_09", "FOO_BAR_09"),
+			Arguments.of("STORE_VISIBLE_FOR_B2C", "storeVisibleForB2C"),
+			Arguments.of("FOO_BAR_ABC", "fooBarABC"),
+			Arguments.of("FOO_AB_BAR", "fooABBar"),
+			Arguments.of("FOO_A_BAR", "fooABar")
+		);
+	}
+
+	@ParameterizedTest
+	@MethodSource("shouldSwitchCaseToKebabCaseArguments")
+	void shouldSwitchCaseToKebabCase(String expected, String input) {
+		assertEquals(expected, toKebabCase(input));
+	}
+
+	@Nonnull
+	static Stream<Arguments> shouldSwitchCaseToKebabCaseArguments() {
+		return Stream.of(
+			Arguments.of("foo-bar", "Foo.BAR"),
+			Arguments.of("foo-bar-09-2", "FOO.BAR:::09 2"),
+			Arguments.of("foo-bar-09-2", "FOO@BAR//09`2"),
+			Arguments.of("foo-bar", "fooBar"),
+			Arguments.of("foo-bar", "FooBar"),
+			Arguments.of("foo-bar", "foo-bar"),
+			Arguments.of("foo-bar", "foo_bar"),
+			Arguments.of("foo-bar", "FOO_BAR"),
+			Arguments.of("foo-bar09", "FooBar09"),
+			Arguments.of("foo-bar09", "FOO_BAR09"),
+			Arguments.of("foo-bar-09", "FOO_BAR_09"),
+			Arguments.of("store-visible-for-b2c", "storeVisibleForB2C"),
+			Arguments.of("foo-bar-abc", "fooBarABC"),
+			Arguments.of("foo-ab-bar", "fooABBar"),
+			Arguments.of("foo-a-bar", "fooABar")
+		);
+	}
+
+	@ParameterizedTest
+	@MethodSource("shouldSplitStringWithCaseIntoWordsArguments")
+	void shouldSplitStringWithCaseIntoWords(List<String> expectedWords, String inputString) {
+		assertEquals(expectedWords, splitStringWithCaseIntoWords(inputString));
+	}
+
+	@Nonnull
+	static Stream<Arguments> shouldSplitStringWithCaseIntoWordsArguments() {
+		return Stream.of(
+			Arguments.of(List.of("Foo", "BAR"), "Foo.BAR"),
+			Arguments.of(List.of("FOO", "BAR", "09", "2"), "FOO.BAR:::09 2"),
+			Arguments.of(List.of("FOO", "BAR", "09", "2"), "FOO@BAR//09`2"),
+			Arguments.of(List.of("foo", "Bar"), "fooBar"),
+			Arguments.of(List.of("Foo", "Bar"), "FooBar"),
+			Arguments.of(List.of("foo", "bar"), "foo-bar"),
+			Arguments.of(List.of("foo", "bar"), "foo_bar"),
+			Arguments.of(List.of("FOO", "BAR"), "FOO_BAR"),
+			Arguments.of(List.of("Foo", "Bar09"), "FooBar09"),
+			Arguments.of(List.of("FOO", "BAR09"), "FOO_BAR09"),
+			Arguments.of(List.of("FOO", "BAR", "09"), "FOO_BAR_09"),
+			Arguments.of(List.of("store", "Visible", "For", "B2C"), "storeVisibleForB2C"),
+			Arguments.of(List.of("foo", "Bar", "ABC"), "fooBarABC"),
+			Arguments.of(List.of("foo", "AB", "Bar"), "fooABBar"),
+			Arguments.of(List.of("foo", "A", "Bar"), "fooABar")
+		);
 	}
 
 	@Test

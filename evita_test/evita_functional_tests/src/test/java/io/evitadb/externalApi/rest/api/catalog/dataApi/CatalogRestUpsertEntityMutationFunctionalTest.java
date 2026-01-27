@@ -46,6 +46,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
+import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -737,7 +738,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 				.e(
 					AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 					.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-						.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))))
+						.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))))
 				.build())
 			.toList();
 		expectedBody = new LinkedList<>(expectedBody);
@@ -746,7 +747,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(
 				AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 				.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)))
+					.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), true)))
 			.build());
 
 		tester.test(TEST_CATALOG)

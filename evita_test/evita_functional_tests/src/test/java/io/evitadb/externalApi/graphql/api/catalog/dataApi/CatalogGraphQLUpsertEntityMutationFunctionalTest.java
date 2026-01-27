@@ -40,6 +40,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -785,7 +786,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 				.e(
 					AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
+					.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
 					.build())
 				.build())
 			.toList();
@@ -794,7 +795,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
 			.e(
 				AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true))
+				.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), true))
 			.build());
 
 		tester.test(TEST_CATALOG)
@@ -817,7 +818,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                                    primaryKey: 1000000000
 	                                    attributeMutation: {
 	                                        upsertAttributeMutation: {
-	                                            name: "storeVisibleForB2c"
+	                                            name: "storeVisibleForB2C"
 	                                            value: true
 	                                            valueType: Boolean
 	                                        }
