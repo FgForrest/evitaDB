@@ -48,6 +48,90 @@ Build command:
 mvn clean install
 ```
 
+## Committing
+
+GitHub repository: https://github.com/FgForrest/evitaDB
+Main branch: `dev`
+Release branches: `release_YYYY-M`
+
+### Branch Naming Convention
+
+Use format: `{issue-id}-{kebab-case-description}`
+
+Examples:
+- `1075-fix-session-killer-race-condition`
+- `1234-add-graphql-pagination-support`
+
+### Commit Messages
+
+Use conventional commits style with issue reference:
+
+```
+<type>: <description>
+
+[optional body explaining the change in detail]
+
+Ref: #<issue-id>
+```
+
+**Commit types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `perf`: Performance improvement
+- `test`: Adding or updating tests
+- `docs`: Documentation changes
+- `chore`: Maintenance tasks, dependency updates
+
+**Example:**
+```
+fix: race condition in SessionKiller when checking session inactivity
+
+The session inactivity check was not properly synchronized, leading to
+race conditions when multiple threads accessed the same session data.
+
+Ref: #1075
+```
+
+### Pull Requests
+
+- **Target branch**: resolve using this command:
+  ```shell
+  # Try PR first, then tracking branch, then repo default
+  gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null \
+    || git config branch.$(git branch --show-current).merge 2>/dev/null | sed 's|refs/heads/||' \                                                        
+    || gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
+  ```
+- **Review**: Automatically request review from GitHub Copilot when creating pull requests
+- **Linking**: Reference the issue number in PR description to automatically link (e.g., "Closes #1075" or "Fixes #1075")
+- **Tooling**: use GitHub CLI (`gh` command) for PR creation and management
+
+**Example PR creation:**
+```shell
+gh pr create --reviewer copilot --title "Fix session killer race condition" --body "Closes #1075"
+```
+
+### Issue Tracking
+
+Use GitHub Issues for tracking tasks and bugs. When creating issues:
+
+**Issue Type Labels** (select appropriate label):
+- `bug`: Something isn't working correctly
+- `enhancement`: New feature or request
+- `performance`: Performance problem or optimization
+- `maintenance`: Refactoring, technical debt, or maintenance tasks
+- `breaking change`: Backward incompatible data model or API change
+- `documentation`: Improvements or additions to documentation
+
+**Milestone Selection:**
+- Pick the nearest upcoming milestone by due date
+- Use `gh api repos/FgForrest/evitaDB/milestones` to list available milestones
+
+**Issue Linking:**
+- Branches: GitHub automatically links branches named with issue numbers (e.g., `1075-description`)
+- Commits: Include `Ref: #<issue-id>` in commit message
+- PRs: Use "Closes #<issue-id>", "Fixes #<issue-id>", or "Resolves #<issue-id>" in PR description
+
 ## Testing
 
 - **Framework**: JUnit 5
