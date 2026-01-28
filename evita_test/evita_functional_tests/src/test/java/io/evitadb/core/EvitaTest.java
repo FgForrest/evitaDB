@@ -3031,7 +3031,7 @@ class EvitaTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema("abc");
-					session.defineEntitySchema("ABc");
+					session.defineEntitySchema("Abc");
 				}
 			)
 		);
