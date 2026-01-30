@@ -30,6 +30,7 @@ import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryUtils;
@@ -39,6 +40,7 @@ import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityPrimaryKeyExact;
 import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
 import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
@@ -601,7 +603,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Map<Scope, Bitmap> allReferencedEntityPksInScope;
 		final Bitmap allReferencedEntityPks;
 		// if query required filtering or only existing references
-		if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null) {
+		if ((managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING && referenceSchema.isReferencedEntityTypeManaged()) || filterBy != null) {
 			// we need to filter the referenced entity ids to only those that really exist
 			allReferencedEntityPksInScope = limitToExistingEntities(
 				combineWithOr(allReferencedEntityPksFromEntitiesInScope.values()),
@@ -1658,7 +1660,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			ServerChunkTransformerAccessor.convertIfNecessary(requirements.referenceChunkTransformer())
 		);
 		// are we requested to (are we able to) fetch the entity bodies?
-		if (referenceSchema.isReferencedEntityTypeManaged()) {
+		if (referenceSchema.isReferencedEntityTypeManaged() ||
+			filterTargetsReferenceAttributes(requirements.filterBy(), referenceSchema.getReferencedEntityType())
+		) {
 			final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
 				entityPrimaryKey,
 				executionContext,
@@ -1764,6 +1768,31 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				.map(OrderingDescriptor::comparator)
 				.orElse(null)
 		);
+	}
+
+	/**
+	 * Filters and processes the targets based on the specified reference attributes.
+	 * Validates whether the given filter contains any entity-related constraints,
+	 * and depending on the result, determines the next actions to perform.
+	 *
+	 * @param filter Optional filter parameter that may contain constraints to process.
+	 *               Can be {@code null} if no filtering criteria are provided.
+	 * @param entityType The type of entity being evaluated, used for validation and
+	 *                   exception handling if unmanaged entities are encountered.
+	 * @return {@code true} if no entity-related constraints are found in the filter
+	 *         or the filter is {@code null}, otherwise throws an exception.
+	 */
+	private static boolean filterTargetsReferenceAttributes(@Nullable FilterBy filter, @Nonnull String entityType) {
+		if (filter != null) {
+			final EntityHaving entityHaving = QueryUtils.findConstraint(
+				filter, EntityHaving.class, SeparateEntityScopeContainer.class);
+			if (entityHaving != null) {
+				throw new EntityNotManagedException(entityType);
+			} else {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
