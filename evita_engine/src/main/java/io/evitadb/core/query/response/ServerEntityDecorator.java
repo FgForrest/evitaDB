@@ -94,7 +94,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	/**
 	 * Specialized reference sets accessible by reference content instance name.
 	 */
-	private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
+	@Nullable private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
 
 	/**
 	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
@@ -149,7 +149,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			attributePredicate, associatedDataValuePredicate,
 			referencePredicate, pricePredicate,
 			alignedNow,
-			ioFetchCount, ioFetchedBytes
+			ioFetchCount, ioFetchedBytes,
+			entity.namedReferenceSets
 		);
 	}
 
@@ -188,7 +189,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		this.ioFetchedBytes = ioFetchedBytes;
 	}
 
-	private ServerEntityDecorator(
+	public ServerEntityDecorator(
 		@Nonnull ServerEntityDecorator delegate,
 		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
@@ -199,16 +200,16 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nonnull PriceContractSerializablePredicate pricePredicate,
 		@Nonnull OffsetDateTime alignedNow,
 		int ioFetchCount,
-		int ioFetchedBytes
+		int ioFetchedBytes,
+		@Nullable Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets
 	) {
 		super(
-			delegate, parentEntity,
-			localePredicate, hierarchyPredicate, attributePredicate, associatedDataPredicate,
-			referencePredicate, pricePredicate,
-			alignedNow
+			delegate, parentEntity, localePredicate, hierarchyPredicate, attributePredicate, associatedDataPredicate,
+			referencePredicate, pricePredicate, alignedNow
 		);
 		this.ioFetchCount = ioFetchCount;
 		this.ioFetchedBytes = ioFetchedBytes;
+		this.namedReferenceSets = namedReferenceSets;
 	}
 
 	@Override
@@ -354,8 +355,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		if (this.memoizedIoFetchCount == -1) {
 			this.memoizedIoFetchCount = this.ioFetchCount +
 				(
-					parentAvailable() ?
-						getParentEntity()
+					this.delegate.parentAvailable() ?
+						this.delegate.getParentEntity()
 							.filter(ServerEntityDecorator.class::isInstance)
 							.map(ServerEntityDecorator.class::cast)
 							.map(ServerEntityDecorator::getIoFetchCount)
@@ -364,8 +365,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						0
 				) +
 				(
-					referencesAvailable() ?
-						getReferences().stream()
+					this.delegate.referencesAvailable() ?
+						this.delegate.getReferences().stream()
 							.map(ReferenceContract::getReferencedEntity)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
@@ -384,8 +385,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		if (this.memoizedIoFetchedBytes == -1) {
 			this.memoizedIoFetchedBytes = this.ioFetchedBytes +
 				(
-					parentAvailable() ?
-						getParentEntity()
+					this.delegate.parentAvailable() ?
+						this.delegate.getParentEntity()
 							.filter(ServerEntityDecorator.class::isInstance)
 							.map(ServerEntityDecorator.class::cast)
 							.map(ServerEntityDecorator::getIoFetchedBytes)
@@ -394,8 +395,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						0
 				) +
 				(
-					referencesAvailable() ?
-						getReferences().stream()
+					this.delegate.referencesAvailable() ?
+						this.delegate.getReferences().stream()
 							.map(ReferenceContract::getReferencedEntity)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
