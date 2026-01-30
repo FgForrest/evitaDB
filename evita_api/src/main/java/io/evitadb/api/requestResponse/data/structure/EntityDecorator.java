@@ -1221,10 +1221,9 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
-		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-		                    .filter(this.associatedDataPredicate)
-		                    .map(it -> (T) it.value())
-		                    .orElse(null);
+		return getAssociatedDataValue(associatedDataName, locale)
+			.map(it -> (T) it.value())
+			.orElse(null);
 	}
 
 	@Nullable
@@ -1233,11 +1232,10 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-		                    .filter(this.associatedDataPredicate)
-		                    .map(AssociatedDataValue::value)
-		                    .map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
-		                    .orElse(null);
+		return getAssociatedDataValue(associatedDataName, locale)
+			.map(AssociatedDataValue::value)
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
+			.orElse(null);
 	}
 
 	@Nullable
@@ -1245,10 +1243,9 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T[] getAssociatedDataArray(
 		@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
-		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-		                    .filter(this.associatedDataPredicate)
-		                    .map(it -> (T[]) it.value())
-		                    .orElse(null);
+		return getAssociatedDataValue(associatedDataName, locale)
+			.map(it -> (T[]) it.value())
+			.orElse(null);
 	}
 
 	@Nonnull
@@ -1309,6 +1306,7 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
+		this.associatedDataPredicate.checkFetched(new AssociatedDataKey(associatedDataName));
 		return this.delegate.getAssociatedDataValues(associatedDataName)
 		                    .stream()
 		                    .filter(this.associatedDataPredicate)
