@@ -607,8 +607,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// collect the referenced entity ids
 		final Map<Scope, Bitmap> allReferencedEntityPksInScope;
 		final Bitmap allReferencedEntityPks;
-		// if query required filtering or only existing references
-		if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING && referencedEntityTypeManaged) {
+		// if query required filtering or only existing references and the referenced entity type is managed
+		if ((managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null) && referencedEntityTypeManaged) {
 			// we need to filter the referenced entity ids to only those that really exist
 			allReferencedEntityPksInScope = limitToExistingEntities(
 				combineWithOr(allReferencedEntityPksFromEntitiesInScope.values()),
@@ -1805,10 +1805,26 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.stream()
 					.filter(referenceName -> !existingReferenceNames.contains(referenceName))
 					.map(
-						referenceName -> new SimpleEntry<>(
-							referenceName,
-							defaultRequirementContext
-						)
+						referenceName -> {
+							final boolean skipEntityFetch = defaultRequirementContext.entityFetch() != null &&
+								!entitySchema.getReferenceOrThrowException(referenceName).isReferencedEntityTypeManaged();
+							final boolean skipEntityGroupFetch = defaultRequirementContext.entityGroupFetch() != null &&
+								!entitySchema.getReferenceOrThrowException(referenceName).isReferencedGroupTypeManaged();
+							return new SimpleEntry<>(
+								referenceName,
+								skipEntityFetch || skipEntityGroupFetch ?
+									new RequirementContext(
+										defaultRequirementContext.managedReferencesBehaviour(),
+										defaultRequirementContext.attributeContent(),
+										skipEntityFetch ? null : defaultRequirementContext.entityFetch(),
+										skipEntityGroupFetch ? null : defaultRequirementContext.entityGroupFetch(),
+										defaultRequirementContext.filterBy(),
+										defaultRequirementContext.orderBy(),
+										defaultRequirementContext.referenceChunkTransformer()
+									) :
+									defaultRequirementContext
+							);
+						}
 					)
 			);
 		}
