@@ -74,6 +74,8 @@ Use conventional commits style with issue reference:
 Ref: #<issue-id>
 ```
 
+Do not write (co)author name or date in the commit message.
+
 **Commit types:**
 - `feat`: New feature
 - `fix`: Bug fix
@@ -102,13 +104,21 @@ Ref: #1075
     || git config branch.$(git branch --show-current).merge 2>/dev/null | sed 's|refs/heads/||' \                                                        
     || gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
   ```
-- **Review**: Automatically request review from GitHub Copilot when creating pull requests
+- **Review**: Automatically request review from GitHub Copilot when creating pull requests.
+  Note: `gh pr create --reviewer copilot` does not work. Instead, create the PR first, then add Copilot via the API:
+  ```shell
+  gh api --method POST /repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/requested_reviewers \
+    -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+  ```
 - **Linking**: Reference the issue number in PR description to automatically link (e.g., "Closes #1075" or "Fixes #1075")
 - **Tooling**: use GitHub CLI (`gh` command) for PR creation and management
 
 **Example PR creation:**
 ```shell
-gh pr create --reviewer copilot --title "Fix session killer race condition" --body "Closes #1075"
+gh pr create --title "Fix session killer race condition" --body "Closes #1075"
+# Then add Copilot reviewer:
+gh api --method POST /repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/requested_reviewers \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
 ```
 
 ### Issue Tracking
@@ -129,7 +139,7 @@ Use GitHub Issues for tracking tasks and bugs. When creating issues:
 
 **Issue Linking:**
 - Branches: GitHub automatically links branches named with issue numbers (e.g., `1075-description`)
-- Commits: Include `Ref: #<issue-id>` in commit message
+- Commits: Include `Ref: #<issue-id>` in the commit message
 - PRs: Use "Closes #<issue-id>", "Fixes #<issue-id>", or "Resolves #<issue-id>" in PR description
 
 ## Testing
