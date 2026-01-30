@@ -1661,7 +1661,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 		// are we requested to (are we able to) fetch the entity bodies?
 		if (referenceSchema.isReferencedEntityTypeManaged() ||
-			filterTargetsReferenceAttributes(requirements.filterBy(), referenceSchema.getReferencedEntityType())
+			hasOnlyReferenceAttributeConstraints(requirements.filterBy(), referenceSchema.getReferencedEntityType())
 		) {
 			final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
 				entityPrimaryKey,
@@ -1771,18 +1771,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Filters and processes the targets based on the specified reference attributes.
-	 * Validates whether the given filter contains any entity-related constraints,
-	 * and depending on the result, determines the next actions to perform.
+	 * Checks whether the provided filter contains only reference-related constraints.
 	 *
-	 * @param filter Optional filter parameter that may contain constraints to process.
-	 *               Can be {@code null} if no filtering criteria are provided.
-	 * @param entityType The type of entity being evaluated, used for validation and
-	 *                   exception handling if unmanaged entities are encountered.
-	 * @return {@code true} if no entity-related constraints are found in the filter
-	 *         or the filter is {@code null}, otherwise throws an exception.
+	 * The filter is inspected for the presence of {@link EntityHaving} constraints, which
+	 * target entity attributes rather than reference attributes. If such a constraint is
+	 * found, an {@link EntityNotManagedException} is thrown, because non-managed entity
+	 * types are not allowed to be filtered by their entity attributes in this context.
+	 *
+	 * @param filter optional filter whose constraints are inspected; may be {@code null}
+	 * @param entityType the type of the referenced entity, used when throwing
+	 *                   {@link EntityNotManagedException} if an entity-attribute constraint
+	 *                   is detected
+	 * @return {@code true} if {@code filter} is non-{@code null} and does not contain any
+	 *         {@link EntityHaving} constraints; {@code false} if {@code filter} is {@code null}
+	 * @throws EntityNotManagedException if an {@link EntityHaving} constraint is found in the
+	 *         filter for the given {@code entityType}
 	 */
-	private static boolean filterTargetsReferenceAttributes(@Nullable FilterBy filter, @Nonnull String entityType) {
+	private static boolean hasOnlyReferenceAttributeConstraints(@Nullable FilterBy filter, @Nonnull String entityType) {
 		if (filter != null) {
 			final EntityHaving entityHaving = QueryUtils.findConstraint(
 				filter, EntityHaving.class, SeparateEntityScopeContainer.class);
