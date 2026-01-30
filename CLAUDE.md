@@ -97,6 +97,8 @@ Ref: #1075
 
 ### Pull Requests
 
+Do not write (co)author name or date in the PR request. 
+
 - **Target branch**: resolve using this command:
   ```shell
   # Try PR first, then tracking branch, then repo default
@@ -120,6 +122,15 @@ gh pr create --title "Fix session killer race condition" --body "Closes #1075"
 gh api --method POST /repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/requested_reviewers \
   -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
 ```
+
+### Review comments
+
+When addressing review comments, use the following commit message format, fetch all unresolved review comments, and address them one by one.
+Do not take notice of already resolved comments. Use `gh` CLI tool to fetch and manage review comments.
+
+1. first examine whether the review comment is valid and should be addressed (do not blindly try to address all comments, but operate as self-confident experienced developer)
+2. for each comment that you decide to address, create a commit and comment on the review comment how you addressed it
+3. for each comment that you decide to NOT address, comment on the review comment why you decided to not address it
 
 ### Issue Tracking
 

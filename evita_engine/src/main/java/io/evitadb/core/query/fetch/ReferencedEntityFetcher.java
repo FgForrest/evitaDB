@@ -593,6 +593,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 		// extract working context
 		final QueryPlanningContext queryContext = executionContext.getQueryContext();
+		final boolean referencedEntityTypeManaged = referenceSchema.isReferencedEntityTypeManaged();
+		// if referenced entity type is not managed, we cannot filter by its properties
+		if (!referencedEntityTypeManaged && filterBy != null && !QueryUtils.findConstraints(filterBy, EntityHaving.class, SeparateEntityScopeContainer.class).isEmpty()) {
+			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
+		}
 		// identify scopes that need to be searched for referenced entities
 		final Set<Scope> examinedScopes = gatherSearchedScopes(
 			filterBy,
@@ -603,7 +608,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Map<Scope, Bitmap> allReferencedEntityPksInScope;
 		final Bitmap allReferencedEntityPks;
 		// if query required filtering or only existing references
-		if ((managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING && referenceSchema.isReferencedEntityTypeManaged()) || filterBy != null) {
+		if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING && referencedEntityTypeManaged) {
 			// we need to filter the referenced entity ids to only those that really exist
 			allReferencedEntityPksInScope = limitToExistingEntities(
 				combineWithOr(allReferencedEntityPksFromEntitiesInScope.values()),
@@ -773,7 +778,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								}
 							}
 
-							validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
+							validityMappingOptional.ifPresent(
+								it -> {
+									if (referenceSchema.getCardinality().allowsDuplicates()) {
+										it.forbidAllExceptIncludingDiscriminators(foundReferencedIds);
+									} else {
+										it.forbidAllExcept(foundReferencedIds);
+									}
+								}
+							);
 
 							initNestedQueryComparator(
 								entityNestedQueryComparator,
@@ -1659,55 +1672,49 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			referencedEntityToGroupIdTranslator,
 			ServerChunkTransformerAccessor.convertIfNecessary(requirements.referenceChunkTransformer())
 		);
-		// are we requested to (are we able to) fetch the entity bodies?
-		if (referenceSchema.isReferencedEntityTypeManaged() ||
-			hasOnlyReferenceAttributeConstraints(requirements.filterBy(), referenceSchema.getReferencedEntityType())
-		) {
-			final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
-				entityPrimaryKey,
-				executionContext,
-				entitySchema,
-				referenceSchema,
-				referenceSchema.getReferencedEntityType(),
-				filterByVisitor,
-				requirements.managedReferencesBehaviour(),
-				requirements.filterBy(),
-				validityMapping,
-				orderingDescriptor
-					.map(OrderingDescriptor::nestedQueryComparator)
-					.orElse(null), referencedEntityIdsFormula
+
+		final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
+			entityPrimaryKey,
+			executionContext,
+			entitySchema,
+			referenceSchema,
+			referenceSchema.getReferencedEntityType(),
+			filterByVisitor,
+			requirements.managedReferencesBehaviour(),
+			requirements.filterBy(),
+			validityMapping,
+			orderingDescriptor
+				.map(OrderingDescriptor::nestedQueryComparator)
+				.orElse(null), referencedEntityIdsFormula
+		);
+		// apply chunking if necessary
+		if (requirements.entityFetch() != null) {
+			if (!referenceSchema.isReferencedEntityTypeManaged()) {
+				throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
+			}
+			final Bitmap filteredAndSlicedReferencedIds = slicer.sliceEntityIds(
+				toFormula(filteredReferencedEntityIds),
+				validityMapping
 			);
-			// apply chunking if necessary
-			if (requirements.entityFetch() != null) {
-				final Bitmap filteredAndSlicedReferencedIds = slicer.sliceEntityIds(
-					toFormula(filteredReferencedEntityIds),
-					validityMapping
+			if (!filteredAndSlicedReferencedIds.isEmpty()) {
+				// if so, fetch them
+				entityIndex = fetchReferencedEntities(
+					executionContext,
+					referenceSchema,
+					referenceSchema.getReferencedEntityType(),
+					pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
+					requirements.filterBy(),
+					requirements.orderBy(),
+					requirements.entityFetch(),
+					filteredAndSlicedReferencedIds
 				);
-				if (!filteredAndSlicedReferencedIds.isEmpty()) {
-					// if so, fetch them
-					entityIndex = fetchReferencedEntities(
-						executionContext,
-						referenceSchema,
-						referenceSchema.getReferencedEntityType(),
-						pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
-						requirements.filterBy(),
-						requirements.orderBy(),
-						requirements.entityFetch(),
-						filteredAndSlicedReferencedIds
-					);
-				} else {
-					entityIndex = Collections.emptyMap();
-				}
 			} else {
 				entityIndex = Collections.emptyMap();
 			}
-			filteredReferencedEntityIdsArray = filteredReferencedEntityIds.getArray();
 		} else {
-			// if not, leave the index empty
-			slicer.sliceAllEntityIds();
-			filteredReferencedEntityIdsArray = ArrayUtils.EMPTY_INT_ARRAY;
 			entityIndex = Collections.emptyMap();
 		}
+		filteredReferencedEntityIdsArray = filteredReferencedEntityIds.getArray();
 
 		final int[] filteredReferencedGroupEntityIdsArray;
 		final Map<Integer, ServerEntityDecorator> entityGroupIndex;
@@ -1768,36 +1775,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				.map(OrderingDescriptor::comparator)
 				.orElse(null)
 		);
-	}
-
-	/**
-	 * Checks whether the provided filter contains only reference-related constraints.
-	 *
-	 * The filter is inspected for the presence of {@link EntityHaving} constraints, which
-	 * target entity attributes rather than reference attributes. If such a constraint is
-	 * found, an {@link EntityNotManagedException} is thrown, because non-managed entity
-	 * types are not allowed to be filtered by their entity attributes in this context.
-	 *
-	 * @param filter optional filter whose constraints are inspected; may be {@code null}
-	 * @param entityType the type of the referenced entity, used when throwing
-	 *                   {@link EntityNotManagedException} if an entity-attribute constraint
-	 *                   is detected
-	 * @return {@code true} if {@code filter} is non-{@code null} and does not contain any
-	 *         {@link EntityHaving} constraints; {@code false} if {@code filter} is {@code null}
-	 * @throws EntityNotManagedException if an {@link EntityHaving} constraint is found in the
-	 *         filter for the given {@code entityType}
-	 */
-	private static boolean hasOnlyReferenceAttributeConstraints(@Nullable FilterBy filter, @Nonnull String entityType) {
-		if (filter != null) {
-			final EntityHaving entityHaving = QueryUtils.findConstraint(
-				filter, EntityHaving.class, SeparateEntityScopeContainer.class);
-			if (entityHaving != null) {
-				throw new EntityNotManagedException(entityType);
-			} else {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/**

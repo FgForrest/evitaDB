@@ -272,10 +272,13 @@ public class EntityDecorator implements SealedEntity {
 				returnedKeys.add(referenceContract.getReferenceKey());
 			}
 			for (ReferenceContract reference : references) {
-				if (reference != null && !returnedKeys.contains(reference.getReferenceKey())) {
-					final ReferenceContract removedReference = filteredReferences.remove(reference.getReferenceKey());
-					if (removedReference == DUPLICATE_REFERENCE) {
-						duplicatedReferences.remove(removedReference.getReferenceKey());
+				if (reference != null) {
+					final ReferenceKey referenceKey = reference.getReferenceKey();
+					if (!returnedKeys.contains(referenceKey)) {
+						final ReferenceContract removedReference = filteredReferences.remove(referenceKey);
+						if (removedReference == DUPLICATE_REFERENCE) {
+							duplicatedReferences.remove(referenceKey);
+						}
 					}
 				}
 			}
