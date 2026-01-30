@@ -355,8 +355,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		if (this.memoizedIoFetchCount == -1) {
 			this.memoizedIoFetchCount = this.ioFetchCount +
 				(
-					this.delegate.parentAvailable() ?
-						this.delegate.getParentEntity()
+					parentAvailable() ?
+						getParentEntity()
 							.filter(ServerEntityDecorator.class::isInstance)
 							.map(ServerEntityDecorator.class::cast)
 							.map(ServerEntityDecorator::getIoFetchCount)
@@ -365,8 +365,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						0
 				) +
 				(
-					this.delegate.referencesAvailable() ?
-						this.delegate.getReferences().stream()
+					referencesAvailable() ?
+						getReferences().stream()
 							.map(ReferenceContract::getReferencedEntity)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
@@ -385,8 +385,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		if (this.memoizedIoFetchedBytes == -1) {
 			this.memoizedIoFetchedBytes = this.ioFetchedBytes +
 				(
-					this.delegate.parentAvailable() ?
-						this.delegate.getParentEntity()
+					parentAvailable() ?
+						getParentEntity()
 							.filter(ServerEntityDecorator.class::isInstance)
 							.map(ServerEntityDecorator.class::cast)
 							.map(ServerEntityDecorator::getIoFetchedBytes)
@@ -395,8 +395,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						0
 				) +
 				(
-					this.delegate.referencesAvailable() ?
-						this.delegate.getReferences().stream()
+					referencesAvailable() ?
+						getReferences().stream()
 							.map(ReferenceContract::getReferencedEntity)
 							.filter(Optional::isPresent)
 							.map(Optional::get)

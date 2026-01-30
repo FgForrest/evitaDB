@@ -103,7 +103,7 @@ public class EntityDecorator implements SealedEntity {
 	/**
 	 * Contains reference to the (possibly richer than requested) entity object.
 	 */
-	@Getter protected final Entity delegate;
+	@Getter private final Entity delegate;
 	/**
 	 * Copy of the {@link EvitaRequest#getAlignedNow()} that was actual when entity was fetched from the database.
 	 */
