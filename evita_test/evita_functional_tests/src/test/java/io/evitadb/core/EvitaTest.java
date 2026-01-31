@@ -4051,14 +4051,15 @@ class EvitaTest implements EvitaTestSupport {
 				       .setReference(Entities.PARAMETER, 3)
 				       .upsertVia(session);
 
-				final SealedEntity fullEntity = session.getEntity(
-					                                       Entities.PRODUCT, 1,
-					                                       entityFetchAllContentAnd(
-						                                       referenceContent(Entities.BRAND, entityFetchAll()),
-						                                       referenceContent(Entities.PARAMETER, entityFetchAll())
-					                                       )
-				                                       )
-				                                       .orElseThrow();
+				final SealedEntity fullEntity = session
+					.getEntity(
+						Entities.PRODUCT, 1,
+						entityFetchAllContentAnd(
+							referenceContent(Entities.BRAND, entityFetchAll()),
+							referenceContentWithAttributes(Entities.PARAMETER)
+						)
+					)
+					.orElseThrow();
 
 				// we get only single brand because when brand with PK=2 was fetched it was not found, yet it should
 				// be present since entity maps to evita managed entity
