@@ -46,6 +46,7 @@ import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
 import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
@@ -64,6 +65,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
+import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
+import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.ReferenceSetFetcher;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
@@ -95,6 +98,7 @@ import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityGroupPropertyWithScopes;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.ReferenceKeeper;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -116,7 +120,6 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
-import lombok.experimental.Delegate;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
@@ -126,8 +129,8 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -204,7 +207,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *
 	 * @see PrefetchedEntities
 	 */
-	@Delegate(types = ReferenceSetFetcher.class)
 	@Nullable private ReferenceSetFetcher fetchedEntities;
 	/**
 	 * Similar to {@link #fetchedEntities} but indexed by {@link ReferenceContentKey#instanceName()} for named references.
@@ -312,7 +314,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nullable
 	private static OrderBy unwrapOrderBy(@Nullable OrderBy entityOrderBy) {
-		final OrderBy unwrappedEntityFilterBy;
+		final OrderBy unwrappedEntityOrderBy;
 		if (entityOrderBy != null) {
 			final List<OrderConstraint> entityConstraints = FinderVisitor.findConstraints(
 				entityOrderBy,
@@ -322,16 +324,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					it instanceof EntityPrimaryKeyInFilter,
 				EntityProperty.class::isInstance
 			);
-			unwrappedEntityFilterBy = orderBy(
+			unwrappedEntityOrderBy = orderBy(
 				entityConstraints
 					.stream()
 					.flatMap(it -> it instanceof EntityProperty eh ? Arrays.stream(eh.getChildren()) : Stream.of(it))
 					.toArray(OrderConstraint[]::new)
 			);
 		} else {
-			unwrappedEntityFilterBy = null;
+			unwrappedEntityOrderBy = null;
 		}
-		return unwrappedEntityFilterBy;
+		return unwrappedEntityOrderBy;
 	}
 
 	/**
@@ -573,7 +575,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String targetEntityType,
-		@Nonnull AtomicReference<FilterByVisitor> filterByVisitor,
+		@Nonnull ReferenceKeeper<FilterByVisitor> filterByVisitor,
 		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nullable FilterBy filterBy,
 		@Nullable ValidEntityToReferenceMapping validityMapping,
@@ -751,7 +753,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									// i.e. archived product relates to live product via non-indexed reference
 									final Bitmap refPksFromEntitiesInScope = allReferencedEntityPksFromEntitiesInScope.get(nonIndexedScope);
 									if (refPksFromEntitiesInScope != null) {
-										for (Integer refPk : refPksFromEntitiesInScope) {
+										final OfInt refPksFromEntitiesIt = refPksFromEntitiesInScope.iterator();
+										while (refPksFromEntitiesIt.hasNext()) {
+											final int refPk = refPksFromEntitiesIt.nextInt();
 											foundReferencedIds.add(refPk);
 											referencedPrimaryKeysWriter.add(refPk);
 										}
@@ -761,7 +765,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									// references are indexed only within the same scope and here it goes across scopes
 									final Bitmap refPks = allReferencedEntityPksInScope.get(nonIndexedScope);
 									if (refPks != null) {
-										for (Integer refPk : refPks) {
+										final OfInt refPksIt = refPks.iterator();
+										while (refPksIt.hasNext()) {
+											final int refPk = refPksIt.nextInt();
 											foundReferencedIds.add(refPk);
 											referencedPrimaryKeysWriter.add(refPk);
 										}
@@ -806,12 +812,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	@Nonnull
 	private static Bitmap combineWithOr(@Nonnull Collection<Bitmap> values) {
-		final RoaringBitmap orResult = RoaringBitmap.or(
-			values
-				.stream()
-				.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-				.toArray(RoaringBitmap[]::new)
-		);
+		final RoaringBitmap[] bitmaps = new RoaringBitmap[values.size()];
+		int i = 0;
+		for (Bitmap value : values) {
+			bitmaps[i++] = RoaringBitmapBackedBitmap.getRoaringBitmap(value);
+		}
+		final RoaringBitmap orResult = RoaringBitmap.or(bitmaps);
 		return orResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(orResult);
 	}
 
@@ -1050,24 +1056,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	/**
 	 * Retrieves or creates a new instance of {@code FilterByVisitor}.
-	 * If the provided {@code AtomicReference} already contains a {@code FilterByVisitor}, returns it.
+	 * If the provided {@link ReferenceKeeper} already contains a {@code FilterByVisitor}, returns it.
 	 * Otherwise, creates a new {@code FilterByVisitor} using the {@code QueryPlanningContext},
-	 * updates the {@code AtomicReference}, and returns the new instance.
+	 * stores it in the keeper, and returns the new instance.
 	 *
 	 * @param queryContext the context used to create a new {@code FilterByVisitor} if necessary
-	 * @param filterByVisitor a reference holding the {@code FilterByVisitor} instance, or used to set a newly created one
+	 * @param filterByVisitor a keeper holding the {@code FilterByVisitor} instance
 	 * @return the existing or newly created {@code FilterByVisitor} instance
 	 */
 	@Nonnull
-	private static FilterByVisitor getFilterByVisitor(@Nonnull QueryPlanningContext queryContext, @Nonnull AtomicReference<FilterByVisitor> filterByVisitor) {
-		return ofNullable(filterByVisitor.get())
-			.orElseGet(
-				() -> {
-					final FilterByVisitor newVisitor = createFilterVisitor(queryContext);
-					filterByVisitor.set(newVisitor);
-					return newVisitor;
-				}
-			);
+	private static FilterByVisitor getFilterByVisitor(@Nonnull QueryPlanningContext queryContext, @Nonnull ReferenceKeeper<FilterByVisitor> filterByVisitor) {
+		FilterByVisitor visitor = filterByVisitor.getReference();
+		if (visitor == null) {
+			visitor = createFilterVisitor(queryContext);
+			filterByVisitor.setReference(visitor);
+		}
+		return visitor;
 	}
 
 	/**
@@ -1216,17 +1220,18 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 			// sort parents first
 			Arrays.sort(parentIds);
-			final AtomicReference<EntityReferenceWithParent> theParent = new AtomicReference<>();
-			Integer previousParent = null;
+			final ReferenceKeeper<EntityReferenceWithParent> theParent = new ReferenceKeeper<>(null);
+			boolean hasPreviousParent = false;
+			int previousParent = 0;
 			// first, construct EntityReferenceWithParent for each requested parent id
 			for (int parentId : parentIds) {
-				if (previousParent == null || previousParent != parentId) {
-					previousParent = parentId;
-				} else {
+				if (hasPreviousParent && previousParent == parentId) {
 					// skip duplicates
 					continue;
 				}
-				theParent.set(null);
+				hasPreviousParent = true;
+				previousParent = parentId;
+				theParent.setReference(null);
 				if (allReferencedParents != null) {
 					allReferencedParents.add(parentId);
 				}
@@ -1238,7 +1243,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							} else {
 								traverser.run();
 							}
-							theParent.set(new EntityReferenceWithParent(entityType, node.entityPrimaryKey(), theParent.get()));
+							theParent.setReference(new EntityReferenceWithParent(entityType, node.entityPrimaryKey(), theParent.getReference()));
 							if (allReferencedParents != null) {
 								allReferencedParents.add(node.entityPrimaryKey());
 							}
@@ -1248,7 +1253,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 				// register the parent and also all its parents recursively, there is high chance other entities
 				// will share the same parents
-				EntityReferenceWithParent parent = theParent.get();
+				EntityReferenceWithParent parent = theParent.getReference();
 				parentEntityReferences.put(parentId, parent);
 				while (parent != null) {
 					final EntityClassifierWithParent parentEntity = parent.getParentEntity().orElse(null);
@@ -1400,26 +1405,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 		// prefetch the parents
 		if (entityCollection.getSchema().isWithHierarchy()) {
-			// collect ids by their scope
-			final Map<Scope, int[]> parentIdsByScope = richEnoughEntities.stream()
-				// filter only those with parent
-				.filter(it -> it instanceof EntityDecorator entityDecorator ?
-					entityDecorator.getDelegate().getParent().isPresent() :
-					((Entity) it).getParent().isPresent())
-				.collect(
-					Collectors.groupingBy(
-						EntityContract::getScope,
-						Collectors.mapping(
-							it -> it instanceof EntityDecorator entityDecorator ?
-								entityDecorator.getDelegate().getParent().orElseThrow() :
-								((Entity) it).getParent().orElseThrow(),
-							Collectors.collectingAndThen(
-								Collectors.toList(),
-								list -> list.stream().mapToInt(Integer::intValue).toArray()
-							)
-						)
-					)
-				);
+			// collect parent ids by their scope
+			final EnumMap<Scope, CompositeIntArray> parentIdsByScopeBuilder = new EnumMap<>(Scope.class);
+			for (T entity : richEnoughEntities) {
+				final Entity delegate = entity instanceof EntityDecorator entityDecorator ?
+					entityDecorator.getDelegate() : (Entity) entity;
+				if (delegate.getParent().isPresent()) {
+					parentIdsByScopeBuilder
+						.computeIfAbsent(entity.getScope(), scope -> new CompositeIntArray())
+						.add(delegate.getParent().orElseThrow());
+				}
+			}
+			final EnumMap<Scope, int[]> parentIdsByScope = new EnumMap<>(Scope.class);
+			for (Entry<Scope, CompositeIntArray> entry : parentIdsByScopeBuilder.entrySet()) {
+				parentIdsByScope.put(entry.getKey(), entry.getValue().toArray());
+			}
 
 			prefetchParents(
 				this.hierarchyContent,
@@ -1479,6 +1479,70 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	@Nonnull
 	@Override
+	public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
+		Assert.isPremiseValid(
+			this.fetchedEntities != null,
+			() -> new GenericEvitaInternalError(
+				"Method `initReferenceIndex` must be called prior accessing entity fetcher!"
+			)
+		);
+		return this.fetchedEntities.getEntityFetcher(referenceSchema);
+	}
+
+	@Nonnull
+	@Override
+	public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
+		Assert.isPremiseValid(
+			this.fetchedEntities != null,
+			() -> new GenericEvitaInternalError(
+				"Method `initReferenceIndex` must be called prior accessing entity group fetcher!"
+			)
+		);
+		return this.fetchedEntities.getEntityGroupFetcher(referenceSchema);
+	}
+
+	@Nullable
+	@Override
+	public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
+		Assert.isPremiseValid(
+			this.fetchedEntities != null,
+			() -> new GenericEvitaInternalError(
+				"Method `initReferenceIndex` must be called prior accessing entity comparator!"
+			)
+		);
+		return this.fetchedEntities.getEntityComparator(referenceSchema);
+	}
+
+	@Nullable
+	@Override
+	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		Assert.isPremiseValid(
+			this.fetchedEntities != null,
+			() -> new GenericEvitaInternalError(
+				"Method `initReferenceIndex` must be called prior accessing entity filter!"
+			)
+		);
+		return this.fetchedEntities.getEntityFilter(referenceSchema);
+	}
+
+	@Nullable
+	@Override
+	public AttributeContent getAttributeContentToPrefetch(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		Assert.isPremiseValid(
+			this.fetchedEntities != null,
+			() -> new GenericEvitaInternalError(
+				"Method `initReferenceIndex` must be called prior accessing attribute content!"
+			)
+		);
+		return this.fetchedEntities.getAttributeContentToPrefetch(referenceSchema);
+	}
+
+	@Nonnull
+	@Override
 	public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
 		Assert.isPremiseValid(
 			this.fetchedEntities != null,
@@ -1533,7 +1597,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
 		@Nonnull Map<Scope, int[]> entityPrimaryKey
 	) {
-		final AtomicReference<FilterByVisitor> filterByVisitor = new AtomicReference<>();
+		final ReferenceKeeper<FilterByVisitor> filterByVisitor = new ReferenceKeeper<>(null);
 		final Stream<Entry<String, RequirementContext>> collectedRequirements = getCollectedRequirementStream(
 			referenceFetch, defaultRequirementContext, entitySchema
 		);
@@ -1641,7 +1705,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull String referenceName,
 		@Nonnull RequirementContext requirements,
 		@Nonnull DefaultPrefetchRequirementCollector globalPrefetchCollector,
-		@Nonnull AtomicReference<FilterByVisitor> filterByVisitor
+		@Nonnull ReferenceKeeper<FilterByVisitor> filterByVisitor
 	) {
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 		// initialize requirements with requested attributes
