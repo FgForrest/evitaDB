@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,9 +35,10 @@ public interface HierarchyFromNodeHeaderDescriptor extends HierarchyRequireHeade
 
 	PropertyDescriptor NODE = PropertyDescriptor.builder()
 		.name("node")
-		// TOBEDONE JNO: node constraint docs
 		.description("""
-			Specifies root node of the hierarchy.
+			Identifies the pivot hierarchical entity that represents the root node of the traversed
+			hierarchy subtree. The constraint must match exactly one hierarchy node from which
+			the `fromNode` computation starts.
 			""")
 		// type is expected to be a `node` constraint
 		.build();
