@@ -36,6 +36,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -477,6 +479,155 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 					assertHasNotPriceInPriceList(
 						product, PRICE_LIST_REFERENCE, PRICE_LIST_INTRODUCTION, PRICE_LIST_B2B, PRICE_LIST_VIP);
 				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should filter product references by different price criteria and compute nested price for sale independently")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	@Disabled("This test reveals internal issue in price filtering, see issue TOBEDONE JNO #1081")
+	void shouldReturnOnlyReferencedProductsMatchingDifferentPriceCriteriaWithOwnPriceForSale(
+		Evita evita, List<SealedEntity> originalProducts) {
+		final Map<Integer, SealedEntity> originalProductsByPk = originalProducts
+			.stream()
+			.collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
+
+		// find a product that:
+		// - has a price in EUR / basic (parent price context)
+		// - has >= 2 PRODUCT self-references
+		// - at least one referenced product HAS a price in USD / VIP
+		// - at least one referenced product does NOT have a price in USD / VIP
+		final SealedEntity selectedProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrices().stream()
+				.anyMatch(p -> CURRENCY_EUR.equals(p.currency()) && PRICE_LIST_BASIC.equals(p.priceList())))
+			.filter(it -> it.getReferences(Entities.PRODUCT).size() >= 2)
+			.filter(it -> {
+				final List<ReferenceContract> refs = it.getReferences(Entities.PRODUCT)
+					.stream().toList();
+				final boolean hasMatching = refs.stream()
+					.map(ref -> originalProductsByPk.get(ref.getReferencedPrimaryKey()))
+					.filter(Objects::nonNull)
+					.anyMatch(refProd -> refProd.getPrices().stream()
+						.anyMatch(p -> CURRENCY_USD.equals(p.currency()) && PRICE_LIST_VIP.equals(p.priceList())));
+				final boolean hasExcluded = refs.stream()
+					.map(ref -> originalProductsByPk.get(ref.getReferencedPrimaryKey()))
+					.filter(Objects::nonNull)
+					.anyMatch(refProd -> refProd.getPrices().stream()
+						.noneMatch(p -> CURRENCY_USD.equals(p.currency()) && PRICE_LIST_VIP.equals(p.priceList())));
+				return hasMatching && hasExcluded;
+			})
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException(
+				"No product found with >= 2 PRODUCT refs where some match USD/VIP and some do not!"));
+
+		// pre-compute expected matching and excluded reference PKs
+		final Set<Integer> expectedMatchingRefPks = selectedProduct.getReferences(Entities.PRODUCT)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.filter(pk -> {
+				final SealedEntity refProd = originalProductsByPk.get(pk);
+				return refProd != null && refProd.getPrices().stream()
+					.anyMatch(p -> CURRENCY_USD.equals(p.currency()) && PRICE_LIST_VIP.equals(p.priceList()));
+			})
+			.collect(Collectors.toSet());
+
+		final Set<Integer> expectedExcludedRefPks = selectedProduct.getReferences(Entities.PRODUCT)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.filter(pk -> !expectedMatchingRefPks.contains(pk))
+			.collect(Collectors.toSet());
+
+		assertFalse(expectedMatchingRefPks.isEmpty(), "There should be at least one matching reference!");
+		assertFalse(expectedExcludedRefPks.isEmpty(), "There should be at least one excluded reference!");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProduct.getPrimaryKeyOrThrowException()),
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_BASIC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								priceContent(PriceContentMode.RESPECTING_FILTER),
+								referenceContent(
+									Entities.PRODUCT,
+									filterBy(
+										entityHaving(
+											and(
+												priceInCurrency(CURRENCY_USD),
+												priceInPriceLists(PRICE_LIST_VIP)
+											)
+										)
+									),
+									entityFetch(
+										priceContentRespectingFilter()
+									)
+								)
+							)
+						)
+					)
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+
+				// parent product has priceForSale in EUR / basic
+				final Optional<PriceContract> priceForSale = product.getPriceForSale();
+				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
+				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
+
+				// returned PRODUCT references contain only PKs from expectedMatchingRefPks
+				final Set<Integer> returnedRefPks = product.getReferences(Entities.PRODUCT)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.collect(Collectors.toSet());
+
+				assertEquals(
+					expectedMatchingRefPks, returnedRefPks,
+					"Returned reference PKs should match expected matching PKs!"
+				);
+
+				// no PK from expectedExcludedRefPks is present in returned references
+				for (Integer excludedPk : expectedExcludedRefPks) {
+					assertFalse(
+						returnedRefPks.contains(excludedPk),
+						"Reference PK " + excludedPk + " should not be present in returned references!"
+					);
+				}
+
+				// each nested referenced product has priceForSale in USD / VIP
+				for (ReferenceContract ref : product.getReferences(Entities.PRODUCT)) {
+					final SealedEntity nestedProduct = ref.getReferencedEntity().orElseThrow(
+						() -> new IllegalStateException(
+							"Referenced product " + ref.getReferencedPrimaryKey() + " should have entity body!")
+					);
+					final Optional<PriceContract> nestedPriceForSale = nestedProduct.getPriceForSale();
+					assertTrue(
+						nestedPriceForSale.isPresent(),
+						"Nested product " + ref.getReferencedPrimaryKey() + " should have price for sale!"
+					);
+					assertEquals(
+						CURRENCY_USD, nestedPriceForSale.get().currency(),
+						"Nested product price for sale should be in USD!"
+					);
+					assertEquals(
+						PRICE_LIST_VIP, nestedPriceForSale.get().priceList(),
+						"Nested product price for sale should be in VIP price list!"
+					);
+				}
+
 				return null;
 			}
 		);

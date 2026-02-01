@@ -67,6 +67,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * Abstract base class for entity fetching functional tests. Provides shared constants,
  * data set setup, and assertion helper methods used across all entity fetching test classes.
  *
+ * TOBEDONE JNO - write test that will have references ordered by both referenced attribute and referenced entity attribute (where missing)
+ *                write both variants where we sort first by attributes on reference and then attributes on entity and reversed setup (entity first, reference attribute second)
+ *                also write test for ordering by multiple attributes within reference attributes or entity attributes
+ *                also write test for ordering by combination of reference attribute, entity attribute, reference attribute, entity attribute
+ * TOBEDONE JNO - write test to verify the error message when multiple entityHaving constraints are used withing single reference filter constraint
+ * TOBEDONE JNO - write test that deeply fetches attributes / associated data / references by using their names to verify the requirement schema validation
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 abstract class AbstractEntityFetchingFunctionalTest extends AbstractHundredProductsFunctionalTest {
