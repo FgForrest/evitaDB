@@ -125,6 +125,13 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 * Contains the information about the last end byte of fully written record.
 	 */
 	private int lastConsistentWrittenPosition = 0;
+	/**
+	 * Contains the cumulative CRC32C checksum of all data written up to {@link #lastConsistentWrittenPosition}.
+	 * This checksum is used to verify data integrity when switching from off-heap memory to file-based storage,
+	 * and when creating {@link OffHeapWithFileBackupReference} instances for reading the written data.
+	 * The checksum is updated after each successful write operation that is synchronized to ensure consistency.
+	 */
+	private long lastConsistentChecksum = 0L;
 
 	/**
 	 * Synchronizes the data stored in the provided observable output stream to the disk.
@@ -259,14 +266,16 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			return OffHeapWithFileBackupReference.withByteBuffer(
 				byteBuffer,
 				this.lastConsistentWrittenPosition,
-				outputStream.getChecksum(),
+				this.lastConsistentChecksum,
 				this::releaseOffHeapMemory
 			);
 		} else if (this.fileOutput != null) {
+			// finalize cumulative checksum for the file output
+			final long cumulativeChecksum = this.fileOutput.markCumulativeChecksumEnd();
 			return OffHeapWithFileBackupReference.withFilePath(
 				this.targetFile,
 				Math.toIntExact(this.targetFile.toFile().length()),
-				this.fileOutput.getChecksum(),
+				cumulativeChecksum,
 				this::releaseTemporaryFile
 			);
 		} else {
@@ -378,7 +387,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			doSync(output, this.syncWrites);
 		}
 		// update the last consistent written position
+		final int previousPosition = this.lastConsistentWrittenPosition;
 		this.lastConsistentWrittenPosition = Math.toIntExact(output.getWrittenBytesSinceReset());
+		this.lastConsistentChecksum = previousPosition != this.lastConsistentWrittenPosition ?
+			output.getCumulativeChecksum() : this.lastConsistentChecksum;
 		return result;
 	}
 
@@ -416,7 +428,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		this.offHeapMemoryOutput = null;
 		this.fileOutput = this.observableOutputKeeper.getObservableOutputOrCreate(
 			this.targetFile,
-			path -> this.createObservableOutput(path, offHeapMemoryOutputStream.getChecksum())
+			path -> this.createObservableOutput(path, this.lastConsistentChecksum)
 		);
 	}
 
@@ -459,6 +471,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 				this.checksumFactory.createChecksum(),
 				this.compressionFactory.createCompressor().orElse(null)
 			);
+			this.offHeapMemoryOutput.markCumulativeChecksumStart();
 			return this.offHeapMemoryOutput;
 		}
 	}
@@ -551,12 +564,14 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 */
 	@Nonnull
 	private ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath, long initialChecksum) {
-		return WriteOnlyFileHandle.createObservableOutput(
+		final ObservableOutput<FileOutputStream> observableOutput = WriteOnlyFileHandle.createObservableOutput(
 			theFilePath,
 			this.outputBufferSize,
-			this.checksumFactory.createCumulativeChecksum(initialChecksum),
+			this.checksumFactory.createChecksum(),
 			this.compressionFactory.createCompressor().orElse(null)
 		);
+		observableOutput.markCumulativeChecksumStart(initialChecksum);
+		return observableOutput;
 	}
 
 }

@@ -110,7 +110,10 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	) {
 		this.regionIndex = index;
 		this.buffer = buf;
-    	this.finalizer = finalizer;
+		this.finalizer = finalizer;
+		this.checksum.reset();
+		this.readPosition = 0;
+		this.writePosition = 0;
 		this.mode = Mode.WRITE;
 	}
 
@@ -204,8 +207,10 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 			switchMode(Mode.WRITE, byteBuffer);
 		}
 		final byte theByte = (byte) b;
-		this.checksum.update(theByte);
+		// write to buffer first - may throw BufferOverflowException
 		byteBuffer.put(theByte);
+		// update checksum only after successful write
+		this.checksum.update(theByte);
 	}
 
 	@Override
@@ -214,8 +219,10 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 		if (this.mode == Mode.READ) {
 			switchMode(Mode.WRITE, byteBuffer);
 		}
-		this.checksum.update(bytes, off, len);
+		// write to buffer first - may throw BufferOverflowException
 		byteBuffer.put(bytes, off, len);
+		// update checksum only after successful write
+		this.checksum.update(bytes, off, len);
 	}
 
 	/**

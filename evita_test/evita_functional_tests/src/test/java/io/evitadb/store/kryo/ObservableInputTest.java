@@ -25,7 +25,7 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.store.checksum.Crc32CChecksumCalculatorFactory;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -87,7 +87,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		final ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 		return new ObservableInput<>(
 			bais, bufferSize,
-			Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			null
 		);
 	}
@@ -107,7 +107,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		final ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 		return new ObservableInput<>(
 			bais, bufferSize,
-			Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 		);
 	}
@@ -229,7 +229,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 			try (final RandomAccessFile raf = new RandomAccessFile(targetFileDescription, "r")) {
 				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 					new RandomAccessFileInputStream(raf),
-					24, Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(), null
+					24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
 				);
 
 				seekReadAndVerifyRecord(input, s2, 256);
@@ -332,7 +332,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
 		try (
 			final ObservableInput<?> input = new ObservableInput<>(
-				bais, 24, Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(), null
+				bais, 24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
 			)
 		) {
 			// start reading a record
@@ -376,7 +376,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		// read first record with cumulative checksum
 		final ByteArrayInputStream bais1 = new ByteArrayInputStream(baos1.toByteArray());
 		final ObservableInput<?> input1 = new ObservableInput<>(
-			bais1, 24, Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(), null
+			bais1, 24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
 		);
 		input1.markCumulativeChecksumStart();
 		readAndVerifyRecord(input1, payloadSize);
@@ -385,7 +385,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		// read second record with cumulative checksum
 		final ByteArrayInputStream bais2 = new ByteArrayInputStream(baos2.toByteArray());
 		final ObservableInput<?> input2 = new ObservableInput<>(
-			bais2, 24, Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(), null
+			bais2, 24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
 		);
 		input2.markCumulativeChecksumStart();
 		readAndVerifyRecord(input2, payloadSize);
@@ -421,7 +421,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 			try (final RandomAccessFile raf = new RandomAccessFile(targetFileDescr, "r")) {
 				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 					new RandomAccessFileInputStream(raf),
-					24, Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(), null
+					24, Crc32CChecksumFactory.INSTANCE.createChecksum(), null
 				);
 
 				input.markCumulativeChecksumStart();
@@ -659,7 +659,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 					new RandomAccessFileInputStream(raf),
 					bufferSize,
-					Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+					Crc32CChecksumFactory.INSTANCE.createChecksum(),
 					ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 				);
 
@@ -714,7 +714,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 					new RandomAccessFileInputStream(raf),
 					bufferSize,
-					Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+					Crc32CChecksumFactory.INSTANCE.createChecksum(),
 					ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 				);
 
@@ -808,7 +808,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 		try (
 			final ObservableInput<?> input = new ObservableInput<>(
 				bais, bufferSize,
-				Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+				Crc32CChecksumFactory.INSTANCE.createChecksum(),
 				ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 			)
 		) {

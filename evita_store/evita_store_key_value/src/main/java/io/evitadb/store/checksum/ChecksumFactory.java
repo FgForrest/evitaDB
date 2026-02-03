@@ -39,10 +39,10 @@ import javax.annotation.Nonnull;
  * The interface includes a {@link #NO_OP} factory that creates no-operation checksums when
  * checksum computation is disabled via {@link io.evitadb.api.configuration.StorageOptions#computeCRC32C()}.
  *
- * Standard implementation: {@link Crc32CChecksumCalculatorFactory}
+ * Standard implementation: {@link Crc32CChecksumFactory}
  *
  * @see Checksum
- * @see Crc32CChecksumCalculatorFactory
+ * @see Crc32CChecksumFactory
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface ChecksumFactory {

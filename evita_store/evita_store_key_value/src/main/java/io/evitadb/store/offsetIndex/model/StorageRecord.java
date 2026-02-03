@@ -68,9 +68,13 @@ public record StorageRecord<T>(
 	@Nonnull FileLocation fileLocation
 ) {
 	/**
-	 * CRC not covered head 5B: length(int), control (byte), generationId (long)
+	 * Size of record length field (int) and control byte: 4 + 1 = 5 bytes.
 	 */
-	public static final int CRC_NOT_COVERED_HEAD = 4 + 1 + 8;
+	public static final int RECORD_LENGTH_CONTROL_SIZE = 4 + 1;
+	/**
+	 * CRC not covered head 13B: length(int), control (byte), generationId (long)
+	 */
+	public static final int CRC_NOT_COVERED_HEAD = RECORD_LENGTH_CONTROL_SIZE + 8;
 	/**
 	 * CRC not covered part 13B: length(int), control (byte), crc itself (long)
 	 */
@@ -136,8 +140,9 @@ public record StorageRecord<T>(
 			final Class<T> payloadType = typeResolver.apply(location);
 
 			if (payloadType == null) {
-				// record is obsolete - it cannot be mapped to any know type
-				input.skip(recordLength);
+				// record is obsolete - it cannot be mapped to any known type
+				// skip remaining bytes (length field and control byte already read)
+				input.skip(recordLength - RECORD_LENGTH_CONTROL_SIZE);
 				final boolean closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
 				return new StorageRecord<>(
 					-1L, closesGeneration, null, location
@@ -195,6 +200,55 @@ public record StorageRecord<T>(
 				location,
 				payloadReader
 			);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			checkUnderlyingInputStreamLength(input, location, ex);
+			throw ex;
+		}
+	}
+
+	/**
+	 * Reads a known record from the input stream at a known file location using random access reading
+	 * and calculates a cumulative CRC32C checksum over the entire record.
+	 *
+	 * The method wraps the reading process with {@link ObservableInput#markCumulativeChecksumStart()}
+	 * and {@link ObservableInput#markCumulativeChecksumEnd()} to compute a checksum that covers the
+	 * entire record, including parts not covered by the payload checksum (such as the header and
+	 * the record payload checksum itself). This cumulative checksum can be used for calculating an
+	 * aggregated checksum that covers an entire file (e.g., WAL) up to a certain position, enabling
+	 * integrity verification of the complete file content.
+	 *
+	 * @param input    the observable input stream to read from
+	 * @param location the file location specifying position and expected length of the record
+	 * @param reader   function that reads the payload from the input stream, receiving the input,
+	 *                 record length, and control byte
+	 * @param <T>      the type of the payload
+	 * @return a {@link StorageRecordWithChecksum} containing the storage record and its cumulative checksum
+	 */
+	@Nonnull
+	public static <T> StorageRecordWithChecksum<T> readWithChecksum(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation location,
+		@Nonnull TriFunction<ObservableInput<?>, Integer, Byte, T> reader
+	) {
+		try {
+			input.seek(location);
+			input.markStart();
+			input.markCumulativeChecksumStart();
+			final int recordLength = input.readInt();
+			byte control = input.readByte();
+
+			final Supplier<T> payloadReader = () -> reader.apply(input, recordLength, control);
+			final StorageRecord<T> theRecord = doReadStorageRecord(
+				input,
+				new FileLocation(location.startingPosition(), recordLength),
+				control,
+				location,
+				payloadReader
+			);
+			final long checksum = input.markCumulativeChecksumEnd();
+			return new StorageRecordWithChecksum<>(theRecord, checksum);
 		} catch (RuntimeException ex) {
 			// reset input stream to avoid partially initialized state
 			input.reset();

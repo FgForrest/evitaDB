@@ -556,44 +556,6 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Retrieves the last catalog bootstrap for a given catalog. If the last bootstrap record was not fully written,
-	 * the previous one is returned instead. The correctness is verified by fixed length of the bootstrap record and
-	 * CRC32C checksum of the record.
-	 *
-	 * @param catalogName     The name of the catalog.
-	 * @param storageSettings The storage options for reading the bootstrap file.
-	 * @return The last catalog bootstrap.
-	 * @throws UnexpectedIOException If there is an error opening the catalog bootstrap file.
-	 * @throws BootstrapFileNotFound If the catalog bootstrap file is not found.
-	 */
-	@Nonnull
-	static CatalogBootstrap getLastCatalogBootstrap(
-		@Nonnull String catalogName,
-		@Nonnull StorageSettings storageSettings
-	) {
-		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
-		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
-		final File bootstrapFile = bootstrapFilePath.toFile();
-		if (bootstrapFile.exists()) {
-			final long length = bootstrapFile.length();
-			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
-			return deserializeCatalogBootstrapRecord(storageSettings, bootstrapFilePath, lastMeaningfulPosition);
-		} else {
-			if (FileUtils.isDirectoryEmpty(catalogStoragePath)) {
-				return new CatalogBootstrap(
-					0,
-					0,
-					Instant.now().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
-					null
-				);
-			} else {
-				throw new BootstrapFileNotFound(catalogStoragePath, bootstrapFile);
-			}
-		}
-	}
-
-	/**
 	 * Creates a CatalogWriteAheadLog if there are any WAL files present in the catalog file path.
 	 *
 	 * @param catalogVersion     the version of the catalog
@@ -788,7 +750,7 @@ public class DefaultCatalogPersistenceService
 	 * @return the catalog bootstrap record
 	 */
 	@Nonnull
-	private static CatalogBootstrap deserializeCatalogBootstrapRecord(
+	static CatalogBootstrap deserializeCatalogBootstrapRecord(
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull Path bootstrapFilePath,
 		long fromPosition
@@ -1087,7 +1049,7 @@ public class DefaultCatalogPersistenceService
 		this.catalogName = catalogName;
 		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
 		this.catalogStoragePath = pathForCatalog(catalogName, this.storageSettings.storageDirectory());
-		verifyDirectory(this.catalogStoragePath, true);
+		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
 			this.storageSettings.outputBufferSize(),
@@ -1103,28 +1065,19 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings.timeTravelEnabled(),
 			this::fetchDataFilesInfo
 		);
-		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
-		final CatalogBootstrap lastCatalogBootstrap = getLastCatalogBootstrap(
-			verifiedCatalogName, this.bootstrapStorageSettings
+		final CatalogBootstrap initialCatalogBootstrap = new CatalogBootstrap(
+			0, 0, Instant.now().atZone(ZoneId.systemDefault()).toOffsetDateTime(), null
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageSettings, this.catalogStoragePath)
 		);
 
 		final long catalogVersion = 0L;
-		this.catalogWal = createWalIfAnyWalFilePresent(
-			catalogVersion, catalogName,
-			new LogFileRecordReference(this.walFileNameProvider),
-			this.storageSettings, scheduler,
-			this::trimBootstrapFile,
-			this.obsoleteFileMaintainer::createWalPurgeCallback,
-			this.catalogStoragePath,
-			this.walKryoPool
-		);
+		this.catalogWal = null;
 
 		final Path catalogFilePath = this.catalogStoragePath.resolve(
 			getCatalogDataStoreFileName(
-				catalogName, lastCatalogBootstrap.catalogFileIndex()
+				catalogName, initialCatalogBootstrap.catalogFileIndex()
 			)
 		);
 
@@ -1135,7 +1088,7 @@ public class DefaultCatalogPersistenceService
 				this.catalogName,
 				catalogFilePath,
 				this.storageSettings,
-				lastCatalogBootstrap,
+				initialCatalogBootstrap,
 				this.recordTypeRegistry,
 				this.offHeapMemoryManager,
 				this.observableOutputKeeper,
@@ -1147,10 +1100,10 @@ public class DefaultCatalogPersistenceService
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
 		this.warmUpVersionCardinality = 1;
 
-		if (lastCatalogBootstrap.fileLocation() == null) {
+		if (initialCatalogBootstrap.fileLocation() == null) {
 			this.bootstrapUsed = recordBootstrap(catalogVersion, this.catalogName, 0, null);
 		} else {
-			this.bootstrapUsed = lastCatalogBootstrap;
+			this.bootstrapUsed = initialCatalogBootstrap;
 		}
 
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
@@ -1265,6 +1218,19 @@ public class DefaultCatalogPersistenceService
 			this.catalogStoragePath, this.walKryoPool
 		);
 
+		// if the mutation log has different log file reference than the engine state, we need to update the engine state
+		if (this.catalogWal != null && !Objects.equals(logFileRecordReference, this.catalogWal.getLogFileRecordReference())) {
+			final LogFileRecordReference newLogFileReference = this.catalogWal.getLogFileRecordReference();
+			log.warn(
+				"Catalog {} WAL file reference {} differs from the actual WAL file reference {}. " +
+					"Updating catalog header to reflect the actual WAL file reference.",
+				catalogName,
+				logFileRecordReference,
+				newLogFileReference
+			);
+			updateLogFileRecordReferenceInCatalogHeader(catalogHeader, newLogFileReference);
+		}
+
 		try {
 			final File restoreFlagFile = this.catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG)
 				.toFile();
@@ -1287,6 +1253,35 @@ public class DefaultCatalogPersistenceService
 			this.close();
 			throw ex;
 		}
+	}
+
+	/**
+	 * Updates the catalog header with a new log file record reference. This method modifies
+	 * the catalog header to include the provided {@code newLogFileReference} and persists
+	 * the updated information using the storage service.
+	 *
+	 * @param currentCatalogHeader The current catalog header object representing the catalog's
+	 *                             metadata and references.
+	 * @param newLogFileReference  The new log file record reference that will replace the
+	 *                             existing reference in the catalog header.
+	 */
+	private void updateLogFileRecordReferenceInCatalogHeader(
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader,
+		@Nonnull LogFileRecordReference newLogFileReference
+	) {
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
+			getStoragePartPersistenceService(currentCatalogHeader.version());
+		storagePartPersistenceService.writeCatalogHeader(
+			STORAGE_PROTOCOL_VERSION,
+			currentCatalogHeader.version(),
+			this.catalogStoragePath,
+			newLogFileReference,
+			currentCatalogHeader.collectionFileIndex(),
+			currentCatalogHeader.catalogId(),
+			currentCatalogHeader.catalogName(),
+			currentCatalogHeader.catalogState(),
+			currentCatalogHeader.lastEntityCollectionPrimaryKey()
+		);
 	}
 
 	private DefaultCatalogPersistenceService(
@@ -1388,6 +1383,19 @@ public class DefaultCatalogPersistenceService
 		} catch (UnexpectedCatalogContentsException ex) {
 			this.close();
 			throw ex;
+		}
+
+		// if the mutation log has different log file reference than the engine state, we need to update the engine state
+		if (this.catalogWal != null && !Objects.equals(logFileRecordReference, this.catalogWal.getLogFileRecordReference())) {
+			final LogFileRecordReference newLogFileReference = this.catalogWal.getLogFileRecordReference();
+			log.warn(
+				"Catalog {} WAL file reference {} differs from the actual WAL file reference {}. " +
+					"Updating catalog header to reflect the actual WAL file reference.",
+				catalogName,
+				logFileRecordReference,
+				newLogFileReference
+			);
+			updateLogFileRecordReferenceInCatalogHeader(catalogHeader, newLogFileReference);
 		}
 	}
 
@@ -1826,28 +1834,29 @@ public class DefaultCatalogPersistenceService
 		}
 
 		if (hasChanges) {
+			final Map<String, CollectionFileReference> newEntityHeaders = Arrays.stream(entityCollectionHeaders)
+				// this is safe - we checked it above
+				.map(EntityCollectionFileHeader.class::cast)
+				.map(
+					it -> new CollectionFileReference(
+						it.entityType(),
+						it.entityTypePrimaryKey(),
+						it.entityTypeFileIndex(),
+						it.fileLocation()
+					)
+				)
+				.collect(
+					Collectors.toMap(
+						CollectionFileReference::entityType,
+						Function.identity()
+					)
+				);
 			storagePartPersistenceService.writeCatalogHeader(
 				STORAGE_PROTOCOL_VERSION,
-				catalogVersion,
+				currentCatalogHeader.version(),
 				this.catalogStoragePath,
 				currentCatalogHeader.walFileReference(),
-				Arrays.stream(entityCollectionHeaders)
-					// this is safe - we checked it above
-					.map(EntityCollectionFileHeader.class::cast)
-					.map(
-						it -> new CollectionFileReference(
-							it.entityType(),
-							it.entityTypePrimaryKey(),
-							it.entityTypeFileIndex(),
-							it.fileLocation()
-						)
-					)
-					.collect(
-						Collectors.toMap(
-							CollectionFileReference::entityType,
-							Function.identity()
-						)
-					),
+				newEntityHeaders,
 				currentCatalogHeader.catalogId(),
 				currentCatalogHeader.catalogName(),
 				currentCatalogHeader.catalogState(),

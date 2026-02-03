@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Test verifies contract of Crc32CWrapper class")
-class Crc32CalculatorTest {
+class Crc32CWrapperTest {
 
 	/**
 	 * Computes the CRC32C checksum of the given byte array.
@@ -1060,6 +1060,113 @@ class Crc32CalculatorTest {
 		final long result = calculator.getValue();
 
 		assertEquals(0L, result);
+	}
+
+	@Test
+	@DisplayName("Should reset with initial value and preserve it when no new data is added")
+	void shouldResetWithInitialValueAndPreserveIt() {
+		final byte[] data = "existing data".getBytes(StandardCharsets.UTF_8);
+		final long initialCrc = crc32c(data);
+
+		final Crc32CWrapper calculator = new Crc32CWrapper();
+		// Add some data first
+		calculator.withLong(12345L);
+		calculator.getValue();
+
+		// Reset with initial value
+		calculator.reset(initialCrc);
+		final long result = calculator.getValue();
+
+		assertEquals(initialCrc, result);
+	}
+
+	@Test
+	@DisplayName("Should reset with initial value and allow cumulative computation")
+	void shouldResetWithInitialValueAndAllowCumulativeComputation() {
+		// Compute checksum for first chunk
+		final byte[] firstChunk = "first chunk".getBytes(StandardCharsets.UTF_8);
+		final long firstChunkCrc = crc32c(firstChunk);
+
+		final Crc32CWrapper calculator = new Crc32CWrapper();
+		// Add some data, then reset with initial value
+		calculator.withInt(999);
+		calculator.reset(firstChunkCrc);
+
+		// Add second chunk
+		final byte[] secondChunk = "second chunk".getBytes(StandardCharsets.UTF_8);
+		calculator.withByteArray(secondChunk);
+		final long result = calculator.getValue();
+
+		// Compute expected: direct CRC of both chunks concatenated
+		final byte[] combined = new byte[firstChunk.length + secondChunk.length];
+		System.arraycopy(firstChunk, 0, combined, 0, firstChunk.length);
+		System.arraycopy(secondChunk, 0, combined, firstChunk.length, secondChunk.length);
+		final long expected = crc32c(combined);
+
+		assertEquals(expected, result);
+	}
+
+	@Test
+	@DisplayName("Should reset with initial value and clear pending data")
+	void shouldResetWithInitialValueAndClearPendingData() {
+		final byte[] data = "target data".getBytes(StandardCharsets.UTF_8);
+		final long initialCrc = crc32c(data);
+
+		final Crc32CWrapper calculator = new Crc32CWrapper();
+		// Add data but don't call getValue (pending data)
+		calculator.withLong(12345L);
+		calculator.withString("pending string");
+
+		// Reset with initial value should discard pending data
+		calculator.reset(initialCrc);
+		final long result = calculator.getValue();
+
+		// Should only have the initial checksum value
+		assertEquals(initialCrc, result);
+	}
+
+	@Test
+	@DisplayName("Should support method chaining with reset(long)")
+	void shouldSupportMethodChainingWithResetLong() {
+		final byte[] data = "base data".getBytes(StandardCharsets.UTF_8);
+		final long initialCrc = crc32c(data);
+
+		final Crc32CWrapper calculator = new Crc32CWrapper();
+		final long result = calculator
+			.withInt(999)
+			.reset(initialCrc)
+			.withLong(42L)
+			.getValue();
+
+		// Direct computation: base data + long(42)
+		final CRC32C expected = new CRC32C();
+		expected.update(data);
+		final ByteBuffer longBuf = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN);
+		longBuf.putLong(42L);
+		expected.update(longBuf.array());
+
+		assertEquals(expected.getValue(), result);
+	}
+
+	@Test
+	@DisplayName("Should reset with zero initial value same as no-arg reset")
+	void shouldResetWithZeroInitialValueSameAsNoArgReset() {
+		final Crc32CWrapper calculator1 = new Crc32CWrapper();
+		final Crc32CWrapper calculator2 = new Crc32CWrapper();
+
+		// Add same data to both
+		calculator1.withLong(12345L).withString("test");
+		calculator2.withLong(12345L).withString("test");
+
+		// Reset with different methods
+		calculator1.reset();
+		calculator2.reset(0L);
+
+		// Add same new data
+		calculator1.withInt(42);
+		calculator2.withInt(42);
+
+		assertEquals(calculator1.getValue(), calculator2.getValue());
 	}
 
 	@Test

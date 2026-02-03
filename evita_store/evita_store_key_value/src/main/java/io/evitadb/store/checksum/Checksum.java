@@ -23,6 +23,8 @@
 
 package io.evitadb.store.checksum;
 
+import javax.annotation.Nonnull;
+
 /**
  * Interface for computing and verifying data integrity checksums in the storage layer.
  *
@@ -36,10 +38,10 @@ package io.evitadb.store.checksum;
  * The interface includes a {@link #NO_OP} implementation that can be used when checksum computation is
  * disabled via {@link io.evitadb.api.configuration.StorageOptions#computeCRC32C()}.
  *
- * Standard implementation: {@link Crc32CChecksumCalculator} (CRC32C algorithm)
+ * Standard implementation: {@link Crc32CChecksum} (CRC32C algorithm)
  *
  * @see ChecksumFactory
- * @see Crc32CChecksumCalculator
+ * @see Crc32CChecksum
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface Checksum {
@@ -58,7 +60,7 @@ public interface Checksum {
 
 	/**
 	 * Updates the checksum with the specified long value.
-	 * The long is processed as 8 bytes in big-endian order.
+	 * The long is processed as 8 bytes in little-endian order that match Kryo implementation.
 	 *
 	 * @param l the long value to add to the checksum
 	 */
@@ -66,7 +68,7 @@ public interface Checksum {
 
 	/**
 	 * Updates the checksum with the specified int value.
-	 * The int is processed as 4 bytes in big-endian order.
+	 * The int is processed as 4 bytes in little-endian order that match Kryo implementation.
 	 *
 	 * @param b the int value to add to the checksum
 	 */
@@ -77,7 +79,7 @@ public interface Checksum {
 	 *
 	 * @param b the byte array to add to the checksum
 	 */
-	void update(byte[] b);
+	void update(@Nonnull byte[] b);
 
 	/**
 	 * Updates the checksum with a slice of the specified byte array.
@@ -86,7 +88,7 @@ public interface Checksum {
 	 * @param off the starting offset in the array
 	 * @param len the number of bytes to process
 	 */
-	void update(byte[] b, int off, int len);
+	void update(@Nonnull byte[] b, int off, int len);
 
 	/**
 	 * Returns the current checksum value.
@@ -96,9 +98,17 @@ public interface Checksum {
 	long getValue();
 
 	/**
-	 * Resets the checksum to its initial state, clearing all previously processed data.
+	 * Resets the checksum to its initial state (with initial value set to zero),
+	 * clearing all previously processed data.
 	 */
 	void reset();
+
+	/**
+	 * Resets the checksum to a specified initial value, clearing all previously processed data.
+	 *
+	 * @param initialValue the initial value to set the checksum to
+	 */
+	void reset(long initialValue);
 
 	/**
 	 * Verifies that the current checksum value matches the expected checksum.
@@ -145,12 +155,12 @@ public interface Checksum {
 		}
 
 		@Override
-		public void update(byte[] b, int off, int len) {
+		public void update(@Nonnull byte[] b, int off, int len) {
 			// no-op
 		}
 
 		@Override
-		public void update(byte[] b) {
+		public void update(@Nonnull byte[] b) {
 			// no-op
 		}
 
@@ -166,6 +176,11 @@ public interface Checksum {
 
 		@Override
 		public void reset() {
+			// no-op
+		}
+
+		@Override
+		public void reset(long initialValue) {
 			// no-op
 		}
 

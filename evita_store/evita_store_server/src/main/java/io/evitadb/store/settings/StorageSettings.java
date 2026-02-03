@@ -27,7 +27,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.checksum.ChecksumFactory;
-import io.evitadb.store.checksum.Crc32CChecksumCalculatorFactory;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import lombok.experimental.Delegate;
@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
  * that can be passed throughout the storage layer. It also implements both {@link ChecksumFactory} and
  * {@link CompressionFactory} interfaces, delegating to appropriate implementations based on the configuration:
  *
- * - **Checksum Factory**: Uses {@link Crc32CChecksumCalculatorFactory} when
+ * - **Checksum Factory**: Uses {@link Crc32CChecksumFactory} when
  *   {@link StorageOptions#computeCRC32C()} is true, otherwise uses {@link ChecksumFactory#NO_OP}
  * - **Compression Factory**: Uses {@link ZipCompressionFactory} when {@link StorageOptions#compress()} is true,
  *   otherwise uses {@link CompressionFactory#NO_COMPRESSION}
@@ -78,7 +78,7 @@ public class StorageSettings implements ChecksumFactory, CompressionFactory {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.checksumFactory = this.storageOptions.computeCRC32C() ?
-			new Crc32CChecksumCalculatorFactory() : ChecksumFactory.NO_OP;
+			new Crc32CChecksumFactory() : ChecksumFactory.NO_OP;
 		this.compressionFactory = this.storageOptions.compress() ?
 			new ZipCompressionFactory() : CompressionFactory.NO_COMPRESSION;
 	}

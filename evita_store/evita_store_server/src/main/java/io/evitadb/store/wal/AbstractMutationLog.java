@@ -240,6 +240,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * records in them were not yet processed.
 	 */
 	private final Queue<PendingRemoval> pendingRemovals = new ConcurrentLinkedDeque<>();
+	/**
+	 * Reference to the last log file record reference that was fully processed.
+	 */
+	private final AtomicReference<LogFileRecordReference> lastLogFileRecordReference = new AtomicReference<>();
 
 	/**
 	 * Returns the index extracted from the given Write-Ahead-Log file name.
@@ -342,16 +346,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				randomAccessOldWalFile, true);
 			final Input input = new Input(inputStream)
 		) {
-			inputStream.seek(walFile.length() - AbstractMutationLog.WAL_TAIL_LENGTH - AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
-			final long lastTransactionCumulativeChecksum = input.readLong();
+			inputStream.seek(walFile.length() - AbstractMutationLog.WAL_TAIL_LENGTH);
 			final long firstCatalogVersion = input.readLong();
 			final long lastCatalogVersion = input.readLong();
-			// The third long is the cumulative CRC32C checksum of all transaction data
-			// It's not verified here as that would require reading the entire file
-			// Transaction integrity is verified when reading via AbstractMutationSupplier
-			final long cumulativeChecksum = input.readLong();// Skip cumulative checksum
-
-			return new FirstAndLastVersionsInWalFile(firstCatalogVersion, lastCatalogVersion, cumulativeChecksum);
+			return new FirstAndLastVersionsInWalFile(firstCatalogVersion, lastCatalogVersion, null);
 		} catch (FileNotFoundException e) {
 			throw e;
 		} catch (IOException e) {
@@ -415,13 +413,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		int transactionSize = 0;
 		int previousTransactionSize = 0;
 		long previousOffset = 0;
-		long offset = 0;
+		long offset = CUMULATIVE_CRC32_SIZE;
 		long consistentChecksum = 0L;
 		Exception readException = null;
 		try {
 			input.seekWithUnknownLength(0);
-			final long initialCumulativeChecksum = input.readLong();
-			final Checksum cumulativeChecksum = checksumFactory.createCumulativeChecksum(initialCumulativeChecksum);
+			Checksum cumulativeChecksum = null;
 			do {
 				long remaining = transactionSize;
 				while (remaining > 0) {
@@ -434,18 +431,28 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					remaining -= bytesRead;
 				}
 				final long fetchedCumulativeChecksum = input.simpleLongRead();
-				final long position = offset + transactionSize;
-				Assert.isPremiseValid(
-					cumulativeChecksum.equalsTo(fetchedCumulativeChecksum),
-					() -> new WriteAheadLogCorruptedException(
-						walFilePath,
-						position,
-						fetchedCumulativeChecksum,
-						cumulativeChecksum.getValue()
-					)
-				);
+				if (cumulativeChecksum == null) {
+					cumulativeChecksum = checksumFactory.createCumulativeChecksum(fetchedCumulativeChecksum);
+					// we must include fetched cumulative checksum into the cumulative checksum calculation
+					cumulativeChecksum.update(fetchedCumulativeChecksum);
+				} else {
+					final long position = offset + transactionSize;
+					final long calculatedCumulativeChecksum = cumulativeChecksum.getValue();
+					Assert.isPremiseValid(
+						cumulativeChecksum.equalsTo(fetchedCumulativeChecksum),
+						() -> new WriteAheadLogCorruptedException(
+							walFilePath,
+							position,
+							fetchedCumulativeChecksum,
+							calculatedCumulativeChecksum
+						)
+					);
+					cumulativeChecksum.update(fetchedCumulativeChecksum);
+				}
 				consistentChecksum = fetchedCumulativeChecksum;
-				cumulativeChecksum.update(fetchedCumulativeChecksum);
+				if (offset == fileLength) {
+					break;
+				}
 				previousTransactionSize = transactionSize;
 				previousOffset = offset;
 				transactionSize = input.simpleIntRead();
@@ -458,9 +465,9 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 						"Transaction size must be greater than zero!"
 					)
 				);
-				// Full transaction size includes: 4 (length prefix) + content + 8 (cumulative checksum)
+				// Full transaction size includes: 4 (length prefix) + content
 				offset += TRANSACTION_PREFIX_SIZE + transactionSize + CUMULATIVE_CRC32_SIZE;
-			} while (offset < fileLength);
+			} while (offset <= fileLength);
 		} catch (Exception ex) {
 			readException = ex;
 		}
@@ -513,6 +520,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * @return A TransactionPair containing the first and last transaction mutations
 	 * @throws IOException If an I/O error occurs
 	 */
+	@Nonnull
 	private static TransactionPair readAndValidateTransactions(
 		@Nonnull ObservableInput<RandomAccessFileInputStream> input,
 		@Nonnull Kryo kryo,
@@ -520,7 +528,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		int lastTxLength,
 		long expectedCumulativeChecksum
 	) throws IOException {
-		input.seekWithUnknownLength(TRANSACTION_PREFIX_SIZE);
+		input.seekWithUnknownLength(CUMULATIVE_CRC32_SIZE + TRANSACTION_PREFIX_SIZE);
 		final TransactionMutation firstTransactionMutation = Objects.requireNonNull(
 			(TransactionMutation) StorageRecord.read(
 				input, (stream, length) -> kryo.readClassAndObject(stream)
@@ -542,6 +550,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					calculatedTransactionSize + "`!",
 				"The transaction size does not match the actual size!"
 			)
+		);
+
+		// skip the rest of the transaction
+		Assert.isPremiseValid(
+			lastTransactionMutation.getWalSizeInBytes() == input.skip(lastTransactionMutation.getWalSizeInBytes()),
+			"Failed to skip to the cumulative checksum position in WAL file!"
 		);
 
 		// read cumulative checksum
@@ -679,6 +693,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		this.processedVersion = new AtomicLong(version);
 		this.storageSettings = storageSettings;
 		this.checksum = storageSettings.createCumulativeChecksum(logRecordReference.cumulativeChecksum());
+		// we must calculate the checksum into the cumulative checksum instance
+		this.checksum.update(logRecordReference.cumulativeChecksum());
 		this.cutWalCacheTask = this.createDelayedAsyncTask(
 			"WAL cache cutter",
 			scheduler,
@@ -694,30 +710,32 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		this.maxWalFileSizeBytes = storageSettings.walFileSizeBytes();
 		this.walFileCountKept = storageSettings.walFileCountKept();
 		this.storageFolder = storageFolder;
-		final AtomicInteger currentWalFileIndex = new AtomicInteger(-1);
+		final AtomicInteger currentWalFileIndex = new AtomicInteger(logRecordReference.fileIndex());
 		try {
 			final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(storageFolder);
 
+			final Path walFilePath = storageFolder.resolve(this.walFileNameProvider.apply(currentWalFileIndex.get()));
 			Assert.isPremiseValid(
 				firstAndLastWalFileIndex[1] == logRecordReference.fileIndex(),
 				() -> new WriteAheadLogCorruptedException(
 					"The last WAL file index in the storage (" + firstAndLastWalFileIndex[1] + ") " +
-						"does not match the expected index from the log record reference (" +
-						logRecordReference.fileIndex() + ")!",
+						"does not match the expected index from the log record reference (" + walFilePath + ")!",
 					"WAL file index mismatch!"
 				)
 			);
-
-			currentWalFileIndex.set(logRecordReference.fileIndex());
 
 			final Optional<FirstAndLastVersionsInWalFile> lastVersion = verifyWalFileVersionsAndReturnLastFinalized(
 				storageFolder, kryoPool, firstAndLastWalFileIndex
 			);
 
-			final Path walFilePath = storageFolder.resolve(this.walFileNameProvider.apply(currentWalFileIndex.get()));
 			final FirstAndLastVersionsInWalFile versions = checkAndTruncate(
 				walFilePath, kryoPool, logRecordReference
 			);
+
+			// the WAL file has been truncated - we need to adjust the log record reference accordingly
+			if (versions.logFileRecordReference() != null) {
+				logRecordReference = versions.logFileRecordReference();
+			}
 
 			lastVersion.ifPresent(
 				firstAndLastVersionsInWalFile -> Assert.isPremiseValid(
@@ -734,11 +752,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			// create the WAL file if it does not exist
 			final boolean created = createWalFile(walFilePath, true);
 
-			if (!created) {
-				// verify the WAL file ends with the correct cumulative checksum we start with
-				verifyLastCumulativeChecksum(logRecordReference, walFilePath);
-			}
-
 			final FileChannel walFileChannel = FileChannel.open(
 				walFilePath,
 				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
@@ -749,14 +762,13 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
-				this.checksum,
+				storageSettings.createChecksum(),
 				this.storageSettings.createCompressor().orElse(null)
 			);
 
 			// if the file was just created, write the initial cumulative checksum
 			if (created) {
 				theOutput.writeLong(logRecordReference.cumulativeChecksum());
-				this.checksum.update(logRecordReference.cumulativeChecksum());
 				this.contentLengthBuffer.clear();
 				this.contentLengthBuffer.put(theOutput.getBuffer(), 0, theOutput.position());
 				this.contentLengthBuffer.flip();
@@ -766,6 +778,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				);
 			}
 
+			this.lastLogFileRecordReference.set(logRecordReference);
 			this.currentWalFile.set(
 				new CurrentMutationLogFile(
 					currentWalFileIndex.get(),
@@ -788,39 +801,14 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
-	 * Verifies that the last cumulative checksum in the write-ahead log (WAL) file matches the
-	 * expected checksum stored in the given log record reference. If the checksum does not match,
-	 * a {@link WriteAheadLogCorruptedException} is thrown indicating data corruption.
+	 * Retrieves the reference to the most recent log file record.
 	 *
-	 * @param logRecordReference A reference to the log record that contains the expected cumulative checksum.
-	 * @param walFilePath The path to the write-ahead log file being verified.
-	 * @throws IOException If an I/O error occurs while accessing the WAL file.
-	 * @throws WriteAheadLogCorruptedException If the cumulative checksum in the WAL file does not
-	 *                                         match the one in the log record reference.
+	 * @return a non-null {@code LogFileRecordReference} representing the reference to the last log file record.
+	 *         This method guarantees that the returned reference is not null.
 	 */
-	private void verifyLastCumulativeChecksum(
-		@Nonnull LogFileRecordReference logRecordReference,
-		@Nonnull Path walFilePath
-	) throws IOException {
-		try (
-			final ObservableInput<RandomAccessFileInputStream> inputStream = createObservableInput(
-				new RandomAccessFile(walFilePath.toFile(), "r"),
-				this.storageSettings
-			);
-		) {
-			final long position = Files.size(walFilePath) - CUMULATIVE_CRC32_SIZE;
-			inputStream.seekWithUnknownLength(position);
-			final long storedCumulativeChecksum = inputStream.readLong();
-			Assert.isPremiseValid(
-				storedCumulativeChecksum == logRecordReference.cumulativeChecksum(),
-				() -> new WriteAheadLogCorruptedException(
-					walFilePath,
-					position,
-					storedCumulativeChecksum,
-					logRecordReference.cumulativeChecksum()
-				)
-			);
-		}
+	@Nonnull
+	public LogFileRecordReference getLogFileRecordReference() {
+		return Objects.requireNonNull(this.lastLogFileRecordReference.get());
 	}
 
 	/**
@@ -928,7 +916,9 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					this.storageSettings.createDecompressor().orElse(null)
 				)
 			) {
-				// first 4 bytes are the length of the entire transaction block
+				// first 8 bytes are the initial cumulative checksum of the WAL file
+				observableInput.skip(AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+				// next 4 bytes are the length of the entire transaction block
 				observableInput.skip(TRANSACTION_PREFIX_SIZE);
 				// first record is the TransactionMutation
 				return Objects.requireNonNull(
@@ -1097,6 +1087,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			// write cumulative checksum after every transaction
 			this.contentLengthBuffer.clear();
 			AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, cumulativeChecksum);
+			this.checksum.update(cumulativeChecksum);
 			this.contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
 			Assert.isPremiseValid(
 				8 == walFileChannel.write(this.contentLengthBuffer),
@@ -1115,12 +1106,14 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				.map(Path::getParent)
 				.ifPresent(FileUtils::deleteFolderIfEmpty);
 
-			return new LogFileRecordReference(
+			final LogFileRecordReference logFileRecordReference = new LogFileRecordReference(
 				this.walFileNameProvider,
 				theCurrentWalFile.getWalFileIndex(),
 				new FileLocation(currentWalFileSize, writtenLength),
 				theCurrentWalFile.getCumulativeChecksum()
 			);
+			this.lastLogFileRecordReference.set(logFileRecordReference);
+			return logFileRecordReference;
 
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -1270,7 +1263,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				final TransactionMutation transactionMutation = Objects.requireNonNull(
 					(TransactionMutation) storageRecord.payload()
 				);
-				input.seekWithUnknownLength(startPosition + TRANSACTION_PREFIX_SIZE + transactionLength + CUMULATIVE_CRC32_SIZE);
+				input.seekWithUnknownLength(startPosition + TRANSACTION_PREFIX_SIZE + transactionLength - CUMULATIVE_CRC32_SIZE);
 				final long cumulativeChecksum = input.readLong();
 				return of(
 					new TransactionMutationWithWalFileReference(
@@ -1420,6 +1413,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					input, this.storageSettings, walFile.length(), walFilePath
 				);
 
+				if (scanResult.lastTxLength() == 0) {
+					return FirstAndLastVersionsInWalFile.EMPTY;
+				}
+
 				try {
 					final TransactionPair transactions = AbstractMutationLog.readAndValidateTransactions(
 						input, kryo,
@@ -1432,21 +1429,20 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 						truncateWalFile(walFilePath, walFile, scanResult.consistentLength);
 					}
 
-					// verify cumulative checksum for the last WAL file (current one)
-					Assert.isPremiseValid(
-						logRecordReference.cumulativeChecksum() == scanResult.cumulativeChecksum(),
-						() -> new WriteAheadLogCorruptedException(
-							walFilePath,
-							walFilePath.toFile().length() - AbstractMutationLog.CUMULATIVE_CRC32_SIZE,
-							logRecordReference.cumulativeChecksum(),
-							scanResult.cumulativeChecksum()
-						)
-					);
-
 					return new FirstAndLastVersionsInWalFile(
 						transactions.firstTransaction.getVersion(),
 						transactions.lastTransaction.getVersion(),
-						transactions.cumulativeChecksum()
+						// if the cumulative checksum matches
+						logRecordReference.cumulativeChecksum() == scanResult.cumulativeChecksum() ?
+							// we can return null, which means the original reference will be preserved (WAL file is ok)
+							null :
+							// otherwise we need to return a new reference with corrected checksum and position
+							new LogFileRecordReference(
+								this.walFileNameProvider,
+								logRecordReference.fileIndex(),
+								new FileLocation(scanResult.lastTxStartPosition(), scanResult.lastTxLength()),
+								scanResult.cumulativeChecksum()
+							)
 					);
 
 				} catch (Exception ex) {
@@ -1568,7 +1564,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					return new FirstAndLastVersionsInWalFile(
 						transactions.firstTransaction().getVersion(),
 						transactions.lastTransaction().getVersion(),
-						transactions.cumulativeChecksum()
+						null
 					);
 
 				} catch (Exception ex) {
@@ -1826,6 +1822,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		final WalRotationEvent event = createWalRotationEvent();
 
 		final CurrentMutationLogFile theCurrentWalFile = this.currentWalFile.get();
+		final long finalCumulativeChecksum;
 		try {
 			// write information about last and first catalog version in this WAL file
 			final long firstCvInFile = this.getFirstVersionOfCurrentWalFile();
@@ -1846,7 +1843,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			);
 
 			// write tail to the file
-			writeWalTail(firstCvInFile, lastCvInFile, theCurrentWalFile.getWalFileChannel());
+			finalCumulativeChecksum = writeWalTail(firstCvInFile, lastCvInFile, theCurrentWalFile.getWalFileChannel());
 			theCurrentWalFile.close();
 		} catch (IOException e) {
 			throw new WriteAheadLogCorruptedException(
@@ -1873,8 +1870,20 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
-				this.checksum,
+				this.storageSettings.createChecksum(),
 				this.storageSettings.createCompressor().orElse(null)
+			);
+
+			// reset checksum for new file
+			this.checksum.reset(finalCumulativeChecksum);
+			// write cumulative checksum after every transaction
+			this.contentLengthBuffer.clear();
+			AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, finalCumulativeChecksum);
+			this.checksum.update(finalCumulativeChecksum);
+			this.contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
+			Assert.isPremiseValid(
+				8 == walFileChannel.write(this.contentLengthBuffer),
+				"Failed to write cumulative checksum to WAL file!"
 			);
 
 			this.currentWalFile.set(
@@ -1884,7 +1893,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					walFilePath,
 					walFileChannel,
 					theOutput,
-					walFileChannel.size()
+					walFileChannel.size(),
+					finalCumulativeChecksum
 				)
 			);
 
@@ -1958,9 +1968,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * @param firstCvInFile  the first change version present in the WAL file
 	 * @param lastCvInFile   the last change version present in the WAL file
 	 * @param walFileChannel the file channel of the WAL file to write to
+	 * @return the final cumulative CRC32C checksum of theWAL file content
 	 * @throws IOException if an I/O error occurs while writing to the file channel
 	 */
-	private void writeWalTail(
+	private long writeWalTail(
 		long firstCvInFile,
 		long lastCvInFile,
 		@Nonnull FileChannel walFileChannel
@@ -1983,6 +1994,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			written == AbstractMutationLog.WAL_TAIL_LENGTH,
 			"Failed to write tail to WAL file!"
 		);
+
+		return finalCumulativeChecksum;
 	}
 
 	/**
@@ -2093,17 +2106,17 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	/**
 	 * Contains first and last versions found in current WAL file.
 	 *
-	 * @param firstVersion       first version present in the file
-	 * @param lastVersion        last version present in the file
-	 * @param cumulativeChecksum cumulative CRC32C checksum of all transaction data in the file
+	 * @param firstVersion           first version present in the file
+	 * @param lastVersion            last version present in the file
+	 * @param logFileRecordReference non-nullable log file reference if it's different from current one
 	 */
 	record FirstAndLastVersionsInWalFile(
 		long firstVersion,
 		long lastVersion,
-		long cumulativeChecksum
+		@Nullable LogFileRecordReference logFileRecordReference
 	) {
 		public static final FirstAndLastVersionsInWalFile EMPTY = new FirstAndLastVersionsInWalFile(
-			-1L, -1L, 0L
+			-1L, -1L, null
 		);
 
 	}

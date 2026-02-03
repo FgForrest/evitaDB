@@ -218,7 +218,7 @@ public class Crc32CWrapper {
 		this.buffer[6] = (byte) (value >>> 48);
 		this.buffer[7] = (byte) (value >>> 56);
 		this.crc32C.update(this.buffer, 0, 8);
-		this.pendingLength += 8;
+		this.pendingLength = Math.addExact(this.pendingLength, 8);
 		return this;
 	}
 
@@ -279,7 +279,7 @@ public class Crc32CWrapper {
 		this.buffer[2] = (byte) (value >> 16);
 		this.buffer[3] = (byte) (value >> 24);
 		this.crc32C.update(this.buffer, 0, 4);
-		this.pendingLength += 4;
+		this.pendingLength = Math.addExact(this.pendingLength, 4);
 		return this;
 	}
 
@@ -336,7 +336,7 @@ public class Crc32CWrapper {
 	public Crc32CWrapper withByte(byte value) {
 		this.buffer[0] = value;
 		this.crc32C.update(this.buffer, 0, 1);
-		this.pendingLength += 1;
+		this.pendingLength = Math.addExact(this.pendingLength, 1);
 		return this;
 	}
 
@@ -361,7 +361,7 @@ public class Crc32CWrapper {
 	public Crc32CWrapper withByteArray(@Nullable final byte[] values) {
 		if (values != null) {
 			this.crc32C.update(values, 0, values.length);
-			this.pendingLength += values.length;
+			this.pendingLength = Math.addExact(this.pendingLength, values.length);
 		}
 		return this;
 	}
@@ -378,7 +378,7 @@ public class Crc32CWrapper {
 	public Crc32CWrapper withByteArray(@Nullable final byte[] values, int offset, int length) {
 		if (values != null) {
 			this.crc32C.update(values, offset, length);
-			this.pendingLength += length;
+			this.pendingLength = Math.addExact(this.pendingLength, length);
 		}
 		return this;
 	}
@@ -410,7 +410,7 @@ public class Crc32CWrapper {
 		if (value != null) {
 			final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
 			this.crc32C.update(bytes, 0, bytes.length);
-			this.pendingLength += bytes.length;
+			this.pendingLength = Math.addExact(this.pendingLength, bytes.length);
 		}
 		return this;
 	}
@@ -480,7 +480,8 @@ public class Crc32CWrapper {
 	}
 
 	/**
-	 * Resets the calculator to its initial state, allowing it to be reused for new checksum computations.
+	 * Resets the calculator to its initial state (with zero value), allowing it to be reused for new checksum
+	 * computations.
 	 *
 	 * @return this calculator for method chaining
 	 */
@@ -493,15 +494,37 @@ public class Crc32CWrapper {
 	}
 
 	/**
+	 * Resets the calculator to its initial state with specified initial value, allowing it to be reused for
+	 * new checksum computations.
+	 *
+	 * @param initialValue the initial checksum value to set
+	 * @return this calculator for method chaining
+	 */
+	@Nonnull
+	public Crc32CWrapper reset(long initialValue) {
+		this.crc32C.reset();
+		this.checksum = initialValue;
+		this.pendingLength = 0;
+		return this;
+	}
+
+	/**
 	 * Returns the current CRC32C checksum value as a long.
 	 *
 	 * @return the current checksum value
 	 */
 	public long getValue() {
-		final long cumulatedChecksum = Crc32CWrapper.combine(this.checksum, this.crc32C.getValue(), this.pendingLength);
-		this.reset();
-		this.checksum = cumulatedChecksum;
-		return this.checksum;
+		// when we have a stored cumulative checksum, combine it with the current value
+		if (this.checksum != 0L || this.pendingLength > 0) {
+			final long cumulatedChecksum = Crc32CWrapper.combine(
+				this.checksum, this.crc32C.getValue(), this.pendingLength
+			);
+			this.reset();
+			this.checksum = cumulatedChecksum;
+			return this.checksum;
+		} else {
+			return this.crc32C.getValue();
+		}
 	}
 
 }

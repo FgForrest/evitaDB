@@ -25,6 +25,7 @@ package io.evitadb.store.wal.supplier;
 
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -161,7 +162,7 @@ public class TransactionLocations {
 					);
 					return index >= 0 ?
 						Objects.requireNonNull(locs.get(index)).startPosition() :
-						0L;
+						AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
 				} finally {
 					this.lock.unlock();
 				}
@@ -172,7 +173,7 @@ public class TransactionLocations {
 				return ll.startPosition();
 			}
 		}
-		return 0L;
+		return AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
 	}
 
 	/**

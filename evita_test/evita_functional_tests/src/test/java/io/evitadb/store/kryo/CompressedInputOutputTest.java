@@ -26,7 +26,7 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.checksum.Crc32CChecksumCalculatorFactory;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.utils.BitUtils;
@@ -54,7 +54,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
 		final ObservableOutput<?> output = new ObservableOutput<>(
 			baos, bufferSize, bufferSize, 0,
-			Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
 		);
 
@@ -71,7 +71,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
 		final ObservableInput<?> input = new ObservableInput<>(
 			bais, 24,
-			Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 		);
 
@@ -93,7 +93,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
 		final ObservableOutput<?> output = new ObservableOutput<>(
 			baos, bufferSize, bufferSize, 0,
-			Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
 		);
 
@@ -110,7 +110,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
 		final ObservableInput<?> input = new ObservableInput<>(
 			bais, 24,
-			Crc32CChecksumCalculatorFactory.INSTANCE.createChecksum(),
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
 			ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
 		);
 

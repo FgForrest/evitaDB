@@ -28,7 +28,7 @@ import javax.annotation.Nonnull;
 /**
  * Factory implementation for creating CRC32C-based {@link Checksum} instances.
  *
- * This factory creates {@link Crc32CChecksumCalculator} instances that use the CRC32C (Castagnoli)
+ * This factory creates {@link Crc32CChecksum} instances that use the CRC32C (Castagnoli)
  * algorithm for data integrity verification. CRC32C provides efficient checksum computation with
  * hardware acceleration support on modern CPUs, making it well-suited for high-throughput storage
  * operations in evitaDB.
@@ -38,26 +38,26 @@ import javax.annotation.Nonnull;
  * checksums are enabled via {@link io.evitadb.api.configuration.StorageOptions#computeCRC32C()}.
  *
  * @see ChecksumFactory
- * @see Crc32CChecksumCalculator
+ * @see Crc32CChecksum
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class Crc32CChecksumCalculatorFactory implements ChecksumFactory {
+public class Crc32CChecksumFactory implements ChecksumFactory {
 	/**
 	 * Singleton instance of the CRC32C checksum factory.
 	 * Use this constant to obtain checksums throughout the storage layer.
 	 */
-	public static final Crc32CChecksumCalculatorFactory INSTANCE = new Crc32CChecksumCalculatorFactory();
+	public static final Crc32CChecksumFactory INSTANCE = new Crc32CChecksumFactory();
 
 	@Nonnull
 	@Override
 	public Checksum createChecksum() {
-		return new Crc32CChecksumCalculator();
+		return new Crc32CChecksum();
 	}
 
 	@Nonnull
 	@Override
 	public Checksum createCumulativeChecksum(long initialChecksum) {
-		return new Crc32CChecksumCalculator(initialChecksum);
+		return new Crc32CChecksum(initialChecksum);
 	}
 
 }

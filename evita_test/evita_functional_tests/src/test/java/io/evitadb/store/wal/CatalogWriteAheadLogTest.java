@@ -31,11 +31,13 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
-import io.evitadb.store.exception.WriteAheadLogCorruptedException;
+import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +54,7 @@ import java.time.OffsetDateTime;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -115,11 +118,14 @@ class CatalogWriteAheadLogTest {
 	private static TransactionWithData createTestTransaction(int transactionIndex, int dataSize) {
 		// Create a buffer with test data
 		final ByteBuffer dataBuffer = ByteBuffer.allocate(200);
+		final Checksum checksum = Crc32CChecksumFactory.INSTANCE.createChecksum();
 		dataBuffer.clear();
 
 		// Fill buffer with sequential bytes as test data
 		for (int j = 0; j < dataSize; j++) {
-			dataBuffer.put((byte) j);
+			final byte theByte = (byte) j;
+			dataBuffer.put(theByte);
+			checksum.update(theByte);
 		}
 		dataBuffer.flip();
 
@@ -135,7 +141,7 @@ class CatalogWriteAheadLogTest {
 		return new TransactionWithData(
 			transactionMutation,
 			OffHeapWithFileBackupReference.withByteBuffer(
-				dataBuffer, dataSize, 0L, dataBuffer::clear
+				dataBuffer, dataSize, checksum.getValue(), dataBuffer::clear
 			)
 		);
 	}
@@ -168,7 +174,7 @@ class CatalogWriteAheadLogTest {
 		this.tested.close();
 
 		// Delete the temporary WAL file
-		this.walFilePath.toFile().delete();
+		FileUtils.deleteDirectory(this.walDirectory);
 	}
 
 	@Test
@@ -213,8 +219,8 @@ class CatalogWriteAheadLogTest {
 	}
 
 	@Test
-	@DisplayName("Corrupted WAL file should throw appropriate exception")
-	void shouldThrowExceptionWhenLeadingTxMutationIsDamaged() throws IOException {
+	@DisplayName("Corrupted WAL file should be truncated and return new log file reference")
+	void shouldReturnNewLogFileReferenceWhenWalFileIsDamaged() throws IOException {
 		// Damage the WAL file by overwriting part of a transaction record
 		modifyWalFile(raf -> {
 			// Calculate position to damage the leading transaction mutation
@@ -228,11 +234,10 @@ class CatalogWriteAheadLogTest {
 		});
 
 		// Should throw an exception when WAL file is corrupted
-		assertThrows(
-			WriteAheadLogCorruptedException.class,
-			() -> this.tested.checkAndTruncate(
+		assertNotNull(
+			this.tested.checkAndTruncate(
 				this.walFilePath, this.catalogKryoPool, this.walFileReference
-			),
+			).logFileRecordReference(),
 			"Corrupted WAL file should be detected and cause an exception"
 		);
 	}

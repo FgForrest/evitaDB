@@ -33,6 +33,7 @@ import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.utils.Crc32CWrapper;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -46,7 +47,6 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.zip.CRC32C;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -70,6 +70,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - Checksums are cumulative (each transaction has a different checksum)
  * - Checksum is stored in the LogFileRecordReference
  *
+ * TODO JNO- tohle přepsat ručně
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Cumulative CRC32 WAL verification tests")
@@ -92,10 +94,18 @@ class CumulativeCrc32WalTest {
 		final ByteBuffer dataBuffer = ByteBuffer.allocate(200);
 		dataBuffer.clear();
 
+		// Create data bytes and compute their checksum
+		final byte[] dataBytes = new byte[dataSize];
 		for (int j = 0; j < dataSize; j++) {
+			dataBytes[j] = (byte) j;
 			dataBuffer.put((byte) j);
 		}
 		dataBuffer.flip();
+
+		// Compute CRC32C checksum of the data bytes
+		final Crc32CWrapper checksumCalculator = new Crc32CWrapper();
+		checksumCalculator.withByteArray(dataBytes);
+		final long dataChecksum = checksumCalculator.getValue();
 
 		final TransactionMutation transactionMutation = new TransactionMutation(
 			UUIDUtil.randomUUID(),
@@ -108,7 +118,7 @@ class CumulativeCrc32WalTest {
 		return new TransactionWithData(
 			transactionMutation,
 			OffHeapWithFileBackupReference.withByteBuffer(
-				dataBuffer, dataSize, 0L, dataBuffer::clear
+				dataBuffer, dataSize, dataChecksum, dataBuffer::clear
 			)
 		);
 	}
@@ -273,19 +283,25 @@ class CumulativeCrc32WalTest {
 		}
 
 		// Verify the checksum was actually written to the file
+		// The cumulative checksum is written at the end of each transaction record
+		// After close(), an additional 8 bytes may be written (just the cumulative checksum again)
 		try (final RandomAccessFile raf = new RandomAccessFile(walFilePath.toFile(), "r")) {
-			// The checksum is the last 8 bytes of the transaction record
-			// recordLength includes: 4 (content length) + content + 8 (checksum)
-			final long checksumPosition = recordLength - 8;
-			raf.seek(checksumPosition);
+			final long fileSize = raf.length();
 
-			// Read the 8-byte checksum (little-endian long)
-			final long storedChecksum = Long.reverseBytes(raf.readLong());
+			// The checksum appears to be written at the very end of the file
+			// Try reading from fileSize - 8 (the last 8 bytes)
+			raf.seek(fileSize - 8);
+
+			// Read the 8-byte checksum in little-endian format (matching writeLongToByteBuffer)
+			final byte[] checksumBytes = new byte[8];
+			raf.readFully(checksumBytes);
+			final long storedChecksum = readLittleEndianLong(checksumBytes);
 
 			// The stored checksum should match what we computed
 			assertEquals(
 				finalChecksum, storedChecksum,
-				"Stored checksum should match computed checksum"
+				"Stored checksum should match computed checksum (fileSize=" + fileSize +
+					", recordLength=" + recordLength + ")"
 			);
 		}
 	}
@@ -312,33 +328,80 @@ class CumulativeCrc32WalTest {
 		);
 
 		long reportedChecksum;
-		long recordLength;
 		try {
 			final TransactionWithData txData = createTestTransaction(1, 100);
 			final LogFileRecordReference reference = wal.append(txData.mutation(), txData.data());
 			reportedChecksum = reference.cumulativeChecksum();
-			recordLength = reference.fileLocation().recordLength();
 		} finally {
 			wal.close();
 		}
 
-		// Verify the checksum by computing it ourselves
+		// WAL file structure (not finalized, just closed):
+		// - 8 bytes: initial cumulative checksum
+		// - 4 bytes: content length
+		// - N bytes: transaction mutation
+		// - M bytes: data payload
+		// - 8 bytes: trailing cumulative checksum
+		//
+		// The trailing checksum is at (fileSize - 8) and represents the CRC32C
+		// of all bytes from position 0 to (fileSize - 8).
+		// Note: WAL tail (24 bytes with firstCv + lastCv + checksum) is only written
+		// when WAL is finalized via rotateWalFile, not on close().
 		try (final RandomAccessFile raf = new RandomAccessFile(walFilePath.toFile(), "r")) {
-			// Read all bytes up to (but not including) the checksum
-			final long dataLength = recordLength - 8;
-			final byte[] data = new byte[(int) dataLength];
-			raf.readFully(data);
+			final long fileSize = raf.length();
 
-			// Compute CRC32C
-			final CRC32C crc32c = new CRC32C();
-			crc32c.update(data);
-			final long computedChecksum = crc32c.getValue();
+			// Read the trailing checksum (last 8 bytes)
+			raf.seek(fileSize - 8);
+			final byte[] checksumBytes = new byte[8];
+			raf.readFully(checksumBytes);
+			final long storedChecksum = readLittleEndianLong(checksumBytes);
+
+			// Verify stored checksum matches reported checksum
+			assertEquals(
+				reportedChecksum, storedChecksum,
+				"Stored checksum should match reported checksum"
+			);
+
+			// Read all bytes before the checksum
+			final int dataLength = (int) (fileSize - 8);
+			raf.seek(0);
+			final byte[] allDataBytes = new byte[dataLength];
+			raf.readFully(allDataBytes);
+
+			// Compute CRC32C of all data bytes
+			final Crc32CWrapper checksumCalculator = new Crc32CWrapper();
+			checksumCalculator.withByteArray(allDataBytes);
+			final long computedChecksum = checksumCalculator.getValue();
 
 			assertEquals(
 				reportedChecksum, computedChecksum,
-				"Reported checksum should match independently computed checksum"
+				"Computed CRC32C of all file bytes should match reported checksum"
 			);
 		}
+	}
+
+	/**
+	 * Reads an 8-byte little-endian long from the given byte array.
+	 */
+	private static long readLittleEndianLong(byte[] bytes) {
+		return (bytes[0] & 0xFFL)
+			| ((bytes[1] & 0xFFL) << 8)
+			| ((bytes[2] & 0xFFL) << 16)
+			| ((bytes[3] & 0xFFL) << 24)
+			| ((bytes[4] & 0xFFL) << 32)
+			| ((bytes[5] & 0xFFL) << 40)
+			| ((bytes[6] & 0xFFL) << 48)
+			| ((bytes[7] & 0xFFL) << 56);
+	}
+
+	/**
+	 * Reads a 4-byte little-endian int from the given byte array.
+	 */
+	private static int readLittleEndianInt(byte[] bytes) {
+		return (bytes[0] & 0xFF)
+			| ((bytes[1] & 0xFF) << 8)
+			| ((bytes[2] & 0xFF) << 16)
+			| ((bytes[3] & 0xFF) << 24);
 	}
 
 	private record TransactionWithData(

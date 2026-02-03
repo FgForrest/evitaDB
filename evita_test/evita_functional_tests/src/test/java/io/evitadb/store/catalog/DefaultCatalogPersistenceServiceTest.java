@@ -70,6 +70,7 @@ import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.file.ExportFileService;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
@@ -79,6 +80,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchem
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
+import io.evitadb.store.exception.BootstrapFileNotFound;
 import io.evitadb.store.exception.DirectoryNotEmptyException;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.header.CollectionFileReference;
@@ -129,10 +131,11 @@ import java.util.regex.Pattern;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.deserializeCatalogBootstrapRecord;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getCatalogBootstrapForSpecificMoment;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getFirstCatalogBootstrap;
-import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getLastCatalogBootstrap;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.DATA_MUTATION_EXAMPLE;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.SCHEMA_MUTATION_EXAMPLE;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
@@ -982,6 +985,35 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				}
 			}
 			return maxIndex == Integer.MAX_VALUE ? 0 : maxIndex;
+		}
+	}
+
+	/**
+	 * Retrieves the last catalog bootstrap for a given catalog. If the last bootstrap record was not fully written,
+	 * the previous one is returned instead. The correctness is verified by fixed length of the bootstrap record and
+	 * CRC32C checksum of the record.
+	 *
+	 * @param catalogName     The name of the catalog.
+	 * @param storageSettings The storage options for reading the bootstrap file.
+	 * @return The last catalog bootstrap.
+	 * @throws UnexpectedIOException If there is an error opening the catalog bootstrap file.
+	 * @throws BootstrapFileNotFound If the catalog bootstrap file is not found.
+	 */
+	@Nonnull
+	static CatalogBootstrap getLastCatalogBootstrap(
+		@Nonnull String catalogName,
+		@Nonnull StorageSettings storageSettings
+	) {
+		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
+		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
+		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
+		final File bootstrapFile = bootstrapFilePath.toFile();
+		if (bootstrapFile.exists()) {
+			final long length = bootstrapFile.length();
+			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
+			return deserializeCatalogBootstrapRecord(storageSettings, bootstrapFilePath, lastMeaningfulPosition);
+		} else {
+			throw new BootstrapFileNotFound(catalogStoragePath, bootstrapFile);
 		}
 	}
 

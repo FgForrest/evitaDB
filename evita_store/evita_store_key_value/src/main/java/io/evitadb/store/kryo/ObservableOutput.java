@@ -31,6 +31,7 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
+import io.evitadb.utils.Crc32CWrapper;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
@@ -130,6 +131,16 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * part of the value and move it to the next buffer, completely wiping it from the current one.
 	 */
 	private int atomicPosition = -1;
+	/**
+	 * Internal flag set to true when {@link #markCumulativeChecksumStart()} is called
+	 * and output should calculate cumulative checksum for all data written.
+	 */
+	private boolean cumulatingChecksum;
+	/**
+	 * Holds the running cumulative checksum value since {@link #markCumulativeChecksumStart()}.
+	 * This is combined with each record's full checksum (header + payload + tail) in finishRecord().
+	 */
+	private long cumulativeChecksum;
 
 	/**
 	 * Creates an ObservableOutput with a pre-allocated buffer.
@@ -365,6 +376,76 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
+	 * Marks the start of cumulative checksum calculation. From this point, all bytes
+	 * written to the output stream will be included in the cumulative checksum.
+	 *
+	 * The cumulative checksum covers the entire record:
+	 * - Header (record length 4B + control byte 1B + generationId 8B = 13B)
+	 * - Payload (compressed if compression used, uncompressed otherwise)
+	 * - Tail CRC (8B)
+	 *
+	 * @throws io.evitadb.exception.EvitaInternalError if called while a record is being written
+	 */
+	public void markCumulativeChecksumStart() {
+		Assert.isPremiseValid(
+			this.startPosition == -1,
+			"Cannot mark cumulative checksum start while writing a record!"
+		);
+		this.cumulatingChecksum = true;
+		this.cumulativeChecksum = 0L;
+	}
+
+	/**
+	 * Marks the start of cumulative checksum calculation with an initial checksum value.
+	 * This allows continuing checksum calculation from a previously computed value, useful
+	 * when appending data to an existing file where the initial content's CRC32C is known.
+	 *
+	 * The cumulative checksum covers the entire record:
+	 * - Header (record length 4B + control byte 1B + generationId 8B = 13B)
+	 * - Payload (compressed if compression used, uncompressed otherwise)
+	 * - Tail CRC (8B)
+	 *
+	 * @param initialChecksum the initial checksum value to start from (typically computed
+	 *                        from existing file content before appending)
+	 * @throws io.evitadb.exception.EvitaInternalError if called while a record is being written
+	 */
+	public void markCumulativeChecksumStart(long initialChecksum) {
+		Assert.isPremiseValid(
+			this.startPosition == -1,
+			"Cannot mark cumulative checksum start while writing a record!"
+		);
+		this.cumulatingChecksum = true;
+		this.cumulativeChecksum = initialChecksum;
+	}
+
+	/**
+	 * Marks the end of cumulative checksum calculation and returns the computed checksum.
+	 *
+	 * @return the cumulative CRC32C checksum covering all written bytes
+	 */
+	public long markCumulativeChecksumEnd() {
+		this.cumulatingChecksum = false;
+		final long result = this.cumulativeChecksum;
+		this.cumulativeChecksum = 0L;
+		return result;
+	}
+
+	/**
+	 * Returns the current cumulative checksum value without stopping the accumulation.
+	 * This allows reading intermediate checksum values during a cumulative checksum session.
+	 *
+	 * @return the current cumulative CRC32C checksum value
+	 * @throws io.evitadb.exception.EvitaInternalError if cumulative checksum calculation is not active
+	 */
+	public long getCumulativeChecksum() {
+		Assert.isPremiseValid(
+			this.cumulatingChecksum,
+			"Cannot get cumulative checksum when cumulative checksum calculation is not active!"
+		);
+		return this.cumulativeChecksum;
+	}
+
+	/**
 	 * Calculates a checksum based on the given input parameters and updates
 	 * the instance with the relevant data.
 	 *
@@ -394,17 +475,54 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * @throws IOException if an I/O error occurs during writing
 	 */
 	private void finishRecord(int thePayloadLength, int theSavedBytesByCompression) throws IOException {
+		// calculate lengths for cumulative checksum
+		final int headerLength = this.payloadStartPosition - this.lastConsumedPosition;
+		final int actualPayloadLength = theSavedBytesByCompression > 0
+			? thePayloadLength - theSavedBytesByCompression
+			: thePayloadLength;
+
 		// write header to the output stream
-		this.outputStream.write(this.buffer, this.lastConsumedPosition, this.payloadStartPosition - this.lastConsumedPosition);
+		this.outputStream.write(this.buffer, this.lastConsumedPosition, headerLength);
+
 		// write payload to the output stream
 		if (theSavedBytesByCompression > 0) {
-			this.outputStream.write(this.deflateBuffer, 0, thePayloadLength - theSavedBytesByCompression);
-			this.savedBytesByCompressionSinceReset = Math.addExact(this.savedBytesByCompressionSinceReset, theSavedBytesByCompression);
+			this.outputStream.write(this.deflateBuffer, 0, actualPayloadLength);
+			this.savedBytesByCompressionSinceReset = Math.addExact(
+				this.savedBytesByCompressionSinceReset, theSavedBytesByCompression);
 		} else {
 			this.outputStream.write(this.buffer, this.payloadStartPosition, thePayloadLength);
 		}
-		// write tail to the output stream
+
+		// write tail to the output stream (contains the per-record CRC)
 		this.outputStream.write(this.buffer, this.position - TAIL_MANDATORY_SPACE, TAIL_MANDATORY_SPACE);
+
+		// update cumulative checksum if enabled - reuse existing checksum field
+		if (this.cumulatingChecksum && this.checksum != Checksum.NO_OP) {
+			// reset checksum for full record calculation (per-record CRC already written to buffer)
+			this.checksum.reset();
+
+			// update with header bytes (includes finalized control byte)
+			this.checksum.update(this.buffer, this.lastConsumedPosition, headerLength);
+
+			// update with payload bytes (compressed or uncompressed - what was actually written)
+			if (theSavedBytesByCompression > 0) {
+				this.checksum.update(this.deflateBuffer, 0, actualPayloadLength);
+			} else {
+				this.checksum.update(this.buffer, this.payloadStartPosition, thePayloadLength);
+			}
+
+			// update with tail bytes (the CRC value itself)
+			this.checksum.update(this.buffer, this.position - TAIL_MANDATORY_SPACE, TAIL_MANDATORY_SPACE);
+
+			// get this record's full checksum and combine with running cumulative
+			final long fullRecordChecksum = this.checksum.getValue();
+			final int fullRecordLength = headerLength + actualPayloadLength + TAIL_MANDATORY_SPACE;
+
+			// combine using CRC32C mathematical combination
+			this.cumulativeChecksum = Crc32CWrapper.combine(
+				this.cumulativeChecksum, fullRecordChecksum, fullRecordLength
+			);
+		}
 
 		// update counters as if the uncompressed data was written
 		final int consumedLength = this.position - this.lastConsumedPosition;
@@ -487,6 +605,9 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		this.payloadStartPosition = -1;
 		this.recordLengthPosition = -1;
 		this.savedBytesByCompressionSinceReset = 0;
+		// reset cumulative checksum state
+		this.cumulatingChecksum = false;
+		this.cumulativeChecksum = 0L;
 	}
 
 	/**
@@ -643,6 +764,14 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		final int flushPosition = this.startPosition == -1 ? this.position : this.startPosition;
 		final int flushLength = flushPosition - this.lastConsumedPosition;
 		if (flushLength > 0) {
+			// Update cumulative checksum for raw bytes written outside record lifecycle
+			if (this.cumulatingChecksum && this.startPosition == -1 && this.checksum != Checksum.NO_OP) {
+				this.checksum.reset();
+				this.checksum.update(this.buffer, this.lastConsumedPosition, flushLength);
+				this.cumulativeChecksum = Crc32CWrapper.combine(
+					this.cumulativeChecksum, this.checksum.getValue(), flushLength
+				);
+			}
 			IOUtils.executeSafely(
 				flushLength,
 				KryoException::new,

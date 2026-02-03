@@ -37,7 +37,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.wal.model.EngineTransactionChanges;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
-import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
@@ -72,8 +72,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * This test verifies only the Engine-specific method getWriteAheadLogVersionDescriptor using
  * SetCatalogMutabilityMutation as engine-level mutation type.
  */
-@DisplayName("Engine Write-Ahead Log functionality tests")
-class EngineWriteAheadLogTest {
+@DisplayName("Engine Mutation Log functionality tests")
+class EngineMutationLogTest {
 	private static final StorageSettings LARGE_FILE_STORAGE_SETTINGS = new StorageSettings(
 		StorageOptions.builder()
 			.compress(false)
@@ -95,7 +95,7 @@ class EngineWriteAheadLogTest {
 	private final Path isolatedWalFilePath = this.walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(Mockito.mock(Scheduler.class));
 	private final CatalogOffHeapMemoryManager offHeapMemoryManager = new CatalogOffHeapMemoryManager(
-		EnginePersistenceService.ENGINE_NAME, 10_000_000, 128, ChecksumFactory.NO_OP
+		EnginePersistenceService.ENGINE_NAME, 10_000_000, 128, Crc32CChecksumFactory.INSTANCE
 	);
 	private EngineMutationLog wal;
 

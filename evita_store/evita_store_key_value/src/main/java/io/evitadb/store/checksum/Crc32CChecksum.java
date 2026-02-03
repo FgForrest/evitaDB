@@ -25,6 +25,8 @@ package io.evitadb.store.checksum;
 
 import io.evitadb.utils.Crc32CWrapper;
 
+import javax.annotation.Nonnull;
+
 /**
  * CRC32C implementation of the {@link Checksum} interface for data integrity verification.
  *
@@ -42,18 +44,18 @@ import io.evitadb.utils.Crc32CWrapper;
  * are enabled via {@link io.evitadb.api.configuration.StorageOptions#computeCRC32C()}.
  *
  * @see ChecksumFactory
- * @see Crc32CChecksumCalculatorFactory
+ * @see Crc32CChecksumFactory
  * @see Crc32CWrapper
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class Crc32CChecksumCalculator implements Checksum {
+public class Crc32CChecksum implements Checksum {
 	private final Crc32CWrapper crc32Wrapper;
 
 	/**
 	 * Creates a new CRC32C checksum calculator initialized to zero.
 	 * Use this constructor for computing checksums of individual data blocks.
 	 */
-	public Crc32CChecksumCalculator() {
+	public Crc32CChecksum() {
 		this.crc32Wrapper = new Crc32CWrapper();
 	}
 
@@ -64,7 +66,7 @@ public class Crc32CChecksumCalculator implements Checksum {
 	 *
 	 * @param initialChecksum the initial checksum value to start from
 	 */
-	public Crc32CChecksumCalculator(long initialChecksum) {
+	public Crc32CChecksum(long initialChecksum) {
 		this.crc32Wrapper = new Crc32CWrapper(initialChecksum);
 	}
 
@@ -89,12 +91,12 @@ public class Crc32CChecksumCalculator implements Checksum {
 	}
 
 	@Override
-	public void update(byte[] b) {
+	public void update(@Nonnull byte[] b) {
 		this.crc32Wrapper.withByteArray(b);
 	}
 
 	@Override
-	public void update(byte[] b, int off, int len) {
+	public void update(@Nonnull byte[] b, int off, int len) {
 		this.crc32Wrapper.withByteArray(b, off, len);
 	}
 
@@ -113,4 +115,8 @@ public class Crc32CChecksumCalculator implements Checksum {
 		this.crc32Wrapper.reset();
 	}
 
+	@Override
+	public void reset(long initialValue) {
+		this.crc32Wrapper.reset(initialValue);
+	}
 }
