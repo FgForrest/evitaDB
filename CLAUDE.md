@@ -75,7 +75,7 @@ Use conventional commits style with issue reference:
 Ref: #<issue-id>
 ```
 
-Do not write (co)author name or date in the commit message.
+Do not write (co)author name or date in the commit message!
 
 **Commit types:**
 - `feat`: New feature
@@ -161,6 +161,8 @@ Use GitHub Issues for tracking tasks and bugs. When creating issues:
 - **Test naming**: Use format `shouldDoSomethingWhenCondition` or `shouldThrowExceptionWhenCondition`
 - **Display names**: Use `@DisplayName` for entire class and for test methods to provide clear descriptions (do not repeat class description content in method descriptions)
 - **Coverage**: Automatically generate test cases for all public methods
+- When creating new test consider implementing helper interface `io.evitadb.test.EvitaTestSupport` that provides utility methods for working with folders, ports, certificates and similar helpful things
+- When creating tests consolidate similar tests in nested classes using
 - for running tests try to use IntelliJ MCP, when not possible use Maven, 
   prefer running individual test classes over running entire test suite, if you run entire test suite use profile `unitAndFunctional`
 
