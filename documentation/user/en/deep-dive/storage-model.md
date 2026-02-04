@@ -167,9 +167,24 @@ Each transaction in the WAL is followed by a cumulative CRC32C checksum (8 bytes
 
 The write-ahead log has a maximum file size set by the <a href="https://evitadb.io/documentation/operate/configure#transaction-configuration" target="_blank">walFileSizeBytes</a> setting. Once this limit is reached, the file is closed and a new one is created with the next index number in its name. The maximum number of WAL files is determined by <a href="https://evitadb.io/documentation/operate/configure#transaction-configuration" target="_blank">walFileCountKept</a>. When this maximum is reached, the oldest file is removed. This mechanism ensures WAL files never grow excessively large and do not accumulate indefinitely on the disk.
 
-At the end of each WAL file except the current one that is still being written to, there is a pair of `int64` values representing the first and last catalog versions recorded in that WAL file, followed by a third `int64` value containing the final cumulative CRC32C checksum of the entire WAL file content. This allows quick navigation among WAL files if you need to locate a particular transaction that made changes to the catalog matching a specific version and also verification that the file content is intact. The cumulative checksum in the tail equals the last per-transaction checksum written to that file.
+Each WAL file starts and ends with cumulative CRC32C checksum. Initial cumulative checksum refers to the end cumulative checksum of the previous WAL file (or zero if it’s the first file). This allows for continuous verification of the entire WAL sequence across multiple files.
+
+At the end of each WAL file except the current one that is still being written to, there is a pair of `int64` values representing the first and last catalog versions recorded in that WAL file, followed by a third `int64` value containing the final cumulative CRC32C checksum of the entire WAL file content. This allows quick navigation among WAL files if you need to locate a particular transaction that made changes to the catalog matching a specific version and also verification that the file content is intact.
 
 #### WAL Transaction Format
+
+Overall, the WAL file structure is as follows:
+
+| Information                | Data type | Length in bytes |
+|----------------------------|-----------|-----------------|
+| Initial Cumulative CRC32C  | int64     | 8B              |
+| Transaction 1              | variable  | variable        |
+| Transaction 2              | variable  | variable        |
+| ...                        | ...       | ...             |
+| Transaction N              | variable  | variable        |
+| First Catalog Version      | int64     | 8B              |
+| Last Catalog Version       | int64     | 8B              |
+| Final Cumulative CRC32C    | int64     | 8B              |
 
 Each transaction in the WAL file has the following structure:
 
