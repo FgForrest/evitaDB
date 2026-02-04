@@ -252,7 +252,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * @return the index extracted from the WAL file name
 	 */
 	public static int getIndexFromWalFileName(@Nonnull String walFileName) {
-		int endIndex = walFileName.length() - WAL_FILE_SUFFIX.length();
+		final int endIndex = walFileName.length() - WAL_FILE_SUFFIX.length();
 		int startIndex = endIndex;
 		while (startIndex > 0 && Character.isDigit(walFileName.charAt(startIndex - 1))) {
 			startIndex--;
@@ -408,7 +408,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		long fileLength,
 		@Nonnull Path walFilePath
 	) throws IOException {
-		/* TODO JNO - NECHAT CLAUDE NAPSAT MNOHEM VÍC TESTŮ */
 		final byte[] buffer = new byte[8192];
 		int transactionSize = 0;
 		int previousTransactionSize = 0;
@@ -620,7 +619,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull FileChannel walFileChannel
 	) throws IOException {
 		// Create a buffer for the WAL tail (3 longs: firstCvInFile, lastCvInFile, and cumulative checksum)
-		ByteBuffer contentLengthBuffer = ByteBuffer.allocate(AbstractMutationLog.WAL_TAIL_LENGTH);
+		final ByteBuffer contentLengthBuffer = ByteBuffer.allocate(AbstractMutationLog.WAL_TAIL_LENGTH);
 
 		AbstractMutationLog.writeLongToByteBuffer(contentLengthBuffer, firstCvInFile);
 		AbstractMutationLog.writeLongToByteBuffer(contentLengthBuffer, lastCvInFile);
@@ -837,7 +836,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			);
 			if (lastVersion.isPresent()) {
 				// the first transaction and the last transaction must follow up
-				int walIndex = i;
+				final int walIndex = i;
 				final FirstAndLastVersionsInWalFile firstAndLastVersionsInPreviousWalFile = lastVersion.get();
 				Assert.isPremiseValid(
 					firstAndLastVersionsInPreviousWalFile.lastVersion() + 1 ==
@@ -908,12 +907,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			final Kryo kryo = this.kryoPool.obtain();
 			try (
 				final RandomAccessFile randomWalFile = new RandomAccessFile(walFile, "r");
-				final ObservableInput<RandomAccessFileInputStream> observableInput = new ObservableInput<>(
-					new RandomAccessFileInputStream(
-						randomWalFile, true
-					),
-					this.storageSettings.createChecksum(),
-					this.storageSettings.createDecompressor().orElse(null)
+				final ObservableInput<RandomAccessFileInputStream> observableInput = createObservableInput(
+					randomWalFile, this.storageSettings
 				)
 			) {
 				// first 8 bytes are the initial cumulative checksum of the WAL file
@@ -932,6 +927,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					"Failed to read WAL file!",
 					e
 				);
+			} finally {
+				this.kryoPool.free(kryo);
 			}
 		}
 	}
@@ -1073,7 +1070,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				"Failed to write all bytes (" + writtenContent + " of " + contentLength + " Bytes) to WAL file!"
 			);
 
-
 			theCurrentWalFile.initFirstVersionOfCurrentWalFileIfNecessary(
 				transactionMutation.getVersion(),
 				() -> {
@@ -1197,23 +1193,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			// WAL file does not exist or is empty, nothing to read
 			return Stream.empty();
 		} else {
-			final ReverseMutationSupplier<T> supplier;
-			if (this.getFirstVersionOfCurrentWalFile() <= version) {
-				// we could start reading the current WAL file
-				supplier = new ReverseMutationSupplier<>(
-					version, this.walFileNameProvider, this.storageFolder, this.storageSettings,
-					theCurrentWalFile.getWalFileIndex(), this.kryoPool, this.transactionLocationsCache,
-					() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
-				);
-			} else {
-				// we need to find older WAL file
-				final int foundWalIndex = findWalIndexFor(version);
-				supplier = new ReverseMutationSupplier<>(
-					version, this.walFileNameProvider, this.storageFolder, this.storageSettings,
-					foundWalIndex, this.kryoPool, this.transactionLocationsCache,
-					() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
-				);
-			}
+			final int walFileIndex = resolveWalFileIndex(version);
+			final ReverseMutationSupplier<T> supplier = new ReverseMutationSupplier<>(
+				version, this.walFileNameProvider, this.storageFolder, this.storageSettings,
+				walFileIndex, this.kryoPool, this.transactionLocationsCache,
+				() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
+			);
 			this.cutWalCacheTask.schedule();
 			return Stream.generate(supplier)
 				.takeWhile(Objects::nonNull)
@@ -1247,18 +1232,17 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		}
 		final File walFile = walFilePath.toFile();
 		if (walFile.exists() && walFile.length() > startPosition + TRANSACTION_PREFIX_SIZE) {
+			final Kryo kryo = this.kryoPool.obtain();
 			try (
 				final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");
-				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-					new RandomAccessFileInputStream(randomAccessOldWalFile, true),
-					this.storageSettings.createChecksum(),
-					this.storageSettings.createDecompressor().orElse(null)
+				final ObservableInput<RandomAccessFileInputStream> input = createObservableInput(
+					randomAccessOldWalFile, this.storageSettings
 				)
 			) {
 				input.seekWithUnknownLength(startPosition);
 				final int transactionLength = input.readInt();
 				final StorageRecord<Object> storageRecord = StorageRecord.read(
-					input, (stream, length) -> this.kryoPool.obtain().readClassAndObject(stream)
+					input, (stream, length) -> kryo.readClassAndObject(stream)
 				);
 				final TransactionMutation transactionMutation = Objects.requireNonNull(
 					(TransactionMutation) storageRecord.payload()
@@ -1284,6 +1268,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					"Failed to read `" + walFilePath + "`!",
 					"Failed to read WAL file!", e
 				);
+			} finally {
+				this.kryoPool.free(kryo);
 			}
 		}
 		return empty();
@@ -1630,34 +1616,19 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 */
 	@Nonnull
 	MutationSupplier<T> createSupplier(long startVersion, @Nullable Long requestedVersion) {
-		final long theFirstVersionOfCurrentWalFile = this.getFirstVersionOfCurrentWalFile();
-
 		// when requested catalog version is provided it means we may be reading the WAL file that is being appended
 		// but we may rely on that the transaction with requested catalog version is already written and readable
-		final Optional<Long> requestedCatalogVersionOptional = ofNullable(requestedVersion);
-		final boolean avoidPartiallyFilledBuffer = requestedCatalogVersionOptional.isPresent();
-		final long theRequestedCatalogVersion = requestedCatalogVersionOptional.orElse(Long.MAX_VALUE);
+		final boolean avoidPartiallyFilledBuffer = requestedVersion != null;
+		final long theRequestedCatalogVersion = requestedVersion != null ? requestedVersion : Long.MAX_VALUE;
+		final int walFileIndex = resolveWalFileIndex(startVersion);
 
-		if (theFirstVersionOfCurrentWalFile != -1 && theFirstVersionOfCurrentWalFile <= startVersion) {
-			// we could start reading the current WAL file
-			return new MutationSupplier<>(
-				startVersion, theRequestedCatalogVersion,
-				this.walFileNameProvider, this.storageFolder, this.storageSettings,
-				getWalFileIndex(), this.kryoPool, this.transactionLocationsCache,
-				avoidPartiallyFilledBuffer,
-				() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
-			);
-		} else {
-			// we need to find older WAL file
-			final int foundWalIndex = findWalIndexFor(startVersion);
-			return new MutationSupplier<>(
-				startVersion, theRequestedCatalogVersion,
-				this.walFileNameProvider, this.storageFolder, this.storageSettings,
-				foundWalIndex, this.kryoPool, this.transactionLocationsCache,
-				avoidPartiallyFilledBuffer,
-				() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
-			);
-		}
+		return new MutationSupplier<>(
+			startVersion, theRequestedCatalogVersion,
+			this.walFileNameProvider, this.storageFolder, this.storageSettings,
+			walFileIndex, this.kryoPool, this.transactionLocationsCache,
+			avoidPartiallyFilledBuffer,
+			() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
+		);
 	}
 
 	/**
@@ -1722,6 +1693,22 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
+	 * Resolves the WAL file index for the given version.
+	 * Returns the current WAL file index if the version is within it, otherwise finds the appropriate older WAL file.
+	 *
+	 * @param version the version to resolve
+	 * @return the WAL file index containing the specified version, or -1 if not found
+	 */
+	private int resolveWalFileIndex(long version) {
+		final long firstVersionOfCurrentWalFile = this.getFirstVersionOfCurrentWalFile();
+		if (firstVersionOfCurrentWalFile != -1 && firstVersionOfCurrentWalFile <= version) {
+			return getWalFileIndex();
+		} else {
+			return findWalIndexFor(version);
+		}
+	}
+
+	/**
 	 * Finds the index of a write-ahead log (WAL) file associated with a given catalog version.
 	 *
 	 * @param version The catalog version to search for.
@@ -1760,10 +1747,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			if (oldWalFile.length() > AbstractMutationLog.WAL_TAIL_LENGTH) {
 				try (
 					final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(oldWalFile, "r");
-					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-						new RandomAccessFileInputStream(randomAccessOldWalFile, true),
-						this.storageSettings.createChecksum(),
-						this.storageSettings.createDecompressor().orElse(null)
+					final ObservableInput<RandomAccessFileInputStream> input = createObservableInput(
+						randomAccessOldWalFile, this.storageSettings
 					)
 				) {
 					input.seekWithUnknownLength(oldWalFile.length() - AbstractMutationLog.WAL_TAIL_LENGTH);
@@ -1854,7 +1839,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		}
 
 		final int newWalFileIndex = theCurrentWalFile.getWalFileIndex() + 1;
-		OffsetDateTime firstCommitTimestamp = null;
+		final OffsetDateTime firstCommitTimestamp = null;
 		try {
 			final Path walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(newWalFileIndex));
 
@@ -1976,14 +1961,23 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		long lastCvInFile,
 		@Nonnull FileChannel walFileChannel
 	) throws IOException {
+		// reset checksum to checksum of the last written transaction
+		final long finalCumulativeChecksum = this.currentWalFile.get().getCumulativeChecksum();
+		// init with stat of the last written transaction
+		this.checksum.reset(finalCumulativeChecksum);
+		// we need to add also the checksum itself (it's not part of the cumulative checksum yet)
+		this.checksum.update(finalCumulativeChecksum);
+		// then add first and last catalog versions
+		this.checksum.update(firstCvInFile);
+		this.checksum.update(lastCvInFile);
+		// finally get the cumulative checksum including versions
+		// this represents the CRC32C of all bytes data written to the file including the tail
+		final long finalCumulativeChecksumIncludingVersions = this.checksum.getValue();
+
 		this.contentLengthBuffer.clear();
 		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, firstCvInFile);
 		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, lastCvInFile);
-
-		// Use the final cumulative checksum from the current WAL file
-		// This represents the CRC32C of all transaction data written to the file
-		final long finalCumulativeChecksum = this.currentWalFile.get().getCumulativeChecksum();
-		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, finalCumulativeChecksum);
+		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, finalCumulativeChecksumIncludingVersions);
 
 		int written = 0;
 		this.contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
@@ -1995,7 +1989,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			"Failed to write tail to WAL file!"
 		);
 
-		return finalCumulativeChecksum;
+		return finalCumulativeChecksumIncludingVersions;
 	}
 
 	/**
