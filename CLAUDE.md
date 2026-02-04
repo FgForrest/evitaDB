@@ -13,6 +13,7 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 - **Local variables**: Use `final` for local variables
 - **Instance variables**: Use `this` for instance variables
 - **Type declarations**: Never use `var` - always use explicit types
+- **Resource management**: Use try-with-resources for all `AutoCloseable` resources wherever applicable
 - **Documentation**: Automatically add JavaDoc to all generated classes and methods
 - **Comments**: Add line comments to complex logic
 
@@ -38,13 +39,120 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 
 ## Building
 
-- **Build Tool**: Maven
+- **Primary**: try to use IntelliJ MCP for building and running the project, when not possible use Maven
+- **CLI Build Tool**: Maven
 - **Java Version**: OpenJDK 17 (requires Maven toolchains configuration)
 
 Build command:
+
 ```shell
 mvn clean install
 ```
+
+## Committing
+
+GitHub repository: https://github.com/FgForrest/evitaDB
+Main branch: `dev`
+Release branches: `release_YYYY-M`
+
+### Branch Naming Convention
+
+Use format: `{issue-id}-{kebab-case-description}`
+
+Examples:
+- `1075-fix-session-killer-race-condition`
+- `1234-add-graphql-pagination-support`
+
+### Commit Messages
+
+Use conventional commits style with issue reference:
+
+```
+<type>: <description>
+
+[optional body explaining the change in detail]
+
+Ref: #<issue-id>
+```
+
+Do not write (co)author name or date in the commit message.
+
+**Commit types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `perf`: Performance improvement
+- `test`: Adding or updating tests
+- `docs`: Documentation changes
+- `chore`: Maintenance tasks, dependency updates
+
+**Example:**
+```
+fix: race condition in SessionKiller when checking session inactivity
+
+The session inactivity check was not properly synchronized, leading to
+race conditions when multiple threads accessed the same session data.
+
+Ref: #1075
+```
+
+### Pull Requests
+
+Do not write (co)author name or date in the PR request. 
+
+- **Target branch**: resolve using this command:
+  ```shell
+  # Try PR first, then tracking branch, then repo default
+  gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null \
+    || git config branch.$(git branch --show-current).merge 2>/dev/null | sed 's|refs/heads/||' \                                                        
+    || gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
+  ```
+- **Review**: Automatically request review from GitHub Copilot when creating pull requests.
+  Note: `gh pr create --reviewer copilot` does not work. Instead, create the PR first, then add Copilot via the API:
+  ```shell
+  gh api --method POST /repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/requested_reviewers \
+    -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+  ```
+- **Linking**: Reference the issue number in PR description to automatically link (e.g., "Closes #1075" or "Fixes #1075")
+- **Tooling**: use GitHub CLI (`gh` command) for PR creation and management
+
+**Example PR creation:**
+```shell
+gh pr create --title "Fix session killer race condition" --body "Closes #1075"
+# Then add Copilot reviewer:
+gh api --method POST /repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/requested_reviewers \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+```
+
+### Review comments
+
+When addressing review comments, use the following commit message format, fetch all unresolved review comments, and address them one by one.
+Do not take notice of already resolved comments. Use `gh` CLI tool to fetch and manage review comments.
+
+1. first examine whether the review comment is valid and should be addressed (do not blindly try to address all comments, but operate as self-confident experienced developer)
+2. for each comment that you decide to address, create a commit and comment on the review comment how you addressed it
+3. for each comment that you decide to NOT address, comment on the review comment why you decided to not address it
+
+### Issue Tracking
+
+Use GitHub Issues for tracking tasks and bugs. When creating issues:
+
+**Issue Type Labels** (select appropriate label):
+- `bug`: Something isn't working correctly
+- `enhancement`: New feature or request
+- `performance`: Performance problem or optimization
+- `maintenance`: Refactoring, technical debt, or maintenance tasks
+- `breaking change`: Backward incompatible data model or API change
+- `documentation`: Improvements or additions to documentation
+
+**Milestone Selection:**
+- Pick the nearest upcoming milestone by due date
+- Use `gh api repos/FgForrest/evitaDB/milestones` to list available milestones
+
+**Issue Linking:**
+- Branches: GitHub automatically links branches named with issue numbers (e.g., `1075-description`)
+- Commits: Include `Ref: #<issue-id>` in the commit message
+- PRs: Use "Closes #<issue-id>", "Fixes #<issue-id>", or "Resolves #<issue-id>" in PR description
 
 ## Testing
 
@@ -53,26 +161,32 @@ mvn clean install
 - **Test naming**: Use format `shouldDoSomethingWhenCondition` or `shouldThrowExceptionWhenCondition`
 - **Display names**: Use `@DisplayName` for entire class and for test methods to provide clear descriptions (do not repeat class description content in method descriptions)
 - **Coverage**: Automatically generate test cases for all public methods
+- for running tests try to use IntelliJ MCP, when not possible use Maven, 
+  prefer running individual test classes over running entire test suite, if you run entire test suite use profile `unitAndFunctional`
 
 ## Project Organization
 
 ### Core Modules
+
 - **evita_common**: Shared functions, exceptions, data types, and common utilities
 - **evita_query**: Query language (EvitaQL), query parser, and utilities for query handling
 - **evita_api**: Public API including data type conversions and basic structures
 - **evita_engine**: Implementation of the database engine core
 
 ### Storage Layer
+
 - **evita_store_key_value**: Key-value store implementation with binary serialization using Kryo
 - **evita_store_entity**: Entity storage format and Kryo serialization (shared between server and Java client)
 - **evita_store_server**: Server data structures persistence implementation
 - **evita_traffic_engine**: Traffic engine recorder for storing traffic data
 
 ### Export
+
 - **evita_export_fs**: Export service implementation for local file system
 - **evita_export_s3**: Export service implementation for S3-compatible storage
 
 ### External APIs
+
 - **evita_external_api_core**: Shared logic for all web APIs, Armeria HTTP server integration
 - **evita_external_api_graphql**: GraphQL API implementation
 - **evita_external_api_grpc**: gRPC API implementation (includes shared stubs, server, and Java client driver)
@@ -82,10 +196,12 @@ mvn clean install
 - **evita_external_api_observability**: Observability API with Prometheus metrics and OpenTelemetry tracing
 
 ### Bundles
+
 - **evita_db**: Maven POM bundle for embedded evitaDB usage scenario
 - **evita_server**: Standalone server with all APIs bundled
 
 ### Testing Modules
+
 - **evita_test_support**: Utility classes for writing integration tests
 - **evita_functional_tests**: Test suite verifying functional correctness
 - **evita_performance_tests**: JMH-based performance tests
