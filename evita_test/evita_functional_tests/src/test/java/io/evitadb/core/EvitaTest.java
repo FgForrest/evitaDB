@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.*;
@@ -2131,6 +2132,36 @@ class EvitaTest implements EvitaTestSupport {
 				assertTrue(attributes.get("categoryPriority").isSortable());
 				assertTrue(attributes.containsKey("customNote"));
 				assertTrue(attributes.containsKey("additionalAttribute"));
+			}
+		);
+	}
+
+	@Test
+	@DisplayName("Should throw context missing exception when accessing localized attribute without locale")
+	void shouldThrowContextMissingExceptionWhenAccessingLocalizedAttributeWithoutLocale() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// we can create reflected reference even before the main one is created
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute("name", String.class, whichIs -> whichIs.localized())
+					.updateVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute("name", new Locale("cs"), "Produkt 1")
+					.upsertVia(session);
+
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent()).orElseThrow();
+
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((Entity) ((EntityDecorator) product).getDelegate()).getAttribute("name")
+				);
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((EntityDecorator) product).getAttribute("name")
+				);
 			}
 		);
 	}
