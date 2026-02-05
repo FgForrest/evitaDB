@@ -1815,26 +1815,42 @@ public class EvitaClientSession implements EvitaSessionContract {
 	) throws TemporalDataNotAvailableException {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final GrpcBackupCatalogResponse grpcResponse = executeWithBlockingEvitaSessionService(
-				evitaSessionService ->
-				{
+			final Duration timeout = this.streamingTimeout;
+			final CompletableFuture<Task<?, FileForFetch>> taskFuture = new CompletableFuture<>();
+
+			executeWithStreamingEvitaSessionService(
+				evitaSessionService -> {
 					final Builder builder = GrpcBackupCatalogRequest.newBuilder();
 					ofNullable(pastMoment)
 						.ifPresent(pm -> builder.setPastMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(pm)));
 					ofNullable(catalogVersion)
 						.ifPresent(cv -> builder.setCatalogVersion(Int64Value.newBuilder().setValue(cv).build()));
-					return evitaSessionService.backupCatalog(
-						builder
-							.setIncludingWAL(includingWAL)
-							.build()
+
+					evitaSessionService.backupCatalogWithProgress(
+						builder.setIncludingWAL(includingWAL).build(),
+						new BackupProgressObserver<>(
+							taskFuture, timeout,
+							GrpcBackupCatalogResponse::getTaskStatus
+						)
 					);
+					return null;
 				}
 			);
 
-			//noinspection unchecked
-			return (Task<?, FileForFetch>) this.management.createTask(
-				toTaskStatus(grpcResponse.getTaskStatus())
-			);
+			try {
+				return taskFuture.get();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new EvitaClientServerCallException("Server call interrupted.", e);
+			} catch (ExecutionException e) {
+				final Throwable cause = e.getCause() != null ? e.getCause() : e;
+				if (cause instanceof RuntimeException runtimeException) {
+					throw runtimeException;
+				}
+				throw new GenericEvitaInternalError(
+					"Backup catalog failed: " + cause.getMessage(), cause
+				);
+			}
 		});
 	}
 
@@ -1843,16 +1859,36 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public Task<?, FileForFetch> fullBackupCatalog() {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final GrpcFullBackupCatalogResponse grpcResponse = executeWithBlockingEvitaSessionService(
-				evitaSessionService -> evitaSessionService.fullBackupCatalog(
-					Empty.newBuilder().build()
-				)
+			final Duration timeout = this.streamingTimeout;
+			final CompletableFuture<Task<?, FileForFetch>> taskFuture = new CompletableFuture<>();
+
+			executeWithStreamingEvitaSessionService(
+				evitaSessionService -> {
+					evitaSessionService.fullBackupCatalogWithProgress(
+						Empty.newBuilder().build(),
+						new BackupProgressObserver<>(
+							taskFuture, timeout,
+							GrpcFullBackupCatalogResponse::getTaskStatus
+						)
+					);
+					return null;
+				}
 			);
 
-			//noinspection unchecked
-			return (Task<?, FileForFetch>) this.management.createTask(
-				toTaskStatus(grpcResponse.getTaskStatus())
-			);
+			try {
+				return taskFuture.get();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new EvitaClientServerCallException("Server call interrupted.", e);
+			} catch (ExecutionException e) {
+				final Throwable cause = e.getCause() != null ? e.getCause() : e;
+				if (cause instanceof RuntimeException runtimeException) {
+					throw runtimeException;
+				}
+				throw new GenericEvitaInternalError(
+					"Full backup catalog failed: " + cause.getMessage(), cause
+				);
+			}
 		});
 	}
 
@@ -2769,6 +2805,67 @@ public class EvitaClientSession implements EvitaSessionContract {
 			this(null, error, true);
 		}
 
+	}
+
+	/**
+	 * Stream observer for backup progress updates. On the first received message, it creates
+	 * a {@link ClientTask} and completes the task future so the calling method can return.
+	 * Subsequent messages update the task status. Extends the client timeout with each message.
+	 *
+	 * @param <R> the gRPC response type (e.g. {@link GrpcBackupCatalogResponse})
+	 */
+	@RequiredArgsConstructor
+	private class BackupProgressObserver<R> implements StreamObserver<R> {
+		/**
+		 * Future that is completed with the task once the first streamed message arrives.
+		 */
+		@Nonnull
+		private final CompletableFuture<Task<?, FileForFetch>> taskFuture;
+		/**
+		 * Duration to extend the response timeout for each received message.
+		 */
+		@Nonnull
+		private final Duration timeout;
+		/**
+		 * Function to extract the {@link GrpcTaskStatus} from the gRPC response.
+		 */
+		@Nonnull
+		private final Function<R, GrpcTaskStatus> taskStatusExtractor;
+		/**
+		 * Reference to the client task, initialized on first message.
+		 */
+		private ClientTask<?, FileForFetch> clientTask;
+
+		@Override
+		public void onNext(R response) {
+			final GrpcTaskStatus grpcTaskStatus = this.taskStatusExtractor.apply(response);
+			if (this.clientTask == null) {
+				// first message - create the task and unblock the caller
+				//noinspection unchecked
+				this.clientTask = (ClientTask<?, FileForFetch>) EvitaClientSession.this.management.createTask(
+					toTaskStatus(grpcTaskStatus)
+				);
+				this.taskFuture.complete(this.clientTask);
+			} else {
+				// subsequent messages - update task status
+				this.clientTask.updateStatus(toTaskStatus(grpcTaskStatus));
+			}
+
+			// postpone timeout with each message received
+			ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.timeout);
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+			if (!this.taskFuture.isDone()) {
+				this.taskFuture.completeExceptionally(throwable);
+			}
+		}
+
+		@Override
+		public void onCompleted() {
+			// no-op: task is already updated to final state via onNext
+		}
 	}
 
 	/**
