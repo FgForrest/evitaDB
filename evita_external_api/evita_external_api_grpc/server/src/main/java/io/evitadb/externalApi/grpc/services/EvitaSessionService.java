@@ -953,7 +953,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param serviceContext   Armeria service context for timeout management
 	 * @param <T>              the gRPC response type
 	 */
-	private <T> void streamBackupProgress(
+	private static <T> void streamBackupProgress(
 		@Nonnull Task<?, FileForFetch> backupTask,
 		@Nonnull Function<GrpcTaskStatus, T> responseBuilder,
 		@Nonnull StreamObserver<T> responseObserver,
