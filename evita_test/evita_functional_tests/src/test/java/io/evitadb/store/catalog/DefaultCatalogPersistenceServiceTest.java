@@ -79,6 +79,7 @@ import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceServi
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.exception.BootstrapFileNotFound;
 import io.evitadb.store.exception.DirectoryNotEmptyException;
@@ -542,9 +543,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			.resolve(catalogName)
 			.resolve(CatalogPersistenceService.getWalFileName(catalogName, 0));
 
-		try (final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, ChecksumFactory.NO_OP, CompressionFactory.NO_COMPRESSION)) {
+		try (final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, Crc32CChecksumFactory.INSTANCE, CompressionFactory.NO_COMPRESSION)) {
 			readOnlyHandle.execute(
 				input -> {
+					input.skip(AbstractMutationLog.CUMULATIVE_CRC32_SIZE); // skip leading cumulative hash
 					final int transactionSize = input.readInt();
 					// the 2 bytes are required to record the classId
 					final int offsetDateTimeDelta = 11;

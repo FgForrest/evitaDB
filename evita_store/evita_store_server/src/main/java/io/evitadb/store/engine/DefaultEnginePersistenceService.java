@@ -67,7 +67,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
@@ -223,20 +222,6 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			scheduler,
 			this.walKryoPool
 		);
-
-		// if the mutation log has different log file reference than the engine state, we need to update the engine state
-		if (this.mutationLog != null && !Objects.equals(logFileRecordReference, this.mutationLog.getLogFileRecordReference())) {
-			log.warn(
-				"Engine state WAL file reference {} differs from the actual WAL file reference {}. " +
-					"Updating engine state to reflect the actual WAL file reference.",
-				logFileRecordReference,
-				this.mutationLog.getLogFileRecordReference()
-			);
-			this.engineState = EngineState.builder(this.engineState)
-				.walFileReference(this.mutationLog.getLogFileRecordReference())
-				.build();
-			storeEngineState(this.engineState);
-		}
 	}
 
 	/**

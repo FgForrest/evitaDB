@@ -512,8 +512,8 @@ public class EvitaParameterResolver
 		if (ArrayUtils.isEmpty(unknownApis)) {
 			final Builder apiOptionsBuilder = ApiOptions
 				.builder()
-				// 10 s request timeout - tests are highly parallel, squeezing our CI infrastructure
-				.requestTimeoutInMillis(10_000)
+				// 10 m request timeout - tests are highly parallel, squeezing our CI infrastructure
+				.requestTimeoutInMillis(10 * 60 * 1000)
 				.certificate(
 					CertificateOptions
 						.builder()
@@ -799,8 +799,7 @@ public class EvitaParameterResolver
 						final AbstractApiOptions systemConfig =
 							evitaServer.getExternalApiServer()
 							           .getApiOptions()
-							           .getEndpointConfiguration(
-								           SystemProvider.CODE);
+							           .getEndpointConfiguration(SystemProvider.CODE);
 						if (systemConfig == null) {
 							throw new ParameterResolutionException(
 								"System web API was not opened for the dataset `" + dataSetName + "`!");
@@ -818,6 +817,7 @@ public class EvitaParameterResolver
 								.port(grpcConfig.getHost()[0].port())
 								.systemApiPort(systemConfig.getHost()[0].port())
 								.timeout(10, TimeUnit.MINUTES)
+								.streamingTimeout(10, TimeUnit.MINUTES)
 								.build()
 						);
 					}

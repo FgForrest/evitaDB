@@ -391,7 +391,9 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 */
 	@Nonnull
 	protected Optional<TransactionMutationWithLocation> readAndRecordTransactionMutation(
-		long startPosition, long fileSize) {
+		long startPosition,
+		long fileSize
+	) {
 		final ObservableInput<RandomAccessFileInputStream> theObservableInput = this.observableInput;
 		Assert.isPremiseValid(
 			this.observableInput != null,

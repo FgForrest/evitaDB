@@ -240,10 +240,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * records in them were not yet processed.
 	 */
 	private final Queue<PendingRemoval> pendingRemovals = new ConcurrentLinkedDeque<>();
-	/**
-	 * Reference to the last log file record reference that was fully processed.
-	 */
-	private final AtomicReference<LogFileRecordReference> lastLogFileRecordReference = new AtomicReference<>();
 
 	/**
 	 * Returns the index extracted from the given Write-Ahead-Log file name.
@@ -277,6 +273,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 */
 	protected static boolean createWalFile(@Nonnull Path walFilePath, boolean mayExist) throws IOException {
 		final File walFile = walFilePath.toFile();
+		if (walFile.exists() && walFile.length() < CUMULATIVE_CRC32_SIZE) {
+			Assert.isPremiseValid(
+				walFile.delete(),
+				"Failed to delete corrupted WAL file `" + walFilePath + "`!"
+			);
+		}
 		if (!walFile.exists()) {
 			final File parentDirectory = walFilePath.getParent().toFile();
 			if (!parentDirectory.exists()) {
@@ -777,7 +779,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				);
 			}
 
-			this.lastLogFileRecordReference.set(logRecordReference);
 			this.currentWalFile.set(
 				new CurrentMutationLogFile(
 					currentWalFileIndex.get(),
@@ -797,17 +798,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				e
 			);
 		}
-	}
-
-	/**
-	 * Retrieves the reference to the most recent log file record.
-	 *
-	 * @return a non-null {@code LogFileRecordReference} representing the reference to the last log file record.
-	 *         This method guarantees that the returned reference is not null.
-	 */
-	@Nonnull
-	public LogFileRecordReference getLogFileRecordReference() {
-		return Objects.requireNonNull(this.lastLogFileRecordReference.get());
 	}
 
 	/**
@@ -1102,14 +1092,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				.map(Path::getParent)
 				.ifPresent(FileUtils::deleteFolderIfEmpty);
 
-			final LogFileRecordReference logFileRecordReference = new LogFileRecordReference(
+			return new LogFileRecordReference(
 				this.walFileNameProvider,
 				theCurrentWalFile.getWalFileIndex(),
 				new FileLocation(currentWalFileSize, writtenLength),
 				theCurrentWalFile.getCumulativeChecksum()
 			);
-			this.lastLogFileRecordReference.set(logFileRecordReference);
-			return logFileRecordReference;
 
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -1223,7 +1211,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		if (walReference == null) {
 			walFileIndex = getWalFileIndex();
 			walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(walFileIndex));
-			startPosition = 0L;
+			startPosition = CUMULATIVE_CRC32_SIZE;
 		} else {
 			walFilePath = walReference.toFilePath(this.storageFolder);
 			walFileIndex = walReference.fileIndex();
@@ -1231,7 +1219,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			startPosition = fileLocation.endPosition();
 		}
 		final File walFile = walFilePath.toFile();
-		if (walFile.exists() && walFile.length() > startPosition + TRANSACTION_PREFIX_SIZE) {
+		if (walFile.exists() && walFile.length() > startPosition + TRANSACTION_PREFIX_SIZE + CUMULATIVE_CRC32_SIZE) {
 			final Kryo kryo = this.kryoPool.obtain();
 			try (
 				final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");

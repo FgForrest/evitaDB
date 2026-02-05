@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,6 +59,27 @@ public record LogFileRecordReference(
 		@Nonnull IntFunction<String> walFileNameProvider
 	) {
 		this(walFileNameProvider, 0, null, 0L);
+	}
+
+	/**
+	 * Constructs a new instance of {@code LogFileRecordReference} by copying the values from an existing
+	 * {@code LogFileRecordReference} while using a new WAL file name provider.
+	 *
+	 * @param walFileNameProvider A lambda function that provides the name of the WAL file based on the file index.
+	 *                            This is used to resolve the file name for WAL operations.
+	 * @param logFileRecordReference An existing {@code LogFileRecordReference} instance whose file index,
+	 *                               location, and cumulative checksum will be duplicated into the new instance.
+	 */
+	public LogFileRecordReference(
+		@Nonnull IntFunction<String> walFileNameProvider,
+		@Nonnull LogFileRecordReference logFileRecordReference
+	) {
+		this(
+			walFileNameProvider,
+			logFileRecordReference.fileIndex,
+			logFileRecordReference.fileLocation,
+			logFileRecordReference.cumulativeChecksum
+		);
 	}
 
 	@Override

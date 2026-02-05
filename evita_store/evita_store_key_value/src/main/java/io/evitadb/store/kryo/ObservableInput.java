@@ -83,6 +83,10 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 */
 	private int bytesReadFromInputStreamSinceReset;
 	/**
+	 * Total number of bytes in total variable before starting decompression.
+	 */
+	private long decompressionTotalBefore;
+	/**
 	 * Start of the sensible data in the {@link #decompressionBuffer}.
 	 */
 	private int decompressionBufferStart;
@@ -275,6 +279,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.readingPayload = false;
 		this.overflowing = false;
 		this.compressed = false;
+		this.decompressionTotalBefore = 0L;
 		this.decompressionBufferStart = 0;
 		this.decompressionBufferPeek = 0;
 		this.bytesReadFromInputStreamSinceReset = 0;
@@ -773,6 +778,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 			this.decompressionBuffer = this.buffer;
 			this.buffer = tmp;
 			this.inflater.setInput(this.decompressionBuffer, this.position, this.limit - this.position);
+			this.decompressionTotalBefore = this.total;
 			this.decompressionBufferStart = this.position;
 			this.decompressionBufferPeek = this.actualLimit == -1 ? this.limit : this.actualLimit;
 			this.inflaterReadBytesOnLastDecompressionBufferFill = 0;
@@ -821,6 +827,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 					this.decompressionBuffer = this.buffer;
 					this.buffer = tmp;
 					// update position in the buffer and limit
+					this.total = this.decompressionTotalBefore;
 					this.position = this.decompressionBufferStart + bytesReadSinceLastFill;
 					this.limit = this.decompressionBufferPeek;
 					bytesSavedByCompression = this.payloadDecompressedLength - this.expectedPayloadLength;
@@ -879,6 +886,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 			this.payloadStartPosition = -1;
 			this.payloadPrefixLength = 0;
 			this.compressed = false;
+			this.decompressionTotalBefore = 0L;
 			this.decompressionBufferStart = 0;
 			this.decompressionBufferPeek = 0;
 			this.inflaterReadBytesOnLastDecompressionBufferFill = 0;
@@ -1086,7 +1094,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 				if (!this.readingTail) {
 					// when wrapping over the buffer boundary we need to update accumulated lengths
 					final int readLength = this.position - (this.startPosition - offset);
-					if (!this.readingPayload) {
+					if (this.cumulatingChecksum && !this.readingPayload) {
 						// and update checksum id by the read contents
 						/* TODO JNO - why consumed length is calculated differently than readLength? */
 						final int consumedLength = this.lastCount - (this.startPosition - this.lastOffset);

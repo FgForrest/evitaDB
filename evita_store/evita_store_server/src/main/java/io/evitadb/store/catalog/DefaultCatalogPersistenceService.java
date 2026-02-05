@@ -875,21 +875,6 @@ public class DefaultCatalogPersistenceService
 					"WAL file is not expected to exist at this point, but it does!"
 				)
 			);
-			try {
-				Assert.isPremiseValid(
-					walFilePath.toFile().createNewFile(),
-					() -> new UnexpectedIOException(
-						"WAL file `" + walFilePath + "` was unexpectedly not created!",
-						"WAL file was unexpectedly not created!"
-					)
-				);
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to create WAL file `" + walFilePath + "`!",
-					"Failed to create WAL file!",
-					e
-				);
-			}
 		} else {
 			currentWalFileRef = catalogHeader.walFileReference();
 		}
@@ -1211,26 +1196,7 @@ public class DefaultCatalogPersistenceService
 		final LogFileRecordReference logFileRecordReference = catalogHeader.walFileReference() == null ?
 			new LogFileRecordReference(this.walFileNameProvider) : catalogHeader.walFileReference();
 
-		this.catalogWal = createWalIfAnyWalFilePresent(
-			catalogVersion, catalogName, logFileRecordReference,
-			this.storageSettings, scheduler,
-			this::trimBootstrapFile, this.obsoleteFileMaintainer::createWalPurgeCallback,
-			this.catalogStoragePath, this.walKryoPool
-		);
-
-		// if the mutation log has different log file reference than the engine state, we need to update the engine state
-		if (this.catalogWal != null && !Objects.equals(logFileRecordReference, this.catalogWal.getLogFileRecordReference())) {
-			final LogFileRecordReference newLogFileReference = this.catalogWal.getLogFileRecordReference();
-			log.warn(
-				"Catalog {} WAL file reference {} differs from the actual WAL file reference {}. " +
-					"Updating catalog header to reflect the actual WAL file reference.",
-				catalogName,
-				logFileRecordReference,
-				newLogFileReference
-			);
-			updateLogFileRecordReferenceInCatalogHeader(catalogHeader, newLogFileReference);
-		}
-
+		final boolean restoreFlagExists;
 		try {
 			final File restoreFlagFile = this.catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG)
 				.toFile();
@@ -1240,7 +1206,8 @@ public class DefaultCatalogPersistenceService
 					OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION,
 				this.bootstrapUsed
 			);
-			if (restoreFlagFile.exists()) {
+			restoreFlagExists = restoreFlagFile.exists();
+			if (restoreFlagExists) {
 				Assert.isPremiseValid(
 					restoreFlagFile.delete(),
 					() -> new UnexpectedIOException(
@@ -1253,34 +1220,17 @@ public class DefaultCatalogPersistenceService
 			this.close();
 			throw ex;
 		}
-	}
 
-	/**
-	 * Updates the catalog header with a new log file record reference. This method modifies
-	 * the catalog header to include the provided {@code newLogFileReference} and persists
-	 * the updated information using the storage service.
-	 *
-	 * @param currentCatalogHeader The current catalog header object representing the catalog's
-	 *                             metadata and references.
-	 * @param newLogFileReference  The new log file record reference that will replace the
-	 *                             existing reference in the catalog header.
-	 */
-	private void updateLogFileRecordReferenceInCatalogHeader(
-		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader,
-		@Nonnull LogFileRecordReference newLogFileReference
-	) {
-		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
-			getStoragePartPersistenceService(currentCatalogHeader.version());
-		storagePartPersistenceService.writeCatalogHeader(
-			STORAGE_PROTOCOL_VERSION,
-			currentCatalogHeader.version(),
-			this.catalogStoragePath,
-			newLogFileReference,
-			currentCatalogHeader.collectionFileIndex(),
-			currentCatalogHeader.catalogId(),
-			currentCatalogHeader.catalogName(),
-			currentCatalogHeader.catalogState(),
-			currentCatalogHeader.lastEntityCollectionPrimaryKey()
+		this.catalogWal = createWalIfAnyWalFilePresent(
+			catalogVersion, catalogName,
+			restoreFlagExists ?
+				// the catalog name has changed, so we need to reinitialize the WAL file name provider
+				new LogFileRecordReference(this.walFileNameProvider, logFileRecordReference) :
+				logFileRecordReference,
+			this.storageSettings, scheduler,
+			this::trimBootstrapFile,
+			this.obsoleteFileMaintainer::createWalPurgeCallback,
+			this.catalogStoragePath, this.walKryoPool
 		);
 	}
 
@@ -1383,19 +1333,6 @@ public class DefaultCatalogPersistenceService
 		} catch (UnexpectedCatalogContentsException ex) {
 			this.close();
 			throw ex;
-		}
-
-		// if the mutation log has different log file reference than the engine state, we need to update the engine state
-		if (this.catalogWal != null && !Objects.equals(logFileRecordReference, this.catalogWal.getLogFileRecordReference())) {
-			final LogFileRecordReference newLogFileReference = this.catalogWal.getLogFileRecordReference();
-			log.warn(
-				"Catalog {} WAL file reference {} differs from the actual WAL file reference {}. " +
-					"Updating catalog header to reflect the actual WAL file reference.",
-				catalogName,
-				logFileRecordReference,
-				newLogFileReference
-			);
-			updateLogFileRecordReferenceInCatalogHeader(catalogHeader, newLogFileReference);
 		}
 	}
 
