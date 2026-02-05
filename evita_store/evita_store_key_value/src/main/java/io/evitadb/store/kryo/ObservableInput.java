@@ -178,11 +178,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 */
 	private int lastOffset = -1;
 	/**
-	 * Contains length of the meaningful content in the buffer that was filled by {@link #fill(byte[], int, int)}
-	 * starting with {@link #lastOffset}.
-	 */
-	private int lastCount = -1;
-	/**
 	 * Contains original Kryo {@link #limit} value when it's overwritten by our custom logic that respects the end
 	 * of the record defined by {@link #expectedLength}. This query is not known to Kryo - the limit represents
 	 * the end of fetched data in the {@link #buffer} for kryo, but in our case the data stream might continue with
@@ -270,7 +265,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 		super.reset();
 		this.accumulatedLength = 0;
 		this.lastOffset = -1;
-		this.lastCount = -1;
 		this.startPosition = -1;
 		this.payloadStartPosition = -1;
 		this.payloadPrefixLength = 0;
@@ -696,7 +690,8 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadStartPosition = this.position;
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
 		this.actualLimit = this.limit > 0 ? this.limit : -1;
-		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		// cap at the current limit to avoid extending beyond actual data in partially filled buffers
+		this.limit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
 		this.readingTail = true;
 		try {
 			return readInt();
@@ -728,7 +723,8 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadStartPosition = this.position;
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
 		this.actualLimit = this.limit > 0 ? this.limit : -1;
-		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		// cap at the current limit to avoid extending beyond actual data in partially filled buffers
+		this.limit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
 		this.readingTail = true;
 		try {
 			return readLong();
@@ -785,7 +781,8 @@ public class ObservableInput<T extends InputStream> extends Input {
 			// this will enforce invoking `fill` method with first inflater call
 			this.limit = this.position;
 		} else {
-			this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength() + this.payloadPrefixLength);
+			// cap at the current limit to avoid extending beyond actual data in partially filled buffers
+			this.limit = Math.min(this.limit, constraintLimitWithRecordLength() + this.payloadPrefixLength);
 		}
 	}
 
@@ -966,7 +963,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.total = 0;
 		this.accumulatedLength = 0;
 		this.lastOffset = -1;
-		this.lastCount = -1;
 		this.startPosition = -1;
 		this.payloadStartPosition = -1;
 		this.payloadPrefixLength = 0;
@@ -1090,15 +1086,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 	private void updateLostBuffer(int offset, int count) {
 		if (!this.compressed && count > 0) {
 			// recompute accumulated length since the start of the record
-			if (this.lastCount != -1) {
+			if (this.lastOffset != -1) {
 				if (!this.readingTail) {
 					// when wrapping over the buffer boundary we need to update accumulated lengths
+					// readLength uses `position` (actual read extent) rather than buffer capacity
 					final int readLength = this.position - (this.startPosition - offset);
 					if (this.cumulatingChecksum && !this.readingPayload) {
-						// and update checksum id by the read contents
-						/* TODO JNO - why consumed length is calculated differently than readLength? */
-						final int consumedLength = this.lastCount - (this.startPosition - this.lastOffset);
-						this.checksum.update(this.buffer, this.startPosition, consumedLength);
+						// update checksum by the actually read contents
+						this.checksum.update(this.buffer, this.startPosition, readLength);
 					}
 					this.accumulatedLength += readLength;
 					// update payload start positions - we're going to rewrite the buffer so the sensible payload start changes
@@ -1106,18 +1101,17 @@ public class ObservableInput<T extends InputStream> extends Input {
 				}
 				// we're reading payload - we have to recompute accumulated length
 				if (this.readingPayload) {
-					// update checksum id by the read contents
+					// update checksum by the actually read contents
 					// when the content is compressed the checksum is computed in `fill` method
-					final int consumedLength = this.lastCount - (this.payloadStartPosition - this.lastOffset);
-					this.checksum.update(this.buffer, this.payloadStartPosition, consumedLength);
+					final int payloadReadLength = this.position - (this.payloadStartPosition - offset);
+					this.checksum.update(this.buffer, this.payloadStartPosition, payloadReadLength);
 					// update payload start positions - we're going to rewrite the buffer so the sensible payload start changes
 					this.payloadStartPosition = offset;
 				}
 			}
-			// always update last meaningful offset and count to track the part of the buffer that hasn't yet been
+			// always update last meaningful offset to track the part of the buffer that hasn't yet been
 			// accounted to accumulated length and recorded to CRC32
 			this.lastOffset = offset;
-			this.lastCount = count;
 		}
 	}
 
