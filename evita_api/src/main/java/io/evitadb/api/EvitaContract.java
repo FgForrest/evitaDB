@@ -29,9 +29,11 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -673,5 +675,12 @@ public interface EvitaContract extends AutoCloseable {
 	 */
 	@Nonnull
 	EvitaManagementContract management();
+
+	/**
+	 * Returns implementation of the proxy factory that is used to wrap the returned {@link SealedEntity} into custom
+	 * Java types.
+	 */
+	@Nonnull
+	ProxyFactory getProxyFactory();
 
 }

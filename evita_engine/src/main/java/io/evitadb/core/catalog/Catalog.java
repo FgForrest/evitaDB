@@ -140,7 +140,6 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
-import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -258,7 +257,7 @@ public final class Catalog
 	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
-	@Getter private final ProxyFactory proxyFactory;
+	private final ProxyFactory proxyFactory;
 	/**
 	 * Reference to the current {@link EvitaConfiguration} settings.
 	 */
@@ -355,7 +354,7 @@ public final class Catalog
 		boolean readOnly,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull Evita evita,
-		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
@@ -374,7 +373,7 @@ public final class Catalog
 					catalogName,
 					cacheSupervisor,
 					evita,
-					reflectionLookup,
+					proxyFactory,
 					exportService,
 					fileManagementService,
 					newCatalogVersionConsumer,
@@ -517,7 +516,7 @@ public final class Catalog
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull Evita evita,
-		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
@@ -570,7 +569,7 @@ public final class Catalog
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
 		this.catalogIndex.attachToCatalog(null, this);
 		this.archiveCatalogIndex = null;
-		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
+		this.proxyFactory = proxyFactory;
 		this.flushExecutor = new SystemObservableExecutorService("flush", this.transactionalExecutor);
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -603,7 +602,7 @@ public final class Catalog
 		@Nonnull String catalogName,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull Evita evita,
-		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
@@ -674,7 +673,7 @@ public final class Catalog
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
 			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 
-		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
+		this.proxyFactory = proxyFactory;
 		this.flushExecutor = new SystemObservableExecutorService("flush", this.transactionalExecutor);
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = catalogSchema.version();

@@ -1407,7 +1407,10 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	/**
 	 * Returns implementation of the proxy factory that is used to wrap the returned {@link SealedEntity} into a custom
 	 * Java types.
+	 *
+	 * @deprecated moved to {@link EvitaContract} to be available without the need to open session
 	 */
+	@Deprecated
 	@Nonnull
 	ProxyFactory getProxyFactory();
 }

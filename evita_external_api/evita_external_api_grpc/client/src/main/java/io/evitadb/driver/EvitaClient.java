@@ -47,6 +47,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
@@ -210,6 +211,10 @@ public class EvitaClient implements EvitaContract {
 	 * Client implementation of management service.
 	 */
 	private final EvitaClientManagement management;
+	/**
+	 * Contains reference to the proxy factory that is used to create proxies for the entities.
+	 */
+	@Getter private final ProxyFactory proxyFactory;
 	/**
 	 * Callback that will be called when session is created.
 	 */
@@ -443,6 +448,7 @@ public class EvitaClient implements EvitaContract {
 			return timeouts;
 		});
 		this.management = new EvitaClientManagement(this, this.grpcClientBuilder);
+		this.proxyFactory = ProxyFactory.createInstance(this.reflectionLookup);
 		this.active.set(true);
 
 		try {
@@ -554,9 +560,10 @@ public class EvitaClient implements EvitaContract {
 			this,
 			this.executor,
 			this.management,
+			this.proxyFactory,
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),
-				catalogName -> new EvitaEntitySchemaCache(catalogName, this.reflectionLookup)
+				EvitaEntitySchemaCache::new
 			),
 			this.grpcClientBuilder,
 			traits.catalogName(),
