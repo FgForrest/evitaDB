@@ -695,7 +695,7 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public Progress<Void> deactivateCatalogWithProgress(@Nonnull String catalogName) {
 		assertActive();
-		if (getCatalogState(catalogName).map(it -> it == CatalogState.WARMING_UP || it == CatalogState.ALIVE).orElse(false)) {
+		if (getCatalogState(catalogName).map(CatalogState::isActive).orElse(false)) {
 			return applyMutation(new SetCatalogStateMutation(catalogName, false));
 		} else {
 			throw new InvalidMutationException(

@@ -1276,7 +1276,7 @@ public final class Catalog
 		return new CatalogStatistics(
 			getCatalogId(),
 			getName(),
-			!(catalogState == CatalogState.ALIVE || catalogState == CatalogState.WARMING_UP),
+			!catalogState.isActive(),
 			this.readOnly.get(),
 			catalogState,
 			getVersion(),

@@ -84,7 +84,7 @@ public class DuplicateCatalogMutation implements TopLevelCatalogSchemaMutation<V
 			throw new InvalidMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
 		} else {
 			final CatalogState catalogState = evita.getCatalogState(this.catalogName).orElse(null);
-			if (!(catalogState == CatalogState.ALIVE || catalogState == CatalogState.WARMING_UP)) {
+			if (catalogState == null || !catalogState.isActive()) {
 				throw new InvalidMutationException("Catalog `" + this.catalogName + "` is not in a valid state for this operation! Current state: " + catalogState);
 			}
 		}

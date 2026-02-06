@@ -48,14 +48,14 @@ public enum CatalogState {
      *
      * This phase is meant to quickly fill initial state of the catalog from the external primary data store.
      */
-    WARMING_UP(false, false),
+    WARMING_UP(false, true),
 
     /**
      * Standard "serving" state of the Evita catalog.
      * All operations are executed transactionally and leave the date in consistent state even if any error occurs.
      * Multiple readers and writers can work with the catalog simultaneously.
      */
-    ALIVE(false, false),
+    ALIVE(false, true),
 
     /**
      * State signalizing that evitaDB engine didn't load this catalog from the file system. The catalog data are present
@@ -73,7 +73,7 @@ public enum CatalogState {
      * State signalizing that evitaDB engine is transitioning catalog from {@link #WARMING_UP} to {@link #ALIVE} state.
      * Until the transition is fully completed, the catalog is not able to serve any requests.
      */
-    GOING_ALIVE(true, true),
+    GOING_ALIVE(true, false),
 
     /**
      * State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
@@ -86,7 +86,7 @@ public enum CatalogState {
      * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
      * is moved to {@link #INACTIVE} state.
      */
-    BEING_DEACTIVATED(true, true),
+    BEING_DEACTIVATED(true, false),
 
     /**
      * State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
@@ -98,15 +98,18 @@ public enum CatalogState {
      * State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
      * is removed from the file system and is no longer available.
      */
-    BEING_DELETED(true, true);
+    BEING_DELETED(true, false);
 
     /**
-     * Contains true if the state is transitional and should never be stored in persistent storage.
+     * Contains true if the state is transitional and will change in a stable state in the future.
+     * Transitional states are not able to serve any requests, and they are used to signalize that the catalog is
+     * in the process of changing its state.
      */
     @Getter private final boolean transitional;
 
     /**
-     * Contains true if the state is transitional and original state of the catalog is "active" (i.e. either WARMING_UP or ALIVE).
+     * Contains true if the state is "active" by its nature (i.e. either WARMING_UP or ALIVE). Active states are able
+     * to serve requests, but they may have different performance characteristics and guarantees.
      */
     @Getter private final boolean active;
 
