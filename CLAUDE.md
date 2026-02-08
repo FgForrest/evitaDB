@@ -13,6 +13,7 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 - **Local variables**: Use `final` for local variables
 - **Instance variables**: Use `this` for instance variables
 - **Type declarations**: Never use `var` - always use explicit types
+- **Resource management**: Use try-with-resources for all `AutoCloseable` resources wherever applicable
 - **Documentation**: Automatically add JavaDoc to all generated classes and methods
 - **Comments**: Add line comments to complex logic
 
@@ -74,7 +75,7 @@ Use conventional commits style with issue reference:
 Ref: #<issue-id>
 ```
 
-Do not write (co)author name or date in the commit message.
+Do not write (co)author name or date in the commit message!
 
 **Commit types:**
 - `feat`: New feature
@@ -160,6 +161,8 @@ Use GitHub Issues for tracking tasks and bugs. When creating issues:
 - **Test naming**: Use format `shouldDoSomethingWhenCondition` or `shouldThrowExceptionWhenCondition`
 - **Display names**: Use `@DisplayName` for entire class and for test methods to provide clear descriptions (do not repeat class description content in method descriptions)
 - **Coverage**: Automatically generate test cases for all public methods
+- When creating new test consider implementing helper interface `io.evitadb.test.EvitaTestSupport` that provides utility methods for working with folders, ports, certificates and similar helpful things
+- When creating tests consolidate similar tests in nested classes using
 - for running tests try to use IntelliJ MCP, when not possible use Maven, 
   prefer running individual test classes over running entire test suite, if you run entire test suite use profile `unitAndFunctional`
 
@@ -180,6 +183,7 @@ Use GitHub Issues for tracking tasks and bugs. When creating issues:
 - **evita_traffic_engine**: Traffic engine recorder for storing traffic data
 
 ### Export
+
 - **evita_export_fs**: Export service implementation for local file system
 - **evita_export_s3**: Export service implementation for S3-compatible storage
 
