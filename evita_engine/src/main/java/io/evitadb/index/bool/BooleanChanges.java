@@ -28,7 +28,7 @@ import lombok.AllArgsConstructor;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * This class/objects holds transactional changes upon read-only boolean implementation.
+ * Holds transactional changes for {@link TransactionalBoolean}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -40,14 +40,23 @@ public class BooleanChanges {
 	 */
 	private boolean theValue;
 
+	/**
+	 * Sets the local value to true.
+	 */
 	public void setToTrue() {
 		this.theValue = true;
 	}
 
+	/**
+	 * Sets the local value to false.
+	 */
 	public void setToFalse() {
 		this.theValue = false;
 	}
 
+	/**
+	 * Returns the current local value.
+	 */
 	public boolean isTrue() {
 		return this.theValue;
 	}
