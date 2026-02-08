@@ -31,9 +31,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
@@ -47,7 +47,7 @@ import static io.evitadb.utils.MemoryMeasuringConstants.*;
  * This implementation is append only.
  *
  * When you know the array will hold ordered distinct integers it's much more efficient to use
- * {@link org.roaringbitmap.RoaringBitmap} instead of this data structure.
+ * RoaringBitmap instead of this data structure.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -60,7 +60,7 @@ public class CompositeIntArray implements Serializable {
 	 * List of all chunks used in this instance.
 	 */
 	@Nonnull
-	private final List<int[]> chunks = new LinkedList<>();
+	private final List<int[]> chunks = new ArrayList<>();
 	/**
 	 * Contains TRUE if array contains only non-duplicated monotonically increasing numbers.
 	 */
@@ -113,8 +113,13 @@ public class CompositeIntArray implements Serializable {
 
 	/**
 	 * Returns last number written to the composite array.
+	 *
+	 * @throws NoSuchElementException if the array is empty
 	 */
 	public int getLast() {
+		if (isEmpty()) {
+			throw new NoSuchElementException("Array is empty!");
+		}
 		return this.currentChunk[this.chunkPeek];
 	}
 
@@ -175,8 +180,10 @@ public class CompositeIntArray implements Serializable {
 				}
 			} else {
 				// else array must be full scanned
-				for (int theNumber : chunk) {
-					if (recordId == theNumber) {
+				//noinspection ArrayEquality
+				final int limit = chunk == this.currentChunk ? this.chunkPeek + 1 : chunk.length;
+				for (int j = 0; j < limit; j++) {
+					if (recordId == chunk[j]) {
 						return true;
 					}
 				}
@@ -191,14 +198,18 @@ public class CompositeIntArray implements Serializable {
 	public int indexOf(int recordId) {
 		for (int i = 0; i < this.chunks.size(); i++) {
 			final int[] chunk = this.chunks.get(i);
+			final boolean lastChunk = i == this.chunks.size() - 1;
 			int index;
 			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
-				index = Arrays.binarySearch(chunk, recordId);
+				index = lastChunk ?
+					(this.chunkPeek >= 0 ? Arrays.binarySearch(chunk, 0, this.chunkPeek + 1, recordId) : -1) :
+					Arrays.binarySearch(chunk, recordId);
 			} else {
 				// else array must be full scanned
+				final int limit = lastChunk ? this.chunkPeek + 1 : chunk.length;
 				index = -1 * (CHUNK_SIZE + 1);
-				for (int j = 0; j < chunk.length; j++) {
+				for (int j = 0; j < limit; j++) {
 					final int theNumber = chunk[j];
 					if (theNumber == recordId) {
 						index = j;
@@ -270,7 +281,7 @@ public class CompositeIntArray implements Serializable {
 				this.monotonic = false;
 			} else {
 				int lastNumber = numbers[srcPosition];
-				for (int i = srcPosition + 1; i < length; i++) {
+				for (int i = srcPosition + 1; i < srcPosition + length; i++) {
 					if (lastNumber >= numbers[i]) {
 						this.monotonic = false;
 						break;
@@ -366,8 +377,8 @@ public class CompositeIntArray implements Serializable {
 	 */
 	public int getSizeInBytes() {
 		return OBJECT_HEADER_SIZE + 2 * REFERENCE_SIZE + BYTE_SIZE + INT_SIZE +
-			this.chunkPeek * ARRAY_BASE_SIZE +
-			this.chunkPeek * CHUNK_SIZE * INT_SIZE;
+			this.chunks.size() * ARRAY_BASE_SIZE +
+			this.chunks.size() * CHUNK_SIZE * INT_SIZE;
 	}
 
 	@Override
@@ -375,7 +386,7 @@ public class CompositeIntArray implements Serializable {
 		final OfInt it = iterator();
 		int hashCode = 0;
 		while (it.hasNext()) {
-			hashCode += 31 * it.next().hashCode();
+			hashCode += 31 * Integer.hashCode(it.nextInt());
 		}
 		return hashCode;
 	}
@@ -388,7 +399,7 @@ public class CompositeIntArray implements Serializable {
 		final OfInt it = iterator();
 		final OfInt it2 = that.iterator();
 		while (it.hasNext() && it2.hasNext()) {
-			if (!it.next().equals(it2.next())) {
+			if (it.nextInt() != it2.nextInt()) {
 				return false;
 			}
 		}
@@ -400,6 +411,7 @@ public class CompositeIntArray implements Serializable {
 	 */
 	private class CompositeIntArrayOfInt implements OfInt {
 		private final Iterator<int[]> chunkIterator;
+		private final int size;
 		private int chunkIndex;
 		private int index;
 		@Nullable private int[] currentChunk;
@@ -411,12 +423,16 @@ public class CompositeIntArray implements Serializable {
 		CompositeIntArrayOfInt(int index) {
 			this.index = index - 1;
 			this.chunkIndex = Math.max(-1, index % CHUNK_SIZE - 1);
+			this.size = CompositeIntArray.this.getSize();
 			this.chunkIterator = CompositeIntArray.this.chunks.listIterator(index / CHUNK_SIZE);
 			this.currentChunk = null;
 		}
 
 		@Override
 		public int nextInt() {
+			if (!hasNext()) {
+				throw new NoSuchElementException("End of the array reached - max number of elements is " + getSize());
+			}
 			final boolean endOfChunk = this.chunkIndex + 1 >= CHUNK_SIZE;
 			if (endOfChunk || this.currentChunk == null) {
 				if (endOfChunk) {
@@ -433,7 +449,7 @@ public class CompositeIntArray implements Serializable {
 
 		@Override
 		public boolean hasNext() {
-			return CompositeIntArray.this.getSize() > this.index + 1;
+			return this.size > this.index + 1;
 		}
 	}
 
@@ -459,7 +475,7 @@ public class CompositeIntArray implements Serializable {
 		@Override
 		public void advanceIfNeeded(int target) {
 			if (CompositeIntArray.this.monotonic) {
-				while (this.peekArray + 1 < CompositeIntArray.this.chunkPeek - 1 &&
+				while (this.peekArray + 1 < CompositeIntArray.this.chunks.size() - 1 &&
 					CompositeIntArray.this.chunks.get(this.peekArray + 1)[CHUNK_SIZE - 1] < target) {
 					this.peekArray++;
 				}
