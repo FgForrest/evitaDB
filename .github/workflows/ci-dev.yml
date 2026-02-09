@@ -82,7 +82,7 @@ jobs:
 
     - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository
       run: |
-        mvn -T 1C -B deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
+        mvn -T 1C -B javadoc:jar source:jar deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
       continue-on-error: true
       env:
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
