@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Interface can be used for any range with lower and upper bounds that are convertible to {@link long} value.
+ * Interface can be used for any range with lower and upper bounds that are convertible to {@code long} value.
  * Implementations of this interface can be filtered by {@link io.evitadb.api.query.filter.InRange} constraint.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -114,7 +114,7 @@ public sealed interface Range<T> extends Serializable permits DateTimeRange, Num
 	T getPreciseTo();
 
 	/**
-	 * Returns TRUE when value to check is withing the current range (inclusive).
+	 * Returns TRUE when value to check is within the current range (inclusive).
 	 */
 	boolean isWithin(@Nonnull T valueToCheck);
 
