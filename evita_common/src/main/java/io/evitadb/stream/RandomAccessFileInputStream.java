@@ -23,7 +23,6 @@
 
 package io.evitadb.stream;
 
-
 import io.evitadb.exception.UnexpectedIOException;
 import lombok.Getter;
 
@@ -34,21 +33,23 @@ import java.util.Objects;
 
 /**
  * Streams data from a {@link RandomAccessFile} starting at its current position.
- * This class was copied from Apache Commons to avoid linking whole library - thanks!
- * Only changes made in this class is wrapping checked exceptions into unchecked ones.
+ * This class was copied from Apache Commons IO to avoid linking the whole library - thanks!
+ * The only change made in this class is wrapping checked exceptions into unchecked ones.
  *
- * @since 2.8.0
+ * @since 2.8.0 (Apache Commons IO version)
  */
 public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream {
+	/** Whether to close the underlying {@link RandomAccessFile} when this stream is closed. */
 	private final boolean closeOnClose;
-	@Getter private final RandomAccessFile randomAccessFile;
+	/** The underlying random access file being streamed. */
+	@Getter @Nonnull private final RandomAccessFile randomAccessFile;
 
 	/**
 	 * Constructs a new instance configured to leave the underlying file open when this stream is closed.
 	 *
 	 * @param file The file to stream.
 	 */
-	public RandomAccessFileInputStream(@Nonnull RandomAccessFile file) {
+	public RandomAccessFileInputStream(@Nonnull final RandomAccessFile file) {
 		this(file, false);
 	}
 
@@ -58,7 +59,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	 * @param file The file to stream.
 	 * @param closeOnClose Whether to close the underlying file when this stream is closed.
 	 */
-	public RandomAccessFileInputStream(@Nonnull RandomAccessFile file, boolean closeOnClose) {
+	public RandomAccessFileInputStream(@Nonnull final RandomAccessFile file, final boolean closeOnClose) {
 		this.randomAccessFile = Objects.requireNonNull(file, "file");
 		this.closeOnClose = closeOnClose;
 	}
@@ -86,7 +87,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	 */
 	public long availableLong() {
 		try {
-			return this.randomAccessFile.length() - this.randomAccessFile.getFilePointer();
+			return Math.max(0L, this.randomAccessFile.length() - this.randomAccessFile.getFilePointer());
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error occurred while accessing length: " + e.getMessage(),
@@ -96,6 +97,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() {
 		try {
@@ -112,6 +114,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read() {
 		try {
@@ -119,12 +122,13 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error while reading the file: " + e.getMessage(),
-				"Error while reading the file,",
+				"Error while reading the file.",
 				e
 			);
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read(@Nonnull final byte[] bytes) {
 		try {
@@ -138,6 +142,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read(@Nonnull final byte[] bytes, final int offset, final int length) {
 		try {
@@ -163,13 +168,14 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 			this.randomAccessFile.seek(position);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
-				"Error while seeking the position file: " + e.getMessage(),
-				"Error while seeking the position file.",
+				"Error while seeking to position in file: " + e.getMessage(),
+				"Error while seeking to position in file.",
 				e
 			);
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public long getLength() {
 		try {
@@ -183,6 +189,10 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		}
 	}
 
+	/**
+	 * Skips over and discards up to {@code skipCount} bytes from this stream, clamping at EOF.
+	 * Returns 0 if {@code skipCount <= 0} or the stream is already at EOF.
+	 */
 	@Override
 	public long skip(final long skipCount) {
 		if (skipCount <= 0) {
@@ -195,10 +205,8 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 				return 0;
 			}
 			final long targetPos = filePointer + skipCount;
-			final long newPos = targetPos > fileLength ? fileLength - 1 : targetPos;
-			if (newPos > 0) {
-				seek(newPos);
-			}
+			final long newPos = Math.min(targetPos, fileLength);
+			seek(newPos);
 			return this.randomAccessFile.getFilePointer() - filePointer;
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
