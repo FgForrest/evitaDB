@@ -23,7 +23,7 @@
 
 package io.evitadb.dataType.iterator;
 
-import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -34,35 +34,35 @@ import java.util.NoSuchElementException;
  */
 public class ConstantObjIterator<T> implements Iterator<T> {
 	private final T[] constant;
-	private int index = -1;
-	@Nullable private T nextNumberToReturn = null;
+	private int index = 0;
 
-	public ConstantObjIterator(T[] constant) {
+	/**
+	 * Creates a new iterator over the given array of objects. The array is
+	 * stored by reference and must not be modified during iteration.
+	 *
+	 * @param constant the array of objects to iterate over
+	 */
+	public ConstantObjIterator(@Nonnull T[] constant) {
 		this.constant = constant;
-		if (this.constant.length > 0) {
-			this.nextNumberToReturn = this.constant[++this.index];
-		}
 	}
 
+	/**
+	 * Returns the next element in the iteration.
+	 */
 	@Override
 	public T next() {
-		if (this.nextNumberToReturn == null) {
+		if (this.index >= this.constant.length) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
-		final T numberToReturn = this.nextNumberToReturn;
-		final int nextIndex = this.index + 1;
-		if (nextIndex < this.constant.length) {
-			this.nextNumberToReturn = this.constant[++this.index];
-		} else {
-			this.index++;
-			this.nextNumberToReturn = null;
-		}
-		return numberToReturn;
+		return this.constant[this.index++];
 	}
 
+	/**
+	 * Returns true if there are more elements to iterate over.
+	 */
 	@Override
 	public boolean hasNext() {
-		return this.nextNumberToReturn != null;
+		return this.index < this.constant.length;
 	}
 
 }

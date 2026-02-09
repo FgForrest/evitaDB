@@ -464,6 +464,7 @@ public class CompositeIntArray implements Serializable {
 			return CompositeIntArray.this.chunks.size() > this.peekArray + 1;
 		}
 
+		@Nonnull
 		@Override
 		public int[] nextBatch() {
 			if (this.peekArray == CompositeIntArray.this.chunks.size()) {
