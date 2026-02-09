@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
@@ -659,7 +660,9 @@ public class EntityFetchRequireResolver {
 			desiredLocale,
 			referencedEntitySchema
 		)
-			.orElse(null);
+			// if the referenced entity block was requested, we need at least its body everytime, so we know whether the referenced
+			// entity exists or not during serialization
+			.orElseGet(QueryConstraints::entityFetch);
 	}
 
 	@Nullable
