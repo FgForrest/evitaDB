@@ -25,8 +25,9 @@ package io.evitadb.dataType.data;
 
 import io.evitadb.dataType.ComplexDataObject;
 
+import io.evitadb.function.TriConsumer;
+
 import javax.annotation.Nonnull;
-import java.util.function.BiConsumer;
 
 /**
  * Interface represents the visitor pattern for traversing entire {@link ComplexDataObject} tree.
@@ -41,7 +42,7 @@ public interface DataItemVisitor {
 
 	/**
 	 * Method is called on each {@link DataItemMap} of the tree. The implementation is responsible for iterating
-	 * over {@link DataItemArray#forEach(BiConsumer)} on its own.
+	 * over {@link DataItemMap#forEach(TriConsumer)} on its own.
 	 */
 	void visit(@Nonnull DataItemMap mapItem);
 

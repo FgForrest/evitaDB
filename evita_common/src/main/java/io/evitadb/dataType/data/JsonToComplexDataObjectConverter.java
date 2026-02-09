@@ -63,6 +63,11 @@ public class JsonToComplexDataObjectConverter {
 	 */
 	private final ObjectMapper objectMapper;
 
+	/**
+	 * Recursively converts a Jackson {@link JsonNode} tree into a {@link DataItem} tree. Array nodes are converted
+	 * to {@link DataItemArray}, object nodes to {@link DataItemMap}, and value nodes to {@link DataItemValue}.
+	 * Returns null for JSON null nodes.
+	 */
 	@Nullable
 	private static DataItem convertToDataItem(@Nonnull JsonNode jsonNode) {
 		if (jsonNode.isNull()) {
