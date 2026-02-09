@@ -326,11 +326,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		@Nullable Map<String, String> renames,
 		@Nonnull Constructor<X> appropriateConstructor
 	) {
-		final Map<String, String> finalRenames = renames;
-
 		// Process each constructor parameter
 		return Arrays.stream(appropriateConstructor.getParameters())
-			.map(it -> getConstructorArgument(argumentFetcher, it, finalRenames))
+			.map(it -> getConstructorArgument(argumentFetcher, it, renames))
 			.toArray();
 	}
 
@@ -351,7 +349,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		@Nullable Map<String, String> renames
 	) {
 		// Apply rename mapping if available, otherwise use parameter name directly
-		String lookupName = renames == null ?
+		final String lookupName = renames == null ?
 			parameter.getName() :
 			renames.getOrDefault(parameter.getName(), parameter.getName());
 
@@ -528,7 +526,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 					result = (T) deserializeArray(this.reflectionLookup, this.containerClass, root, extractionCtx);
 				} catch (IllegalAccessException | InvocationTargetException e) {
 					throw new SerializationFailedException(
-						"Failed to deserialize root array.", e
+						"Failed to deserialize root array.", "Failed to deserialize data.", e
 					);
 				}
 			} else if (root instanceof DataItemMap dataItemMap) {
@@ -619,7 +617,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 						);
 					} catch (IllegalAccessException | InvocationTargetException e) {
 						throw new SerializationFailedException(
-							"Failed to retrieve value from getter: " + recordComponent.getAccessor().toGenericString(), e
+							"Failed to retrieve value from getter: " + recordComponent.getAccessor().toGenericString(),
+							"Failed to serialize data.",
+							e
 						);
 					}
 				}
@@ -650,7 +650,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 						);
 					} catch (IllegalAccessException | InvocationTargetException e) {
 						throw new SerializationFailedException(
-							"Failed to retrieve value from getter: " + getter.toGenericString(), e
+							"Failed to retrieve value from getter: " + getter.toGenericString(),
+							"Failed to serialize data.",
+							e
 						);
 					}
 				}
@@ -715,7 +717,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			if (((Set<?>) propertyValue).isEmpty()) {
 				return new DataItemArray(EMPTY_DATA_ITEMS);
 			} else {
-				return serializeSet(propertyName, propertyType, reflectionLookup, (Set<?>) propertyValue);
+				return serializeSet(propertyName, reflectionLookup, (Set<?>) propertyValue);
 			}
 		}
 		// Handle Lists - checking if empty or need to serialize elements
@@ -764,7 +766,11 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		}
 		// Reject unsupported Java standard library types
 		else if (propertyClass.getPackageName().startsWith("java.")) {
-			throw new SerializationFailedException("Unsupported data type " + propertyClass + ": " + propertyValue);
+			throw new SerializationFailedException(
+				"Unsupported data type " + propertyClass +
+					" at property '" + propertyName + "': " + propertyValue,
+				"Unsupported data type encountered during serialization."
+			);
 		}
 		// Handle nested custom objects recursively
 		else {
@@ -795,30 +801,31 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			final Object itemKey = entry.getKey();
 			Assert.isTrue(
 				itemKey instanceof Serializable,
-				() -> new SerializationFailedException("Map key " + itemKey + " in property " + propertyName + " is not serializable!")
+				() -> new SerializationFailedException(
+					"Map key " + itemKey + " in property " + propertyName + " is not serializable!",
+					"Map key is not serializable."
+				)
 			);
 			final Serializable serializableItemKey = EvitaDataTypes.toSupportedType((Serializable) itemKey);
 			final Object itemValue = entry.getValue();
-			final Class<?> itemClass = itemValue == null ?
-				reflectionLookup.extractGenericType(propertyType, 1) : itemValue.getClass();
+			final String keyString = serializableItemKey instanceof String s
+				? s : EvitaDataTypes.formatValue(serializableItemKey);
 
 			if (itemValue == null) {
-				final Class<? extends Serializable> mapValueType = reflectionLookup.extractGenericType(propertyType, 1);
+				final Class<? extends Serializable> mapValueType =
+					reflectionLookup.extractGenericType(propertyType, 1);
+				dataItems.put(keyString, new DataItemValue(mapValueType));
+			} else if (EvitaDataTypes.isSupportedType(itemValue.getClass())) {
 				dataItems.put(
-					serializableItemKey instanceof String s ? s : EvitaDataTypes.formatValue(serializableItemKey),
-					new DataItemValue(mapValueType)
-				);
-			} else if (EvitaDataTypes.isSupportedType(itemClass)) {
-				dataItems.put(
-					serializableItemKey instanceof String s ? s : EvitaDataTypes.formatValue(serializableItemKey),
+					keyString,
 					new DataItemValue((Serializable) itemValue)
 				);
 			} else {
 				dataItems.put(
-					serializableItemKey instanceof String s ? s : EvitaDataTypes.formatValue(serializableItemKey),
+					keyString,
 					collectData(
 						(Serializable) itemValue, reflectionLookup,
-						propertyName + "[" + EvitaDataTypes.formatValue(serializableItemKey) + "]" + "."
+						propertyName + "[" + keyString + "]."
 					)
 				);
 			}
@@ -853,7 +860,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			} else if (EvitaDataTypes.isSupportedType(propertyClass)) {
 				dataItems[i] = new DataItemValue((Serializable) itemValue);
 			} else {
-				dataItems[i] = collectData((Serializable) itemValue, reflectionLookup, propertyName + "[" + i + "]" + ".");
+				dataItems[i] = collectData((Serializable) itemValue, reflectionLookup, propertyName + "[" + i + "].");
 			}
 		}
 		return new DataItemArray(dataItems);
@@ -878,15 +885,15 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		final DataItem[] dataItems = new DataItem[propertyValue.size()];
 		for (int i = 0; i < propertyValue.size(); i++) {
 			final Object itemValue = propertyValue.get(i);
-			final Class<?> itemClass = itemValue == null ?
-				reflectionLookup.extractGenericType(propertyType, 1) : itemValue.getClass();
-
 			if (itemValue == null) {
 				dataItems[i] = null;
-			} else if (EvitaDataTypes.isSupportedType(itemClass)) {
+			} else if (EvitaDataTypes.isSupportedType(itemValue.getClass())) {
 				dataItems[i] = new DataItemValue((Serializable) itemValue);
 			} else {
-				dataItems[i] = collectData((Serializable) itemValue, reflectionLookup, propertyName + "[" + i + "]" + ".");
+				dataItems[i] = collectData(
+					(Serializable) itemValue, reflectionLookup,
+					propertyName + "[" + i + "]."
+				);
 			}
 		}
 		return new DataItemArray(dataItems);
@@ -896,7 +903,6 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * Serializes a set of property values into a {@link DataItemArray}.
 	 *
 	 * @param propertyName the name of the property being serialized
-	 * @param propertyType the type of the property being serialized
 	 * @param reflectionLookup the reflection utility used to extract type metadata
 	 * @param propertyValue the set of property values to be serialized
 	 * @return a {@link DataItemArray} containing the serialized representation of the property values
@@ -905,24 +911,23 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	@Nonnull
 	private DataItemArray serializeSet(
 		@Nonnull String propertyName,
-		@Nonnull Type propertyType,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Set<?> propertyValue
 	) {
 		final DataItem[] dataItems = new DataItem[propertyValue.size()];
-		final Iterator<?> it = propertyValue.iterator();
 		int i = 0;
-		while (it.hasNext()) {
-			final Object itemValue = it.next();
-			final Class<?> itemClass = itemValue == null ?
-				reflectionLookup.extractGenericType(propertyType, 1) : itemValue.getClass();
+		for (Object itemValue : propertyValue) {
 			if (itemValue == null) {
-				dataItems[i++] = null;
-			} else if (EvitaDataTypes.isSupportedType(itemClass)) {
-				dataItems[i++] = new DataItemValue((Serializable) itemValue);
+				dataItems[i] = null;
+			} else if (EvitaDataTypes.isSupportedType(itemValue.getClass())) {
+				dataItems[i] = new DataItemValue((Serializable) itemValue);
 			} else {
-				dataItems[i++] = collectData((Serializable) itemValue, reflectionLookup, propertyName + "[" + i + "]" + ".");
+				dataItems[i] = collectData(
+					(Serializable) itemValue, reflectionLookup,
+					propertyName + "[" + i + "]."
+				);
 			}
+			i++;
 		}
 		return new DataItemArray(dataItems);
 	}
@@ -1045,7 +1050,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		} catch (IllegalAccessException | InvocationTargetException e) {
 			// Provide a detailed error message with property type and name information
 			throw new SerializationFailedException(
-				"Failed to deserialize value for constructor parameter: " + requiredGenericType + " " + propertyName, e
+				"Failed to deserialize value for constructor parameter: " + requiredGenericType + " " + propertyName,
+				"Failed to extract value for property.",
+				e
 			);
 		}
 	}
@@ -1090,6 +1097,10 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 					setter.invoke(container, propertyValue);
 				} else if (EvitaDataTypes.isSupportedType(propertyType)) {
 					setter.invoke(container, EvitaDataTypes.toTargetType((Serializable) propertyValue, propertyType));
+				} else if (propertyValue != null) {
+					// handle non-EvitaDataType values (collections, enums, nested objects)
+					// that may not be exact instances of the declared setter type
+					setter.invoke(container, propertyValue);
 				}
 				if (propertyValue == null || EvitaDataTypes.isSupportedType(propertyType)) {
 					extractionCtx.addExtractedProperty(propertyName);
@@ -1097,7 +1108,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			}
 		} catch (IllegalAccessException | InvocationTargetException e) {
 			throw new SerializationFailedException(
-				"Failed to set value via setter: " + setter.toGenericString(), e
+				"Failed to set value via setter: " + setter.toGenericString(),
+				"Failed to extract value for property.",
+				e
 			);
 		}
 	}
@@ -1128,7 +1141,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			final Object fallbackPropertyValue = extractMapItem(
 				serializedForm, reflectionLookup, aliasPropertyName, propertyType, setter.getGenericParameterTypes()[0], extractionCtx
 			);
-			if (fallbackPropertyValue != null && EvitaDataTypes.isSupportedType(propertyType)) {
+			if (fallbackPropertyValue != null) {
 				return fallbackPropertyValue;
 			}
 		}
@@ -1198,6 +1211,11 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 
 		// Handle value items (containing primitive/simple values)
 		if (dataItem instanceof DataItemValue dataItemValue) {
+			// A Class value stored in DataItemValue is a marker for null map entries -
+			// during serialization, null map values store the value type class as a placeholder
+			if (dataItemValue.value() instanceof Class<?>) {
+				return null;
+			}
 			// Direct conversion for supported Evita types
 			if (EvitaDataTypes.isSupportedType(propertyType)) {
 				//noinspection unchecked

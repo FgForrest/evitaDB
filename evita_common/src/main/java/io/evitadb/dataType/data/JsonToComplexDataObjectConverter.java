@@ -79,9 +79,7 @@ public class JsonToComplexDataObjectConverter {
 		} else if (jsonNode instanceof ObjectNode objectNode) {
 			final int itemCount = objectNode.size();
 			final HashMap<String, DataItem> outputElements = CollectionUtils.createHashMap(itemCount);
-			final Iterator<Entry<String, JsonNode>> inputElements = objectNode.fields();
-			while (inputElements.hasNext()) {
-				final Entry<String, JsonNode> inputElement = inputElements.next();
+			for (Entry<String, JsonNode> inputElement : objectNode.properties()) {
 				outputElements.put(inputElement.getKey(), convertToDataItem(inputElement.getValue()));
 			}
 			return new DataItemMap(outputElements);
@@ -94,7 +92,11 @@ public class JsonToComplexDataObjectConverter {
 		} else if (jsonNode.isLong()) {
 			return new DataItemValue(jsonNode.longValue());
 		} else if (jsonNode.isBigDecimal()) {
-			return new DataItemValue(new BigDecimal(jsonNode.textValue()));
+			return new DataItemValue(jsonNode.decimalValue());
+		} else if (jsonNode.isDouble() || jsonNode.isFloat()) {
+			return new DataItemValue(new BigDecimal(jsonNode.asText()));
+		} else if (jsonNode.isBigInteger()) {
+			return new DataItemValue(new BigDecimal(jsonNode.bigIntegerValue()));
 		} else if (jsonNode.isTextual()) {
 			return new DataItemValue(jsonNode.textValue());
 		} else if (jsonNode.isValueNode()) {
