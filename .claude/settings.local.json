@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__jetbrains__list_directory_tree",
+      "mcp__jetbrains__create_new_file",
+      "mcp__jetbrains__search_in_files_by_regex",
+      "mcp__jetbrains__get_file_problems",
+      "mcp__jetbrains__build_project",
+      "mcp__jetbrains__get_run_configurations",
+      "mcp__jetbrains__execute_run_configuration",
+      "mcp__jetbrains__replace_text_in_file",
+      "mcp__jetbrains__reformat_file",
+      "mcp__jetbrains__get_file_text_by_path",
+      "mcp__jetbrains__search_in_files_by_text",
+      "mcp__jetbrains__execute_terminal_command",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "Bash(mvn test:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(mvn install:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh api:*)",
+      "Bash(mvn compile:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(tree:*)",
+      "Bash(xargs cat:*)",
+      "Bash(git diff:*)",
+      "Bash(jar tf:*)",
+      "Bash(unzip:*)",
+      "Bash(mvn dependency:tree:*)",
+      "Bash(xargs:*)",
+      "Bash(javap:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(source:~/.sdkman/bin/sdkman-init.sh)"
+    ]
+  }
+}
