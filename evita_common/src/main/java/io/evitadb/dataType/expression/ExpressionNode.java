@@ -36,20 +36,24 @@ import java.util.function.BinaryOperator;
 import java.util.function.UnaryOperator;
 
 /**
- * Atomic data structure for {@link Expression} evaluation. It represents a single node (operator or operand) in
- * the expression tree.
+ * Represents a single node in an {@link Expression} tree. A node can be either an operand (constant, variable)
+ * or an operator (arithmetic, comparison, logical) that combines child nodes. Each node knows how to
+ * {@link #compute(PredicateEvaluationContext) compute} its value within a given evaluation context and how to
+ * {@link #determinePossibleRange() determine} the possible range of its output values.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface ExpressionNode extends Serializable {
 
 	/**
-	 * Combines two BigDecimalNumberRange instances into a new range using a specified combiner function.
+	 * Combines two {@link BigDecimalNumberRange} instances into a new range by applying a combiner function
+	 * to their respective bounds. If either bound of the input ranges is `null` (representing infinity),
+	 * the corresponding bound of the result is also `null` (infinite).
 	 *
-	 * @param a the first BigDecimalNumberRange instance to be combined
-	 * @param b the second BigDecimalNumberRange instance to be combined
-	 * @param combiner a BinaryOperator to combine the BigDecimal values from each range
-	 * @return a BigDecimalNumberRange instance resulting from the combination of the input ranges
+	 * @param a        the first range to combine
+	 * @param b        the second range to combine
+	 * @param combiner function applied to corresponding bounds of both ranges
+	 * @return a new range produced by combining the bounds of `a` and `b`
 	 */
 	@Nonnull
 	static BigDecimalNumberRange combine(
@@ -75,11 +79,12 @@ public interface ExpressionNode extends Serializable {
 	}
 
 	/**
-	 * Transforms the given BigDecimalNumberRange instance using a specified UnaryOperator.
+	 * Transforms a {@link BigDecimalNumberRange} by applying a transformer function to each of its bounds.
+	 * If a bound is `null` (representing infinity), it remains `null` in the result.
 	 *
-	 * @param range the BigDecimalNumberRange instance to be transformed
-	 * @param transformer a UnaryOperator to transform the BigDecimal values within the range
-	 * @return a new BigDecimalNumberRange instance resulting from the transformation of the input range
+	 * @param range       the range to transform
+	 * @param transformer function applied to each non-null bound of the range
+	 * @return a new range with transformed bounds
 	 */
 	@Nonnull
 	static BigDecimalNumberRange transform(
@@ -103,21 +108,21 @@ public interface ExpressionNode extends Serializable {
 	/**
 	 * Computes the result of evaluating this expression node within the given context.
 	 *
-	 * @param context the context in which the predicate is evaluated
-	 * @return the result of the computation as a Serializable object
-	 * @throws ExpressionEvaluationException if an error occurs during the evaluation of the expression
+	 * @param context the evaluation context providing variable bindings and a random number generator
+	 * @return the result of the computation as a Serializable value
+	 * @throws ExpressionEvaluationException if an error occurs during expression evaluation
 	 */
 	@Nonnull
 	Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException;
 
 	/**
 	 * Computes the result of evaluating this expression node within the given context and converts it to the specified
-	 * class type.
+	 * target type using {@link EvitaDataTypes#toTargetType(Serializable, Class)}.
 	 *
-	 * @param context the context in which the predicate is evaluated
-	 * @param clazz the class to which the result should be converted
-	 * @return the result of the computation as an object of the specified class
-	 * @throws ExpressionEvaluationException if an error occurs during the evaluation of the expression
+	 * @param context the evaluation context providing variable bindings and a random number generator
+	 * @param clazz   the target type to which the computed result should be converted
+	 * @return the computed result converted to the requested type
+	 * @throws ExpressionEvaluationException if an error occurs during expression evaluation
 	 */
 	@Nonnull
 	default <T extends Serializable> T compute(@Nonnull PredicateEvaluationContext context, @Nonnull Class<T> clazz) throws ExpressionEvaluationException {
