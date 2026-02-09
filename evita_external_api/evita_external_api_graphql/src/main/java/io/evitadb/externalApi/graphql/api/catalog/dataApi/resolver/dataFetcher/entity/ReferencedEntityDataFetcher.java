@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,9 +25,8 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -41,7 +40,7 @@ import java.util.Objects;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class ReferencedEntityDataFetcher implements DataFetcher<EntityClassifier> {
+public class ReferencedEntityDataFetcher implements DataFetcher<SealedEntity> {
 
 	@Nullable
 	private static ReferencedEntityDataFetcher INSTANCE;
@@ -56,13 +55,8 @@ public class ReferencedEntityDataFetcher implements DataFetcher<EntityClassifier
 
 	@Nullable
 	@Override
-	public EntityClassifier get(DataFetchingEnvironment environment) throws Exception {
+	public SealedEntity get(DataFetchingEnvironment environment) throws Exception {
 		final ReferenceContract reference = Objects.requireNonNull(environment.getSource());
-		return reference.getReferencedEntity()
-			.map(EntityClassifier.class::cast)
-			.orElseGet(() -> new EntityReference(
-				reference.getReferencedEntityType(),
-				reference.getReferencedPrimaryKey()
-			));
+		return reference.getReferencedEntity().orElse(null);
 	}
 }
