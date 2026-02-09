@@ -36,12 +36,12 @@ import javax.annotation.Nonnull;
  * @param enabled                    Enables global-wide caching of Evita query results. If caching is enabled, costly
  *                                   computation results may be cached and next time they are found in the query
  *                                   computation tree immediately replaced with the already memoized computation result.
- * @param reevaluateEachSeconds      Contains interval in second the cache anteroom is asynchronously re-evaluated and
+ * @param reevaluateEachSeconds      Contains interval in seconds the cache anteroom is asynchronously re-evaluated and
  *                                   its contents are either purged or moved to cache
  * @param anteroomRecordCount        Contains limit of maximal entries held in cache anteroom. When this limit is
  *                                   exceeded the anteroom needs to be re-evaluated and the adepts either cleared or
  *                                   moved to cache. In other words it's the size of the cache anteroom buffer.
- * @param minimalComplexityThreshold Contains minimal threshold of the cost to performance ration that cacheable object
+ * @param minimalComplexityThreshold Contains minimal threshold of the cost to performance ratio that cacheable object
  *                                   needs to exceed in order to become a cache adept, that may be potentially moved to
  *                                   cache.
  * @param minimalUsageThreshold      Contains minimal threshold the cacheable object must be "used" in order it could be
@@ -69,12 +69,12 @@ public record CacheOptions(
 	public static final int DEFAULT_ANTEROOM_RECORD_COUNT = 0;
 	public static final long DEFAULT_MINIMAL_COMPLEXITY_THRESHOLD = 0L;
 	public static final int DEFAULT_MINIMAL_USAGE_THRESHOLD = 0;
-	private final static long DEFAULT_CACHE_SIZE;
+	private static final long DEFAULT_CACHE_SIZE;
 
 	/*
 		Initializer computes default size of the memory allocated to the EvitaDB instance and needs to be calculated
 		fairly early. Before the catalog contents fill up the memory. It is computed as a 25% share from the difference
-		between maximal amount of the memory the Java can hav and currently used memory.
+		between maximal amount of the memory the Java can have and currently used memory.
 
 		This of course cannot take the size of the catalogs that needs to be loaded into an account.
 	 */
@@ -171,6 +171,7 @@ public record CacheOptions(
 			return this;
 		}
 
+		@Nonnull
 		public CacheOptions build() {
 			return new CacheOptions(
 				this.reflection, this.enabled,

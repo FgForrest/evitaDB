@@ -60,8 +60,8 @@ import java.util.Optional;
  * @param flushFrequencyInMillis                The frequency of flushing the transactional data to the disk when they
  *                                              are sequentially processed. If database process the (small) transaction
  *                                              very quickly, it may decide to process next transaction before flushing
- *                                              changes to the disk. If the client waits for {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE}
- *                                              he may wait entire {@link #flushFrequencyInMillis} milliseconds before he gets
+ *                                              changes to the disk. If the client waits for `CommitBehavior.WAIT_FOR_CHANGES_VISIBLE`
+ *                                              he may wait entire `flushFrequencyInMillis` milliseconds before he gets
  *                                              the response.
  * @param conflictRingBufferSize                Size of the array inside transaction conflict keys ring buffer.
  *                                              The larger the size, the more conflict keys the ring buffer can keep
@@ -121,8 +121,8 @@ public record TransactionOptions(
 	/**
 	 * Builder for the transaction options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
-	public static TransactionOptions.Builder builder(@Nonnull TransactionOptions TransactionOptions) {
-		return new TransactionOptions.Builder(TransactionOptions);
+	public static TransactionOptions.Builder builder(@Nonnull TransactionOptions transactionOptions) {
+		return new TransactionOptions.Builder(transactionOptions);
 	}
 
 	public TransactionOptions() {
@@ -158,7 +158,10 @@ public record TransactionOptions(
 		this.waitForTransactionAcceptanceInMillis = waitForTransactionAcceptanceInMillis;
 		this.flushFrequencyInMillis = flushFrequencyInMillis;
 		this.conflictRingBufferSize = conflictRingBufferSize;
-		this.conflictPolicy = conflictPolicy;
+		// defensive copy to prevent mutation of the record state
+		this.conflictPolicy = conflictPolicy.isEmpty()
+			? EnumSet.noneOf(ConflictPolicy.class)
+			: EnumSet.copyOf(conflictPolicy);
 	}
 
 	/**
@@ -179,15 +182,17 @@ public record TransactionOptions(
 		Builder() {
 		}
 
-		Builder(@Nonnull TransactionOptions TransactionOptions) {
-			this.transactionWorkDirectory = TransactionOptions.transactionWorkDirectory;
-			this.transactionMemoryBufferLimitSizeBytes = TransactionOptions.transactionMemoryBufferLimitSizeBytes;
-			this.transactionMemoryRegionCount = TransactionOptions.transactionMemoryRegionCount;
-			this.walFileSizeBytes = TransactionOptions.walFileSizeBytes;
-			this.walFileCountKept = TransactionOptions.walFileCountKept;
-			this.waitForTransactionAcceptance = TransactionOptions.waitForTransactionAcceptanceInMillis;
-			this.flushFrequency = TransactionOptions.flushFrequencyInMillis;
-			this.conflictRingBufferSize = TransactionOptions.conflictRingBufferSize;
+		Builder(@Nonnull TransactionOptions transactionOptions) {
+			this.transactionWorkDirectory = transactionOptions.transactionWorkDirectory;
+			this.transactionMemoryBufferLimitSizeBytes = transactionOptions.transactionMemoryBufferLimitSizeBytes;
+			this.transactionMemoryRegionCount = transactionOptions.transactionMemoryRegionCount;
+			this.walFileSizeBytes = transactionOptions.walFileSizeBytes;
+			this.walFileCountKept = transactionOptions.walFileCountKept;
+			this.waitForTransactionAcceptance = transactionOptions.waitForTransactionAcceptanceInMillis;
+			this.flushFrequency = transactionOptions.flushFrequencyInMillis;
+			this.conflictRingBufferSize = transactionOptions.conflictRingBufferSize;
+			this.conflictPolicy.clear();
+			this.conflictPolicy.addAll(transactionOptions.conflictPolicy);
 		}
 
 		@Nonnull

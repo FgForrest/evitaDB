@@ -52,8 +52,8 @@ import javax.annotation.Nullable;
  *                                              to a stream of changes that occur in the database, enabling near real-time
  *                                              data synchronization, event-driven architectures, and audit logging.
  * @param trafficRecording                      Defines settings for traffic recording.
- * @param readOnly                              starts the database in full read-only mode, prohibiting write operations
- *                                              on {@link EntityContract} level and open read-write {@link EvitaSessionContract}.
+ * @param readOnly                              Starts the database in full read-only mode, prohibiting write operations
+ *                                              on `EntityContract` level and open read-write `EvitaSessionContract`.
  * @param quiet                                 If true, all output to the system console is suppressed.
  * @param directExecutor                        Undocumented internal option that allows to use direct executor for
  *                                              the request thread pool and scheduler. It avoids using asynchronous

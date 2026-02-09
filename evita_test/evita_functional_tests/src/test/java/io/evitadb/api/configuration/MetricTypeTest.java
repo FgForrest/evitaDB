@@ -23,21 +23,29 @@
 
 package io.evitadb.api.configuration;
 
-import javax.annotation.Nonnull;
+import io.evitadb.api.configuration.metric.MetricType;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Default implementation of `ExportOptions` that is used when no specific export implementation is configured.
- * System will automatically select implementation with highest priority from available ones and default configuration.
+ * Tests for {@link MetricType} enum.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Claude
  */
-public class DefaultExportOptions extends ExportOptions {
-	public static final ExportOptions INSTANCE = new DefaultExportOptions();
+@DisplayName("MetricType")
+class MetricTypeTest {
 
-	@Nonnull
-	@Override
-	public String getImplementationCode() {
-		return "default";
+	@Test
+	@DisplayName("should have all expected enum values")
+	void shouldHaveAllExpectedEnumValues() {
+		final MetricType[] values = MetricType.values();
+
+		assertEquals(4, values.length);
+		assertNotNull(MetricType.valueOf("COUNTER"));
+		assertNotNull(MetricType.valueOf("GAUGE"));
+		assertNotNull(MetricType.valueOf("HISTOGRAM"));
+		assertNotNull(MetricType.valueOf("SUMMARY"));
 	}
-
 }
