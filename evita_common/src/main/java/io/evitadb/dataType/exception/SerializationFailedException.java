@@ -40,10 +40,16 @@ import java.io.Serial;
 public class SerializationFailedException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 1730199175730118094L;
 
+	/**
+	 * Creates a new exception with a message describing the serialization failure.
+	 */
 	public SerializationFailedException(@Nonnull String message) {
 		super(message);
 	}
 
+	/**
+	 * Creates a new exception with a message describing the serialization failure and its cause.
+	 */
 	public SerializationFailedException(@Nonnull String message, @Nonnull Throwable ex) {
 		super(message, ex);
 	}
