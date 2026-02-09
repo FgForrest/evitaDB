@@ -24,6 +24,9 @@
 package io.evitadb.dataType;
 
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.MemoryMeasuringConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -37,24 +40,21 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Currency;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 import static io.evitadb.dataType.EvitaDataTypes.formatValue;
 import static io.evitadb.dataType.EvitaDataTypes.getWrappingPrimitiveClass;
-import static io.evitadb.dataType.EvitaDataTypes.toWrappedForm;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests verifying {@link EvitaDataTypes} contract including value
  * formatting, primitive wrapper resolution, and type conversion
  * for all supported data types.
  *
- * @author Jan Novotn&#253; (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvitaDataTypes")
 class EvitaDataTypesTest {
@@ -283,6 +283,57 @@ class EvitaDataTypesTest {
 				formatValue(betweenRange)
 			);
 		}
+
+		@Test
+		@DisplayName(
+			"should throw for null value"
+		)
+		void shouldThrowForNullValue() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> formatValue(null)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should format String with embedded quote"
+		)
+		void shouldFormatStringWithEmbeddedQuote() {
+			assertEquals(
+				"'it\\'s'",
+				formatValue("it's")
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should format Predecessor value"
+		)
+		void shouldFormatPredecessor() {
+			final Predecessor predecessor =
+				new Predecessor(42);
+
+			assertEquals(
+				predecessor.toString(),
+				formatValue(predecessor)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should format ReferencedEntityPredecessor"
+			+ " value"
+		)
+		void shouldFormatReferencedEntityPredecessor() {
+			final ReferencedEntityPredecessor predecessor =
+				new ReferencedEntityPredecessor(42);
+
+			assertEquals(
+				predecessor.toString(),
+				formatValue(predecessor)
+			);
+		}
 	}
 
 	@Nested
@@ -291,16 +342,72 @@ class EvitaDataTypesTest {
 
 		@Test
 		@DisplayName(
-			"should return wrapper class for primitives"
+			"should return wrapper class for"
+			+ " int and char"
 		)
 		void shouldReturnWrapperClass() {
-			assertEquals(
-				Integer.class,
-				getWrappingPrimitiveClass(int.class)
-			);
-			assertEquals(
-				Character.class,
-				getWrappingPrimitiveClass(char.class)
+			assertSame(Integer.class, EvitaDataTypes.getWrappingPrimitiveClass(int.class));
+			assertSame(Character.class, EvitaDataTypes.getWrappingPrimitiveClass(char.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should return wrapper class for boolean"
+		)
+		void shouldReturnWrapperClassForBoolean() {
+			assertSame(Boolean.class, EvitaDataTypes.getWrappingPrimitiveClass(boolean.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should return wrapper class for byte"
+		)
+		void shouldReturnWrapperClassForByte() {
+			assertSame(Byte.class, EvitaDataTypes.getWrappingPrimitiveClass(byte.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should return wrapper class for short"
+		)
+		void shouldReturnWrapperClassForShort() {
+			assertSame(Short.class, EvitaDataTypes.getWrappingPrimitiveClass(short.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should return wrapper class for long"
+		)
+		void shouldReturnWrapperClassForLong() {
+			assertSame(Long.class, EvitaDataTypes.getWrappingPrimitiveClass(long.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should return wrapper class for float"
+		)
+		void shouldReturnWrapperClassForFloat() {
+			assertSame(Float.class, EvitaDataTypes.getWrappingPrimitiveClass(float.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should return wrapper class for double"
+		)
+		void shouldReturnWrapperClassForDouble() {
+			assertSame(Double.class, EvitaDataTypes.getWrappingPrimitiveClass(double.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should throw for non-primitive class"
+		)
+		void shouldThrowForNonPrimitive() {
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> getWrappingPrimitiveClass(
+					String.class
+				)
 			);
 		}
 
@@ -310,22 +417,41 @@ class EvitaDataTypesTest {
 			+ " arrays"
 		)
 		void shouldConvertToWrapperClass() {
-			assertEquals(
-				Integer.class,
-				toWrappedForm(int.class)
-			);
-			assertEquals(
-				Integer[].class,
-				toWrappedForm(int[].class)
-			);
-			assertEquals(
-				Character.class,
-				toWrappedForm(char.class)
-			);
-			assertEquals(
-				Character[].class,
-				toWrappedForm(char[].class)
-			);
+			assertSame(Integer.class, EvitaDataTypes.toWrappedForm(int.class));
+			assertSame(Integer[].class, EvitaDataTypes.toWrappedForm(int[].class));
+			assertSame(Character.class, EvitaDataTypes.toWrappedForm(char.class));
+			assertSame(Character[].class, EvitaDataTypes.toWrappedForm(char[].class));
+		}
+
+		@Test
+		@DisplayName(
+			"should pass through non-primitive in"
+			+ " toWrappedForm"
+		)
+		void shouldPassThroughNonPrimitive() {
+			assertSame(String.class, EvitaDataTypes.toWrappedForm(String.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should pass through void in"
+			+ " toWrappedForm"
+		)
+		void shouldPassThroughVoid() {
+			assertSame(void.class, EvitaDataTypes.toWrappedForm(void.class));
+		}
+
+		@Test
+		@DisplayName(
+			"should wrap all 8 primitive types"
+		)
+		void shouldWrapAllPrimitiveTypes() {
+			assertSame(Boolean.class, EvitaDataTypes.toWrappedForm(boolean.class));
+			assertSame(Byte.class, EvitaDataTypes.toWrappedForm(byte.class));
+			assertSame(Short.class, EvitaDataTypes.toWrappedForm(short.class));
+			assertSame(Long.class, EvitaDataTypes.toWrappedForm(long.class));
+			assertSame(Float.class, EvitaDataTypes.toWrappedForm(float.class));
+			assertSame(Double.class, EvitaDataTypes.toWrappedForm(double.class));
 		}
 	}
 
@@ -1185,11 +1311,12 @@ class EvitaDataTypesTest {
 					"AB", LocalDateTime.class
 				)
 			);
+			// Bug fix: was testing OffsetDateTime.class
 			assertThrows(
 				InconvertibleDataTypeException.class,
 				() -> EvitaDataTypes.toTargetType(
 					LocalTime.of(11, 45),
-					OffsetDateTime.class
+					LocalDateTime.class
 				)
 			);
 		}
@@ -1261,11 +1388,12 @@ class EvitaDataTypesTest {
 					"AB", LocalDate.class
 				)
 			);
+			// Bug fix: was testing OffsetDateTime.class
 			assertThrows(
 				InconvertibleDataTypeException.class,
 				() -> EvitaDataTypes.toTargetType(
-					LocalTime.of(11, 45),
-					OffsetDateTime.class
+					Boolean.TRUE,
+					LocalDate.class
 				)
 			);
 		}
@@ -1326,11 +1454,14 @@ class EvitaDataTypesTest {
 					"AB", LocalTime.class
 				)
 			);
+			// Bug fix: was testing
+			// LocalTime->OffsetDateTime, replaced
+			// with Boolean->LocalTime
 			assertThrows(
 				InconvertibleDataTypeException.class,
 				() -> EvitaDataTypes.toTargetType(
-					LocalTime.of(11, 45),
-					OffsetDateTime.class
+					Boolean.TRUE,
+					LocalTime.class
 				)
 			);
 		}
@@ -1867,6 +1998,1246 @@ class EvitaDataTypesTest {
 			assertEquals(
 				"2.5",
 				formatValue(new BigDecimal("2.5e0"))
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Supported types")
+	class SupportedTypesTest {
+
+		@Test
+		@DisplayName(
+			"should return non-empty set of supported"
+			+ " types"
+		)
+		void shouldReturnNonEmptySetOfSupportedTypes() {
+			final Set<Class<?>> types =
+				EvitaDataTypes.getSupportedDataTypes();
+
+			assertNotNull(types);
+			assertFalse(types.isEmpty());
+		}
+
+		@Test
+		@DisplayName(
+			"should contain all expected types"
+		)
+		void shouldContainAllExpectedTypes() {
+			final Set<Class<?>> types =
+				EvitaDataTypes.getSupportedDataTypes();
+
+			assertTrue(types.contains(String.class));
+			assertTrue(types.contains(Byte.class));
+			assertTrue(types.contains(byte.class));
+			assertTrue(types.contains(Short.class));
+			assertTrue(types.contains(short.class));
+			assertTrue(types.contains(Integer.class));
+			assertTrue(types.contains(int.class));
+			assertTrue(types.contains(Long.class));
+			assertTrue(types.contains(long.class));
+			assertTrue(types.contains(Boolean.class));
+			assertTrue(types.contains(boolean.class));
+			assertTrue(types.contains(Character.class));
+			assertTrue(types.contains(char.class));
+			assertTrue(
+				types.contains(BigDecimal.class)
+			);
+			assertTrue(
+				types.contains(OffsetDateTime.class)
+			);
+			assertTrue(
+				types.contains(LocalDateTime.class)
+			);
+			assertTrue(
+				types.contains(LocalDate.class)
+			);
+			assertTrue(
+				types.contains(LocalTime.class)
+			);
+			assertTrue(
+				types.contains(DateTimeRange.class)
+			);
+			assertTrue(
+				types.contains(
+					BigDecimalNumberRange.class
+				)
+			);
+			assertTrue(
+				types.contains(
+					LongNumberRange.class
+				)
+			);
+			assertTrue(
+				types.contains(
+					IntegerNumberRange.class
+				)
+			);
+			assertTrue(
+				types.contains(
+					ShortNumberRange.class
+				)
+			);
+			assertTrue(
+				types.contains(
+					ByteNumberRange.class
+				)
+			);
+			assertTrue(types.contains(Locale.class));
+			assertTrue(
+				types.contains(Currency.class)
+			);
+			assertTrue(types.contains(UUID.class));
+			assertTrue(
+				types.contains(Predecessor.class)
+			);
+			assertTrue(
+				types.contains(
+					ReferencedEntityPredecessor.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return unmodifiable set"
+		)
+		void shouldReturnUnmodifiableSet() {
+			final Set<Class<?>> types =
+				EvitaDataTypes.getSupportedDataTypes();
+
+			assertThrows(
+				UnsupportedOperationException.class,
+				() -> types.add(Object.class)
+			);
+			assertThrows(
+				UnsupportedOperationException.class,
+				() -> types.remove(String.class)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return true for all supported"
+			+ " types"
+		)
+		void shouldReturnTrueForAllSupportedTypes() {
+			assertTrue(
+				EvitaDataTypes.isSupportedType(
+					String.class
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.isSupportedType(
+					Integer.class
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.isSupportedType(
+					int.class
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.isSupportedType(
+					BigDecimal.class
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.isSupportedType(
+					OffsetDateTime.class
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.isSupportedType(
+					UUID.class
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.isSupportedType(
+					Predecessor.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return false for unsupported types"
+		)
+		void shouldReturnFalseForUnsupportedTypes() {
+			assertFalse(
+				EvitaDataTypes.isSupportedType(
+					Float.class
+				)
+			);
+			assertFalse(
+				EvitaDataTypes.isSupportedType(
+					Double.class
+				)
+			);
+			assertFalse(
+				EvitaDataTypes.isSupportedType(
+					Object.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return true for supported array"
+			+ " types"
+		)
+		void shouldReturnTrueForSupportedArrayTypes() {
+			assertTrue(
+				EvitaDataTypes.isSupportedTypeOrItsArray(
+					String[].class
+				)
+			);
+			assertTrue(
+				EvitaDataTypes.isSupportedTypeOrItsArray(
+					Integer[].class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return false for unsupported array"
+			+ " types"
+		)
+		void shouldReturnFalseForUnsupportedArrayTypes() {
+			assertFalse(
+				EvitaDataTypes.isSupportedTypeOrItsArray(
+					Float[].class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should recognize supported enums"
+		)
+		void shouldRecognizeSupportedEnums() {
+			// Scope is annotated with @SupportedEnum
+			assertTrue(
+				EvitaDataTypes
+					.isSupportedTypeOrItsArrayOrEnum(
+						Scope.class
+					)
+			);
+			assertTrue(
+				EvitaDataTypes
+					.isSupportedTypeOrItsArrayOrEnum(
+						Scope[].class
+					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return true for enum type"
+		)
+		void shouldReturnTrueForEnumType() {
+			assertTrue(
+				EvitaDataTypes.isEnumOrArrayOfEnums(
+					Scope.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return true for enum array type"
+		)
+		void shouldReturnTrueForEnumArrayType() {
+			assertTrue(
+				EvitaDataTypes.isEnumOrArrayOfEnums(
+					Scope[].class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return false for non-enum type"
+		)
+		void shouldReturnFalseForNonEnumType() {
+			assertFalse(
+				EvitaDataTypes.isEnumOrArrayOfEnums(
+					String.class
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Conversion to supported type")
+	class ToSupportedTypeTest {
+
+		@Test
+		@DisplayName(
+			"should return null for null input"
+		)
+		void shouldReturnNullForNullInput() {
+			assertNull(
+				EvitaDataTypes.toSupportedType(null)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return supported types unchanged"
+		)
+		void shouldReturnSupportedTypesUnchanged() {
+			final String string = "hello";
+			assertSame(
+				string,
+				EvitaDataTypes.toSupportedType(string)
+			);
+
+			final Integer integer = 42;
+			assertSame(
+				integer,
+				EvitaDataTypes.toSupportedType(integer)
+			);
+
+			final BigDecimal decimal =
+				new BigDecimal("3.14");
+			assertSame(
+				decimal,
+				EvitaDataTypes.toSupportedType(decimal)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert Float to BigDecimal"
+		)
+		void shouldConvertFloatToBigDecimal() {
+			final Float input = 3.14f;
+
+			final Object result =
+				EvitaDataTypes.toSupportedType(input);
+
+			assertInstanceOf(BigDecimal.class, result);
+			assertEquals(
+				new BigDecimal("3.14"),
+				result
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert Double to BigDecimal"
+		)
+		void shouldConvertDoubleToBigDecimal() {
+			final Double input = 3.14;
+
+			final Object result =
+				EvitaDataTypes.toSupportedType(input);
+
+			assertInstanceOf(BigDecimal.class, result);
+			assertEquals(
+				new BigDecimal("3.14"),
+				result
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert LocalDateTime to"
+			+ " OffsetDateTime"
+		)
+		void shouldConvertLocalDateTimeToOffsetDateTime() {
+			final LocalDateTime input =
+				LocalDateTime.of(
+					2021, 6, 15, 10, 30
+				);
+
+			final Object result =
+				EvitaDataTypes.toSupportedType(input);
+
+			assertInstanceOf(OffsetDateTime.class, result);
+			final OffsetDateTime expected =
+				input.atOffset(ZoneOffset.UTC);
+			assertEquals(expected, result);
+		}
+
+		@Test
+		@DisplayName(
+			"should throw for unsupported type"
+		)
+		void shouldThrowForUnsupportedType() {
+			final HashMap<String, String> map =
+				new HashMap<>();
+
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes.toSupportedType(
+					map
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should pass through @SupportedEnum"
+		)
+		void shouldPassThroughSupportedEnum() {
+			// Scope is annotated with @SupportedEnum
+			assertSame(
+				Scope.LIVE,
+				EvitaDataTypes.toSupportedType(
+					Scope.LIVE
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert non-@SupportedEnum to"
+			+ " String"
+		)
+		void shouldConvertNonSupportedEnumToString() {
+			// ClassifierType is NOT annotated
+			// with @SupportedEnum
+			final Object result =
+				EvitaDataTypes.toSupportedType(
+					ClassifierType.CATALOG
+				);
+
+			assertEquals("CATALOG", result);
+		}
+	}
+
+	@Nested
+	@DisplayName("Size estimation")
+	class EstimateSizeTest {
+
+		@Test
+		@DisplayName(
+			"should return zero for null"
+		)
+		void shouldReturnZeroForNull() {
+			assertEquals(
+				0,
+				EvitaDataTypes.estimateSize(null)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of String"
+		)
+		void shouldEstimateSizeOfString() {
+			final String value = "hello";
+			final int size =
+				EvitaDataTypes.estimateSize(value);
+
+			assertEquals(
+				MemoryMeasuringConstants
+					.computeStringSize(value),
+				size
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of Byte"
+		)
+		void shouldEstimateSizeOfByte() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.BYTE_SIZE,
+				EvitaDataTypes.estimateSize((byte) 1)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of Short"
+		)
+		void shouldEstimateSizeOfShort() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.SMALL_SIZE,
+				EvitaDataTypes.estimateSize(
+					(short) 1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of Integer"
+		)
+		void shouldEstimateSizeOfInteger() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.INT_SIZE,
+				EvitaDataTypes.estimateSize(1)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of Long"
+		)
+		void shouldEstimateSizeOfLong() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.LONG_SIZE,
+				EvitaDataTypes.estimateSize(1L)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of Boolean"
+		)
+		void shouldEstimateSizeOfBoolean() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.BYTE_SIZE,
+				EvitaDataTypes.estimateSize(true)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of Character"
+		)
+		void shouldEstimateSizeOfCharacter() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.CHAR_SIZE,
+				EvitaDataTypes.estimateSize('A')
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of BigDecimal"
+		)
+		void shouldEstimateSizeOfBigDecimal() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.BIG_DECIMAL_SIZE,
+				EvitaDataTypes.estimateSize(
+					new BigDecimal("1.23")
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of OffsetDateTime"
+		)
+		void shouldEstimateSizeOfOffsetDateTime() {
+			final int expected =
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.LOCAL_DATE_TIME_SIZE
+					+ MemoryMeasuringConstants
+					.REFERENCE_SIZE;
+
+			assertEquals(
+				expected,
+				EvitaDataTypes.estimateSize(
+					OffsetDateTime.now()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of LocalDateTime"
+		)
+		void shouldEstimateSizeOfLocalDateTime() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.LOCAL_DATE_TIME_SIZE,
+				EvitaDataTypes.estimateSize(
+					LocalDateTime.now()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of LocalDate"
+		)
+		void shouldEstimateSizeOfLocalDate() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.LOCAL_DATE_SIZE,
+				EvitaDataTypes.estimateSize(
+					LocalDate.now()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of LocalTime"
+		)
+		void shouldEstimateSizeOfLocalTime() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.LOCAL_TIME_SIZE,
+				EvitaDataTypes.estimateSize(
+					LocalTime.now()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of DateTimeRange"
+		)
+		void shouldEstimateSizeOfDateTimeRange() {
+			final OffsetDateTime now =
+				OffsetDateTime.now();
+			final DateTimeRange range =
+				DateTimeRange.between(now, now);
+
+			final int expected =
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ 2 * (
+					MemoryMeasuringConstants
+						.OBJECT_HEADER_SIZE
+						+ MemoryMeasuringConstants
+						.LOCAL_DATE_TIME_SIZE
+						+ MemoryMeasuringConstants
+						.REFERENCE_SIZE
+				)
+					+ 2 * MemoryMeasuringConstants
+					.LONG_SIZE;
+
+			assertEquals(
+				expected,
+				EvitaDataTypes.estimateSize(range)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of NumberRange"
+			+ " (from-only)"
+		)
+		void shouldEstimateSizeOfNumberRangeFromOnly() {
+			final LongNumberRange range =
+				LongNumberRange.from(10L);
+			final int size =
+				EvitaDataTypes.estimateSize(range);
+
+			assertTrue(
+				size > 0,
+				"NumberRange from-only size should"
+					+ " be positive"
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of NumberRange"
+			+ " (to-only)"
+		)
+		void shouldEstimateSizeOfNumberRangeToOnly() {
+			final LongNumberRange range =
+				LongNumberRange.to(10L);
+			final int size =
+				EvitaDataTypes.estimateSize(range);
+
+			assertTrue(
+				size > 0,
+				"NumberRange to-only size should"
+					+ " be positive"
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of NumberRange"
+			+ " (both bounds)"
+		)
+		void shouldEstimateSizeOfNumberRangeBothBounds() {
+			final LongNumberRange range =
+				LongNumberRange.between(5L, 10L);
+			final int size =
+				EvitaDataTypes.estimateSize(range);
+
+			assertTrue(
+				size > 0,
+				"NumberRange between size should"
+					+ " be positive"
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return zero for Locale"
+		)
+		void shouldReturnZeroForLocale() {
+			assertEquals(
+				0,
+				EvitaDataTypes.estimateSize(
+					Locale.ENGLISH
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return zero for Currency"
+		)
+		void shouldReturnZeroForCurrency() {
+			assertEquals(
+				0,
+				EvitaDataTypes.estimateSize(
+					Currency.getInstance("USD")
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of UUID"
+		)
+		void shouldEstimateSizeOfUUID() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ 2 * MemoryMeasuringConstants
+					.LONG_SIZE,
+				EvitaDataTypes.estimateSize(
+					UUID.randomUUID()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of Predecessor"
+		)
+		void shouldEstimateSizeOfPredecessor() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.INT_SIZE,
+				EvitaDataTypes.estimateSize(
+					new Predecessor(42)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of"
+			+ " ReferencedEntityPredecessor"
+		)
+		void shouldEstimateSizeOfRefEntityPredecessor() {
+			assertEquals(
+				MemoryMeasuringConstants
+					.OBJECT_HEADER_SIZE
+					+ MemoryMeasuringConstants
+					.INT_SIZE,
+				EvitaDataTypes.estimateSize(
+					new ReferencedEntityPredecessor(42)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return zero for Enum"
+		)
+		void shouldReturnZeroForEnum() {
+			assertEquals(
+				0,
+				EvitaDataTypes.estimateSize(
+					Scope.LIVE
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should estimate size of array"
+		)
+		void shouldEstimateSizeOfArray() {
+			final Integer[] array = {1, 2, 3};
+			final int size =
+				EvitaDataTypes.estimateSize(array);
+
+			// array base size + 3 elements
+			// (reference + int each)
+			assertTrue(
+				size > 0,
+				"Array size should be positive"
+			);
+			final int expectedBase =
+				MemoryMeasuringConstants
+					.ARRAY_BASE_SIZE
+					+ 3
+					* MemoryMeasuringConstants
+					.REFERENCE_SIZE;
+			assertTrue(
+				size >= expectedBase,
+				"Array size should include base"
+					+ " overhead"
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should throw for unsupported type"
+		)
+		void shouldThrowForUnsupportedType() {
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes.estimateSize(
+					new HashMap<>()
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Conversion to String")
+	class ConvertToStringTest {
+
+		@Test
+		@DisplayName(
+			"should convert Integer to String"
+		)
+		void shouldConvertIntegerToString() {
+			assertEquals(
+				"42",
+				EvitaDataTypes.toTargetType(
+					42, String.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert BigDecimal to String"
+		)
+		void shouldConvertBigDecimalToString() {
+			assertEquals(
+				"3.14",
+				EvitaDataTypes.toTargetType(
+					new BigDecimal("3.14"),
+					String.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert Boolean to String"
+		)
+		void shouldConvertBooleanToString() {
+			assertEquals(
+				"true",
+				EvitaDataTypes.toTargetType(
+					true, String.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert null to null"
+		)
+		void shouldConvertNullToNull() {
+			assertNull(
+				EvitaDataTypes.toTargetType(
+					null, String.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert array to String array"
+		)
+		void shouldConvertArrayToStringArray() {
+			assertArrayEquals(
+				new String[]{"1", "2"},
+				EvitaDataTypes.toTargetType(
+					new Integer[]{1, 2},
+					String[].class
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Conversion to Currency")
+	class ConvertToCurrencyTest {
+
+		@Test
+		@DisplayName(
+			"should convert String to Currency"
+		)
+		void shouldConvertStringToCurrency() {
+			assertSame(
+				Currency.getInstance("USD"), EvitaDataTypes.toTargetType(
+					"USD", Currency.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should pass through Currency instance"
+		)
+		void shouldPassThroughCurrencyInstance() {
+			final Currency usd =
+				Currency.getInstance("USD");
+
+			assertSame(
+				usd,
+				EvitaDataTypes.toTargetType(
+					usd, Currency.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should throw for invalid currency code"
+		)
+		void shouldThrowForInvalidCurrencyCode() {
+			assertThrows(
+				InconvertibleDataTypeException.class,
+				() -> EvitaDataTypes.toTargetType(
+					"INVALID", Currency.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should throw for Number to Currency"
+		)
+		void shouldThrowForNumberToCurrency() {
+			assertThrows(
+				InconvertibleDataTypeException.class,
+				() -> EvitaDataTypes.toTargetType(
+					42, Currency.class
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Conversion to Enum")
+	class ConvertToEnumTest {
+
+		@Test
+		@DisplayName(
+			"should convert String to enum"
+		)
+		void shouldConvertStringToEnum() {
+			assertEquals(
+				Scope.LIVE,
+				EvitaDataTypes.toTargetType(
+					"LIVE", Scope.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should pass through enum instance"
+		)
+		void shouldPassThroughEnumInstance() {
+			assertSame(
+				Scope.LIVE,
+				EvitaDataTypes.toTargetType(
+					Scope.LIVE, Scope.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should convert String to another enum"
+			+ " value"
+		)
+		void shouldConvertStringToAnotherEnumValue() {
+			assertEquals(
+				Scope.ARCHIVED,
+				EvitaDataTypes.toTargetType(
+					"ARCHIVED", Scope.class
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Null and edge cases")
+	class NullAndEdgeCaseTest {
+
+		@Test
+		@DisplayName(
+			"should return null for null input"
+			+ " to any type"
+		)
+		void shouldReturnNullForNullInputToAnyType() {
+			assertNull(
+				EvitaDataTypes.toTargetType(
+					null, Integer.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return same object when already"
+			+ " correct type"
+		)
+		void shouldReturnSameObjectWhenCorrectType() {
+			final Integer value = 42;
+
+			assertSame(
+				value,
+				EvitaDataTypes.toTargetType(
+					value, Integer.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should throw for unsupported requested"
+			+ " type"
+		)
+		void shouldThrowForUnsupportedRequestedType() {
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> EvitaDataTypes.toTargetType(
+					"test", Float.class
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Regression bug fixes")
+	class KnownBugTests {
+
+		@Test
+		@DisplayName(
+			"Float and Double can be converted"
+			+ " to BigDecimal"
+		)
+		void shouldConvertFloatAndDoubleToBigDecimal() {
+			final BigDecimal fromFloat =
+				EvitaDataTypes.toTargetType(
+					3.14f, BigDecimal.class
+				);
+			assertNotNull(fromFloat);
+			assertEquals(
+				new BigDecimal("3.14"), fromFloat
+			);
+
+			final BigDecimal fromDouble =
+				EvitaDataTypes.toTargetType(
+					3.14d, BigDecimal.class
+				);
+			assertNotNull(fromDouble);
+			assertEquals(
+				new BigDecimal("3.14"), fromDouble
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"NaN and Infinity throw"
+			+ " UnsupportedDataTypeException"
+		)
+		void shouldThrowUnsupportedDataTypeForNaN() {
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes.toSupportedType(
+					Float.NaN
+				)
+			);
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes.toSupportedType(
+					Float.POSITIVE_INFINITY
+				)
+			);
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes.toSupportedType(
+					Double.NaN
+				)
+			);
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes.toSupportedType(
+					Double.NEGATIVE_INFINITY
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"Empty DateTimeRange [,] throws"
+			+ " InconvertibleDataTypeException"
+		)
+		void shouldThrowInconvertibleForEmptyDateTimeRange() {
+			assertThrows(
+				InconvertibleDataTypeException.class,
+				() -> EvitaDataTypes.toTargetType(
+					"[,]", DateTimeRange.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"Empty NumberRange [,] throws"
+			+ " InconvertibleDataTypeException"
+		)
+		void shouldThrowInconvertibleForEmptyNumberRange() {
+			assertThrows(
+				InconvertibleDataTypeException.class,
+				() -> EvitaDataTypes.toTargetType(
+					"[,]", LongNumberRange.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"Null array elements are preserved"
+			+ " during conversion"
+		)
+		void shouldPreserveNullArrayElements() {
+			final Integer[] result =
+				EvitaDataTypes.toTargetType(
+					new String[]{"42", null, "7"},
+					Integer[].class
+				);
+			assertNotNull(result);
+			assertEquals(3, result.length);
+			assertEquals(42, result[0]);
+			assertNull(result[1]);
+			assertEquals(7, result[2]);
+		}
+
+		@Test
+		@DisplayName(
+			"Numbers in valid char range (0-65535)"
+			+ " convert to Character"
+		)
+		void shouldConvertValidCharRangeNumbers() {
+			final Character result =
+				EvitaDataTypes.toTargetType(
+					200, Character.class
+				);
+			assertEquals((char) 200, result);
+
+			final Character maxChar =
+				EvitaDataTypes.toTargetType(
+					65535, Character.class
+				);
+			assertEquals((char) 65535, maxChar);
+
+			assertThrows(
+				InconvertibleDataTypeException.class,
+				() -> EvitaDataTypes.toTargetType(
+					-1, Character.class
+				)
+			);
+			assertThrows(
+				InconvertibleDataTypeException.class,
+				() -> EvitaDataTypes.toTargetType(
+					65536, Character.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"Invalid enum name throws"
+			+ " InconvertibleDataTypeException"
+		)
+		void shouldThrowInconvertibleForInvalidEnumName() {
+			assertThrows(
+				InconvertibleDataTypeException.class,
+				() -> EvitaDataTypes.toTargetType(
+					"NONEXISTENT_VALUE",
+					Scope.class
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"getElementSize returns correct sizes"
+			+ " for primitive types"
+		)
+		void shouldReturnCorrectElementSizes() {
+			assertEquals(
+				MemoryMeasuringConstants.BYTE_SIZE,
+				MemoryMeasuringConstants
+					.getElementSize(byte.class)
+			);
+			assertEquals(
+				MemoryMeasuringConstants.SMALL_SIZE,
+				MemoryMeasuringConstants
+					.getElementSize(short.class)
+			);
+			assertEquals(
+				MemoryMeasuringConstants.INT_SIZE,
+				MemoryMeasuringConstants
+					.getElementSize(int.class)
+			);
+			assertEquals(
+				MemoryMeasuringConstants.LONG_SIZE,
+				MemoryMeasuringConstants
+					.getElementSize(long.class)
+			);
+			assertEquals(
+				MemoryMeasuringConstants.CHAR_SIZE,
+				MemoryMeasuringConstants
+					.getElementSize(char.class)
+			);
+			assertEquals(
+				MemoryMeasuringConstants
+					.REFERENCE_SIZE,
+				MemoryMeasuringConstants
+					.getElementSize(String.class)
 			);
 		}
 	}

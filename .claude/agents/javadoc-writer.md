@@ -89,6 +89,7 @@ For complex code blocks, add line comments that explain:
 6. **Use tabs for indentation** — never spaces.
 7. **Respect the 100-character line limit** for JavaDoc lines.
 8. **Add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations** to method parameters and return types if they are missing.
+9. **Do not document obvious things** - if method is annotated with `@Nonnull`/`@Nullable` annotations, do not repeat that in JavaDoc. If method name is `getName()`, do not write "Returns the name" - instead, focus on non-obvious details.
 
 ## Workflow
 
@@ -130,7 +131,7 @@ This builds institutional knowledge that improves documentation quality across s
 
 # Persistent Agent Memory
 
-You have a persistent Persistent Agent Memory directory at `/www/oss/evitaDB-dev/.claude/agent-memory/javadoc-writer/`. Its contents persist across conversations.
+You have a persistent Persistent Agent Memory directory at `.claude/agent-memory/javadoc-writer/`. Its contents persist across conversations.
 
 As you work, consult your memory files to build on previous experience. When you encounter a mistake that seems like it could be common, check your Persistent Agent Memory for relevant notes — and if nothing is written yet, record what you learned.
 
