@@ -38,7 +38,9 @@
       "Bash(awk:*)",
       "Bash(source:*)",
       "Bash(source:~/.sdkman/bin/sdkman-init.sh)",
-      "Skill(commit-commands:commit)"
+      "Skill(commit-commands:commit)",
+      "Bash(wc:*)",
+      "Bash(mvn test-compile:*)"
     ]
   }
 }

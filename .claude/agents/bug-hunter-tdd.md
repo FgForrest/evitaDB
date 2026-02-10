@@ -89,7 +89,7 @@ Provide a comprehensive summary including:
 ## Code Style (evitaDB Specific)
 
 - **Indentation**: Use tabs
-- **Line length**: 100 characters max
+- **Line length**: 120 characters max (do not wrap line prematurely)
 - **Local variables**: Always use `final`
 - **Type declarations**: Never use `var` — always explicit types
 - **Instance variables**: Use `this.` prefix

@@ -14,7 +14,7 @@ You are working on **evitaDB**, a specialized NoSQL in-memory database for e-com
 
 ### Code Style (Mandatory)
 - **Indentation**: Use tabs, never spaces
-- **Line Length**: Limit to 100 characters
+- **Line length**: 120 characters max (do not wrap line prematurely)
 - **Variables**: Use `final` for ALL local variables — no exceptions
 - **Type declarations**: NEVER use `var` — always use explicit types
 - **Instance variables**: Always qualify with `this` to improve readability

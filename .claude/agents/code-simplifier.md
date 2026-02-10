@@ -22,7 +22,7 @@ Your mission is to analyze recently modified code and apply refinements that enh
 Apply these standards rigorously to all code you touch:
 
 - **Indentation**: Use tabs, not spaces.
-- **Line length**: Limit lines to 100 characters.
+- **Line length**: 120 characters max (do not wrap line prematurely)
 - **Type declarations**: Never use `var` — always use explicit types (e.g., `String name = ...` not `var name = ...`).
 - **Local variables**: Always use `final` for local variables.
 - **Instance variables**: Always prefix with `this.` when accessing instance variables.

@@ -37,7 +37,7 @@ Only after completing this research should you write documentation.
 - Use backticks for inline code references: `ClassName`, `methodName()`, `fieldName`
 - Use `{@link ClassName#methodName}` for cross-references to other documented elements
 - Use `@param`, `@return`, `@throws` tags appropriately
-- Keep lines under 100 characters (including the leading ` * `)
+- Keep lines under 120 characters (including the leading ` * `), but do not wrap lines prematurely
 - Use tabs for indentation, consistent with the project style
 
 ### Class-Level JavaDoc
