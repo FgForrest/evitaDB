@@ -23,59 +23,78 @@
 
 package io.evitadb.api.requestResponse;
 
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
+import java.util.List;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link EvitaEntityResponse} verifying subclass-specific
- * behavior including construction and primary key storage.
+ * Tests for {@link EvitaEntityReferenceResponse} verifying
+ * subclass-specific behavior including construction and
+ * primary key storage.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author evitaDB
  */
-@DisplayName("EvitaEntityResponse")
-class EvitaEntityResponseTest {
+@DisplayName("EvitaEntityReferenceResponse")
+class EvitaEntityReferenceResponseTest {
 
 	/**
-	 * Verifies construction without extra results stores
-	 * primary keys correctly.
+	 * Verifies construction stores primary keys and data
+	 * correctly.
 	 */
 	@Test
 	@DisplayName("stores primary keys on construction")
 	void shouldStorePrimaryKeysOnConstruction() {
 		final int[] pks = {1, 2, 3};
-		final EvitaEntityResponse<SealedEntity> response =
-			new EvitaEntityResponse<>(
+		final EntityReference ref1 =
+			new EntityReference("brand", 1);
+		final EntityReference ref2 =
+			new EntityReference("brand", 2);
+		final EntityReference ref3 =
+			new EntityReference("brand", 3);
+
+		final PaginatedList<EntityReference> page =
+			new PaginatedList<>(
+				1, 1, 20, 3,
+				List.of(ref1, ref2, ref3)
+			);
+
+		final EvitaEntityReferenceResponse response =
+			new EvitaEntityReferenceResponse(
 				query(collection("brand")),
-				PaginatedList.emptyList(),
+				page,
 				pks
 			);
 
 		assertArrayEquals(pks, response.getPrimaryKeys());
+		assertEquals(3, response.getRecordData().size());
+		assertEquals(
+			"brand",
+			response.getRecordData().get(0).type()
+		);
 	}
 
 	/**
-	 * Verifies construction with extra results stores
-	 * both primary keys and extras correctly.
+	 * Verifies construction with extra results.
 	 */
 	@Test
 	@DisplayName(
 		"stores primary keys and extras via constructor"
 	)
 	void shouldStorePrimaryKeysAndExtras() {
-		final int[] pks = {10, 20};
-		final MockExtra extra = new MockExtra("val");
+		final int[] pks = {10};
+		final MockRefExtra extra = new MockRefExtra("v");
 
-		final EvitaEntityResponse<SealedEntity> response =
-			new EvitaEntityResponse<>(
+		final EvitaEntityReferenceResponse response =
+			new EvitaEntityReferenceResponse(
 				query(collection("brand")),
 				PaginatedList.emptyList(),
 				pks,
@@ -84,11 +103,13 @@ class EvitaEntityResponseTest {
 
 		assertArrayEquals(pks, response.getPrimaryKeys());
 		assertNotNull(
-			response.getExtraResult(MockExtra.class)
+			response.getExtraResult(MockRefExtra.class)
 		);
 		assertEquals(
-			"val",
-			response.getExtraResult(MockExtra.class).data()
+			"v",
+			response.getExtraResult(
+				MockRefExtra.class
+			).data()
 		);
 	}
 
@@ -98,8 +119,8 @@ class EvitaEntityResponseTest {
 	@Test
 	@DisplayName("handles empty primary keys")
 	void shouldHandleEmptyPrimaryKeys() {
-		final EvitaEntityResponse<SealedEntity> response =
-			new EvitaEntityResponse<>(
+		final EvitaEntityReferenceResponse response =
+			new EvitaEntityReferenceResponse(
 				query(collection("brand")),
 				PaginatedList.emptyList(),
 				ArrayUtils.EMPTY_INT_ARRAY
@@ -113,11 +134,11 @@ class EvitaEntityResponseTest {
 	/**
 	 * Mock extra result for testing.
 	 */
-	private record MockExtra(
+	private record MockRefExtra(
 		String data
 	) implements EvitaResponseExtraResult {
 		@Serial
 		private static final long serialVersionUID =
-			133944519712518780L;
+			433944519712518783L;
 	}
 }
