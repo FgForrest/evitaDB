@@ -29,14 +29,31 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import java.io.Serial;
 
 /**
- * Exception is thrown when TrafficRecording has not been indexed yet. The index is being built in the background lazily
- * on the first request for reading the traffic recording data and the request should be retried later.
+ * Exception thrown when an attempt is made to read traffic recording data before the index has been built.
+ *
+ * The traffic recording index is built lazily in the background when traffic recording data is first accessed.
+ * During index construction, read operations will fail with this exception, signaling that the client should
+ * retry the operation after a delay.
+ *
+ * This is a transient error condition that resolves once the index build completes. The exception message
+ * includes the current build progress percentage to help clients implement appropriate retry strategies.
+ *
+ * **Usage Context:**
+ * - Thrown by {@link io.evitadb.api.TrafficRecordingReader} when querying traffic data before indexing completes
+ * - Used in {@link io.evitadb.store.traffic.OffHeapTrafficRecorder} to signal index unavailability
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class IndexNotReady extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -8131758666128500242L;
 
+	/**
+	 * Creates a new exception indicating that the traffic recording index is not yet ready.
+	 *
+	 * @param indexBuildPercentage percentage of index build completion (0-100); 0 means the index
+	 *                             build has just started, 100 means complete (though the exception
+	 *                             is not thrown in that case)
+	 */
 	public IndexNotReady(int indexBuildPercentage) {
 		super(
 			indexBuildPercentage == 0 ?

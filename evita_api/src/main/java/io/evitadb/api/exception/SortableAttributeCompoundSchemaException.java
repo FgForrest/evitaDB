@@ -30,14 +30,34 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when invalid sortable attribute compound schema is about to be created or made invalid.
+ * Exception thrown when attempting to create or modify a sortable attribute compound schema in a way that
+ * violates schema definition rules. Sortable attribute compounds allow clients to define multi-attribute
+ * sort orders, but they must reference attributes that exist in the entity schema.
+ *
+ * **Common violations include:**
+ *
+ * - Referencing an attribute that doesn't exist in the entity schema
+ * - Including an attribute that is not marked as sortable
+ * - Attempting to modify a compound in a way that would break existing queries
+ *
+ * This exception extends {@link SchemaAlteringException} because it occurs during schema evolution operations
+ * and includes the problematic compound schema definition for inspection.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class SortableAttributeCompoundSchemaException extends SchemaAlteringException {
 	@Serial private static final long serialVersionUID = 3314676345576059184L;
+	/**
+	 * The compound schema that caused the validation failure, useful for debugging and error reporting.
+	 */
 	@Getter private final SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema;
 
+	/**
+	 * Creates a new exception with details about the invalid sortable attribute compound schema.
+	 *
+	 * @param message description of the validation failure
+	 * @param sortableAttributeCompoundSchema the compound schema definition that failed validation
+	 */
 	public SortableAttributeCompoundSchemaException(
 		@Nonnull String message,
 		@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema

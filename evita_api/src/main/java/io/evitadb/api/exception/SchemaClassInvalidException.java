@@ -29,15 +29,48 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is throw when {@link io.evitadb.api.EvitaSessionContract#defineEntitySchemaFromModelClass(Class)} is
- * executed and fails to create schema by the passed model class due a structure error.
+ * Exception thrown when
+ * {@link io.evitadb.api.EvitaSessionContract#defineEntitySchemaFromModelClass(Class)} fails to
+ * generate or modify an entity schema from a Java class due to structural errors, invalid
+ * annotations, or incompatible types.
+ *
+ * evitaDB supports reflection-based schema generation, where annotated Java classes (records,
+ * POJOs, or interfaces) serve as schema blueprints. The {@link io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer}
+ * inspects the class structure and annotations to produce an entity schema.
+ *
+ * This exception is raised when the analyzer encounters issues such as:
+ *
+ * - Invalid or conflicting annotations (e.g., `@Attribute`, `@Reference`, `@AssociatedData`)
+ * - Unsupported data types for attributes or associated data
+ * - Missing required annotations or malformed annotation parameters
+ * - Reflection access failures (e.g., inaccessible fields or methods)
+ * - Circular dependencies in nested data structures
+ * - Type mismatches between declared types and evitaDB's supported types
+ *
+ * The underlying cause is wrapped in this exception to provide context about which specific
+ * validation or reflection operation failed. This allows developers to diagnose and fix the
+ * model class structure.
+ *
+ * **Resolution**: Review the model class for annotation correctness, type compatibility, and
+ * accessibility. Ensure all annotated fields and methods conform to evitaDB's schema generation
+ * requirements.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class SchemaClassInvalidException extends SchemaAlteringException {
 	@Serial private static final long serialVersionUID = -5406849919777450870L;
+	/**
+	 * The Java class that failed schema analysis.
+	 */
 	@Getter private final Class<?> modelClass;
 
+	/**
+	 * Constructs a new exception indicating that schema generation from a model class failed.
+	 *
+	 * @param modelClass the Java class that could not be analyzed for schema generation
+	 * @param cause      the underlying exception that caused the analysis to fail, providing details
+	 *                   about what went wrong during reflection or validation
+	 */
 	public SchemaClassInvalidException(Class<?> modelClass, @Nonnull Throwable cause) {
 		super("Failed to examine class `" + modelClass + "` and alter the entity collection schema.", cause);
 		this.modelClass = modelClass;

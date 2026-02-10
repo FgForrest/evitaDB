@@ -31,11 +31,29 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception thrown when conflicting catalog mutations are detected during transaction resolution.
+ * Exception thrown when concurrent transactions modify the same data in conflicting ways,
+ * detected during transaction commit.
  *
- * This exception signals that the current transaction attempted to commit changes to a catalog that
- * conflict with mutations that were already committed earlier for the same `ConflictKey`.
- * It is a specialization of `TransactionException` intended for catalog-level conflicts.
+ * evitaDB uses optimistic concurrency control with conflict detection based on
+ * {@link ConflictKey} instances. Each mutation declares which keys it affects. When
+ * committing, evitaDB checks whether any committed transaction since this transaction's
+ * start has modified the same keys. If so, this exception is thrown to prevent lost
+ * updates and ensure serializability.
+ *
+ * **Typical Causes:**
+ * - Two transactions concurrently modifying the same entity, attribute, or reference
+ * - Long-running transaction whose data became stale while other transactions committed
+ * - High contention on frequently modified entities (like counters or inventory levels)
+ *
+ * **Resolution:**
+ * Retry the transaction from the beginning with fresh data. Read current entity state,
+ * reapply your business logic, and commit again. Implementing exponential backoff for
+ * retries is recommended under high contention.
+ *
+ * **Design Note:**
+ * Conflict keys provide fine-grained conflict detection. For example, modifying attribute
+ * "name" on entity 1 doesn't conflict with modifying attribute "price" on the same entity,
+ * allowing higher concurrency than whole-entity locking would provide.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -57,10 +75,14 @@ public class ConflictingCatalogMutationException extends TransactionException {
 	@Getter private final long catalogVersion;
 
 	/**
-	 * Creates a new exception describing a mutation conflict for the given catalog and conflict key.
+	 * Creates a new exception describing a mutation conflict for the given catalog and
+	 * conflict key.
 	 *
-	 * @param catalogName name of the catalog where the conflict occurred
-	 * @param conflictKey key identifying the conflicting mutation scope
+	 * @param catalogName    name of the catalog where the conflict occurred
+	 * @param conflictKey    key identifying the conflicting mutation scope (e.g., entity
+	 *                       primary key, attribute name)
+	 * @param catalogVersion the exact catalog version number where the conflicting change
+	 *                       was committed
 	 */
 	public ConflictingCatalogMutationException(
 		@Nonnull String catalogName,
@@ -78,10 +100,12 @@ public class ConflictingCatalogMutationException extends TransactionException {
 	}
 
     /**
-     * Creates a new exception describing a mutation conflict for the given catalog and conflict key.
+     * Creates a new exception describing a mutation conflict with additional context.
      *
-     * @param catalogName name of the catalog where the conflict occurred
-     * @param conflictKey key identifying the conflicting mutation scope
+     * @param catalogName       name of the catalog where the conflict occurred
+     * @param conflictKey       key identifying the conflicting mutation scope
+     * @param catalogVersion    the exact catalog version where the conflict occurred
+     * @param additionalMessage extra details about the conflict nature
      */
     protected ConflictingCatalogMutationException(
         @Nonnull String catalogName,

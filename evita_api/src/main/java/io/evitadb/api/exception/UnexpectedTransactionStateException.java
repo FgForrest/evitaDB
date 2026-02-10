@@ -29,14 +29,47 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * This exception is thrown when open transaction doesn't exist, and it is expected to exist, or otherwise it is not
- * expected to exist, but it does.
+ * Exception thrown when a transaction operation is attempted but the current transaction state does not
+ * permit the operation. This represents a programming error where the client makes incorrect assumptions
+ * about transaction lifecycle.
+ *
+ * **Common violations:**
+ *
+ * - Calling {@link io.evitadb.api.TransactionContract#setRollbackOnly()} when no transaction is active
+ * - Attempting to commit or rollback when no transaction has been opened
+ * - Trying to open a new transaction when one is already active in the session
+ * - Calling transaction-specific methods on a session after the transaction has ended
+ *
+ * This exception typically indicates a logical bug in client code where transaction boundaries are not
+ * properly managed. Clients should ensure they:
+ *
+ * ```java
+ * // Correct pattern:
+ * session.openTransaction();
+ * try {
+ *     // ... perform mutations ...
+ *     session.setRollbackOnly(); // Only valid inside transaction
+ * } finally {
+ *     session.closeTransaction();
+ * }
+ *
+ * // Or use the convenience method:
+ * session.execute((theSession) -> {
+ *     // Transaction is automatically managed
+ *     theSession.upsertEntity(...);
+ * });
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class UnexpectedTransactionStateException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -475125333242552407L;
 
+	/**
+	 * Creates a new exception with an error message describing the invalid transaction state.
+	 *
+	 * @param message description of what transaction state was expected vs. actual
+	 */
 	public UnexpectedTransactionStateException(@Nonnull String message) {
 		super(message);
 	}
