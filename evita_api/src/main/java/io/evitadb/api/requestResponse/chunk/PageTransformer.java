@@ -76,10 +76,12 @@ public class PageTransformer implements ChunkTransformer {
 	 * The method paginates the data based on the provided page number, total pages, offset, and limit.
 	 *
 	 * @param referenceContracts the list of {@code ReferenceContract} objects to be processed into a paginated data chunk
-	 * @param pageNumber the current page number within the pagination context
-	 * @param lastPageNumber the total number of pages calculated for the entire data
-	 * @param offset the starting index from which to begin creating the data chunk
-	 * @param limit the maximum number of items to include in the data chunk
+	 * @param pageNumber         the current page number within the pagination context
+	 * @param pageSize           the number of items per page
+	 * @param lastPageNumber     the total number of pages calculated for the entire data
+	 * @param offset             the starting index from which to begin creating the data chunk
+	 * @param limit              the maximum number of items to include in the data chunk
+	 * @param totalRecordCount   the total number of records available across all pages
 	 * @return a {@code DataChunk} containing a subset of {@code ReferenceContract} items based on the pagination parameters
 	 */
 	@Nonnull
