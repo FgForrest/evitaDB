@@ -36,17 +36,54 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 
 /**
- * Interface is used to create proxy instances of sealed entities when client code calls query method on
- * {@link EvitaSessionContract} interface providing their custom class/contract as requested type.
+ * Factory interface for creating proxy instances that wrap sealed entities, enabling client applications
+ * to work with custom POJOs, records, or interfaces instead of the generic {@link SealedEntity} API.
  *
+ * **Design Philosophy:**
+ *
+ * The proxy factory uses runtime bytecode generation (via Proxycian/ByteBuddy library) to dynamically create
+ * proxy classes that implement or extend client-defined types. These proxies delegate method calls to the
+ * underlying sealed entity, automatically mapping:
+ * - Entity attributes to POJO fields or interface getters
+ * - Associated data to corresponding methods
+ * - References to nested proxy instances or collections
+ * - Prices to price-related methods
+ *
+ * **Pluggable Implementation:**
+ *
+ * The factory has a fallback mechanism: if Proxycian library is not present on classpath, the factory returns
+ * {@link UnsatisfiedDependencyFactory} which throws an exception when attempting to create proxies. This allows
+ * EvitaDB to function without proxy support if the optional dependency is not included.
+ *
+ * **Usage Context:**
+ *
+ * This factory is used internally by {@link EvitaSessionContract} when client code invokes query methods with
+ * a specific return type parameter (e.g., `session.queryEntity(MyProduct.class, query)`). The factory is also
+ * used for nested entity proxies (e.g., referenced entities, parent entities).
+ *
+ * **Thread-Safety:**
+ *
+ * Proxy recipes (class definitions) are cached globally and thread-safe. Individual proxy instances are not
+ * thread-safe unless the underlying entity is immutable (sealed).
+ *
+ * @see ProxyReferenceFactory
+ * @see SealedEntityProxy
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface ProxyFactory {
 
 	/**
-	 * Creates proxy factory instance that uses ByteBuddy library to generate proxy classes if present on classpath.
-	 * @param reflectionLookup reflection lookup to use
-	 * @return proxy factory instance
+	 * Creates a proxy factory instance using Proxycian (ByteBuddy) library if available on classpath.
+	 *
+	 * This method checks for the presence of `one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator` class
+	 * and instantiates {@link io.evitadb.api.proxy.impl.ProxycianFactory} if found. If the library is not
+	 * present, returns {@link UnsatisfiedDependencyFactory} which throws an exception on any proxy creation
+	 * attempt.
+	 *
+	 * @param reflectionLookup reflection lookup instance for introspecting client classes and analyzing
+	 *                         their structure (fields, methods, constructors)
+	 * @return fully functional proxy factory if Proxycian is on classpath, or no-op factory that throws
+	 *         exceptions otherwise
 	 */
 	@Nonnull
 	static ProxyFactory createInstance(@Nonnull ReflectionLookup reflectionLookup) {
@@ -59,14 +96,27 @@ public interface ProxyFactory {
 	}
 
 	/**
-	 * Creates proxy instance of sealed entity that implements `expectedType` contract. Entity proxy respects
-	 * request context used in the query that fetched {@link SealedEntity}.
+	 * Creates a proxy instance that wraps a sealed entity and implements the specified contract type.
 	 *
-	 * @param expectedType contract that the proxy should implement
-	 * @param entity sealed entity to create proxy for
-	 * @return proxy instance of sealed entity
-	 * @param <T> type of contract that the proxy should implement
-	 * @throws EntityClassInvalidException if the proxy contract is not valid
+	 * The proxy automatically maps entity data (attributes, associated data, references, prices) to the methods
+	 * and fields of `expectedType`. The mapping follows these rules:
+	 * - Method names are analyzed to determine the target entity property (e.g., `getName()` → `name` attribute)
+	 * - Field names in POJOs are mapped directly to entity properties
+	 * - Referenced entities can be returned as nested proxies if requested by method return type
+	 * - Collections are automatically mapped to arrays, Lists, or Sets as appropriate
+	 *
+	 * The proxy respects the fetch requirements from the original query - if an attribute/reference was not
+	 * fetched, accessing it through the proxy will throw an exception or return null depending on the contract.
+	 *
+	 * @param expectedType the interface, abstract class, or POJO class that the proxy should implement/extend;
+	 *                     must be a valid proxy contract (see {@link EntityClassInvalidException} for constraints)
+	 * @param entity the sealed entity to wrap (typically retrieved from a query result)
+	 * @param referencedEntitySchemas map of entity schemas for all entity types that might be referenced by
+	 *                                this entity; used to create nested proxies for referenced entities
+	 * @param <T> the type of the client-defined contract
+	 * @return a proxy instance that implements `expectedType` and delegates to the underlying sealed entity
+	 * @throws EntityClassInvalidException if the proxy contract is invalid (e.g., concrete class without
+	 *         accessible constructor, sealed class, incompatible method signatures)
 	 */
 	@Nonnull
 	<T> T createEntityProxy(
