@@ -84,7 +84,9 @@ public class JsonToComplexDataObjectConverter {
 		} else if (jsonNode instanceof ObjectNode objectNode) {
 			final int itemCount = objectNode.size();
 			final HashMap<String, DataItem> outputElements = CollectionUtils.createHashMap(itemCount);
-			for (Entry<String, JsonNode> inputElement : objectNode.properties()) {
+			final Iterator<Entry<String, JsonNode>> it = objectNode.fields();
+			while (it.hasNext()) {
+				final Entry<String, JsonNode> inputElement = it.next();
 				outputElements.put(inputElement.getKey(), convertToDataItem(inputElement.getValue()));
 			}
 			return new DataItemMap(outputElements);
