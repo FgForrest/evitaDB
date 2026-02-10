@@ -371,7 +371,7 @@ public class TransactionManager implements Closeable {
 	 * @return the catalog instance after processing the write-ahead log
 	 */
 	@Nonnull
-	public Catalog processEntireWriteAheadLog(
+	public Optional<ProcessResult> processEntireWriteAheadLog(
 		long nextCatalogVersion,
 		@Nonnull LongConsumer progressCallback
 	) {
@@ -381,9 +381,7 @@ public class TransactionManager implements Closeable {
 			false,
 			true, // we should obtain lock here easily, since this is called only on catalog instantiation
 			progressCallback
-		)
-			.map(ProcessResult::catalog)
-			.orElseGet(this.lastFinalizedCatalog::get);
+		);
 	}
 
 	/**
@@ -1074,7 +1072,7 @@ public class TransactionManager implements Closeable {
 
 				Assert.isPremiseValid(lastTransaction != null, "Transaction must not be null!");
 				final ProcessResult processResult = new ProcessResult(
-					lastTransaction.getTransactionId(),
+					lastTransactionMutation,
 					atomicMutationCount,
 					localMutationCount,
 					newCatalog,
@@ -1377,14 +1375,14 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Result of the {@link #processTransactions(long, long, boolean, boolean, LongConsumer)} method.
 	 *
-	 * @param lastTransactionId                  the ID of the last processed transaction
+	 * @param lastTransaction                    the last processed transaction
 	 * @param processedAtomicMutations           the number of processed atomic mutations
 	 * @param processedLocalMutations            the number of processed local mutations
 	 * @param catalog                            the catalog after the processing
 	 * @param commitTimesOfProcessedTransactions commit times of all processed transactions
 	 */
 	public record ProcessResult(
-		@Nonnull UUID lastTransactionId,
+		@Nonnull TransactionMutation lastTransaction,
 		int processedAtomicMutations,
 		int processedLocalMutations,
 		@Nonnull Catalog catalog,

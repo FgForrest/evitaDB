@@ -105,6 +105,7 @@ import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionManager;
+import io.evitadb.core.transaction.TransactionManager.ProcessResult;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -1156,7 +1157,7 @@ public final class Catalog
 						"Non-processed WAL transaction(s) found for catalog `{}`: {}. Processing it now ...",
 						this.getName(), nonProcessedTxCount
 					);
-					final Catalog catalog = this.transactionManager.processEntireWriteAheadLog(
+					final Optional<ProcessResult> processResult = this.transactionManager.processEntireWriteAheadLog(
 						firstNonProcessedTxVersion,
 						new LongConsumer() {
 							private long lastPercent;
@@ -1164,7 +1165,8 @@ public final class Catalog
 
 							@Override
 							public void accept(long txId) {
-								int percentDone = (int) ((txId - firstNonProcessedTxVersion) * 100 / Math.max(nonProcessedTxCount, 1));
+								int percentDone = (int) ((txId - firstNonProcessedTxVersion) * 100 /
+									Math.max(nonProcessedTxCount, 1));
 								if (percentDone > this.lastPercent) {
 									this.lastPercent = percentDone;
 									if (System.currentTimeMillis() - this.lastLoggedTime >= 5000) {
@@ -1179,17 +1181,25 @@ public final class Catalog
 						}
 					);
 
-					this.persistenceService.purgeAllObsoleteFiles();
-					log.info(
-						"WAL of `{}` catalog was processed in {}.", this.getName(),
-						StringUtils.formatNano(System.nanoTime() - start)
+					processResult.ifPresent(
+						pr -> {
+							final Catalog newCatalog = pr.catalog();
+							log.info(
+								"WAL of `{}` catalog was processed in {}.", this.getName(),
+								StringUtils.formatNano(System.nanoTime() - start)
+							);
+							newCatalog.persistenceService.verifyIntegrity();
+							newCatalog.persistenceService.purgeAllObsoleteFiles();
+							updatedCatalogConsumer.accept(newCatalog);
+						}
 					);
-					updatedCatalogConsumer.accept(catalog);
 				},
-				() -> updatedCatalogConsumer.accept(this)
+				() -> {
+					this.persistenceService.verifyIntegrity();
+					this.persistenceService.purgeAllObsoleteFiles();
+					updatedCatalogConsumer.accept(this);
+				}
 			);
-
-		this.persistenceService.verifyIntegrity();
 	}
 
 	@Nonnull
@@ -1688,7 +1698,8 @@ public final class Catalog
 	 */
 	public void flush(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(getCatalogState() == CatalogState.ALIVE, "Catalog is not in ALIVE state!");
-		boolean changeOccurred = getInternalSchema().version() != this.lastPersistedSchemaVersion;
+		boolean changeOccurred = this.persistenceService.getLastCatalogVersion() != catalogVersion ||
+			getInternalSchema().version() != this.lastPersistedSchemaVersion;
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
 		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
