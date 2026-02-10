@@ -49,6 +49,7 @@ import static one.edee.oss.proxycian.utils.GenericsUtils.getNestedMethodReturnTy
 /**
  * Class contains utility methods for working with generics.
  *
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class ProxyUtils {
