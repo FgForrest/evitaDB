@@ -90,7 +90,7 @@ public class ProxycianFactory implements ProxyFactory {
 	/**
 	 * Function that creates a default {@link ProxyRecipe} for an entity.
 	 */
-	final static Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_RECIPE = cacheKey -> new ProxyRecipe(
+	static final Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_RECIPE = cacheKey -> new ProxyRecipe(
 		new Class<?>[]{cacheKey.type()},
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
@@ -103,7 +103,7 @@ public class ProxycianFactory implements ProxyFactory {
 	/**
 	 * Function that creates a default {@link ProxyRecipe} for an entity reference.
 	 */
-	final static Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_REFERENCE_RECIPE = cacheKey -> new ProxyRecipe(
+	static final Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_REFERENCE_RECIPE = cacheKey -> new ProxyRecipe(
 		new Class<?>[]{cacheKey.subType()},
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
@@ -116,8 +116,8 @@ public class ProxycianFactory implements ProxyFactory {
 	/**
 	 * Cache for the identified best matching constructors to speed up proxy creation.
 	 */
-	private final static ConcurrentHashMap<ProxyEntityCacheKey, BestMatchingEntityConstructorWithExtractionLambda<?>> ENTITY_CONSTRUCTOR_CACHE = CollectionUtils.createConcurrentHashMap(256);
-	private final static ConcurrentHashMap<ProxyEntityCacheKey, BestMatchingReferenceConstructorWithExtractionLambda<?>> REFERENCE_CONSTRUCTOR_CACHE = CollectionUtils.createConcurrentHashMap(256);
+	private static final ConcurrentHashMap<ProxyEntityCacheKey, BestMatchingEntityConstructorWithExtractionLambda<?>> ENTITY_CONSTRUCTOR_CACHE = CollectionUtils.createConcurrentHashMap(256);
+	private static final ConcurrentHashMap<ProxyEntityCacheKey, BestMatchingReferenceConstructorWithExtractionLambda<?>> REFERENCE_CONSTRUCTOR_CACHE = CollectionUtils.createConcurrentHashMap(256);
 	/**
 	 * The map of recipes provided from outside that are used to build the proxy.
 	 */
@@ -133,7 +133,7 @@ public class ProxycianFactory implements ProxyFactory {
 	private final ReflectionLookup reflectionLookup;
 
 	/**
-	 * Creates a new proxy instance for passed {@link EntityContract} instance.
+	 * Creates a new proxy instance for passed {@link EntityContract} instance without any state initializer.
 	 */
 	static <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
@@ -151,7 +151,8 @@ public class ProxycianFactory implements ProxyFactory {
 	}
 
 	/**
-	 * Creates a new proxy instance for passed {@link EntityContract} instance.
+	 * Creates a new proxy instance for passed {@link EntityContract} instance with an optional state initializer
+	 * callback invoked before the proxy is instantiated.
 	 */
 	static <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
@@ -361,9 +362,11 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ProxyReferenceFactory proxyReferenceFactory
 	) {
 		final Class<?> expectedType = cacheKey.type();
-		if (ENTITY_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
-			//noinspection unchecked
-			return (BestMatchingEntityConstructorWithExtractionLambda<T>) ENTITY_CONSTRUCTOR_CACHE.get(cacheKey);
+		@SuppressWarnings("unchecked")
+		final BestMatchingEntityConstructorWithExtractionLambda<T> cached =
+			(BestMatchingEntityConstructorWithExtractionLambda<T>) ENTITY_CONSTRUCTOR_CACHE.get(cacheKey);
+		if (cached != null) {
+			return cached;
 		} else {
 			int bestConstructorScore = Integer.MIN_VALUE;
 			BestMatchingEntityConstructorWithExtractionLambda<T> bestConstructor = null;
@@ -481,8 +484,9 @@ public class ProxycianFactory implements ProxyFactory {
 	}
 
 	/**
-	 * Method tries to identify the best matching constructor for passed {@link EntitySchemaContract} and {@link Class}
-	 * type. It tries to find a constructor with most of the arguments matching the schema fields.
+	 * Method tries to identify the best matching constructor for passed {@link EntitySchemaContract},
+	 * {@link ReferenceSchemaContract} and {@link Class} type. It tries to find a constructor with most
+	 * of the arguments matching the entity and reference schema fields.
 	 */
 	private static <T> BestMatchingReferenceConstructorWithExtractionLambda<T> findBestMatchingConstructor(
 		@Nonnull ProxyEntityCacheKey cacheKey,
@@ -492,9 +496,11 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ProxyFactory proxyFactory
 	) {
-		if (REFERENCE_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
-			//noinspection unchecked
-			return (BestMatchingReferenceConstructorWithExtractionLambda<T>) REFERENCE_CONSTRUCTOR_CACHE.get(cacheKey);
+		@SuppressWarnings("unchecked")
+		final BestMatchingReferenceConstructorWithExtractionLambda<T> cached =
+			(BestMatchingReferenceConstructorWithExtractionLambda<T>) REFERENCE_CONSTRUCTOR_CACHE.get(cacheKey);
+		if (cached != null) {
+			return cached;
 		} else {
 			int bestConstructorScore = Integer.MIN_VALUE;
 			final Class<?> expectedType = cacheKey.subType();
@@ -556,8 +562,8 @@ public class ProxycianFactory implements ProxyFactory {
 					//noinspection unchecked
 					bestConstructor = new BestMatchingReferenceConstructorWithExtractionLambda<>(
 						(Constructor<T>) declaredConstructor,
-						(argumentIndex, EntityContract, reference) -> argumentExtractors[argumentIndex]
-							.apply(EntityContract, reference)
+						(argumentIndex, entityContract, reference) -> argumentExtractors[argumentIndex]
+							.apply(entityContract, reference)
 					);
 				}
 			}
@@ -689,11 +695,11 @@ public class ProxycianFactory implements ProxyFactory {
 		 * Extracts constructor arguments from sealed entity for particular constructor method.
 		 */
 		@Nonnull
-		public Object[] constructorArguments(@Nonnull EntityContract EntityContract, @Nonnull ReferenceContract reference) throws Exception {
+		public Object[] constructorArguments(@Nonnull EntityContract entityContract, @Nonnull ReferenceContract reference) throws Exception {
 			final Class<?>[] parameterTypes = this.constructor.getParameterTypes();
 			final Object[] parameterArguments = new Object[parameterTypes.length];
 			for (int i = 0; i < parameterTypes.length; i++) {
-				parameterArguments[i] = this.extractionLambda.apply(i, EntityContract, reference);
+				parameterArguments[i] = this.extractionLambda.apply(i, entityContract, reference);
 			}
 			return parameterArguments;
 		}
@@ -768,7 +774,7 @@ public class ProxycianFactory implements ProxyFactory {
 				entity, () -> null,
 				referencedEntitySchemas, reference, referenceAttributeTypes,
 				this.reflectionLookup,
-				Map.of()
+				new ConcurrentHashMap<>(16)
 			);
 		}
 
