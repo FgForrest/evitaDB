@@ -132,7 +132,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * computation of extra data - such as {@link HierarchyContent}. It can also invert type of returned
 	 * entities in case requirement {@link HierarchyOfSelf} is used.
 	 *
-	 * Method automatically enables hierarchy indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables hierarchy indexes for default scope ({@link Scope#LIVE}).
 	 */
 	@Nonnull
 	default S withHierarchy() {
@@ -184,7 +184,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
 	 * sorting by price, etc.).
 	 *
-	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE}).
 	 *
 	 * This method variant expects that prices may have up to two decimal places.
 	 */
@@ -232,7 +232,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
 	 * sorting by price, etc.).
 	 *
-	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE}).
 	 *
 	 * This method will use specified number of decimal places for indexing price information in the indexes.
 	 * The original price information in the entity data will remain precise in the form of {@link BigDecimal} with
@@ -282,7 +282,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
 	 * sorting by price, etc.).
 	 *
-	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE}).
 	 *
 	 * This method will use two decimal places for indexing price information in the indexes. The original price
 	 * information in the entity data will remain precise in the form of {@link BigDecimal} with "infinite" decimal
@@ -340,7 +340,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
 	 * sorting by price, etc.).
 	 *
-	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE}).
 	 *
 	 * This method will use specified number of decimal places for indexing price information in the indexes.
 	 * The original price information in the entity data will remain precise in the form of {@link BigDecimal} with

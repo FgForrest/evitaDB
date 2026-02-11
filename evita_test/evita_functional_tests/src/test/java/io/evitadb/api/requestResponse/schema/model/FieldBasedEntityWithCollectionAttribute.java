@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,23 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.schema;
+package io.evitadb.api.requestResponse.schema.model;
 
-import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.annotation.Attribute;
+import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
+import lombok.Data;
+
+import javax.annotation.Nonnull;
+import java.util.List;
 
 /**
- * Evolution mode allows to specify how strict is evitaDB when unknown information is presented to it for the first
- * time. When no evolution mode is set, each violation of the {@link CatalogSchemaContract} is
- * reported by an exception. This behaviour can be changed by this evolution mode, however.
+ * Example field-based entity with a Collection (List) type attribute.
+ * Tests that `extractFieldType` correctly resolves the generic element type
+ * from `List&lt;String&gt;` using `field.getGenericType()` instead of `field.getType()`.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author evitaDB contributors
  */
-public enum CatalogEvolutionMode {
+@Entity
+@Data
+public class FieldBasedEntityWithCollectionAttribute {
 
-	/**
-	 * When new entity is inserted and no collection of the {@link EntityContract#getType()} exists, it is silently
-	 * created with empty schema and with all {@link CatalogEvolutionMode} allowed.
-	 */
-	ADDING_ENTITY_TYPES
+	@PrimaryKey
+	private int id;
+
+	@Attribute
+	@Nonnull
+	private List<String> tags;
 
 }

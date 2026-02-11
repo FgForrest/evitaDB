@@ -29,22 +29,21 @@ import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.utils.NamingConvention;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 import java.util.EnumSet;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies {@link CatalogSchemaBuilder} contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CatalogSchemaBuilderTest {
+@DisplayName("CatalogSchemaBuilder")
+class CatalogSchemaBuilderTest {
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
@@ -72,12 +71,12 @@ public class CatalogSchemaBuilderTest {
 		assertEquals(localized, attributeSchema.isLocalized());
 		assertEquals(nullable, attributeSchema.isNullable());
 		assertEquals(representative, attributeSchema.isRepresentative());
-		assertEquals(ofType, attributeSchema.getType());
+		assertSame(ofType, attributeSchema.getType());
 		assertEquals(indexedDecimalPlaces, attributeSchema.getIndexedDecimalPlaces());
 	}
 
-	@SuppressWarnings("Convert2MethodRef")
 	@Test
+	@DisplayName("define catalog schema with various attribute configurations")
 	void shouldDefineCategorySchema() {
 		final CatalogSchemaContract updatedSchema = new CatalogSchemaDecorator(CATALOG_SCHEMA).openForWrite()
 			/* here we define list of attributes with indexes for search / sort */
@@ -85,7 +84,7 @@ public class CatalogSchemaBuilderTest {
 			.withAttribute("url", String.class, whichIs -> whichIs.uniqueGlobally().localized())
 			.withAttribute("oldEntityUrls", String[].class, whichIs -> whichIs.filterable().localized())
 			.withAttribute("name", String.class, whichIs -> whichIs.filterable().sortable().nullable())
-			.withAttribute("priority", Long.class, whichIs -> whichIs.sortable())
+			.withAttribute("priority", Long.class, AttributeSchemaEditor::sortable)
 			/* finally apply schema changes */
 			.toInstance();
 
@@ -98,6 +97,7 @@ public class CatalogSchemaBuilderTest {
 	}
 
 	@Test
+	@DisplayName("reject duplicate attribute names differing only in case")
 	void shouldFailToDefineTwoAttributesSharingNameInSpecificNamingConvention() {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
@@ -109,6 +109,7 @@ public class CatalogSchemaBuilderTest {
 	}
 
 	@Test
+	@DisplayName("resolve attributes by naming conventions and handle removal")
 	void shouldWorkWithAttributesInNamingConventionsWorkProperly() {
 		final CatalogSchemaBuilder schemaBuilder = new CatalogSchemaDecorator(CATALOG_SCHEMA).openForWrite()
 			.withAttribute("some-attribute-1", String.class)

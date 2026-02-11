@@ -83,7 +83,7 @@ import static java.util.Optional.ofNullable;
  * package and sets up the entity / catalog schema accordingly.
  *
  * The analyzer only creates or expands existing schema and never removes anything from it. The expected form of use is
- * to define new entity properties and mark old one as deprecated. Whe the already deprecated properties are about to be
+ * to define new entity properties and mark old one as deprecated. When the already deprecated properties are about to be
  * removed completely the removal should occur in an explicit way (command or API call) outside this analyzer.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -200,8 +200,10 @@ public class ClassSchemaAnalyzer {
 			);
 			return (Serializable) methodHandle.bindTo(proxy).invokeWithArguments();
 
+		} catch (Error e) {
+			// never swallow JVM errors (OutOfMemoryError, StackOverflowError, etc.)
+			throw e;
 		} catch (Throwable ex) {
-
 			return null;
 		}
 	}
@@ -257,7 +259,7 @@ public class ClassSchemaAnalyzer {
 		} else if (OptionalLong.class.isAssignableFrom(field.getType())) {
 			theType = long.class;
 		} else if (Collection.class.isAssignableFrom(field.getType())) {
-			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, field.getType()), 0)
+			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, field.getGenericType()), 0)
 				.getClass();
 		} else {
 			theType = field.getType();
@@ -288,7 +290,7 @@ public class ClassSchemaAnalyzer {
 			theType = long.class;
 		} else if (Collection.class.isAssignableFrom(recordComponent.getType())) {
 			return Array.newInstance(
-					GenericsUtils.getGenericTypeFromCollection(modelClass, recordComponent.getType()), 0)
+					GenericsUtils.getGenericTypeFromCollection(modelClass, recordComponent.getGenericType()), 0)
 				.getClass();
 		} else {
 			theType = recordComponent.getType();
@@ -361,7 +363,7 @@ public class ClassSchemaAnalyzer {
 				editor.nullable();
 			}
 
-			ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+			final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
 			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 				// unique - only set if not already unique in default scope
 				if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION &&
@@ -590,7 +592,7 @@ public class ClassSchemaAnalyzer {
 			final Object blankInstance = defaultConstructor.newInstance();
 			field.setAccessible(true);
 			return (Serializable) field.get(blankInstance);
-		} catch (Throwable ex) {
+		} catch (Exception ex) {
 			return null;
 		}
 	}
@@ -761,7 +763,7 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	public AnalysisResult analyze(@Nonnull EvitaSessionContract session, @Nonnull CatalogSchemaBuilder catalogBuilder) {
-		AtomicReference<String> entityName = new AtomicReference<>();
+		final AtomicReference<String> entityName = new AtomicReference<>();
 		try {
 			final List<Entity> entityAnnotations = this.reflectionLookup.getClassAnnotations(
 				this.modelClass, Entity.class
@@ -1744,8 +1746,7 @@ public class ClassSchemaAnalyzer {
 					final Method getter = nonPrimaryKeyGetters.get(0);
 					final Class<?> targetEntityType = extractReturnType(this.modelClass, getter);
 					targetEntity = getTargetEntity(targetEntityType, caller, lookedUpAnnotation, referenceType);
-				} else if (getters.size() == 1 || nonPrimaryKeyGetters.stream().map(
-					it -> extractReturnType(this.modelClass, it)).distinct().count() == 1L) {
+				} else if (getters.size() == 1) {
 					final Method getter = getters.get(0);
 					final Class<?> targetEntityType = extractReturnType(this.modelClass, getter);
 					if (int.class.isAssignableFrom(targetEntityType) || Integer.class.isAssignableFrom(

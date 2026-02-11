@@ -291,6 +291,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return (T) this;
 	}
 
+	@Nonnull
 	@Override
 	public T nonLocalized() {
 		this.updatedSchemaDirty = updateMutationImpact(
