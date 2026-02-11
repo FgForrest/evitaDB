@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,11 +32,11 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
@@ -326,7 +326,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 				)
 			);
 			assertTrue(txId.isPresent());
-			assertEquals(nextMutations.get(0), txId.get().transactionMutation());
+			assertTransactionMutationEquals(
+				(TransactionMutation) nextMutations.get(0),
+				txId.get().transactionMutation()
+			);
 		}
 
 		// last transaction must return empty value (there is no next transaction to transition to)
@@ -465,7 +468,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 
 			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
 			final List<Mutation> mutationsInTx = txInMutations.get(transactionMutation.getVersion());
-			assertEquals(mutationsInTx.get(0), transactionMutation);
+			assertTransactionMutationEquals(
+				(TransactionMutation) mutationsInTx.get(0),
+				transactionMutation
+			);
 			for (int i = 0; i < transactionMutation.getMutationCount(); i++) {
 				final Mutation mutationInTx = mutationIterator.next();
 				assertEquals(mutationsInTx.get(i + 1), mutationInTx);
@@ -504,7 +510,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 				final Mutation mutationInTx = mutationIterator.next();
 				if (mutationInTx instanceof TransactionMutation txMut) {
 					transactionMutation = txMut;
-					assertEquals(mutationsInTx.get(i - transactionMutation.getMutationCount() - 1), mutationInTx);
+					assertTransactionMutationEquals(
+						(TransactionMutation) mutationsInTx.get(i - transactionMutation.getMutationCount() - 1),
+						txMut
+					);
 				} else {
 					assertEquals(mutationsInTx.get(i), mutationInTx);
 				}
@@ -519,6 +528,22 @@ public class CatalogWriteAheadLogIntegrationTest {
 
 		assertEquals(transactionSizes.length, firstCatalogVersion);
 		assertEquals(transactionSizes.length - (transactionSizes.length - startIndex) + 1, txRead);
+	}
+
+	/**
+	 * Compares two {@link TransactionMutation} instances by their logical transaction
+	 * fields only, ignoring location-specific fields like {@code transactionSpan} and
+	 * {@code walFileIndex} that may differ between write and read.
+	 */
+	private static void assertTransactionMutationEquals(
+		@Nonnull TransactionMutation expected,
+		@Nonnull TransactionMutation actual
+	) {
+		assertEquals(expected.getTransactionId(), actual.getTransactionId());
+		assertEquals(expected.getVersion(), actual.getVersion());
+		assertEquals(expected.getMutationCount(), actual.getMutationCount());
+		assertEquals(expected.getWalSizeInBytes(), actual.getWalSizeInBytes());
+		assertEquals(expected.getCommitTimestamp(), actual.getCommitTimestamp());
 	}
 
 	private static class MockCatalogVersionConsumer implements LongConsumer {

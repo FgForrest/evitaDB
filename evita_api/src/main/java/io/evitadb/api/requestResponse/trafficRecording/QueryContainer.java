@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,8 +38,10 @@ import java.util.UUID;
  * Container for a query and its metadata.
  *
  * @param sessionSequenceOrder   the session sequence order of the query (similar to session id but monotonic)
- * @param sessionId              the session id which the mutation belongs to
+ * @param sessionId              the session id which the query belongs to
  * @param recordSessionOffset    the order (sequence) of the record in the session
+ * @param sessionRecordsCount    the total count of the records in the session
+ * @param queryDescription       the description of the query
  * @param query                  the query itself
  * @param labels                 the client labels associated with the query
  * @param created                the time when the query was issued
@@ -48,6 +50,7 @@ import java.util.UUID;
  * @param ioFetchCount           the number of IO fetches performed by the query
  * @param ioFetchedSizeBytes     the total size of the data fetched by the query in bytes
  * @param primaryKeys            the primary keys of the records returned by the query (in returned data chunk)
+ * @param finishedWithError      the error message if the query finished with an error
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -107,7 +110,7 @@ public record QueryContainer(
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (!(o instanceof QueryContainer that)) return false;
 
 		return this.ioFetchCount == that.ioFetchCount &&
@@ -115,6 +118,7 @@ public record QueryContainer(
 			this.ioFetchedSizeBytes == that.ioFetchedSizeBytes &&
 			this.recordSessionOffset == that.recordSessionOffset &&
 			this.durationInMilliseconds == that.durationInMilliseconds &&
+			this.queryDescription.equals(that.queryDescription) &&
 			this.query.equals(that.query) &&
 			this.sessionId.equals(that.sessionId) &&
 			Arrays.equals(this.labels, that.labels) &&
@@ -131,6 +135,7 @@ public record QueryContainer(
 		result = 31 * result + this.sessionId.hashCode();
 		result = 31 * result + this.recordSessionOffset;
 		result = 31 * result + Objects.hashCode(this.sessionRecordsCount);
+		result = 31 * result + this.queryDescription.hashCode();
 		result = 31 * result + this.query.hashCode();
 		result = 31 * result + Arrays.hashCode(this.labels);
 		result = 31 * result + this.created.hashCode();

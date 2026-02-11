@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.store.model.reference;
 
 
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 
 import javax.annotation.Nonnull;
@@ -47,7 +47,7 @@ import java.util.UUID;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  * @see LogFileRecordReference
- * @see io.evitadb.api.requestResponse.transaction.TransactionMutation
+ * @see TransactionMutation
  * @see io.evitadb.api.requestResponse.mutation.EngineMutation
  * @see EnginePersistenceService#appendWal(long, UUID, EngineMutation)
  */

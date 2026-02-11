@@ -132,6 +132,8 @@ message GrpcTrafficSessionCloseContainer {
   int32 entityFetchCount = 4;
   // The overall number of mutations executed in this session.
   int32 mutationCount = 5;
+  // The number of traffic records that were missed due to buffer overflow.
+  int32 trafficRecordsMissedOut = 6;
 }
 
 // This container holds information about the source query.

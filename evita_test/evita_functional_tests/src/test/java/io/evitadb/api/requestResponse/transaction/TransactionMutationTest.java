@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
 import io.evitadb.test.EvitaTestSupport;
