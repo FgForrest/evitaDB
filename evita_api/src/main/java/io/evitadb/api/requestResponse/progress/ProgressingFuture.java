@@ -47,18 +47,18 @@ import java.util.function.Supplier;
  * This class extends the standard CompletableFuture to support hierarchical progress reporting through nested futures
  * and allows consumers to monitor the completion status of complex asynchronous operations.
  *
- * <p>The ProgressingFuture supports two main usage patterns:</p>
- * <ul>
- *   <li><strong>Simple execution:</strong> Execute a single supplier with progress tracking</li>
- *   <li><strong>Nested execution:</strong> Coordinate multiple nested futures and aggregate their progress</li>
- * </ul>
+ * The ProgressingFuture supports two main usage patterns:
  *
- * <p>Progress is reported through a {@link BiIntConsumer} that receives the current number of completed steps
- * and the total number of steps. The progress consumer is called whenever progress is updated, either directly
- * through {@link #updateProgress(int)} or indirectly through nested future completion.</p>
+ * - **Simple execution:** Execute a single supplier with progress tracking
+ * - **Nested execution:** Coordinate multiple nested futures and aggregate their progress
  *
- * <p><strong>Example usage with simple execution:</strong></p>
- * <pre>{@code
+ * Progress is reported through a {@link BiIntConsumer} that receives the current number of completed steps and
+ * the total number of steps. The progress consumer is called whenever progress is updated, either directly through
+ * {@link #updateProgress(int)} or indirectly through nested future completion.
+ *
+ * **Example usage with simple execution:**
+ *
+ * {@code
  * ProgressingFuture<String, Void> future = new ProgressingFuture<>(
  *     100, // total steps
  *     (stepsDone, totalSteps) -> System.out.println("Progress: " + stepsDone + "/" + totalSteps),
@@ -68,22 +68,23 @@ import java.util.function.Supplier;
  *     },
  *     executor
  * );
- * }</pre>
+ * }
  *
- * <p><strong>Example usage with nested futures:</strong></p>
- * <pre>{@code
+ * **Example usage with nested futures:**
+ *
+ * {@code
  * ProgressingFuture<List<String>, String> future = new ProgressingFuture<>(
  *     10, // additional steps for this level
  *     (stepsDone, totalSteps) -> System.out.println("Overall progress: " + stepsDone + "/" + totalSteps),
- *     nestedFutureFactories, // Collection of functions that create nested ProgressingFutures
- *     (progress, results) -> results, // Result mapper
+ *     nestedFutureFactories,
+ *     (progress, results) -> results,
  *     executor
  * );
- * }</pre>
+ * }
  *
- * <p>The class automatically handles progress aggregation from nested futures, ensuring that the total progress
+ * The class automatically handles progress aggregation from nested futures, ensuring that the total progress
  * reflects the completion status of all nested operations. When the future completes (either successfully or
- * exceptionally), the progress is automatically set to the total number of steps.</p>
+ * exceptionally), the progress is automatically set to the total number of steps.
  *
  * @param <T> the type of the result produced by this future
  *
@@ -97,7 +98,7 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	public static final ProgressingFuture<?>[] EMPTY_ARRAY = new ProgressingFuture[0];
 
 	/**
-	 * Field with internal future delegate.
+	 * Internal future delegate used when coordinating nested futures. Null for simple execution scenarios.
 	 */
 	private CompletableFuture<T> futureDelegate;
 
@@ -141,35 +142,31 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	private int stepsDone;
 
 	/**
-	 * Array tracking the number of steps completed by each nested future.
-	 * Parallel to the nestedFutures array.
+	 * Array tracking the number of steps completed by each nested future. Parallel to the nestedFutures array.
 	 */
 	private int[] nestedStepsDone;
 
 	/**
 	 * Creates a ProgressingFuture that coordinates multiple nested futures and aggregates their progress.
-	 * This constructor is used for complex operations that consist of multiple sub-operations, each
-	 * represented by a nested ProgressingFuture.
+	 * This constructor is used for complex operations that consist of multiple sub-operations, each represented
+	 * by a nested ProgressingFuture.
 	 *
-	 * <p>The total steps for this future will be the sum of actionSteps and the total steps of all
-	 * nested futures. Progress updates from nested futures are automatically aggregated and reported
-	 * through the progress consumer.</p>
+	 * The total steps for this future will be the sum of actionSteps and the total steps of all nested futures.
+	 * Progress updates from nested futures are automatically aggregated and reported through the progress consumer.
 	 *
-	 * <p>The execution flow:</p>
-	 * <ol>
-	 *   <li>All nested futures are created using the provided factories</li>
-	 *   <li>The futures are executed concurrently</li>
-	 *   <li>When all nested futures complete, the result mapper is called</li>
-	 *   <li>The final result is used to complete this future</li>
-	 * </ol>
+	 * The execution flow:
 	 *
-	 * @param actionSteps the number of steps for operations performed directly by this future
-	 *                   (not including nested futures)
-	 * @param nestedFutures collection of functions that create nested ProgressingFutures.
-	 *                             Each function receives an IntConsumer for progress updates
-	 * @param resultMapper function that combines the results from all nested futures into the final result.
-	 *                    Receives this ProgressingFuture instance and a collection of nested results
+	 * 1. All nested futures are created using the provided factories
+	 * 2. The futures are executed concurrently
+	 * 3. When all nested futures complete, the result mapper is called
+	 * 4. The final result is used to complete this future
 	 *
+	 * @param actionSteps   the number of steps for operations performed directly by this future
+	 *                      (not including nested futures)
+	 * @param nestedFutures collection of functions that create nested ProgressingFutures; each function
+	 *                      receives an IntConsumer for progress updates
+	 * @param resultMapper  function that combines the results from all nested futures into the final result;
+	 *                      receives this ProgressingFuture instance and a collection of nested results
 	 * @throws NullPointerException if nestedFutures, resultMapper, or executor is null
 	 */
 	public <S> ProgressingFuture(
@@ -187,29 +184,27 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 
 	/**
 	 * Creates a ProgressingFuture that coordinates multiple nested futures and aggregates their progress.
-	 * This constructor is used for complex operations that consist of multiple sub-operations, each
-	 * represented by a nested ProgressingFuture.
+	 * This constructor is used for complex operations that consist of multiple sub-operations, each represented
+	 * by a nested ProgressingFuture.
 	 *
-	 * The total steps for this future will be the sum of actionSteps and the total steps of all
-	 * nested futures. Progress updates from nested futures are automatically aggregated and reported
-	 * through the progress consumer.
+	 * The total steps for this future will be the sum of actionSteps and the total steps of all nested futures.
+	 * Progress updates from nested futures are automatically aggregated and reported through the progress consumer.
 	 *
-	 * <p>The execution flow:</p>
-	 * <ol>
-	 *   <li>All nested futures are created using the provided factories</li>
-	 *   <li>The futures are executed concurrently</li>
-	 *   <li>When all nested futures complete, the result mapper is called</li>
-	 *   <li>The final result is used to complete this future</li>
-	 * </ol>
+	 * The execution flow:
 	 *
-	 * @param actionSteps the number of steps for operations performed directly by this future
-	 *                   (not including nested futures)
-	 * @param initializer supplier that initializes the operation and provides initial data for nested futures
+	 * 1. All nested futures are created using the provided factories
+	 * 2. The futures are executed concurrently
+	 * 3. When all nested futures complete, the result mapper is called
+	 * 4. The final result is used to complete this future
+	 *
+	 * @param actionSteps        the number of steps for operations performed directly by this future
+	 *                           (not including nested futures)
+	 * @param initializer        supplier that initializes the operation and provides initial data for nested futures
 	 * @param nestedFutureFactory function that creates nested ProgressingFutures based on the initializer result
-	 * @param resultMapper function that combines the results from all nested futures into the final result.
-	 *                    Receives this ProgressingFuture instance, initializer result, and a collection of nested results
-	 * @param onFailure consumer that handles failure cases, called when the future completes exceptionally
-	 *
+	 * @param resultMapper       function that combines the results from all nested futures into the final result;
+	 *                           receives this ProgressingFuture instance, initializer result, and a collection
+	 *                           of nested results
+	 * @param onFailure          consumer that handles failure cases, called when the future completes exceptionally
 	 * @throws NullPointerException if initializer, nestedFutureFactory, resultMapper, or executor is null
 	 */
 	public <R, S> ProgressingFuture(
@@ -241,7 +236,9 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 			int index = 0;
 			for (ProgressingFuture<S> nestedFuture : nestedFutures) {
 				final int indexToUpdate = index;
-				nestedFuture.setProgressConsumer((stepsDone, __) -> this.updateProgress(indexToUpdate, stepsDone));
+				nestedFuture.setProgressConsumer(
+					(stepsDone, __) -> this.updateProgress(indexToUpdate, stepsDone)
+				);
 				this.nestedFutures[index++] = nestedFuture;
 			}
 
@@ -275,27 +272,25 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 
 	/**
 	 * Creates a ProgressingFuture that coordinates multiple nested futures and aggregates their progress.
-	 * This constructor is used for complex operations that consist of multiple sub-operations, each
-	 * represented by a nested ProgressingFuture.
+	 * This constructor is used for complex operations that consist of multiple sub-operations, each represented
+	 * by a nested ProgressingFuture.
 	 *
-	 * The total steps for this future will be the sum of actionSteps and the total steps of all
-	 * nested futures. Progress updates from nested futures are automatically aggregated and reported
-	 * through the progress consumer.
+	 * The total steps for this future will be the sum of actionSteps and the total steps of all nested futures.
+	 * Progress updates from nested futures are automatically aggregated and reported through the progress consumer.
 	 *
-	 * <p>The execution flow:</p>
-	 * <ol>
-	 *   <li>All nested futures are created using the provided factories</li>
-	 *   <li>The futures are executed concurrently</li>
-	 *   <li>When all nested futures complete, the result mapper is called</li>
-	 *   <li>The final result is used to complete this future</li>
-	 * </ol>
+	 * The execution flow:
 	 *
-	 * @param actionSteps the number of steps for operations performed directly by this future
-	 *                   (not including nested futures)
-	 * @param nestedFutures collection of nested ProgressingFutures.
-	 * @param resultMapper function that combines the results from all nested futures into the final result.
-	 *                    Receives this ProgressingFuture instance and a collection of nested results
+	 * 1. All nested futures are created using the provided factories
+	 * 2. The futures are executed concurrently
+	 * 3. When all nested futures complete, the result mapper is called
+	 * 4. The final result is used to complete this future
 	 *
+	 * @param actionSteps   the number of steps for operations performed directly by this future
+	 *                      (not including nested futures)
+	 * @param nestedFutures collection of nested ProgressingFutures
+	 * @param resultMapper  function that combines the results from all nested futures into the final result;
+	 *                      receives this ProgressingFuture instance and a collection of nested results
+	 * @param onFailure     consumer that handles failure cases, called when the future completes exceptionally
 	 * @throws NullPointerException if nestedFutures, resultMapper, or executor is null
 	 */
 	public <S> ProgressingFuture(
@@ -309,7 +304,9 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 		int index = 0;
 		for (ProgressingFuture<S> nestedFuture : nestedFutures) {
 			final int indexToUpdate = index;
-			nestedFuture.setProgressConsumer((stepsDone, __) -> this.updateProgress(indexToUpdate, stepsDone));
+			nestedFuture.setProgressConsumer(
+				(stepsDone, __) -> this.updateProgress(indexToUpdate, stepsDone)
+			);
 			this.nestedFutures[index++] = nestedFuture;
 		}
 		this.actionSteps = actionSteps;
@@ -344,25 +341,22 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	}
 
 	/**
-	 * Creates a ProgressingFuture for simple execution of a single supplier with progress tracking.
-	 * This constructor is used for operations that don't require nested futures but still need
-	 * progress reporting capabilities.
+	 * Creates a ProgressingFuture for simple execution of a single supplier with progress tracking. This constructor
+	 * is used for operations that don't require nested futures but still need progress reporting capabilities.
 	 *
-	 * <p>The supplier is executed asynchronously using the provided executor. Progress updates
-	 * must be manually reported by calling {@link #updateProgress(int)} from within the supplier
-	 * or from external code that monitors the operation.</p>
+	 * The supplier is executed asynchronously using the provided executor. Progress updates must be manually reported
+	 * by calling {@link #updateProgress(int)} from within the supplier or from external code that monitors
+	 * the operation.
 	 *
-	 * <p>The execution flow:</p>
-	 * <ol>
-	 *   <li>The supplier is executed asynchronously</li>
-	 *   <li>Progress can be updated manually during execution</li>
-	 *   <li>When the supplier completes, this future is completed with the result</li>
-	 *   <li>Progress is automatically set to totalSteps upon completion</li>
-	 * </ol>
+	 * The execution flow:
+	 *
+	 * 1. The supplier is executed asynchronously
+	 * 2. Progress can be updated manually during execution
+	 * 3. When the supplier completes, this future is completed with the result
+	 * 4. Progress is automatically set to totalSteps upon completion
 	 *
 	 * @param actionSteps the total number of steps for this operation
-	 * @param lambda the supplier that produces the result. Should call updateProgress as needed
-	 *
+	 * @param lambda      the supplier that produces the result; should call updateProgress as needed
 	 * @throws NullPointerException if lambda or executor is null
 	 */
 	public ProgressingFuture(
@@ -377,25 +371,24 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	}
 
 	/**
-	 * Creates a ProgressingFuture for simple execution of a single supplier with progress tracking.
-	 * This constructor is used for operations that don't require nested futures but still need
-	 * progress reporting capabilities.
+	 * Creates a ProgressingFuture for simple execution of a single supplier with progress tracking and a failure
+	 * handler. This constructor is used for operations that don't require nested futures but still need progress
+	 * reporting capabilities and explicit failure handling.
 	 *
-	 * <p>The supplier is executed asynchronously using the provided executor. Progress updates
-	 * must be manually reported by calling {@link #updateProgress(int)} from within the supplier
-	 * or from external code that monitors the operation.</p>
+	 * The supplier is executed asynchronously using the provided executor. Progress updates must be manually reported
+	 * by calling {@link #updateProgress(int)} from within the supplier or from external code that monitors
+	 * the operation.
 	 *
-	 * <p>The execution flow:</p>
-	 * <ol>
-	 *   <li>The supplier is executed asynchronously</li>
-	 *   <li>Progress can be updated manually during execution</li>
-	 *   <li>When the supplier completes, this future is completed with the result</li>
-	 *   <li>Progress is automatically set to totalSteps upon completion</li>
-	 * </ol>
+	 * The execution flow:
+	 *
+	 * 1. The supplier is executed asynchronously
+	 * 2. Progress can be updated manually during execution
+	 * 3. When the supplier completes, this future is completed with the result
+	 * 4. Progress is automatically set to totalSteps upon completion
 	 *
 	 * @param actionSteps the total number of steps for this operation
-	 * @param lambda the supplier that produces the result. Should call updateProgress as needed
-	 *
+	 * @param lambda      the supplier that produces the result; should call updateProgress as needed
+	 * @param onFailure   consumer that handles failure cases, called when the future completes exceptionally
 	 * @throws NullPointerException if lambda or executor is null
 	 */
 	public ProgressingFuture(
@@ -421,13 +414,12 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	}
 
 	/**
-	 * Sets the progress consumer for this ProgressingFuture. The progress consumer
-	 * is used to report progress updates during the execution of the future.
-	 * It will receive two integer arguments: the steps completed so far and the total steps.
+	 * Sets the progress consumer for this ProgressingFuture. The progress consumer is used to report progress
+	 * updates during the execution of the future. It will receive two integer arguments: the steps completed
+	 * so far and the total steps.
 	 *
-	 * @param progressConsumer a {@link BiIntConsumer} that accepts two integer arguments:
-	 *                         the number of steps completed and the total number of steps.
-	 *                         It must not be null.
+	 * @param progressConsumer a {@link BiIntConsumer} that accepts two integer arguments: the number of steps
+	 *                         completed and the total number of steps; must not be null
 	 */
 	public void setProgressConsumer(@Nonnull BiIntConsumer progressConsumer) {
 		Assert.isPremiseValid(
@@ -438,9 +430,8 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	}
 
 	/**
-	 * Retrieves the total steps calculated. This value must have been
-	 * previously set, and attempting to access it before calculation
-	 * will result in an IllegalStateException.
+	 * Retrieves the total steps calculated. This value must have been previously set, and attempting to access it
+	 * before calculation will result in an IllegalStateException.
 	 *
 	 * @return the calculated total steps as an integer
 	 * @throws IllegalStateException if the total steps have not been calculated
@@ -456,18 +447,16 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	}
 
 	/**
-	 * Executes the ProgressingFuture using the provided Executor. This method requires
-	 * an execution lambda to be set for the ProgressingFuture to define the operation
-	 * to be performed.
+	 * Executes the ProgressingFuture using the provided Executor. This method requires an execution lambda to be
+	 * set for the ProgressingFuture to define the operation to be performed.
 	 *
 	 * Preconditions:
+	 *
 	 * 1. The execution lambda must not be null.
 	 * 2. The provided Executor must not be null.
 	 *
-	 * @param executor the {@link Executor} to be used for executing the operation.
-	 *                 Must not be null.
-	 * @throws IllegalArgumentException if the execution lambda is not set or
-	 *                                  the executor is null.
+	 * @param executor the {@link Executor} to be used for executing the operation; must not be null
+	 * @throws IllegalArgumentException if the execution lambda is not set or the executor is null
 	 */
 	public void execute(@Nonnull Executor executor) {
 		Assert.isPremiseValid(
@@ -482,44 +471,51 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	}
 
 	/**
-	 * Updates the progress of this future's direct operations (not including nested futures).
-	 * This method should be called to report progress during the execution of the operation.
+	 * Updates the progress of this future's direct operations (not including nested futures). This method should
+	 * be called to report progress during the execution of the operation.
 	 *
-	 * <p>The progress consumer (if present) will be notified with the total progress including
-	 * both this future's progress and the aggregated progress from all nested futures.</p>
+	 * The progress consumer (if present) will be notified with the total progress including both this future's
+	 * progress and the aggregated progress from all nested futures.
 	 *
-	 * @param stepsDone the number of steps completed by this future's direct operations.
-	 *                 Should be between 0 and the actionSteps provided in the constructor
+	 * @param stepsDone the number of steps completed by this future's direct operations; should be between 0
+	 *                  and the actionSteps provided in the constructor
 	 */
 	public void updateProgress(int stepsDone) {
 		this.stepsDone = stepsDone;
 		if (this.progressConsumer != null) {
-			final int nestedStepsSum = this.nestedStepsDone != null ? Arrays.stream(this.nestedStepsDone).sum() : 0;
-			this.progressConsumer.accept(this.stepsDone + nestedStepsSum, getTotalSteps());
+			final int nestedStepsSum = this.nestedStepsDone != null ?
+				Arrays.stream(this.nestedStepsDone).sum() : 0;
+			this.progressConsumer.accept(
+				this.stepsDone + nestedStepsSum, getTotalSteps()
+			);
 		}
 	}
 
 	/**
-	 * Updates the progress of a specific nested future. This method is called internally
-	 * when nested futures report their progress.
+	 * Updates the progress of a specific nested future. This method is called internally when nested futures
+	 * report their progress.
 	 *
-	 * <p>The progress consumer (if present) will be notified with the total aggregated progress
-	 * from this future and all nested futures.</p>
+	 * The progress consumer (if present) will be notified with the total aggregated progress from this future
+	 * and all nested futures.
 	 *
-	 * @param index the index of the nested future in the nestedFutures array
+	 * @param index     the index of the nested future in the nestedFutures array
 	 * @param stepsDone the number of steps completed by the nested future
 	 */
 	private void updateProgress(int index, int stepsDone) {
-		this.nestedStepsDone[index] = Math.min(stepsDone, this.nestedFutures[index].getTotalSteps());
+		this.nestedStepsDone[index] = Math.min(
+			stepsDone, this.nestedFutures[index].getTotalSteps()
+		);
 		if (this.progressConsumer != null) {
-			this.progressConsumer.accept(this.stepsDone + Arrays.stream(this.nestedStepsDone).sum(), getTotalSteps());
+			this.progressConsumer.accept(
+				this.stepsDone + Arrays.stream(this.nestedStepsDone).sum(),
+				getTotalSteps()
+			);
 		}
 	}
 
 	/**
-	 * Completes this future with the given value and automatically sets progress to 100%.
-	 * This override ensures that when the future completes successfully, the progress
-	 * is automatically updated to reflect full completion.
+	 * Completes this future with the given value and automatically sets progress to 100%. This override ensures
+	 * that when the future completes successfully, the progress is automatically updated to reflect full completion.
 	 *
 	 * @param value the result value to complete this future with
 	 * @return true if this invocation caused this CompletableFuture to transition to a completed state
@@ -542,8 +538,8 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 
 	/**
 	 * Completes this future exceptionally with the given exception and automatically sets progress to 100%.
-	 * This override ensures that even when the future completes with an exception, the progress
-	 * is updated to reflect that the operation has finished (albeit unsuccessfully).
+	 * This override ensures that even when the future completes with an exception, the progress is updated
+	 * to reflect that the operation has finished (albeit unsuccessfully).
 	 *
 	 * @param ex the exception to complete this future with
 	 * @return true if this invocation caused this CompletableFuture to transition to a completed state
