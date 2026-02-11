@@ -40,7 +40,9 @@
       "Bash(source:~/.sdkman/bin/sdkman-init.sh)",
       "Skill(commit-commands:commit)",
       "Bash(wc:*)",
-      "Bash(mvn test-compile:*)"
+      "Bash(mvn test-compile:*)",
+      "Bash(git mv:*)",
+      "WebSearch"
     ]
   }
 }

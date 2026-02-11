@@ -28,7 +28,9 @@ Apply these standards rigorously to all code you touch:
 - **Instance variables**: Always prefix with `this.` when accessing instance variables.
 - **Annotations**: Add `@Nonnull` and `@Nullable` (from `javax.annotation`) to method parameters and return types where appropriate. Every parameter and return type should have one or the other.
 - **Data structures**: Prefer immutable classes and records for data structures.
-- **JavaDoc**: Add JavaDoc to new classes, methods and fields using Markdown syntax — never HTML tags. Fit JavaDoc within 120 characters per line. Focus on describing the "why" and "what", not the "how".
+- **JavaDoc**:
+   - Add JavaDoc to new classes, methods and fields using Markdown syntax — never HTML tags. Fit JavaDoc within 120 characters per line. Focus on describing the "why" and "what", not the "how".
+   - Correct incorrect, incomplete, or misleading JavaDoc in existing code. Do not reflow or reformat existing JavaDoc unless it is necessary to fix inaccuracies or add missing information.
 - **Comments**: Add line comments to complex logic. Remove comments that describe obvious code.
 - **Resource management**: Use try-with-resources for all `AutoCloseable` resources.
 
