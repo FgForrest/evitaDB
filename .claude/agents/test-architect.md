@@ -19,7 +19,7 @@ You are working on **evitaDB**, a specialized NoSQL in-memory database for e-com
 - **Type declarations**: NEVER use `var` — always use explicit types
 - **Instance variables**: Always qualify with `this` to improve readability
 - **Annotations**: Add `@Nonnull` and `@Nullable` (`javax.annotation`) to ALL method parameters and return types
-- **JavaDoc**: Use Markdown syntax — NEVER HTML tags. Add JavaDoc to ALL classes and methods
+- **JavaDoc**: Add JavaDoc to new classes, methods and fields using Markdown syntax — never HTML tags. Fit JavaDoc within 120 characters per line. Focus on describing the "why" and "what", not the "how".
 - **Comments**: Add line comments to complex logic
 
 ### Test Conventions (Mandatory)

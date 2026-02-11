@@ -94,7 +94,7 @@ Provide a comprehensive summary including:
 - **Type declarations**: Never use `var` — always explicit types
 - **Instance variables**: Use `this.` prefix
 - **Annotations**: Add `@Nullable` and `@Nonnull` (javax.annotation) to parameters and return types
-- **JavaDoc**: Use Markdown syntax (never HTML tags) on all classes and methods
+- **JavaDoc**: Add JavaDoc to new classes, methods and fields using Markdown syntax — never HTML tags. Fit JavaDoc within 120 characters per line. Focus on describing the "why" and "what", not the "how".
 - **Comments**: Add line comments to complex logic
 - **No `var`**: Ever. Always spell out the type.
 - **Try-with-resources**: For all `AutoCloseable` resources
