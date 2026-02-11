@@ -134,6 +134,10 @@ Output a structured review using the format specified in the Output Format secti
 - **Algorithm complexity**: Quadratic or worse algorithms on potentially large datasets
 - **Memory**: Unbounded caches, retained references preventing GC, large object graphs
 - **Serialization**: Kryo serialization inefficiencies, missing registration
+- Always initialize `StringBuilder` with an estimated capacity — never `new StringBuilder()` without arguments
+- For creating maps and sets use `io.evitadb.utils.CollectionUtils` methods that pre-size the collections based on expected size to avoid resizing overhead
+- Never use `Objects.hash()` with primitive arguments — autoboxes primitives. Use manual `31 * result + Type.hashCode(primitive)` instead
+- Avoid memory allocations in hashCode, equals, and toString wherever possible
 
 ### High: Test Coverage
 

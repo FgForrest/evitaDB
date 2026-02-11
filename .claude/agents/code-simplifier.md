@@ -40,6 +40,10 @@ When code is performance-critical (hot paths, tight loops, high-frequency method
 - Avoid streams — write allocation-optimized loops instead.
 - Avoid using exceptions for control flow.
 - Prefer simple computations with respect to Big-O complexity.
+- Always initialize `StringBuilder` with an estimated capacity — never `new StringBuilder()` without arguments
+- For creating maps and sets use `io.evitadb.utils.CollectionUtils` methods that pre-size the collections based on expected size to avoid resizing overhead
+- Never use `Objects.hash()` with primitive arguments — autoboxes primitives. Use manual `31 * result + Type.hashCode(primitive)` instead
+- Avoid memory allocations in hashCode, equals, and toString wherever possible
 
 ### 4. Clarity Enhancement Rules
 Apply these simplification strategies:

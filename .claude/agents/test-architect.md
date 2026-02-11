@@ -150,6 +150,10 @@ For tests in performance-critical areas of evitaDB:
 - Prefer allocation-optimized loops over streams
 - Avoid unnecessary boxing
 - Use appropriate data structures (e.g., RoaringBitmap for bitmap operations)
+- Always initialize `StringBuilder` with an estimated capacity — never `new StringBuilder()` without arguments
+- For creating maps and sets use `io.evitadb.utils.CollectionUtils` methods that pre-size the collections based on expected size to avoid resizing overhead
+- Never use `Objects.hash()` with primitive arguments — autoboxes primitives. Use manual `31 * result + Type.hashCode(primitive)` instead
+- Avoid memory allocations in hashCode, equals, and toString wherever possible
 
 **Update your agent memory** as you discover test patterns, common assertion helpers already in use, testing conventions specific to different modules, fixture patterns, and frequently tested edge cases in this codebase. Write concise notes about what you found and where.
 

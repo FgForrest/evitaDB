@@ -83,13 +83,9 @@ For complex code blocks, add line comments that explain:
 
 1. **NEVER remove or shorten existing inline comments or JavaDoc** unless they are factually wrong or greatly misleading. Your job is to ADD documentation, not strip it.
 2. **NEVER fabricate behavior** — if you're unsure about a detail, say so or investigate further. Wrong documentation is worse than no documentation.
-3. **Be precise about nullability** — note `@Nullable` and `@Nonnull` annotations and document null behavior.
-4. **Use `final` for local variables** — if you modify any code while adding comments, follow this rule.
-5. **Never use `var`** — always use explicit type declarations.
-6. **Use tabs for indentation** — never spaces.
-7. **Respect the 100-character line limit** for JavaDoc lines.
-8. **Add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations** to method parameters and return types if they are missing.
-9. **Do not document obvious things** - if method is annotated with `@Nonnull`/`@Nullable` annotations, do not repeat that in JavaDoc. If method name is `getName()`, do not write "Returns the name" - instead, focus on non-obvious details.
+3. **Use tabs for indentation** — never spaces.
+4. **Respect the 120-character line limit** for JavaDoc lines.
+5. **Do not document obvious things** - if method is annotated with `@Nonnull`/`@Nullable` annotations, do not repeat that in JavaDoc. If method name is `getName()`, do not write "Returns the name" - instead, focus on non-obvious details.
 
 ## Workflow
 

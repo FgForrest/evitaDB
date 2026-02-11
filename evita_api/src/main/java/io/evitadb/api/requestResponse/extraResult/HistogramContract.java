@@ -206,7 +206,7 @@ public interface HistogramContract extends Serializable {
 		}
 
 		final String lineSeparator = System.lineSeparator();
-		final StringBuilder sb = new StringBuilder()
+		final StringBuilder sb = new StringBuilder(256)
 			.append("Histogram[min=")
 			.append(thresholdProvider.apply(0).toPlainString())
 			.append(", max=")
@@ -268,7 +268,7 @@ public interface HistogramContract extends Serializable {
 		boolean requested,
 		@Nonnull BigDecimal relativeFrequency
 	) implements Serializable {
-		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE * 2;
+		public static final int BUCKET_MEMORY_SIZE = (MemoryMeasuringConstants.INT_SIZE << 1) + (MemoryMeasuringConstants.BIG_DECIMAL_SIZE << 1);
 		@Serial private static final long serialVersionUID = 4216355542992506074L;
 
 		@Nonnull

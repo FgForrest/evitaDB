@@ -107,6 +107,10 @@ When fixing bugs in performance-critical paths:
 - Avoid unnecessary object boxing
 - Avoid streams — use allocation-optimized loops
 - Avoid exceptions for control flow
+- Always initialize `StringBuilder` with an estimated capacity — never `new StringBuilder()` without arguments
+- For creating maps and sets use `io.evitadb.utils.CollectionUtils` methods that pre-size the collections based on expected size to avoid resizing overhead
+- Never use `Objects.hash()` with primitive arguments — autoboxes primitives. Use manual `31 * result + Type.hashCode(primitive)` instead
+- Avoid memory allocations in hashCode, equals, and toString wherever possible
 
 ## Key Patterns to Watch For
 
