@@ -84,7 +84,7 @@ For each file or set of changes you review:
    - Large methods that should be broken up?
    - Streams in performance-critical paths?
    - Missing try-with-resources?
-   - Lines exceeding 100 characters?
+   - Lines exceeding 120 characters?
    - Tabs vs spaces issues?
 2. **Apply refinements**: Make changes directly, ensuring each change preserves functionality.
 3. **Verify**: After making changes, ensure the code compiles and tests pass. Use IntelliJ MCP for building when possible, otherwise Maven.

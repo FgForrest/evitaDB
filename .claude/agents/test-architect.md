@@ -127,13 +127,13 @@ Before finalizing any test code, verify:
 4. ✅ All helper methods have `@Nonnull`/`@Nullable` annotations on parameters and return types
 5. ✅ All classes and methods have JavaDoc with Markdown formatting
 6. ✅ Tab indentation throughout
-7. ✅ Lines do not exceed 100 characters
+7. ✅ Lines do not exceed 120 characters
 8. ✅ Each test follows arrange-act-assert pattern with clear separation
 9. ✅ No duplicated setup or assertion code — extracted to shared methods
 10. ✅ Tests are independent and can run in any order
 11. ✅ Resources are properly cleaned up (try-with-resources)
 12. ✅ Exception tests verify exception type, message content, and cause where appropriate
-13. ✅ No commented-out code or TODOs
+13. ✅ No commented-out code or TODOs (TOBEDONE comments needs to be preserved)
 
 ## Decision Framework
 
