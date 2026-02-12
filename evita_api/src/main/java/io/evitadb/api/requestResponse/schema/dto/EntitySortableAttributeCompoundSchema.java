@@ -54,8 +54,9 @@ public class EntitySortableAttributeCompoundSchema
 	@Serial private static final long serialVersionUID = 3279157595697674518L;
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * This method is for internal purposes only. It could be used for reconstruction of
+	 * EntitySortableAttributeCompoundSchema from different package than current, but still internal code of
+	 * the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
 	 */
@@ -78,8 +79,9 @@ public class EntitySortableAttributeCompoundSchema
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * This method is for internal purposes only. It could be used for reconstruction of
+	 * EntitySortableAttributeCompoundSchema from different package than current, but still internal code of
+	 * the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
 	 */
@@ -103,8 +105,9 @@ public class EntitySortableAttributeCompoundSchema
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * This method is for internal purposes only. It could be used for reconstruction of
+	 * EntitySortableAttributeCompoundSchema from different package than current, but still internal code of
+	 * the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
 	 */
