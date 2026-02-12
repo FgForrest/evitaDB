@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -89,19 +90,31 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
 				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
 			) {
-				return FutureNotFormula.postProcess(
-					createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
-					formulas -> aggregateFormulas(attributeSchema, attributeKey, formulas)
+				return wrapFormula(
+					attributeSchema,
+					attributeKey,
+					FutureNotFormula.postProcess(
+						createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
+						EnclosingContainerRelation.DISJUNCTION
+					)
 				);
 			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
-				return FutureNotFormula.postProcess(
-					createNullUniqueSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor),
-					formulas -> aggregateFormulas(attributeSchema, attributeKey, formulas)
+				return wrapFormula(
+					attributeSchema,
+					attributeKey,
+					FutureNotFormula.postProcess(
+						createNullUniqueSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor),
+						EnclosingContainerRelation.DISJUNCTION
+					)
 				);
 			} else {
-				return FutureNotFormula.postProcess(
-					createNullFilterableSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor),
-					formulas -> aggregateFormulas(attributeSchema, attributeKey, formulas)
+				return wrapFormula(
+					attributeSchema,
+					attributeKey,
+					FutureNotFormula.postProcess(
+						createNullFilterableSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor),
+						EnclosingContainerRelation.DISJUNCTION
+					)
 				);
 			}
 		} else {
@@ -210,22 +223,22 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 *
 	 * @param attributeDefinition the schema definition of the attribute being processed
 	 * @param attributeKey        the key of the attribute being processed
-	 * @param formulas            an array of formulas to be aggregated
+	 * @param formula            an array of formulas to be aggregated
 	 * @return an AbstractFormula that represents the aggregation of the input formulas
 	 */
 	@Nonnull
-	private static Formula aggregateFormulas(
+	private static Formula wrapFormula(
 		@Nonnull AttributeSchemaContract attributeDefinition,
 		@Nonnull AttributeKey attributeKey,
-		@Nonnull Formula[] formulas
+		@Nonnull Formula formula
 	) {
-		if (formulas.length == 0) {
-			return EmptyFormula.INSTANCE;
+		if (formula instanceof EmptyFormula) {
+			return formula;
 		} else {
 			return new AttributeFormula(
 				attributeDefinition instanceof GlobalAttributeSchemaContract,
 				attributeKey,
-				FormulaFactory.or(formulas)
+				formula
 			);
 		}
 	}
