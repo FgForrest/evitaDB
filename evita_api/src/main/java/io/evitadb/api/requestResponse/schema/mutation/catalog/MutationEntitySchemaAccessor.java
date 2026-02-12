@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,7 +47,8 @@ import static java.util.Optional.of;
  *
  * Note: This class is a singleton and should be accessed using the INSTANCE constant.
  */
-public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
+public class MutationEntitySchemaAccessor implements EntitySchemaProvider, Serializable {
+	@Serial private static final long serialVersionUID = -2458022868837507981L;
 	public static final MutationEntitySchemaAccessor INSTANCE = new MutationEntitySchemaAccessor();
 	/**
 	 * The base accessor for accessing entity schema.

@@ -218,7 +218,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Nonnull
 	public AssociatedDataSchemaContract toInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
-			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// if the dirty flag is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = 0;
@@ -233,7 +233,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 				final EntitySchemaMutation mutation = this.mutations.get(i);
 				currentSchema = ((AssociatedDataSchemaMutation) mutation).mutate(currentSchema);
 				if (currentSchema == null) {
-					throw new GenericEvitaInternalError("Attribute unexpectedly removed from inside!");
+					throw new GenericEvitaInternalError("Associated data unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;
