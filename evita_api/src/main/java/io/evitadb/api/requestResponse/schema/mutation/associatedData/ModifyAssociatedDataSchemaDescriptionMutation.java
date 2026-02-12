@@ -56,9 +56,15 @@ import java.util.Optional;
 @EqualsAndHashCode(callSuper = true)
 public class ModifyAssociatedDataSchemaDescriptionMutation
 	extends AbstractModifyAssociatedDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -4883997849814882447L;
+	@Serial private static final long serialVersionUID = -6281945312784721533L;
 	@Getter @Nullable private final String description;
 
+	/**
+	 * Creates a mutation that will update the description of an existing associated data schema.
+	 *
+	 * @param name        name of the associated data schema to modify
+	 * @param description new description to set (null to clear)
+	 */
 	public ModifyAssociatedDataSchemaDescriptionMutation(
 		@Nonnull String name,
 		@Nullable String description
@@ -74,7 +80,8 @@ public class ModifyAssociatedDataSchemaDescriptionMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyAssociatedDataSchemaDescriptionMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyAssociatedDataSchemaDescriptionMutation theExistingMutation && this.name.equals(
+			theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -86,7 +93,8 @@ public class ModifyAssociatedDataSchemaDescriptionMutation
 	public AssociatedDataSchemaContract mutate(@Nullable AssociatedDataSchemaContract associatedDataSchema) {
 		Assert.isPremiseValid(associatedDataSchema != null, "Associated data schema is mandatory!");
 		return AssociatedDataSchema._internalBuild(
-			associatedDataSchema.getName(),
+			this.name,
+			associatedDataSchema.getNameVariants(),
 			this.description,
 			associatedDataSchema.getDeprecationNotice(),
 			associatedDataSchema.getType(),
@@ -97,9 +105,11 @@ public class ModifyAssociatedDataSchemaDescriptionMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(this.name);
+		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(
+			this.name);
 		if (existingAssociatedDataSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(

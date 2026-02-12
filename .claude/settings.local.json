@@ -42,7 +42,8 @@
       "Bash(wc:*)",
       "Bash(mvn test-compile:*)",
       "Bash(git mv:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git show:*)"
     ]
   }
 }

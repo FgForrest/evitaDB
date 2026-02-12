@@ -153,9 +153,24 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(PriceInnerRecordHandling.class, new EnumNameSerializer<>(), index++);
 
 		kryo.register(CreateAssociatedDataSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateAssociatedDataSchemaMutationSerializer(), CreateAssociatedDataSchemaMutation.class), index++);
-		kryo.register(ModifyAssociatedDataSchemaDeprecationNoticeMutation.class, new SerialVersionBasedSerializer<>(new ModifyAssociatedDataSchemaDeprecationNoticeMutationSerializer(), ModifyAssociatedDataSchemaDeprecationNoticeMutation.class), index++);
-		kryo.register(ModifyAssociatedDataSchemaDescriptionMutation.class, new SerialVersionBasedSerializer<>(new ModifyAssociatedDataSchemaDescriptionMutationSerializer(), ModifyAssociatedDataSchemaDescriptionMutation.class), index++);
-		kryo.register(ModifyAssociatedDataSchemaNameMutation.class, new SerialVersionBasedSerializer<>(new ModifyAssociatedDataSchemaNameMutationSerializer(), ModifyAssociatedDataSchemaNameMutation.class), index++);
+		kryo.register(
+			ModifyAssociatedDataSchemaDeprecationNoticeMutation.class,
+			new SerialVersionBasedSerializer<>(new ModifyAssociatedDataSchemaDeprecationNoticeMutationSerializer(), ModifyAssociatedDataSchemaDeprecationNoticeMutation.class)
+				.addBackwardCompatibleSerializer(-4883997849814882447L, new ModifyAssociatedDataSchemaDeprecationNoticeMutationSerializer()),
+			index++
+		);
+		kryo.register(
+			ModifyAssociatedDataSchemaDescriptionMutation.class,
+			new SerialVersionBasedSerializer<>(new ModifyAssociatedDataSchemaDescriptionMutationSerializer(), ModifyAssociatedDataSchemaDescriptionMutation.class)
+				.addBackwardCompatibleSerializer(-4883997849814882447L, new ModifyAssociatedDataSchemaDescriptionMutationSerializer()),
+			index++
+		);
+		kryo.register(
+			ModifyAssociatedDataSchemaNameMutation.class,
+			new SerialVersionBasedSerializer<>(new ModifyAssociatedDataSchemaNameMutationSerializer(), ModifyAssociatedDataSchemaNameMutation.class)
+				.addBackwardCompatibleSerializer(-4883997849814882447L, new ModifyAssociatedDataSchemaNameMutationSerializer()),
+			index++
+		);
 		kryo.register(ModifyAssociatedDataSchemaTypeMutation.class, new SerialVersionBasedSerializer<>(new ModifyAssociatedDataSchemaTypeMutationSerializer(), ModifyAssociatedDataSchemaTypeMutation.class), index++);
 		kryo.register(RemoveAssociatedDataSchemaMutation.class, new SerialVersionBasedSerializer<>(new RemoveAssociatedDataSchemaMutationSerializer(), RemoveAssociatedDataSchemaMutation.class), index++);
 		kryo.register(SetAssociatedDataSchemaLocalizedMutation.class, new SerialVersionBasedSerializer<>(new SetAssociatedDataSchemaLocalizedMutationSerializer(), SetAssociatedDataSchemaLocalizedMutation.class), index++);
