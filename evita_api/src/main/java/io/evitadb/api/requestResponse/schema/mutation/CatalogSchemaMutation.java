@@ -32,7 +32,30 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
- * This interface marks all implementations that alter the {@link CatalogSchemaContract}.
+ * Marks all implementations that alter the {@link CatalogSchemaContract}. This interface sits in the schema mutation
+ * hierarchy between the root {@link SchemaMutation} interface and the more specialized subinterfaces:
+ *
+ * - {@link LocalCatalogSchemaMutation}: Mutations that can be applied locally to an already-identified catalog schema
+ * instance. These mutations don't specify the target catalog name themselves and must be wrapped in a
+ * {@link io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation} when sent to the server.
+ * - {@link TopLevelCatalogSchemaMutation}: Mutations that must be executed at the evitaDB engine level, not locally
+ * to a single catalog schema instance. Examples include
+ * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation} and
+ * {@link ModifyEntitySchemaMutation}.
+ *
+ * **Mutate Contract**
+ *
+ * The {@link #mutate(CatalogSchemaContract)} method applies the mutation operation and returns the modified catalog
+ * schema. Different mutation types follow different patterns:
+ *
+ * - **Create operations**: Accept `null` input and produce a non-null result
+ * - **Remove operations**: Accept non-null input and may produce `null` result
+ * - **Modification operations**: Always accept and produce non-null values
+ *
+ * The return type {@link CatalogSchemaWithImpactOnEntitySchemas} allows catalog schema mutations to also specify
+ * entity schema mutations that should be propagated to all entity schemas in the catalog. For example, a mutation
+ * that adds a global attribute to the catalog schema may need to propagate attribute-related changes to entity
+ * schemas via the `entitySchemaMutations` array.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -41,11 +64,15 @@ import javax.annotation.concurrent.ThreadSafe;
 public interface CatalogSchemaMutation extends SchemaMutation {
 
 	/**
-	 * Method applies the mutation operation on the catalog schema in the input and returns modified version
-	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
-	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
+	 * Applies the mutation operation on the catalog schema in the input and returns the modified version along with
+	 * any entity schema mutations that should be propagated to all entity schemas in the catalog.
 	 *
-	 * @param catalogSchema current version of the schema as an input to mutate
+	 * The create operation works with `null` input value and produces non-null result. The remove operation produces
+	 * the opposite. Modification operations always accept and produce non-null values.
+	 *
+	 * @param catalogSchema current version of the schema as an input to mutate (may be null for create operations)
+	 * @return a record containing the updated catalog schema and optional array of entity schema mutations to
+	 * propagate, or null for remove operations that eliminate the catalog schema
 	 */
 	@Nullable
 	CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema);
@@ -55,7 +82,7 @@ public interface CatalogSchemaMutation extends SchemaMutation {
 	 * schema and the list of entity schema mutations that were caused by the catalog schema mutation and needs to be
 	 * propagated to the entity schemas.
 	 *
-	 * @param updatedCatalogSchema modified catalog schema
+	 * @param updatedCatalogSchema  modified catalog schema
 	 * @param entitySchemaMutations list of entity schema mutations that were caused by the catalog schema mutation
 	 */
 	record CatalogSchemaWithImpactOnEntitySchemas(

@@ -39,14 +39,54 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * This interface marks all {@link CatalogSchemaMutation} that can be locally applicable to an already identified
- * schema instance. These schemas don't provide the target catalog name by themselves and need to be wrapped inside
- * {@link ModifyCatalogSchemaMutation}.
+ * Marks catalog schema mutations that can be applied locally to an already-identified catalog
+ * schema instance without requiring explicit catalog name specification.
+ *
+ * Local catalog mutations operate on a known schema instance passed as a parameter, in contrast
+ * to top-level mutations (like {@link io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation})
+ * which must carry the catalog name and are executed at the evitaDB engine level. This design
+ * enables efficient mutation batching and conflict resolution within schema builders.
+ *
+ * **Architecture Pattern:**
+ *
+ * Local mutations follow a two-tier execution model:
+ * - **Builder level:** Multiple local mutations are accumulated and potentially
+ * combined/optimized
+ * - **Engine level:** Accumulated mutations are wrapped in {@link ModifyCatalogSchemaMutation}
+ * with the catalog name and submitted for transactional execution
+ *
+ * **Entity Schema Access:**
+ *
+ * The {@link #mutate(CatalogSchemaContract, EntitySchemaProvider)} method variant accepts an
+ * `entitySchemaAccessor` parameter, allowing mutations to query and update entity schemas within
+ * the catalog during mutation application. This is essential for operations like creating or
+ * modifying entity collections within the catalog.
+ *
+ * **Change Data Capture Integration:**
+ *
+ * Local catalog mutations override {@link #toChangeCatalogCapture} to advance the mutation index,
+ * treating each local mutation as a separate unit for CDC tracking. This ensures fine-grained
+ * change capture for each individual schema modification.
+ *
+ * **Typical Implementations:**
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation}
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation}
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @see ModifyCatalogSchemaMutation
+ * @see CombinableCatalogSchemaMutation
  */
 public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
 
+	/**
+	 * Default implementation that delegates to the two-parameter
+	 * {@link #mutate(CatalogSchemaContract, EntitySchemaProvider)} method using a singleton immutable
+	 * entity schema accessor. Implementations should override the two-parameter variant.
+	 *
+	 * @param catalogSchema current version of the catalog schema
+	 * @return modified catalog schema with potential impact on entity schemas
+	 */
 	@Nullable
 	@Override
 	default CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
@@ -57,12 +97,20 @@ public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
 	}
 
 	/**
-	 * Method applies the mutation operation on the catalog schema in the input and returns modified version
-	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
-	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
+	 * Applies the mutation operation on the catalog schema and returns the modified version.
+	 * Create operations work with NULL input and produce non-NULL result, remove operations produce
+	 * the opposite. Modification operations always accept and produce non-NULL values.
 	 *
-	 * @param catalogSchema current version of the schema as an input to mutate
-	 * @param entitySchemaAccessor entity schema provider allowing to access list of entity schemas in the catalog
+	 * The `entitySchemaAccessor` parameter enables mutations to query existing entity schemas and
+	 * track changes to entity schemas during mutation application. Implementations like
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation}
+	 * use this to register newly created entity schemas, while mutations that modify entity schemas
+	 * use it to access current entity schema state for validation or transformation.
+	 *
+	 * @param catalogSchema        current version of the schema as an input to mutate
+	 * @param entitySchemaAccessor entity schema provider allowing to access and update the list of
+	 *                             entity schemas in the catalog during mutation application
+	 * @return modified catalog schema with potential impact on entity schemas
 	 */
 	@Nullable
 	CatalogSchemaWithImpactOnEntitySchemas mutate(
@@ -71,13 +119,18 @@ public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
 	);
 
 	/**
-	 * In this method we override the default implementation to move the index of the {@link MutationPredicateContext}
-	 * as each LocalCatalogSchemaMutation is a separate mutation unit.
+	 * Overrides the default implementation to advance the {@link MutationPredicateContext} index,
+	 * treating each {@link LocalCatalogSchemaMutation} as a separate mutation unit for change data
+	 * capture tracking.
 	 *
-	 * @param predicate the predicate to be used for filtering the {@link LocalMutation} mutation items if any
-	 *                  are present
+	 * This ensures that when multiple local catalog mutations are batched together in a
+	 * {@link ModifyCatalogSchemaMutation}, each mutation is tracked individually with its own
+	 * index position in the CDC stream. This granularity is essential for incremental replication
+	 * and debugging mutation sequences.
+	 *
+	 * @param predicate the predicate to be used for filtering mutation items
 	 * @param content   the requested content of the capture
-	 * @return default implementation of the {@link ChangeCatalogCapture} stream
+	 * @return stream of {@link ChangeCatalogCapture} items representing this mutation
 	 */
 	@Override
 	@Nonnull
