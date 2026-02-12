@@ -94,6 +94,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@SuppressWarnings("JUnitMalformedDeclaration")
 @Slf4j
 public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForAttributeTesting";
@@ -5382,6 +5383,485 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 							.map(it -> it.length == 0)
 							.orElse(true) &&
 						sealedEntity.getReference(Entities.BRAND, referencedBrandId).isPresent(),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtering by multiple NOT constraints combined in AND")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByMultipleNotConstraintsInAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Long priorityHigh = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY, 15);
+		final Long priorityLow = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY, 5);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeEquals(ATTRIBUTE_ALIAS, true),
+								not(
+									attributeGreaterThan(ATTRIBUTE_PRIORITY, priorityHigh)
+								),
+								not(
+									attributeLessThan(ATTRIBUTE_PRIORITY, priorityLow)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
+						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						return Boolean.TRUE.equals(alias) &&
+							priority != null &&
+							!(priority > priorityHigh) &&
+							!(priority < priorityLow);
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities by positive attribute OR negated attribute constraint")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByPositiveOrNotConstraint(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Long priorityAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeEquals(ATTRIBUTE_ALIAS, true),
+								or(
+									attributeGreaterThan(ATTRIBUTE_PRIORITY, priorityAttribute),
+									not(
+										attributeLessThan(ATTRIBUTE_PRIORITY, priorityAttribute)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
+						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						return Boolean.TRUE.equals(alias) &&
+							priority != null &&
+							(priority > priorityAttribute || !(priority < priorityAttribute));
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities by multiple NOT constraints combined in OR")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByMultipleNotConstraintsInOr(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Long priorityHigh = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY, 15);
+		final Long priorityLow = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY, 5);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeEquals(ATTRIBUTE_ALIAS, true),
+								or(
+									not(
+										attributeGreaterThan(ATTRIBUTE_PRIORITY, priorityHigh)
+									),
+									not(
+										attributeLessThan(ATTRIBUTE_PRIORITY, priorityLow)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
+						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						return Boolean.TRUE.equals(alias) &&
+							priority != null &&
+							(!(priority > priorityHigh) || !(priority < priorityLow));
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities by NOT wrapping OR constraint triggering DeMorgan optimization")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByNotWrappingOrConstraint(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Long priorityHigh = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY, 15);
+		final Long priorityLow = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY, 5);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeEquals(ATTRIBUTE_ALIAS, true),
+								not(
+									or(
+										attributeGreaterThan(ATTRIBUTE_PRIORITY, priorityHigh),
+										attributeLessThan(ATTRIBUTE_PRIORITY, priorityLow)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
+						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						return Boolean.TRUE.equals(alias) &&
+							priority != null &&
+							!(priority > priorityHigh || priority < priorityLow);
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities combining NOT constraint with attributeIsNull in AND context")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByNotCombinedWithAttributeIsNullInAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								not(
+									attributeEquals(ATTRIBUTE_ALIAS, true)
+								),
+								attributeIsNull(ATTRIBUTE_SIZE)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> !Boolean.TRUE.equals(sealedEntity.getAttribute(ATTRIBUTE_ALIAS)) &&
+						ofNullable((IntegerNumberRange[]) sealedEntity.getAttributeArray(ATTRIBUTE_SIZE))
+							.map(it -> it.length == 0)
+							.orElse(true),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities combining NOT constraint with attributeIsNull in OR context")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByNotCombinedWithAttributeIsNullInOr(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeIsNotNull(ATTRIBUTE_PRIORITY),
+								or(
+									not(
+										attributeEquals(ATTRIBUTE_ALIAS, true)
+									),
+									attributeIsNull(ATTRIBUTE_SIZE)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final boolean isSizeNull = ofNullable((IntegerNumberRange[]) sealedEntity.getAttributeArray(ATTRIBUTE_SIZE))
+							.map(it -> it.length == 0)
+							.orElse(true);
+						return priority != null &&
+							(!Boolean.TRUE.equals(sealedEntity.getAttribute(ATTRIBUTE_ALIAS)) || isSizeNull);
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities by nested NOT inside OR inside AND constraint composition")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByNestedNotInOrInsideAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Long priorityAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeEquals(ATTRIBUTE_ALIAS, true),
+								or(
+									attributeGreaterThan(ATTRIBUTE_PRIORITY, priorityAttribute),
+									not(
+										attributeIsNull(ATTRIBUTE_SIZE)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
+						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final boolean isSizeNotNull = ofNullable((IntegerNumberRange[]) sealedEntity.getAttributeArray(ATTRIBUTE_SIZE))
+							.map(it -> it.length > 0)
+							.orElse(false);
+						return Boolean.TRUE.equals(alias) &&
+							((priority != null && priority > priorityAttribute) || isSizeNotNull);
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities by only NOT greaterThan constraint at root level with superset resolution")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByOnlyNotGreaterThanConstraintAtRootLevel(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Long priorityAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							not(
+								attributeGreaterThan(ATTRIBUTE_PRIORITY, priorityAttribute)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> ofNullable((Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY))
+						.map(it -> !(it > priorityAttribute))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities combining two NOT equality constraints in AND context")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByNotCombinedWithSecondNotInAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								not(
+									attributeEquals(ATTRIBUTE_ALIAS, true)
+								),
+								not(
+									attributeEquals(ATTRIBUTE_VISIBLE, true)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> !Boolean.TRUE.equals(sealedEntity.getAttribute(ATTRIBUTE_ALIAS)) &&
+						!Boolean.TRUE.equals(sealedEntity.getAttribute(ATTRIBUTE_VISIBLE)),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities combining NOT with equality constraint in OR context")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByNotCombinedWithEqualityInOr(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Long priorityAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeEquals(ATTRIBUTE_ALIAS, true),
+								or(
+									not(
+										attributeGreaterThan(ATTRIBUTE_PRIORITY, priorityAttribute)
+									),
+									attributeLessThan(ATTRIBUTE_PRIORITY, priorityAttribute)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
+						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						return Boolean.TRUE.equals(alias) &&
+							priority != null &&
+							(!(priority > priorityAttribute) || priority < priorityAttribute);
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities by nested NOT equality inside OR inside AND constraint composition")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByNestedNotEqualityInOrInsideAnd(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Long priorityAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_PRIORITY);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeEquals(ATTRIBUTE_ALIAS, true),
+								or(
+									attributeGreaterThan(ATTRIBUTE_PRIORITY, priorityAttribute),
+									not(
+										attributeEquals(ATTRIBUTE_VISIBLE, true)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> {
+						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
+						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						final Boolean visible = sealedEntity.getAttribute(ATTRIBUTE_VISIBLE);
+						return Boolean.TRUE.equals(alias) &&
+							((priority != null && priority > priorityAttribute) || !Boolean.TRUE.equals(visible));
+					},
 					result.getRecordData()
 				);
 				return null;

@@ -154,8 +154,16 @@ public class FormulaCloner implements FormulaVisitor {
 				if (childrenHaveNotChanged) {
 					// use entire formula tree block
 					formulaToStore = formula;
-				} else if (formula instanceof NotFormula && updatedChildren.size() == 1) {
-					formulaToStore = updatedChildren.iterator().next();
+				} else if (formula instanceof NotFormula notFormula && updatedChildren.size() == 1) {
+					// Determine which child survived
+					final Formula processedSuperset = this.formulasProcessed.get(notFormula.getSupersetFormula());
+					if (processedSuperset != null && updatedChildren.contains(processedSuperset)) {
+						// Superset survived, subtracted was removed → S \ nothing = S
+						formulaToStore = processedSuperset;
+					} else {
+						// Subtracted survived, superset was removed → nothing to subtract from → drop
+						formulaToStore = null;
+					}
 				} else {
 					// recreate parent formula with new children
 					formulaToStore = formula.getCloneWithInnerFormulas(
