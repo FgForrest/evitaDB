@@ -30,6 +30,15 @@ module evita.api {
 	opens io.evitadb.api.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.api.requestResponse.extraResult to com.graphqljava;
 
+	provides io.evitadb.api.query.expression.evaluate.object.accessor.ObjectPropertyAccessor with
+		io.evitadb.api.query.expression.evaluate.object.accessor.entity.EntityContractAccessor,
+		io.evitadb.api.query.expression.evaluate.object.accessor.entity.ReferenceContractAccessor;
+
+	provides io.evitadb.api.query.expression.evaluate.object.accessor.ObjectElementAccessor with
+		io.evitadb.api.query.expression.evaluate.object.accessor.entity.AttributesContractAccessor,
+		io.evitadb.api.query.expression.evaluate.object.accessor.entity.AssociatedDataContractAccessor,
+		io.evitadb.api.query.expression.evaluate.object.accessor.entity.ReferencesContractAccessor;
+
 	exports io.evitadb.api;
 	exports io.evitadb.api.configuration;
 	exports io.evitadb.api.configuration.metric;

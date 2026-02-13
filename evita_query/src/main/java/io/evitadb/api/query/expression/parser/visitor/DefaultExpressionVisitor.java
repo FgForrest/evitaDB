@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,78 +23,191 @@
 
 package io.evitadb.api.query.expression.parser.visitor;
 
-import io.evitadb.api.query.expression.parser.grammar.ExpressionBaseVisitor;
-import io.evitadb.api.query.expression.parser.grammar.ExpressionParser.*;
+import io.evitadb.api.query.expression.evaluate.function.FunctionProcessor;
+import io.evitadb.api.query.expression.evaluate.function.FunctionProcessorRegistry;
+import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.api.query.expression.parser.grammar.EvitaELBaseVisitor;
+import io.evitadb.api.query.expression.parser.grammar.EvitaELParser.*;
 import io.evitadb.api.query.expression.parser.visitor.boolOperator.*;
-import io.evitadb.api.query.expression.parser.visitor.numericOperator.*;
+import io.evitadb.api.query.expression.parser.visitor.functionOperator.FunctionOperator;
+import io.evitadb.api.query.expression.parser.visitor.nullOperator.NullCoalesceOperator;
+import io.evitadb.api.query.expression.parser.visitor.nullOperator.SpreadNullCoalesceOperator;
+import io.evitadb.api.query.expression.parser.visitor.numericOperator.AdditionOperator;
+import io.evitadb.api.query.expression.parser.visitor.numericOperator.DivisionOperator;
+import io.evitadb.api.query.expression.parser.visitor.numericOperator.ModuloOperator;
+import io.evitadb.api.query.expression.parser.visitor.numericOperator.MultiplicationOperator;
+import io.evitadb.api.query.expression.parser.visitor.numericOperator.NegativeOperator;
+import io.evitadb.api.query.expression.parser.visitor.numericOperator.PositiveOperator;
+import io.evitadb.api.query.expression.parser.visitor.numericOperator.SubtractionOperator;
+import io.evitadb.api.query.expression.parser.visitor.objectOperator.ElementAccessStep;
+import io.evitadb.api.query.expression.parser.visitor.objectOperator.ObjectAccessOperator;
+import io.evitadb.api.query.expression.parser.visitor.objectOperator.ObjectAccessStep;
+import io.evitadb.api.query.expression.parser.visitor.objectOperator.NullSafeAccessStep;
+import io.evitadb.api.query.expression.parser.visitor.objectOperator.PropertyAccessStep;
+import io.evitadb.api.query.expression.parser.visitor.objectOperator.SpreadAccessStep;
 import io.evitadb.api.query.expression.parser.visitor.operand.ConstantOperand;
-import io.evitadb.api.query.expression.parser.visitor.operand.PositiveNumberOperand;
 import io.evitadb.api.query.expression.parser.visitor.operand.VariableOperand;
+import io.evitadb.api.query.expression.parser.visitor.utilityOperator.NestedOperator;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.utils.StringUtils;
+import org.antlr.v4.runtime.tree.ParseTree;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
 
 /**
- * Implementation of the {@link io.evitadb.api.query.expression.parser.grammar.ExpressionVisitor} for parsing
+ * Implementation of the {@link io.evitadb.api.query.expression.parser.grammar.EvitaELVisitor} for parsing
  * expression into {@link ExpressionNode} object.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public class DefaultExpressionVisitor extends ExpressionBaseVisitor<ExpressionNode> {
+public class DefaultExpressionVisitor extends EvitaELBaseVisitor<ExpressionNode> {
 
 	@Override
-	public ExpressionNode visitGreaterThanExpression(GreaterThanExpressionContext ctx) {
-		return new GreaterThanOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
+	public ExpressionNode visitLiteralExpression(LiteralExpressionContext ctx) {
+		return ctx.literal().accept(this);
 	}
 
 	@Override
-	public ExpressionNode visitGreaterThanEqualsExpression(GreaterThanEqualsExpressionContext ctx) {
-		return new GreaterThanEqualsOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
+	public ExpressionNode visitVariableExpression(VariableExpressionContext ctx) {
+		return ctx.variable().accept(this);
 	}
 
 	@Override
-	public ExpressionNode visitEqualsExpression(EqualsExpressionContext ctx) {
-		return new EqualsOperator(
-			ctx.leftExpression.accept(this),
-			ctx.rightExpression.accept(this)
-		);
-	}
+	public ExpressionNode visitFunctionExpression(FunctionExpressionContext ctx) {
+		final String functionName = ctx.functionName.getText();
+		final FunctionProcessorRegistry registry = FunctionProcessorRegistry.getInstance();
+		final Optional<FunctionProcessor> functionProcessor = registry.getFunctionProcessor(functionName);
 
-	@Override
-	public ExpressionNode visitOrExpression(OrExpressionContext ctx) {
-		return new DisjunctionOperator(
-			ctx.expression()
-				.stream()
-				.map(it -> it.accept(this))
-				.toArray(ExpressionNode[]::new)
+		if (functionProcessor.isEmpty()) {
+			throw new ExpressionEvaluationException("Unknown function `" + functionName + "`.");
+		}
+		return new FunctionOperator(
+			functionProcessor.get(),
+			(ctx.arguments == null)
+				? List.of()
+				: ctx.arguments.stream().map(it -> it.accept(this)).toList()
 		);
-	}
-
-	@Override
-	public ExpressionNode visitStandaloneExpression(StandaloneExpressionContext ctx) {
-		return ctx.atom().accept(this);
 	}
 
 	@Override
 	public ExpressionNode visitNestedExpression(NestedExpressionContext ctx) {
-		return new NestedOperator(ctx.expression().accept(this));
+		return new NestedOperator(ctx.nested.accept(this));
+	}
+
+	@Override
+	public ExpressionNode visitObjectAccessExpression(ObjectAccessExpressionContext ctx) {
+		final ExpressionNode operand = ctx.operand.accept(this);
+
+		final int childrenCount = ctx.getChildCount();
+		ObjectAccessStep accessChain = null;
+		for (int i = childrenCount - 1; i >= 1; i--) {
+			final ParseTree child = ctx.getChild(i);
+			if (child instanceof PropertyAccessExpressionContext propertyAccess) {
+				final PropertyAccessStep step = new PropertyAccessStep(
+					propertyAccess.propertyIdentifier.getText(),
+					accessChain
+				);
+
+				if (propertyAccess.nullSafe != null) {
+					accessChain = new NullSafeAccessStep(step);
+				} else {
+					accessChain = step;
+				}
+			} else if (child instanceof ElementAccessExpressionContext elementAccess) {
+				final ElementAccessStep step = new ElementAccessStep(
+					elementAccess.elementIdentifier.accept(this),
+					accessChain
+				);
+
+				if (elementAccess.nullSafe != null) {
+					accessChain = new NullSafeAccessStep(step);
+				} else {
+					accessChain = step;
+				}
+			} else if (child instanceof SpreadAccessExpressionContext spreadAccess) {
+				final SpreadAccessStep step = new SpreadAccessStep(
+					spreadAccess.itemAccessExpression.accept(this),
+					spreadAccess.compact != null,
+					accessChain
+				);
+
+				if (spreadAccess.nullSafe != null) {
+					accessChain = new NullSafeAccessStep(step);
+				} else {
+					accessChain = step;
+				}
+			} else {
+				throw new ExpressionEvaluationException("Unsupported access operator.");
+			}
+		}
+
+		if (accessChain == null) {
+			throw new ParserException("Access expression parts cannot be null.");
+		}
+		return new ObjectAccessOperator(operand, accessChain);
 	}
 
 	@Override
 	public ExpressionNode visitNegatingExpression(NegatingExpressionContext ctx) {
-		return new InverseOperator(ctx.expression().accept(this));
+		return new InverseOperator(ctx.nested.accept(this));
 	}
 
 	@Override
-	public ExpressionNode visitNotEqualsExpression(NotEqualsExpressionContext ctx) {
-		return new NotEqualsOperator(
+	public ExpressionNode visitPositiveExpression(PositiveExpressionContext ctx) {
+		return new PositiveOperator(ctx.nested.accept(this));
+	}
+
+	@Override
+	public ExpressionNode visitNegativeExpression(NegativeExpressionContext ctx) {
+		return new NegativeOperator(ctx.nested.accept(this));
+	}
+
+	@Override
+	public ExpressionNode visitMultiplicationExpression(MultiplicationExpressionContext ctx) {
+		return new MultiplicationOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
+	public ExpressionNode visitDivisionExpression(DivisionExpressionContext ctx) {
+		return new DivisionOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
+	public ExpressionNode visitModuloExpression(ModuloExpressionContext ctx) {
+		return new ModuloOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
+	public ExpressionNode visitAdditionExpression(AdditionExpressionContext ctx) {
+		return new AdditionOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
+	public ExpressionNode visitSubstractionExpression(SubstractionExpressionContext ctx) {
+		return new SubtractionOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
+	public ExpressionNode visitGreaterThanExpression(GreaterThanExpressionContext ctx) {
+		return new GreaterThanOperator(
 			ctx.leftExpression.accept(this),
 			ctx.rightExpression.accept(this)
 		);
@@ -117,144 +230,117 @@ public class DefaultExpressionVisitor extends ExpressionBaseVisitor<ExpressionNo
 	}
 
 	@Override
+	public ExpressionNode visitGreaterThanEqualsExpression(GreaterThanEqualsExpressionContext ctx) {
+		return new GreaterThanEqualsOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
+	public ExpressionNode visitEqualsExpression(EqualsExpressionContext ctx) {
+		return new EqualsOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
+	public ExpressionNode visitNotEqualsExpression(NotEqualsExpressionContext ctx) {
+		return new NotEqualsOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
+	public ExpressionNode visitXorExpression(XorExpressionContext ctx) {
+		return new XorOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
+		);
+	}
+
+	@Override
 	public ExpressionNode visitAndExpression(AndExpressionContext ctx) {
 		return new ConjunctionOperator(
-			ctx.expression()
-				.stream()
-				.map(it -> it.accept(this))
-				.toArray(ExpressionNode[]::new)
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
 		);
 	}
 
 	@Override
-	public ExpressionNode visitPlusExpression(PlusExpressionContext ctx) {
-		if (ctx.getChildCount() == 1) {
-			return ctx.multiplyingExpression(0).accept(this);
-		} else {
-			return new AddingOperator(
-				ctx.multiplyingExpression()
-					.stream()
-					.map(it -> it.accept(this))
-					.toArray(ExpressionNode[]::new)
-			);
-		}
-	}
-
-	@Override
-	public ExpressionNode visitMinusExpression(MinusExpressionContext ctx) {
-		if (ctx.getChildCount() == 1) {
-			return ctx.multiplyingExpression(0).accept(this);
-		} else {
-			return new SubtractionOperator(
-				ctx.multiplyingExpression()
-					.stream()
-					.map(it -> it.accept(this))
-					.toArray(ExpressionNode[]::new)
-			);
-		}
-	}
-
-	@Override
-	public ExpressionNode visitTimesExpression(TimesExpressionContext ctx) {
-		if (ctx.getChildCount() == 1) {
-			return ctx.powExpression(0).accept(this);
-		} else {
-			return new MultiplyOperator(
-				ctx.powExpression()
-					.stream()
-					.map(it -> it.accept(this))
-					.toArray(ExpressionNode[]::new)
-			);
-		}
-	}
-
-	@Override
-	public ExpressionNode visitDivExpression(DivExpressionContext ctx) {
-		return new DivisionOperator(
-			ctx.powExpression()
-				.stream()
-				.map(it -> it.accept(this))
-				.toArray(ExpressionNode[]::new)
+	public ExpressionNode visitOrExpression(OrExpressionContext ctx) {
+		return new DisjunctionOperator(
+			ctx.leftExpression.accept(this),
+			ctx.rightExpression.accept(this)
 		);
 	}
 
 	@Override
-	public ExpressionNode visitModExpression(ModExpressionContext ctx) {
-		return new ModOperator(
-			ctx.powExpression()
-				.stream()
-				.map(it -> it.accept(this))
-				.toArray(ExpressionNode[]::new)
+	public ExpressionNode visitSpreadNullCoalesceExpression(SpreadNullCoalesceExpressionContext ctx) {
+		return new SpreadNullCoalesceOperator(
+			ctx.nullSafe != null,
+			ctx.value.accept(this),
+			ctx.defaultValue.accept(this)
 		);
 	}
 
 	@Override
-	public ExpressionNode visitPowExpression(PowExpressionContext ctx) {
-		if (ctx.getChildCount() == 1) {
-			return ctx.signedAtom(0).accept(this);
-		} else {
-			return new PowOperator(
-				ctx.signedAtom()
-					.stream()
-					.map(it -> it.accept(this))
-					.toArray(ExpressionNode[]::new)
-			);
-		}
+	public ExpressionNode visitNullCoalesceExpression(NullCoalesceExpressionContext ctx) {
+		return new NullCoalesceOperator(
+			ctx.value.accept(this),
+			ctx.defaultValue.accept(this)
+		);
 	}
 
 	@Override
-	public ExpressionNode visitPositiveSignedAtom(PositiveSignedAtomContext ctx) {
-		return new PositiveNumberOperand(ctx.signedAtom().accept(this));
+	public ExpressionNode visitLiteralCallOperand(LiteralCallOperandContext ctx) {
+		return ctx.literal().accept(this);
 	}
 
 	@Override
-	public ExpressionNode visitNegativeSignedAtom(NegativeSignedAtomContext ctx) {
-		return new NegatingOperator(ctx.signedAtom().accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitFunctionSignedAtom(FunctionSignedAtomContext ctx) {
-		return ctx.function().accept(this);
-	}
-
-	@Override
-	public ExpressionNode visitBaseSignedAtom(BaseSignedAtomContext ctx) {
-		return ctx.atom().accept(this);
-	}
-
-	@Override
-	public ExpressionNode visitVariableAtom(VariableAtomContext ctx) {
+	public ExpressionNode visitVariableCallOperand(VariableCallOperandContext ctx) {
 		return ctx.variable().accept(this);
 	}
 
 	@Override
-	public ExpressionNode visitValueAtom(ValueAtomContext ctx) {
-		return ctx.valueToken().accept(this);
+	public ExpressionNode visitNestedExpressionCallOperand(NestedExpressionCallOperandContext ctx) {
+		return new NestedOperator(ctx.nested.accept(this));
 	}
 
 	@Override
-	public ExpressionNode visitExpressionAtom(ExpressionAtomContext ctx) {
-		return new NestedOperator(ctx.combinationExpression().accept(this));
+	public ExpressionNode visitElementAccessExpression(ElementAccessExpressionContext ctx) {
+		throw new ExpressionEvaluationException(
+			"Unsupported element access operation. Cannot process standalone element access expression.",
+			"Unsupported element access operation."
+		);
 	}
 
 	@Override
-	public ExpressionNode visitBooleanNegatingExpression(BooleanNegatingExpressionContext ctx) {
-		return new InverseOperator(new ConstantOperand(Boolean.parseBoolean(ctx.BOOLEAN().getText())));
+	public ExpressionNode visitPropertyAccessExpression(PropertyAccessExpressionContext ctx) {
+		throw new ExpressionEvaluationException(
+			"Unsupported property access operation. Cannot process standalone property access expression.",
+			"Unsupported property access operation."
+		);
 	}
 
 	@Override
-	public ExpressionNode visitFunctionExpression(FunctionExpressionContext ctx) {
-		return ctx.function().accept(this);
-	}
-
-	@Override
-	public ExpressionNode visitStandaloneCombinationExpression(StandaloneCombinationExpressionContext ctx) {
-		return ctx.combinationExpression().accept(this);
+	public ExpressionNode visitSpreadAccessExpression(SpreadAccessExpressionContext ctx) {
+		throw new ExpressionEvaluationException(
+			"Unsupported spread access operation. Cannot process standalone spread access expression.",
+			"Unsupported spread access operation."
+		);
 	}
 
 	@Override
 	public ExpressionNode visitVariable(VariableContext ctx) {
-		return new VariableOperand(ctx.getText().substring(1));
+		final String variableName = ctx.getText().substring(1);
+		if (variableName.isBlank()) {
+			return new VariableOperand(null);
+		} else {
+			return new VariableOperand(variableName);
+		}
 	}
 
 	@Override
@@ -275,54 +361,6 @@ public class DefaultExpressionVisitor extends ExpressionBaseVisitor<ExpressionNo
 	@Override
 	public ExpressionNode visitBooleanValueToken(BooleanValueTokenContext ctx) {
 		return new ConstantOperand(Boolean.parseBoolean(ctx.getText()));
-	}
-
-	@Override
-	public ExpressionNode visitSqrtFunction(SqrtFunctionContext ctx) {
-		return new SqrtOperator(ctx.combinationExpression().accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitCeilFunction(CeilFunctionContext ctx) {
-		return new CeilOperator(ctx.combinationExpression().accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitFloorFunction(FloorFunctionContext ctx) {
-		return new FloorOperator(ctx.combinationExpression().accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitAbsFunction(AbsFunctionContext ctx) {
-		return new AbsOperator(ctx.combinationExpression().accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitRoundFunction(RoundFunctionContext ctx) {
-		return new RoundOperator(ctx.combinationExpression().accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitLogFunction(LogFunctionContext ctx) {
-		return new LogOperator(ctx.combinationExpression().accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitMinFunction(MinFunctionContext ctx) {
-		return new MinOperator(ctx.leftOperand.accept(this), ctx.rightOperand.accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitMaxFunction(MaxFunctionContext ctx) {
-		return new MaxOperator(ctx.leftOperand.accept(this), ctx.rightOperand.accept(this));
-	}
-
-	@Override
-	public ExpressionNode visitRandomIntFunction(RandomIntFunctionContext ctx) {
-		return new RandomOperator(
-			ctx.combinationExpression() == null ?
-				null : ctx.combinationExpression().accept(this)
-		);
 	}
 
 }

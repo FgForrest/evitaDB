@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,19 +24,18 @@
 package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
-import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.api.query.expression.evaluate.possibleRange.PossibleRange;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.PredicateEvaluationContext;
-import io.evitadb.utils.Assert;
+import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Arrays;
 
 /**
  * Class that represents a division operation for multiple operands. It ensures there are at least
@@ -47,32 +46,36 @@ import java.util.Arrays;
 @EqualsAndHashCode
 public class DivisionOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 2609645242654230184L;
-	private final ExpressionNode[] operator;
+	private final ExpressionNode leftOperator;
+	private final ExpressionNode rightOperator;
 
-	public DivisionOperator(ExpressionNode[] operator) {
-		Assert.isTrue(
-			operator.length >= 2,
-			() -> new ParserException("Division function must have at least two operands!")
-		);
-		this.operator = operator;
+	public DivisionOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
+		this.leftOperator = leftOperator;
+		this.rightOperator = rightOperator;
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
-		final BigDecimal initial = this.operator[0].compute(context, BigDecimal.class);
-		return Arrays.stream(this.operator, 1, this.operator.length)
-			.map(op -> op.compute(context, BigDecimal.class))
-			.reduce(initial, DivisionOperator::divide);
+	public BigDecimal compute(@Nonnull ExpressionEvaluationContext context) {
+		final BigDecimal leftOperand = this.leftOperator.compute(context, BigDecimal.class);
+		if (leftOperand == null) {
+			throw new ExpressionEvaluationException("Left operand is required, but evaluated to null.");
+		}
+		final BigDecimal rightOperand = this.rightOperator.compute(context, BigDecimal.class);
+		if (rightOperand == null) {
+			throw new ExpressionEvaluationException("Right operand is required, but evaluated to null.");
+		}
+		return divide(leftOperand, rightOperand);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return Arrays.stream(this.operator)
-			.map(ExpressionNode::determinePossibleRange)
-			.reduce((a, b) -> ExpressionNode.combine(a, b, DivisionOperator::divide))
-			.orElseThrow();
+		return PossibleRange.combine(
+			this.leftOperator.determinePossibleRange(),
+			this.rightOperator.determinePossibleRange(),
+			DivisionOperator::divide
+		);
 	}
 
 	@Nonnull
@@ -86,10 +89,7 @@ public class DivisionOperator implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return Arrays.stream(this.operator)
-			.map(ExpressionNode::toString)
-			.reduce((a, b) -> a + " / " + b)
-			.orElseThrow();
+		return this.leftOperator + " / " + this.rightOperator;
 	}
 
 }

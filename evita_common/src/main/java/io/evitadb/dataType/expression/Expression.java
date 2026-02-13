@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -46,9 +47,9 @@ public class Expression implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 661548006498130632L;
 	private final ExpressionNode root;
 
-	@Nonnull
+	@Nullable
 	@Override
-	public Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException {
+	public Serializable compute(@Nonnull ExpressionEvaluationContext context) throws ExpressionEvaluationException {
 		return this.root.compute(context);
 	}
 

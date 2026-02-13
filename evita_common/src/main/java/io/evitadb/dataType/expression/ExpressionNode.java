@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.ExpressionEvaluationException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Objects;
@@ -44,71 +45,14 @@ import java.util.function.UnaryOperator;
 public interface ExpressionNode extends Serializable {
 
 	/**
-	 * Combines two BigDecimalNumberRange instances into a new range using a specified combiner function.
-	 *
-	 * @param a the first BigDecimalNumberRange instance to be combined
-	 * @param b the second BigDecimalNumberRange instance to be combined
-	 * @param combiner a BinaryOperator to combine the BigDecimal values from each range
-	 * @return a BigDecimalNumberRange instance resulting from the combination of the input ranges
-	 */
-	@Nonnull
-	static BigDecimalNumberRange combine(
-		@Nonnull BigDecimalNumberRange a,
-		@Nonnull BigDecimalNumberRange b,
-		@Nonnull BinaryOperator<BigDecimal> combiner
-	) {
-		final BigDecimal left = a.getPreciseFrom() == null || b.getPreciseFrom() == null
-			? null
-			: combiner.apply(a.getPreciseFrom(), b.getPreciseFrom());
-		final BigDecimal right = a.getPreciseTo() == null || b.getPreciseTo() == null
-			? null
-			: combiner.apply(a.getPreciseTo(), b.getPreciseTo());
-		if (left == null && right == null) {
-			return BigDecimalNumberRange.INFINITE;
-		} else if (left == null) {
-			return BigDecimalNumberRange.to(right);
-		} else if (right == null) {
-			return BigDecimalNumberRange.from(left);
-		} else {
-			return BigDecimalNumberRange.between(left, right);
-		}
-	}
-
-	/**
-	 * Transforms the given BigDecimalNumberRange instance using a specified UnaryOperator.
-	 *
-	 * @param range the BigDecimalNumberRange instance to be transformed
-	 * @param transformer a UnaryOperator to transform the BigDecimal values within the range
-	 * @return a new BigDecimalNumberRange instance resulting from the transformation of the input range
-	 */
-	@Nonnull
-	static BigDecimalNumberRange transform(
-		@Nonnull BigDecimalNumberRange range,
-		@Nonnull UnaryOperator<BigDecimal> transformer
-	) {
-		final BigDecimal left = range.getPreciseFrom() == null ? null : transformer.apply(range.getPreciseFrom());
-		final BigDecimal right = range.getPreciseTo() == null ? null : transformer.apply(range.getPreciseTo());
-
-		if (left == null && right == null) {
-			return BigDecimalNumberRange.INFINITE;
-		} else if (left == null) {
-			return BigDecimalNumberRange.to(right);
-		} else if (right == null) {
-			return BigDecimalNumberRange.from(left);
-		} else {
-			return BigDecimalNumberRange.between(left, right);
-		}
-	}
-
-	/**
 	 * Computes the result of evaluating this expression node within the given context.
 	 *
 	 * @param context the context in which the predicate is evaluated
 	 * @return the result of the computation as a Serializable object
 	 * @throws ExpressionEvaluationException if an error occurs during the evaluation of the expression
 	 */
-	@Nonnull
-	Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException;
+	@Nullable
+	Serializable compute(@Nonnull ExpressionEvaluationContext context) throws ExpressionEvaluationException;
 
 	/**
 	 * Computes the result of evaluating this expression node within the given context and converts it to the specified
@@ -119,9 +63,13 @@ public interface ExpressionNode extends Serializable {
 	 * @return the result of the computation as an object of the specified class
 	 * @throws ExpressionEvaluationException if an error occurs during the evaluation of the expression
 	 */
-	@Nonnull
-	default <T extends Serializable> T compute(@Nonnull PredicateEvaluationContext context, @Nonnull Class<T> clazz) throws ExpressionEvaluationException {
-		return Objects.requireNonNull(EvitaDataTypes.toTargetType(compute(context), clazz));
+	@Nullable
+	default <T extends Serializable> T compute(@Nonnull ExpressionEvaluationContext context, @Nonnull Class<T> clazz) throws ExpressionEvaluationException {
+		final Serializable computed = compute(context);
+		if (computed == null) {
+			return null;
+		}
+		return Objects.requireNonNull(EvitaDataTypes.toTargetType(computed, clazz));
 	}
 
 	/**

@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023-2025
+  ~   Copyright (c) 2023-2026
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ $1package io.evitadb.api.query.parser.grammar;
 			</build>
 		</profile>
 		<profile>
-			<id>expression-grammar</id>
+			<id>evitael-grammar</id>
 			<build>
 				<plugins>
 					<plugin>
@@ -136,7 +136,7 @@ $1package io.evitadb.api.query.parser.grammar;
 							</execution>
 						</executions>
 						<configuration>
-							<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/parser/expression/</sourceDirectory>
+							<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/parser/evitaEL/</sourceDirectory>
 							<outputDirectory>${basedir}/src/main/java/io/evitadb/api/query/expression/parser/grammar/</outputDirectory>
 							<visitor>true</visitor>
 						</configuration>

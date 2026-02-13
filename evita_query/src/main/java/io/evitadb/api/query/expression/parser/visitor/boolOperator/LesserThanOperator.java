@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 
@@ -61,7 +61,7 @@ public class LesserThanOperator implements ExpressionNode {
 
 	@Nonnull
 	@Override
-	public Boolean compute(@Nonnull PredicateEvaluationContext context) {
+	public Boolean compute(@Nonnull ExpressionEvaluationContext context) {
 		final Serializable value1 = this.leftOperator.compute(context);
 		Assert.isTrue(
 			value1 instanceof Comparable,

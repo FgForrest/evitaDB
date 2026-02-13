@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,18 +24,17 @@
 package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
-import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.api.query.expression.evaluate.possibleRange.PossibleRange;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.PredicateEvaluationContext;
-import io.evitadb.utils.Assert;
+import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.math.BigDecimal;
-import java.util.Arrays;
 
 /**
  * The SubtractionOperator class represents an operator that performs subtraction on a series of operand values.
@@ -49,40 +48,41 @@ import java.util.Arrays;
 @EqualsAndHashCode
 public class SubtractionOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -2279186556905228552L;
-	private final ExpressionNode[] operator;
+	private final ExpressionNode leftOperator;
+	private final ExpressionNode rightOperator;
 
-	public SubtractionOperator(ExpressionNode[] operator) {
-		Assert.isTrue(
-			operator.length >= 2,
-			() -> new ParserException("Subtraction function must have at least two operands!")
-		);
-		this.operator = operator;
+	public SubtractionOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
+		this.leftOperator = leftOperator;
+		this.rightOperator = rightOperator;
 	}
 
 	@Nonnull
 	@Override
-	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
-		final BigDecimal initial = this.operator[0].compute(context, BigDecimal.class);
-		return Arrays.stream(this.operator, 1, this.operator.length)
-			.map(op -> op.compute(context, BigDecimal.class))
-			.reduce(initial, BigDecimal::subtract);
+	public BigDecimal compute(@Nonnull ExpressionEvaluationContext context) {
+		final BigDecimal leftOperand = this.leftOperator.compute(context, BigDecimal.class);
+		if (leftOperand == null) {
+			throw new ExpressionEvaluationException("Left operand is required, but evaluated to null.");
+		}
+		final BigDecimal rightOperand = this.rightOperator.compute(context, BigDecimal.class);
+		if (rightOperand == null) {
+			throw new ExpressionEvaluationException("Right operand is required, but evaluated to null.");
+		}
+		return leftOperand.subtract(rightOperand);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return Arrays.stream(this.operator)
-			.map(ExpressionNode::determinePossibleRange)
-			.reduce((a, b) -> ExpressionNode.combine(a, b, BigDecimal::subtract))
-			.orElseThrow();
+		return PossibleRange.combine(
+			this.leftOperator.determinePossibleRange(),
+			this.rightOperator.determinePossibleRange(),
+			BigDecimal::subtract
+		);
 	}
 
 	@Override
 	public String toString() {
-		return Arrays.stream(this.operator)
-			.map(ExpressionNode::toString)
-			.reduce((a, b) -> a + " - " + b)
-			.orElseThrow();
+		return this.leftOperator + " - " + this.rightOperator;
 	}
 
 }

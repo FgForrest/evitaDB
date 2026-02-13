@@ -7,7 +7,7 @@
 #             |  __/\ V /| | || (_| | |_| | |_) |
 #              \___| \_/ |_|\__\__,_|____/|____/
 #
-#   Copyright (c) 2023-2024
+#   Copyright (c) 2023-2026
 #
 #   Licensed under the Business Source License, Version 1.1 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -26,16 +26,16 @@ if [ "$1" == "evitaql" ]; then
   echo "Generating EvitaQL.g4..."
   rm src/main/java/io/evitadb/api/query/parser/grammar/*
   mvn -Pevitaql-grammar clean antlr4:antlr4 replacer:replace
-elif [ "$1" == "expression" ]; then
-  echo "Generating Expression.g4..."
+elif [ "$1" == "evitael" ]; then
+  echo "Generating EvitaEL.g4..."
   rm src/main/java/io/evitadb/api/query/expression/parser/grammar/*
-  mvn -Pexpression-grammar clean antlr4:antlr4 replacer:replace
+  mvn -Pevitael-grammar clean antlr4:antlr4 replacer:replace
 else
   echo "Generating EvitaQL.g4..."
   rm src/main/java/io/evitadb/api/query/parser/grammar/*
   mvn -Pevitaql-grammar clean antlr4:antlr4 replacer:replace
 
-  echo "Generating Expression.g4..."
+  echo "Generating EvitaEL.g4..."
   rm src/main/java/io/evitadb/api/query/expression/parser/grammar/*
-  mvn -Pexpression-grammar clean antlr4:antlr4 replacer:replace
+  mvn -Pevitael-grammar clean antlr4:antlr4 replacer:replace
 fi

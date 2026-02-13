@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
 package io.evitadb.api.query.expression;
 
 import io.evitadb.api.query.expression.exception.ParserException;
-import io.evitadb.api.query.expression.parser.grammar.ExpressionLexer;
-import io.evitadb.api.query.expression.parser.grammar.ExpressionParser;
+import io.evitadb.api.query.expression.parser.grammar.EvitaELLexer;
+import io.evitadb.api.query.expression.parser.grammar.EvitaELParser;
 import io.evitadb.api.query.expression.parser.visitor.DefaultExpressionVisitor;
 import io.evitadb.api.query.parser.exception.BailErrorStrategy;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
@@ -95,12 +95,12 @@ public interface ExpressionFactory {
 	 * @return a configured ExpressionFactory instance ready to parse the input string
 	 */
 	@Nonnull
-	private static ExpressionParser getParser(@Nonnull String stringToParse) {
-		final ExpressionLexer lexer = new ExpressionLexer(CharStreams.fromString(stringToParse));
+	private static EvitaELParser getParser(@Nonnull String stringToParse) {
+		final EvitaELLexer lexer = new EvitaELLexer(CharStreams.fromString(stringToParse));
 		lexer.removeErrorListeners();
 		lexer.addErrorListener(SyntaxErrorReporter.getInstance());
 
-		final ExpressionParser parser = new ExpressionParser(new CommonTokenStream(lexer));
+		final EvitaELParser parser = new EvitaELParser(new CommonTokenStream(lexer));
 		parser.setErrorHandler(new BailErrorStrategy());
 		parser.removeErrorListeners();
 		parser.addErrorListener(SyntaxErrorReporter.getInstance());

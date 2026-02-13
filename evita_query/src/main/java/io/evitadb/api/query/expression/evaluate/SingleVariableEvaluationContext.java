@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,13 @@
 package io.evitadb.api.query.expression.evaluate;
 
 
+import io.evitadb.dataType.exception.VariableNotDefinedException;
+import io.evitadb.dataType.expression.ExpressionEvaluationContext;
+
 import javax.annotation.Nonnull;
-import java.util.Objects;
+import javax.annotation.Nullable;
 import java.util.Optional;
+import java.util.Random;
 import java.util.stream.Stream;
 
 /**
@@ -36,26 +40,46 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public final class SingleVariableEvaluationContext extends AbstractPredicateEvaluationContext {
-	private final String variableName;
-	private final Object variableValue;
+public final class SingleVariableEvaluationContext extends AbstractExpressionEvaluationContext {
+
+	@Nonnull private final String variableName;
+	@Nonnull private final Object variableValue;
 
 	public SingleVariableEvaluationContext(@Nonnull String variableName, @Nonnull Object variableValue) {
+		super(null);
 		this.variableName = variableName;
 		this.variableValue = variableValue;
 	}
 
 	public SingleVariableEvaluationContext(long seed, @Nonnull String variableName, @Nonnull Object variableValue) {
-		super(seed);
+		super(null, seed);
 		this.variableName = variableName;
 		this.variableValue = variableValue;
+	}
+
+	private SingleVariableEvaluationContext(
+		@Nullable Object thisObject,
+		@Nonnull Random random,
+		@Nonnull String variableName,
+		@Nonnull Object variableValue
+	) {
+		super(thisObject, random);
+		this.variableName = variableName;
+		this.variableValue = variableValue;
+	}
+
+	@Override
+	public ExpressionEvaluationContext withThis(@Nullable Object thisObject) {
+		return new SingleVariableEvaluationContext(thisObject, getRandom(), this.variableName, this.variableValue);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<Object> getVariable(@Nonnull String variableName) {
-		return Objects.equals(variableName, this.variableName) ?
-			Optional.of(this.variableValue) : Optional.empty();
+		if (!this.variableName.equals(variableName)) {
+			throw new VariableNotDefinedException(variableName);
+		}
+		return Optional.of(this.variableValue);
 	}
 
 	@Nonnull

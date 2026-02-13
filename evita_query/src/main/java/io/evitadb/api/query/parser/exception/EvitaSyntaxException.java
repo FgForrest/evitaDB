@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ public class EvitaSyntaxException extends EvitaInvalidUsageException {
 
 	@Serial private static final long serialVersionUID = -4647520133884807181L;
 
-	private static final String DEFAULT_ERROR_MSG = "Invalid query, error at position %d:%d: %s";
+	private static final String DEFAULT_ERROR_MSG = "Invalid syntax, error at position %d:%d: %s";
 
 	@Getter
 	private final int line;
