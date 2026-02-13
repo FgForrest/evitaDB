@@ -47,7 +47,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Mutation is responsible for setting a {@link EntitySchemaContract#isWithGeneratedPrimaryKey()} ()}
+ * Mutation is responsible for setting a {@link EntitySchemaContract#isWithGeneratedPrimaryKey()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if it's present in the mutation pipeline.

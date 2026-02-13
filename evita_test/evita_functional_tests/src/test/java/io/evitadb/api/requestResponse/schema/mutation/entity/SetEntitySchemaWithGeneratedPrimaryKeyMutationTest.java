@@ -23,46 +23,174 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.List;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies {@link SetEntitySchemaWithGeneratedPrimaryKeyMutation} class.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetEntitySchemaWithGeneratedPrimaryKeyMutationTest {
+@DisplayName("SetEntitySchemaWithGeneratedPrimaryKeyMutation")
+class SetEntitySchemaWithGeneratedPrimaryKeyMutationTest {
 
-	@Test
-	void shouldOverridePrimaryKeySettingsOfPreviousMutationIfNamesMatch() {
-		SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation = new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
-		SetEntitySchemaWithGeneratedPrimaryKeyMutation existingMutation = new SetEntitySchemaWithGeneratedPrimaryKeyMutation(false);
-		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
-		assertNotNull(result);
-		assertNull(result.origin());
-		assertNotNull(result.current());
-		assertInstanceOf(SetEntitySchemaWithGeneratedPrimaryKeyMutation.class, result.current()[0]);
-		assertTrue(((SetEntitySchemaWithGeneratedPrimaryKeyMutation) result.current()[0]).isWithGeneratedPrimaryKey());
+	@Nested
+	@DisplayName("Combine with other mutations")
+	class CombineWith {
+
+		@Test
+		@DisplayName("should replace previous generated primary key mutation")
+		void shouldReplacePreviousGeneratedPrimaryKeyMutation() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation existingMutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(false);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(catalogSchema, entitySchema, existingMutation);
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			assertEquals(1, result.current().length);
+			assertInstanceOf(SetEntitySchemaWithGeneratedPrimaryKeyMutation.class, result.current()[0]);
+			assertTrue(
+				((SetEntitySchemaWithGeneratedPrimaryKeyMutation) result.current()[0]).isWithGeneratedPrimaryKey()
+			);
+		}
+
+		@Test
+		@DisplayName("should return null when combined with unrelated mutation")
+		void shouldReturnNullForUnrelatedMutation() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			final LocalEntitySchemaMutation unrelatedMutation =
+				new ModifyEntitySchemaDescriptionMutation("desc");
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(catalogSchema, entitySchema, unrelatedMutation);
+			assertNull(result);
+		}
 	}
 
-	@Test
-	void shouldMutateEntitySchema() {
-		SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation = new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
-		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		Mockito.when(entitySchema.version()).thenReturn(1);
-		final EntitySchemaContract newEntitySchema = mutation.mutate(
-			Mockito.mock(CatalogSchemaContract.class),
-			entitySchema
-		);
-		assertEquals(2, newEntitySchema.version());
-		assertTrue(newEntitySchema.isWithGeneratedPrimaryKey());
+	@Nested
+	@DisplayName("Mutate entity schema")
+	class Mutate {
+
+		@Test
+		@DisplayName("should enable generated primary key")
+		void shouldEnableGeneratedPrimaryKey() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.version()).thenReturn(1);
+			final EntitySchemaContract result = mutation.mutate(
+				Mockito.mock(CatalogSchemaContract.class),
+				entitySchema
+			);
+			assertEquals(2, result.version());
+			assertTrue(result.isWithGeneratedPrimaryKey());
+		}
+
+		@Test
+		@DisplayName("should disable generated primary key")
+		void shouldDisableGeneratedPrimaryKey() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(false);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.version()).thenReturn(1);
+			Mockito.when(entitySchema.isWithGeneratedPrimaryKey()).thenReturn(true);
+			final EntitySchemaContract result = mutation.mutate(
+				Mockito.mock(CatalogSchemaContract.class),
+				entitySchema
+			);
+			assertEquals(2, result.version());
+			assertFalse(result.isWithGeneratedPrimaryKey());
+		}
+
+		@Test
+		@DisplayName("should return unchanged schema when value is the same")
+		void shouldReturnUnchangedSchemaWhenValueIsSame() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.isWithGeneratedPrimaryKey()).thenReturn(true);
+			final EntitySchemaContract result = mutation.mutate(
+				Mockito.mock(CatalogSchemaContract.class),
+				entitySchema
+			);
+			assertSame(entitySchema, result);
+		}
+
+		@Test
+		@DisplayName("should throw when entity schema is null")
+		void shouldThrowWhenEntitySchemaIsNull() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+			assertThrows(
+				Exception.class,
+				() -> mutation.mutate(Mockito.mock(CatalogSchemaContract.class), null)
+			);
+		}
 	}
 
+	@Nested
+	@DisplayName("Contract methods")
+	class Metadata {
+
+		@Test
+		@DisplayName("should return UPSERT operation")
+		void shouldReturnUpsertOperation() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+			assertEquals(Operation.UPSERT, mutation.operation());
+		}
+
+		@Test
+		@DisplayName("should return collection conflict key")
+		void shouldReturnCollectionConflictKey() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+				"testEntity", null,
+				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+			);
+			assertEquals(1, keys.size());
+			assertInstanceOf(CollectionConflictKey.class, keys.get(0));
+		}
+
+		@Test
+		@DisplayName("should produce readable toString output")
+		void shouldProduceReadableToString() {
+			final SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation =
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+			final String result = mutation.toString();
+			assertTrue(result.contains("Set entity schema"));
+			assertTrue(result.contains("withGeneratedPrimaryKey"));
+			assertTrue(result.contains("true"));
+		}
+	}
 }
