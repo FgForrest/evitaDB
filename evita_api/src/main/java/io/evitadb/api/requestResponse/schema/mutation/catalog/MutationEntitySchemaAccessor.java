@@ -87,6 +87,7 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider, Seria
 	 */
 	public void addUpsertedEntitySchema(@Nonnull EntitySchemaContract entitySchema) {
 		if (this.baseAccessor == null) {
+			// do nothing - this instance is immutable
 			return;
 		}
 		if (this.entitySchemas == null) {
@@ -102,6 +103,7 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider, Seria
 	 */
 	public void removeEntitySchema(@Nonnull String name) {
 		if (this.baseAccessor == null) {
+			// do nothing - this instance is immutable
 			return;
 		}
 		if (this.removedEntitySchemas == null) {
@@ -123,6 +125,7 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider, Seria
 	 */
 	public void replaceEntitySchema(@Nonnull String oldName, @Nonnull EntitySchemaContract entitySchema) {
 		if (this.baseAccessor == null) {
+			// do nothing - this instance is immutable
 			return;
 		}
 		if (this.entitySchemas == null) {
@@ -141,11 +144,12 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider, Seria
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
 		return Stream.concat(
-				this.entitySchemas == null ?
-					Stream.empty() : this.entitySchemas.values().stream(),
-				this.baseAccessor == null ?
-					Stream.empty() :
-					this.baseAccessor.getEntitySchemas()
+				this.entitySchemas == null
+					? Stream.empty()
+					: this.entitySchemas.values().stream(),
+				this.baseAccessor == null
+					? Stream.empty()
+					: this.baseAccessor.getEntitySchemas()
 						.stream()
 						.filter(it -> this.entitySchemas == null || !this.entitySchemas.containsKey(it.getName()))
 			)

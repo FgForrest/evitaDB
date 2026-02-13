@@ -81,7 +81,8 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(
-		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
 		Assert.notNull(
 			catalogSchema,
 			() -> new InvalidSchemaMutationException("Catalog doesn't exist!")
