@@ -310,17 +310,15 @@ class TaskStatusTest {
 		}
 
 		@Test
-		@DisplayName("should always return new instance when name and traits are same")
-		void shouldAlwaysReturnNewInstanceWhenNameAndTraitsAreSame() {
+		@DisplayName("should return same instance when name and traits are unchanged")
+		void shouldReturnSameInstanceWhenNameAndTraitsAreUnchanged() {
 			final TaskStatus<String, String> status = createBaseStatus(
 				null, null, null, 0, null, null
 			);
 
-			// Known limitation: ArrayUtils.equals(array, EnumSet) always returns false because
-			// EnumSet is not an array, so the optimization that returns the same instance never fires
 			final TaskStatus<String, String> updated = status.updateTaskNameAndTraits(TASK_NAME);
 
-			assertNotSame(status, updated);
+			assertSame(status, updated);
 		}
 
 		@Test
@@ -457,6 +455,20 @@ class TaskStatusTest {
 			assertNull(issued.result());
 			assertEquals(EnumSet.of(TaskTrait.CAN_BE_STARTED), issued.traits());
 		}
+
+		@Test
+		@DisplayName("should clear exception fields when transitioning to issued")
+		void shouldClearExceptionFieldsWhenTransitioningToIssued() {
+			final TaskStatus<String, String> status = createBaseStatus(
+				null, null, null, 0, "error", "stack"
+			);
+
+			final TaskStatus<String, String> issued = status.transitionToIssued();
+
+			assertNull(issued.publicExceptionMessage());
+			assertNull(issued.exceptionWithStackTrace());
+			assertEquals(TaskSimplifiedState.QUEUED, issued.simplifiedState());
+		}
 	}
 
 	@Nested
@@ -528,6 +540,21 @@ class TaskStatusTest {
 			assertNull(started.publicExceptionMessage());
 			assertNull(started.exceptionWithStackTrace());
 			assertEquals(EnumSet.of(TaskTrait.CAN_BE_CANCELLED), started.traits());
+		}
+
+		@Test
+		@DisplayName("should clear exception fields when transitioning to started")
+		void shouldClearExceptionFieldsWhenTransitioningToStarted() {
+			final OffsetDateTime issuedTime = OffsetDateTime.now();
+			final TaskStatus<String, String> status = createBaseStatus(
+				issuedTime, null, null, 0, "error", "stack"
+			);
+
+			final TaskStatus<String, String> started = status.transitionToStarted();
+
+			assertNull(started.publicExceptionMessage());
+			assertNull(started.exceptionWithStackTrace());
+			assertEquals(TaskSimplifiedState.RUNNING, started.simplifiedState());
 		}
 	}
 
