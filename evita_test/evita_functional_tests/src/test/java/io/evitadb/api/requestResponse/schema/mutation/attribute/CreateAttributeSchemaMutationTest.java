@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -54,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("CreateAttributeSchemaMutation")
 class CreateAttributeSchemaMutationTest {
 	static final String ATTRIBUTE_NAME = "name";
 
@@ -129,6 +131,7 @@ class CreateAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when invalid type is provided")
 	void shouldThrowExceptionWhenInvalidTypeIsProvided() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -141,8 +144,9 @@ class CreateAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should be replaced with individual mutations when attribute was removed and created with different settings")
 	void shouldBeReplacedWithIndividualMutationsWhenAttributeWasRemovedAndCreatedWithDifferentSettings() {
-		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, true, true, true, true, true,
 			String.class, "abc", 0
@@ -152,7 +156,7 @@ class CreateAttributeSchemaMutationTest {
 			.thenReturn(
 				of(createExistingEntityAttributeSchema())
 			);
-		RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
 			Mockito.mock(CatalogSchemaContract.class),
 			entitySchema,
@@ -174,19 +178,21 @@ class CreateAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave mutation intact when removal mutation targets different attribute")
 	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentAttribute() {
-		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			AttributeUniquenessType.NOT_UNIQUE, false, false, false, false, false,
 			String.class, null, 0
 		);
-		RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation("differentName");
+		final RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation("differentName");
 		assertNull(mutation.combineWith(null, null, removeMutation));
 	}
 
 	@Test
+	@DisplayName("Should create entity attribute")
 	void shouldCreateEntityAttribute() {
-		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
 			Scope.NO_SCOPE, Scope.NO_SCOPE, true, true, false,
@@ -210,8 +216,9 @@ class CreateAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should create reference attribute")
 	void shouldCreateReferenceAttribute() {
-		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
 			Scope.NO_SCOPE, Scope.NO_SCOPE, true, true, false,
@@ -235,8 +242,9 @@ class CreateAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should create attribute in entity")
 	void shouldCreateAttributeInEntity() {
-		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
 			Scope.NO_SCOPE, Scope.NO_SCOPE, true, true, false,
@@ -265,8 +273,9 @@ class CreateAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should create attribute in reference")
 	void shouldCreateAttributeInReference() {
-		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
 			Scope.NO_SCOPE, Scope.NO_SCOPE, true, true, false,
@@ -293,8 +302,9 @@ class CreateAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating entity schema with existing attribute")
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithExistingAttribute() {
-		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
+		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
 			Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false,

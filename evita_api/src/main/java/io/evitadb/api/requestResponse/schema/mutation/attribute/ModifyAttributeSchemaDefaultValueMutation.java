@@ -274,6 +274,6 @@ public class ModifyAttributeSchemaDefaultValueMutation
 	@Override
 	public String toString() {
 		return "Modify attribute `" + this.name + "` schema: " +
-			", defaultValue=" + this.defaultValue;
+			"defaultValue=" + this.defaultValue;
 	}
 }
