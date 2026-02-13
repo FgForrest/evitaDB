@@ -30,7 +30,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -193,8 +192,12 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 
 	@Override
 	public int hashCode() {
-		// lombok cannot generate equals and hash code for records
-		return Objects.hash(this.type, this.propertyType, this.fullName, this.creator.hasClassifierParameter(), this.creator.hasImplicitClassifier());
+		int result = this.type.hashCode();
+		result = 31 * result + this.propertyType.hashCode();
+		result = 31 * result + this.fullName.hashCode();
+		result = 31 * result + Boolean.hashCode(this.creator.hasClassifierParameter());
+		result = 31 * result + Boolean.hashCode(this.creator.hasImplicitClassifier());
+		return result;
 	}
 
 	@Override
@@ -257,9 +260,12 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 * @param compoundsSupported if target data can be a compound of supported data types
 	 * @param nullability whether the constraint supports only nullable data or only nonnull data or both and so on.
 	 */
-	public record SupportedValues(@Nonnull Set<Class<?>> dataTypes,
-	                              boolean supportsArrays,
-								  boolean compoundsSupported,
-	                              @Nonnull ConstraintNullabilitySupport nullability) {}
+	public record SupportedValues(
+		@Nonnull Set<Class<?>> dataTypes,
+		boolean supportsArrays,
+		boolean compoundsSupported,
+		@Nonnull ConstraintNullabilitySupport nullability
+	) {
+	}
 
 }
