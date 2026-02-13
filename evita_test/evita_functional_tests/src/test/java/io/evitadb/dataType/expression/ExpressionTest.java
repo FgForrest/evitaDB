@@ -25,11 +25,10 @@ package io.evitadb.dataType.expression;
 
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
-import io.evitadb.api.query.expression.evaluate.object.accessor.ObjectAccessorRegistry;
-import io.evitadb.api.query.expression.evaluate.object.accessor.ObjectPropertyAccessor;
+import io.evitadb.api.query.expression.object.accessor.ObjectAccessorRegistry;
+import io.evitadb.api.query.expression.object.accessor.ObjectPropertyAccessor;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.exception.ExpressionEvaluationException;
-import lombok.EqualsAndHashCode;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
