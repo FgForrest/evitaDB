@@ -29,31 +29,100 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 
 /**
- * Implementations of this interface can introspect the labels present in the traffic recording.
+ * Interface for introspecting labels attached to traffic recordings. Labels are key-value pairs that provide
+ * contextual metadata about recorded queries and mutations (e.g., `trace-id`, `client-id`, `ip-address`, `uri`,
+ * `entity-type`, custom application labels).
+ *
+ * **Purpose and Usage**
+ *
+ * Traffic recordings in evitaDB capture executed queries, mutations, and session operations along with associated
+ * labels. This interface provides read-only access to those labels, enabling:
+ * - Discovery of available label names and their most common values
+ * - Autocomplete functionality in UIs (e.g., evitaLab) for filtering traffic by labels
+ * - Understanding the distribution of traffic across different dimensions (entity types, clients, endpoints)
+ *
+ * **Label Cardinality**
+ *
+ * Results are ordered by cardinality (frequency of occurrence) in descending order — the most frequently occurring
+ * label names or values appear first. This ordering helps users identify the most significant dimensions in their
+ * traffic data.
+ *
+ * **Common Label Names**
+ *
+ * - `trace-id`: Distributed tracing identifier
+ * - `client-id`: Client application identifier
+ * - `ip-address`: Source IP address of the request
+ * - `uri`: Request URI path
+ * - `entity-type`: Entity collection being queried or mutated
+ * - Custom labels defined via {@link io.evitadb.api.query.head.Label} query constraint
+ *
+ * **Usage Context**
+ *
+ * This interface is implemented by:
+ * - {@link io.evitadb.core.traffic.TrafficRecordingEngine} (via delegation to
+ * {@link io.evitadb.store.traffic.OffHeapTrafficRecorder})
+ * - {@link io.evitadb.core.session.EvitaSession} (exposes label introspection to session clients)
+ * - {@link io.evitadb.store.traffic.DiskRingBuffer} (provides the underlying index for label queries)
+ *
+ * **Thread-Safety**
+ *
+ * Implementations may be accessed concurrently from multiple threads. The returned collections are snapshots
+ * taken at query time and are safe to iterate without additional synchronization.
+ *
+ * **Example Usage**
+ *
+ * ```
+ * // Discover the 10 most common label names (e.g., "entity-type", "trace-id", "client-id")
+ * Collection<String> topLabels = labelIntrospector.getLabelsNamesOrderedByCardinality(null, 10);
+ *
+ * // Find entity types matching prefix "prod", ordered by how often they appear in traffic
+ * Collection<String> entityTypes = labelIntrospector.getLabelValuesOrderedByCardinality(
+ * "entity-type", "prod", 20
+ * );
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @see io.evitadb.core.traffic.TrafficRecordingEngine
+ * @see io.evitadb.store.traffic.TrafficRecordingIndex
+ * @see io.evitadb.api.query.head.Label
  */
 public interface LabelIntrospector {
 
 	/**
-	 * Returns a stream of all unique labels names ordered by cardinality of their values present in the traffic recording.
+	 * Returns a collection of unique label names present in the traffic recording, ordered by the cardinality
+	 * (frequency) of their associated values in descending order. Labels with more distinct values or higher occurrence
+	 * counts appear first.
 	 *
-	 * @param nameStartingWith optional prefix to filter the labels by
-	 * @param limit            maximum number of labels to return
-	 * @return collection of unique label names ordered by cardinality of their values
+	 * This method is useful for discovering which labels are actively used in traffic recordings, prioritizing those
+	 * that vary most across requests (indicating high informational value).
+	 *
+	 * @param nameStartingWith optional prefix filter — only label names starting with this string are included
+	 *                         (case-sensitive); if `null`, all label names are considered
+	 * @param limit            maximum number of label names to return (must be positive)
+	 * @return collection of unique label names ordered by cardinality (highest cardinality first), limited to the
+	 * specified count
 	 */
 	@Nonnull
 	Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit);
 
 	/**
-	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
+	 * Returns a collection of unique values for a specific label, ordered by cardinality (frequency of occurrence)
+	 * in descending order. Values that appear most frequently in the traffic recording are returned first.
 	 *
-	 * @param labelName         name of the label to get values for
-	 * @param valueStartingWith optional prefix to filter the labels by
-	 * @param limit             maximum number of values to return
-	 * @return collection of unique label values ordered by cardinality
+	 * This method is useful for:
+	 * - Autocomplete functionality (e.g., suggesting entity types or client IDs)
+	 * - Understanding the distribution of traffic across label dimensions
+	 * - Identifying most active clients, entity types, or endpoints
+	 *
+	 * @param labelName         exact name of the label to query (case-sensitive, e.g., "entity-type", "client-id")
+	 * @param valueStartingWith optional prefix filter — only values starting with this string are included
+	 *                          (case-sensitive); if `null`, all values for the label are considered
+	 * @param limit             maximum number of values to return (must be positive)
+	 * @return collection of unique label values ordered by cardinality (highest cardinality first), limited to the
+	 * specified count
 	 */
 	@Nonnull
-	Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit);
+	Collection<String> getLabelValuesOrderedByCardinality(
+		@Nonnull String labelName, @Nullable String valueStartingWith, int limit);
 
 }

@@ -33,24 +33,112 @@ import javax.annotation.Nonnull;
 import java.util.stream.Stream;
 
 /**
- * Implementations of this interface can access and read traffic recordings from the previously captured log.
+ * Interface for reading and querying traffic recordings captured by evitaDB. Traffic recordings provide a persistent
+ * log of all queries, mutations, and session operations executed against a catalog, enabling debugging, performance
+ * analysis, query replay, and audit trails.
+ *
+ * **Purpose and Usage**
+ *
+ * evitaDB can record all catalog operations to disk (configured via
+ * {@link io.evitadb.api.configuration.TrafficRecordingOptions}), capturing:
+ * - Session creation and closure
+ * - Queries and their execution statistics
+ * - Entity fetch operations
+ * - Mutations (inserts, updates, deletes)
+ * - Enrichment operations
+ * - Associated labels (trace IDs, client IDs, entity types, custom labels)
+ *
+ * This interface provides filtered access to those recordings, supporting both chronological (oldest-first) and
+ * reverse-chronological (newest-first) iteration.
+ *
+ * **Recording Storage**
+ *
+ * Traffic recordings are stored in a ring buffer on disk (see {@link io.evitadb.store.traffic.DiskRingBuffer}),
+ * with configurable retention limits based on:
+ * - Maximum disk space (MB)
+ * - Maximum time window (duration)
+ *
+ * Once the buffer is full, the oldest recordings are overwritten, making this interface suitable for recent traffic
+ * analysis rather than long-term archival.
+ *
+ * **Filtering and Querying**
+ *
+ * The {@link TrafficRecordingCaptureRequest} allows filtering by:
+ * - **Time range**: Query recordings within a specific time window
+ * - **Labels**: Filter by trace ID, client ID, IP address, URI, entity type, or custom labels
+ * - **Recording type**: Include only queries, mutations, fetches, enrichments, or sessions
+ *
+ * Multiple criteria within a request are combined with **logical OR** — a recording matches if it satisfies any
+ * of the specified conditions.
+ *
+ * **Ordering Guarantees**
+ *
+ * - Within a session: recordings are returned in execution order (the order operations were performed)
+ * - Across sessions: sessions are ordered by their finalization timestamp
+ * - `getRecordings()`: oldest sessions first, oldest operations within each session first
+ * - `getRecordingsReversed()`: newest sessions first, newest operations within each session first
+ *
+ * **Resource Management**
+ *
+ * Both methods return {@link Stream} instances backed by file I/O. Callers **must** close the stream after use
+ * (preferably via try-with-resources) to release file handles and memory.
+ *
+ * **Thread-Safety**
+ *
+ * Implementations are thread-safe for querying, but the returned streams are not. Each stream should be consumed
+ * by a single thread.
+ *
+ * **Usage Context**
+ *
+ * This interface is implemented by:
+ * - {@link io.evitadb.core.traffic.TrafficRecordingEngine} (primary engine for live catalog traffic)
+ * - {@link io.evitadb.store.traffic.InputStreamTrafficRecordReader} (read-only access to exported traffic files)
+ *
+ * **Example Usage**
+ *
+ * ```
+ * // Query all operations for a specific trace ID from the last hour
+ * TrafficRecordingCaptureRequest request = TrafficRecordingCaptureRequest.builder()
+ * .fromTime(OffsetDateTime.now().minusHours(1))
+ * .labels(Map.of("trace-id", "abc123"))
+ * .build();
+ *
+ * try (Stream<TrafficRecording> recordings = reader.getRecordingsReversed(request)) {
+ * recordings.forEach(recording -> {
+ * System.out.println("Operation: " + recording.type());
+ * System.out.println("Timestamp: " + recording.timestamp());
+ * System.out.println("Labels: " + recording.labels());
+ * });
+ * }
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @see io.evitadb.core.traffic.TrafficRecordingEngine
+ * @see io.evitadb.store.traffic.InputStreamTrafficRecordReader
+ * @see io.evitadb.api.requestResponse.trafficRecording.TrafficRecording
+ * @see io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest
  */
 public interface TrafficRecordingReader {
 
 	/**
-	 * Returns stream of recordings that occurred in the catalog that match the specified criteria
-	 * in the request. The method returns the stream of recordings in the order of their execution within sessions, and
-	 * sessions are ordered by the timestamp of their finalization. The oldest records are returned first.
+	 * Returns a stream of traffic recordings matching the specified criteria, ordered chronologically (oldest first).
+	 * Within each session, operations are returned in the order they were executed. Sessions are ordered by their
+	 * finalization (closure) timestamp.
 	 *
-	 * !!! Important: remember to close the stream after you are done with it to release the resources
+	 * **Resource Management**: The returned stream must be closed after use to release file handles and memory.
+	 * Use try-with-resources for automatic cleanup.
 	 *
-	 * @param request request that specifies the criteria for the recordings to be returned, multiple criteria definitions
-	 *                 are combined with logical OR
-	 * @return stream of recordings that match the specified criteria in reversed order
-	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
-	 * @throws IndexNotReady when the index is not ready yet and the data cannot be read
+	 * **Filtering Logic**: Multiple criteria in the request are combined with logical OR — a recording is included
+	 * if it matches any of the specified conditions (time range, labels, recording types).
+	 *
+	 * @param request criteria specifying which recordings to return (time range, labels, recording types); multiple
+	 *                criteria are combined with logical OR
+	 * @return stream of matching recordings in chronological order (oldest sessions and operations first); must be
+	 * closed by the caller
+	 * @throws TemporalDataNotAvailableException if the requested time range is no longer available (overwritten by
+	 *                                           newer data in the ring buffer)
+	 * @throws IndexNotReady                     if the traffic recording index is still being built and cannot be
+	 *                                           queried yet
 	 */
 	@Nonnull
 	Stream<TrafficRecording> getRecordings(
@@ -58,17 +146,27 @@ public interface TrafficRecordingReader {
 	) throws TemporalDataNotAvailableException, IndexNotReady;
 
 	/**
-	 * Returns stream of recordings that occurred in the catalog that match the specified criteria
-	 * in the request. The method returns the stream of recordings in the order of their execution within sessions, and
-	 * sessions are ordered by the timestamp of their finalization. The newest records are returned first.
+	 * Returns a stream of traffic recordings matching the specified criteria, ordered reverse-chronologically
+	 * (newest first). Within each session, operations are returned in reverse execution order. Sessions are ordered
+	 * by their finalization (closure) timestamp in descending order.
 	 *
-	 * !!! Important: remember to close the stream after you are done with it to release the resources
+	 * This method is useful for debugging recent issues or analyzing the most recent traffic patterns without
+	 * iterating through older data.
 	 *
-	 * @param request request that specifies the criteria for the recordings to be returned, multiple criteria definitions
-	 *                 are combined with logical OR
-	 * @return stream of recordings that match the specified criteria in reversed order
-	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
-	 * @throws IndexNotReady when the index is not ready yet and the data cannot be read
+	 * **Resource Management**: The returned stream must be closed after use to release file handles and memory.
+	 * Use try-with-resources for automatic cleanup.
+	 *
+	 * **Filtering Logic**: Multiple criteria in the request are combined with logical OR — a recording is included
+	 * if it matches any of the specified conditions (time range, labels, recording types).
+	 *
+	 * @param request criteria specifying which recordings to return (time range, labels, recording types); multiple
+	 *                criteria are combined with logical OR
+	 * @return stream of matching recordings in reverse chronological order (newest sessions and operations first);
+	 * must be closed by the caller
+	 * @throws TemporalDataNotAvailableException if the requested time range is no longer available (overwritten by
+	 *                                           newer data in the ring buffer)
+	 * @throws IndexNotReady                     if the traffic recording index is still being built and cannot be
+	 *                                           queried yet
 	 */
 	@Nonnull
 	Stream<TrafficRecording> getRecordingsReversed(

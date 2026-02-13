@@ -90,19 +90,127 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
 
 /**
- * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
- * to have session per request, in batch processing it's recommended to keep session per "record page" or "transaction".
- * There may be multiple {@link TransactionContract transaction} during single session instance life but there is no support
- * for transactional overlap - there may be at most single transaction open in single session.
+ * Primary interface for interacting with an evitaDB catalog within a single unit of work.
  *
- * EvitaSession transaction behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
- * transaction. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
- * updates are not allowed without explicitly opened transaction.
+ * **Purpose and Lifecycle**
  *
- * Remember to {@link #close()} when your work with Evita is finished.
- * EvitaSession contract is NOT thread safe.
+ * `EvitaSessionContract` represents a client's connection to a specific catalog, providing access to querying,
+ * mutation, and schema management operations. Sessions are created via {@link EvitaContract#createSession(SessionTraits)}
+ * or {@link EvitaContract#createReadOnlySession(String)} and must be closed when finished to release resources.
+ *
+ * **Session Scope**
+ *
+ * A session scopes a logical unit of work:
+ * - **Web environment**: One session per HTTP request
+ * - **Batch processing**: One session per page of records or per logical transaction
+ * - **Interactive applications**: One session per user action or dialog
+ *
+ * **Transaction Model**
+ *
+ * Sessions implement <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">snapshot isolation</a>:
+ * - Read-only sessions: Each query sees a consistent snapshot of the catalog
+ * - Read-write sessions: Mutations accumulate in an internal transaction, committed on {@link #close()}
+ * - No nested transactions: Only one transaction per session (no savepoints or sub-transactions)
+ * - Implicit transactions: Write operations automatically open a transaction if none exists
+ *
+ * **Read-Only vs. Read-Write**
+ *
+ * - **Read-only sessions**: Fast, lightweight, no locking overhead. Reject write operations with
+ * {@link io.evitadb.api.exception.ReadOnlyException}.
+ * - **Read-write sessions**: Accept mutations and schema changes. Require {@link SessionTraits.SessionFlags#READ_WRITE}
+ * flag. Commit behavior controlled by {@link TransactionContract.CommitBehavior}.
+ *
+ * **Catalog States**
+ *
+ * Session behavior varies by catalog state ({@link CatalogState}):
+ * - **WARMING_UP**: Single-threaded bulk import mode. Fast writes, no durability guarantees, no queries.
+ * - **ALIVE**: Multi-user transactional mode. Full ACID guarantees, concurrent sessions allowed.
+ * - **Transitional states**: Sessions cannot be opened while catalog transitions between states (e.g., GOING_ALIVE).
+ *
+ * **Usage Patterns**
+ *
+ * Read-only query:
+ * ```
+ * try (EvitaSessionContract session = evita.createReadOnlySession("catalog")) {
+ * EvitaResponse<SealedEntity> response = session.querySealedEntity(
+ * query(
+ * collection("Product"),
+ * filterBy(and(eq("visible", true), priceBetween(100, 200))),
+ * require(entityFetch())
+ * )
+ * );
+ * response.getRecordData().forEach(product -> process(product));
+ * }
+ * ```
+ *
+ * Read-write with mutations:
+ * ```
+ * try (EvitaSessionContract session = evita.createSession(
+ * new SessionTraits("catalog", SessionFlags.READ_WRITE))) {
+ * EntityBuilder builder = session.createNewEntity("Product")
+ * .setAttribute("name", "New Product")
+ * .setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
+ * .setPrice(1, "basic", Currency.getInstance("USD"), BigDecimal.valueOf(99.99), BigDecimal.ZERO, BigDecimal.valueOf(99.99), true);
+ * session.upsertEntity(builder);
+ * // Changes committed on close()
+ * }
+ * ```
+ *
+ * Custom commit behavior:
+ * ```
+ * EvitaSessionContract session = evita.createSession(new SessionTraits(
+ * "catalog",
+ * CommitBehavior.WAIT_FOR_WAL_PERSISTENCE,
+ * SessionFlags.READ_WRITE
+ * ));
+ * // ... mutations ...
+ * CommitProgress progress = session.closeNowWithProgress();
+ * progress.onWalAppended().thenAccept(versions -> {
+ * logger.info("Changes durable at version {}", versions.catalogVersion());
+ * });
+ * ```
+ *
+ * **Schema Evolution**
+ *
+ * Sessions provide schema management:
+ * - Define new entity types: {@link #defineEntitySchema(String)}
+ * - Evolve schemas from Java classes: {@link #defineEntitySchemaFromModelClass(Class)}
+ * - Update schemas: {@link #updateEntitySchema(ModifyEntitySchemaMutation)}
+ * - Manage collections: {@link #deleteCollection(String)}, {@link #renameCollection(String, String)}
+ *
+ * **Proxy Factory Integration**
+ *
+ * Sessions support POJO mapping via proxy factory:
+ * - Annotate Java classes/interfaces with `@Entity`, `@Attribute`, etc.
+ * - Query returns POJO proxies instead of {@link SealedEntity}
+ * - Mutations via POJO setters tracked automatically
+ * - Use {@link #getEntity(Class, int, EntityContentRequire...)} and {@link #upsertEntity(Serializable)} with custom types
+ *
+ * **Resource Management**
+ *
+ * Sessions MUST be closed to:
+ * - Commit pending mutations (read-write sessions)
+ * - Release catalog snapshot references
+ * - Free internal buffers and caches
+ * - Trigger {@link EvitaSessionTerminationCallback} if registered
+ *
+ * Use try-with-resources or explicit {@link #close()} call. Unclosed sessions may prevent catalog shutdown and
+ * cause resource leaks.
+ *
+ * **Thread-Safety**
+ *
+ * This interface is **NOT thread-safe**. Each session is bound to a single thread. Concurrent access from multiple
+ * threads will cause undefined behavior and likely exceptions. Create separate sessions for concurrent operations.
+ *
+ * **Comparable Implementation**
+ *
+ * Sessions are comparable by their {@link #getId()} for ordering in collections (e.g., session registries).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @see EvitaContract#createSession(SessionTraits)
+ * @see SessionTraits
+ * @see TransactionContract
+ * @see CommitProgress
  */
 @NotThreadSafe
 public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, Closeable {
@@ -179,7 +287,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *
 	 * @param progressObserver optional progress observer that can be used to monitor the percentage progress of the go-live operation.
 	 * @return {@link Progress} object that can be used to monitor the progress of the go-live operation or to
-	 *          wait for it to finish using completion stage accessible via {@link Progress#onCompletion()}
+	 * wait for it to finish using completion stage accessible via {@link Progress#onCompletion()}
 	 * @see CatalogState
 	 */
 	@Nonnull
@@ -196,7 +304,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * via {@link Progress#onCompletion()}.
 	 *
 	 * @return {@link Progress} object that can be used to monitor the progress of the go-live operation or to
-	 *          wait for it to finish using completion stage accessible via {@link Progress#onCompletion()}
+	 * wait for it to finish using completion stage accessible via {@link Progress#onCompletion()}
 	 * @see CatalogState
 	 */
 	@Nonnull
@@ -289,7 +397,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request
 	 */
 	@Nonnull
-	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request);
+	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(
+		@Nonnull ChangeCatalogCaptureRequest request
+	);
 
 	/**
 	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns
@@ -456,7 +566,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 				),
 				SealedEntity.class
 			);
-		} else if (FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance).isEmpty()) {
+		} else if (FinderVisitor.findConstraints(
+				query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance)
+			.isEmpty()) {
 			return queryOne(
 				Query.query(
 					query.getCollection(),
@@ -553,7 +665,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 				),
 				SealedEntity.class
 			);
-		} else if (FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance).isEmpty()) {
+		} else if (FinderVisitor.findConstraints(
+				query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance)
+			.isEmpty()) {
 			return queryList(
 				Query.query(
 					query.getCollection(),
@@ -643,7 +757,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 				),
 				SealedEntity.class
 			);
-		} else if (FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance).isEmpty()) {
+		} else if (FinderVisitor.findConstraints(
+				query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance)
+			.isEmpty()) {
 			return query(
 				Query.query(
 					query.getCollection(),
@@ -707,7 +823,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @param require    additional requirements for the entity fetching
 	 */
 	@Nonnull
-	Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require);
+	Optional<SealedEntity> getEntity(
+		@Nonnull String entityType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require);
 
 	/**
 	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
@@ -804,7 +921,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return possibly updated body of the {@link CatalogSchemaContract} or the original schema if no change occurred
 	 */
 	@Nonnull
-	default SealedCatalogSchema updateAndFetchCatalogSchema(@Nonnull CatalogSchemaBuilder catalogSchemaBuilder) throws SchemaAlteringException {
+	default SealedCatalogSchema updateAndFetchCatalogSchema(
+		@Nonnull CatalogSchemaBuilder catalogSchemaBuilder
+	) throws SchemaAlteringException {
 		Assert.isTrue(
 			catalogSchemaBuilder.getName().equals(getCatalogName()),
 			"Schema builder targets `" + catalogSchemaBuilder.getName() + "` catalog, but the session targets `" + getCatalogName() + "` catalog!"
@@ -834,7 +953,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return possibly updated body of the {@link CatalogSchemaContract} or the original schema if no change occurred
 	 */
 	@Nonnull
-	SealedCatalogSchema updateAndFetchCatalogSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException;
+	SealedCatalogSchema updateAndFetchCatalogSchema(
+		@Nonnull LocalCatalogSchemaMutation... schemaMutation
+	) throws SchemaAlteringException;
 
 	/**
 	 * Method alters one of the {@link EntitySchemaContract entity schemas} of the catalog this session is tied to.
@@ -859,7 +980,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return possibly updated body of the {@link EntitySchemaContract} or the original schema if no change occurred
 	 */
 	@Nonnull
-	default SealedEntitySchema updateAndFetchEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
+	default SealedEntitySchema updateAndFetchEntitySchema(
+		@Nonnull EntitySchemaBuilder entitySchemaBuilder
+	) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateAndFetchEntitySchema)
 			.orElseGet(() -> getEntitySchemaOrThrowException(entitySchemaBuilder.getName()));
@@ -884,7 +1007,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return possibly updated body of the {@link EntitySchemaContract} or the original schema if no change occurred
 	 */
 	@Nonnull
-	SealedEntitySchema updateAndFetchEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException;
+	SealedEntitySchema updateAndFetchEntitySchema(
+		@Nonnull ModifyEntitySchemaMutation schemaMutation
+	) throws SchemaAlteringException;
 
 	/**
 	 * Deletes entire collection of entities along with its schema. After this operation there will be nothing left
@@ -1094,7 +1219,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+	<T extends Serializable> Optional<T> deleteEntity(
+		@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
 		throws EntityClassInvalidException;
 
 	/**
@@ -1119,7 +1245,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
 	 */
 	@Nonnull
-	DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require)
+	DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(
+		@Nonnull String entityType, int primaryKey, EntityContentRequire... require)
 		throws EvitaInvalidUsageException;
 
 	/**
@@ -1133,7 +1260,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
-	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(
+		@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
 		throws EvitaInvalidUsageException, EntityClassInvalidException;
 
 	/**
@@ -1204,7 +1332,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> archiveEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+	<T extends Serializable> Optional<T> archiveEntity(
+		@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
 		throws EntityClassInvalidException;
 
 	/**
@@ -1249,7 +1378,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+	<T extends Serializable> Optional<T> restoreEntity(
+		@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
 		throws EntityClassInvalidException;
 
 	/**
@@ -1271,7 +1401,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
 	 */
 	@Nonnull
-	MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	MaterializedVersionBlock getFirstCatalogVersionAfter(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns information about the last version that was valid before the specified moment in time. If the moment is
@@ -1283,7 +1415,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
 	 */
 	@Nonnull
-	MaterializedVersionBlock getLastCatalogVersionBefore(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	MaterializedVersionBlock getLastCatalogVersionBefore(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns stream of change data captures (mutations) that occurred in the catalog that match the specified criteria

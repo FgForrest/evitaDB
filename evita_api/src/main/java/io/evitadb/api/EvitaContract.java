@@ -53,16 +53,82 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 
 /**
- * Evita is a specialized database with easy-to-use API for e-commerce systems. Purpose of this research is creating a fast
- * and scalable engine that handles all complex tasks that e-commerce systems has to deal with on a daily basis. Evita should
- * operate as a fast secondary lookup / search index used by application frontends. We aim for order of magnitude better
- * latency (10x faster or better) for common e-commerce tasks than other solutions based on SQL or NoSQL databases on the
- * same hardware specification. Evita should not be used for storing and handling primary data, and we don't aim for ACID
- * properties nor data corruption guarantees. Evita "index" must be treated as something that could be dropped any time and
- * built up from scratch easily again.
+ * Primary entry point for interacting with an evitaDB instance. This interface provides catalog management,
+ * session lifecycle control, and global instance operations. EvitaContract represents a running evitaDB server
+ * instance that can manage multiple isolated {@link CatalogContract} instances.
  *
- * This interface represents the main entrance to the evitaDB contents.
- * Evita contract is thread safe.
+ * **evitaDB Purpose and Design Philosophy**
+ *
+ * evitaDB is a specialized in-memory database optimized for e-commerce use cases, designed to serve as a fast
+ * secondary lookup and search index for application frontends. Key characteristics:
+ *
+ * - **Performance Focus**: 10x better latency than traditional SQL/NoSQL solutions for e-commerce queries
+ * - **Secondary Index**: Not designed for primary data storage; data can be rebuilt from source systems
+ * - **No ACID Guarantees**: Optimized for read performance over strict consistency
+ * - **Disposable Nature**: Catalog contents can be dropped and reconstructed without data loss
+ *
+ * **Multi-Catalog Architecture**
+ *
+ * A single evitaDB instance manages multiple catalogs ({@link CatalogContract}), each representing:
+ * - An isolated data container (analogous to a database in traditional RDBMS)
+ * - Independent schema and entity collections
+ * - Separate session lifecycle and transaction boundaries
+ * - Typical use: one catalog per e-commerce store, tenant, or geographical market
+ *
+ * **Session Management**
+ *
+ * Sessions ({@link EvitaSessionContract}) are the primary means of interacting with catalog data:
+ * - Created via {@link #createSession(SessionTraits)} with catalog binding
+ * - Bound to a single catalog for their entire lifetime
+ * - Support read-only or read-write access modes
+ * - Must be explicitly closed or terminated to release resources
+ * - Convenience methods: {@link #createReadOnlySession(String)}, {@link #createReadWriteSession(String)}
+ *
+ * **Catalog Lifecycle**
+ *
+ * - **Creation**: {@link #defineCatalog(String)} creates or returns existing catalog schema
+ * - **State Management**: Catalogs transition through states (WARMING_UP, ALIVE, INACTIVE)
+ * - **Activation/Deactivation**: Load/unload catalogs from memory while preserving disk data
+ * - **Backup/Restore**: Point-in-time and full backups via management contract
+ * - **Deletion**: {@link #deleteCatalogIfExists(String)} removes catalog and all data
+ *
+ * **Transaction Patterns**
+ *
+ * - **Read-only queries**: {@link #queryCatalog(String, Function, SessionFlags...)}
+ * - **Read-write updates**: {@link #updateCatalog(String, Function, SessionFlags...)}
+ * - **Asynchronous updates**: {@link #updateCatalogAsync} variants for non-blocking operations
+ * - **Commit behavior control**: {@link CommitBehavior} defines when transactions are considered complete
+ *
+ * **Instance Lifecycle**
+ *
+ * - Start: Typically created via `Evita.create(EvitaConfiguration)`
+ * - Active state: {@link #isActive()} returns true
+ * - Shutdown: {@link #close()} terminates all catalogs and releases resources
+ * - Post-shutdown: All operations throw {@link InstanceTerminatedException}
+ *
+ * **Management Operations**
+ *
+ * Access privileged operations via {@link #management()}:
+ * - Global catalog statistics
+ * - Backup and restore
+ * - Task monitoring
+ * - System health checks
+ *
+ * **Thread-Safety**
+ *
+ * EvitaContract implementations are fully thread-safe. Multiple threads can:
+ * - Create sessions concurrently
+ * - Query and update different catalogs simultaneously
+ * - Invoke management operations in parallel
+ *
+ * **Resource Cleanup**
+ *
+ * This interface extends {@link AutoCloseable}, enabling try-with-resources usage:
+ * ```
+ * try (Evita evita = Evita.create(config)) {
+ * // work with evitaDB
+ * } // automatically closes and releases resources
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -70,10 +136,21 @@ import java.util.function.IntConsumer;
 public interface EvitaContract extends AutoCloseable {
 
 	/**
-	 * Returns true if the Evita instance is active and ready to serve requests - i.e. method {@link #close()} has not
-	 * been called yet.
+	 * Indicates whether this evitaDB instance is active and ready to serve requests. Returns false after {@link #close()}
+	 * has been called or if the instance failed to initialize properly.
 	 *
-	 * @return true if the Evita instance is active
+	 * **Use Cases**
+	 *
+	 * - Health check endpoints to verify instance availability
+	 * - Conditional logic before attempting operations
+	 * - Graceful degradation in shutdown scenarios
+	 *
+	 * **Post-Shutdown Behavior**
+	 *
+	 * Once this method returns false, all subsequent operations will throw {@link InstanceTerminatedException}.
+	 * The instance cannot be reactivated; a new instance must be created.
+	 *
+	 * @return true if instance is active and accepting requests, false if terminated
 	 */
 	boolean isActive();
 
@@ -135,7 +212,27 @@ public interface EvitaContract extends AutoCloseable {
 	void terminateSession(@Nonnull EvitaSessionContract session);
 
 	/**
-	 * Returns complete listing of all catalogs known to the Evita instance.
+	 * Returns the names of all catalogs known to this evitaDB instance, regardless of their current state
+	 * (ALIVE, INACTIVE, CORRUPTED, etc.).
+	 *
+	 * **Catalog States**
+	 *
+	 * Returned catalogs may be in various states:
+	 * - Active catalogs loaded in memory ({@link CatalogState#ALIVE}, {@link CatalogState#WARMING_UP})
+	 * - Inactive catalogs present on disk ({@link CatalogState#INACTIVE})
+	 * - Corrupted catalogs that failed to load ({@link CatalogState#CORRUPTED})
+	 *
+	 * **Use Cases**
+	 *
+	 * - Enumerating all available catalogs for management dashboards
+	 * - Discovering catalog names before creating sessions
+	 * - Validating catalog existence before activation or deletion
+	 *
+	 * **Thread-Safety**
+	 *
+	 * Returned set is a snapshot at call time. Concurrent catalog creation/deletion operations may make it stale.
+	 *
+	 * @return immutable set of catalog names, never null but may be empty
 	 */
 	@Nonnull
 	Set<String> getCatalogNames();
@@ -176,8 +273,8 @@ public interface EvitaContract extends AutoCloseable {
 	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}. Returns
 	 * {@link Progress} that can be used to track the progress of the operation.
 	 *
-	 * @see CatalogState
 	 * @return progress that can be used to track the progress of the operation
+	 * @see CatalogState
 	 */
 	@Nonnull
 	Progress<CommitVersions> makeCatalogAliveWithProgress(@Nonnull String catalogName);
@@ -189,7 +286,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * At the end of this method the new catalog has been created with all data and schema
 	 * copied from the source catalog.
 	 *
-	 * @param catalogName name of the source catalog to duplicate
+	 * @param catalogName    name of the source catalog to duplicate
 	 * @param newCatalogName name of the new catalog to create with duplicated contents
 	 */
 	default void duplicateCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName) {
@@ -205,7 +302,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * The target catalog name must not already exist.
 	 * Returns {@link Progress} that can be used to track the progress of the operation.
 	 *
-	 * @param catalogName name of the source catalog to duplicate
+	 * @param catalogName    name of the source catalog to duplicate
 	 * @param newCatalogName name of the new catalog to create with duplicated contents
 	 * @return progress that can be used to track the progress of the operation
 	 */
@@ -394,7 +491,8 @@ public interface EvitaContract extends AutoCloseable {
 	 * @return progress that can be used to track the progress of the operation
 	 */
 	@Nonnull
-	Progress<CommitVersions> replaceCatalogWithProgress(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced);
+	Progress<CommitVersions> replaceCatalogWithProgress(
+		@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced);
 
 	/**
 	 * Deletes catalog with name `catalogName` along with its contents on disk. At the end of this method the catalog
@@ -406,8 +504,8 @@ public interface EvitaContract extends AutoCloseable {
 		deleteCatalogIfExistsWithProgress(catalogName)
 			.ifPresent(
 				it -> it.onCompletion()
-				        .toCompletableFuture()
-				        .join()
+					.toCompletableFuture()
+					.join()
 			);
 	}
 

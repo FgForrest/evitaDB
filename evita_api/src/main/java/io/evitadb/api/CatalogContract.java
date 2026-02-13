@@ -63,32 +63,101 @@ import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 /**
- * Catalog is a fragment of evitaDB database that can be compared to a schema of relational database. Catalog allows
- * handling multiple isolated data collections inside single evitaDB instance. Catalogs in evitaDB are isolated one from
- * another and share no single thing. They have separate {@link CatalogSchemaContract}, separate data and cannot share
- * {@link EvitaSessionContract}. It means that EvitaSession is bound to its catalog since creation and cannot query
- * different catalog than this one.
+ * Represents an isolated data container within an evitaDB instance, analogous to a database schema in relational systems
+ * or a database in MongoDB/Elasticsearch. A catalog provides complete isolation of data, schema, and sessions, functioning
+ * as a self-contained unit for storing and querying entities.
  *
- * Catalog is an abstraction for "database" in the sense of relational databases. Catalog contains all entities and data
- * connected with single client. In the e-commerce world catalog means "single e-shop" although it may not be the truth
- * in every case. Catalog manages set of {@link EntityCollectionContract} uniquely identified by their
- * {@link EntityCollectionContract#getEntityType()}.
+ * **Architecture and Isolation**
+ *
+ * Each catalog maintains:
+ * - **Independent schema** ({@link CatalogSchemaContract}): Defines catalog-level settings and entity type schemas
+ * - **Isolated entity collections** ({@link EntityCollectionContract}): Stores entities grouped by type
+ * - **Dedicated sessions** ({@link EvitaSessionContract}): Sessions are bound to a single catalog and cannot cross boundaries
+ * - **Separate transaction log** (WAL): Tracks all mutations for replication and recovery
+ * - **Versioned state**: Each mutation increments the catalog version for temporal queries and point-in-time operations
+ *
+ * **Typical Usage Pattern**
+ *
+ * In e-commerce scenarios, a catalog typically represents:
+ * - A single online store (product catalog, customers, orders)
+ * - A geographical market (e.g., US catalog vs. EU catalog)
+ * - A tenant in multi-tenant SaaS deployments
+ *
+ * **State Management**
+ *
+ * Catalogs transition through different operational states ({@link CatalogState}):
+ * - {@link CatalogState#WARMING_UP}: Initial bulk loading phase, single-threaded, no transactions
+ * - {@link CatalogState#ALIVE}: Normal operation with full ACID transactions and concurrent access
+ * - {@link CatalogState#INACTIVE}: Exists on disk but not loaded in memory
+ * - {@link CatalogState#CORRUPTED}: Cannot be loaded due to data integrity issues
+ *
+ * **Entity Collections**
+ *
+ * A catalog manages multiple {@link EntityCollectionContract} instances, each representing a distinct entity type
+ * (comparable to tables in SQL or document types in NoSQL). Collections are identified by
+ * {@link EntityCollectionContract#getEntityType()} and can be created dynamically based on schema evolution settings.
+ *
+ * **Temporal Capabilities**
+ *
+ * Catalogs support:
+ * - Point-in-time queries via version-based snapshots
+ * - Historical backups at specific moments or versions
+ * - Change data capture (CDC) for streaming mutations
+ * - Version history navigation for auditing and rollback scenarios
+ *
+ * **Concurrency and Transactions**
+ *
+ * - Read operations are lock-free and use MVCC (Multi-Version Concurrency Control)
+ * - Write operations are serialized through transactions in {@link CatalogState#ALIVE} state
+ * - Bulk loading in {@link CatalogState#WARMING_UP} bypasses transactional overhead for performance
+ *
+ * **Lifecycle Operations**
+ *
+ * - Creation: {@link EvitaContract#defineCatalog(String)}
+ * - State transitions: {@link #goLive()}, {@link EvitaContract#activateCatalog(String)}
+ * - Duplication: {@link #duplicateTo(String)}
+ * - Backup/Restore: {@link #backup}, {@link #fullBackup}
+ * - Deletion: {@link #terminateAndDelete()}
+ *
+ * **Thread-Safety**
+ *
+ * Catalog implementations are thread-safe. Multiple sessions can operate concurrently in {@link CatalogState#ALIVE} state.
+ * The {@link CatalogState#WARMING_UP} state requires single-threaded access.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface CatalogContract {
 
 	/**
-	 * Returns unique catalog id that doesn't change with catalog schema changes - such as renaming.
-	 * The id is assigned to the catalog when it is created and never changes.
+	 * Returns the immutable unique identifier assigned to this catalog at creation time. This UUID remains constant
+	 * throughout the catalog's lifetime, even if the catalog is renamed or its schema evolves.
 	 *
-	 * @return unique catalog id
+	 * **Use Cases**
+	 *
+	 * - Stable reference for catalog identification across renames
+	 * - Primary key for external systems tracking evitaDB catalogs
+	 * - Correlation key in distributed systems or replicas
+	 *
+	 * @return persistent unique identifier for this catalog
 	 */
 	@Nonnull
 	UUID getCatalogId();
 
 	/**
-	 * Returns read-only catalog configuration.
+	 * Returns the current sealed (read-only) schema of the catalog, which defines catalog-level settings and
+	 * contains definitions for all entity types managed by this catalog.
+	 *
+	 * **Schema Evolution**
+	 *
+	 * To modify the schema, use {@link #updateSchema} with appropriate {@link LocalCatalogSchemaMutation} instances.
+	 * The schema can be converted to a builder via {@link SealedCatalogSchema#openForWrite()} to generate mutations.
+	 *
+	 * **Thread-Safety**
+	 *
+	 * The returned schema is immutable and thread-safe. However, it represents a snapshot at call time and may
+	 * become stale if concurrent schema mutations occur.
+	 *
+	 * @return current sealed catalog schema
 	 */
 	@Nonnull
 	SealedCatalogSchema getSchema();
@@ -100,7 +169,7 @@ public interface CatalogContract {
 	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
 	 * and proper rollback in the event of an error.
 	 *
-	 * @param sessionId an optional session ID that can be used to register the mutations with an active session
+	 * @param sessionId      an optional session ID that can be used to register the mutations with an active session
 	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
 	 *                       to apply to the catalog schema
 	 * @return the updated {@link SealedCatalogSchema} reflecting all applied mutations
@@ -113,27 +182,72 @@ public interface CatalogContract {
 	) throws SchemaAlteringException;
 
 	/**
-	 * Returns state of this catalog instance.
+	 * Returns the current operational state of this catalog instance. The state determines what operations are
+	 * permitted and what concurrency guarantees apply.
+	 *
+	 * **State Implications**
+	 *
+	 * - {@link CatalogState#WARMING_UP}: Single-threaded bulk loading, no transactions
+	 * - {@link CatalogState#ALIVE}: Normal operation with full transactional support
+	 * - {@link CatalogState#INACTIVE}: Catalog exists on disk but is not loaded
+	 * - {@link CatalogState#CORRUPTED}: Catalog is unusable due to data corruption
+	 * - Transitional states: Catalog is changing state and cannot serve requests
+	 *
+	 * @return current catalog state
+	 * @see CatalogState for detailed state descriptions
 	 */
 	@Nonnull
 	CatalogState getCatalogState();
 
 	/**
-	 * Returns name of the Catalog instance. Name must be unique across all catalogs inside same {@link EvitaContract}
-	 * instance. Name of the catalog must be equal to {@link CatalogSchemaContract#getName()}.
+	 * Returns the unique name of this catalog within the evitaDB instance. This name is used in all API calls
+	 * to identify the catalog and must be unique across all catalogs in the same {@link EvitaContract}.
+	 *
+	 * **Schema Consistency**
+	 *
+	 * The catalog name always matches {@link CatalogSchemaContract#getName()}. Renaming operations update both
+	 * the catalog instance and its schema atomically.
+	 *
+	 * @return unique catalog name
 	 */
 	@Nonnull
 	String getName();
 
 	/**
-	 * Returns catalog header version that is incremented with each update. Version is not stored on the disk,
-	 * it serves only to distinguish whether there is any change made in the header and whether it needs to be persisted
-	 * on disk.
+	 * Returns the current catalog version number, which is incremented with each mutation applied to the catalog
+	 * or its entity collections. This version is used for:
+	 *
+	 * - Optimistic locking and conflict detection
+	 * - Temporal queries and point-in-time snapshots
+	 * - Change data capture (CDC) stream positioning
+	 * - Determining whether in-memory state needs persistence
+	 *
+	 * **Version Semantics**
+	 *
+	 * - Starts at 0 for new catalogs
+	 * - Incremented by 1 for each committed transaction
+	 * - Not persisted to disk; computed from WAL on startup
+	 * - Used to track header changes requiring disk sync
+	 *
+	 * @return current catalog version number
 	 */
 	long getVersion();
 
 	/**
-	 * Returns true if catalog supports transaction.
+	 * Indicates whether this catalog currently supports transactional operations. Transaction support depends on
+	 * the catalog's state:
+	 *
+	 * - {@link CatalogState#ALIVE}: Returns true, full ACID transactions available
+	 * - {@link CatalogState#WARMING_UP}: Returns false, single-threaded bulk operations only
+	 * - Other states: Returns false, no write operations permitted
+	 *
+	 * **Use Cases**
+	 *
+	 * - Conditional logic for bulk loading vs. transactional updates
+	 * - Validation before attempting transactional operations
+	 * - Monitoring catalog readiness for production workloads
+	 *
+	 * @return true if catalog accepts transactional writes, false otherwise
 	 */
 	boolean supportsTransaction();
 
@@ -150,7 +264,8 @@ public interface CatalogContract {
 	 * The method is used to locate entities of up-front unknown type by their globally unique attributes.
 	 */
 	@Nonnull
-	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(
+		@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Applies mutation to the catalog. This is a generic method that accepts any mutation and tries to apply it to
@@ -160,7 +275,8 @@ public interface CatalogContract {
 	 * @param mutation mutation to be applied
 	 * @throws InvalidMutationException when mutation is not applicable to the catalog
 	 */
-	void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException;
+	void applyMutation(
+		@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException;
 
 	/**
 	 * Returns collection maintaining all entities of same type.
@@ -176,7 +292,9 @@ public interface CatalogContract {
 	 * @param entityType type (name) of the entity
 	 */
 	@Nonnull
-	EntityCollectionContract getCollectionForEntityOrThrowException(@Nonnull String entityType) throws CollectionNotFoundException;
+	EntityCollectionContract getCollectionForEntityOrThrowException(
+		@Nonnull String entityType
+	) throws CollectionNotFoundException;
 
 	/**
 	 * Returns collection maintaining all entities of same type or throws standardized exception.
@@ -184,7 +302,9 @@ public interface CatalogContract {
 	 * @param entityTypePrimaryKey primary key of the entity collection - see {@link EntityCollectionContract#getEntityTypePrimaryKey()}
 	 */
 	@Nonnull
-	EntityCollectionContract getCollectionForEntityPrimaryKeyOrThrowException(int entityTypePrimaryKey) throws CollectionNotFoundException;
+	EntityCollectionContract getCollectionForEntityPrimaryKeyOrThrowException(
+		int entityTypePrimaryKey
+	) throws CollectionNotFoundException;
 
 	/**
 	 * Returns collection maintaining all entities of same type. If no such collection exists new one is created.
@@ -194,7 +314,8 @@ public interface CatalogContract {
 	 *                                 doesn't allow {@link CatalogEvolutionMode#ADDING_ENTITY_TYPES}
 	 */
 	@Nonnull
-	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType)
+	EntityCollectionContract getOrCreateCollectionForEntity(
+		@Nonnull EvitaSessionContract session, @Nonnull String entityType)
 		throws SchemaAlteringException;
 
 	/**
@@ -236,9 +357,31 @@ public interface CatalogContract {
 	boolean isGoingLive();
 
 	/**
-	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
+	 * Transitions the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}, enabling
+	 * transactional operations and concurrent access. This method performs necessary initialization steps to
+	 * prepare the catalog for production workloads.
 	 *
-	 * @see CatalogState
+	 * **Transition Process**
+	 *
+	 * 1. Validates catalog integrity and indexes
+	 * 2. Converts internal data structures from bulk-loading to transactional mode
+	 * 3. Initializes transaction management infrastructure
+	 * 4. Enables concurrent access mechanisms (MVCC, locks)
+	 * 5. Sets state to {@link CatalogState#ALIVE}
+	 *
+	 * **When to Call**
+	 *
+	 * Call this method after completing initial bulk data loading in {@link CatalogState#WARMING_UP} and before
+	 * opening the catalog for normal application use. Only valid when current state is {@link CatalogState#WARMING_UP}.
+	 *
+	 * **Performance Impact**
+	 *
+	 * This operation may take significant time for large catalogs as it builds transactional metadata and
+	 * finalizes indexes. The catalog is unavailable during transition.
+	 *
+	 * @return this catalog instance in {@link CatalogState#ALIVE} state
+	 * @throws IllegalStateException if current state is not {@link CatalogState#WARMING_UP}
+	 * @see CatalogState for state lifecycle details
 	 */
 	@Nonnull
 	CatalogContract goLive();
@@ -252,7 +395,9 @@ public interface CatalogContract {
 	 * @throws CatalogNotAliveException when the catalog is not in {@link CatalogState#ALIVE} state
 	 */
 	@Nonnull
-	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request)
+	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(
+		@Nonnull ChangeCatalogCaptureRequest request
+	)
 		throws CatalogNotAliveException;
 
 	/**
@@ -271,7 +416,9 @@ public interface CatalogContract {
 	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
 	 */
 	@Nonnull
-	MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	MaterializedVersionBlock getFirstCatalogVersionAfter(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns information about the last version that was valid before the specified moment in time. If the moment is
@@ -283,7 +430,9 @@ public interface CatalogContract {
 	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
 	 */
 	@Nonnull
-	MaterializedVersionBlock getLastCatalogVersionBefore(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	MaterializedVersionBlock getLastCatalogVersionBefore(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
@@ -366,8 +515,8 @@ public interface CatalogContract {
 	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
 	 * create even point-in-time backups from it.
 	 *
-	 * @param onStart        callback that will be executed before the backup process starts
-	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @param onStart    callback that will be executed before the backup process starts
+	 * @param onComplete callback that will be executed when the backup process is completed
 	 * @return jobId of the backup process
 	 */
 	@Nonnull

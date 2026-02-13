@@ -27,90 +27,125 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Indicates actual state in which Evita operates. See detailed information for each state.
+ * Represents the operational state of a catalog instance within evitaDB. Catalogs transition through different states
+ * during their lifecycle, from initial creation through normal operation to eventual deactivation or deletion.
+ *
+ * **State Categories**
+ *
+ * States are divided into two categories:
+ * - **Active states** ({@link #WARMING_UP}, {@link #ALIVE}): Catalog is loaded in memory and can serve requests
+ * - **Inactive states** ({@link #INACTIVE}, {@link #CORRUPTED}): Catalog exists on disk but is not loaded
+ * - **Transitional states** ({@link #GOING_ALIVE}, {@link #BEING_ACTIVATED}, {@link #BEING_DEACTIVATED},
+ * {@link #BEING_CREATED}, {@link #BEING_DELETED}): Catalog is in the process of changing state and cannot serve requests
+ *
+ * **State Transitions**
+ *
+ * Typical lifecycle transitions:
+ * - Creation: `BEING_CREATED → WARMING_UP → GOING_ALIVE → ALIVE`
+ * - Activation: `INACTIVE → BEING_ACTIVATED → ALIVE`
+ * - Deactivation: `ALIVE → BEING_DEACTIVATED → INACTIVE`
+ * - Deletion: `any_state → BEING_DELETED → (removed)`
+ *
+ * **Thread-Safety and Consistency**
+ *
+ * Active states provide different consistency and concurrency guarantees:
+ * - {@link #WARMING_UP}: Single-threaded access only, no transactional guarantees, bulk operations optimized for speed
+ * - {@link #ALIVE}: Multi-threaded access with full ACID transactions
+ *
+ * **Usage Context**
+ *
+ * This enum is used by:
+ * - {@link CatalogContract#getCatalogState()} to query current catalog state
+ * - {@link EvitaContract#getCatalogState(String)} to query catalog state from Evita instance
+ * - {@link EvitaContract#makeCatalogAlive(String)} to transition from WARMING_UP to ALIVE
+ * - {@link EvitaContract#activateCatalog(String)} to load catalog from disk
+ * - {@link EvitaContract#deactivateCatalog(String)} to unload catalog from memory
  *
  * @author Stɇvɇn Kamenik (kamenik.stepan@gmail.cz) (c) 2021
- **/
+ */
 @RequiredArgsConstructor
 public enum CatalogState {
 
-    /**
-     * Initial state of the Evita catalog.
-     * This state has several limitations but also advantages.
-     *
-     * This state requires single threaded access - this means only single thread can read/write data to the catalog
-     * in this state. No transaction are allowed in this state and there are no guarantees on consistency of the catalog
-     * if any of the WRITE operations fails. If any error is encountered while writing to the catalog in this state it is
-     * strongly recommended discarding entire catalog contents and starts filling it from the scratch.
-     *
-     * Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,
-     * transactional logic is disabled and doesn't slow down the writing process.
-     *
-     * This phase is meant to quickly fill initial state of the catalog from the external primary data store.
-     */
-    WARMING_UP(false, true),
+	/**
+	 * Initial state of the Evita catalog.
+	 * This state has several limitations but also advantages.
+	 *
+	 * This state requires single threaded access - this means only single thread can read/write data to the catalog
+	 * in this state. No transaction are allowed in this state and there are no guarantees on consistency of the catalog
+	 * if any of the WRITE operations fails. If any error is encountered while writing to the catalog in this state it is
+	 * strongly recommended discarding entire catalog contents and starts filling it from the scratch.
+	 *
+	 * Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,
+	 * transactional logic is disabled and doesn't slow down the writing process.
+	 *
+	 * This phase is meant to quickly fill initial state of the catalog from the external primary data store.
+	 */
+	WARMING_UP(false, true),
 
-    /**
-     * Standard "serving" state of the Evita catalog.
-     * All operations are executed transactionally and leave the date in consistent state even if any error occurs.
-     * Multiple readers and writers can work with the catalog simultaneously.
-     */
-    ALIVE(false, true),
+	/**
+	 * Standard "serving" state of the Evita catalog.
+	 * All operations are executed transactionally and leave the date in consistent state even if any error occurs.
+	 * Multiple readers and writers can work with the catalog simultaneously.
+	 */
+	ALIVE(false, true),
 
-    /**
-     * State signalizing that evitaDB engine didn't load this catalog from the file system. The catalog data are present
-     * on the file system, but they are not loaded into memory and the evitaDB engine is not able to serve any requests
-     * for this catalog.
-     */
-    INACTIVE(false, false),
+	/**
+	 * State signalizing that evitaDB engine didn't load this catalog from the file system. The catalog data are present
+	 * on the file system, but they are not loaded into memory and the evitaDB engine is not able to serve any requests
+	 * for this catalog.
+	 */
+	INACTIVE(false, false),
 
-    /**
-     * State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
-     */
-    CORRUPTED(false, false),
+	/**
+	 * State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
+	 */
+	CORRUPTED(false, false),
 
-    /**
-     * State signalizing that evitaDB engine is transitioning catalog from {@link #WARMING_UP} to {@link #ALIVE} state.
-     * Until the transition is fully completed, the catalog is not able to serve any requests.
-     */
-    GOING_ALIVE(true, false),
+	/**
+	 * State signalizing that evitaDB engine is transitioning catalog from {@link #WARMING_UP} to {@link #ALIVE} state.
+	 * Until the transition is fully completed, the catalog is not able to serve any requests.
+	 */
+	GOING_ALIVE(true, false),
 
-    /**
-     * State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
-     * initialization of the catalog. The catalog is not able to serve any requests until the initialization is fully
-     * completed.
-     */
-    BEING_ACTIVATED(true, false),
+	/**
+	 * State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
+	 * initialization of the catalog. The catalog is not able to serve any requests until the initialization is fully
+	 * completed.
+	 */
+	BEING_ACTIVATED(true, false),
 
-    /**
-     * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
-     * is moved to {@link #INACTIVE} state.
-     */
-    BEING_DEACTIVATED(true, false),
+	/**
+	 * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
+	 * is moved to {@link #INACTIVE} state.
+	 */
+	BEING_DEACTIVATED(true, false),
 
-    /**
-     * State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
-     * until the creation is fully completed.
-     */
-    BEING_CREATED(true, false),
+	/**
+	 * State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
+	 * until the creation is fully completed.
+	 */
+	BEING_CREATED(true, false),
 
-    /**
-     * State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
-     * is removed from the file system and is no longer available.
-     */
-    BEING_DELETED(true, false);
+	/**
+	 * State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
+	 * is removed from the file system and is no longer available.
+	 */
+	BEING_DELETED(true, false);
 
-    /**
-     * Contains true if the state is transitional and will change in a stable state in the future.
-     * Transitional states are not able to serve any requests, and they are used to signalize that the catalog is
-     * in the process of changing its state.
-     */
-    @Getter private final boolean transitional;
+	/**
+	 * Indicates whether this state represents a temporary transition phase that will automatically progress to
+	 * a stable state once the underlying operation completes. Transitional states cannot serve any data access
+	 * requests and are used to signal that the catalog is undergoing a structural change (creation, activation,
+	 * deactivation, deletion, or state transition).
+	 */
+	@Getter private final boolean transitional;
 
-    /**
-     * Contains true if the state is "active" by its nature (i.e. either WARMING_UP or ALIVE). Active states are able
-     * to serve requests, but they may have different performance characteristics and guarantees.
-     */
-    @Getter private final boolean active;
+	/**
+	 * Indicates whether the catalog is loaded in memory and capable of serving data access requests in this state.
+	 * Active states ({@link #WARMING_UP}, {@link #ALIVE}) allow data operations but with different consistency
+	 * guarantees and concurrency models. Non-active states mean the catalog either doesn't exist in memory or
+	 * is in the process of changing state.
+	 */
+	@Getter private final boolean active;
 
 }
