@@ -43,7 +43,8 @@
       "Bash(mvn test-compile:*)",
       "Bash(git mv:*)",
       "WebSearch",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(git log:*)"
     ]
   }
 }

@@ -36,6 +36,12 @@ Launch all three agents simultaneously in a single message with three Task tool 
 - Trace through logic with concrete examples, search for usages
 - Produce finding report: severity, file, line, reproduction scenario, recommended fix
 
+#### Phase 1 Checklist:
+
+- [ ] `test-architect` launched with ANALYSIS ONLY, produces test plan
+- [ ] `code-simplifier` launched with ANALYSIS ONLY, produces simplification plan
+- [ ] `bug-hunter-tdd` launched with ANALYSIS ONLY, produces bug report
+
 ### Phase 2: EXECUTION (three agents in sequence)
 
 Run agents one at a time, each building on the previous:
