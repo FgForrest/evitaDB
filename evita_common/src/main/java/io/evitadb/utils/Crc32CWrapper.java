@@ -41,6 +41,8 @@ import java.util.zip.CRC32C;
  * - Direct byte array access where possible
  * - No boxing/unboxing in critical paths
  * - Manual loops instead of streams
+ * - Mathematical CRC state injection via {@link #forceValue(long)} to avoid expensive combine operations
+ *   on every {@link #getValue()} call
  *
  * Example usage:
  * ```java
@@ -59,7 +61,13 @@ public class Crc32CWrapper {
 	/**
 	 * Reflected CRC-32C (Castagnoli) polynomial.
 	 */
-	private static final long CRC32C_POLY = 0x82F63B78L;
+	private static final int CRC32C_POLY = 0x82F63B78;
+
+	/**
+	 * CRC32C value of 4 zero bytes, used by {@link #forceValue(long)} to compensate for the initial
+	 * `0xFFFFFFFF` internal state drift when injecting a target CRC value.
+	 */
+	private static final int CRC_OF_4_ZEROS = 0x48674BC7;
 
 	/**
 	 * Internal CRC32C instance for computing checksums.
@@ -72,22 +80,22 @@ public class Crc32CWrapper {
 	private final byte[] buffer;
 
 	/**
-	 * Tracks the cumulative length of data added to the current CRC32C instance since the last
-	 * {@link #getValue()} call. Used as the length parameter when combining the current CRC32C
-	 * value with the stored cumulative checksum.
+	 * Reusable GF(2) matrix buffer for the "odd powers" operator, used by
+	 * {@link #combineInternal(int, int, long, int[], int[])} to avoid per-call allocation.
 	 */
-	private int pendingLength = 0;
+	private final int[] odd = new int[32];
 
 	/**
-	 * Stores the cumulative checksum value computed from all previous data. When {@link #getValue()}
-	 * is called, this value is combined with the current CRC32C checksum to produce the final
-	 * cumulative result. This allows the wrapper to maintain a running checksum across multiple
-	 * getValue() calls without resetting the underlying state.
+	 * Reusable GF(2) matrix buffer for the "even powers" operator, used by
+	 * {@link #combineInternal(int, int, long, int[], int[])} to avoid per-call allocation.
 	 */
-	private long checksum = 0L;
+	private final int[] even = new int[32];
 
 	/**
 	 * Combine two CRC32C values into the CRC32C of (data1 || data2).
+	 * This static convenience method allocates temporary arrays on each call.
+	 * For hot paths, prefer calling through an instance (e.g., via
+	 * {@link #withAnotherChecksum(long, int)}) which reuses pre-allocated arrays.
 	 *
 	 * @param crc1 CRC32C of data1 (as returned by java.util.zip.CRC32C#getValue()).
 	 * @param crc2 CRC32C of data2 (as returned by java.util.zip.CRC32C#getValue()).
@@ -95,31 +103,46 @@ public class Crc32CWrapper {
 	 * @return CRC32C of concatenation data1||data2
 	 */
 	public static long combine(long crc1, long crc2, long len2) {
-		crc1 &= 0xFFFFFFFFL;
-		crc2 &= 0xFFFFFFFFL;
+		return combineInternal(
+			(int) crc1, (int) crc2, len2,
+			new int[32], new int[32]
+		);
+	}
 
+	/**
+	 * Core CRC32C combination algorithm using GF(2) matrix exponentiation.
+	 * Takes pre-allocated scratch arrays to avoid per-call heap allocation.
+	 *
+	 * @param crc1 CRC32C of data1 (lower 32 bits)
+	 * @param crc2 CRC32C of data2 (lower 32 bits)
+	 * @param len2 number of bytes in data2
+	 * @param odd  scratch array for odd-power operator (must be length 32)
+	 * @param even scratch array for even-power operator (must be length 32)
+	 * @return CRC32C of concatenation data1||data2, as unsigned 32-bit value in a long
+	 */
+	private static long combineInternal(
+		int crc1, int crc2, long len2,
+		@Nonnull int[] odd, @Nonnull int[] even
+	) {
 		if (len2 <= 0) {
-			return crc1;
+			return crc1 & 0xFFFFFFFFL;
 		}
 
-		long[] odd = new long[32];   // operator for one zero bit
-		long[] even = new long[32];  // operator for two zero bits
-
-		// Put operator for one zero bit in odd[]
+		// put operator for one zero bit in odd[]
 		odd[0] = CRC32C_POLY;
-		long row = 1;
+		int row = 1;
 		for (int i = 1; i < 32; i++) {
 			odd[i] = row;
 			row <<= 1;
 		}
 
-		// Put operator for two zero bits in even[]
+		// put operator for two zero bits in even[]
 		gf2MatrixSquare(even, odd);
 
-		// Put operator for four zero bits in odd[]
+		// put operator for four zero bits in odd[]
 		gf2MatrixSquare(odd, even);
 
-		// Apply len2 zeros to crc1 (i.e., shift crc1 by len2 bytes)
+		// apply len2 zeros to crc1 (i.e., shift crc1 by len2 bytes)
 		do {
 			gf2MatrixSquare(even, odd);
 			if ((len2 & 1L) != 0) {
@@ -137,49 +160,89 @@ public class Crc32CWrapper {
 			len2 >>= 1;
 		} while (len2 != 0);
 
-		// Combine
 		return (crc1 ^ crc2) & 0xFFFFFFFFL;
 	}
 
 	/**
-	 * Multiplies a vector by a matrix in the field GF(2) (Galois Field 2).
-	 * This operation applies a bitwise matrix-vector multiplication where
-	 * the matrix is represented as an array of longs, and the vector is a long value.
+	 * Multiplies a vector by a matrix in GF(2) using Kernighan's bit-clearing trick.
+	 * Uses {@link Integer#numberOfTrailingZeros(int)} (a JVM intrinsic mapping to a single
+	 * TZCNT/BSF CPU instruction) to skip zero bits in O(1), reducing iterations from 32
+	 * to the number of set bits (~16 on average for random CRC values).
 	 *
-	 * @param mat the matrix represented as an array of long values, where each long
-	 *            corresponds to a row of the matrix.
-	 * @param vec the vector represented as a long value, where each bit corresponds
-	 *            to an element in the vector.
-	 * @return the result of multiplying the matrix by the vector, represented as a long value.
-	 *         Only the lower 32 bits of the result are significant.
+	 * @param mat the 32x32 matrix represented as an int array, where each int
+	 *            corresponds to a row of the matrix
+	 * @param vec the vector represented as an int, where each bit corresponds
+	 *            to an element in the vector
+	 * @return the result of multiplying the matrix by the vector
 	 */
-	private static long gf2MatrixTimes(long[] mat, long vec) {
-		long sum = 0;
-		int idx = 0;
+	private static int gf2MatrixTimes(@Nonnull int[] mat, int vec) {
+		int sum = 0;
 		while (vec != 0) {
-			if ((vec & 1L) != 0) {
-				sum ^= mat[idx];
-			}
-			vec >>>= 1;
-			idx++;
+			sum ^= mat[Integer.numberOfTrailingZeros(vec)];
+			vec &= vec - 1; // clear lowest set bit (Kernighan's trick)
 		}
-		return sum & 0xFFFFFFFFL;
+		return sum;
 	}
 
 	/**
-	 * Squares a given matrix in the field GF(2) (Galois Field 2).
-	 * This operation computes the square of a matrix represented as an array of long values,
-	 * where each long corresponds to a row of the matrix.
+	 * Squares a given 32x32 matrix in GF(2).
 	 *
-	 * @param square the output matrix where the squared result will be stored.
-	 *               Each element of this array corresponds to a row of the resulting matrix.
-	 * @param mat    the input matrix to be squared, represented as an array of long values.
-	 *               Each element of this array corresponds to a row of the matrix to be squared.
+	 * @param square the output matrix where the squared result will be stored
+	 * @param mat    the input matrix to be squared
 	 */
-	private static void gf2MatrixSquare(long[] square, long[] mat) {
+	private static void gf2MatrixSquare(@Nonnull int[] square, @Nonnull int[] mat) {
 		for (int i = 0; i < 32; i++) {
 			square[i] = gf2MatrixTimes(mat, mat[i]);
 		}
+	}
+
+	/**
+	 * Reverses 32 steps of the reflected CRC32C shift register to find the 4-byte input
+	 * that produces a given internal state when processed from state zero.
+	 *
+	 * The reflected CRC32C forward step is: `s = (s >>> 1) ^ ((s & 1) != 0 ? POLY : 0)`.
+	 * The MSB of the current state reveals whether the previous step XORed with POLY
+	 * (since POLY has MSB set), allowing deterministic reversal.
+	 *
+	 * @param value the target internal state to reverse
+	 * @return the 32-bit value whose 4 little-endian bytes produce the target state
+	 */
+	private static int reverseCrc32c(int value) {
+		int r = value;
+		for (int i = 0; i < 32; i++) {
+			if ((r & 0x80000000) != 0) {
+				// MSB set → previous step included XOR with POLY → bit 0 was 1
+				r = ((r ^ CRC32C_POLY) << 1) | 1;
+			} else {
+				// MSB clear → previous step was a clean shift → bit 0 was 0
+				r = r << 1;
+			}
+		}
+		return r;
+	}
+
+	/**
+	 * Forces the internal {@link CRC32C} state so that {@link #getValue()} returns the specified
+	 * target value. This is achieved by computing a 4-byte "injection sequence" via inverse CRC
+	 * mathematics and feeding it into a freshly reset CRC32C instance.
+	 *
+	 * The CRC state machine is Markovian — its next state depends only on the current register
+	 * value and the input, not on the history of how the register reached that value. Therefore,
+	 * subsequent {@link CRC32C#update} calls will produce results identical to those that would
+	 * be obtained if the original data (whose checksum equals `targetValue`) had been fed instead.
+	 *
+	 * @param targetValue the desired CRC32C checksum value that {@link #getValue()} should return
+	 */
+	private void forceValue(long targetValue) {
+		this.crc32C.reset();
+		// compensate for the 0xFFFFFFFF initial state drift over the 4 injection bytes
+		final int delta = (int) targetValue ^ CRC_OF_4_ZEROS;
+		final int injection = reverseCrc32c(delta);
+		this.buffer[0] = (byte) injection;
+		this.buffer[1] = (byte) (injection >>> 8);
+		this.buffer[2] = (byte) (injection >>> 16);
+		this.buffer[3] = (byte) (injection >>> 24);
+		this.crc32C.update(this.buffer, 0, 4);
 	}
 
 	/**
@@ -192,12 +255,14 @@ public class Crc32CWrapper {
 
 	/**
 	 * Initializes a new instance of the Crc32CWrapper with a specified initial checksum.
+	 * The internal CRC32C state is set so that {@link #getValue()} immediately returns
+	 * the initial checksum, and subsequent data additions build on that state.
 	 *
 	 * @param initialChecksum the initial checksum value to set for this calculator
 	 */
 	public Crc32CWrapper(long initialChecksum) {
 		this();
-		this.checksum = initialChecksum;
+		forceValue(initialChecksum);
 	}
 
 	/**
@@ -218,7 +283,6 @@ public class Crc32CWrapper {
 		this.buffer[6] = (byte) (value >>> 48);
 		this.buffer[7] = (byte) (value >>> 56);
 		this.crc32C.update(this.buffer, 0, 8);
-		this.pendingLength = Math.addExact(this.pendingLength, 8);
 		return this;
 	}
 
@@ -279,7 +343,6 @@ public class Crc32CWrapper {
 		this.buffer[2] = (byte) (value >> 16);
 		this.buffer[3] = (byte) (value >> 24);
 		this.crc32C.update(this.buffer, 0, 4);
-		this.pendingLength = Math.addExact(this.pendingLength, 4);
 		return this;
 	}
 
@@ -336,7 +399,6 @@ public class Crc32CWrapper {
 	public Crc32CWrapper withByte(byte value) {
 		this.buffer[0] = value;
 		this.crc32C.update(this.buffer, 0, 1);
-		this.pendingLength = Math.addExact(this.pendingLength, 1);
 		return this;
 	}
 
@@ -361,7 +423,6 @@ public class Crc32CWrapper {
 	public Crc32CWrapper withByteArray(@Nullable final byte[] values) {
 		if (values != null) {
 			this.crc32C.update(values, 0, values.length);
-			this.pendingLength = Math.addExact(this.pendingLength, values.length);
 		}
 		return this;
 	}
@@ -378,7 +439,6 @@ public class Crc32CWrapper {
 	public Crc32CWrapper withByteArray(@Nullable final byte[] values, int offset, int length) {
 		if (values != null) {
 			this.crc32C.update(values, offset, length);
-			this.pendingLength = Math.addExact(this.pendingLength, length);
 		}
 		return this;
 	}
@@ -410,7 +470,6 @@ public class Crc32CWrapper {
 		if (value != null) {
 			final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
 			this.crc32C.update(bytes, 0, bytes.length);
-			this.pendingLength = Math.addExact(this.pendingLength, bytes.length);
 		}
 		return this;
 	}
@@ -474,8 +533,11 @@ public class Crc32CWrapper {
 	@Nonnull
 	public Crc32CWrapper withAnotherChecksum(long checksum, int contentLength) {
 		final long currentChecksum = getValue();
-		this.reset();
-		this.checksum = Crc32CWrapper.combine(currentChecksum, checksum, contentLength);
+		final long combined = combineInternal(
+			(int) currentChecksum, (int) checksum, contentLength,
+			this.odd, this.even
+		);
+		forceValue(combined);
 		return this;
 	}
 
@@ -488,23 +550,20 @@ public class Crc32CWrapper {
 	@Nonnull
 	public Crc32CWrapper reset() {
 		this.crc32C.reset();
-		this.checksum = 0L;
-		this.pendingLength = 0;
 		return this;
 	}
 
 	/**
 	 * Resets the calculator to its initial state with specified initial value, allowing it to be reused for
-	 * new checksum computations.
+	 * new checksum computations. The internal CRC32C state is set so that {@link #getValue()} immediately
+	 * returns the specified value, and subsequent data additions build on that state.
 	 *
 	 * @param initialValue the initial checksum value to set
 	 * @return this calculator for method chaining
 	 */
 	@Nonnull
 	public Crc32CWrapper reset(long initialValue) {
-		this.crc32C.reset();
-		this.checksum = initialValue;
-		this.pendingLength = 0;
+		forceValue(initialValue);
 		return this;
 	}
 
@@ -514,17 +573,7 @@ public class Crc32CWrapper {
 	 * @return the current checksum value
 	 */
 	public long getValue() {
-		// when we have a stored cumulative checksum, combine it with the current value
-		if (this.checksum != 0L || this.pendingLength > 0) {
-			final long cumulatedChecksum = Crc32CWrapper.combine(
-				this.checksum, this.crc32C.getValue(), this.pendingLength
-			);
-			this.reset();
-			this.checksum = cumulatedChecksum;
-			return this.checksum;
-		} else {
-			return this.crc32C.getValue();
-		}
+		return this.crc32C.getValue();
 	}
 
 }
