@@ -32,11 +32,11 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
-import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
@@ -546,7 +546,8 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					)
 				);
 				assertTrue(txId.isPresent());
-				assertEquals(nextMutations.get(0), txId.get().transactionMutation());
+				assertInstanceOf(TransactionMutation.class, nextMutations.get(0));
+				assertTransactionMutationEquals((TransactionMutation) nextMutations.get(0), txId.get().transactionMutation());
 			}
 
 			// last transaction must return empty value (there is no next transaction to transition to)
@@ -594,6 +595,22 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 			assertEquals(1, CatalogWriteAheadLogIntegrationTest.this.offsetConsumer.getCatalogVersions().size());
 			assertEquals(3, CatalogWriteAheadLogIntegrationTest.this.offsetConsumer.getCatalogVersions().get(0));
 		}
+	}
+
+	/**
+	 * Compares two {@link TransactionMutation} instances by their logical transaction
+	 * fields only, ignoring location-specific fields like {@code transactionSpan} and
+	 * {@code walFileIndex} that may differ between write and read.
+	 */
+	private static void assertTransactionMutationEquals(
+		@Nonnull TransactionMutation expected,
+		@Nonnull TransactionMutation actual
+	) {
+		assertEquals(expected.getTransactionId(), actual.getTransactionId());
+		assertEquals(expected.getVersion(), actual.getVersion());
+		assertEquals(expected.getMutationCount(), actual.getMutationCount());
+		assertEquals(expected.getWalSizeInBytes(), actual.getWalSizeInBytes());
+		assertEquals(expected.getCommitTimestamp(), actual.getCommitTimestamp());
 	}
 
 	/**

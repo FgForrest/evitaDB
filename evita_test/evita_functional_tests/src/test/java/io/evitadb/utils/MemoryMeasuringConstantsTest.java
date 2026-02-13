@@ -258,7 +258,7 @@ class MemoryMeasuringConstantsTest {
 		@DisplayName("Should return byte size for byte type")
 		void shouldReturnByteSizeForByteType() {
 			final int size = MemoryMeasuringConstants.getElementSize(byte.class);
-			assertEquals(MemoryMeasuringConstants.REFERENCE_SIZE, size);
+			assertEquals(MemoryMeasuringConstants.BYTE_SIZE, size);
 		}
 
 		@Test

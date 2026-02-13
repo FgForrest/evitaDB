@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
-import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
 import io.evitadb.test.EvitaTestSupport;
@@ -97,7 +96,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 			new MutationPredicateContext(StreamDirection.FORWARD);
 		return new MutationPredicate(context) {
 			@Override
-			public boolean test(@Nonnull Mutation mutation) {
+			public boolean test(Mutation mutation) {
 				return result;
 			}
 		};
@@ -178,7 +177,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 		void shouldReturnVoidProgressResultType() {
 			final TransactionMutation mutation = createDefault();
 
-			assertEquals(Void.class, mutation.getProgressResultType());
+			assertSame(Void.class, mutation.getProgressResultType());
 		}
 	}
 
@@ -307,9 +306,11 @@ class TransactionMutationTest implements EvitaTestSupport {
 			final TransactionMutation mutation = createDefault();
 			final MutationPredicate predicate = constantPredicate(false);
 
-			mutation.toChangeCatalogCapture(
-				predicate, ChangeCaptureContent.BODY
-			).toList();
+			assertNotNull(
+				mutation.toChangeCatalogCapture(
+					predicate, ChangeCaptureContent.BODY
+				).toList()
+			);
 
 			// context side-effect happens before predicate test
 			final MutationPredicateContext context =

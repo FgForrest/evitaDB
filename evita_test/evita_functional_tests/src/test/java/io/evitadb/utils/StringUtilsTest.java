@@ -180,305 +180,341 @@ class StringUtilsTest {
 			assertEquals("foo-bar", toSpecificCase("fooBar", NamingConvention.KEBAB_CASE));
 		}
 
-	@ParameterizedTest
-	@MethodSource("shouldSwitchCaseToCamelCaseArguments")
-	void shouldSwitchCaseToCamelCase(String expected, String input) {
-		assertEquals(expected, toCamelCase(input));
-	}
-
-	@Nonnull
-	static Stream<Arguments> shouldSwitchCaseToCamelCaseArguments() {
-		return Stream.of(
-			Arguments.of("fooBar", "Foo.BAR"),
-			Arguments.of("fooBar092", "FOO.BAR:::09 2"),
-			Arguments.of("fooBar092", "FOO@BAR//09`2"),
-			Arguments.of("fooBar", "fooBar"),
-			Arguments.of("fooBar", "FooBar"),
-			Arguments.of("fooBar", "foo-bar"),
-			Arguments.of("fooBar", "foo_bar"),
-			Arguments.of("fooBar", "FOO_BAR"),
-			Arguments.of("fooBar09", "FOO_BAR09"),
-			Arguments.of("fooBar09", "FOO_BAR_09"),
-			Arguments.of("storeVisibleForB2c", "storeVisibleForB2C"),
-			Arguments.of("fooBarAbc", "fooBarABC"),
-			Arguments.of("fooAbBar", "fooABBar"),
-			Arguments.of("fooABar", "fooABar")
-		);
-	}
-
-	@ParameterizedTest
-	@MethodSource("shouldSwitchCaseToPascalCaseArguments")
-	void shouldSwitchCaseToPascalCase(String expected, String input) {
-		assertEquals(expected, toPascalCase(input));
-	}
-
-	@Nonnull
-	static Stream<Arguments> shouldSwitchCaseToPascalCaseArguments() {
-		return Stream.of(
-			Arguments.of("FooBar", "Foo.BAR"),
-			Arguments.of("FooBar092", "FOO.BAR:::09 2"),
-			Arguments.of("FooBar092", "FOO@BAR//09`2"),
-			Arguments.of("FooBar", "fooBar"),
-			Arguments.of("FooBar", "FooBar"),
-			Arguments.of("FooBar", "foo-bar"),
-			Arguments.of("FooBar", "foo_bar"),
-			Arguments.of("FooBar", "FOO_BAR"),
-			Arguments.of("FooBar09", "FOO_BAR09"),
-			Arguments.of("FooBar09", "FOO_BAR_09"),
-			Arguments.of("StoreVisibleForB2c", "storeVisibleForB2C"),
-			Arguments.of("FooBarAbc", "fooBarABC"),
-			Arguments.of("FooAbBar", "fooABBar"),
-			Arguments.of("FooABar", "fooABar")
-		);
-	}
-
-	@ParameterizedTest
-	@MethodSource("shouldSwitchCaseToSnakeCaseArguments")
-	void shouldSwitchCaseToSnakeCase(String expected, String input) {
-		assertEquals(expected, toSnakeCase(input));
-	}
-
-	@Nonnull
-	static Stream<Arguments> shouldSwitchCaseToSnakeCaseArguments() {
-		return Stream.of(
-			Arguments.of("foo_bar", "Foo.BAR"),
-			Arguments.of("foo_bar_09_2", "FOO.BAR:::09 2"),
-			Arguments.of("foo_bar_09_2", "FOO@BAR//09`2"),
-			Arguments.of("foo_bar", "fooBar"),
-			Arguments.of("foo_bar", "FooBar"),
-			Arguments.of("foo_bar", "foo-bar"),
-			Arguments.of("foo_bar", "foo_bar"),
-			Arguments.of("foo_bar", "FOO_BAR"),
-			Arguments.of("foo_bar09", "FooBar09"),
-			Arguments.of("foo_bar09", "FOO_BAR09"),
-			Arguments.of("foo_bar_09", "FOO_BAR_09"),
-			Arguments.of("store_visible_for_b2c", "storeVisibleForB2C"),
-			Arguments.of("foo_bar_abc", "fooBarABC"),
-			Arguments.of("foo_ab_bar", "fooABBar"),
-			Arguments.of("foo_a_bar", "fooABar")
-		);
-	}
-
-	@ParameterizedTest
-	@MethodSource("shouldSwitchCaseToUpperSnakeCaseArguments")
-	void shouldSwitchCaseToUpperSnakeCase(String expected, String input) {
-		assertEquals(expected, toUpperSnakeCase(input));
-	}
-
-	@Nonnull
-	static Stream<Arguments> shouldSwitchCaseToUpperSnakeCaseArguments() {
-		return Stream.of(
-			Arguments.of("FOO_BAR", "Foo.BAR"),
-			Arguments.of("FOO_BAR_09_2", "FOO.BAR:::09 2"),
-			Arguments.of("FOO_BAR_09_2", "FOO@BAR//09`2"),
-			Arguments.of("FOO_BAR", "fooBar"),
-			Arguments.of("FOO_BAR", "FooBar"),
-			Arguments.of("FOO_BAR", "foo-bar"),
-			Arguments.of("FOO_BAR", "foo_bar"),
-			Arguments.of("FOO_BAR", "FOO_BAR"),
-			Arguments.of("FOO_BAR09", "FooBar09"),
-			Arguments.of("FOO_BAR09", "FOO_BAR09"),
-			Arguments.of("FOO_BAR_09", "FOO_BAR_09"),
-			Arguments.of("STORE_VISIBLE_FOR_B2C", "storeVisibleForB2C"),
-			Arguments.of("FOO_BAR_ABC", "fooBarABC"),
-			Arguments.of("FOO_AB_BAR", "fooABBar"),
-			Arguments.of("FOO_A_BAR", "fooABar")
-		);
-	}
-
-	@ParameterizedTest
-	@MethodSource("shouldSwitchCaseToKebabCaseArguments")
-	void shouldSwitchCaseToKebabCase(String expected, String input) {
-		assertEquals(expected, toKebabCase(input));
-	}
-
-	@Nonnull
-	static Stream<Arguments> shouldSwitchCaseToKebabCaseArguments() {
-		return Stream.of(
-			Arguments.of("foo-bar", "Foo.BAR"),
-			Arguments.of("foo-bar-09-2", "FOO.BAR:::09 2"),
-			Arguments.of("foo-bar-09-2", "FOO@BAR//09`2"),
-			Arguments.of("foo-bar", "fooBar"),
-			Arguments.of("foo-bar", "FooBar"),
-			Arguments.of("foo-bar", "foo-bar"),
-			Arguments.of("foo-bar", "foo_bar"),
-			Arguments.of("foo-bar", "FOO_BAR"),
-			Arguments.of("foo-bar09", "FooBar09"),
-			Arguments.of("foo-bar09", "FOO_BAR09"),
-			Arguments.of("foo-bar-09", "FOO_BAR_09"),
-			Arguments.of("store-visible-for-b2c", "storeVisibleForB2C"),
-			Arguments.of("foo-bar-abc", "fooBarABC"),
-			Arguments.of("foo-ab-bar", "fooABBar"),
-			Arguments.of("foo-a-bar", "fooABar")
-		);
-	}
-
-	@ParameterizedTest
-	@MethodSource("shouldSplitStringWithCaseIntoWordsArguments")
-	void shouldSplitStringWithCaseIntoWords(List<String> expectedWords, String inputString) {
-		assertEquals(expectedWords, splitStringWithCaseIntoWords(inputString));
-	}
-
-	@Nonnull
-	static Stream<Arguments> shouldSplitStringWithCaseIntoWordsArguments() {
-		return Stream.of(
-			Arguments.of(List.of("Foo", "BAR"), "Foo.BAR"),
-			Arguments.of(List.of("FOO", "BAR", "09", "2"), "FOO.BAR:::09 2"),
-			Arguments.of(List.of("FOO", "BAR", "09", "2"), "FOO@BAR//09`2"),
-			Arguments.of(List.of("foo", "Bar"), "fooBar"),
-			Arguments.of(List.of("Foo", "Bar"), "FooBar"),
-			Arguments.of(List.of("foo", "bar"), "foo-bar"),
-			Arguments.of(List.of("foo", "bar"), "foo_bar"),
-			Arguments.of(List.of("FOO", "BAR"), "FOO_BAR"),
-			Arguments.of(List.of("Foo", "Bar09"), "FooBar09"),
-			Arguments.of(List.of("FOO", "BAR09"), "FOO_BAR09"),
-			Arguments.of(List.of("FOO", "BAR", "09"), "FOO_BAR_09"),
-			Arguments.of(List.of("store", "Visible", "For", "B2C"), "storeVisibleForB2C"),
-			Arguments.of(List.of("foo", "Bar", "ABC"), "fooBarABC"),
-			Arguments.of(List.of("foo", "AB", "Bar"), "fooABBar"),
-			Arguments.of(List.of("foo", "A", "Bar"), "fooABar")
-		);
-	}
-
-	@Nested
-	@DisplayName("Diacritics removal tests")
-	class DiacriticsRemovalTests {
-
-		@Test
-		@DisplayName("Should remove diacritics")
-		void shouldRemoveDiacritics() {
-			assertEquals("Prilis zlutoucky kun skakal pres zive ploticky a behal po poli. @#$%^&*()escrzyaieESCRZYAIE",
-				StringUtils.removeDiacritics("Příliš žluťoučký kůň skákal přes živé plotíčky a běhal po poli. @#$%^&*()ěščřžýáíéĚŠČŘŽÝÁÍÉ"));
+		@ParameterizedTest
+		@MethodSource("shouldSwitchCaseToCamelCaseArguments")
+		void shouldSwitchCaseToCamelCase(String expected, String input) {
+			assertEquals(expected, toCamelCase(input));
 		}
 
-		@Test
-		@DisplayName("Should remove diacritics for file name")
-		void shouldRemoveDiacriticsForFileName() {
-			assertEquals("Prilis-zlutoucky-kun-skakal-pres-zive-ploticky-a-behal-po-poli.-escrzyaieESCRZYAIE",
-				StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept("Příliš žluťoučký kůň skákal přes živé plotíčky a běhal po poli. @#$%^&*()ěščřžýáíéĚŠČŘŽÝÁÍÉ", '-', "."));
-			assertEquals("Toto-je-priklad-divneho-nazvu-souboru-atd.-kdovi-co-nesmysly-.-txt",
-				StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept("Toto je : příklad / divného, názvu souboru & atd. @# + kdoví co, nesmysly     {}|<>/! . txt", '-', "."));
+		@Nonnull
+		static Stream<Arguments> shouldSwitchCaseToCamelCaseArguments() {
+			return Stream.of(
+				Arguments.of("fooBar", "Foo.BAR"),
+				Arguments.of("fooBar092", "FOO.BAR:::09 2"),
+				Arguments.of("fooBar092", "FOO@BAR//09`2"),
+				Arguments.of("fooBar", "fooBar"),
+				Arguments.of("fooBar", "FooBar"),
+				Arguments.of("fooBar", "foo-bar"),
+				Arguments.of("fooBar", "foo_bar"),
+				Arguments.of("fooBar", "FOO_BAR"),
+				Arguments.of("fooBar09", "FOO_BAR09"),
+				Arguments.of("fooBar09", "FOO_BAR_09"),
+				Arguments.of("storeVisibleForB2c", "storeVisibleForB2C"),
+				Arguments.of("fooBarAbc", "fooBarABC"),
+				Arguments.of("fooAbBar", "fooABBar"),
+				Arguments.of("fooABar", "fooABar")
+			);
 		}
 
-		@Test
-		@DisplayName("Should remove diacritics for file name strip start and end")
-		void shouldRemoveDiacriticsForFileNameStripStartAndEnd() {
-			assertEquals("Prilis-zlutoucky-kun-skakal-pres-zive-ploticky-a-behal-po-poli.-escrzyaieESCRZYAIE",
-				StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept("Příliš žluťoučký kůň skákal přes živé plotíčky a běhal po poli. @#$%^&*()ěščřžýáíéĚŠČŘŽÝÁÍÉ", '-', "."));
-			assertEquals("Toto-je-priklad-divneho-nazvu-souboru-atd.-kdovi-co-nesmysly-.-txt",
-				StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept("****Toto je : příklad / divného, názvu souboru & atd. @# + kdoví co, nesmysly     {}|<>/! . txt***", '-', "."));
+		@ParameterizedTest
+		@MethodSource("shouldSwitchCaseToPascalCaseArguments")
+		void shouldSwitchCaseToPascalCase(String expected, String input) {
+			assertEquals(expected, toPascalCase(input));
 		}
 
-		@Test
-		@DisplayName("Should remove diacritics and all weird characters")
-		void shouldRemoveDiacriticsAndAllWeirdCharacters() {
-			assertEquals("Prilis-zlutoucky-kun-skakal-pres-zive-ploticky-a-behal-po-poli-escrzyaieESCRZYAIE",
-				StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept("Příliš žluťoučký kůň skákal přes živé plotíčky a běhal po poli. @#$%^&*()ěščřžýáíéĚŠČŘŽÝÁÍÉ", '-', ""));
-			assertEquals("Toto-je-priklad-divneho-nazvu-souboru-atd-kdovi-co-nesmysly-txt",
-				StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept("****Toto je : příklad / divného, názvu souboru & atd. @# + kdoví co, nesmysly     {}|<>/! . txt***", '-', ""));
-		}
-	}
-
-	@Nested
-	@DisplayName("Padding tests")
-	class PaddingTests {
-
-		@Test
-		@DisplayName("Should add right padding")
-		void shouldAddRightPadding() {
-			assertEquals("          ", StringUtils.rightPad("", " ", 10));
-			assertEquals("a         ", StringUtils.rightPad("a", " ", 10));
-			assertEquals("dsfadfsadfsadfd", StringUtils.rightPad("dsfadfsadfsadfd", " ", 10));
+		@Nonnull
+		static Stream<Arguments> shouldSwitchCaseToPascalCaseArguments() {
+			return Stream.of(
+				Arguments.of("FooBar", "Foo.BAR"),
+				Arguments.of("FooBar092", "FOO.BAR:::09 2"),
+				Arguments.of("FooBar092", "FOO@BAR//09`2"),
+				Arguments.of("FooBar", "fooBar"),
+				Arguments.of("FooBar", "FooBar"),
+				Arguments.of("FooBar", "foo-bar"),
+				Arguments.of("FooBar", "foo_bar"),
+				Arguments.of("FooBar", "FOO_BAR"),
+				Arguments.of("FooBar09", "FOO_BAR09"),
+				Arguments.of("FooBar09", "FOO_BAR_09"),
+				Arguments.of("StoreVisibleForB2c", "storeVisibleForB2C"),
+				Arguments.of("FooBarAbc", "fooBarABC"),
+				Arguments.of("FooAbBar", "fooABBar"),
+				Arguments.of("FooABar", "fooABar")
+			);
 		}
 
-		@Test
-		@DisplayName("Should add left padding")
-		void shouldAddLeftPadding() {
-			assertEquals("          ", StringUtils.leftPad("", " ", 10));
-			assertEquals("         a", StringUtils.leftPad("a", " ", 10));
-			assertEquals("dsfadfsadfsadfd", StringUtils.leftPad("dsfadfsadfsadfd", " ", 10));
-		}
-	}
-
-	@Nested
-	@DisplayName("Utility tests")
-	class UtilityTests {
-
-		@Test
-		@DisplayName("Should return null string when value is null")
-		void shouldReturnNullStringWhenValueIsNull() {
-			assertEquals("NULL", StringUtils.toString(null));
+		@ParameterizedTest
+		@MethodSource("shouldSwitchCaseToSnakeCaseArguments")
+		void shouldSwitchCaseToSnakeCase(String expected, String input) {
+			assertEquals(expected, toSnakeCase(input));
 		}
 
-		@Test
-		@DisplayName("Should return string value when value is string")
-		void shouldReturnStringValueWhenValueIsString() {
-			assertEquals("Hello", StringUtils.toString("Hello"));
+		@Nonnull
+		static Stream<Arguments> shouldSwitchCaseToSnakeCaseArguments() {
+			return Stream.of(
+				Arguments.of("foo_bar", "Foo.BAR"),
+				Arguments.of("foo_bar_09_2", "FOO.BAR:::09 2"),
+				Arguments.of("foo_bar_09_2", "FOO@BAR//09`2"),
+				Arguments.of("foo_bar", "fooBar"),
+				Arguments.of("foo_bar", "FooBar"),
+				Arguments.of("foo_bar", "foo-bar"),
+				Arguments.of("foo_bar", "foo_bar"),
+				Arguments.of("foo_bar", "FOO_BAR"),
+				Arguments.of("foo_bar09", "FooBar09"),
+				Arguments.of("foo_bar09", "FOO_BAR09"),
+				Arguments.of("foo_bar_09", "FOO_BAR_09"),
+				Arguments.of("store_visible_for_b2c", "storeVisibleForB2C"),
+				Arguments.of("foo_bar_abc", "fooBarABC"),
+				Arguments.of("foo_ab_bar", "fooABBar"),
+				Arguments.of("foo_a_bar", "fooABar")
+			);
 		}
 
-		@Test
-		@DisplayName("Should return array representation when value is array")
-		void shouldReturnArrayRepresentationWhenValueIsArray() {
-			assertEquals("[1, 2, 3]", StringUtils.toString(new int[]{1, 2, 3}));
+		@ParameterizedTest
+		@MethodSource("shouldSwitchCaseToUpperSnakeCaseArguments")
+		void shouldSwitchCaseToUpperSnakeCase(String expected, String input) {
+			assertEquals(expected, toUpperSnakeCase(input));
 		}
 
-		@Test
-		@DisplayName("Should return empty array representation when value is empty array")
-		void shouldReturnEmptyArrayRepresentationWhenValueIsEmptyArray() {
-			assertEquals("[]", StringUtils.toString(new int[]{}));
+		@Nonnull
+		static Stream<Arguments> shouldSwitchCaseToUpperSnakeCaseArguments() {
+			return Stream.of(
+				Arguments.of("FOO_BAR", "Foo.BAR"),
+				Arguments.of("FOO_BAR_09_2", "FOO.BAR:::09 2"),
+				Arguments.of("FOO_BAR_09_2", "FOO@BAR//09`2"),
+				Arguments.of("FOO_BAR", "fooBar"),
+				Arguments.of("FOO_BAR", "FooBar"),
+				Arguments.of("FOO_BAR", "foo-bar"),
+				Arguments.of("FOO_BAR", "foo_bar"),
+				Arguments.of("FOO_BAR", "FOO_BAR"),
+				Arguments.of("FOO_BAR09", "FooBar09"),
+				Arguments.of("FOO_BAR09", "FOO_BAR09"),
+				Arguments.of("FOO_BAR_09", "FOO_BAR_09"),
+				Arguments.of("STORE_VISIBLE_FOR_B2C", "storeVisibleForB2C"),
+				Arguments.of("FOO_BAR_ABC", "fooBarABC"),
+				Arguments.of("FOO_AB_BAR", "fooABBar"),
+				Arguments.of("FOO_A_BAR", "fooABar")
+			);
 		}
 
-		@Test
-		@DisplayName("Should return array representation when value is multi-dimensional array")
-		void shouldReturnArrayRepresentationWhenValueIsMultiDimensionalArray() {
-			assertEquals("[[1, 2], [3, 4]]", StringUtils.toString(new int[][]{{1, 2}, {3, 4}}));
+		@ParameterizedTest
+		@MethodSource("shouldSwitchCaseToKebabCaseArguments")
+		void shouldSwitchCaseToKebabCase(String expected, String input) {
+			assertEquals(expected, toKebabCase(input));
 		}
 
-		@Test
-		@DisplayName("Should return object representation when value is object")
-		void shouldReturnObjectRepresentationWhenValueIsObject() {
-			Object obj = new Object() {
-				@Override
-				public String toString() {
-					return "Test Object";
-				}
-			};
-			assertEquals("Test Object", StringUtils.toString(obj));
+		@Nonnull
+		static Stream<Arguments> shouldSwitchCaseToKebabCaseArguments() {
+			return Stream.of(
+				Arguments.of("foo-bar", "Foo.BAR"),
+				Arguments.of("foo-bar-09-2", "FOO.BAR:::09 2"),
+				Arguments.of("foo-bar-09-2", "FOO@BAR//09`2"),
+				Arguments.of("foo-bar", "fooBar"),
+				Arguments.of("foo-bar", "FooBar"),
+				Arguments.of("foo-bar", "foo-bar"),
+				Arguments.of("foo-bar", "foo_bar"),
+				Arguments.of("foo-bar", "FOO_BAR"),
+				Arguments.of("foo-bar09", "FooBar09"),
+				Arguments.of("foo-bar09", "FOO_BAR09"),
+				Arguments.of("foo-bar-09", "FOO_BAR_09"),
+				Arguments.of("store-visible-for-b2c", "storeVisibleForB2C"),
+				Arguments.of("foo-bar-abc", "fooBarABC"),
+				Arguments.of("foo-ab-bar", "fooABBar"),
+				Arguments.of("foo-a-bar", "fooABar")
+			);
 		}
 
-		@Test
-		@DisplayName("Should convert serializable array to string for empty array")
-		void shouldConvertSerializableArrayToStringForEmptyArray() {
-			final java.io.Serializable[] input = new java.io.Serializable[]{};
-			assertEquals("", StringUtils.serializableArrayToString(input));
+		@ParameterizedTest
+		@MethodSource("shouldSplitStringWithCaseIntoWordsArguments")
+		void shouldSplitStringWithCaseIntoWords(List<String> expectedWords, String inputString) {
+			assertEquals(expectedWords, splitStringWithCaseIntoWords(inputString));
 		}
 
-		@Test
-		@DisplayName("Should convert serializable array to string for single element")
-		void shouldConvertSerializableArrayToStringForSingleElement() {
-			final java.io.Serializable[] input = new java.io.Serializable[]{"A"};
-			assertEquals("A", StringUtils.serializableArrayToString(input));
+		@Nonnull
+		static Stream<Arguments> shouldSplitStringWithCaseIntoWordsArguments() {
+			return Stream.of(
+				Arguments.of(List.of("Foo", "BAR"), "Foo.BAR"),
+				Arguments.of(List.of("FOO", "BAR", "09", "2"), "FOO.BAR:::09 2"),
+				Arguments.of(List.of("FOO", "BAR", "09", "2"), "FOO@BAR//09`2"),
+				Arguments.of(List.of("foo", "Bar"), "fooBar"),
+				Arguments.of(List.of("Foo", "Bar"), "FooBar"),
+				Arguments.of(List.of("foo", "bar"), "foo-bar"),
+				Arguments.of(List.of("foo", "bar"), "foo_bar"),
+				Arguments.of(List.of("FOO", "BAR"), "FOO_BAR"),
+				Arguments.of(List.of("Foo", "Bar09"), "FooBar09"),
+				Arguments.of(List.of("FOO", "BAR09"), "FOO_BAR09"),
+				Arguments.of(List.of("FOO", "BAR", "09"), "FOO_BAR_09"),
+				Arguments.of(List.of("store", "Visible", "For", "B2C"), "storeVisibleForB2C"),
+				Arguments.of(List.of("foo", "Bar", "ABC"), "fooBarABC"),
+				Arguments.of(List.of("foo", "AB", "Bar"), "fooABBar"),
+				Arguments.of(List.of("foo", "A", "Bar"), "fooABar")
+			);
 		}
 
-		@Test
-		@DisplayName("Should convert serializable array to string for multiple elements")
-		void shouldConvertSerializableArrayToStringForMultipleElements() {
-			final java.io.Serializable[] input = new java.io.Serializable[]{"A", "B", "C"};
-			assertEquals("A, B, C", StringUtils.serializableArrayToString(input));
+		@Nested
+		@DisplayName("Diacritics removal tests")
+		class DiacriticsRemovalTests {
+
+			@Test
+			@DisplayName("Should remove diacritics")
+			void shouldRemoveDiacritics() {
+				assertEquals(
+					"Prilis zlutoucky kun skakal pres zive ploticky a behal po poli. @#$%^&*()escrzyaieESCRZYAIE",
+					StringUtils.removeDiacritics(
+						"Příliš žluťoučký kůň skákal přes živé plotíčky a běhal po poli. @#$%^&*()ěščřžýáíéĚŠČŘŽÝÁÍÉ")
+				);
+			}
+
+			@Test
+			@DisplayName("Should remove diacritics for file name")
+			void shouldRemoveDiacriticsForFileName() {
+				assertEquals(
+					"Prilis-zlutoucky-kun-skakal-pres-zive-ploticky-a-behal-po-poli.-escrzyaieESCRZYAIE",
+					StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept(
+						"Příliš žluťoučký kůň skákal přes živé plotíčky a běhal po poli. @#$%^&*()ěščřžýáíéĚŠČŘŽÝÁÍÉ",
+						'-', "."
+					)
+				);
+				assertEquals(
+					"Toto-je-priklad-divneho-nazvu-souboru-atd.-kdovi-co-nesmysly-.-txt",
+					StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept(
+						"Toto je : příklad / divného, názvu souboru & atd. @# + kdoví co, nesmysly     {}|<>/! . txt",
+						'-', "."
+					)
+				);
+			}
+
+			@Test
+			@DisplayName("Should remove diacritics for file name strip start and end")
+			void shouldRemoveDiacriticsForFileNameStripStartAndEnd() {
+				assertEquals(
+					"Prilis-zlutoucky-kun-skakal-pres-zive-ploticky-a-behal-po-poli.-escrzyaieESCRZYAIE",
+					StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept(
+						"Příliš žluťoučký kůň skákal přes živé plotíčky a běhal po poli. @#$%^&*()ěščřžýáíéĚŠČŘŽÝÁÍÉ",
+						'-', "."
+					)
+				);
+				assertEquals(
+					"Toto-je-priklad-divneho-nazvu-souboru-atd.-kdovi-co-nesmysly-.-txt",
+					StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept(
+						"****Toto je : příklad / divného, názvu souboru & atd. @# + kdoví co, nesmysly     {}|<>/! . txt***",
+						'-', "."
+					)
+				);
+			}
+
+			@Test
+			@DisplayName("Should remove diacritics and all weird characters")
+			void shouldRemoveDiacriticsAndAllWeirdCharacters() {
+				assertEquals(
+					"Prilis-zlutoucky-kun-skakal-pres-zive-ploticky-a-behal-po-poli-escrzyaieESCRZYAIE",
+					StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept(
+						"Příliš žluťoučký kůň skákal přes živé plotíčky a běhal po poli. @#$%^&*()ěščřžýáíéĚŠČŘŽÝÁÍÉ",
+						'-', ""
+					)
+				);
+				assertEquals(
+					"Toto-je-priklad-divneho-nazvu-souboru-atd-kdovi-co-nesmysly-txt",
+					StringUtils.removeDiacriticsAndAllNonStandardCharactersExcept(
+						"****Toto je : příklad / divného, názvu souboru & atd. @# + kdoví co, nesmysly     {}|<>/! . txt***",
+						'-', ""
+					)
+				);
+			}
 		}
 
-		@Test
-		@DisplayName("Should convert serializable array to string with null elements")
-		void shouldConvertSerializableArrayToStringWithNullElements() {
-			final java.io.Serializable[] input = new java.io.Serializable[]{"A", null, "C"};
-			assertEquals("A, NULL, C", StringUtils.serializableArrayToString(input));
+		@Nested
+		@DisplayName("Padding tests")
+		class PaddingTests {
+
+			@Test
+			@DisplayName("Should add right padding")
+			void shouldAddRightPadding() {
+				assertEquals("          ", StringUtils.rightPad("", " ", 10));
+				assertEquals("a         ", StringUtils.rightPad("a", " ", 10));
+				assertEquals("dsfadfsadfsadfd", StringUtils.rightPad("dsfadfsadfsadfd", " ", 10));
+			}
+
+			@Test
+			@DisplayName("Should add left padding")
+			void shouldAddLeftPadding() {
+				assertEquals("          ", StringUtils.leftPad("", " ", 10));
+				assertEquals("         a", StringUtils.leftPad("a", " ", 10));
+				assertEquals("dsfadfsadfsadfd", StringUtils.leftPad("dsfadfsadfsadfd", " ", 10));
+			}
 		}
 
-		@Test
-		@DisplayName("Should convert serializable array to string with mixed types")
-		void shouldConvertSerializableArrayToStringWithMixedTypes() {
-			final java.io.Serializable[] input = new java.io.Serializable[]{"X", Integer.valueOf(5), new java.math.BigDecimal("3.14")};
-			assertEquals("X, 5, 3.14", StringUtils.serializableArrayToString(input));
+		@Nested
+		@DisplayName("Utility tests")
+		class UtilityTests {
+
+			@Test
+			@DisplayName("Should return null string when value is null")
+			void shouldReturnNullStringWhenValueIsNull() {
+				assertEquals("NULL", StringUtils.toString(null));
+			}
+
+			@Test
+			@DisplayName("Should return string value when value is string")
+			void shouldReturnStringValueWhenValueIsString() {
+				assertEquals("Hello", StringUtils.toString("Hello"));
+			}
+
+			@Test
+			@DisplayName("Should return array representation when value is array")
+			void shouldReturnArrayRepresentationWhenValueIsArray() {
+				assertEquals("[1, 2, 3]", StringUtils.toString(new int[]{1, 2, 3}));
+			}
+
+			@Test
+			@DisplayName("Should return empty array representation when value is empty array")
+			void shouldReturnEmptyArrayRepresentationWhenValueIsEmptyArray() {
+				assertEquals("[]", StringUtils.toString(new int[]{}));
+			}
+
+			@Test
+			@DisplayName("Should return array representation when value is multi-dimensional array")
+			void shouldReturnArrayRepresentationWhenValueIsMultiDimensionalArray() {
+				assertEquals("[[1, 2], [3, 4]]", StringUtils.toString(new int[][]{{1, 2}, {3, 4}}));
+			}
+
+			@Test
+			@DisplayName("Should return object representation when value is object")
+			void shouldReturnObjectRepresentationWhenValueIsObject() {
+				Object obj = new Object() {
+					@Override
+					public String toString() {
+						return "Test Object";
+					}
+				};
+				assertEquals("Test Object", StringUtils.toString(obj));
+			}
+
+			@Test
+			@DisplayName("Should convert serializable array to string for empty array")
+			void shouldConvertSerializableArrayToStringForEmptyArray() {
+				final java.io.Serializable[] input = new java.io.Serializable[]{};
+				assertEquals("", StringUtils.serializableArrayToString(input));
+			}
+
+			@Test
+			@DisplayName("Should convert serializable array to string for single element")
+			void shouldConvertSerializableArrayToStringForSingleElement() {
+				final java.io.Serializable[] input = new java.io.Serializable[]{"A"};
+				assertEquals("A", StringUtils.serializableArrayToString(input));
+			}
+
+			@Test
+			@DisplayName("Should convert serializable array to string for multiple elements")
+			void shouldConvertSerializableArrayToStringForMultipleElements() {
+				final java.io.Serializable[] input = new java.io.Serializable[]{"A", "B", "C"};
+				assertEquals("A, B, C", StringUtils.serializableArrayToString(input));
+			}
+
+			@Test
+			@DisplayName("Should convert serializable array to string with null elements")
+			void shouldConvertSerializableArrayToStringWithNullElements() {
+				final java.io.Serializable[] input = new java.io.Serializable[]{"A", null, "C"};
+				assertEquals("A, NULL, C", StringUtils.serializableArrayToString(input));
+			}
+
+			@Test
+			@DisplayName("Should convert serializable array to string with mixed types")
+			void shouldConvertSerializableArrayToStringWithMixedTypes() {
+				final java.io.Serializable[] input = new java.io.Serializable[]{
+					"X", 5, new java.math.BigDecimal("3.14")
+				};
+				assertEquals("X, 5, 3.14", StringUtils.serializableArrayToString(input));
+			}
 		}
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025-2026
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import java.util.UUID;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  * @see LogFileRecordReference
- * @see TransactionMutation
+ * @see io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation
  * @see EnginePersistenceService#appendWal(long, UUID, EngineMutation)
  */
 public record TransactionMutationWithWalFileReference(
