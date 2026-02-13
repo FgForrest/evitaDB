@@ -27,8 +27,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
-import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
@@ -56,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -87,9 +84,11 @@ public class ModifyEntitySchemaMutation
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(
-		@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && this.name.equals(
-			modifyEntitySchemaMutation.getName())) {
+		@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation
+	) {
+		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation &&
+			this.name.equals(modifyEntitySchemaMutation.getName())
+		) {
 			final List<LocalEntitySchemaMutation> mutations = new ArrayList<>(this.schemaMutations.length);
 			mutations.addAll(Arrays.asList(this.schemaMutations));
 			final MutationImpact updated = addMutations(
@@ -135,7 +134,8 @@ public class ModifyEntitySchemaMutation
 	@Nullable
 	@Override
 	public EntitySchemaContract mutate(
-		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema
+	) {
 		EntitySchemaContract alteredSchema = entitySchema;
 		for (EntitySchemaMutation schemaMutation : this.schemaMutations) {
 			alteredSchema = schemaMutation.mutate(catalogSchema, alteredSchema);
@@ -161,32 +161,11 @@ public class ModifyEntitySchemaMutation
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
-		final MutationPredicateContext context = predicate.getContext();
-		context.setEntityType(this.name);
-		final Stream<ChangeCatalogCapture> entitySchemaCapture = CombinableCatalogSchemaMutation.super.toChangeCatalogCapture(
-			predicate, content);
-
-		if (context.getDirection() == StreamDirection.FORWARD) {
-			return Stream.concat(
-				entitySchemaCapture,
-				Arrays.stream(this.schemaMutations)
-					.filter(predicate)
-					.flatMap(m -> context.doNotAdvance(
-						() -> m.toChangeCatalogCapture(predicate, content)
-					))
-			);
-		} else {
-			final AtomicInteger index = new AtomicInteger(this.schemaMutations.length);
-			return Stream.concat(
-				Stream.generate(() -> null)
-					.takeWhile(x -> index.get() > 0)
-					.map(x -> this.schemaMutations[index.decrementAndGet()])
-					.filter(predicate)
-					.flatMap(x -> context.doNotAdvance(
-						() -> x.toChangeCatalogCapture(predicate, content))),
-				entitySchemaCapture
-			);
-		}
+		predicate.getContext().setEntityType(this.name);
+		return CatalogSchemaMutation.concatWithChildMutations(
+			CombinableCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content),
+			this.schemaMutations, predicate, content
+		);
 	}
 
 	@Nonnull

@@ -23,6 +23,11 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 
@@ -30,6 +35,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 /**
  * Marks all implementations that alter the {@link CatalogSchemaContract}. This interface sits in the schema mutation
@@ -62,6 +70,51 @@ import javax.annotation.concurrent.ThreadSafe;
 @Immutable
 @ThreadSafe
 public interface CatalogSchemaMutation extends SchemaMutation {
+
+	/**
+	 * Concatenates a parent CDC capture stream with child schema mutation captures, respecting the stream
+	 * direction from the predicate context. In forward direction, child mutations follow the parent capture;
+	 * in reverse direction, child mutations (iterated backwards) precede the parent capture. Each child
+	 * mutation's capture is produced within {@link MutationPredicateContext#doNotAdvance} to prevent
+	 * the context index from advancing for nested mutations.
+	 *
+	 * @param parentCapture  the CDC capture stream of the parent (wrapper) mutation
+	 * @param childMutations the array of child schema mutations to stream
+	 * @param predicate      the mutation predicate used for filtering and context tracking
+	 * @param content        the requested CDC content mode (header or body)
+	 * @return concatenated stream of parent and child captures in the appropriate direction
+	 */
+	@Nonnull
+	static Stream<ChangeCatalogCapture> concatWithChildMutations(
+		@Nonnull Stream<ChangeCatalogCapture> parentCapture,
+		@Nonnull SchemaMutation[] childMutations,
+		@Nonnull MutationPredicate predicate,
+		@Nonnull ChangeCaptureContent content
+	) {
+		final MutationPredicateContext context = predicate.getContext();
+		if (context.getDirection() == StreamDirection.FORWARD) {
+			return Stream.concat(
+				parentCapture,
+				Arrays.stream(childMutations)
+					.filter(predicate)
+					.flatMap(m -> context.doNotAdvance(
+						() -> m.toChangeCatalogCapture(predicate, content)
+					))
+			);
+		} else {
+			final AtomicInteger index = new AtomicInteger(childMutations.length);
+			return Stream.concat(
+				Stream.generate(() -> null)
+					.takeWhile(x -> index.get() > 0)
+					.map(x -> childMutations[index.decrementAndGet()])
+					.filter(predicate)
+					.flatMap(x -> context.doNotAdvance(
+						() -> x.toChangeCatalogCapture(predicate, content)
+					)),
+				parentCapture
+			);
+		}
+	}
 
 	/**
 	 * Applies the mutation operation on the catalog schema in the input and returns the modified version along with
