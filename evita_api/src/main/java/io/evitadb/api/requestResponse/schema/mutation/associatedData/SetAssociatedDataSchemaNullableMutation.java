@@ -59,6 +59,12 @@ public class SetAssociatedDataSchemaNullableMutation
 	@Serial private static final long serialVersionUID = -8081114877403312804L;
 	@Getter private final boolean nullable;
 
+	/**
+	 * Creates a mutation that will change the nullable flag of an existing associated data schema.
+	 *
+	 * @param name     name of the associated data schema to modify
+	 * @param nullable new value of the nullable flag
+	 */
 	public SetAssociatedDataSchemaNullableMutation(@Nonnull String name, boolean nullable) {
 		super(name);
 		this.nullable = nullable;
@@ -71,7 +77,8 @@ public class SetAssociatedDataSchemaNullableMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof SetAssociatedDataSchemaNullableMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAssociatedDataSchemaNullableMutation theExistingMutation && this.name.equals(
+			theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -95,9 +102,11 @@ public class SetAssociatedDataSchemaNullableMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(this.name);
+		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(
+			this.name);
 		if (existingAssociatedDataSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(

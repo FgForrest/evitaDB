@@ -45,7 +45,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * Internal {@link AttributeSchemaBuilder} builder used
+ * Internal {@link EntityAttributeSchemaEditor.EntityAttributeSchemaBuilder} builder used
  * solely from within {@link InternalEntitySchemaBuilder}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -91,6 +91,7 @@ public final class EntityAttributeSchemaBuilder
 		);
 	}
 
+	@Nonnull
 	@Override
 	protected Class<EntityAttributeSchemaContract> getAttributeSchemaType() {
 		return EntityAttributeSchemaContract.class;
@@ -112,12 +113,6 @@ public final class EntityAttributeSchemaBuilder
 	@Nonnull
 	@Override
 	public List<AttributeSchemaMutation> toAttributeMutation() {
-		// faster version of the:
-		/* return this.mutations
-			.stream()
-			.map(it -> (AttributeSchemaMutation) it)
-			.collect(Collectors.toList());
-			*/
 		//noinspection unchecked,rawtypes
 		return (List) this.mutations;
 	}

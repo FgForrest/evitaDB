@@ -94,6 +94,7 @@ public final class AttributeSchemaBuilder
 		);
 	}
 
+	@Nonnull
 	@Override
 	protected Class<AttributeSchemaContract> getAttributeSchemaType() {
 		return AttributeSchemaContract.class;
@@ -116,12 +117,6 @@ public final class AttributeSchemaBuilder
 	@Nonnull
 	@Override
 	public List<AttributeSchemaMutation> toAttributeMutation() {
-		// faster version of the:
-		/* return this.mutations
-			.stream()
-			.map(it -> (AttributeSchemaMutation) it)
-			.collect(Collectors.toList());
-			*/
 		//noinspection unchecked,rawtypes
 		return (List) this.mutations;
 	}

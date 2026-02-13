@@ -30,7 +30,7 @@ import javax.annotation.Nullable;
 import java.util.function.Consumer;
 
 /**
- * Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
+ * Record for the criteria of the capture request allowing to limit mutations to specific area of interest and its
  * properties.
  *
  * @param area the requested area of the capture (must be provided when the site is provided)
@@ -84,7 +84,7 @@ public record ChangeCatalogCaptureCriteria(
 	}
 
 	/**
-	 * Builder class for {@link ChangeCatalogCaptureRequest}.
+	 * Builder class for {@link ChangeCatalogCaptureCriteria}.
 	 */
 	public static class Builder {
 		@Nullable private CaptureArea area;
@@ -145,8 +145,8 @@ public record ChangeCatalogCaptureCriteria(
 		}
 
 		/**
-		 * Configures the data area for the capture request by accepting a modifier for the {@link SchemaSite.Builder}.
-		 * The capture will consume all schema changes in the catalog.
+		 * Configures the schema area for the capture request by accepting a modifier for
+		 * the {@link SchemaSite.Builder}. The capture will consume all schema changes in the catalog.
 		 *
 		 * @return this builder instance
 		 */
@@ -159,7 +159,8 @@ public record ChangeCatalogCaptureCriteria(
 		}
 
 		/**
-		 * Configures the data area for the capture request by accepting a modifier for the {@link SchemaSite.Builder}.
+		 * Configures the schema area for the capture request by accepting a modifier for
+		 * the {@link SchemaSite.Builder}.
 		 *
 		 * @param configurer a consumer that configures the {@link SchemaSite.Builder}
 		 * @return this builder instance

@@ -28,6 +28,12 @@ The histogram data structure is optimized for frontend rendering. It contains th
 - **`buckets`** - an *sorted* array of buckets, each of which contains the following fields:
   - **`threshold`** - the minimum value of the attribute in the bucket, the maximum value is the threshold of the next bucket (or `max` for the last bucket)
   - **`occurrences`** - the number of elements whose attribute value falls into the bucket
+  - **`relativeFrequency`** - a value used for visualizing bucket height in UI (0-100 scale):
+    - For **standard histograms**: percentage of total occurrences, calculated as `(occurrences / overallCount) * 100`
+    - For **equalized histograms**: normalized value density that considers both occurrences and bucket width:
+      1. Raw frequency is calculated as `occurrences * (totalRange / bucketWidth)` - this rewards buckets with many occurrences packed into narrow ranges
+      2. Values are then normalized to sum to 100 across all buckets
+      3. Empty buckets always have relativeFrequency = 0
   - **`requested`**:
     - contains `true` if the query didn't contain any [attributeBetween](../filtering/comparable.md#attribute-between)
       or [priceBetween](../filtering/price.md#price-between) constraints
@@ -43,7 +49,7 @@ The histogram data structure is optimized for frontend rendering. It contains th
 ```evitaql-syntax
 attributeHistogram(
     argument:int!,
-    argument:enum(STANDARD|OPTIMIZED),
+    argument:enum(STANDARD|OPTIMIZED|EQUALIZED|EQUALIZED_OPTIMIZED),
     argument:string+
 )
 ```
@@ -54,12 +60,15 @@ attributeHistogram(
         the number of columns (buckets) in the histogram; number should be chosen so that the histogram fits well
         into the available space on the screen
     </dd>
-    <dt>argument:enum(STANDARD|OPTIMIZED)</dt>
+    <dt>argument:enum(STANDARD|OPTIMIZED|EQUALIZED|EQUALIZED_OPTIMIZED)</dt>
     <dd>
-        The behavior of the histogram calculation - either STANDARD (default), where exactly the requested number of
-        buckets is returned, or OPTIMIZED, where the number of columns is reduced when the data is sparse and there
-        would be large gaps (empty buckets) between buckets. This results in more compact histograms that provide
-        a better user experience.
+        The behavior of the histogram calculation:
+        <ul>
+            <li><strong>STANDARD</strong> (default): Returns exactly the requested number of buckets with equal-width intervals across the value range.</li>
+            <li><strong>OPTIMIZED</strong>: Returns fewer buckets when data is sparse to avoid large gaps (empty buckets).</li>
+            <li><strong>EQUALIZED</strong>: Returns exactly the requested number of buckets, but positions bucket boundaries based on cumulative frequency distribution so each bucket covers approximately equal portion of total records. This provides better user experience when data is heavily skewed.</li>
+            <li><strong>EQUALIZED_OPTIMIZED</strong>: Combines EQUALIZED bucketing with optimization to reduce empty buckets.</li>
+        </ul>
     </dd>
     <dt>argument:string+</dt>
     <dd>
@@ -170,6 +179,68 @@ The optimized histogram result in JSON format is a bit more verbose, but it's st
 
 As you can see, the number of buckets has been adjusted to fit the data, contrary to the default behavior.
 
+### Attribute histogram equalization
+
+Standard histograms use equal-width buckets across the entire value range. This works well for uniformly distributed
+data but can be problematic when data is heavily skewed. For example, if 90% of products have width between 10-50 cm
+and only 10% have width between 50-500 cm, equal-width buckets would cram most products into the first few buckets
+while leaving many empty buckets in the upper range.
+
+The **EQUALIZED** behavior solves this by positioning bucket boundaries based on cumulative frequency distribution.
+Instead of dividing the value range into equal intervals, it divides the *records* into approximately equal groups.
+Each bucket then covers roughly the same number of items, providing a more balanced and informative histogram.
+
+This technique is inspired by [histogram equalization in image processing](https://www.howdoi.me/blog/slider-scale.html),
+adapted for filter slider UX. The algorithm:
+
+1. Calculates the total weight (sum of all record counts)
+2. Calculates cumulative frequency for each unique value
+3. Positions bucket boundaries at points where cumulative frequency crosses threshold (i/bucketCount)
+4. Counts actual occurrences in each resulting bucket
+
+To demonstrate equalized histogram, we will use the following example:
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Equalized attribute histogram over `width` attribute](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-equalized.evitaql)
+
+</SourceCodeTabs>
+
+The simplified result looks like this:
+
+<MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of equalized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-equalized.evitaql.string.md)</MDInclude>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The equalized result of `width` attribute histogram in JSON format
+
+</NoteTitle>
+
+The equalized histogram result in JSON format is a bit more verbose, but it's still quite readable:
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of equalized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-equalized.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.attributeHistogram">[The result of equalized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-equalized.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.attributeHistogram">[The result of equalized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-equalized.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+As you can see, unlike standard histograms where bucket widths are equal, equalized histograms adjust bucket widths
+to distribute records more evenly. This makes the histogram more useful for filtering when data has a skewed distribution.
+
 ## Price histogram
 
 <LS to="e,j,r,c">
@@ -177,7 +248,7 @@ As you can see, the number of buckets has been adjusted to fit the data, contrar
 ```evitaql-syntax
 priceHistogram(
     argument:int!,
-    argument:enum(STANDARD|OPTIMIZED)
+    argument:enum(STANDARD|OPTIMIZED|EQUALIZED|EQUALIZED_OPTIMIZED)
 )
 ```
 
@@ -187,12 +258,15 @@ priceHistogram(
         the number of columns (buckets) in the histogram; number should be chosen so that the histogram fits well
         into the available space on the screen
     </dd>
-    <dt>argument:enum(STANDARD|OPTIMIZED)</dt>
+    <dt>argument:enum(STANDARD|OPTIMIZED|EQUALIZED|EQUALIZED_OPTIMIZED)</dt>
     <dd>
-        The behavior of the histogram calculation - either STANDARD (default), where exactly the requested number of
-        buckets is returned, or OPTIMIZED, where the number of columns is reduced when the data is sparse and there
-        would be large gaps (empty buckets) between buckets. This results in more compact histograms that provide
-        a better user experience.
+        The behavior of the histogram calculation:
+        <ul>
+            <li><strong>STANDARD</strong> (default): Returns exactly the requested number of buckets with equal-width intervals across the value range.</li>
+            <li><strong>OPTIMIZED</strong>: Returns fewer buckets when data is sparse to avoid large gaps (empty buckets).</li>
+            <li><strong>EQUALIZED</strong>: Returns exactly the requested number of buckets, but positions bucket boundaries based on cumulative frequency distribution so each bucket covers approximately equal portion of total records. This provides better user experience when data is heavily skewed.</li>
+            <li><strong>EQUALIZED_OPTIMIZED</strong>: Combines EQUALIZED bucketing with optimization to reduce empty buckets.</li>
+        </ul>
     </dd>
 </dl>
 
@@ -280,7 +354,7 @@ The simplified result looks like this:
 
 The optimized histogram result in JSON format is a bit more verbose, but it's still quite readable:
 
-<LS to="e,j,s">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="extraResults.PriceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql.json.md)</MDInclude>
 
@@ -299,3 +373,55 @@ The optimized histogram result in JSON format is a bit more verbose, but it's st
 </Note>
 
 As you can see, the number of buckets has been adjusted to fit the data, contrary to the default behavior.
+
+### Price histogram equalization
+
+Just as with attribute histograms, standard price histograms use equal-width buckets which can be problematic for
+skewed price distributions. For example, in a marketplace where most items cost $10-$50 but a few luxury items cost
+$500-$5000, equal-width buckets would waste slider space on the expensive (but sparse) end.
+
+The **EQUALIZED** behavior for price histograms positions bucket boundaries based on cumulative frequency distribution,
+so each bucket covers approximately the same number of products. This provides a better filtering experience, especially
+for e-commerce catalogs with diverse price ranges.
+
+To demonstrate equalized price histogram, we will use the following example:
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Equalized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-equalized.evitaql)
+
+</SourceCodeTabs>
+
+The simplified result looks like this:
+
+<MDInclude sourceVariable="extraResults.PriceHistogram">[The result of equalized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-equalized.evitaql.string.md)</MDInclude>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of equalized price histogram in JSON format
+
+</NoteTitle>
+
+The equalized histogram result in JSON format is a bit more verbose, but it's still quite readable:
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="extraResults.PriceHistogram">[The result of equalized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-equalized.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.priceHistogram">[The result of equalized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-equalized.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.priceHistogram">[The result of equalized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-equalized.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+As you can see, the bucket boundaries are positioned to distribute products more evenly across the slider range.

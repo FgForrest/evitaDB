@@ -23,6 +23,8 @@
 
 package io.evitadb.dataType;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -31,132 +33,182 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
- * Test class for the {@link BigDecimalNumberRange}.
+ * Test class for the {@link BigDecimalNumberRange} set operations (union, intersection, inverse).
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Jan Novotn\u00fd (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@DisplayName("BigDecimalNumberRange set operations")
 class BigDecimalNumberRangeTest {
 
-	@Test
-	public void unionOfOverlappingFiniteRanges() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("10.0"));
-		BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
-		assertEquals(new BigDecimal("10.0"), result.getPreciseTo());
+	@Nested
+	@DisplayName("Union")
+	class UnionTest {
+
+		@Test
+		@DisplayName("Should compute union of overlapping finite ranges")
+		void shouldComputeUnionOfOverlappingFiniteRanges() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("10.0"));
+			final BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
+			assertNotEquals(BigDecimalNumberRange.INFINITE, result);
+			assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
+			assertEquals(new BigDecimal("10.0"), result.getPreciseTo());
+		}
+
+		@Test
+		@DisplayName("Should return infinite for union with infinite range")
+		void shouldReturnInfiniteForUnionWithInfiniteRange() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.INFINITE;
+			final BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
+			assertEquals(BigDecimalNumberRange.INFINITE, result);
+		}
+
+		@Test
+		@DisplayName("Should compute union of non-overlapping finite ranges as convex hull")
+		void shouldComputeUnionOfNonOverlappingFiniteRanges() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("4.0"));
+			final BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
+			assertEquals(BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("4.0")), result);
+		}
+
+		@Test
+		@DisplayName("Should compute union of identical ranges")
+		void shouldComputeUnionOfIdenticalFiniteRanges() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
+			assertNotEquals(BigDecimalNumberRange.INFINITE, result);
+			assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
+			assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
+		}
+
+		@Test
+		@DisplayName("Should return infinite for union of ranges with complementary null bounds")
+		void shouldReturnInfiniteForUnionOfRangesWithComplementaryNullBounds() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.from(new BigDecimal("1.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.to(new BigDecimal("5.0"));
+			final BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
+			assertEquals(BigDecimalNumberRange.INFINITE, result);
+		}
+
+		@Test
+		@DisplayName("Should retain maximum decimal places in union")
+		void shouldRetainMaximumDecimalPlacesInUnion() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.00"), new BigDecimal("5.00"), 2);
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.000"), new BigDecimal("10.000"), 3);
+			final BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
+			assertEquals(new BigDecimal("1.00"), result.getPreciseFrom());
+			assertEquals(new BigDecimal("10.000"), result.getPreciseTo());
+		}
+
+		@Test
+		@DisplayName("Should return infinite for union of two infinite ranges")
+		void shouldReturnInfiniteForUnionOfTwoInfiniteRanges() {
+			final BigDecimalNumberRange result = BigDecimalNumberRange.union(
+				BigDecimalNumberRange.INFINITE,
+				BigDecimalNumberRange.INFINITE
+			);
+			assertEquals(BigDecimalNumberRange.INFINITE, result);
+		}
 	}
 
-	@Test
-	public void unionOfFiniteAndInfiniteRange() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.INFINITE;
-		BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
-		assertEquals(BigDecimalNumberRange.INFINITE, result);
+	@Nested
+	@DisplayName("Intersection")
+	class IntersectionTest {
+
+		@Test
+		@DisplayName("Should compute intersection of overlapping ranges")
+		void shouldComputeIntersectionOfOverlappingFiniteRanges() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("10.0"));
+			final BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
+			assertNotEquals(BigDecimalNumberRange.INFINITE, result);
+			assertEquals(new BigDecimal("3.0"), result.getPreciseFrom());
+			assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
+		}
+
+		@Test
+		@DisplayName("Should intersect finite with infinite range")
+		void shouldIntersectFiniteWithInfiniteRange() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.INFINITE;
+			final BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
+			assertNotEquals(BigDecimalNumberRange.INFINITE, result);
+			assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
+			assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
+		}
+
+		@Test
+		@DisplayName("Should return infinite for non-overlapping ranges")
+		void shouldReturnInfiniteForNonOverlappingRanges() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("4.0"));
+			final BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
+			assertEquals(BigDecimalNumberRange.INFINITE, result);
+		}
+
+		@Test
+		@DisplayName("Should compute intersection of identical ranges")
+		void shouldComputeIntersectionOfIdenticalRanges() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
+			assertNotEquals(BigDecimalNumberRange.INFINITE, result);
+			assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
+			assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
+		}
+
+		@Test
+		@DisplayName("Should compute intersection of ranges with complementary null bounds")
+		void shouldComputeIntersectionOfRangesWithComplementaryNullBounds() {
+			final BigDecimalNumberRange rangeA = BigDecimalNumberRange.from(new BigDecimal("1.0"));
+			final BigDecimalNumberRange rangeB = BigDecimalNumberRange.to(new BigDecimal("5.0"));
+			final BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
+			assertNotEquals(BigDecimalNumberRange.INFINITE, result);
+			assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
+			assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
+		}
 	}
 
-	@Test
-	public void unionOfNonOverlappingFiniteRanges() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("4.0"));
-		BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
-		assertEquals(BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("4.0")), result);
-	}
+	@Nested
+	@DisplayName("Inverse")
+	class InverseTest {
 
-	@Test
-	public void unionOfIdenticalFiniteRanges() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
-		assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
-	}
+		@Test
+		@DisplayName("Should return infinite for range with both bounds")
+		void shouldReturnInfiniteForRangeWithBothBounds() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
+			final BigDecimalNumberRange result = range.inverse(2);
+			assertEquals(BigDecimalNumberRange.INFINITE, result);
+		}
 
-	@Test
-	public void unionOfFiniteRangeWithNullBounds() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), null);
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(null, new BigDecimal("5.0"));
-		BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
-		assertEquals(BigDecimalNumberRange.INFINITE, result);
-	}
+		@Test
+		@DisplayName("Should compute inverse of from-only range")
+		void shouldComputeInverseOfFromOnlyRange() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.from(new BigDecimal("1.0"));
+			final BigDecimalNumberRange result = range.inverse(2);
+			assertNotEquals(BigDecimalNumberRange.INFINITE, result);
+			assertEquals(new BigDecimal("0.99"), result.getPreciseTo());
+		}
 
-	@Test
-	public void intersectionOfOverlappingFiniteRanges() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("10.0"));
-		BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("3.0"), result.getPreciseFrom());
-		assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
-	}
+		@Test
+		@DisplayName("Should compute inverse of to-only range")
+		void shouldComputeInverseOfToOnlyRange() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.to(new BigDecimal("5.0"));
+			final BigDecimalNumberRange result = range.inverse(2);
+			assertNotEquals(BigDecimalNumberRange.INFINITE, result);
+			assertEquals(new BigDecimal("5.01"), result.getPreciseFrom());
+		}
 
-	@Test
-	public void intersectionOfFiniteAndInfiniteRange() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.INFINITE;
-		BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
-		assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
-	}
-
-	@Test
-	public void intersectionOfNonOverlappingFiniteRanges() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("4.0"));
-		BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
-		assertEquals(BigDecimalNumberRange.INFINITE, result);
-	}
-
-	@Test
-	public void intersectionOfIdenticalFiniteRanges() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
-		assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
-	}
-
-	@Test
-	public void intersectionOfFiniteRangeWithNullBounds() {
-		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), null);
-		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(null, new BigDecimal("5.0"));
-		BigDecimalNumberRange result = BigDecimalNumberRange.intersect(rangeA, rangeB);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
-		assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
-	}
-
-	@Test
-	public void inverseOfFiniteRangeWithBothBounds() {
-		BigDecimalNumberRange range = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("5.0"));
-		BigDecimalNumberRange result = range.inverse(2);
-		assertEquals(BigDecimalNumberRange.INFINITE, result);
-	}
-
-	@Test
-	public void inverseOfFiniteRangeWithLowerBoundOnly() {
-		BigDecimalNumberRange range = BigDecimalNumberRange.from(new BigDecimal("1.0"));
-		BigDecimalNumberRange result = range.inverse(2);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("0.99"), result.getPreciseTo());
-	}
-
-	@Test
-	public void inverseOfFiniteRangeWithUpperBoundOnly() {
-		BigDecimalNumberRange range = BigDecimalNumberRange.to(new BigDecimal("5.0"));
-		BigDecimalNumberRange result = range.inverse(2);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("5.01"), result.getPreciseFrom());
-	}
-
-	@Test
-	public void inverseOfInfiniteRange() {
-		BigDecimalNumberRange range = BigDecimalNumberRange.INFINITE;
-		BigDecimalNumberRange result = range.inverse(2);
-		assertEquals(BigDecimalNumberRange.INFINITE, result);
+		@Test
+		@DisplayName("Should return infinite for infinite range")
+		void shouldReturnInfiniteForInfiniteRange() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.INFINITE;
+			final BigDecimalNumberRange result = range.inverse(2);
+			assertEquals(BigDecimalNumberRange.INFINITE, result);
+		}
 	}
 
 }

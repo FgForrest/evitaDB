@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -87,6 +87,8 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				List.of(
 					map()
 						.e("attributeCodeNatural", OrderDirection.ASC)
+						.build(),
+					map()
 						.e("random", true)
 						.build()
 				)
@@ -117,16 +119,21 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				this.resolver.resolve(
 					Entities.PRODUCT,
 					"orderBy",
-					List.of(
-						map()
-							.e("attributeCodeNatural", OrderDirection.ASC)
-							.e("priceNatural", OrderDirection.DESC)
-							.e("referenceCategoryProperty", list()
-								.i(map()
-									.e("attributeCodeNatural", OrderDirection.DESC)
-									.e("random", true)))
-							.build()
-					)
+					list()
+						.i(map()
+							   .e("attributeCodeNatural", OrderDirection.ASC))
+						.i(map()
+							   .e("priceNatural", OrderDirection.DESC))
+						.i(map()
+							   .e(
+								   "referenceCategoryProperty",
+								   list()
+									   .i(map()
+										      .e("attributeCodeNatural", OrderDirection.DESC))
+									   .i(map()
+										      .e("random", true))
+							   ))
+						.build()
 				)
 			)
 		);
@@ -149,19 +156,19 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				this.resolver.resolve(
 					Entities.PRODUCT,
 					"orderBy",
-					List.of(
-						map()
-							.e("attributeCodeNatural", OrderDirection.ASC)
-							.e("priceNatural", OrderDirection.DESC)
-							.e("referenceBrandProperty", null)
-							.e("referenceCategoryProperty", list()
-								.i(map()
-									.e("attributeCodeNatural", OrderDirection.DESC)
-									.e("priceNatural", null)
-									.e("random", true)))
-							.build()
+					list()
+						.i(map().e("attributeCodeNatural", OrderDirection.ASC))
+						.i(map().e("priceNatural", OrderDirection.DESC))
+						.i(map().e("referenceBrandProperty", null))
+						.i(map()
+							   .e(
+									"referenceCategoryProperty",
+									list()
+										.i(map().e("attributeCodeNatural", OrderDirection.DESC))
+										.i(map().e("priceNatural", null))
+										.i(map().e("random", true))))
+						.build()
 					)
-				)
 			)
 		);
 	}

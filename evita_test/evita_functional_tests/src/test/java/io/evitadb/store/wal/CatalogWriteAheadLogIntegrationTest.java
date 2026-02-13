@@ -32,11 +32,11 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
@@ -344,7 +344,10 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 
 			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
 			final List<Mutation> mutationsInTx = txInMutations.get(transactionMutation.getVersion());
-			assertEquals(mutationsInTx.get(0), transactionMutation);
+			assertTransactionMutationEquals(
+				(TransactionMutation) mutationsInTx.get(0),
+				transactionMutation
+			);
 			for (int i = 0; i < transactionMutation.getMutationCount(); i++) {
 				final Mutation mutationInTx = mutationIterator.next();
 				assertEquals(mutationsInTx.get(i + 1), mutationInTx);
@@ -384,7 +387,10 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				final Mutation mutationInTx = mutationIterator.next();
 				if (mutationInTx instanceof TransactionMutation txMut) {
 					transactionMutation = txMut;
-					assertEquals(mutationsInTx.get(i - transactionMutation.getMutationCount() - 1), mutationInTx);
+					assertTransactionMutationEquals(
+						(TransactionMutation) mutationsInTx.get(i - transactionMutation.getMutationCount() - 1),
+						txMut
+					);
 				} else {
 					assertEquals(mutationsInTx.get(i), mutationInTx);
 				}

@@ -27,9 +27,6 @@ jobs:
     permissions:
       # write permission is required to create a github release
       contents: write
-      # write permission is required for autolabeler
-      # otherwise, read permission is required at least
-      pull-requests: write
 
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
@@ -68,6 +65,7 @@ jobs:
       with:
         ref: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Resolve new release version
       id: release_version

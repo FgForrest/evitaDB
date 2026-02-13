@@ -66,7 +66,7 @@ ones.
 There isn't a single GraphQL API instance for the whole evitaDB instance. Instead, each evitaDB [catalog](/documentation/user/en/use/data-model.md#catalog)
 has its own GraphQL API (actually each catalog has two GraphQL
 API instances, but more on that later) on its own URL with data only from that particular catalog.
-In addition, there is one another GraphQL API instance that is reserved for evitaDB administration
+In addition, there is another GraphQL API instance that is reserved for evitaDB administration
 (e.g. creating new catalogs, removing existing catalogs) called <Term>system API</Term>.
 
 Each GraphQL API instance URL starts with `/gql`, followed by the URL-formatted catalog name for specific
@@ -114,8 +114,8 @@ with its own relevant GraphQL schema:
 
 - `/gql/fashion` - a <Term>catalog data API</Term> to query or update the actual data of the `fashion` catalog
 - `/gql/fashion/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `fashion` catalog
-- `/gql/electronic` - a <Term>catalog data API</Term> to query or update the actual data of the `electronic` catalog
-- `/gql/electronic/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `electronic` catalog
+- `/gql/electronics` - a <Term>catalog data API</Term> to query or update the actual data of the `electronics` catalog
+- `/gql/electronics/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `electronics` catalog
 - `/gql/system` - the <Term>system API</Term> to manage evitaDB itself
 
 </Note>
@@ -132,11 +132,189 @@ In addition to user-defined collections, there is a "virtual" simplified collect
 that allows users to retrieve entities by global attributes without knowing the target collection. However, the `entity` "collection",
 has only limited set of queries available.
 
+#### Model
+
+The schema consists mainly of:
+
+- dynamic entity object types
+  - separate object types for each collection based on evitaDB internal schema
+- query constraint input types
+  - containers for querying entities based on evitaDB constraint definitions and evitaDB internal schema 
+- common util types
+  - enums, mutations, etc. 
+
+##### Reusability
+
+Even though most types are generated based on user-defined schema without any links among each other, there are some
+areas where we can automatically compute reusable interface types. This can greatly help the client code to 
+create reusable components.
+
+The reusable interface types can be found in:
+
+**Data chunks**. There are two base implementations: paginated lists
+and strip lists. Usually entities and references implement their own extensions of these interfaces.
+
+**Entity references** are split into several levels of interface and object types based on generalization scopes:
+
+- generic reference to any entity
+  - can be accessed from any entity reference 
+- reference to a specific entity (e.g. `Category`)
+  - can be accessed from any entity reference that targets such an entity type 
+- reference to a specific entity with a set of attributes and group
+  - can be accessed from any entity reference that targets such a set of data 
+- a specific reference between specific source entity and target entity (e.g. `Product` -> `ParameterValues`)
+  - can be accessed only from the specific source entity 
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Example of entity reference interface hierarchy
+</NoteTitle>
+
+The following diagram shows the hierarchy of entity reference interfaces for `ParameterValues` entity referenced from `Product` entity.
+
+```mermaid
+classDiagram
+  class Reference {
+    <<interface>>
+    int referencePrimaryKey
+  }
+  class ParameterValuesReference {
+    <<interface>>
+    ParameterValue referencedEntity
+  }
+  class ParameterValuesXYZReferenceAttributes {
+    <<interface>>
+    String a
+    String b
+  }
+  class ParameterValuesXYZReference {
+    <<interface>>
+    Parameter groupEntity
+    ParameterValuesXYZReferenceAttributes attributes
+  }
+  class ProductParameterValuesReferenceAttributes {
+  }
+  class ProductParameterValuesReference {
+    ProductParameterValuesAttributes attributes
+  }
+  ProductParameterValuesReference : Attributes field is overridden with entity specific extension
+
+  Reference <|-- ParameterValuesReference
+
+  ParameterValuesReference <|-- ParameterValuesXYZReference
+
+  ParameterValuesXYZReferenceAttributes <|-- ProductParameterValuesReferenceAttributes
+  ParameterValuesXYZReference <|-- ProductParameterValuesReference
+
+  class PaginatedList {
+    <<interface>>
+  }
+
+  class ReferencePage {
+    <<interface>>
+    Reference[] data
+  }
+  PaginatedList <|-- ReferencePage
+
+  class ParameterValuesReferencePage {
+    <<interface>>
+    ParameterValuesReference[] data
+  }
+  ReferencePage <|-- ParameterValuesReferencePage
+
+  class ParameterValuesXYZReferencePage {
+    <<interface>>
+    ParameterValuesXYZReference[] data
+  }
+  ParameterValuesReferencePage <|-- ParameterValuesXYZReferencePage
+
+  class StripList {
+    <<interface>>
+  }
+
+  class ReferenceStrip {
+    <<interface>>
+    Reference[] data
+  }
+  StripList <|-- ReferenceStrip
+
+  class ParameterValuesReferenceStrip {
+    <<interface>>
+    ParameterValuesReference[] data
+  }
+  ReferenceStrip <|-- ParameterValuesReferenceStrip
+
+  class ParameterValuesXYZReferenceStrip {
+    <<interface>>
+    ParameterValuesXYZReference[] data
+  }
+  ParameterValuesReferenceStrip <|-- ParameterValuesXYZReferenceStrip
+
+  class ProductParameterValuesReferencePage {
+    ProductParameterValuesReference[] data
+  }
+  ParameterValuesXYZReferencePage <|-- ProductParameterValuesReferencePage
+
+  class ProductParameterValuesReferenceStrip {
+    ProductParameterValuesReference[] data
+  }
+  ParameterValuesXYZReferenceStrip <|-- ProductParameterValuesReferenceStrip
+```
+</Note>
+
+To also be able to reuse inline reference filtering and ordering, a `With*Reference` interface is generated for
+each combination of reference name, referenced entity type, set of attributes and a group. Each source entity then
+implements such an interface that matches its reference definition.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Example `With*Reference` interface hierarchy
+</NoteTitle>
+
+The following diagram shows the hierarchy of `With*Reference` interfaces for `ParameterValues` entity available on `Product`
+entity.
+
+```mermaid
+classDiagram
+
+    class WithParameterValuesXYZ1Reference {
+        <<interface>>
+        ParameterValuesXYZReference[] parameterValues
+        ParameterValuesXYZReferencePage parameterValuesPage
+        ParameterValuesXYZReferenceStrip parameterValuesStrip
+    }
+
+    class Product {
+        ProductParameterValuesReference[] parameterValues
+        ProductParameterValuesReferencePage parameterValuesPage
+        ProductParameterValuesReferenceStrip parameterValuesStrip
+    }
+
+    WithParameterValuesXYZ1Reference <|-- Product
+```
+
+</Note>
+
+<Note type="info">
+
+We explore other places where we could generate reusable interface types based on real-world use-cases. 
+We don't want to overcomplicate the API schema just for the sake of it. 
+
+</Note>
+  
 ### Structure of catalog schema APIs
 
 A single <Term>catalog schema API</Term> for a single catalog contains only basic queries and mutations for each
 [collection](/documentation/user/en/use/data-model.md#collection) and parent [catalog](/documentation/user/en/use/data-model.md#catalog)
 to retrieve or change its schema.
+
+#### Model
+
+The schema consists mainly of dynamically generated object types representing different schema components.
 
 ### Structure of system API
 
@@ -167,11 +345,11 @@ standard tools. However, below are our recommendations for tools etc. that we us
 
 ### Recommended IDEs
 
-We've developed our own GUI tool called [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) which supports GraphQL with usefull tools (e.g. data visualisations).
+We've developed our own GUI tool called [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) which supports GraphQL with useful tools (e.g. data visualizations).
 It also has other useful tools for exploring evitaDB instances, not just using GraphQL API.
-Therefore, this is our recommened chose of IDE for our APIs.
+Therefore, this is our recommended choice of IDE for our APIs.
 
-However if you want to use a generic GraphQL tool, we have recommendations for that too.
+However, if you want to use a generic GraphQL tool, we have recommendations for that too.
 During development, we have come across and tried several tools for consuming GraphQL APIs, but there are only a few that we can recommend.
 
 For a desktop IDE to test and explore GraphQL APIs, the [Altair](https://altairgraphql.dev/) client proved to be a great help. It is a
@@ -187,8 +365,8 @@ If you are looking for a web-based client that you can integrate into your appli
 
 The basic idea of using the IDE is to first fetch the GraphQL API schema from one of the above-mentioned URLs that are
 exposed by evitaDB. Then explore the API schema using the IDE's docs/API schema explorer and start typing a query or mutation to send to the server.
-In case of e.g. the [Altair](https://altairgraphql.dev/) you don't even need to explore the API schema manually because
-Altair has, like many others, has a code-completion in its editor based on the retrieved API schema.
+In the case of e.g. [Altair](https://altairgraphql.dev/), you don't even need to explore the API schema manually because
+Altair, like many others, has code-completion in its editor based on the retrieved API schema.
 
 ### Recommended client libraries
 

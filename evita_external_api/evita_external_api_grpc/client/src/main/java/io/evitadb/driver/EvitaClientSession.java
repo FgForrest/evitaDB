@@ -346,6 +346,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull EvitaClient evita,
 		@Nonnull ExecutorService executor,
 		@Nonnull EvitaClientManagement management,
+		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull GrpcClientBuilder grpcClientBuilder,
 		@Nonnull String catalogName,
@@ -361,7 +362,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.executor = executor;
 		this.management = management;
 		this.reflectionLookup = evita.getReflectionLookup();
-		this.proxyFactory = schemaCache.getProxyFactory();
+		this.proxyFactory = proxyFactory;
 		this.schemaCache = schemaCache;
 		this.evitaSessionServiceFutureStub = grpcClientBuilder.build(EvitaSessionServiceFutureStub.class);
 		this.evitaSessionServiceStub = grpcClientBuilder.build(EvitaSessionServiceStub.class);

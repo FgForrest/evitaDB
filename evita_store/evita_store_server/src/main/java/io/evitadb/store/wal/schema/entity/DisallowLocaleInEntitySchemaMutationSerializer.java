@@ -37,7 +37,7 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class DisallowLocaleInEntitySchemaMutationSerializer  extends Serializer<DisallowLocaleInEntitySchemaMutation> {
+public class DisallowLocaleInEntitySchemaMutationSerializer extends Serializer<DisallowLocaleInEntitySchemaMutation> {
 
 	@Override
 	public void write(Kryo kryo, Output output, DisallowLocaleInEntitySchemaMutation mutation) {

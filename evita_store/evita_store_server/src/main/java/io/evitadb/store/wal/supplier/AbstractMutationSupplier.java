@@ -26,7 +26,7 @@ package io.evitadb.store.wal.supplier;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;

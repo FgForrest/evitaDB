@@ -13,24 +13,14 @@ on:
       - jacoco/**/pom.xml
       - docker/**
       - .github/**
-  pull_request_target:
-    branches: [ "dev" ]            # also trap pull requests to dev branch
-    paths:                         # but react only to changes in code or pipeline definition
-      - evita*/**/*.java
-      - evita*/**/pom.xml
-      - .github/**.*
 
 permissions:
-  id-token: write
   contents: write
   actions: read
   checks: write
-  pull-requests: read
-  security-events: write
-  statuses: write
 
 concurrency:
-  group: ${{ github.head_ref || github.ref_name }}  # for the same branch (dev or PR)
+  group: ${{ github.ref_name }}                      # for the same branch (dev)
   cancel-in-progress: true        # run only one workflow at a time (cancel the previous)
 
 jobs:
@@ -39,6 +29,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1 checkout sources
+      with:
+        persist-credentials: false
 
     - name: Setup Java JDK
       uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0  # setup JDK 17 for building
@@ -57,12 +49,16 @@ jobs:
         mvn -T 1C -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
         jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
-    - name: Upload test results    # upload XML with unit test results to artifact `test-results` for `test-report.yml`
+    - name: Upload test results    # upload XML with unit test results for debugging
       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
       if: success() || failure()
       with:
         name: test-results
         path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+
+    - name: Publish Test Report
+      uses: ./.github/actions/publish-test-report
+      if: success() || failure()
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-canary.yml` to deploy to DockerHub
       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -82,7 +78,7 @@ jobs:
 
     - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository
       run: |
-        mvn -T 1C -B deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
+        mvn -T 1C -B javadoc:jar source:jar deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
       continue-on-error: true
       env:
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}

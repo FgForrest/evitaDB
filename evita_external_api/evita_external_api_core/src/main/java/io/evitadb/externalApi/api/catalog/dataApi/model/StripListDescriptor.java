@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,8 +26,6 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -56,21 +54,12 @@ public interface StripListDescriptor extends DataChunkDescriptor {
 		.type(nonNull(Integer.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*StripList")
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(DataChunkDescriptor.THIS_INTERFACE)
+		.name("StripList")
 		.description("""
 			Strip of records according to offset and limit rules in input query.
 			""")
-		.staticProperties(List.of(
-			OFFSET,
-			LIMIT,
-			TOTAL_RECORD_COUNT,
-			FIRST,
-			LAST,
-			HAS_PREVIOUS,
-			HAS_NEXT,
-			SINGLE_PAGE,
-			EMPTY
-		))
+		.staticProperty(OFFSET)
+		.staticProperty(LIMIT)
 		.build();
 }

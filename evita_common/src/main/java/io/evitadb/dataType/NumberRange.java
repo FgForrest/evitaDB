@@ -48,8 +48,8 @@ import static java.util.Optional.ofNullable;
 public abstract sealed class NumberRange<T extends Number> implements Range<T>, Serializable, Comparable<NumberRange<T>>
 	permits BigDecimalNumberRange, LongNumberRange, IntegerNumberRange, ShortNumberRange, ByteNumberRange {
 	@Serial private static final long serialVersionUID = 7690351814641934282L;
-	private static final Pattern SIMPLE_NUMBER_PARSE_PATTERN = Pattern.compile("([\\d\\\\.]+?)");
-	private static final Pattern PARSE_PATTERN = Pattern.compile("^" + Pattern.quote(OPEN_CHAR) + "([\\d\\\\.]+?)?\\s*" + Pattern.quote(INTERVAL_JOIN) + "\\s*([\\d\\\\.]+?)?" + Pattern.quote(CLOSE_CHAR) + "$");
+	private static final Pattern SIMPLE_NUMBER_PARSE_PATTERN = Pattern.compile("(-?[\\d.]+?)");
+	private static final Pattern PARSE_PATTERN = Pattern.compile("^" + Pattern.quote(OPEN_CHAR) + "(-?[\\d.]+?)?\\s*" + Pattern.quote(INTERVAL_JOIN) + "\\s*(-?[\\d.]+?)?" + Pattern.quote(CLOSE_CHAR) + "$");
 	public static final Function<String, String[]> PARSE_FCT = string -> {
 		final Matcher matcher = PARSE_PATTERN.matcher(string);
 		if (matcher.matches()) {
@@ -97,7 +97,7 @@ public abstract sealed class NumberRange<T extends Number> implements Range<T>, 
 	}
 
 	/**
-	 * Returns TRUE when value to check is withing the current number range (inclusive).
+	 * Returns TRUE when value to check is within the current number range (inclusive).
 	 */
 	@Override
 	public boolean isWithin(@Nonnull Number valueToCheck) {

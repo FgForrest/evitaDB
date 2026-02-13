@@ -51,7 +51,7 @@ public record PriceConflictKey(
 	@Nonnull
 	@Override
 	public String toString() {
-		return this.priceId + " " + this.currency + " price `" + this.priceId + "` of entity `" + this.entityType + "` " +
+		return this.currency + " price `" + this.priceId + "` in price list `" + this.priceList + "` of entity `" + this.entityType + "` " +
 			"with primary key `" + this.entityPrimaryKey + '`';
 	}
 

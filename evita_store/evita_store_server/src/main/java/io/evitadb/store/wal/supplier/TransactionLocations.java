@@ -23,7 +23,7 @@
 
 package io.evitadb.store.wal.supplier;
 
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.utils.Assert;

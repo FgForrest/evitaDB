@@ -38,8 +38,14 @@ import java.io.Serial;
  */
 public class SerializableClassRequiredException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -2246655193199206258L;
+	/**
+	 * The class that does not implement {@link java.io.Serializable} interface.
+	 */
 	@Getter private final Class<?> nonSerializableClass;
 
+	/**
+	 * Creates a new exception identifying the class that lacks {@link java.io.Serializable} implementation.
+	 */
 	public SerializableClassRequiredException(@Nonnull Class<?> nonSerializableClass) {
 		super("Serializable classes are required in data objects. The class `" + nonSerializableClass + "` doesn't implement `Serializable` interface.");
 		this.nonSerializableClass = nonSerializableClass;

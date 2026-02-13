@@ -208,6 +208,10 @@ public class NumberUtils {
 			return new BigDecimal(number.toString());
 		} else if (number instanceof BigDecimal) {
 			return ((BigDecimal) number);
+		} else if (number instanceof Float) {
+			return new BigDecimal(number.toString());
+		} else if (number instanceof Double) {
+			return new BigDecimal(number.toString());
 		} else {
 			throw new IllegalArgumentException("Unsupported number type: " + number.getClass());
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -908,7 +909,8 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 							.e("brand", map()
 								.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map()
 									.e(TYPENAME_FIELD, AttributeSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
-									.e(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C, map()
+									.e(
+										StringUtils.toCamelCase(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C), map()
 										.e(TYPENAME_FIELD, AttributeSchemaDescriptor.THIS.name())
 										.e(NamedSchemaDescriptor.NAME.name(), brandVisibleForB2CAttributeSchema.getName())
 										.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
@@ -1218,7 +1220,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 						getProductSchema {
 							allReferences {
 								attributes {
-									brandVisibleForB2C {
+									brandVisibleForB2c {
 										name
 									}
 								}

@@ -32,9 +32,36 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
- * This interface marks all implementations that alter the {@link EntitySchemaContract#getAssociatedData()}.
- * The implementations can either modify the entire {@link EntitySchemaContract} or partially only a single
- * {@link AssociatedDataSchemaContract} of it.
+ * Marker interface for all schema mutations that alter {@link AssociatedDataSchemaContract} definitions within
+ * entity schemas.
+ *
+ * Associated data is arbitrary, complex data attached to entities — typically documents, descriptions, or structured
+ * metadata that is not indexed or queried directly. This interface unifies operations that create, modify, or remove
+ * associated data schemas in {@link EntitySchemaContract#getAssociatedData()}.
+ *
+ * **Mutation Scope**
+ *
+ * Implementations may modify entire schemas (e.g., creating or removing an associated data definition) or partially
+ * mutate a single associated data schema (e.g., changing its type, localization, or nullability).
+ *
+ * **Key Implementations**
+ *
+ * Concrete mutations include:
+ *
+ * - `CreateAssociatedDataSchemaMutation` — creates a new associated data schema
+ * - `ModifyAssociatedDataSchemaTypeMutation` — changes the data type of existing associated data
+ * - `SetAssociatedDataSchemaLocalizedMutation` — marks associated data as localized or non-localized
+ * - `RemoveAssociatedDataSchemaMutation` — deletes an associated data schema
+ *
+ * **Usage Pattern**
+ *
+ * Associated data mutations are always entity-scoped (they implement
+ * {@link io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation}). Unlike attributes, associated
+ * data does not appear in global catalog schemas or reference schemas.
+ *
+ * **Thread-Safety**
+ *
+ * All implementations are immutable and thread-safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -43,17 +70,26 @@ import javax.annotation.concurrent.ThreadSafe;
 public interface AssociatedDataSchemaMutation extends SchemaMutation {
 
 	/**
-	 * Returns the name of the associated data the mutation is targeting.
+	 * Returns the name of the associated data schema targeted by this mutation.
+	 *
+	 * @return the associated data name, never `null`
 	 */
 	@Nonnull
 	String getName();
 
 	/**
-	 * Method applies the mutation operation on the associated data schema in the input and returns modified version
-	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
-	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
+	 * Applies the mutation operation on the associated data schema and returns the modified version. This method
+	 * implements create, update, and remove operations using `null` as a sentinel value:
 	 *
-	 * @param associatedDataSchema current version of the schema as an input to mutate
+	 * - **Create**: `null` input → non-`null` output (new schema created)
+	 * - **Modify**: non-`null` input → non-`null` output (existing schema modified)
+	 * - **Remove**: non-`null` input → `null` output (schema deleted)
+	 *
+	 * Modification operations validate constraints such as type compatibility and localization requirements before
+	 * applying changes.
+	 *
+	 * @param associatedDataSchema current version of the schema to mutate, may be `null` for create operations
+	 * @return the mutated associated data schema, or `null` if the mutation removes the schema
 	 */
 	@Nullable
 	AssociatedDataSchemaContract mutate(@Nullable AssociatedDataSchemaContract associatedDataSchema);

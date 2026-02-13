@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,20 +53,19 @@ import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.*;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.EntityReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
@@ -1556,7 +1555,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                query {
 	                    queryProduct(
 	                        filterBy: {
-		                        attributeCodeInSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
                         ) {
                             __typename
@@ -3273,30 +3272,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e("parameter", map()
-						.e(TYPENAME_FIELD, ReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
+						.e(TYPENAME_FIELD, EntityReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 						.e(
 							AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 							.e(ATTRIBUTE_MARKET_SHARE, reference.getAttribute(ATTRIBUTE_MARKET_SHARE).toString())
 							.build())
-						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-							.e(TYPENAME_FIELD, "Parameter")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
-							.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
-							.e(
-								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))
+						.e(
+							ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(),
+							map()
+								.e(TYPENAME_FIELD, "Parameter")
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
+								.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
+								.e(
+									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+									.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))
+									.build())
 								.build())
-							.build())
-						.e(ReferenceDescriptor.GROUP_ENTITY.name(), map()
-							.e(TYPENAME_FIELD, "ParameterGroup")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
-							.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
-							.e(
-								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))
+						.e(
+							ReferenceDefinitionDescriptor.GROUP_ENTITY.name(),
+							map()
+								.e(TYPENAME_FIELD, "ParameterGroup")
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
+								.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
+								.e(
+									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+									.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))
+									.build())
 								.build())
-							.build())
 						.build())
 					.build();
 			}
@@ -3371,7 +3374,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.stream()
 					.map(reference ->
 						map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+							.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
 								.build())
 							.build())
@@ -3475,7 +3478,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					)
 					.map(reference ->
 						map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+							.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getPrimaryKey()))
 							.build())
 					.toList();
@@ -3556,7 +3559,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.limit(2)
 					.map(reference ->
 						map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+							.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
 							.build())
 					.toList())
@@ -3633,14 +3636,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 								return map()
 									.e(
-										ReferenceDescriptor.ATTRIBUTES.name(), map()
+										ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 											.e(
-												ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+												StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
 												reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
 											)
 									)
 									.e(
-										ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+										ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(
 												EntityDescriptor.PRIMARY_KEY.name(),
 												reference.getReferencedPrimaryKey()
@@ -3728,14 +3731,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.map(reference ->
 									     map()
 										     .e(
-											     ReferenceDescriptor.ATTRIBUTES.name(), map()
+											     ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
 												     .e(
-													     ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+													     StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
 													     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
 												     )
 										     )
 										     .e(
-											     ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											     ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 												     .e(
 													     EntityDescriptor.PRIMARY_KEY.name(),
 													     reference.getReferencedPrimaryKey()
@@ -3889,8 +3892,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									return map()
 										.e(
 											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
-										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
 											.e(VersionedDescriptor.VERSION.name(), referencedEntity.version()))
 										.build();
@@ -3989,8 +3992,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(ref -> map()
 							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
-							.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+							.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
+								.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 							.build())
 						.toList()
 				)
@@ -4035,9 +4038,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										}
 									);
 									return map()
-										.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
-										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+										.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
+											.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
 											.e(EntityDescriptor.VERSION.name(), referencedEntity.version()))
 										.build();
@@ -4054,9 +4057,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.stream()
 								.filter(ref -> !ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
 								.map(ref -> map()
-									.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
-									.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+									.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
+										.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+									.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 										.e(EntityDescriptor.PRIMARY_KEY.name(), ref.getReferencedPrimaryKey()))
 									.build())
 								.toList()
@@ -4291,10 +4294,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    filterBy: {
 		                        attributePriorityLessThan: "35000"
 		                    }
-		                    orderBy: {
-		                        attributeCreatedNatural: DESC,
-		                        attributeManufacturedNatural: ASC
-		                    }
+		                    orderBy: [
+		                        {
+			                        attributeCreatedNatural: DESC
+			                    },
+			                    {
+			                        attributeManufacturedNatural: ASC
+			                    }
+		                    ]
 		                ) {
 		                    recordStrip(limit: 30) {
 		                        data {
@@ -4538,6 +4545,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4613,6 +4621,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                        threshold
 		                                        occurrences
 		                                        requested
+		                                        relativeFrequency
 		                                    }
 		                                }
 		                            }
@@ -4662,6 +4671,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                        threshold
 		                                        occurrences
 		                                        requested
+		                                        relativeFrequency
 		                                    }
 		                                }
 		                            }
@@ -4672,6 +4682,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                        threshold
 	                                        occurrences
 	                                        requested
+	                                        relativeFrequency
 	                                    }
 	                                }
 	                            }
@@ -4735,6 +4746,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4819,6 +4831,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4893,6 +4906,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4909,6 +4923,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -4975,6 +4990,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                            otherQuantity: quantity {
@@ -4987,6 +5003,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    threshold
 		                                    occurrences
 		                                    requested
+		                                    relativeFrequency
 		                                }
 		                            }
 		                        }
@@ -5228,6 +5245,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                    }
@@ -5307,6 +5325,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                        threshold
 	                                        occurrences
 	                                        requested
+	                                        relativeFrequency
 	                                    }
 		                            }
 	                            }
@@ -5355,6 +5374,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                        threshold
 	                                        occurrences
 	                                        requested
+	                                        relativeFrequency
 	                                    }
 		                            }
 	                            }
@@ -5363,6 +5383,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
                                         threshold
                                         occurrences
                                         requested
+                                        relativeFrequency
                                     }
 	                            }
 		                    }
@@ -5431,6 +5452,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                    }
@@ -5515,6 +5537,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                    }
@@ -5590,6 +5613,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                        otherPriceHistogram: priceHistogram {
@@ -5602,6 +5626,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                    threshold
 	                                    occurrences
 	                                    requested
+	                                    relativeFrequency
 	                                }
 		                        }
 		                    }
@@ -7967,6 +7992,63 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, DataChunkDescriptor.TOTAL_RECORD_COUNT), greaterThan(0));
 	}
 
+	@Test
+	@DisplayName("Should not allow defining multiple order constraints in one container")
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	void shouldNotAllowDefiningMultipleOrderConstraintsInOneContainer(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK,
+							priceValidInNow: true
+						},
+						orderBy: {
+							priceNatural: DESC,
+							attributeCodeNatural: ASC
+						}
+					) {
+						recordPage {
+							data {
+								primaryKey
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectErrorsAndThen();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK,
+							priceValidInNow: true
+						},
+						orderBy: [
+							{
+								priceNatural: DESC
+							},
+							{
+								attributeCodeNatural: ASC
+							}
+						]
+					) {
+						recordPage {
+							data {
+								primaryKey
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen();
+	}
+
 	@DisplayName("Should order by price")
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@Test
@@ -8137,7 +8219,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		return map()
 			.e(TYPENAME_FIELD, ResponseDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			.e(ResponseDescriptor.RECORD_PAGE.name(), map()
-				.e(TYPENAME_FIELD, RecordPageDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+				.e(TYPENAME_FIELD, EntityRecordPageDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 				.e(
 					DataChunkDescriptor.DATA.name(), entities.stream()
 					                                         .map(entityMapper)
@@ -8167,6 +8249,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
+					.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
 					.build())
 				.toList())
 			.build();
@@ -8191,6 +8274,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
+					.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
 					.build())
 				.toList())
 			.build();
@@ -8244,14 +8328,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
@@ -8281,14 +8366,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
@@ -8309,7 +8395,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.e(
@@ -8317,9 +8404,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
@@ -8348,7 +8436,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.e(
@@ -8356,9 +8445,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())

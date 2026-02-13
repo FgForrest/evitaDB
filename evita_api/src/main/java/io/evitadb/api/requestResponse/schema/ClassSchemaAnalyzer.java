@@ -83,7 +83,7 @@ import static java.util.Optional.ofNullable;
  * package and sets up the entity / catalog schema accordingly.
  *
  * The analyzer only creates or expands existing schema and never removes anything from it. The expected form of use is
- * to define new entity properties and mark old one as deprecated. Whe the already deprecated properties are about to be
+ * to define new entity properties and mark old one as deprecated. When the already deprecated properties are about to be
  * removed completely the removal should occur in an explicit way (command or API call) outside this analyzer.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -97,6 +97,18 @@ import static java.util.Optional.ofNullable;
  */
 @NotThreadSafe
 public class ClassSchemaAnalyzer {
+	/**
+	 * Set of annotation types that reference other schema elements and must be processed
+	 * after their corresponding defining annotations. These are annotations ending with
+	 * "Ref" suffix that depend on the main schema definitions being already present.
+	 */
+	private static final Set<Class<? extends Annotation>> DEPENDENT_ANNOTATIONS = Set.of(
+		ReferenceRef.class,
+		AttributeRef.class,
+		AssociatedDataRef.class,
+		PrimaryKeyRef.class,
+		PriceForSaleRef.class
+	);
 	/**
 	 * The model class representing the Entity model.
 	 */
@@ -188,8 +200,10 @@ public class ClassSchemaAnalyzer {
 			);
 			return (Serializable) methodHandle.bindTo(proxy).invokeWithArguments();
 
+		} catch (Error e) {
+			// never swallow JVM errors (OutOfMemoryError, StackOverflowError, etc.)
+			throw e;
 		} catch (Throwable ex) {
-
 			return null;
 		}
 	}
@@ -245,7 +259,7 @@ public class ClassSchemaAnalyzer {
 		} else if (OptionalLong.class.isAssignableFrom(field.getType())) {
 			theType = long.class;
 		} else if (Collection.class.isAssignableFrom(field.getType())) {
-			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, field.getType()), 0)
+			return Array.newInstance(GenericsUtils.getGenericTypeFromCollection(modelClass, field.getGenericType()), 0)
 				.getClass();
 		} else {
 			theType = field.getType();
@@ -276,7 +290,7 @@ public class ClassSchemaAnalyzer {
 			theType = long.class;
 		} else if (Collection.class.isAssignableFrom(recordComponent.getType())) {
 			return Array.newInstance(
-					GenericsUtils.getGenericTypeFromCollection(modelClass, recordComponent.getType()), 0)
+					GenericsUtils.getGenericTypeFromCollection(modelClass, recordComponent.getGenericType()), 0)
 				.getClass();
 		} else {
 			theType = recordComponent.getType();
@@ -349,7 +363,7 @@ public class ClassSchemaAnalyzer {
 				editor.nullable();
 			}
 
-			ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+			final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
 			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 				// unique - only set if not already unique in default scope
 				if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION &&
@@ -578,7 +592,7 @@ public class ClassSchemaAnalyzer {
 			final Object blankInstance = defaultConstructor.newInstance();
 			field.setAccessible(true);
 			return (Serializable) field.get(blankInstance);
-		} catch (Throwable ex) {
+		} catch (Exception ex) {
 			return null;
 		}
 	}
@@ -749,7 +763,7 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	public AnalysisResult analyze(@Nonnull EvitaSessionContract session, @Nonnull CatalogSchemaBuilder catalogBuilder) {
-		AtomicReference<String> entityName = new AtomicReference<>();
+		final AtomicReference<String> entityName = new AtomicReference<>();
 		try {
 			final List<Entity> entityAnnotations = this.reflectionLookup.getClassAnnotations(
 				this.modelClass, Entity.class
@@ -848,8 +862,22 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
+	 * Determines the processing priority for a member based on its annotations.
+	 * Members with "reference" annotations (ending with Ref suffix) that depend on
+	 * "defining" annotations are assigned higher priority values and processed later.
+	 *
+	 * @param member the member to classify
+	 * @return processing priority (0 = defining annotations, 1 = reference annotations)
+	 */
+	private static int getMemberProcessingPriority(@Nonnull MemberAccessor member) {
+		return member.hasAnyOf(DEPENDENT_ANNOTATIONS) ? 1 : 0;
+	}
+
+	/**
 	 * Analyzes all members of the model class for entity schema annotations.
 	 * Unifies the processing of methods, fields, and record components using the MemberAccessor abstraction.
+	 * Members are sorted by processing priority before iteration to ensure that defining annotations
+	 * (like @Reference) are processed before reference annotations (like @ReferenceRef).
 	 *
 	 * @param catalogBuilder the catalog schema builder
 	 * @param entityBuilder  the entity schema builder
@@ -858,7 +886,11 @@ public class ClassSchemaAnalyzer {
 		@Nonnull CatalogSchemaBuilder catalogBuilder,
 		@Nonnull EntitySchemaBuilder entityBuilder
 	) {
+		// Sort members by processing priority before iterating
+		// Priority 0: Defining annotations (@Reference, @Attribute, etc.) - processed first
+		// Priority 1: Reference annotations (@ReferenceRef, @AttributeRef, etc.) - processed last
 		getAllMemberAccessors(this.modelClass)
+			.sorted(Comparator.comparingInt(ClassSchemaAnalyzer::getMemberProcessingPriority))
 			.forEach(member -> {
 				// Primary key
 				final PrimaryKey primaryKeyAnnotation = member.getAnnotation(PrimaryKey.class);
@@ -1714,8 +1746,7 @@ public class ClassSchemaAnalyzer {
 					final Method getter = nonPrimaryKeyGetters.get(0);
 					final Class<?> targetEntityType = extractReturnType(this.modelClass, getter);
 					targetEntity = getTargetEntity(targetEntityType, caller, lookedUpAnnotation, referenceType);
-				} else if (getters.size() == 1 || nonPrimaryKeyGetters.stream().map(
-					it -> extractReturnType(this.modelClass, it)).distinct().count() == 1L) {
+				} else if (getters.size() == 1) {
 					final Method getter = getters.get(0);
 					final Class<?> targetEntityType = extractReturnType(this.modelClass, getter);
 					if (int.class.isAssignableFrom(targetEntityType) || Integer.class.isAssignableFrom(
@@ -1877,6 +1908,14 @@ public class ClassSchemaAnalyzer {
 		@Nonnull
 		String getDefiner();
 
+		/**
+		 * Checks if this member has any annotation whose type is present in the given set.
+		 *
+		 * @param annotationTypes set of annotation types to check for
+		 * @return true if member has at least one annotation from the set
+		 */
+		boolean hasAnyOf(@Nonnull Set<Class<? extends Annotation>> annotationTypes);
+
 	}
 
 	/**
@@ -1953,6 +1992,16 @@ public class ClassSchemaAnalyzer {
 			return this.field.toGenericString();
 		}
 
+		@Override
+		public boolean hasAnyOf(@Nonnull Set<Class<? extends Annotation>> annotationTypes) {
+			for (Annotation annotation : this.annotations) {
+				if (annotationTypes.contains(annotation.annotationType())) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 	}
 
 	/**
@@ -1993,6 +2042,16 @@ public class ClassSchemaAnalyzer {
 		@Nonnull
 		public String getDefiner() {
 			return this.recordComponent.toString();
+		}
+
+		@Override
+		public boolean hasAnyOf(@Nonnull Set<Class<? extends Annotation>> annotationTypes) {
+			for (Annotation annotation : this.recordComponent.getAnnotations()) {
+				if (annotationTypes.contains(annotation.annotationType())) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 	}
@@ -2037,6 +2096,16 @@ public class ClassSchemaAnalyzer {
 		@Nonnull
 		public String getDefiner() {
 			return this.method.toGenericString();
+		}
+
+		@Override
+		public boolean hasAnyOf(@Nonnull Set<Class<? extends Annotation>> annotationTypes) {
+			for (Annotation annotation : this.method.getAnnotations()) {
+				if (annotationTypes.contains(annotation.annotationType())) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 	}

@@ -30,8 +30,51 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Methods annotated with this annotation MIGHT be traced by an observability measures. It doesn't automatically mean
- * that the method will be traced, but it is a hint for the observability system to consider tracing this method.
+ * Marker annotation indicating that a method is a candidate for distributed tracing. This
+ * annotation serves as a hint to observability systems (e.g., OpenTelemetry) that the method is
+ * significant enough to warrant span creation, but actual tracing behavior is controlled by
+ * runtime configuration and sampling policies.
+ *
+ * **Design Purpose:**
+ * This annotation identifies "traceable" operations without forcing tracing to occur. The actual
+ * decision to create a span depends on:
+ * - Whether tracing is enabled in the server configuration
+ * - The current trace sampling rate
+ * - Whether a parent trace context exists (for nested spans)
+ * - The specific tracing implementation loaded via {@link TracingContextProvider}
+ *
+ * **Usage Context:**
+ * Apply this annotation to methods that:
+ * - Represent significant logical operations (e.g., entity enrichment, query planning)
+ * - Are not direct API entry points (use {@link RepresentsQuery} or {@link RepresentsMutation}
+ * for those)
+ * - Benefit from detailed performance profiling during debugging or optimization
+ *
+ * **Example:**
+ * ```java
+ * @Traced
+ * protected ServerEntityDecorator enrichEntity(
+ * @Nonnull EntityContract entity,
+ * @Nonnull EvitaRequest evitaRequest
+ * ) {
+ * // ... enrichment logic
+ * }
+ * ```
+ *
+ * **Relationship to Other Annotations:**
+ * - Complementary to {@link RepresentsQuery} and {@link RepresentsMutation} (can be used together)
+ * - More granular than {@link RepresentsQuery}/{@link RepresentsMutation} — used for internal
+ * operations within an API call
+ * - Optional marker — absence does not prevent manual tracing via {@link TracingContext}
+ *
+ * **Runtime Behavior:**
+ * This annotation is retained at runtime and can be discovered via reflection by tracing
+ * interceptors, AOP proxies, or annotation processors. If no tracing implementation is active,
+ * the annotation has no effect.
+ *
+ * **When NOT to Use:**
+ * - Do not annotate trivial getters/setters or utility methods — tracing overhead may exceed value
+ * - Do not annotate methods called in tight loops — excessive span creation degrades performance
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

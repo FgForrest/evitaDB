@@ -86,11 +86,8 @@ public class SessionKiller implements Runnable, Closeable {
 			final AtomicInteger counter = new AtomicInteger(0);
 			this.evita.getActiveSessions()
 				.map(EvitaInternalSessionContract.class::cast)
-				.filter(session -> {
-					final boolean sessionOld = session.getInactivityDurationInSeconds() >= this.allowedInactivityInSeconds;
-					final boolean methodRunning = session.methodIsRunning();
-					return sessionOld && !methodRunning;
-				})
+				// Use atomic check to avoid race condition between checking inactivity and method running state
+				.filter(session -> session.isInactiveAndIdle(this.allowedInactivityInSeconds))
 				.forEach(session -> {
 					try {
 						final String catalogName = session.getCatalogName();

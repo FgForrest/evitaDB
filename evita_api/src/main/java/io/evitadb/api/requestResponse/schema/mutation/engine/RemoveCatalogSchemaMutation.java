@@ -58,7 +58,7 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutation<Void> {
 	@Serial private static final long serialVersionUID = -8605223733449045709L;
-	@Getter @Nonnull private final String catalogName;
+	@Nonnull @Getter private final String catalogName;
 
 	@Override
 	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
@@ -100,6 +100,7 @@ public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 
 	@Override
 	public String toString() {
-		return "Remove catalog.";
+		return "Remove catalog `" + this.catalogName + "`";
 	}
+
 }

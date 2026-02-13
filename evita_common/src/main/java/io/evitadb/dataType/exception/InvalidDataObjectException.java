@@ -37,6 +37,9 @@ import java.io.Serial;
 public class InvalidDataObjectException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -4478493738887924742L;
 
+	/**
+	 * Creates a new exception with a message describing why the data object is invalid.
+	 */
 	public InvalidDataObjectException(String message) {
 		super(message);
 	}

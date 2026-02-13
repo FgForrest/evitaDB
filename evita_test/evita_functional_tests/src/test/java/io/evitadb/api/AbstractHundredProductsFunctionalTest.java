@@ -64,6 +64,10 @@ public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_ENUM = "enum";
 	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
 	public static final String ASSOCIATED_DATA_MARKETS = "markets";
+	public static final String REFERENCE_GALLERY = "gallery";
+	public static final String EXTERNAL_ENTITY_MEDIA = "Media";
+	public static final String ATTRIBUTE_GALLERY_DISCRIMINATOR = "discriminator";
+	public static final String ATTRIBUTE_GALLERY_ORDER = "galleryOrder";
 	private static final int SEED = 40;
 	protected final DataGenerator dataGenerator = new DataGenerator.Builder()
 		.registerValueGenerator(
@@ -225,6 +229,23 @@ public class AbstractHundredProductsFunctionalTest {
 											ATTRIBUTE_PRODUCT_LABEL,
 											String.class,
 											thatIs -> thatIs.localized()
+										)
+								)
+								.withReferenceTo(
+									REFERENCE_GALLERY,
+									EXTERNAL_ENTITY_MEDIA,
+									Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+									whichIs -> whichIs
+										.indexedForFiltering()
+										.withAttribute(
+											ATTRIBUTE_GALLERY_DISCRIMINATOR,
+											String.class,
+											thatIs -> thatIs.filterable().representative()
+										)
+										.withAttribute(
+											ATTRIBUTE_GALLERY_ORDER,
+											Long.class,
+											thatIs -> thatIs.sortable().filterable()
 										)
 								)
 								.updateVia(session);

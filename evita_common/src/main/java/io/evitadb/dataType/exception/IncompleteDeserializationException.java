@@ -39,6 +39,9 @@ import java.util.Set;
 public class IncompleteDeserializationException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 3710159236950227750L;
 
+	/**
+	 * Creates a new exception listing the property names that could not be mapped during deserialization.
+	 */
 	public IncompleteDeserializationException(Set<String> unmappedProperties) {
 		super(
 				"These values were not deserialized because there is no valid property in the class for them: " +

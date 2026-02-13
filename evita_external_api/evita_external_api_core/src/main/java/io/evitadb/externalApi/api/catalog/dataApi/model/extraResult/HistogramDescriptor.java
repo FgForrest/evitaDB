@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
  * Represents {@link io.evitadb.api.requestResponse.extraResult.HistogramContract}.
@@ -122,6 +122,19 @@ public interface HistogramDescriptor {
 				""")
 			.type(nonNull(Boolean.class))
 			.build();
+		PropertyDescriptor RELATIVE_FREQUENCY = PropertyDescriptor.builder()
+			.name("relativeFrequency")
+			.description("""
+				Relative frequency value used for visualization purposes.
+				For standard histograms: percentage of total occurrences (0-100), calculated as
+				`(occurrences / overallCount) * 100`.
+				For equalized histograms: normalized value density (0-100) that accounts for both
+				the number of occurrences in the bucket and its width. Calculated as
+				`occurrences * (totalRange / bucketWidth)`, then normalized so all buckets sum to 100.
+				Higher values indicate denser data concentration (more values in narrower range).
+				""")
+			.type(nonNull(BigDecimal.class))
+			.build();
 
 
 		ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -129,7 +142,7 @@ public interface HistogramDescriptor {
 			.description("""
 				Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 				""")
-			.staticProperties(List.of(THRESHOLD, OCCURRENCES, REQUESTED))
+			.staticProperties(List.of(THRESHOLD, OCCURRENCES, REQUESTED, RELATIVE_FREQUENCY))
 			.build();
 	}
 }

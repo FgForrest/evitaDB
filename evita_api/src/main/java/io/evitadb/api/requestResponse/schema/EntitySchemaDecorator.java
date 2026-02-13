@@ -37,7 +37,7 @@ import java.util.Collection;
 import java.util.function.Supplier;
 
 /**
- * Catalog schema decorator is a mere implementation of the {@link SealedEntitySchema} that creates an instance
+ * Entity schema decorator is a mere implementation of the {@link SealedEntitySchema} that creates an instance
  * of the {@link EntitySchemaBuilder} on seal breaking operations.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022

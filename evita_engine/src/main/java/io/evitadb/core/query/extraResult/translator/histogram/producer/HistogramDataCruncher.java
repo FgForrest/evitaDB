@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2020
  */
-public class HistogramDataCruncher<T> {
+public class HistogramDataCruncher<T> implements HistogramDataCruncherContract<T> {
 	/**
 	 * Contains requested maximal bucket count.
 	 */
@@ -69,7 +69,7 @@ public class HistogramDataCruncher<T> {
 	/**
 	 * Contains array of output data (buckets in histogram).
 	 */
-	@Getter private final CacheableBucket[] histogram;
+	private final CacheableBucket[] histogram;
 	/**
 	 * Internal variable containing optimal threshold step between buckets.
 	 */
@@ -122,6 +122,14 @@ public class HistogramDataCruncher<T> {
 	 * Internal variable containing current count of empty thresholds in the row (this value is compared to {@link #longestSpace}.
 	 */
 	private int emptyBucketsInRow;
+	/**
+	 * Constant for BigDecimal value of 100.
+	 */
+	private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+	/**
+	 * Total weight (sum of all occurrences) used for calculating relative frequency.
+	 */
+	private final long totalWeight;
 
 	public HistogramDataCruncher(
 		@Nonnull String histogramType,
@@ -152,6 +160,13 @@ public class HistogramDataCruncher<T> {
 		this.weightRetriever = weightRetriever;
 		this.toBigDecimalConverter = toBigDecimalConverter;
 		this.fromBigDecimalConverter = fromBigDecimalConverter;
+
+		// calculate total weight first for relative frequency computation
+		long totalWeight = 0;
+		for (int i = 0; i < sourceData.length; i++) {
+			totalWeight += weightRetriever.applyAsInt(sourceData[i]);
+		}
+		this.totalWeight = totalWeight;
 
 		// now compute the result
 		final CompositeObjectArray<CacheableBucket> elasticHistogram = new CompositeObjectArray<>(CacheableBucket.class, false);
@@ -229,8 +244,19 @@ public class HistogramDataCruncher<T> {
 	}
 
 	/**
+	 * Returns the computed histogram as an array of buckets.
+	 */
+	@Nonnull
+	@Override
+	public CacheableBucket[] getHistogram() {
+		return this.histogram;
+	}
+
+	/**
 	 * Returns maximal value found in the input data.
 	 */
+	@Nonnull
+	@Override
 	public BigDecimal getMaxValue() {
 		return this.toBigDecimalConverter.apply(this.lastThreshold).setScale(this.limitDecimalPlacesTo, RoundingMode.UP);
 	}
@@ -285,10 +311,18 @@ public class HistogramDataCruncher<T> {
 			// repeat until we cross the next threshold
 		} while (!this.finished && this.thresholdRetriever.applyAsInt(this.sourceData[this.sourceIndex]) < nextThreshold);
 
+		// calculate relative frequency: (occurrences / totalWeight) * 100
+		final BigDecimal relativeFrequency = this.totalWeight > 0
+			? BigDecimal.valueOf(distinctValues)
+				.multiply(ONE_HUNDRED)
+				.divide(BigDecimal.valueOf(this.totalWeight), 2, RoundingMode.HALF_UP)
+			: BigDecimal.ZERO;
+
 		// create bucket in the output histogram
 		final CacheableBucket result = new CacheableBucket(
 			this.currentStep.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
-			distinctValues
+			distinctValues,
+			relativeFrequency
 		);
 
 		// move next threshold as current threshold

@@ -24,9 +24,11 @@
 package io.evitadb.api.task;
 
 /**
- * This interface extends the {@link ServerTask} interface and should be used for task, that doesn't have a fixed
- * duration and runs until it is stopped.
+ * This interface extends the {@link ServerTask} interface and should be used for tasks that don't have a fixed
+ * duration and run until they are stopped.
  *
+ * @param <S> the type of the task settings
+ * @param <T> the type of the task result
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface InfiniteTask<S, T> extends ServerTask<S, T> {

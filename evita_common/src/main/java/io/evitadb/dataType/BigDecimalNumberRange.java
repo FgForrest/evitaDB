@@ -130,7 +130,7 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 		final int delimiter = string.indexOf(INTERVAL_JOIN, 1);
 		Assert.isTrue(
 			delimiter > -1,
-			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to dates!")
+			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to values!")
 		);
 		final BigDecimal from = delimiter == 1 ? null : parseBigDecimal(string.substring(1, delimiter));
 		final BigDecimal to = delimiter == string.length() - 2 ? null : parseBigDecimal(string.substring(delimiter + 1, string.length() - 1));
@@ -158,13 +158,12 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 
 	/**
 	 * Creates a union of two BigDecimalNumberRanges. If either range is infinite, the result is an infinite range.
-	 * If the ranges overlap, a new BigDecimalNumberRange is created from the common bounds;
-	 * otherwise, an infinite range is returned as a simplification for non-overlapping ranges.
+	 * Otherwise, a new range spanning both inputs is returned (convex hull); if both resulting bounds are null,
+	 * an infinite range is returned.
 	 *
 	 * @param rangeA The first BigDecimalNumberRange.
 	 * @param rangeB The second BigDecimalNumberRange.
-	 * @return A new BigDecimalNumberRange representing the union of rangeA and rangeB. If the ranges do not overlap,
-	 *         the result is an infinite range.
+	 * @return A new BigDecimalNumberRange representing the union (convex hull) of rangeA and rangeB.
 	 */
 	@Nonnull
 	public static BigDecimalNumberRange union(@Nonnull BigDecimalNumberRange rangeA, @Nonnull BigDecimalNumberRange rangeB) {

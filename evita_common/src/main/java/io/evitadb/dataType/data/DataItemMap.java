@@ -52,8 +52,8 @@ public record DataItemMap(
 	@Serial private static final long serialVersionUID = -4294098994748163813L;
 
 	/**
-	 * Method allows to iterate over all items in this array with passed `consumer`. Third argument of the tri-consumer
-	 * is a flag `hasNext` - true when the current data item is not the last item in the array.
+	 * Method allows to iterate over all entries in this map with passed `consumer`. Third argument of the tri-consumer
+	 * is a flag `hasNext` - true when the current entry is not the last entry in the map.
 	 */
 	public void forEach(@Nonnull TriConsumer<String, DataItem, Boolean> consumer) {
 		final Iterator<Entry<String, DataItem>> it = this.childrenIndex.entrySet().iterator();
@@ -64,8 +64,8 @@ public record DataItemMap(
 	}
 
 	/**
-	 * Method allows to iterate over all items in this array with passed `consumer`. Third argument of the tri-consumer
-	 * is a flag `hasNext` - true when the current data item is not the last item in the array. The iteration scans
+	 * Method allows to iterate over all entries in this map with passed `consumer`. Third argument of the tri-consumer
+	 * is a flag `hasNext` - true when the current entry is not the last entry in the map. The iteration scans
 	 * the entries sorted by `String` key.
 	 */
 	public void forEachSorted(@Nonnull TriConsumer<String, DataItem, Boolean> consumer) {
@@ -95,11 +95,17 @@ public record DataItemMap(
 		return this.childrenIndex.isEmpty();
 	}
 
+	/**
+	 * Returns set of all property names present in this map.
+	 */
 	@Nonnull
 	public Set<String> getPropertyNames() {
 		return this.childrenIndex.keySet();
 	}
 
+	/**
+	 * Returns the data item associated with the given property name, or null if no such property exists.
+	 */
 	@Nullable
 	public DataItem getProperty(@Nonnull String propertyName) {
 		return this.childrenIndex.get(propertyName);

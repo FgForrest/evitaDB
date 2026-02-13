@@ -160,11 +160,21 @@ enum GrpcStatisticsType {
 // or optimized one, which may have less buckets than requested, but is more compact
 enum GrpcHistogramBehavior {
   // Histogram always contains the number of buckets you asked for. This is the default behaviour.
+  // Bucket boundaries are positioned at equal intervals across the value range.
   STANDARD = 0;
   // Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce and
   // there would be big gaps (empty buckets) between buckets. This leads to more compact histograms, which provide
   // better user experience.
+  // Bucket boundaries are positioned at equal intervals across the value range.
   OPTIMIZED = 1;
+  // Histogram always contains the number of buckets you asked for.
+  // Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
+  // approximately equal portion of total records.
+  EQUALIZED = 2;
+  // Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce.
+  // Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
+  // approximately equal portion of total records.
+  EQUALIZED_OPTIMIZED = 3;
 }
 
 // This enumeration controls behavior of the {@link ReferenceContent} related to managed entities.

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ public enum TrafficRecordingContent {
 	 */
 	HEADER,
 	/**
-	 * Entire record contents is sent.
+	 * The entire record content is sent.
 	 */
 	BODY
 

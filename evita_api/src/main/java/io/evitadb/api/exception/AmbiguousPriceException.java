@@ -31,18 +31,41 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * This exception is thrown when user tries to add another price with same price list and currency with validity
- * overlaps the validity of already existing price with the same price list and currency. In this situation the Evita
- * wouldn't be able to decide which one of these prices should be used as selling price and that's why we report this
- * situation early with this exception.
+ * Thrown when attempting to add a price that would create ambiguity in price selection due to overlapping
+ * validity periods with an existing price that shares the same price list and currency.
+ *
+ * evitaDB requires that at any given point in time, there is at most one valid price for a given price list
+ * and currency combination. When two prices with the same price list and currency have overlapping validity
+ * periods, the system cannot deterministically choose which price to use as the selling price. This exception
+ * is thrown during price mutations (both initial entity creation and updates) to prevent such ambiguous
+ * configurations from being persisted.
+ *
+ * **When this is thrown:**
+ * - During entity creation when multiple prices share price list + currency with overlapping validity
+ * - During entity update when adding/modifying a price that would overlap with an existing price
+ * - Thrown by `InitialPricesBuilder` and `ExistingPricesBuilder`
+ *
+ * **Resolution:**
+ * - Adjust validity periods so they don't overlap
+ * - Remove one of the conflicting prices
+ * - Use different price lists or currencies to distinguish the prices
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class AmbiguousPriceException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 4405640415224088617L;
+	/**
+	 * The price already present in the entity that conflicts with the newly added price.
+	 */
 	@Nonnull @Getter private final PriceContract existingPrice;
+	/**
+	 * The price being added that would create the ambiguity.
+	 */
 	@Nonnull @Getter private final PriceContract ambiguousPrice;
 
+	/**
+	 * Creates exception detailing which two prices have conflicting validity periods.
+	 */
 	public AmbiguousPriceException(@Nonnull PriceContract existingPrice, @Nonnull PriceContract ambiguousPrice) {
 		super(
 			"Price `" + ambiguousPrice.priceKey() + "` with id `" + ambiguousPrice.priceId() + "` cannot be added to the entity. " +

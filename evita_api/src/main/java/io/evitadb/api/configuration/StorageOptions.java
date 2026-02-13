@@ -44,17 +44,19 @@ import static java.util.Optional.ofNullable;
  * @param workDirectory                      Directory on local disk where Evita creates temporary infrastructural files with short
  *                                           lifespan - at most the lifespan of a single evitaDB instance. By default, Java temp
  *                                           directory is used, but can be redirected if temp is too small.
- * @param lockTimeoutSeconds                 This timeout represents a time in seconds that is tolerated to wait for lock acquiring.
- *                                           Locks are used to get handle to open file. Set of open handles is limited to
- *                                           {@link #maxOpenedReadHandles} for read operations and single write handle for write
- *                                           operations (only single thread is expected to append to a file).
+ * @param lockTimeoutSeconds                 This timeout represents a time in seconds that is tolerated to wait for
+ *                                           lock acquiring. Locks are used to get handle to open file. Set of open
+ *                                           handles is limited to `maxOpenedReadHandles` for read operations and
+ *                                           single write handle for write operations (only single thread is expected
+ *                                           to append to a file).
  * @param waitOnCloseSeconds                 This timeout represents a time that will file offset index wait for processes to release their
  *                                           read handles to file. After this timeout files will be closed by force and processes may
  *                                           experience an exception.
  * @param outputBufferSize                   The output buffer size determines how large a buffer is kept in memory for output
  *                                           purposes. The size of the buffer limits the maximum size of an individual record in the
  *                                           key/value data store.
- * @param maxOpenedReadHandles               Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
+ * @param maxOpenedReadHandles               Maximum number of simultaneously opened `InputStream` to file offset
+ *                                           index file.
  * @param syncWrites                         Determines whether the storage layer forces the operating system to flush
  *                                           the internal buffers to disk at regular "safe points" or not. The default
  *                                           is true, so that data is not lost in the event of a power failure. There

@@ -24,23 +24,25 @@
 package io.evitadb.api.requestResponse;
 
 /**
- * This interface allows questioning entity decorators about the number of I/O fetches and bytes fetched from underlying
- * storage. This interface is intended to be implemented only by server-side model decorators, because the data should
- * primarily be used for observability.
+ * This interface allows questioning entity decorators about the
+ * number of I/O fetches and bytes fetched from underlying storage.
+ * This interface is intended to be implemented only by server-side
+ * model decorators, because the data should primarily be used for
+ * observability.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface EntityFetchAwareDecorator {
 
 	/**
-	 * The count of I/O fetches used to load this entity and all referenced entities from underlying storage.
-	 * @return the count of I/O fetches used to load this entity and all referenced entities from underlying storage
+	 * The count of I/O fetches used to load this entity and all
+	 * referenced entities from underlying storage.
 	 */
 	int getIoFetchCount();
 
 	/**
-	 * The count of bytes fetched from underlying storage to load this entity and all referenced entities.
-	 * @return the count of bytes fetched from underlying storage to load this entity and all referenced entities
+	 * The count of bytes fetched from underlying storage to load
+	 * this entity and all referenced entities.
 	 */
 	int getIoFetchedBytes();
 

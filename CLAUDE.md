@@ -24,6 +24,8 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 - Avoid unnecessary object boxing
 - Avoid streams - write allocation optimized loops instead
 - Avoid using exceptions for control flow
+- Always initialize `StringBuilder` with an estimated capacity — never use `new StringBuilder()` without arguments
+- Never use `Objects.hash()` with primitive arguments — it autoboxes every primitive into an `Object`. Use manual `31 * result + Type.hashCode(primitive)` computation instead
 
 ## Key External Libraries
 

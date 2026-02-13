@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,18 +25,28 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
- * Represents {@link StripList} for entities.
- *
- * Note: this descriptor is meant be template for generated specific entity DTOs base on internal data. Fields in this
- * descriptor are supposed to be dynamically registered to target generated entity DTO.
+ * Represents base {@link StripList} for entities.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public interface RecordStripDescriptor extends StripListDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.from(StripListDescriptor.THIS)
-		.name("*RecordStrip")
+	PropertyDescriptor DATA = PropertyDescriptor.builder()
+		.name("data")
+		.description("""
+			Actual found sorted page/strip of records.
+			""")
+		.type(nonNullListRef(EntityDescriptor.THIS_CLASSIFIER))
+		.build();
+
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(StripListDescriptor.THIS_INTERFACE)
+		.name("RecordStrip")
+		.description("Strip of entity records according to pagination rules in input query.")
+		.staticProperty(DATA)
 		.build();
 }
