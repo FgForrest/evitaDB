@@ -33,6 +33,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyW
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_05;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_08;
+import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2025_6;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2024_11;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2024_5;
@@ -67,7 +68,8 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 			CatalogHeader.class,
 			new SerialVersionBasedSerializer<>(new CatalogHeaderSerializer(), CatalogHeader.class)
 				.addBackwardCompatibleSerializer(-3595987669559870397L, new CatalogHeaderSerializer_2024_05())
-				.addBackwardCompatibleSerializer(-5987715153038480011L, new CatalogHeaderSerializer_2024_08()),
+				.addBackwardCompatibleSerializer(-5987715153038480011L, new CatalogHeaderSerializer_2024_08())
+				.addBackwardCompatibleSerializer(4115945765677481853L, new CatalogHeaderSerializer_2025_6()),
 			index++
 		);
 		kryo.register(CatalogSchema.class, new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class), index++);

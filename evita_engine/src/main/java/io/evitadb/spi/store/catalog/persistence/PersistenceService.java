@@ -43,7 +43,7 @@ sealed public interface PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 4;
+	int STORAGE_PROTOCOL_VERSION = 5;
 	String BOOT_FILE_SUFFIX = ".boot";
 	String WAL_FILE_SUFFIX = ".wal";
 

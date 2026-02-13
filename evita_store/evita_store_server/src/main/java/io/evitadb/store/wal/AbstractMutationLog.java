@@ -27,7 +27,6 @@ package io.evitadb.store.wal;
 import com.carrotsearch.hppc.LongSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTooBigException;
@@ -73,6 +72,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -218,13 +218,13 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	protected final IntFunction<String> walFileNameProvider;
 	/**
 	 * Buffer used to serialize the overall content length and {@link TransactionMutation} at the front of the
-	 * transaction log.
+	 * transaction log. Configured with {@link ByteOrder#LITTLE_ENDIAN} byte order to match the WAL file format.
 	 *
 	 * @see ByteBuffer
 	 */
 	private final ByteBuffer contentLengthBuffer = ByteBuffer.allocate(
 		TRANSACTION_PREFIX_SIZE + AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE
-	);
+	).order(ByteOrder.LITTLE_ENDIAN);
 	/**
 	 * Cache of already scanned WAL files. The locations might not be complete, but they will be always cover the start
 	 * of the particular WAL file, but they may be later appended with new records that are not yet scanned or gradually
@@ -621,12 +621,13 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull FileChannel walFileChannel
 	) throws IOException {
 		// Create a buffer for the WAL tail (3 longs: firstCvInFile, lastCvInFile, and cumulative checksum)
-		final ByteBuffer contentLengthBuffer = ByteBuffer.allocate(AbstractMutationLog.WAL_TAIL_LENGTH);
+		final ByteBuffer contentLengthBuffer = ByteBuffer.allocate(AbstractMutationLog.WAL_TAIL_LENGTH)
+			.order(ByteOrder.LITTLE_ENDIAN);
 
-		AbstractMutationLog.writeLongToByteBuffer(contentLengthBuffer, firstCvInFile);
-		AbstractMutationLog.writeLongToByteBuffer(contentLengthBuffer, lastCvInFile);
+		contentLengthBuffer.putLong(firstCvInFile);
+		contentLengthBuffer.putLong(lastCvInFile);
 		// Write the cumulative checksum as the third long
-		AbstractMutationLog.writeLongToByteBuffer(contentLengthBuffer, cumulativeChecksum);
+		contentLengthBuffer.putLong(cumulativeChecksum);
 
 		int written = 0;
 		contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
@@ -637,36 +638,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			written == AbstractMutationLog.WAL_TAIL_LENGTH,
 			"Failed to write tail to WAL file!"
 		);
-	}
-
-	/**
-	 * Writes integer to the byte buffer, matching the procedure in {@link Output#writeInt(int)}.
-	 *
-	 * @param byteBuffer The byte buffer to write to.
-	 * @param integer    The integer to write.
-	 */
-	private static void writeIntToByteBuffer(@Nonnull ByteBuffer byteBuffer, int integer) {
-		byteBuffer.put((byte) integer);
-		byteBuffer.put((byte) (integer >> 8));
-		byteBuffer.put((byte) (integer >> 16));
-		byteBuffer.put((byte) (integer >> 24));
-	}
-
-	/**
-	 * Writes integer to the byte buffer, matching the procedure in {@link Output#writeLong(long)}.
-	 *
-	 * @param byteBuffer The byte buffer to write to.
-	 * @param longValue  The long to write.
-	 */
-	private static void writeLongToByteBuffer(@Nonnull ByteBuffer byteBuffer, long longValue) {
-		byteBuffer.put((byte) longValue);
-		byteBuffer.put((byte) (longValue >>> 8));
-		byteBuffer.put((byte) (longValue >>> 16));
-		byteBuffer.put((byte) (longValue >>> 24));
-		byteBuffer.put((byte) (longValue >>> 32));
-		byteBuffer.put((byte) (longValue >>> 40));
-		byteBuffer.put((byte) (longValue >>> 48));
-		byteBuffer.put((byte) (longValue >>> 56));
 	}
 
 	/**
@@ -1009,7 +980,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			this.checksum.update(contentLengthWithTxMutation);
 
 			this.contentLengthBuffer.clear();
-			AbstractMutationLog.writeIntToByteBuffer(this.contentLengthBuffer, contentLengthWithTxMutation);
+			this.contentLengthBuffer.putInt(contentLengthWithTxMutation);
 
 			// then write the transaction mutation to the memory buffer as the first record of the transaction
 			final byte[] transactionMutationAsByteArray = this.transactionMutationOutputStream.toByteArray();
@@ -1072,7 +1043,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			final long cumulativeChecksum = this.checksum.getValue();
 			// write cumulative checksum after every transaction
 			this.contentLengthBuffer.clear();
-			AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, cumulativeChecksum);
+			this.contentLengthBuffer.putLong(cumulativeChecksum);
 			this.checksum.update(cumulativeChecksum);
 			this.contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
 			Assert.isPremiseValid(
@@ -1851,7 +1822,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			this.checksum.reset(finalCumulativeChecksum);
 			// write cumulative checksum after every transaction
 			this.contentLengthBuffer.clear();
-			AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, finalCumulativeChecksum);
+			this.contentLengthBuffer.putLong(finalCumulativeChecksum);
 			this.checksum.update(finalCumulativeChecksum);
 			this.contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
 			Assert.isPremiseValid(
@@ -1963,9 +1934,9 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		final long finalCumulativeChecksumIncludingVersions = this.checksum.getValue();
 
 		this.contentLengthBuffer.clear();
-		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, firstCvInFile);
-		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, lastCvInFile);
-		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, finalCumulativeChecksumIncludingVersions);
+		this.contentLengthBuffer.putLong(firstCvInFile);
+		this.contentLengthBuffer.putLong(lastCvInFile);
+		this.contentLengthBuffer.putLong(finalCumulativeChecksumIncludingVersions);
 
 		int written = 0;
 		this.contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode

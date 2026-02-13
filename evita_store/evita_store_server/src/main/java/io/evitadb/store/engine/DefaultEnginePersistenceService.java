@@ -44,6 +44,7 @@ import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.catalog.Migration_2026_1;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
@@ -205,6 +206,25 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		if (bootstrapFileExists) {
 			this.engineState = readEngineState();
 			this.created = false;
+			// Migrate WAL files if needed (version 4 -> 5)
+			if (this.engineState.storageProtocolVersion() < STORAGE_PROTOCOL_VERSION) {
+				final LogFileRecordReference correctedWalRef = Migration_2026_1.upgradeEngineWalFiles(
+					this.storageSettings.storageDirectory(),
+					this.engineState.walReference(),
+					this.storageSettings
+				);
+				// Update engine state with new storage protocol version and corrected WAL reference
+				final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(
+					STORAGE_PROTOCOL_VERSION,
+					this.engineState.version() + 1,
+					this.engineState.introducedAt(),
+					correctedWalRef != null ? correctedWalRef : this.engineState.walReference(),
+					this.engineState.activeCatalogs(),
+					this.engineState.inactiveCatalogs(),
+					this.engineState.readOnlyCatalogs()
+				);
+				storeEngineState(newEngineState);
+			}
 			this.engineState = syncEngineStateByFolderContents(this.storageSettings, this.engineState);
 		} else {
 			this.engineState = createNewEngineState(this.storageSettings);

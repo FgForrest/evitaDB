@@ -3167,6 +3167,22 @@ public class DefaultCatalogPersistenceService
 						this::createEntityCollectionPersistenceService,
 						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 4)
 					);
+				} else if (catalogStorageProtocolVersion == 4) {
+					Migration_2026_1.upgradeCatalogWalFiles(
+						catalogHeader,
+						this.catalogStoragePath,
+						catalogHeader.walFileReference(),
+						this.exportService,
+						this.storageSettings,
+						(correctedWalRef) -> {
+							final LogFileRecordReference walRef = correctedWalRef != null
+								? correctedWalRef
+								: currentCatalogHeader.walFileReference();
+							updateStorageProtocolInCatalogHeader(
+								currentCatalogHeader, currentService, 5, walRef
+							);
+						}
+					);
 				}
 				// try to initialize the persistence service again - it should now have the correct storage protocol version
 				storagePartPersistenceService = storagePartPersistenceFactory.get();
@@ -3193,11 +3209,38 @@ public class DefaultCatalogPersistenceService
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
 		int storageProtocolVersion
 	) {
+		updateStorageProtocolInCatalogHeader(
+			catalogHeader, storagePartPersistenceService, storageProtocolVersion,
+			catalogHeader.walFileReference()
+		);
+	}
+
+	/**
+	 * Updates the storage protocol version in the catalog header and persists the updated information
+	 * using the supplied catalog offset index storage service. It also updates the catalog bootstrap
+	 * data after flushing the updated catalog header.
+	 *
+	 * This overload accepts an explicit WAL file reference, which is used instead of the one from
+	 * the catalog header. This is needed during WAL migration when byte positions in the WAL file
+	 * change and the stored reference needs to be corrected.
+	 *
+	 * @param catalogHeader                 the catalog header containing metadata about the catalog
+	 * @param storagePartPersistenceService the service used to manage persistence of the catalog
+	 *                                      header and related storage parts
+	 * @param storageProtocolVersion        the new storage protocol version to be set
+	 * @param walFileReference              the WAL file reference to store in the header
+	 */
+	private void updateStorageProtocolInCatalogHeader(
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
+		int storageProtocolVersion,
+		@Nullable LogFileRecordReference walFileReference
+	) {
 		storagePartPersistenceService.writeCatalogHeader(
 			storageProtocolVersion,
 			catalogHeader.version(),
 			this.catalogStoragePath,
-			catalogHeader.walFileReference(),
+			walFileReference,
 			catalogHeader.collectionFileIndex(),
 			catalogHeader.catalogId(),
 			catalogHeader.catalogName(),
