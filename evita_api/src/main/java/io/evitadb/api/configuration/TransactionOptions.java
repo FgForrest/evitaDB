@@ -23,7 +23,6 @@
 
 package io.evitadb.api.configuration;
 
-import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import lombok.ToString;
 

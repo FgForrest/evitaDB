@@ -24,6 +24,7 @@
 package io.evitadb.api.exception;
 
 
+import io.evitadb.api.traffic.TrafficRecordingReader;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import java.io.Serial;
@@ -39,7 +40,7 @@ import java.io.Serial;
  * includes the current build progress percentage to help clients implement appropriate retry strategies.
  *
  * **Usage Context:**
- * - Thrown by {@link io.evitadb.api.TrafficRecordingReader} when querying traffic data before indexing completes
+ * - Thrown by {@link TrafficRecordingReader} when querying traffic data before indexing completes
  * - Used in {@link io.evitadb.store.traffic.OffHeapTrafficRecorder} to signal index unavailability
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025

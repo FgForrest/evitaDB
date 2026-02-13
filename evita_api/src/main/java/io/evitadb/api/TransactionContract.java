@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
  */
 
 package io.evitadb.api;
+
+import io.evitadb.api.SessionTraits.SessionFlags;
 
 import javax.annotation.Nonnull;
 import java.util.UUID;
@@ -105,7 +107,7 @@ public interface TransactionContract extends AutoCloseable {
 	 *
 	 * - Exception handling: call this in a catch block to abandon changes after an error
 	 * - Validation failures: mark rollback when business logic rejects a batch of changes
-	 * - Dry-run mode: automatically set for sessions with {@link SessionTraits.SessionFlags#DRY_RUN}
+	 * - Dry-run mode: automatically set for sessions with {@link SessionFlags#DRY_RUN}
 	 *
 	 * **Note**: This method is idempotent; calling it multiple times has the same effect as calling it once.
 	 */
@@ -117,7 +119,7 @@ public interface TransactionContract extends AutoCloseable {
 	 * A transaction can be marked rollback-only by:
 	 * - Explicit call to {@link #setRollbackOnly()}
 	 * - Exception during mutation processing
-	 * - Dry-run session mode ({@link SessionTraits.SessionFlags#DRY_RUN})
+	 * - Dry-run session mode ({@link SessionFlags#DRY_RUN})
 	 *
 	 * @return `true` if {@link #setRollbackOnly()} was called, `false` otherwise
 	 */

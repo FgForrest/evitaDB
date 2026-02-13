@@ -23,6 +23,7 @@
 
 package io.evitadb.api.exception;
 
+import io.evitadb.api.TransactionContract;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
@@ -31,7 +32,7 @@ import java.io.Serial;
 /**
  * Exception thrown when a transaction commit attempt fails and the transaction is automatically rolled
  * back due to an unexpected error. This indicates a server-side failure during the commit phase, distinct
- * from a client-requested rollback via {@link io.evitadb.api.TransactionContract#setRollbackOnly()}.
+ * from a client-requested rollback via {@link TransactionContract#setRollbackOnly()}.
  *
  * **Common causes:**
  *

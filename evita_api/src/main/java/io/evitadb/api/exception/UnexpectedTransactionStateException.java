@@ -23,6 +23,7 @@
 
 package io.evitadb.api.exception;
 
+import io.evitadb.api.TransactionContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -35,7 +36,7 @@ import java.io.Serial;
  *
  * **Common violations:**
  *
- * - Calling {@link io.evitadb.api.TransactionContract#setRollbackOnly()} when no transaction is active
+ * - Calling {@link TransactionContract#setRollbackOnly()} when no transaction is active
  * - Attempting to commit or rollback when no transaction has been opened
  * - Trying to open a new transaction when one is already active in the session
  * - Calling transaction-specific methods on a session after the transaction has ended
