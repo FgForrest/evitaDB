@@ -27,15 +27,18 @@ import javax.annotation.Nonnull;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Interface for different tasks that can be executed in the background service. It represents an instance of single
- * task execution with particular settings executed by the service thread pool with lower priority on the background.
+ * Interface for different tasks that can be executed in the background service. It represents an instance of a single
+ * task execution with particular settings executed by the service thread pool with lower priority in the background.
  *
+ * @param <S> the type of the task settings
+ * @param <T> the type of the task result
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface Task<S, T> {
 
 	/**
 	 * Returns actual status of the task, telemetry information and access to its progress, settings and result.
+	 *
 	 * @return The status of the task.
 	 */
 	@Nonnull
@@ -43,6 +46,7 @@ public interface Task<S, T> {
 
 	/**
 	 * Returns the future result of the task. The future is completed when the task is finished.
+	 *
 	 * @return The future result of the task.
 	 */
 	@Nonnull

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,11 +95,11 @@ class GrpcExtraResultsBuilderTest {
 		);
 		final Histogram histogram = new Histogram(
 			new Bucket[]{
-				new Bucket(BigDecimal.valueOf(1.5), 3, false),
-				new Bucket(BigDecimal.valueOf(2.5), 5, true),
-				new Bucket(BigDecimal.valueOf(3.5), 4, true),
-				new Bucket(BigDecimal.valueOf(4.8), 6, false),
-				new Bucket(BigDecimal.valueOf(8.6), 10, false),
+				new Bucket(BigDecimal.valueOf(1.5), 3, false, new BigDecimal("10.71")),
+				new Bucket(BigDecimal.valueOf(2.5), 5, true, new BigDecimal("17.86")),
+				new Bucket(BigDecimal.valueOf(3.5), 4, true, new BigDecimal("14.29")),
+				new Bucket(BigDecimal.valueOf(4.8), 6, false, new BigDecimal("21.43")),
+				new Bucket(BigDecimal.valueOf(8.6), 10, false, new BigDecimal("35.71")),
 			},
 			BigDecimal.valueOf(10)
 		);

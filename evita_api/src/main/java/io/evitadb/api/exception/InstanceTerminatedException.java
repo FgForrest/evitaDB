@@ -31,14 +31,38 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is used when there is attempt to call a resource (for example {@link EvitaContract} or {@link EvitaSessionContract}
- * that has been already terminated and released all its resources that are required to service the call.
+ * Exception thrown when attempting to use an evitaDB resource that has already been terminated and released
+ * its internal resources.
+ *
+ * This exception indicates a programming error where client code attempts to invoke methods on resources
+ * that have been explicitly closed or shut down. Common scenarios include:
+ * - Calling methods on an {@link EvitaContract} instance after {@link EvitaContract#close()} has been invoked
+ * - Using an {@link EvitaSessionContract} after the session has been terminated
+ * - Accessing a client instance that has been disconnected
+ * - Using task trackers or change observers after they have been closed
+ *
+ * **Thread-Safety:**
+ * This exception is typically thrown after atomic checks on termination flags (e.g., `AtomicBoolean` flags)
+ * to ensure consistent behavior in concurrent environments.
+ *
+ * **Usage Context:**
+ * - {@link io.evitadb.core.Evita}: thrown when calling methods on a terminated Evita instance
+ * - {@link io.evitadb.core.session.EvitaSession}: thrown when using a closed session
+ * - {@link io.evitadb.driver.EvitaClient}: thrown when using a terminated client connection
+ * - {@link io.evitadb.driver.EvitaClientSession}: thrown when accessing a closed client session
+ * - Change Data Capture (CDC) publishers and observers: thrown when accessing terminated CDC streams
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class InstanceTerminatedException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -9062588323022507459L;
 
+	/**
+	 * Creates a new exception indicating that a specific evitaDB resource instance has been terminated.
+	 *
+	 * @param instanceSpecification human-readable description of the terminated resource
+	 *                              (e.g., "session", "client instance", "client task tracker")
+	 */
 	public InstanceTerminatedException(@Nonnull String instanceSpecification) {
 		super("Evita " + instanceSpecification + " has been already terminated! No calls are accepted since all resources has been released.");
 	}

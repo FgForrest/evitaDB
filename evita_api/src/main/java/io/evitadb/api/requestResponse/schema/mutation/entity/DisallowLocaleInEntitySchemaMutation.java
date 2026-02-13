@@ -52,10 +52,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Mutation is responsible for removing one or more currencies to a {@link EntitySchemaContract#getLocales()} ()}
+ * Mutation is responsible for removing one or more locales from a {@link EntitySchemaContract#getLocales()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * or negative mutation {@link AllowCurrencyInEntitySchemaMutation} if those mutation are present in the mutation pipeline
+ * or negative mutation {@link AllowLocaleInEntitySchemaMutation} if those mutations are present in the mutation pipeline
  * multiple times.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -65,7 +65,7 @@ import java.util.stream.Stream;
 @EqualsAndHashCode
 public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -6127394577599273510L;
-	@Getter private final Set<Locale> locales;
+	@Getter @Nonnull private final Set<Locale> locales;
 
 	public DisallowLocaleInEntitySchemaMutation(@Nonnull Set<Locale> locales) {
 		this.locales = new HashSet<>(locales);
@@ -105,8 +105,20 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
-				localesToAdd.length == 0 ? null : (localesToAdd.length == ((AllowLocaleInEntitySchemaMutation) existingMutation).getLocales().length ? existingMutation : new AllowLocaleInEntitySchemaMutation(localesToAdd)),
-				localesToRemove.size() == this.locales.size() ? this : (localesToRemove.isEmpty() ? null : new DisallowLocaleInEntitySchemaMutation(localesToRemove))
+				localesToAdd.length == 0
+					? null
+					: (
+						localesToAdd.length == allowLocaleInEntitySchema.getLocales().length
+							? existingMutation
+							: new AllowLocaleInEntitySchemaMutation(localesToAdd)
+				),
+				localesToRemove.size() == this.locales.size()
+					? this
+					: (
+						localesToRemove.isEmpty()
+							? null
+							: new DisallowLocaleInEntitySchemaMutation(localesToRemove)
+				)
 			);
 		} else {
 			return null;

@@ -51,8 +51,8 @@ import java.util.List;
 import java.util.function.BooleanSupplier;
 
 /**
- * Internal {@link io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor.GlobalAttributeSchemaBuilder} builder used
- * solely from within {@link InternalEntitySchemaBuilder}.
+ * Internal {@link GlobalAttributeSchemaEditor.GlobalAttributeSchemaBuilder} builder used
+ * solely from within {@link InternalCatalogSchemaBuilder}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -106,6 +106,7 @@ public final class GlobalAttributeSchemaBuilder
 		);
 	}
 
+	@Nonnull
 	@Override
 	protected Class<GlobalAttributeSchemaContract> getAttributeSchemaType() {
 		return GlobalAttributeSchemaContract.class;
@@ -114,12 +115,15 @@ public final class GlobalAttributeSchemaBuilder
 	@Override
 	@Nonnull
 	public GlobalAttributeSchemaBuilder uniqueGloballyInScope(@Nonnull Scope... scope) {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaGloballyUniqueMutation(
-				toInstance().getName(),
-				Arrays.stream(scope)
-					.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
-					.toArray(ScopedGlobalAttributeUniquenessType[]::new)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaGloballyUniqueMutation(
+					toInstance().getName(),
+					Arrays.stream(scope)
+						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
+						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
+				)
 			)
 		);
 		return this;
@@ -135,8 +139,8 @@ public final class GlobalAttributeSchemaBuilder
 				new SetAttributeSchemaGloballyUniqueMutation(
 					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !this.isUniqueWithinLocaleInScope(it) || !excludedScopes.contains(it))
-						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
+						.filter(it -> isUniqueGloballyInScope(it) && !excludedScopes.contains(it))
+						.map(it -> new ScopedGlobalAttributeUniquenessType(it, getGlobalUniquenessType(it)))
 						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
 				)
 			)
@@ -147,12 +151,15 @@ public final class GlobalAttributeSchemaBuilder
 	@Override
 	@Nonnull
 	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocaleInScope(@Nonnull Scope... scope) {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaGloballyUniqueMutation(
-				toInstance().getName(),
-				Arrays.stream(scope)
-					.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE))
-					.toArray(ScopedGlobalAttributeUniquenessType[]::new)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaGloballyUniqueMutation(
+					toInstance().getName(),
+					Arrays.stream(scope)
+						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE))
+						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
+				)
 			)
 		);
 		return this;
@@ -168,8 +175,8 @@ public final class GlobalAttributeSchemaBuilder
 				new SetAttributeSchemaGloballyUniqueMutation(
 					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !this.isUniqueWithinLocaleInScope(it) || !excludedScopes.contains(it))
-						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE))
+						.filter(it -> isUniqueGloballyWithinLocaleInScope(it) && !excludedScopes.contains(it))
+						.map(it -> new ScopedGlobalAttributeUniquenessType(it, getGlobalUniquenessType(it)))
 						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
 				)
 			)
@@ -269,12 +276,6 @@ public final class GlobalAttributeSchemaBuilder
 	@Nonnull
 	@Override
 	protected List<AttributeSchemaMutation> toAttributeMutation() {
-		// faster version of the:
-		/* return this.mutations
-			.stream()
-			.map(it -> (AttributeSchemaMutation) it)
-			.collect(Collectors.toList());
-			*/
 		//noinspection unchecked,rawtypes
 		return (List) this.mutations;
 	}

@@ -37,7 +37,7 @@ entityFetch(
         referenceContentWithAttributes|
         referenceContentAll|
         referenceContentAllWithAttributes|
-        accopanyingPriceContent
+        accompanyingPriceContent
     )*
 )
 ```

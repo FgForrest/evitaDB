@@ -23,11 +23,9 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -44,7 +42,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.Objects;
 
 /**
  * Mutation is responsible for renaming an existing {@link SortableAttributeCompoundSchema} in {@link EntitySchemaContract}.
@@ -60,7 +57,7 @@ import java.util.Objects;
 public class ModifySortableAttributeCompoundSchemaNameMutation
 	extends AbstractSortableAttributeCompoundSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
-	@Serial private static final long serialVersionUID = -9180398601079510531L;
+	@Serial private static final long serialVersionUID = 836864915349561680L;
 	@Getter @Nonnull private final String newName;
 
 	public ModifySortableAttributeCompoundSchemaNameMutation(@Nonnull String name, @Nonnull String newName) {
@@ -107,7 +104,8 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
 		if (existingMutation instanceof ModifySortableAttributeCompoundSchemaNameMutation theExistingMutation &&
-			this.name.equals(theExistingMutation.getName())) {
+			this.name.equals(theExistingMutation.getName())
+		) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -116,28 +114,21 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final EntitySortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(this.name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The sortable attribute compound `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			));
-
-		final EntitySortableAttributeCompoundSchemaContract updatedAttributeSchema = mutate(entitySchema, null, existingCompoundSchema);
-		return replaceSortableAttributeCompoundIfDifferent(
-			entitySchema, existingCompoundSchema, Objects.requireNonNull(updatedAttributeSchema)
-		);
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
+		return mutateEntitySchema(entitySchema);
 	}
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
-		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final SortableAttributeCompoundSchemaContract existingCompoundSchema = getReferenceSortableAttributeCompoundSchemaOrThrow(entitySchema, referenceSchema, this.name);
-		final SortableAttributeCompoundSchemaContract updatedAttributeSchema = mutate(entitySchema, null, existingCompoundSchema);
-		return replaceSortableAttributeCompoundIfDifferent(
-			referenceSchema, existingCompoundSchema, Objects.requireNonNull(updatedAttributeSchema)
-		);
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
+		return mutateReferenceSchema(entitySchema, referenceSchema);
 	}
 
 	@Nonnull

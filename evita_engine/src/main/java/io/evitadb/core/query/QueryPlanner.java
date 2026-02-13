@@ -35,9 +35,11 @@ import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.exception.InconsistentResultsException;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.debug.CacheableVariantsGeneratingVisitor;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -561,8 +563,8 @@ public class QueryPlanner {
 		 * - [FUTURE_NOT_FORMULA] -> not(FUTURE_NOT_FORMULA, superSetFormula) ... or exception when not on first level of query
 		 * - [FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA] -> not(and(FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA), superSetFormula) ... or exception when not on first level of query
 		 */
-		public static Formula postProcess(@Nonnull Formula[] collectedFormulas, @Nonnull Function<Formula[], Formula> aggregator) {
-			return postProcess(collectedFormulas, aggregator, null);
+		public static Formula postProcess(@Nonnull Formula[] collectedFormulas, @Nonnull EnclosingContainerRelation relation) {
+			return postProcess(collectedFormulas, relation, null);
 		}
 
 		/**
@@ -577,44 +579,83 @@ public class QueryPlanner {
 		 * - [FUTURE_NOT_FORMULA] -> not(FUTURE_NOT_FORMULA, superSetFormula) ... or exception when not on first level of query
 		 * - [FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA] -> not(and(FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA), superSetFormula) ... or exception when not on first level of query
 		 */
-		public static Formula postProcess(@Nonnull Formula[] collectedFormulas, @Nonnull Function<Formula[], Formula> aggregator, @Nullable Supplier<Formula> superSetFormulaSupplier) {
+		public static Formula postProcess(
+			@Nonnull Formula[] collectedFormulas,
+			@Nonnull EnclosingContainerRelation relation,
+			@Nullable Supplier<Formula> superSetFormulaSupplier
+		) {
+			if (collectedFormulas.length == 0 || (collectedFormulas.length == 1 && collectedFormulas[0] instanceof EmptyFormula)) {
+				return EmptyFormula.INSTANCE;
+			}
+
+			/* define aggregators */
+			final Function<Formula[], Formula> aggregator = switch (relation) {
+				case DISJUNCTION -> FormulaFactory::or;
+				case CONJUNCTION -> FormulaFactory::and;
+			};
+			final Function<Formula[], Formula> oppositeAggregator = switch (relation) {
+				case DISJUNCTION -> FormulaFactory::and; // Use AND inside NOT for OR container
+				case CONJUNCTION -> FormulaFactory::or;  // Use OR inside NOT for AND container
+			};
+
 			/* collect all negative formulas */
 			final Formula[] notFormulas = Arrays.stream(collectedFormulas)
 				.filter(FutureNotFormula.class::isInstance)
 				.map(FutureNotFormula.class::cast)
 				.map(FutureNotFormula::getInnerFormula)
 				.toArray(Formula[]::new);
-			/* if there are none - just wrap positive formulas with aggregator function */
+
+			/* CASE 1: Only Positive Formulas exist */
 			if (notFormulas.length == 0) {
 				return aggregator.apply(collectedFormulas);
-			} else {
-				/* collect all positive formulas */
-				final Formula[] otherFormulas = Arrays.stream(collectedFormulas)
-					.filter(it -> !(it instanceof FutureNotFormula))
-					.toArray(Formula[]::new);
-				/* if there are none - i.e. we have only negative formulas */
-				if (ArrayUtils.isEmpty(otherFormulas)) {
-					/* access superset formula  */
-					if (superSetFormulaSupplier != null) {
-						final Formula superSetFormula = superSetFormulaSupplier.get();
-						/* construct not formula using aggregator function if there are multiple negative formulas */
-						return new NotFormula(
-							notFormulas.length == 1 ? notFormulas[0] : aggregator.apply(notFormulas),
-							superSetFormula
-						);
-						/* delegate FutureNotFormula to upper level */
-					} else {
-						return new FutureNotFormula(
-							notFormulas.length == 1 ? notFormulas[0] : aggregator.apply(notFormulas)
-						);
-					}
+			}
+
+			/* Prepare the combined negative term (N) */
+			/* we need to always use oppositeAggregator for inner negative terms */
+			/* e.g., NOT A AND NOT B -> NOT(A OR B) */
+			Formula combinedNegatives = notFormulas.length == 1
+				? notFormulas[0]
+				: oppositeAggregator.apply(notFormulas);
+
+			/* collect all positive formulas */
+			final Formula[] otherFormulas = Arrays.stream(collectedFormulas)
+				.filter(it -> !(it instanceof FutureNotFormula))
+				.toArray(Formula[]::new);
+
+			/* CASE 2: Only Negative Formulas exist */
+			if (ArrayUtils.isEmpty(otherFormulas)) {
+				if (superSetFormulaSupplier != null) {
+					/* If we have a superset (Universe), we subtract negatives from it */
+					/* Logic: Universe \ N */
+					return new NotFormula(combinedNegatives, superSetFormulaSupplier.get());
 				} else {
-					/* construct not formula using aggregator function if there are multiple negative / positive formulas */
-					return new NotFormula(
-						notFormulas.length == 1 ? notFormulas[0] : aggregator.apply(notFormulas),
-						otherFormulas.length == 1 ? otherFormulas[0] : aggregator.apply(otherFormulas)
-					);
+					/* Just wrap in NOT */
+					/* Logic: NOT(N) */
+					return new FutureNotFormula(combinedNegatives);
 				}
+			}
+			/* CASE 3: Mixed Positive (P) and Negative (N) Formulas */
+			else {
+				Formula combinedPositives = otherFormulas.length == 1
+					? otherFormulas[0]
+					: aggregator.apply(otherFormulas);
+
+				return switch (relation) {
+					/* Logic: P AND NOT N  =>  P \ N */ /* Standard Set Difference */
+					case CONJUNCTION -> new NotFormula(
+						combinedNegatives, // Excluded
+						combinedPositives  // Included
+					);
+					/* Logic: P OR NOT N */
+					/* Transformation: NOT( N \ P ) */
+					/* We swap arguments and negate the result */
+					case DISJUNCTION -> new FutureNotFormula(
+						new NotFormula(
+							combinedPositives, // Excluded (Subtract P from N)
+							combinedNegatives  // Included (Start with N)
+						)
+					);
+				};
 			}
 		}
 
@@ -654,6 +695,21 @@ public class QueryPlanner {
 		protected Bitmap computeInternal() {
 			throw new UnsupportedOperationException(ERROR_TEMPORARY);
 		}
+	}
+
+	/**
+	 * Enumeration representing the logical relationship between enclosing containers used in query planning.
+	 * This enum is used in {@link QueryPlanner} to specify how different query components are logically combined.
+	 */
+	public enum EnclosingContainerRelation {
+		/**
+		 * Logical OR relation.
+		 */
+		DISJUNCTION,
+		/**
+		 * Logical AND relation.
+		 */
+		CONJUNCTION
 	}
 
 }

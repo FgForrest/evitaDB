@@ -24,7 +24,7 @@
 package io.evitadb.core.transaction;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;

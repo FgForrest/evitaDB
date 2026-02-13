@@ -51,8 +51,6 @@ import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 /**
  * This test verifies whether entities can be filtered by prices.
  *
- * TOBEDONE JNO - create multiple functional tests - one run with enabled SelectionFormula, one with disabled
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity filtering by prices functionality - sum")

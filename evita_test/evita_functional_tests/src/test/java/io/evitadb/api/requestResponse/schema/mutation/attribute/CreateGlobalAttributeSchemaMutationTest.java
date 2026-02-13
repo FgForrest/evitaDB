@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -47,10 +48,12 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("CreateGlobalAttributeSchemaMutation")
 class CreateGlobalAttributeSchemaMutationTest {
 	static final String ATTRIBUTE_NAME = "name";
 
 	@Test
+	@DisplayName("Should throw exception when invalid type is provided")
 	void shouldThrowExceptionWhenInvalidTypeIsProvided() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -63,8 +66,9 @@ class CreateGlobalAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should be replaced with individual mutations when global attribute was removed and created with different settings")
 	void shouldBeReplacedWithIndividualMutationsWhenGlobalAttributeWasRemovedAndCreatedWithDifferentSettings() {
-		CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "newDescription", "newDeprecationNotice",
 			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
 			true, true, true, true, true,
@@ -75,7 +79,7 @@ class CreateGlobalAttributeSchemaMutationTest {
 			.thenReturn(
 				of(createExistingGlobalAttributeSchema())
 			);
-		RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
 			catalogSchema,
 			removeMutation
@@ -97,19 +101,21 @@ class CreateGlobalAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave mutation intact when removal mutation targets different attribute")
 	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentAttribute() {
-		CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			AttributeUniquenessType.NOT_UNIQUE, GlobalAttributeUniquenessType.NOT_UNIQUE, false, false, false, false, false,
 			String.class, null, 0
 		);
-		RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation("differentName");
+		final RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation("differentName");
 		assertNull(mutation.combineWith(null, removeMutation));
 	}
 
 	@Test
+	@DisplayName("Should create global attribute")
 	void shouldCreateGlobalAttribute() {
-		CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			AttributeUniquenessType.NOT_UNIQUE, GlobalAttributeUniquenessType.NOT_UNIQUE, false, false, true, true, false,
 			String.class, null, 0
@@ -131,8 +137,9 @@ class CreateGlobalAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should create attribute in catalog")
 	void shouldCreateAttributeInCatalog() {
-		CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			AttributeUniquenessType.NOT_UNIQUE, GlobalAttributeUniquenessType.NOT_UNIQUE, false, false, true, true, false,
 			String.class, null, 0
@@ -161,8 +168,9 @@ class CreateGlobalAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating catalog schema with existing attribute")
 	void shouldThrowExceptionWhenMutatingCatalogSchemaWithExistingAttribute() {
-		CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
+		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			AttributeUniquenessType.NOT_UNIQUE, GlobalAttributeUniquenessType.NOT_UNIQUE, false, false, false, false, false,
 			String.class, null, 0

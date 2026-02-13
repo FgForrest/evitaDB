@@ -122,7 +122,7 @@ public interface ReflectedReferenceSchemaContract extends ReferenceSchemaContrac
 
 	/**
 	 * Returns true if the reflected reference is available. Reflected reference might not be available, when it really
-	 * doesn't yet exists in the target entity schema (but it may be created in the future).
+	 * doesn't yet exist in the target entity schema (but it may be created in the future).
 	 *
 	 * @return true if the reflected reference is available
 	 */

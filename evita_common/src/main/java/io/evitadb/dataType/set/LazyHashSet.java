@@ -30,91 +30,145 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.Set;
 
 /**
- * A lazy-initialized delegate for a {@link HashSet}, allowing deferred creation of the underlying set
- * until it is actually needed. This class implements the {@link Set} interface and forwards method calls
- * to the underlying {@link HashSet}.
+ * A lazy-initialized delegate for a {@link HashSet}, allowing deferred
+ * creation of the underlying set until it is actually needed. This class
+ * implements the {@link Set} interface and forwards method calls to the
+ * underlying {@link HashSet}.
  *
- * This implementation is useful when the set may not always be used, avoiding unnecessary instantiation
- * and thus saving memory and processing time. The set is initialized with an expected size to optimize
- * memory allocation.
+ * This implementation is useful when the set may not always be used,
+ * avoiding unnecessary instantiation and thus saving memory and
+ * processing time. The set is initialized with an expected size to
+ * optimize memory allocation.
  *
  * @param <K> the type of elements maintained by this set
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@SuppressWarnings({"NonFinalFieldReferenceInEquals", "NonFinalFieldReferencedInHashCode"})
 @RequiredArgsConstructor
 public class LazyHashSet<K> implements Set<K> {
 	private final int expectedSize;
 	private HashSet<K> delegate;
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public int size() {
 		return this.delegate != null ? this.delegate.size() : 0;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public boolean isEmpty() {
 		return this.delegate == null || this.delegate.isEmpty();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public boolean contains(@Nullable Object o) {
 		return this.delegate != null && this.delegate.contains(o);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Nonnull
 	@Override
 	public Iterator<K> iterator() {
-		return this.delegate != null ? this.delegate.iterator() : Set.<K>of().iterator();
+		return this.delegate != null ?
+			this.delegate.iterator() : Collections.emptyIterator();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Nonnull
 	@Override
 	public Object[] toArray() {
-		return this.delegate != null ? this.delegate.toArray() : ArrayUtils.EMPTY_OBJECT_ARRAY;
+		return this.delegate != null ?
+			this.delegate.toArray() : ArrayUtils.EMPTY_OBJECT_ARRAY;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Nonnull
 	@Override
 	public <T> T[] toArray(@Nonnull T[] a) {
-		return this.delegate != null ? this.delegate.toArray(a) : a;
+		if (this.delegate != null) {
+			return this.delegate.toArray(a);
+		}
+		if (a.length > 0) {
+			a[0] = null;
+		}
+		return a;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public boolean add(@Nullable K k) {
 		return this.getDelegate().add(k);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public boolean remove(@Nullable Object o) {
 		return this.delegate != null && this.delegate.remove(o);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public boolean containsAll(@Nonnull Collection<?> c) {
-		return (this.delegate != null && this.delegate.containsAll(c)) || c.isEmpty();
+		if (c.isEmpty()) {
+			return true;
+		}
+		return (this.delegate != null && this.delegate.containsAll(c))
+			|| c.isEmpty();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public boolean addAll(@Nonnull Collection<? extends K> c) {
 		return this.getDelegate().addAll(c);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public boolean retainAll(@Nonnull Collection<?> c) {
 		return this.delegate != null && this.delegate.retainAll(c);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public boolean removeAll(@Nonnull Collection<?> c) {
 		return this.delegate != null && this.delegate.removeAll(c);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public void clear() {
 		if (this.delegate != null) {
@@ -122,30 +176,52 @@ public class LazyHashSet<K> implements Set<K> {
 		}
 	}
 
+	/**
+	 * Returns the underlying HashSet delegate, creating it lazily
+	 * if needed.
+	 */
 	@Nonnull
 	private HashSet<K> getDelegate() {
 		if (this.delegate == null) {
-			this.delegate = CollectionUtils.createHashSet(this.expectedSize);
+			this.delegate = CollectionUtils.createHashSet(
+				this.expectedSize
+			);
 		}
 		return this.delegate;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
-	public final boolean equals(@Nullable Object o) {
-		return Objects.equals(this.delegate, o);
+	public boolean equals(@Nullable Object o) {
+		if (this == o) return true;
+		if (this.delegate == null) {
+			return o instanceof Set<?>
+				&& ((Set<?>) o).isEmpty();
+		}
+		return this.delegate.equals(o);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public int hashCode() {
 		if (this.delegate != null) {
-			return Objects.hashCode(this.delegate);
+			return this.delegate.hashCode();
 		} else {
-			return this.expectedSize;
+			return 0;
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
+	@Nonnull
 	@Override
 	public String toString() {
-		return this.delegate == null ? "[]" : this.delegate.toString();
+		return this.delegate == null ?
+			"[]" : this.delegate.toString();
 	}
 }

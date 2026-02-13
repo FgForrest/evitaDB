@@ -31,7 +31,9 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -55,14 +57,22 @@ import java.util.Optional;
 @EqualsAndHashCode(callSuper = true)
 public class ModifyAssociatedDataSchemaNameMutation
 	extends AbstractModifyAssociatedDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -4883997849814882447L;
+	@Serial private static final long serialVersionUID = -9148725260493440657L;
 	@Getter @Nonnull private final String newName;
 
+	/**
+	 * Creates a mutation that will rename an existing associated data schema.
+	 *
+	 * @param name    current name of the associated data schema to rename
+	 * @param newName new name for the associated data schema (must be a valid classifier format)
+	 * @throws io.evitadb.exception.InvalidClassifierFormatException if the new name has invalid format
+	 */
 	public ModifyAssociatedDataSchemaNameMutation(
 		@Nonnull String name,
 		@Nonnull String newName
 	) {
 		super(name);
+		ClassifierUtils.validateClassifierFormat(ClassifierType.ASSOCIATED_DATA, newName);
 		this.newName = newName;
 	}
 
@@ -73,7 +83,8 @@ public class ModifyAssociatedDataSchemaNameMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyAssociatedDataSchemaNameMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyAssociatedDataSchemaNameMutation theExistingMutation && this.name.equals(
+			theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -96,9 +107,11 @@ public class ModifyAssociatedDataSchemaNameMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(this.name);
+		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(
+			this.name);
 		if (existingAssociatedDataSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(

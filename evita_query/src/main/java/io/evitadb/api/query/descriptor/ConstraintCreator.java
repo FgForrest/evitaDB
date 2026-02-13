@@ -134,7 +134,7 @@ public class ConstraintCreator {
 	 * Instantiates new constraint with passed arguments.
 	 *
 	 * @param args arguments for constraint constructor
-	 * @param parsedName name of parsed constraint in target API, used to locale errors
+	 * @param parsedName name of parsed constraint in target API, used to locate errors
 	 * @return new constraint
 	 */
 	public Constraint<?> instantiateConstraint(@Nonnull Object[] args, @Nonnull String parsedName) {

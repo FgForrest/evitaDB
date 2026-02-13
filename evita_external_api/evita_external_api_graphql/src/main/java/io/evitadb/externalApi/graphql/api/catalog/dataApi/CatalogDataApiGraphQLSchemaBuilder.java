@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLFieldDefinition.Builder;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
+import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
@@ -39,7 +40,11 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityRemoveMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationUnionDescriptor;
@@ -69,6 +74,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGrap
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder.EntityObjectVariant;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.FullResponseObjectBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.GlobalEntityObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.LocalMutationAggregateObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
@@ -93,6 +99,7 @@ import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLEnumTypeTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.HelperInterfaceTypeResolver;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 
 import javax.annotation.Nonnull;
@@ -132,6 +139,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final RequireConstraintSchemaBuilder mainListRequireConstraintSchemaBuilder;
 
 	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
+	@Nonnull private final GlobalEntityObjectBuilder globalEntityObjectBuilder;
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
 	@Nonnull private final LocalMutationAggregateObjectBuilder localMutationAggregateObjectBuilder;
 
@@ -174,10 +182,17 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			this.objectBuilderTransformer,
 			this.fieldBuilderTransformer
 		);
+		this.globalEntityObjectBuilder = new GlobalEntityObjectBuilder(
+			this.buildingContext,
+			this.argumentBuilderTransformer,
+			this.objectBuilderTransformer,
+			this.fieldBuilderTransformer
+		);
 		this.fullResponseObjectBuilder = new FullResponseObjectBuilder(
 			this.buildingContext,
 			this.argumentBuilderTransformer,
 			this.objectBuilderTransformer,
+			this.interfaceBuilderTransformer,
 			this.inputObjectBuilderTransformer,
 			this.fieldBuilderTransformer,
 			this.inputFieldBuilderTransformer,
@@ -213,7 +228,25 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		this.buildingContext.registerType(scalarEnum);
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 
+		final GraphQLInterfaceType dataChunkInterface = DataChunkDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(dataChunkInterface);
+		this.buildingContext.registerTypeResolver(dataChunkInterface, HelperInterfaceTypeResolver.getInstance());
+
+		final GraphQLInterfaceType paginatedListInterface = PaginatedListDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(paginatedListInterface);
+		this.buildingContext.registerTypeResolver(paginatedListInterface, HelperInterfaceTypeResolver.getInstance());
+
+		final GraphQLInterfaceType stripListInterface = StripListDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(stripListInterface);
+		this.buildingContext.registerTypeResolver(stripListInterface, HelperInterfaceTypeResolver.getInstance());
+
 		this.entityObjectBuilder.buildCommonTypes();
+		this.buildingContext.registerType(this.globalEntityObjectBuilder.build());
+
+		final GraphQLInterfaceType facetStatisticsInterface = FacetStatisticsDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(facetStatisticsInterface);
+		this.buildingContext.registerTypeResolver(facetStatisticsInterface, HelperInterfaceTypeResolver.getInstance());
+
 		this.fullResponseObjectBuilder.buildCommonTypes();
 	}
 
@@ -332,14 +365,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.type(typeRef(GlobalEntityDescriptor.THIS.name()));
 
 		// build globally unique attribute filters
-		final List<GlobalAttributeSchemaContract> globalAttributes = this.buildingContext.getCatalog()
-		                                                                                 .getSchema()
-		                                                                                 .getAttributes()
-		                                                                                 .values()
-		                                                                                 .stream()
-		                                                                                 .filter(
-			                                                                                 GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
-		                                                                                 .toList();
+		final List<GlobalAttributeSchemaContract> globalAttributes = this.buildingContext
+			.getCatalog()
+			.getSchema()
+			.getAttributes()
+			.values()
+			.stream()
+			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
+			.toList();
 		if (globalAttributes.isEmpty()) {
 			// this field doesn't make sense without global attributes as user wouldn't have way to query any entity
 			return null;
@@ -355,9 +388,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.forEach(getUnknownEntityFieldBuilder::argument);
 
 		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
-			getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.LOCALE
-				                                      .to(this.argumentBuilderTransformer)
-				                                      .type(typeRef(LOCALE_ENUM.name())));
+			getUnknownEntityFieldBuilder.argument(
+				UnknownEntityHeaderDescriptor.LOCALE
+					.to(this.argumentBuilderTransformer)
+					.type(typeRef(LOCALE_ENUM.name()))
+			);
 		}
 
 		getUnknownEntityFieldBuilder

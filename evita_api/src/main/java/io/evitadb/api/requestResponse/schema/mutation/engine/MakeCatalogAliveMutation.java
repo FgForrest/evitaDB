@@ -89,7 +89,10 @@ public class MakeCatalogAliveMutation implements TopLevelCatalogSchemaMutation<C
 			throw new InvalidMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
 		}
 		if (!evita.getCatalogState(this.catalogName).map(it -> it == CatalogState.WARMING_UP).orElse(false)) {
-			throw new InvalidMutationException("Catalog `" + this.catalogName + "` is not in warming up state and cannot be transitioned to live state!");
+			throw new InvalidMutationException(
+				"Catalog `" + this.catalogName + "` is not in warming up state" +
+					" and cannot be transitioned to live state!"
+			);
 		}
 	}
 

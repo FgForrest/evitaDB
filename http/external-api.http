@@ -1,0 +1,23 @@
+### Download GraphQL schema from demo
+GET https://demo.evitadb.io/gql/evita
+Accept: application/graphql
+
+>> graphql-schema-demo.graphql
+
+### Download GraphQL schema from local
+GET https://localhost:5555/gql/evita
+Accept: application/graphql
+
+>> graphql-schema-local.graphql
+
+### Download OpenAPI schema from demo
+GET https://demo.evitadb.io/rest/evita
+Accept: application/json
+
+>> openapi-schema-demo.json
+
+### Download OpenAPI schema from local
+GET https://localhost:5555/rest/evita
+Accept: application/json
+
+>> openapi-schema-local.json

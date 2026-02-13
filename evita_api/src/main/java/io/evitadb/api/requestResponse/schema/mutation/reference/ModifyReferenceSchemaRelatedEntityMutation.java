@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -44,7 +43,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#getReferencedEntityType()}
@@ -65,7 +63,14 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 	@Nonnull @Getter private final String referencedEntityType;
 	@Getter private final boolean referencedEntityTypeManaged;
 
-	public ModifyReferenceSchemaRelatedEntityMutation(@Nonnull String name, @Nonnull String referencedEntityType, boolean referencedEntityTypeManaged) {
+	/**
+	 * Creates mutation that will set the referenced entity type of the reference schema with the given name.
+	 */
+	public ModifyReferenceSchemaRelatedEntityMutation(
+		@Nonnull String name,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged
+	) {
 		super(name);
 		this.referencedEntityType = referencedEntityType;
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
@@ -78,7 +83,9 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReferenceSchemaRelatedEntityMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyReferenceSchemaRelatedEntityMutation theExistingMutation
+			&& this.name.equals(theExistingMutation.getName())
+		) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -87,7 +94,11 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		Assert.isPremiseValid(
 			!(referenceSchema instanceof ReflectedReferenceSchema),
@@ -98,39 +109,26 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 			return referenceSchema;
 		} else {
 			return ReferenceSchema._internalBuild(
-				this.name,
+				referenceSchema.getName(),
 				referenceSchema.getNameVariants(),
 				referenceSchema.getDescription(),
 				referenceSchema.getDeprecationNotice(),
 				referenceSchema.getCardinality(),
 				this.referencedEntityType,
-				this.referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(this.referencedEntityType),
+				this.referencedEntityTypeManaged
+					? Collections.emptyMap()
+					: NamingConvention.generate(this.referencedEntityType),
 				this.referencedEntityTypeManaged,
 				referenceSchema.getReferencedGroupType(),
-				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+				referenceSchema.isReferencedGroupTypeManaged()
+					? Collections.emptyMap()
+					: referenceSchema.getGroupTypeNameVariants(s -> null),
 				referenceSchema.isReferencedGroupTypeManaged(),
 				referenceSchema.getReferenceIndexTypeInScopes(),
 				referenceSchema.getFacetedInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()
 			);
-		}
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
-		if (existingReferenceSchema.isEmpty()) {
-			// ups, the associated data is missing
-			throw new InvalidSchemaMutationException(
-				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			);
-		} else {
-			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = Objects.requireNonNull(mutate(entitySchema, theSchema));
-			return replaceReferenceSchema(entitySchema, theSchema, updatedReferenceSchema);
 		}
 	}
 

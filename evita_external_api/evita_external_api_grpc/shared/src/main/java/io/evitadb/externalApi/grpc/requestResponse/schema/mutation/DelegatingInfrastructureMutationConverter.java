@@ -26,7 +26,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation;
 
 import com.google.protobuf.Message;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.MutationCase;
 import io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation;

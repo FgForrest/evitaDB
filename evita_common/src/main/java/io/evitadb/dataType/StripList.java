@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 public final class StripList<T extends Serializable> implements DataChunk<T> {
 	@Serial private static final long serialVersionUID = -480346362810326452L;
-	private static final StripList<? extends Serializable> EMPTY_LIST = new StripList<>(1, 20, 0, Collections.emptyList());
+	private static final StripList<? extends Serializable> EMPTY_LIST = new StripList<>(0, 20, 0, Collections.emptyList());
 	private final int limit;
 	private final int offset;
 	private final int totalRecordCount;
@@ -61,8 +61,8 @@ public final class StripList<T extends Serializable> implements DataChunk<T> {
 	/**
 	 * Constructor. This one doesn't require target data to be known.
 	 *
-	 * @param offset           current page number (indexed from 1)
-	 * @param limit            number of records per page
+	 * @param offset           starting position in the result set (indexed from 0)
+	 * @param limit            maximum number of records to return
 	 * @param totalRecordCount total number of records
 	 */
 	public StripList(int offset, int limit, int totalRecordCount) {
@@ -75,12 +75,12 @@ public final class StripList<T extends Serializable> implements DataChunk<T> {
 	/**
 	 * Constructor that completely initializes the DTO object.
 	 *
-	 * @param offset           current page number (indexed from 1)
-	 * @param limit            number of records per page
+	 * @param offset           starting position in the result set (indexed from 0)
+	 * @param limit            maximum number of records to return
 	 * @param totalRecordCount total number of records
 	 * @param data             list of records
 	 */
-	public StripList(int offset, int limit, int totalRecordCount, List<T> data) {
+	public StripList(int offset, int limit, int totalRecordCount, @Nonnull List<T> data) {
 		this.limit = limit;
 		this.offset = offset;
 		this.totalRecordCount = totalRecordCount;

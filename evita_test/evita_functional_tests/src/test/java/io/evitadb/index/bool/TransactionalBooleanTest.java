@@ -26,6 +26,8 @@ package io.evitadb.index.bool;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -46,85 +48,203 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@DisplayName("Transactional boolean")
 class TransactionalBooleanTest implements TimeBoundedTestSupport {
 
-	@Test
-	void shouldCorrectlySetValuesAndRollback() {
-		final TransactionalBoolean theBoolean = new TransactionalBoolean();
+	@Nested
+	@DisplayName("Constructor")
+	class ConstructorTest {
 
-		assertStateAfterRollback(
-			theBoolean,
-			original -> {
-				original.setToTrue();
-				assertTrue(theBoolean.isTrue());
-			},
-			(original, committed) -> {
-				assertNull(committed);
-				assertFalse(original.isTrue());
-			}
-		);
+		@Test
+		@DisplayName("initializes to false with no-arg constructor")
+		void shouldInitializeToFalseWithNoArgConstructor() {
+			final TransactionalBoolean theBoolean = new TransactionalBoolean();
+			assertFalse(theBoolean.isTrue());
+		}
+
+		@Test
+		@DisplayName("initializes to given value")
+		void shouldInitializeToGivenValue() {
+			final TransactionalBoolean theFalse = new TransactionalBoolean(false);
+			assertFalse(theFalse.isTrue());
+
+			final TransactionalBoolean theTrue = new TransactionalBoolean(true);
+			assertTrue(theTrue.isTrue());
+		}
+
 	}
 
-	@Test
-	void shouldCorrectlySetValuesAndCommit() {
-		final TransactionalBoolean theBoolean = new TransactionalBoolean();
+	@Nested
+	@DisplayName("Transactional commit")
+	class TransactionalCommitTest {
 
-		assertStateAfterCommit(
-			theBoolean,
-			original -> {
-				original.setToTrue();
-				assertTrue(theBoolean.isTrue());
-			},
-			(original, committed) -> {
-				assertTrue(committed);
-				assertFalse(original.isTrue());
-			}
-		);
+		@Test
+		@DisplayName("commits setToTrue change")
+		void shouldCorrectlySetToTrueAndCommit() {
+			final TransactionalBoolean theBoolean = new TransactionalBoolean();
+
+			assertStateAfterCommit(
+				theBoolean,
+				original -> {
+					original.setToTrue();
+					assertTrue(theBoolean.isTrue());
+				},
+				(original, committed) -> {
+					assertTrue(committed);
+					assertFalse(original.isTrue());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("commits setToFalse change")
+		void shouldCorrectlySetToFalseAndCommit() {
+			final TransactionalBoolean theBoolean = new TransactionalBoolean(true);
+
+			assertStateAfterCommit(
+				theBoolean,
+				original -> {
+					original.setToFalse();
+					assertFalse(theBoolean.isTrue());
+				},
+				(original, committed) -> {
+					assertFalse(committed);
+					assertTrue(original.isTrue());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("commits reset change")
+		void shouldCorrectlyResetAndCommit() {
+			final TransactionalBoolean theBoolean = new TransactionalBoolean(true);
+
+			assertStateAfterCommit(
+				theBoolean,
+				original -> {
+					original.reset();
+					assertFalse(theBoolean.isTrue());
+				},
+				(original, committed) -> {
+					assertFalse(committed);
+					assertTrue(original.isTrue());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("commits last state when toggled within transaction")
+		void shouldCommitLastStateWhenToggledInTransaction() {
+			final TransactionalBoolean theBoolean = new TransactionalBoolean();
+
+			assertStateAfterCommit(
+				theBoolean,
+				original -> {
+					original.setToTrue();
+					assertTrue(theBoolean.isTrue());
+					original.setToFalse();
+					assertFalse(theBoolean.isTrue());
+				},
+				(original, committed) -> {
+					assertFalse(committed);
+					assertFalse(original.isTrue());
+				}
+			);
+		}
+
 	}
 
-	@ParameterizedTest(name = "TransactionalBoolean should survive generational randomized test applying modifications on it")
-	@Tag(LONG_RUNNING_TEST)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalProofTest(GenerationalTestInput input) {
-		final AtomicBoolean nextBooleanToCompare = new AtomicBoolean();
+	@Nested
+	@DisplayName("Transactional rollback")
+	class TransactionalRollbackTest {
 
-		runFor(
-			input,
-			10_000,
-			new TestState(false),
-			(random, testState) -> {
-				final TransactionalBoolean transactionalBoolean = new TransactionalBoolean(testState.initialValue());
+		@Test
+		@DisplayName("rolls back setToTrue change")
+		void shouldCorrectlySetToTrueAndRollback() {
+			final TransactionalBoolean theBoolean = new TransactionalBoolean();
 
-				assertStateAfterCommit(
-					transactionalBoolean,
-					original -> {
-						final int operationsInTransaction = random.nextInt(100);
-						for (int i = 0; i < operationsInTransaction; i++) {
-							if (random.nextBoolean()) {
-								transactionalBoolean.setToTrue();
-								nextBooleanToCompare.set(true);
-							} else {
-								transactionalBoolean.setToFalse();
-								nextBooleanToCompare.set(false);
+			assertStateAfterRollback(
+				theBoolean,
+				original -> {
+					original.setToTrue();
+					assertTrue(theBoolean.isTrue());
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					assertFalse(original.isTrue());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("rolls back setToFalse change")
+		void shouldCorrectlySetToFalseAndRollback() {
+			final TransactionalBoolean theBoolean = new TransactionalBoolean(true);
+
+			assertStateAfterRollback(
+				theBoolean,
+				original -> {
+					original.setToFalse();
+					assertFalse(theBoolean.isTrue());
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					assertTrue(original.isTrue());
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Generational randomized proof")
+	class GenerationalProofTest {
+
+		@ParameterizedTest(name = "TransactionalBoolean should survive generational randomized test applying modifications on it")
+		@Tag(LONG_RUNNING_TEST)
+		@ArgumentsSource(TimeArgumentProvider.class)
+		void generationalProofTest(GenerationalTestInput input) {
+			final AtomicBoolean nextBooleanToCompare = new AtomicBoolean();
+
+			runFor(
+				input,
+				10_000,
+				new TestState(false),
+				(random, testState) -> {
+					final TransactionalBoolean transactionalBoolean = new TransactionalBoolean(testState.initialValue());
+
+					assertStateAfterCommit(
+						transactionalBoolean,
+						original -> {
+							final int operationsInTransaction = random.nextInt(100);
+							for (int i = 0; i < operationsInTransaction; i++) {
+								if (random.nextBoolean()) {
+									transactionalBoolean.setToTrue();
+									nextBooleanToCompare.set(true);
+								} else {
+									transactionalBoolean.setToFalse();
+									nextBooleanToCompare.set(false);
+								}
 							}
+
+							assertEquals(nextBooleanToCompare.get(), transactionalBoolean.isTrue());
+						},
+						(original, committed) -> {
+							assertEquals(nextBooleanToCompare.get(), committed);
 						}
+					);
 
-						assertEquals(nextBooleanToCompare.get(), transactionalBoolean.isTrue());
-					},
-					(original, committed) -> {
-						assertEquals(nextBooleanToCompare.get(), committed);
-					}
-				);
+					return new TestState(
+						nextBooleanToCompare.get()
+					);
+				}
+			);
+		}
 
-				return new TestState(
-					nextBooleanToCompare.get()
-				);
-			}
-		);
+		private record TestState(
+			boolean initialValue
+		) {}
+
 	}
-
-	private record TestState(
-		boolean initialValue
-	) {}
 
 }

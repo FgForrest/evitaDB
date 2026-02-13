@@ -29,26 +29,80 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation used for aggregating events into groups. It resembles the package for the sake of metrics and JFR events.
+ * Annotation used for organizing JFR events into logical groups for metrics and observability.
+ *
+ * This annotation provides a way to aggregate related JFR (Java Flight Recorder) events into named
+ * groups, similar to how Java packages organize classes. Event groups are used by the observability
+ * framework to structure metrics and events in a hierarchical manner, making them easier to
+ * discover, query, and visualize in monitoring systems like Prometheus.
+ *
+ * The annotation is typically applied to abstract base classes that represent a category of events
+ * (e.g., query events, transaction events, storage events). All concrete event subclasses then
+ * inherit the group classification.
+ *
+ * **Example usage:**
+ * ```java
+ * {@literal @}EventGroup(
+ * value = "io.evitadb.query",
+ * name = "evitaDB - Query",
+ * description = "evitaDB events related to query processing."
+ * )
+ * {@literal @}Category({"evitaDB", "Query"})
+ * abstract class AbstractQueryEvent extends CustomMetricsExecutionEvent {
+ * // All query event subclasses inherit this group classification
+ * }
+ * ```
+ *
+ * **Event group hierarchy in evitaDB:**
+ * - `io.evitadb.query` - Query processing events (entity fetching, filtering, sorting)
+ * - `io.evitadb.transaction` - Transaction lifecycle events (commit, rollback, WAL operations)
+ * - `io.evitadb.storage` - Storage I/O events (file operations, compaction, indexing)
+ * - `io.evitadb.session` - Session lifecycle events (open, close, timeout)
+ * - `io.evitadb.cache` - Cache-related events (hits, misses, evictions)
+ * - `io.evitadb.system` - System-wide events (startup, configuration, background tasks)
+ * - `io.evitadb.graphql`, `io.evitadb.rest`, `io.evitadb.grpc` - External API events
+ *
+ * The `value()` attribute is used internally as a namespace identifier, while `name()` and
+ * `description()` provide human-readable metadata for documentation and monitoring UIs.
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2024
+ * @see io.evitadb.core.metric.event.CustomMetricsExecutionEvent
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface EventGroup {
 
 	/**
-	 * Defines the name of the group the event is part of.
+	 * The namespace identifier for the event group, typically in reverse-domain notation.
+	 *
+	 * This value acts as a unique identifier for the group and is used internally to organize
+	 * events. It should follow Java package naming conventions (e.g., "io.evitadb.query").
+	 *
+	 * This identifier is also used as the base for JFR event names when combined with the
+	 * event class name.
 	 */
 	String value();
 
 	/**
-	 * Contains a human-readable name of the group.
+	 * The human-readable display name for the event group.
+	 *
+	 * This name is used in monitoring UIs, documentation, and logging to identify the group.
+	 * It should be concise and descriptive (e.g., "evitaDB - Query", "evitaDB - Storage").
+	 *
+	 * If not specified, the group will not have a display name in external systems, though
+	 * the `value()` identifier will still be used internally.
 	 */
 	String name() default "";
 
 	/**
-	 * Contains a description of the group.
+	 * A detailed description explaining the purpose and scope of the event group.
+	 *
+	 * This description provides context about what types of events belong to this group and
+	 * what aspects of system behavior they monitor. It is used in documentation, monitoring
+	 * dashboards, and observability tools to help users understand the event category.
+	 *
+	 * Example: "evitaDB events related to query processing, including entity fetching,
+	 * filtering, enrichment, and result pagination."
 	 */
 	String description() default "";
 

@@ -89,6 +89,8 @@ public record ReferenceAttributeDeltaConflictKey(
             Objects.equals(this.allowedRange, that.allowedRange);
     }
 
+    // hashCode intentionally excludes deltaValue and allowedRange so that keys differing only
+    // in the delta/range land in the same hash bucket, enabling efficient aggregation lookups
     @Override
     public int hashCode() {
         int result = this.entityType.hashCode();

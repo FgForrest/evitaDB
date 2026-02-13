@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.*;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.engine.ExpandedEngineState;

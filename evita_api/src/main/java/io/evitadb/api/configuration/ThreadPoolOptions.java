@@ -31,15 +31,21 @@ import javax.annotation.Nonnull;
 /**
  * Record contains settings for particular thread pool used inside evitaDB.
  *
- * @param minThreadCount Defines count of threads that are spun up in {@link java.util.concurrent.ExecutorService} for handling
- *                       input requests as well as maintenance tasks. The more catalog in Evita
- *                       DB there is, the higher count of thread count might be required.
- * @param maxThreadCount Defines count of threads that might be spun up at the maximum (i.e. when
- *                       there are not enough threads to process input requests and background tasks)
- * @param threadPriority Defines a {@link Thread#getPriority()} for background threads. The number must be in
- *                       interval 1-10. The threads with higher priority should be preferred over the ones
- *                       with lesser priority.
- * @param queueSize      maximum amount of task accepted to thread pool to wait for a free thread
+ * @param minThreadCount Defines count of threads that are spun up in
+ *                       `ExecutorService` for handling input requests
+ *                       as well as maintenance tasks. The more catalogs
+ *                       in evitaDB there are, the higher count of
+ *                       thread count might be required.
+ * @param maxThreadCount Defines count of threads that might be spun up
+ *                       at the maximum (i.e. when there are not enough
+ *                       threads to process input requests and background
+ *                       tasks).
+ * @param threadPriority Defines a `Thread.getPriority()` for background
+ *                       threads. The number must be in interval 1-10.
+ *                       The threads with higher priority should be
+ *                       preferred over the ones with lesser priority.
+ * @param queueSize      Maximum amount of tasks accepted to thread pool
+ *                       to wait for a free thread.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -57,8 +63,8 @@ public record ThreadPoolOptions(
 	public static final int DEFAULT_TRANSACTION_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() << 1;
 	public static final int DEFAULT_TRANSACTION_THREAD_PRIORITY = 5;
 	public static final int DEFAULT_TRANSACTION_QUEUE_SIZE = 100;
-	public static final int DEFAULT_MIN_SERVICE_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors(), 1);
-	public static final int DEFAULT_MAX_SERVICE_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors() << 1, 1);
+	public static final int DEFAULT_MIN_SERVICE_THREAD_COUNT = Math.max(Runtime.getRuntime().availableProcessors(), 1);
+	public static final int DEFAULT_MAX_SERVICE_THREAD_COUNT = Math.max(Runtime.getRuntime().availableProcessors() << 1, 1);
 	public static final int DEFAULT_SERVICE_THREAD_PRIORITY = 1;
 	public static final int DEFAULT_SERVICE_QUEUE_SIZE = 20;
 
@@ -173,7 +179,14 @@ public record ThreadPoolOptions(
 			return this;
 		}
 
+		@Nonnull
 		public ThreadPoolOptions build() {
+			Assert.isTrue(
+				this.queueSize < 100_000,
+				"Queue size must be less than 100_000, " +
+					"because evitaDB keeps internal array " +
+					"blocking queue to track timeouts."
+			);
 			return new ThreadPoolOptions(
 				this.minThreadCount,
 				this.maxThreadCount,

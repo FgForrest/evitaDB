@@ -23,23 +23,56 @@
 
 package io.evitadb.api.exception;
 
+import io.evitadb.api.TransactionContract;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when transaction was attempted to be committed, but it wasn't possible and was rolled back instead.
+ * Exception thrown when a transaction commit attempt fails and the transaction is automatically rolled
+ * back due to an unexpected error. This indicates a server-side failure during the commit phase, distinct
+ * from a client-requested rollback via {@link TransactionContract#setRollbackOnly()}.
+ *
+ * **Common causes:**
+ *
+ * - Data integrity violation detected during commit validation
+ * - I/O error while persisting transaction to storage
+ * - Lock acquisition failure during commit processing
+ * - Internal consistency check failure in transaction manager
+ * - Out-of-memory condition during commit materialization
+ *
+ * This exception extends {@link EvitaInternalError} because it represents an abnormal server condition,
+ * not a usage error. When this occurs, all transaction changes are discarded and the session remains
+ * open but without an active transaction.
+ *
+ * **Client handling:**
+ *
+ * - Inspect the error message and cause exception for details about the failure
+ * - Log the full stack trace for investigation
+ * - Do not retry automatically - the underlying cause needs investigation
+ * - Consider whether the transaction violated database constraints or invariants
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class UnexpectedRollbackException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -3250029332684512530L;
 
+	/**
+	 * Creates a new exception with an error message describing why the rollback occurred.
+	 *
+	 * @param message description of what went wrong during commit
+	 */
 	public UnexpectedRollbackException(@Nonnull String message) {
 		super(message);
 	}
 
+	/**
+	 * Creates a new exception with an error message and the underlying cause of the rollback.
+	 *
+	 * @param message description of what went wrong during commit
+	 * @param cause the underlying exception that triggered the rollback
+	 */
 	public UnexpectedRollbackException(@Nonnull String message, @Nonnull Throwable cause) {
 		super(message, cause);
 	}

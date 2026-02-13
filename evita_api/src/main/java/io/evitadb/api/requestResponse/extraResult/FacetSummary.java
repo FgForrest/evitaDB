@@ -192,16 +192,20 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.referenceStatistics);
+		return this.referenceStatistics.hashCode();
 	}
 
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		FacetSummary that = (FacetSummary) o;
+		final FacetSummary that = (FacetSummary) o;
 
-		for (Entry<String, ReferenceStatistics> referenceEntry : this.referenceStatistics.entrySet()) {
+		if (this.referenceStatistics.size() != that.referenceStatistics.size()) {
+			return false;
+		}
+
+		for (final Entry<String, ReferenceStatistics> referenceEntry : this.referenceStatistics.entrySet()) {
 			final ReferenceStatistics statistics = referenceEntry.getValue();
 			final ReferenceStatistics thatStatistics = that.referenceStatistics.get(referenceEntry.getKey());
 
@@ -386,7 +390,10 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(difference(), matchCount(), hasSense());
+			int result = Integer.hashCode(this.difference);
+			result = 31 * result + Integer.hashCode(this.matchCount);
+			result = 31 * result + Boolean.hashCode(this.hasSense);
+			return result;
 		}
 
 		@Nonnull
@@ -447,7 +454,11 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(this.facetEntity, this.requested, this.count, this.impact);
+			int result = this.facetEntity.hashCode();
+			result = 31 * result + Boolean.hashCode(this.requested);
+			result = 31 * result + Integer.hashCode(this.count);
+			result = 31 * result + (this.impact != null ? this.impact.hashCode() : 0);
+			return result;
 		}
 
 		@Override
@@ -585,14 +596,11 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(
-				this.referenceName,
-				ofNullable(this.groupEntity)
-					.map(EntityClassifier::getPrimaryKey)
-					.orElse(null),
-				this.count,
-				this.facetStatistics
-			);
+			int result = this.referenceName.hashCode();
+			result = 31 * result + (this.groupEntity != null ? Integer.hashCode(this.groupEntity.getPrimaryKeyOrThrowException()) : 0);
+			result = 31 * result + Integer.hashCode(this.count);
+			result = 31 * result + this.facetStatistics.hashCode();
+			return result;
 		}
 
 		@Override

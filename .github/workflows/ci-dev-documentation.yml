@@ -9,23 +9,12 @@ on:
       - .github/workflows/ci-dev-documentation.yml
       - documentation/user/**.*
 
-  pull_request_target:
-    branches: [ "dev" ]            # also trap pull requests to dev branch
-    paths:                         # but react only to changes in code or pipeline definition
-      - .github/workflows/ci-dev-documentation.yml
-      - documentation/user/**.*
-
 permissions:
-  id-token: write
-  contents: write
-  actions: read
+  contents: read
   checks: write
-  pull-requests: read
-  security-events: write
-  statuses: write
 
 concurrency:
-  group: ${{ format('{0}_documentation', github.head_ref || github.ref_name) }}  # for the same branch (dev or PR)
+  group: ${{ format('{0}_documentation', github.ref_name) }}  # for the same branch (dev)
   cancel-in-progress: true        # run only one workflow at a time (cancel the previous)
 
 jobs:
@@ -34,6 +23,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1 checkout sources
+      with:
+        persist-credentials: false
 
     - name: Setup Java JDK
       uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0  # setup JDK 17 for building
@@ -51,9 +42,13 @@ jobs:
       run: |
         mvn -T 1C -B package -P documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
-    - name: Upload test results    # upload XML with unit test results to artifact `test-results` for `test-report.yml`
+    - name: Upload test results    # upload XML with unit test results for debugging
       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
       if: success() || failure()
       with:
         name: test-results
         path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+
+    - name: Publish Test Report
+      uses: ./.github/actions/publish-test-report
+      if: success() || failure()

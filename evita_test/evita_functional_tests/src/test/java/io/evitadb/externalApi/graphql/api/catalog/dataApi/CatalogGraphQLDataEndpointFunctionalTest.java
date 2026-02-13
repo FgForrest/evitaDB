@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,10 +35,10 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
@@ -567,7 +567,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.map(it -> {
 					final SealedEntity referencedEntity = it.getReferencedEntity().orElseThrow();
 					return map()
-						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityWithSelfParentsDto(referencedEntity, withBody))
+						.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), createEntityWithSelfParentsDto(referencedEntity, withBody))
 						.build();
 				})
 				.toList())

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,18 +27,19 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.Singular;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -88,44 +89,50 @@ public record UnionDescriptor(
 	}
 
 	@Nonnull
-	public String name(@Nonnull NamedSchemaContract... schema) {
-		return name(null, schema);
-	}
-
-	@Nonnull
-	public String name(@Nullable String suffix, @Nonnull NamedSchemaContract... schema) {
+	public String name(@Nonnull Object... dynamicNames) {
 		Assert.isPremiseValid(
 			!isNameStatic(),
-			() -> new ExternalApiInternalError(
-				"Object name `" + this.name + "` is static, thus it doesn't support provided schema.")
+			() -> new ExternalApiInternalError("Object name `" + this.name + "` is static, thus it doesn't support provided schema.")
+		);
+
+		Assert.isPremiseValid(
+			this.name.contains(NAME_WILDCARD_PLACEHOLDER),
+			() -> new ExternalApiInternalError("Object name `" + this.name + "` doesn't contain wildcard placeholder but is not static. This should never happen.")
 		);
 		Assert.isPremiseValid(
-			schema.length > 0,
-			() -> new ExternalApiInternalError("Object name requires at least one provided schema.")
+			dynamicNames.length > 0,
+			() -> new ExternalApiInternalError("Object name requires at least one dynamic name.")
 		);
 
-		final String schemaName = Stream.concat(
-				Arrays.stream(schema)
-					.map(it -> it.getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION)),
-				Stream.of(suffix)
-					.filter(Objects::nonNull)
-			)
+		final String dynamicName = Arrays.stream(dynamicNames)
+			.filter(Objects::nonNull)
+			.map(it -> {
+				if (it instanceof NamedSchemaContract namedSchemaContract) {
+					return namedSchemaContract.getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION);
+				} else {
+					return StringUtils.toSpecificCase(it.toString(), ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION);
+				}
+			})
 			.collect(Collectors.joining());
 
-		if (this.name.equals(NAME_WILDCARD)) {
-			return schemaName;
-		} else if (this.name.startsWith(NAME_WILDCARD)) {
-			return schemaName + this.name.substring(1);
-		} else if (this.name.endsWith(NAME_WILDCARD)) {
-			return this.name.substring(0, this.name.length() - 1) + schemaName;
+		if (this.name.equals(NAME_WILDCARD_PLACEHOLDER)) {
+			return dynamicName;
+		} else if (this.name.startsWith(NAME_WILDCARD_PLACEHOLDER)) {
+			return dynamicName + this.name.substring(1);
+		} else if (this.name.endsWith(NAME_WILDCARD_PLACEHOLDER)) {
+			return this.name.substring(0, this.name.length() - 1) + dynamicName;
 		} else {
-			throw new ExternalApiInternalError(
-				"Unsupported placement of name wildcard. Wildcard must be at the beginning or at the end.");
+			final String[] nameParts = NAME_WILDCARD_PLACEHOLDER_PATTERN.split(this.name);
+			Assert.isPremiseValid(
+				nameParts.length == 2,
+				() -> new ExternalApiInternalError("There may be only one wildcard placeholder in object name.")
+			);
+			return nameParts[0] + dynamicName + nameParts[1];
 		}
 	}
 
 	public boolean isNameStatic() {
-		return !this.name.contains(NAME_WILDCARD);
+		return !this.name.contains(NAME_WILDCARD_PLACEHOLDER);
 	}
 
 	@Nullable

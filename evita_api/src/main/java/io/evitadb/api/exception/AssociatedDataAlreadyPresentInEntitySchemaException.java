@@ -32,16 +32,41 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when client code tries to define the associated data with same name as existing catalog
- * associated data. This is not allowed and client must choose different name or reuse the already defined associated
- * data on catalog level.
+ * Thrown when attempting to define an associated data schema whose name, when converted to a specific
+ * naming convention, conflicts with an existing associated data schema name in the same entity schema.
+ *
+ * evitaDB supports multiple naming conventions (camelCase, snake_case, UPPER_CASE, etc.) and automatically
+ * generates names in all conventions from a canonical name. This exception is thrown when two different
+ * canonical names produce the same name in at least one naming convention, which would make them
+ * indistinguishable in that convention.
+ *
+ * **When this is thrown:**
+ * - During entity schema evolution when adding/modifying associated data definitions
+ * - When two associated data names map to the same name in a specific naming convention
+ * - Thrown by `InternalEntitySchemaBuilder` during schema validation
+ *
+ * **Example conflict:**
+ * - Canonical name `user-data` produces `userData` in camelCase
+ * - Canonical name `userData` also produces `userData` in camelCase
+ * - These two would be indistinguishable when accessed via camelCase convention
+ *
+ * **Resolution:**
+ * - Choose a different canonical name that doesn't conflict in any naming convention
+ * - Check all naming convention variants of your proposed name against existing schemas
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class AssociatedDataAlreadyPresentInEntitySchemaException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -7318863955275156452L;
+	/**
+	 * The existing associated data schema that conflicts with the newly defined one.
+	 */
 	@Getter private final AssociatedDataSchemaContract existingSchema;
 
+	/**
+	 * Creates exception detailing which two associated data schemas have conflicting names in a specific
+	 * naming convention.
+	 */
 	public AssociatedDataAlreadyPresentInEntitySchemaException(
 		@Nonnull AssociatedDataSchemaContract existingAssociatedData,
 		@Nonnull AssociatedDataSchemaContract updatedAssociatedData,

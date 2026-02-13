@@ -29,9 +29,23 @@ package io.evitadb.dataType;
  * It is a special data type allowing to create consistent or semi-consistent linked lists in evitaDB and sort
  * by the order of the elements in the list.
  *
+ * A **consistent** linked list means that every entity in the list has a valid predecessor reference forming
+ * a complete unbroken chain from the head element to the last element. All elements are reachable by following
+ * the predecessor links from the head.
+ *
+ * A **semi-consistent** linked list means that some links may be temporarily missing or orphaned (e.g., when
+ * an entity is deleted but other entities still reference it as a predecessor). These inconsistencies are typically
+ * corrected by subsequent mutations that update the predecessor references to maintain list integrity.
+ *
+ * @see Predecessor
+ * @see ReferencedEntityPredecessor
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface ChainableType {
+	/**
+	 * Special constant representing the head of a linked list. Entities with this predecessor value are considered
+	 * the first element in the chain.
+	 */
 	int HEAD_PK = -1;
 
 	/**

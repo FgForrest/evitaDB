@@ -30,7 +30,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -39,15 +38,15 @@ import java.util.regex.Pattern;
  * to the main query system and reconstruct from it the original query. Each variant of query has its own unique
  * full name (name + creator suffix) and corresponding creator (each {@link Creator}
  * in {@link Constraint} create one descriptor).
- * <p>
+ *
  * Descriptor contains basic categorizing data such as {@link #type()} and {@link #propertyType()} as well as concrete
  * metadata like {@link #fullName()} or {@link #supportedValues()}.
  * Descriptor also contains the default creator constructor and its parameters to be able to reconstruct the original query.
- * <p>
+ *
  * It uses set of annotations for describing actual constraints with {@link ConstraintDefinition}
  * as the main one. Those annotations are then processed by {@link ConstraintDescriptorProvider} which generated these
  * descriptors.
- * <p>
+ *
  * Equality is determined only {@link #type()}, {@link #propertyType()} and {@link #fullName()} as these properties defines
  * uniqueness of each query. There cannot be multiple constraints with these properties because that would create
  * ambiguity in query search and reconstruction.
@@ -117,7 +116,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	}
 
 	/**
-	 * Specifies what is purpose of the constraint
+	 * Specifies the purpose of the constraint
 	 */
 	@Nonnull
 	public ConstraintType type() {
@@ -193,8 +192,12 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 
 	@Override
 	public int hashCode() {
-		// lombok cannot generate equals and hash code for records
-		return Objects.hash(this.type, this.propertyType, this.fullName, this.creator.hasClassifierParameter(), this.creator.hasImplicitClassifier());
+		int result = this.type.hashCode();
+		result = 31 * result + this.propertyType.hashCode();
+		result = 31 * result + this.fullName.hashCode();
+		result = 31 * result + Boolean.hashCode(this.creator.hasClassifierParameter());
+		result = 31 * result + Boolean.hashCode(this.creator.hasImplicitClassifier());
+		return result;
 	}
 
 	@Override
@@ -257,9 +260,12 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 * @param compoundsSupported if target data can be a compound of supported data types
 	 * @param nullability whether the constraint supports only nullable data or only nonnull data or both and so on.
 	 */
-	public record SupportedValues(@Nonnull Set<Class<?>> dataTypes,
-	                              boolean supportsArrays,
-								  boolean compoundsSupported,
-	                              @Nonnull ConstraintNullabilitySupport nullability) {}
+	public record SupportedValues(
+		@Nonnull Set<Class<?>> dataTypes,
+		boolean supportsArrays,
+		boolean compoundsSupported,
+		@Nonnull ConstraintNullabilitySupport nullability
+	) {
+	}
 
 }

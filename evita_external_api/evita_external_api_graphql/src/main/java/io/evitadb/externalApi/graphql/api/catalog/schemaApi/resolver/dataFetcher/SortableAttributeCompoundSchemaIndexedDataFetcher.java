@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -58,8 +60,12 @@ public class SortableAttributeCompoundSchemaIndexedDataFetcher implements DataFe
 	@Nonnull
 	public List<Scope> get(DataFetchingEnvironment environment) throws Exception {
 		final SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema = environment.getSource();
+		Assert.isPremiseValid(
+			sortableAttributeCompoundSchema != null,
+			() -> new GraphQLQueryResolvingInternalError("Missing sortable attribute compound schema.")
+		);
 		return Arrays.stream(Scope.values())
-			.filter(scope -> sortableAttributeCompoundSchema.isIndexedInScope(scope))
+			.filter(sortableAttributeCompoundSchema::isIndexedInScope)
 			.toList();
 	}
 }

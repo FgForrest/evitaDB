@@ -34,7 +34,7 @@ import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 
 /**
- * Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+ * Record represents a CDC event that is sent to the subscriber if it matches the subscriber's request.
  *
  * @param version   the version of the evitaDB where the operation was performed
  * @param index     the index of the event within the enclosed block of operation, index 0 is the lead event of the process
@@ -63,7 +63,7 @@ public record ChangeSystemCapture(
 	public static ChangeSystemCapture systemCapture(
 		@Nonnull MutationPredicateContext context,
 		@Nonnull Operation operation,
-		@Nullable EngineMutation mutation
+		@Nullable EngineMutation<?> mutation
 	) {
 		return new ChangeSystemCapture(
 			context.getVersion(),
@@ -74,7 +74,6 @@ public record ChangeSystemCapture(
 		);
 	}
 
-	@SuppressWarnings("unchecked")
 	@Nonnull
 	@Override
 	public ChangeSystemCapture as(@Nonnull ChangeCaptureContent content) throws EvitaInternalError {

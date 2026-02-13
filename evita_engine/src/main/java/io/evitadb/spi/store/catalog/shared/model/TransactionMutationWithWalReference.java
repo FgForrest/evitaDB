@@ -23,7 +23,7 @@
 
 package io.evitadb.spi.store.catalog.shared.model;
 
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;

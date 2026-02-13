@@ -83,6 +83,24 @@ public class NotFormula extends AbstractCacheableFormula {
 		this.initFields();
 	}
 
+	/**
+	 * Returns the subtracted formula (the set of items to remove from the superset).
+	 * This is the first inner formula (index 0).
+	 */
+	@Nonnull
+	public Formula getSubtractedFormula() {
+		return this.innerFormulas[0];
+	}
+
+	/**
+	 * Returns the superset formula (the universe from which items are subtracted).
+	 * This is the second inner formula (index 1).
+	 */
+	@Nonnull
+	public Formula getSupersetFormula() {
+		return this.innerFormulas[1];
+	}
+
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
@@ -94,7 +112,7 @@ public class NotFormula extends AbstractCacheableFormula {
 		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
 			return this.supersetBitmap.size();
 		} else {
-			return this.innerFormulas[1].getEstimatedCardinality();
+			return getSupersetFormula().getEstimatedCardinality();
 		}
 	}
 
@@ -190,9 +208,9 @@ public class NotFormula extends AbstractCacheableFormula {
 		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
 			return Stream.of(this.supersetBitmap, this.subtractedBitmap).mapToLong(Bitmap::size).sum();
 		} else {
-			final Bitmap supersetBitmap = this.innerFormulas[1].compute();
+			final Bitmap supersetBitmap = getSupersetFormula().compute();
 			if (supersetBitmap.isEmpty()) {
-				return this.innerFormulas[1].getCost();
+				return getSupersetFormula().getCost();
 			} else {
 				return super.getCostInternal();
 			}
@@ -204,7 +222,7 @@ public class NotFormula extends AbstractCacheableFormula {
 		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
 			return getCost() / Math.max(1, compute().size());
 		} else {
-			final Bitmap supersetBitmap = this.innerFormulas[1].compute();
+			final Bitmap supersetBitmap = getSupersetFormula().compute();
 			if (supersetBitmap.isEmpty()) {
 				return getCost() / Math.max(1, compute().size());
 			} else {
@@ -229,14 +247,14 @@ public class NotFormula extends AbstractCacheableFormula {
 				);
 			}
 		} else {
-			final Bitmap supersetBitmap = this.innerFormulas[1].compute();
+			final Bitmap supersetBitmap = getSupersetFormula().compute();
 			if (supersetBitmap.isEmpty()) {
 				theResult = EmptyBitmap.INSTANCE;
 			} else {
 				theResult = new BaseBitmap(
 					RoaringBitmap.andNot(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(supersetBitmap),
-						RoaringBitmapBackedBitmap.getRoaringBitmap(this.innerFormulas[0].compute())
+						RoaringBitmapBackedBitmap.getRoaringBitmap(getSubtractedFormula().compute())
 					)
 				);
 			}

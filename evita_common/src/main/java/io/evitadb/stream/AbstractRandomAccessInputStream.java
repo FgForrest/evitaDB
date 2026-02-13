@@ -26,8 +26,8 @@ package io.evitadb.stream;
 import java.io.InputStream;
 
 /**
- * AbstractRandomAccessInputStream is an abstract class that extends the InputStream class.
- * It provides a method to seek the underlying input stream to a specified position on top of basic input stream API.
+ * An {@link InputStream} extension that adds random-access capability via {@link #seek(long)}
+ * and length querying via {@link #getLength()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -41,8 +41,7 @@ public abstract class AbstractRandomAccessInputStream extends InputStream {
 	public abstract void seek(final long position);
 
 	/**
-	 * Returns length of the underlying input stream. I.e. last position that can be seeked to plus one.
-	 * @return The length of the underlying input stream.
+	 * Returns length of the underlying input stream, i.e. one past the last position that can be sought to.
 	 */
 	public abstract long getLength();
 

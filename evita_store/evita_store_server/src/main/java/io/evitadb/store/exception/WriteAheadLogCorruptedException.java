@@ -27,6 +27,7 @@ import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.nio.file.Path;
 import java.util.function.IntFunction;
 
 /**
@@ -58,6 +59,28 @@ public class WriteAheadLogCorruptedException extends EvitaInternalError {
 				" previous WAL file `" + walFileNameProvider.apply(walIndex - 1) + "`! Last version found: `" +
 				lastVersion + "`, first version of the next WAL file : `" + firstVersion + "`! ",
 			"First version of the WAL file doesn't follow up to the last version of the previous WAL file!"
+		);
+	}
+
+	/**
+	 * Creates an exception indicating a cumulative CRC32C checksum mismatch in the WAL file.
+	 *
+	 * @param walFilePath      the path to the WAL file where the mismatch was detected
+	 * @param position         the byte position in the file where the mismatch was detected
+	 * @param expectedChecksum the checksum value stored in the WAL file
+	 * @param actualChecksum   the checksum value computed from the data
+	 */
+	public WriteAheadLogCorruptedException(
+		@Nonnull Path walFilePath,
+		long position,
+		long expectedChecksum,
+		long actualChecksum
+	) {
+		super(
+			"Cumulative CRC32C mismatch at position " + position +
+				" in WAL file `" + walFilePath + "`. Expected: " + expectedChecksum +
+				", actual: " + actualChecksum,
+			"WAL file corrupted: checksum verification failed"
 		);
 	}
 }

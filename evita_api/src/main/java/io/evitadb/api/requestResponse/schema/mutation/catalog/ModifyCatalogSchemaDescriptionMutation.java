@@ -69,7 +69,8 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
 		if (existingMutation instanceof ModifyCatalogSchemaDescriptionMutation) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
@@ -79,7 +80,9 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
 		Assert.notNull(
 			catalogSchema,
 			() -> new InvalidSchemaMutationException("Catalog doesn't exist!")
@@ -117,6 +120,7 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 		return Stream.of(new CatalogConflictKey(context.getCatalogName()));
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "Modify catalog description='" + this.description + '\'';

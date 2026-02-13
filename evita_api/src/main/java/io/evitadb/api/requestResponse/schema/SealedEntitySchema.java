@@ -33,7 +33,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.util.Collection;
 
 /**
- * Sealed catalog schema is read only form of the schema that contains seal-breaking actions such as opening its
+ * Sealed entity schema is read only form of the schema that contains seal-breaking actions such as opening its
  * contents to write actions using {@link EntitySchemaBuilder} or accepting mutations that create
  * {@link EntitySchemaMutation} objects. All seal breaking actions don't modify {@link SealedEntitySchema} contents,
  * and only create new objects based on it. This keeps this class immutable and thread safe.

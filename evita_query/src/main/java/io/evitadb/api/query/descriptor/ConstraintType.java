@@ -32,10 +32,67 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Generic type of query which specifies what is purpose of the query. Each type has to correspond to some existing
- * query interface implementing {@link TypeDefiningConstraint} and other specific constraints implement that interface.
- * <p>
- * This enum exists only to make easier searching through registered constraints so that user knows which types are supported.
+ * Defines the high-level category of a query constraint, determining its role in the query execution model. Each
+ * type corresponds to a marker interface that all constraints of that type must implement, enabling compile-time
+ * type safety and runtime categorization.
+ *
+ * **Query Execution Model**
+ *
+ * evitaDB queries are structured into four distinct phases, each represented by a constraint type:
+ * 1. **Header** (`{@link #HEAD}`): Metadata about the query itself (collection name, etc.)
+ * 2. **Filtering** (`{@link #FILTER}`): Narrows the result set based on predicates
+ * 3. **Ordering** (`{@link #ORDER}`): Defines the sort order of results
+ * 4. **Requirements** (`{@link #REQUIRE}`): Specifies additional data to fetch and result formatting
+ *
+ * This separation enables:
+ * - Clear query intent and readability
+ * - Independent processing pipelines for each phase
+ * - Parallel execution where possible (filtering and requirement pre-fetching)
+ * - Type-safe query construction via marker interfaces
+ *
+ * **Type Resolution**
+ *
+ * At application startup, {@link io.evitadb.api.query.descriptor.ConstraintProcessor} determines each constraint's
+ * type by checking which marker interface it implements. The `{@link #getRepresentingInterface()}` method returns
+ * the interface that defines each type. Every constraint class must implement exactly one type-defining interface.
+ *
+ * **API Schema Generation**
+ *
+ * External API builders (GraphQL, REST) use constraint types to organize schema namespaces:
+ * - GraphQL: Separate input types for `filterBy`, `orderBy`, and `require` arguments
+ * - REST: Different URL parameter structures for each type
+ * - Documentation: Constraints are grouped by type in user guides
+ *
+ * **Example Usage**
+ *
+ * ```
+ * query(
+ *     collection("Product"),           // HEAD constraint
+ *     filterBy(                         // FILTER container
+ *         and(
+ *             attributeEquals("code", "abc"),
+ *             priceBetween(100, 200)
+ *         )
+ *     ),
+ *     orderBy(                          // ORDER container
+ *         attributeNatural("priority")
+ *     ),
+ *     require(                          // REQUIRE container
+ *         entityFetch(
+ *             attributeContent(),
+ *             priceContent()
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * **Related Classes**
+ *
+ * - `{@link TypeDefiningConstraint}` - Parent marker interface for all type-defining interfaces
+ * - `{@link HeadConstraint}`, `{@link FilterConstraint}`, `{@link OrderConstraint}`, `{@link RequireConstraint}` -
+ * Type-defining marker interfaces
+ * - `{@link io.evitadb.api.query.descriptor.ConstraintProcessor}` - Resolves constraint type at startup
+ * - `{@link io.evitadb.api.query.descriptor.ConstraintDescriptor}` - Runtime descriptor containing the resolved type
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -44,24 +101,80 @@ import lombok.RequiredArgsConstructor;
 public enum ConstraintType {
 
 	/**
-	 * Marks query as header query. That means, that query will be used to specify some metadata.
-	 * Conforms to {@link io.evitadb.api.query.HeadConstraint}.
+	 * Marks constraints that provide query metadata, such as which collection to query.
+	 *
+	 * **Typical Constraints:**
+	 * - `collection` - specifies the target entity collection
+	 *
+	 * **Execution Phase:**
+	 * Processed first, before filtering or ordering, to establish the query context.
+	 *
+	 * **Marker Interface:**
+	 * Conforms to `{@link io.evitadb.api.query.HeadConstraint}`.
 	 */
 	HEAD(HeadConstraint.class),
 	/**
-	 * Marks query as filtering one. That means, that query will be used to narrow list of results.
-	 * Conforms to {@link io.evitadb.api.query.FilterConstraint}.
+	 * Marks constraints that filter entities, narrowing the result set based on predicates.
+	 *
+	 * **Typical Constraints:**
+	 * - Logical combinators: `and`, `or`, `not`
+	 * - Attribute filters: `attributeEquals`, `attributeBetween`, `attributeInSet`
+	 * - Price filters: `priceBetween`, `priceInCurrency`, `priceInPriceLists`
+	 * - Reference filters: `referenceHaving`, `facetHaving`
+	 * - Hierarchy filters: `hierarchyWithin`, `hierarchyWithinRoot`
+	 * - Entity filters: `entityPrimaryKeyInSet`, `entityLocaleEquals`
+	 *
+	 * **Execution Phase:**
+	 * Executed early in the query pipeline to reduce the working set of entities before ordering or projection.
+	 *
+	 * **Marker Interface:**
+	 * Conforms to `{@link io.evitadb.api.query.FilterConstraint}`.
 	 */
 	FILTER(FilterConstraint.class),
 	/**
-	 * Marks query as ordering one. That means, that query will be for determining order of listing results.
-	 * Conforms to {@link io.evitadb.api.query.OrderConstraint}.
+	 * Marks constraints that define the sort order of query results.
+	 *
+	 * **Typical Constraints:**
+	 * - Attribute ordering: `attributeNatural`, `attributeSetExact`, `attributeSetInFilter`
+	 * - Entity ordering: `entityPrimaryKeyNatural`, `entityPrimaryKeyExact`, `entityPrimaryKeyInFilter`
+	 * - Price ordering: `priceNatural`, `priceDiscount`
+	 * - Reference ordering: `referenceProperty`
+	 * - Special ordering: `random`, `orderBy` (container)
+	 * - Segmentation: `segments`, `segment`
+	 *
+	 * **Execution Phase:**
+	 * Applied after filtering but before pagination and projection. Multiple ordering constraints can be combined
+	 * to create multi-level sort keys.
+	 *
+	 * **Marker Interface:**
+	 * Conforms to `{@link io.evitadb.api.query.OrderConstraint}`.
 	 */
 	ORDER(OrderConstraint.class),
 	/**
-	 * Requirement represents an additional data passed to the query, that can somewhat alter returned result
-	 *  - not in a way of filter or ordering, but rather a form.
-	 * Conforms to {@link io.evitadb.api.query.RequireConstraint}.
+	 * Marks constraints that specify what data to fetch and how to format the response. These constraints do not
+	 * affect which entities are returned or their order, but rather what information each entity contains and how
+	 * results are structured.
+	 *
+	 * **Typical Constraints:**
+	 * - Entity body: `entityFetch`, `entityGroupFetch`
+	 * - Attributes: `attributeContent`, `attributeHistogram`
+	 * - Associated data: `associatedDataContent`
+	 * - Prices: `priceContent`, `priceHistogram`
+	 * - References: `referenceContent`
+	 * - Hierarchy: `hierarchyOfSelf`, `hierarchyOfReference`, `hierarchyContent`, `hierarchyStatistics`
+	 * - Facets: `facetSummary`, `facetSummaryOfReference`, `facetGroupsConjunction`
+	 * - Pagination: `page`, `strip`
+	 * - Localization: `dataInLocales`
+	 *
+	 * **Execution Phase:**
+	 * Applied after filtering and ordering during entity projection and extra computation (statistics, histograms).
+	 *
+	 * **Performance Note:**
+	 * Requirements can significantly impact query cost. Fetching full entity bodies with all references is more
+	 * expensive than returning just primary keys. Use requirements judiciously based on client needs.
+	 *
+	 * **Marker Interface:**
+	 * Conforms to `{@link io.evitadb.api.query.RequireConstraint}`.
 	 */
 	REQUIRE(RequireConstraint.class);
 

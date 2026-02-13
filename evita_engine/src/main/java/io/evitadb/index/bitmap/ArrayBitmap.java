@@ -29,11 +29,10 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 
 /**
- * This class bridges {@link ArrayBitmap} interface over {@link CompositeIntArray} delegate.
+ * This class bridges {@link Bitmap} interface over {@link CompositeIntArray} delegate.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -136,7 +135,7 @@ public class ArrayBitmap implements Bitmap {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.intArray);
+		return this.intArray.hashCode();
 	}
 
 	@Override

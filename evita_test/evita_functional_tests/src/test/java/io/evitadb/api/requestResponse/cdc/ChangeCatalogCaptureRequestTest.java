@@ -23,225 +23,311 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
+import io.evitadb.test.EvitaTestSupport;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Test for {@link ChangeCatalogCaptureRequest} and its builder.
+ * Tests for {@link ChangeCatalogCaptureRequest} and its builder covering builder defaults,
+ * equality, and toString.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-class ChangeCatalogCaptureRequestTest {
+@DisplayName("ChangeCatalogCaptureRequest")
+class ChangeCatalogCaptureRequestTest implements EvitaTestSupport {
 
-	@Test
-	void shouldBuildWithDefaults() {
-		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
-			.build();
+	@Nested
+	@DisplayName("Builder")
+	class Builder {
 
-		assertNotNull(request);
-		assertNull(request.sinceVersion());
-		assertNull(request.sinceIndex());
-		assertNull(request.criteria());
-		assertEquals(ChangeCaptureContent.HEADER, request.content());
+		@Test
+		@DisplayName("should build with defaults")
+		void shouldBuildWithDefaults() {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.build();
+
+			assertNotNull(request);
+			assertNull(request.sinceVersion());
+			assertNull(request.sinceIndex());
+			assertNull(request.criteria());
+			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with sinceVersion")
+		void shouldBuildWithSinceVersion() {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.build();
+
+			assertNotNull(request);
+			assertEquals(100L, request.sinceVersion());
+			assertNull(request.sinceIndex());
+			assertNull(request.criteria());
+			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with sinceIndex")
+		void shouldBuildWithSinceIndex() {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.sinceIndex(5)
+				.build();
+
+			assertNotNull(request);
+			assertNull(request.sinceVersion());
+			assertEquals(5, request.sinceIndex());
+			assertNull(request.criteria());
+			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with content")
+		void shouldBuildWithContent() {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertNotNull(request);
+			assertNull(request.sinceVersion());
+			assertNull(request.sinceIndex());
+			assertNull(request.criteria());
+			assertEquals(ChangeCaptureContent.BODY, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with single criterion")
+		void shouldBuildWithSingleCriterion() {
+			final ChangeCatalogCaptureCriteria criterion = ChangeCatalogCaptureCriteria.builder()
+				.dataArea()
+				.build();
+
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.criteria(criterion)
+				.build();
+
+			assertNotNull(request);
+			assertNull(request.sinceVersion());
+			assertNull(request.sinceIndex());
+			assertNotNull(request.criteria());
+			assertEquals(1, request.criteria().length);
+			assertEquals(criterion, request.criteria()[0]);
+			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with multiple criteria")
+		void shouldBuildWithMultipleCriteria() {
+			final ChangeCatalogCaptureCriteria criterion1 = ChangeCatalogCaptureCriteria.builder()
+				.dataArea()
+				.build();
+
+			final ChangeCatalogCaptureCriteria criterion2 = ChangeCatalogCaptureCriteria.builder()
+				.schemaArea()
+				.build();
+
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.criteria(criterion1, criterion2)
+				.build();
+
+			assertNotNull(request);
+			assertNull(request.sinceVersion());
+			assertNull(request.sinceIndex());
+			assertNotNull(request.criteria());
+			assertEquals(2, request.criteria().length);
+			assertArrayEquals(
+				new ChangeCatalogCaptureCriteria[]{criterion1, criterion2},
+				request.criteria()
+			);
+			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with all parameters")
+		void shouldBuildWithAllParameters() {
+			final ChangeCatalogCaptureCriteria criterion = ChangeCatalogCaptureCriteria.builder()
+				.dataArea()
+				.build();
+
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(5)
+				.criteria(criterion)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertNotNull(request);
+			assertEquals(100L, request.sinceVersion());
+			assertEquals(5, request.sinceIndex());
+			assertNotNull(request.criteria());
+			assertEquals(1, request.criteria().length);
+			assertEquals(criterion, request.criteria()[0]);
+			assertEquals(ChangeCaptureContent.BODY, request.content());
+		}
+
+		@Test
+		@DisplayName("should build multiple instances independently")
+		void shouldBuildMultipleInstancesIndependently() {
+			final ChangeCatalogCaptureCriteria criterion1 = ChangeCatalogCaptureCriteria.builder()
+				.dataArea()
+				.build();
+
+			final ChangeCatalogCaptureCriteria criterion2 = ChangeCatalogCaptureCriteria.builder()
+				.schemaArea()
+				.build();
+
+			final ChangeCatalogCaptureRequest request1 = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.criteria(criterion1)
+				.build();
+
+			final ChangeCatalogCaptureRequest request2 = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(200L)
+				.sinceIndex(10)
+				.criteria(criterion2)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertEquals(100L, request1.sinceVersion());
+			assertNull(request1.sinceIndex());
+			assertEquals(1, request1.criteria().length);
+			assertEquals(criterion1, request1.criteria()[0]);
+			assertEquals(ChangeCaptureContent.HEADER, request1.content());
+
+			assertEquals(200L, request2.sinceVersion());
+			assertEquals(10, request2.sinceIndex());
+			assertEquals(1, request2.criteria().length);
+			assertEquals(criterion2, request2.criteria()[0]);
+			assertEquals(ChangeCaptureContent.BODY, request2.content());
+		}
 	}
 
-	@Test
-	void shouldBuildWithSinceVersion() {
-		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(100L)
-			.build();
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityAndHashCode {
 
-		assertNotNull(request);
-		assertEquals(100L, request.sinceVersion());
-		assertNull(request.sinceIndex());
-		assertNull(request.criteria());
-		assertEquals(ChangeCaptureContent.HEADER, request.content());
+		@Test
+		@DisplayName("should be equal for identical requests")
+		void shouldHaveCorrectEquality() {
+			final ChangeCatalogCaptureCriteria criterion = ChangeCatalogCaptureCriteria.builder()
+				.dataArea()
+				.build();
+
+			final ChangeCatalogCaptureRequest request1 = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(5)
+				.criteria(criterion)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			final ChangeCatalogCaptureRequest request2 = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(5)
+				.criteria(criterion)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertEquals(request1, request2);
+			assertEquals(request1.hashCode(), request2.hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal when fields differ")
+		void shouldHaveCorrectInequality() {
+			final ChangeCatalogCaptureCriteria criterion1 = ChangeCatalogCaptureCriteria.builder()
+				.dataArea()
+				.build();
+
+			final ChangeCatalogCaptureCriteria criterion2 = ChangeCatalogCaptureCriteria.builder()
+				.schemaArea()
+				.build();
+
+			final ChangeCatalogCaptureRequest request1 = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.criteria(criterion1)
+				.build();
+
+			final ChangeCatalogCaptureRequest request2 = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(200L)
+				.criteria(criterion1)
+				.build();
+
+			final ChangeCatalogCaptureRequest request3 = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.criteria(criterion2)
+				.build();
+
+			final ChangeCatalogCaptureRequest request4 = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.criteria(criterion1)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertNotEquals(request1, request2);
+			assertNotEquals(request1, request3);
+			assertNotEquals(request1, request4);
+		}
+
+		@Test
+		@DisplayName("should not be equal to null")
+		void shouldNotBeEqualToNull() {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.build();
+
+			assertNotEquals(null, request);
+		}
+
+		@Test
+		@DisplayName("should not be equal to different type")
+		void shouldNotBeEqualToDifferentType() {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.build();
+
+			assertNotEquals("not a request", request);
+		}
+
+		@Test
+		@DisplayName("should be reflexive")
+		void shouldBeReflexive() {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.build();
+
+			assertEquals(request, request);
+		}
 	}
 
-	@Test
-	void shouldBuildWithSinceIndex() {
-		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
-			.sinceIndex(5)
-			.build();
+	@Nested
+	@DisplayName("toString")
+	class ToString {
 
-		assertNotNull(request);
-		assertNull(request.sinceVersion());
-		assertEquals(5, request.sinceIndex());
-		assertNull(request.criteria());
-		assertEquals(ChangeCaptureContent.HEADER, request.content());
+		@Test
+		@DisplayName("should produce readable toString with criteria")
+		void shouldProduceReadableToString() {
+			final ChangeCatalogCaptureCriteria criterion = ChangeCatalogCaptureCriteria.builder()
+				.dataArea()
+				.build();
+
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(5)
+				.criteria(criterion)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			final String result = request.toString();
+			assertTrue(result.contains("sinceVersion=100"));
+			assertTrue(result.contains("sinceIndex=5"));
+			assertTrue(result.contains("content=BODY"));
+			assertTrue(result.contains("criteria="));
+		}
 	}
-
-	@Test
-	void shouldBuildWithContent() {
-		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertNotNull(request);
-		assertNull(request.sinceVersion());
-		assertNull(request.sinceIndex());
-		assertNull(request.criteria());
-		assertEquals(ChangeCaptureContent.BODY, request.content());
-	}
-
-	@Test
-	void shouldBuildWithSingleCriterion() {
-		final ChangeCatalogCaptureCriteria criterion = ChangeCatalogCaptureCriteria.builder()
-			.dataArea()
-			.build();
-
-		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
-			.criteria(criterion)
-			.build();
-
-		assertNotNull(request);
-		assertNull(request.sinceVersion());
-		assertNull(request.sinceIndex());
-		assertNotNull(request.criteria());
-		assertEquals(1, request.criteria().length);
-		assertEquals(criterion, request.criteria()[0]);
-		assertEquals(ChangeCaptureContent.HEADER, request.content());
-	}
-
-	@Test
-	void shouldBuildWithMultipleCriteria() {
-		final ChangeCatalogCaptureCriteria criterion1 = ChangeCatalogCaptureCriteria.builder()
-			.dataArea()
-			.build();
-
-		final ChangeCatalogCaptureCriteria criterion2 = ChangeCatalogCaptureCriteria.builder()
-			.schemaArea()
-			.build();
-
-		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
-			.criteria(criterion1, criterion2)
-			.build();
-
-		assertNotNull(request);
-		assertNull(request.sinceVersion());
-		assertNull(request.sinceIndex());
-		assertNotNull(request.criteria());
-		assertEquals(2, request.criteria().length);
-		assertArrayEquals(new ChangeCatalogCaptureCriteria[]{criterion1, criterion2}, request.criteria());
-		assertEquals(ChangeCaptureContent.HEADER, request.content());
-	}
-
-	@Test
-	void shouldBuildWithAllParameters() {
-		final ChangeCatalogCaptureCriteria criterion = ChangeCatalogCaptureCriteria.builder()
-			.dataArea()
-			.build();
-
-		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(100L)
-			.sinceIndex(5)
-			.criteria(criterion)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertNotNull(request);
-		assertEquals(100L, request.sinceVersion());
-		assertEquals(5, request.sinceIndex());
-		assertNotNull(request.criteria());
-		assertEquals(1, request.criteria().length);
-		assertEquals(criterion, request.criteria()[0]);
-		assertEquals(ChangeCaptureContent.BODY, request.content());
-	}
-
-	@Test
-	void shouldHaveCorrectEquality() {
-		final ChangeCatalogCaptureCriteria criterion = ChangeCatalogCaptureCriteria.builder()
-			.dataArea()
-			.build();
-
-		final ChangeCatalogCaptureRequest request1 = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(100L)
-			.sinceIndex(5)
-			.criteria(criterion)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		final ChangeCatalogCaptureRequest request2 = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(100L)
-			.sinceIndex(5)
-			.criteria(criterion)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertEquals(request1, request2);
-		assertEquals(request1.hashCode(), request2.hashCode());
-	}
-
-	@Test
-	void shouldHaveCorrectInequality() {
-		final ChangeCatalogCaptureCriteria criterion1 = ChangeCatalogCaptureCriteria.builder()
-			.dataArea()
-			.build();
-
-		final ChangeCatalogCaptureCriteria criterion2 = ChangeCatalogCaptureCriteria.builder()
-			.schemaArea()
-			.build();
-
-		final ChangeCatalogCaptureRequest request1 = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(100L)
-			.criteria(criterion1)
-			.build();
-
-		final ChangeCatalogCaptureRequest request2 = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(200L)
-			.criteria(criterion1)
-			.build();
-
-		final ChangeCatalogCaptureRequest request3 = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(100L)
-			.criteria(criterion2)
-			.build();
-
-		final ChangeCatalogCaptureRequest request4 = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(100L)
-			.criteria(criterion1)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertNotEquals(request1, request2);
-		assertNotEquals(request1, request3);
-		assertNotEquals(request1, request4);
-	}
-
-	@Test
-	void shouldBuildMultipleInstancesIndependently() {
-		final ChangeCatalogCaptureCriteria criterion1 = ChangeCatalogCaptureCriteria.builder()
-			.dataArea()
-			.build();
-
-		final ChangeCatalogCaptureCriteria criterion2 = ChangeCatalogCaptureCriteria.builder()
-			.schemaArea()
-			.build();
-
-		final ChangeCatalogCaptureRequest request1 = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(100L)
-			.criteria(criterion1)
-			.build();
-
-		final ChangeCatalogCaptureRequest request2 = ChangeCatalogCaptureRequest.builder()
-			.sinceVersion(200L)
-			.sinceIndex(10)
-			.criteria(criterion2)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertEquals(100L, request1.sinceVersion());
-		assertNull(request1.sinceIndex());
-		assertEquals(1, request1.criteria().length);
-		assertEquals(criterion1, request1.criteria()[0]);
-		assertEquals(ChangeCaptureContent.HEADER, request1.content());
-
-		assertEquals(200L, request2.sinceVersion());
-		assertEquals(10, request2.sinceIndex());
-		assertEquals(1, request2.criteria().length);
-		assertEquals(criterion2, request2.criteria()[0]);
-		assertEquals(ChangeCaptureContent.BODY, request2.content());
-	}
-
 }

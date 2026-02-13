@@ -37,6 +37,7 @@ import java.util.Arrays;
  * @param entityType    the {@link EntitySchema#getName()} of the intercepted entity type
  * @param operation     the intercepted type of {@link Operation}
  * @param containerType the intercepted {@link ContainerType} of the entity data
+ * @param containerName the intercepted name of the container (e.g. `attribute`, `reference`, `associatedData`)
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record SchemaSite(
@@ -45,6 +46,7 @@ public record SchemaSite(
 	@Nullable ContainerType[] containerType,
 	@Nullable String[] containerName
 ) implements CaptureSite<SchemaSite> {
+	@Nonnull
 	public static final SchemaSite ALL = new SchemaSite(null, null, null, null);
 
 	public SchemaSite {
@@ -55,10 +57,14 @@ public record SchemaSite(
 			Arrays.sort(containerType);
 		}
 		if (containerName != null) {
-			java.util.Arrays.sort(containerName);
+			Arrays.sort(containerName);
 		}
 	}
 
+	/**
+	 * Compares this schema site with another schema site for ordering. Comparison is performed field by field:
+	 * entityType, operation, containerType, containerName. Null values are ordered before non-null values.
+	 */
 	@Override
 	public int compareTo(@Nonnull SchemaSite other) {
 		if (this == other) return 0;
@@ -84,9 +90,9 @@ public record SchemaSite(
 	}
 
 	/**
-	 * Creates builder object that helps you create DataSite record using builder pattern.
+	 * Creates builder object that helps you create SchemaSite record using builder pattern.
 	 *
-	 * @return new instance of {@link DataSite.Builder}
+	 * @return new instance of {@link SchemaSite.Builder}
 	 */
 	@Nonnull
 	public static SchemaSite.Builder builder() {
@@ -151,9 +157,9 @@ public record SchemaSite(
 		}
 
 		/**
-		 * Builds the {@link DataSite} record.
+		 * Builds the {@link SchemaSite} record.
 		 *
-		 * @return the {@link DataSite} record
+		 * @return the {@link SchemaSite} record
 		 */
 		@Nonnull
 		public SchemaSite build() {
@@ -164,6 +170,36 @@ public record SchemaSite(
 				this.containerName
 			);
 		}
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof SchemaSite that)) return false;
+
+		return java.util.Objects.equals(this.entityType, that.entityType) &&
+			Arrays.equals(this.operation, that.operation) &&
+			Arrays.equals(this.containerType, that.containerType) &&
+			Arrays.equals(this.containerName, that.containerName);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = java.util.Objects.hashCode(this.entityType);
+		result = 31 * result + Arrays.hashCode(this.operation);
+		result = 31 * result + Arrays.hashCode(this.containerType);
+		result = 31 * result + Arrays.hashCode(this.containerName);
+		return result;
+	}
+
+	@Nonnull
+	@Override
+	public String toString() {
+		return "SchemaSite{" +
+			"entityType='" + this.entityType + '\'' +
+			", operation=" + Arrays.toString(this.operation) +
+			", containerType=" + Arrays.toString(this.containerType) +
+			", containerName=" + Arrays.toString(this.containerName) +
+			'}';
 	}
 
 }

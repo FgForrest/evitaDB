@@ -25,7 +25,6 @@ package io.evitadb.dataType.bPlusTree;
 
 
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -48,6 +47,11 @@ import static io.evitadb.utils.ArrayUtils.*;
 /**
  * Represents a B+ Tree data structure specifically designed for integer keys and generic values.
  * The tree is balanced and allows for efficient insertion, deletion, and search operations.
+ *
+ * NOTE: This class is structurally paired with {@link ObjectBPlusTree}. When modifying this file,
+ * check whether the same change should be applied to its counterpart. The key difference is that
+ * this class uses primitive `int[]` keys while ObjectBPlusTree uses generic `K[]` keys
+ * (where K extends Comparable).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -1337,7 +1341,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 *
 		 * @param key the key of the entry to be removed from the leaf node
 		 * @return true if the key was found and removed, false otherwise
-		 * @throws GenericEvitaInternalError if the key is not found in the node
 		 */
 		public boolean delete(int key) {
 			final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
@@ -1744,7 +1747,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 					} else {
 						// we need to continue search with the parent of the parent
 						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
+						parentLevel = level >= 0 ? this.path[level] : null;
 					}
 				}
 				this.hasNext = false;
@@ -1827,7 +1830,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 					} else {
 						// we need to continue search with the parent of the parent
 						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
+						parentLevel = level >= 0 ? this.path[level] : null;
 					}
 				}
 				this.hasNext = false;
@@ -1932,7 +1935,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 					} else {
 						// we need to continue search with the parent of the parent
 						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
+						parentLevel = level >= 0 ? this.path[level] : null;
 					}
 				}
 				this.hasNext = false;
@@ -2016,7 +2019,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 					} else {
 						// we need to continue search with the parent of the parent
 						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
+						parentLevel = level >= 0 ? this.path[level] : null;
 					}
 				}
 				this.hasNext = false;

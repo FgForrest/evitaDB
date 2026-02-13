@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -260,6 +260,37 @@ public final class EvitaSessionServiceGrpc {
     return getBackupCatalogMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogWithProgressMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "BackupCatalogWithProgress",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogWithProgressMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> getBackupCatalogWithProgressMethod;
+    if ((getBackupCatalogWithProgressMethod = EvitaSessionServiceGrpc.getBackupCatalogWithProgressMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getBackupCatalogWithProgressMethod = EvitaSessionServiceGrpc.getBackupCatalogWithProgressMethod) == null) {
+          EvitaSessionServiceGrpc.getBackupCatalogWithProgressMethod = getBackupCatalogWithProgressMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "BackupCatalogWithProgress"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("BackupCatalogWithProgress"))
+              .build();
+        }
+      }
+    }
+    return getBackupCatalogWithProgressMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
       io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> getFullBackupCatalogMethod;
 
@@ -289,6 +320,37 @@ public final class EvitaSessionServiceGrpc {
       }
     }
     return getFullBackupCatalogMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> getFullBackupCatalogWithProgressMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "FullBackupCatalogWithProgress",
+      requestType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> getFullBackupCatalogWithProgressMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> getFullBackupCatalogWithProgressMethod;
+    if ((getFullBackupCatalogWithProgressMethod = EvitaSessionServiceGrpc.getFullBackupCatalogWithProgressMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getFullBackupCatalogWithProgressMethod = EvitaSessionServiceGrpc.getFullBackupCatalogWithProgressMethod) == null) {
+          EvitaSessionServiceGrpc.getFullBackupCatalogWithProgressMethod = getFullBackupCatalogWithProgressMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "FullBackupCatalogWithProgress"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("FullBackupCatalogWithProgress"))
+              .build();
+        }
+      }
+    }
+    return getFullBackupCatalogWithProgressMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseRequest,
@@ -1396,12 +1458,32 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to backup an existing catalog, streaming progress updates.
+     * </pre>
+     */
+    default void backupCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getBackupCatalogWithProgressMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to backup an existing catalog.
      * </pre>
      */
     default void fullBackupCatalog(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getFullBackupCatalogMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to fully backup an existing catalog, streaming progress updates.
+     * </pre>
+     */
+    default void fullBackupCatalogWithProgress(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getFullBackupCatalogWithProgressMethod(), responseObserver);
     }
 
     /**
@@ -1841,6 +1923,17 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to backup an existing catalog, streaming progress updates.
+     * </pre>
+     */
+    public void backupCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getBackupCatalogWithProgressMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to backup an existing catalog.
      * </pre>
      */
@@ -1848,6 +1941,17 @@ public final class EvitaSessionServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getFullBackupCatalogMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to fully backup an existing catalog, streaming progress updates.
+     * </pre>
+     */
+    public void fullBackupCatalogWithProgress(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getFullBackupCatalogWithProgressMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -2294,12 +2398,36 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to backup an existing catalog, streaming progress updates.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>
+        backupCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getBackupCatalogWithProgressMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to backup an existing catalog.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse fullBackupCatalog(com.google.protobuf.Empty request) throws io.grpc.StatusException {
       return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getFullBackupCatalogMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to fully backup an existing catalog, streaming progress updates.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse>
+        fullBackupCatalogWithProgress(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getFullBackupCatalogWithProgressMethod(), getCallOptions(), request);
     }
 
     /**
@@ -2720,12 +2848,34 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to backup an existing catalog, streaming progress updates.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> backupCatalogWithProgress(
+        io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getBackupCatalogWithProgressMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to backup an existing catalog.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse fullBackupCatalog(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getFullBackupCatalogMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to fully backup an existing catalog, streaming progress updates.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse> fullBackupCatalogWithProgress(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getFullBackupCatalogWithProgressMethod(), getCallOptions(), request);
     }
 
     /**
@@ -3465,38 +3615,40 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_GO_LIVE_AND_CLOSE = 4;
   private static final int METHODID_GO_LIVE_AND_CLOSE_WITH_PROGRESS = 5;
   private static final int METHODID_BACKUP_CATALOG = 6;
-  private static final int METHODID_FULL_BACKUP_CATALOG = 7;
-  private static final int METHODID_CLOSE = 8;
-  private static final int METHODID_CLOSE_WITH_PROGRESS = 9;
-  private static final int METHODID_QUERY_ONE = 10;
-  private static final int METHODID_QUERY_LIST = 11;
-  private static final int METHODID_QUERY = 12;
-  private static final int METHODID_QUERY_ONE_UNSAFE = 13;
-  private static final int METHODID_QUERY_LIST_UNSAFE = 14;
-  private static final int METHODID_QUERY_UNSAFE = 15;
-  private static final int METHODID_GET_ENTITY = 16;
-  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 17;
-  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 18;
-  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 19;
-  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 20;
-  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 21;
-  private static final int METHODID_DELETE_COLLECTION = 22;
-  private static final int METHODID_RENAME_COLLECTION = 23;
-  private static final int METHODID_REPLACE_COLLECTION = 24;
-  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 25;
-  private static final int METHODID_UPSERT_ENTITY = 26;
-  private static final int METHODID_DELETE_ENTITY = 27;
-  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 28;
-  private static final int METHODID_DELETE_ENTITIES = 29;
-  private static final int METHODID_ARCHIVE_ENTITY = 30;
-  private static final int METHODID_RESTORE_ENTITY = 31;
-  private static final int METHODID_APPLY_MUTATION = 32;
-  private static final int METHODID_GET_TRANSACTION_ID = 33;
-  private static final int METHODID_GET_CATALOG_VERSION_AT = 34;
-  private static final int METHODID_GET_MUTATIONS_HISTORY_PAGE = 35;
-  private static final int METHODID_GET_MUTATIONS_HISTORY = 36;
-  private static final int METHODID_GET_TRANSACTION_OVERVIEW = 37;
-  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 38;
+  private static final int METHODID_BACKUP_CATALOG_WITH_PROGRESS = 7;
+  private static final int METHODID_FULL_BACKUP_CATALOG = 8;
+  private static final int METHODID_FULL_BACKUP_CATALOG_WITH_PROGRESS = 9;
+  private static final int METHODID_CLOSE = 10;
+  private static final int METHODID_CLOSE_WITH_PROGRESS = 11;
+  private static final int METHODID_QUERY_ONE = 12;
+  private static final int METHODID_QUERY_LIST = 13;
+  private static final int METHODID_QUERY = 14;
+  private static final int METHODID_QUERY_ONE_UNSAFE = 15;
+  private static final int METHODID_QUERY_LIST_UNSAFE = 16;
+  private static final int METHODID_QUERY_UNSAFE = 17;
+  private static final int METHODID_GET_ENTITY = 18;
+  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 19;
+  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 20;
+  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 21;
+  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 22;
+  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 23;
+  private static final int METHODID_DELETE_COLLECTION = 24;
+  private static final int METHODID_RENAME_COLLECTION = 25;
+  private static final int METHODID_REPLACE_COLLECTION = 26;
+  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 27;
+  private static final int METHODID_UPSERT_ENTITY = 28;
+  private static final int METHODID_DELETE_ENTITY = 29;
+  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 30;
+  private static final int METHODID_DELETE_ENTITIES = 31;
+  private static final int METHODID_ARCHIVE_ENTITY = 32;
+  private static final int METHODID_RESTORE_ENTITY = 33;
+  private static final int METHODID_APPLY_MUTATION = 34;
+  private static final int METHODID_GET_TRANSACTION_ID = 35;
+  private static final int METHODID_GET_CATALOG_VERSION_AT = 36;
+  private static final int METHODID_GET_MUTATIONS_HISTORY_PAGE = 37;
+  private static final int METHODID_GET_MUTATIONS_HISTORY = 38;
+  private static final int METHODID_GET_TRANSACTION_OVERVIEW = 39;
+  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 40;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -3543,8 +3695,16 @@ public final class EvitaSessionServiceGrpc {
           serviceImpl.backupCatalog((io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>) responseObserver);
           break;
+        case METHODID_BACKUP_CATALOG_WITH_PROGRESS:
+          serviceImpl.backupCatalogWithProgress((io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>) responseObserver);
+          break;
         case METHODID_FULL_BACKUP_CATALOG:
           serviceImpl.fullBackupCatalog((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse>) responseObserver);
+          break;
+        case METHODID_FULL_BACKUP_CATALOG_WITH_PROGRESS:
+          serviceImpl.fullBackupCatalogWithProgress((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse>) responseObserver);
           break;
         case METHODID_CLOSE:
@@ -3739,12 +3899,26 @@ public final class EvitaSessionServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>(
                 service, METHODID_BACKUP_CATALOG)))
         .addMethod(
+          getBackupCatalogWithProgressMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>(
+                service, METHODID_BACKUP_CATALOG_WITH_PROGRESS)))
+        .addMethod(
           getFullBackupCatalogMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
             new MethodHandlers<
               com.google.protobuf.Empty,
               io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse>(
                 service, METHODID_FULL_BACKUP_CATALOG)))
+        .addMethod(
+          getFullBackupCatalogWithProgressMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              com.google.protobuf.Empty,
+              io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse>(
+                service, METHODID_FULL_BACKUP_CATALOG_WITH_PROGRESS)))
         .addMethod(
           getCloseMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -4017,7 +4191,9 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getGoLiveAndCloseMethod())
               .addMethod(getGoLiveAndCloseWithProgressMethod())
               .addMethod(getBackupCatalogMethod())
+              .addMethod(getBackupCatalogWithProgressMethod())
               .addMethod(getFullBackupCatalogMethod())
+              .addMethod(getFullBackupCatalogWithProgressMethod())
               .addMethod(getCloseMethod())
               .addMethod(getCloseWithProgressMethod())
               .addMethod(getQueryOneMethod())

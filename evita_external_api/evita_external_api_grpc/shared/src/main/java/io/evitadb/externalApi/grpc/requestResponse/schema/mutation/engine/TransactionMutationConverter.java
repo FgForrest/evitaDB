@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine;
 
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.MutationConverter;
 import lombok.AccessLevel;

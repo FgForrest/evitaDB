@@ -33,7 +33,37 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Exception is thrown when there is attempt to fetch price outside {@link EntityFetch} container.
+ * Exception thrown when a `priceContent` requirement is used outside of a valid entity fetch container.
+ *
+ * In evitaDB queries, price data can only be fetched when operating within an entity context. The `priceContent`
+ * requirement must be nested inside either {@link EntityFetch} or `entityGroupFetch` containers. Attempting to
+ * fetch prices at the wrong query level (e.g., at the root level or within non-entity contexts) violates this
+ * constraint and triggers this exception.
+ *
+ * **Valid Usage:**
+ * ```
+ * query(
+ *   require(
+ *     entityFetch(
+ *       priceContent(PriceContentMode.RESPECTING_FILTER)
+ *     )
+ *   )
+ * )
+ * ```
+ *
+ * **Invalid Usage:**
+ * ```
+ * query(
+ *   require(
+ *     priceContent(PriceContentMode.RESPECTING_FILTER)  // INVALID: not inside entityFetch
+ *   )
+ * )
+ * ```
+ *
+ * **Usage Context:**
+ * - {@link io.evitadb.core.query.extraResult.translator.reference.PriceContentTranslator}: validates that
+ *   `priceContent` requirements are properly nested during query planning
+ * - Thrown during query translation when constraint hierarchy is validated
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -41,6 +71,12 @@ public class PriceContentMisplacedException extends EvitaInvalidUsageException {
 
 	@Serial private static final long serialVersionUID = -4235850574041141230L;
 
+	/**
+	 * Creates a new exception indicating that `priceContent` was used outside of a valid container.
+	 *
+	 * @param constraintChain the chain of constraints from root to the misplaced `priceContent`, used to
+	 *                        provide context in the error message showing where the requirement was found
+	 */
 	public PriceContentMisplacedException(@Nonnull Stream<RequireConstraint> constraintChain) {
 		super(
 			"The `priceContent` needs to be wrapped inside `entityFetch` or `entityGroupFetch` container: " +

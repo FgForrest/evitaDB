@@ -24,6 +24,7 @@
 package io.evitadb.utils;
 
 import io.evitadb.exception.EvitaInternalError;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("ClassUtils contract tests")
 public class ClassUtilsTest {
 
 	@Test

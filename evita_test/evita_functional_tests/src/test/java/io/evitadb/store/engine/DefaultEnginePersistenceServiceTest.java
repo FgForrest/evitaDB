@@ -28,7 +28,7 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;

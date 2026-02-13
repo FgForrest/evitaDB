@@ -33,7 +33,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Attribute histogram is just index for {@link Histogram} objects for multiple attributes.
@@ -66,8 +65,16 @@ public class AttributeHistogram implements EvitaResponseExtraResult {
 
 	@Override
 	public String toString() {
-		return this.histograms.entrySet().stream()
-			.map(it -> it.getKey() + ": " + it.getValue().toString())
-			.collect(Collectors.joining("\n"));
+		final StringBuilder sb = new StringBuilder(256);
+		boolean first = true;
+		for (final Map.Entry<String, HistogramContract> entry : this.histograms.entrySet()) {
+			if (first) {
+				first = false;
+			} else {
+				sb.append('\n');
+			}
+			sb.append(entry.getKey()).append(": ").append(entry.getValue().toString());
+		}
+		return sb.toString();
 	}
 }

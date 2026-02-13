@@ -66,9 +66,9 @@ public interface SortableAttributeCompoundSchemaContract
 	/**
 	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
 	 *
-	 * This method returns true only if the attribute compound is sortable in any scope
+	 * This method returns true only if the attribute compound is sortable in any scope.
 	 *
-	 * @return true if attribute is indexed in the default (i.e. {@link Scope#LIVE}) scope
+	 * @return true if attribute compound is indexed in any scope
 	 */
 	default boolean isIndexedInAnyScope() {
 		return Arrays.stream(Scope.values()).anyMatch(this::isIndexedInScope);

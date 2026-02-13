@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.core.transaction.Transaction;
-import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.LongIntLongObjectFunction;
 import io.evitadb.spi.store.catalog.trafficRecorder.RandomAccessFileSessionSink;
@@ -90,6 +89,13 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class DiskRingBuffer {
+	/**
+	 * Size of the lead descriptor written before each session's traffic records. The descriptor consists of:
+	 *
+	 * - 8 bytes for the sequence order (`long`)
+	 * - 4 bytes for the session records count (`int`)
+	 * - 4 bytes for the total size of the serialized session traffic records (`int`)
+	 */
 	public static final int LEAD_DESCRIPTOR_BYTE_SIZE = 16;
 	/**
 	 * Byte buffer used for writing the descriptor to the disk buffer file.
@@ -129,7 +135,8 @@ public class DiskRingBuffer {
 	 */
 	@Getter private final RandomAccessFile diskBufferFile;
 	/**
-	 * Read input stream used for reading from the disk buffer file.
+	 * Factory for creating new read input streams for reading from the disk buffer file.
+	 * Each invocation creates a fresh {@link RandomAccessFileInputStream} instance.
 	 */
 	private final Supplier<RandomAccessFileInputStream> diskBufferFileReadInputStreamFactory;
 	/**
@@ -254,9 +261,9 @@ public class DiskRingBuffer {
 			}
 			sessionSink.initSourceInputStream(this.sessionSinkInputStream);
 		} else {
-			final SessionSink currentSessionSing = this.sessionSink.get();
-			if (currentSessionSing != null) {
-				currentSessionSing.onClose(this.sessionLocations, this.lastRealSamplingRate);
+			final SessionSink currentSessionSink = this.sessionSink.get();
+			if (currentSessionSink != null) {
+				currentSessionSink.onClose(this.sessionLocations, this.lastRealSamplingRate);
 			}
 		}
 		this.sessionSink.set(sessionSink);
@@ -302,10 +309,12 @@ public class DiskRingBuffer {
 	 * Appends a new session descriptor to the disk buffer file. The descriptor consists of:
 	 *
 	 * - 8 bytes for the sequence order (mono-increasing number of appended sessions)
+	 * - 4 bytes for the session records count
 	 * - 4 bytes for the total size of the serialized session traffic records in Bytes
 	 *
-	 * @param totalSize total size of the serialized session traffic records in Bytes
-	 * @return sequence order of the appended session
+	 * @param sessionRecordsCount the number of traffic records in the session
+	 * @param totalSize           total size of the serialized session traffic records in Bytes
+	 * @return the {@link SessionLocation} describing the position and metadata of the appended session
 	 */
 	@Nonnull
 	public SessionLocation appendSession(int sessionRecordsCount, int totalSize) {
@@ -386,6 +395,7 @@ public class DiskRingBuffer {
 	 * @param created           the creation time of the session
 	 * @param durationInMillis  the duration of the session in milliseconds
 	 * @param recordingTypes    the set of recording types associated with the session
+	 * @param labels            the set of labels associated with the session
 	 * @param fetchCount        the number of fetch operations that occurred during the session
 	 * @param bytesFetchedTotal the total number of bytes fetched during the session
 	 */
@@ -434,8 +444,8 @@ public class DiskRingBuffer {
 
 	/**
 	 * Retrieves a stream of TrafficRecording objects based on the criteria specified in the given request.
-	 * The TrafficRecording objects are filtered according to the criteria from the request. Method creates missing
-	 * memory index if it is not present yet.
+	 * The TrafficRecording objects are filtered according to the criteria from the request. Requires the memory
+	 * index to be present; throws {@link IndexNotReady} if the index has not been built yet.
 	 *
 	 * @param request the TrafficRecordingCaptureRequest containing criteria to filter the recordings.
 	 * @param reader  a function that retrieves a StorageRecord of TrafficRecording given a long identifier.
@@ -465,8 +475,9 @@ public class DiskRingBuffer {
 
 	/**
 	 * Retrieves a stream of TrafficRecording objects based on the criteria specified in the given request.
-	 * The TrafficRecording objects are filtered according to the criteria from the request. Method creates missing
-	 * memory index if it is not present yet. The stream is ordered in reversed order (newest records first).
+	 * The TrafficRecording objects are filtered according to the criteria from the request. Requires the memory
+	 * index to be present; throws {@link IndexNotReady} if the index has not been built yet. The stream is
+	 * ordered in reversed order (newest records first).
 	 *
 	 * @param request the TrafficRecordingCaptureRequest containing criteria to filter the recordings.
 	 * @param reader  a function that retrieves a StorageRecord of TrafficRecording given a long identifier.
@@ -670,9 +681,10 @@ public class DiskRingBuffer {
 	/**
 	 * Updates the session locations within the disk buffer and adjusts the position
 	 * of the ring buffer tail according to the specified amount of bytes to write.
-	 * This method removes all session locations that are no longer relevant based on
-	 * the current head and tail positions of the ring buffer and if the session index
-	 * is present, it removes the session from the index as well.
+	 * This method removes the oldest session locations from the front of the deque
+	 * that overlap with the area being written to, stopping at the first session
+	 * that does not overlap. If the session index is present, removed sessions
+	 * are also evicted from the index.
 	 *
 	 * @param totalBytesToWrite the total number of bytes that are written to the ring buffer,
 	 *                          used to adjust the position of the ring buffer tail.
@@ -683,20 +695,33 @@ public class DiskRingBuffer {
 			return;
 		}
 		final long newTail = this.ringBufferTail + totalBytesToWrite;
+
+		// pre-compute erased area as 1 or 2 inclusive ranges (loop-invariant)
+		final long erased1From = this.ringBufferTail;
+		final long erased1To;
+		final long erased2From;
+		final long erased2To;
+		final boolean hasSecondErasedSegment;
+
+		if (newTail <= this.diskBufferFileSize) {
+			erased1To = newTail - 1;
+			hasSecondErasedSegment = false;
+			erased2From = 0;
+			erased2To = -1;
+		} else {
+			erased1To = this.diskBufferFileSize - 1;
+			erased2From = 0L;
+			erased2To = newTail - this.diskBufferFileSize - 1;
+			// skip degenerate second segment
+			hasSecondErasedSegment = erased2From <= erased2To;
+		}
+
 		SessionLocation head = this.sessionLocations.peekFirst();
 		while (head != null) {
 			final TrafficRecordingIndex index = this.sessionIndex.get();
-			final LongNumberRange[] erasedArea = newTail <= this.diskBufferFileSize ?
-				new LongNumberRange[]{LongNumberRange.between(this.ringBufferTail + 1, newTail)} :
-				Stream.of(
-						LongNumberRange.between(this.ringBufferTail + 1, this.diskBufferFileSize),
-						LongNumberRange.between(0L, newTail - this.diskBufferFileSize)
-					)
-					.filter(it -> it.getFrom() < it.getTo())
-					.toArray(LongNumberRange[]::new);
 
-			// if the session precedes the head of the ring buffer, remove it
-			if (isWasted(erasedArea, head.location())) {
+			// if the session overlaps the erased area, remove it
+			if (isWasted(erased1From, erased1To, hasSecondErasedSegment, erased2From, erased2To, head.location())) {
 				this.sessionLocations.removeFirst();
 				// remove the session from the index if present
 				if (index != null) {
@@ -709,7 +734,9 @@ public class DiskRingBuffer {
 			}
 		}
 
-		this.ringBufferHead = this.sessionLocations.isEmpty() ? this.ringBufferHead : this.sessionLocations.peekFirst().location().startingPosition();
+		this.ringBufferHead = this.sessionLocations.isEmpty()
+			? this.ringBufferHead
+			: this.sessionLocations.peekFirst().location().startingPosition();
 		this.ringBufferTail = (this.ringBufferTail + totalBytesToWrite) % this.diskBufferFileSize;
 
 		final SessionSink theSink = this.sessionSink.get();
@@ -719,21 +746,51 @@ public class DiskRingBuffer {
 	}
 
 	/**
-	 * Determines whether a given recordPosition is outside the valid range
-	 * of the ring buffer based on the current head and tail positions.
+	 * Determines whether a given record position overlaps with the specified waste area.
+	 * The waste area represents the region of the ring buffer that is about to be overwritten.
+	 * Both the waste area and the record position may wrap around the end of the buffer,
+	 * so each is represented as one or two inclusive range segments using primitive longs.
 	 *
-	 * @param recordPosition the recordPosition to check against the ring buffer's valid range
-	 * @return true if the recordPosition is outside the valid range of the ring buffer; false otherwise
+	 * @param erased1From             start of the first erased segment (inclusive)
+	 * @param erased1To               end of the first erased segment (inclusive)
+	 * @param hasSecondErasedSegment   true if a second erased segment exists (wrap-around)
+	 * @param erased2From             start of the second erased segment (inclusive)
+	 * @param erased2To               end of the second erased segment (inclusive)
+	 * @param recordPosition          the record position to check for overlap with the waste area
+	 * @return true if the record position overlaps with the waste area; false otherwise
 	 */
-	private boolean isWasted(@Nonnull LongNumberRange[] waste, @Nonnull SessionFileLocation recordPosition) {
-		final LongNumberRange[] recordRanges = recordPosition.endPosition() <= this.diskBufferFileSize ?
-			new LongNumberRange[]{LongNumberRange.between(recordPosition.startingPosition(), recordPosition.endPosition())} :
-			new LongNumberRange[]{
-				LongNumberRange.between(recordPosition.startingPosition(), this.diskBufferFileSize),
-				LongNumberRange.between(0L, recordPosition.endPosition() - this.diskBufferFileSize)
-			};
-		return Arrays.stream(waste)
-			.anyMatch(wasteRange -> Arrays.stream(recordRanges).anyMatch(wasteRange::overlaps));
+	private boolean isWasted(
+		long erased1From, long erased1To,
+		boolean hasSecondErasedSegment, long erased2From, long erased2To,
+		@Nonnull SessionFileLocation recordPosition
+	) {
+		final long recStart = recordPosition.startingPosition();
+		final long recEnd = recordPosition.endPosition();
+
+		if (recEnd <= this.diskBufferFileSize) {
+			// record does not wrap around
+			final long recEndInclusive = recEnd - 1;
+			if (rangesOverlap(erased1From, erased1To, recStart, recEndInclusive)) {
+				return true;
+			}
+			return hasSecondErasedSegment
+				&& rangesOverlap(erased2From, erased2To, recStart, recEndInclusive);
+		} else {
+			// record wraps around buffer end - split into two segments
+			final long recSeg1To = this.diskBufferFileSize - 1;
+			final long recSeg2From = 0L;
+			final long recSeg2To = recEnd - this.diskBufferFileSize - 1;
+
+			// check erased segment 1 against both record segments
+			if (rangesOverlap(erased1From, erased1To, recStart, recSeg1To) ||
+				rangesOverlap(erased1From, erased1To, recSeg2From, recSeg2To)) {
+				return true;
+			}
+			// check erased segment 2 against both record segments
+			return hasSecondErasedSegment
+				&& (rangesOverlap(erased2From, erased2To, recStart, recSeg1To)
+				|| rangesOverlap(erased2From, erased2To, recSeg2From, recSeg2To));
+		}
 	}
 
 	/**
@@ -741,10 +798,13 @@ public class DiskRingBuffer {
 	 * The method ensures that the records are read only if the session exists and the file location is updated
 	 * accordingly to prevent redundant reads.
 	 *
-	 * @param sessionSequenceId the unique identifier for the session sequence to read records for
-	 * @param fileLocation      the file location specifying where to read the session records from
-	 * @param inputStream       the input stream for reading the disk buffer file
-	 * @param reader            a function that reads a StorageRecord of TrafficRecording from a given position
+	 * @param sessionSequenceId   the unique identifier for the session sequence to read records for
+	 * @param sessionRecordsCount the expected number of traffic records in the session
+	 * @param fileLocation        the file location specifying where to read the session records from
+	 * @param inputStream         the input stream for reading the disk buffer file
+	 * @param reader              a function that reads a StorageRecord of TrafficRecording from a given position
+	 * @param onError             a function invoked when an error occurs reading a record; returns a replacement
+	 *                            value or null to terminate the stream
 	 * @return a stream of TrafficRecording objects read from the specified file location
 	 */
 	@Nonnull
@@ -811,15 +871,32 @@ public class DiskRingBuffer {
 	 * false otherwise.
 	 */
 	private boolean isSessionLocationStillInValidArea(@Nonnull SessionFileLocation fileLocation) {
-		final LongNumberRange[] validArea = this.ringBufferHead <= this.ringBufferTail ?
-			new LongNumberRange[]{LongNumberRange.between(this.ringBufferHead, this.ringBufferTail)} :
-			new LongNumberRange[]{
-				LongNumberRange.between(this.ringBufferHead, this.diskBufferFileSize),
-				LongNumberRange.between(0L, this.ringBufferTail)
-			};
-		return Arrays.stream(validArea)
-			.anyMatch(va -> va.isWithin(fileLocation.startingPosition()) && va.isWithin(fileLocation.endPosition())) ||
-			(validArea.length == 2 && validArea[0].isWithin(fileLocation.startingPosition()) && validArea[1].isWithin(fileLocation.endPosition()));
+		final long fileStart = fileLocation.startingPosition();
+		// for sessions that wrap around the buffer, use the wrapped end position
+		final long effectiveEnd = fileLocation.endPosition() > this.diskBufferFileSize
+			? fileLocation.endPosition() - this.diskBufferFileSize
+			: fileLocation.endPosition();
+
+		if (this.ringBufferHead <= this.ringBufferTail) {
+			// non-wrapping valid area: [head, tail]
+			return fileStart >= this.ringBufferHead && fileStart <= this.ringBufferTail
+				&& effectiveEnd >= this.ringBufferHead && effectiveEnd <= this.ringBufferTail;
+		} else {
+			// wrapping valid area: [head, fileSize] ∪ [0, tail]
+			final boolean startInFirst = fileStart >= this.ringBufferHead
+				&& fileStart <= this.diskBufferFileSize;
+			final boolean startInSecond = fileStart >= 0L
+				&& fileStart <= this.ringBufferTail;
+			final boolean endInFirst = effectiveEnd >= this.ringBufferHead
+				&& effectiveEnd <= this.diskBufferFileSize;
+			final boolean endInSecond = effectiveEnd >= 0L
+				&& effectiveEnd <= this.ringBufferTail;
+
+			// both in same segment, or start in first and end in second (spans wrap point)
+			return (startInFirst && endInFirst)
+				|| (startInSecond && endInSecond)
+				|| (startInFirst && endInSecond);
+		}
 	}
 
 	/**
@@ -856,9 +933,10 @@ public class DiskRingBuffer {
 	}
 
 	/**
-	 * Acquires a lock on a specified read segment and attempts to execute a given operation
-	 * while ensuring that no read or write operations currently exist on the segment.
-	 * If successful, executes the provided lambda function and subsequently releases the lock.
+	 * Acquires a shared lock on a specified read segment and attempts to execute a given operation
+	 * while ensuring that no write operations are in progress on the segment. A shared lock allows
+	 * concurrent reads but blocks exclusive (write) locks. If successful, executes the provided
+	 * lambda function and subsequently releases the lock.
 	 *
 	 * @param readSegment the file location to be locked for reading
 	 * @param readLambda  the operation to be performed while the read segment is locked
@@ -884,13 +962,26 @@ public class DiskRingBuffer {
 			log.debug("Failed to acquire lock on read segment: " + e.getMessage());
 			return null;
 		} catch (IOException e) {
-			log.error("Failed to finalize writing of session: " + e.getMessage(), e);
+			log.error("Failed to read session from disk buffer: " + e.getMessage(), e);
 			return null;
 		} finally {
 			if (lock != null) {
 				IOUtils.closeQuietly(lock::release);
 			}
 		}
+	}
+
+	/**
+	 * Checks whether two inclusive ranges [from1, to1] and [from2, to2] overlap.
+	 *
+	 * @param from1 start of the first range (inclusive)
+	 * @param to1   end of the first range (inclusive)
+	 * @param from2 start of the second range (inclusive)
+	 * @param to2   end of the second range (inclusive)
+	 * @return true if the ranges overlap; false otherwise
+	 */
+	private static boolean rangesOverlap(long from1, long to1, long from2, long to2) {
+		return from1 <= to2 && from2 <= to1;
 	}
 
 	/**

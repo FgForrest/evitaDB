@@ -24,18 +24,21 @@
 package io.evitadb.index.bitmap;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
 /**
- * Verifies methods in{@link RoaringBitmapBackedBitmap}
+ * Verifies methods in {@link RoaringBitmapBackedBitmap}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("RoaringBitmapBackedBitmap tests")
 class RoaringBitmapBackedBitmapTest {
 
 	@Test
+	@DisplayName("should compute AND on negative bitmaps")
 	void shouldExecuteAndOnNegativeBitmaps() {
 		final Bitmap result = RoaringBitmapBackedBitmap.and(
 			new RoaringBitmap[]{
@@ -51,6 +54,7 @@ class RoaringBitmapBackedBitmapTest {
 	}
 
 	@Test
+	@DisplayName("should compute AND on positive bitmaps")
 	void shouldExecuteAndOnPositiveBitmaps() {
 		final Bitmap result = RoaringBitmapBackedBitmap.and(
 			new RoaringBitmap[]{
@@ -61,6 +65,22 @@ class RoaringBitmapBackedBitmapTest {
 		);
 		Assertions.assertArrayEquals(
 			new int[] {0, 1},
+			result.getArray()
+		);
+	}
+
+	@Test
+	@DisplayName("should compute AND on positive bitmaps with different starting values")
+	void shouldExecuteAndOnPositiveBitmapsWithDifferentMinima() {
+		// bitmaps with different first() values to exercise the min/max range computation
+		final Bitmap result = RoaringBitmapBackedBitmap.and(
+			new RoaringBitmap[]{
+				creatRoaringBitmap(5, 100, 200, 500),
+				creatRoaringBitmap(100, 200, 300, 500)
+			}
+		);
+		Assertions.assertArrayEquals(
+			new int[]{100, 200, 500},
 			result.getArray()
 		);
 	}

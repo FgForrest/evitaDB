@@ -41,7 +41,7 @@ public final class ShortNumberRange extends NumberRange<Short> {
 	@Serial private static final long serialVersionUID = -7031165388993390172L;
 
 	/**
-	 * Method creates new LongRange instance.
+	 * Method creates new ShortRange instance.
 	 */
 	@Nonnull
 	public static ShortNumberRange between(@Nonnull Short from, @Nonnull Short to) {
@@ -49,7 +49,7 @@ public final class ShortNumberRange extends NumberRange<Short> {
 	}
 
 	/**
-	 * Method creates new LongRange instance when only lower range bound is available.
+	 * Method creates new ShortRange instance when only lower range bound is available.
 	 */
 	@Nonnull
 	public static ShortNumberRange from(@Nonnull Short from) {
@@ -57,7 +57,7 @@ public final class ShortNumberRange extends NumberRange<Short> {
 	}
 
 	/**
-	 * Method creates new LongRange instance when only upper range bound is available.
+	 * Method creates new ShortRange instance when only upper range bound is available.
 	 */
 	@Nonnull
 	public static ShortNumberRange to(@Nonnull Short to) {
@@ -77,7 +77,7 @@ public final class ShortNumberRange extends NumberRange<Short> {
 
 	/**
 	 * Parses string to {@link NumberRange} or throws an exception. String must conform to the format produced
-	 * by {@link NumberRange#toString()} method. Parsed Number range always uses {@link Long} for numbers.
+	 * by {@link NumberRange#toString()} method. Parsed Number range always uses {@link Short} for numbers.
 	 */
 	@Nonnull
 	public static ShortNumberRange fromString(@Nonnull String string) throws DataTypeParseException {
@@ -88,7 +88,7 @@ public final class ShortNumberRange extends NumberRange<Short> {
 		final int delimiter = string.indexOf(INTERVAL_JOIN, 1);
 		Assert.isTrue(
 			delimiter > -1,
-			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to dates!")
+			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to values!")
 		);
 		final Short from = delimiter == 1 ? null : parseShort(string.substring(1, delimiter));
 		final Short to = delimiter == string.length() - 2 ? null : parseShort(string.substring(delimiter + 1, string.length() - 1));

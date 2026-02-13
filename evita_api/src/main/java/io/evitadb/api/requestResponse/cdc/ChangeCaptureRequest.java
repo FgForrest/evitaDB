@@ -26,9 +26,9 @@ package io.evitadb.api.requestResponse.cdc;
 import javax.annotation.Nonnull;
 
 /**
- * Record describing the capture request for the {@link ChangeCapturePublisher} of specific {@link ChangeCapture}s.
- * The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by
- * {@link ChangeCapturePublisher}.
+ * Sealed interface describing the capture request for the {@link ChangeCapturePublisher} of specific
+ * {@link ChangeCapture}s. The request contains the recipe for the messages that the subscriber is interested in,
+ * and that are sent to it by {@link ChangeCapturePublisher}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -36,6 +36,8 @@ public sealed interface ChangeCaptureRequest permits ChangeSystemCaptureRequest,
 
 	/**
 	 * The requested content of the capture, by default only the header information is sent.
+	 *
+	 * @return the requested content depth of the capture
 	 */
 	@Nonnull
 	ChangeCaptureContent content();

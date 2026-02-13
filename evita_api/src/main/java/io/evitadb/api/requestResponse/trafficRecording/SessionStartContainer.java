@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.trafficRecording;
 
-
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
@@ -35,10 +34,11 @@ import java.util.UUID;
  * This container holds information about the session start.
  *
  * @param sessionSequenceOrder   the session sequence order of the session start (similar to session id but monotonic)
- * @param sessionId              the session id which the mutation belongs to
+ * @param sessionId              the session id of the starting session
  * @param recordSessionOffset    the order (sequence) of the record in the session
+ * @param sessionRecordsCount    the total count of the records in the session
  * @param catalogVersion         the version of the catalog that will be used for the entire session
- * @param created                the time when the mutation was created
+ * @param created                the time when the session was started
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

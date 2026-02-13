@@ -26,8 +26,8 @@ package io.evitadb.api.configuration;
 import javax.annotation.Nonnull;
 
 /**
- * Default implementation of {@link ExportOptions} that is used when no specific export implementation is configured.
- * System will automatically selects implementation with highest priority from available ones and default configuration.
+ * Default implementation of `ExportOptions` that is used when no specific export implementation is configured.
+ * System will automatically select implementation with highest priority from available ones and default configuration.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

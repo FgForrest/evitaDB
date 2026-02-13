@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -151,9 +153,40 @@ public class OffsetIndex {
 	 */
 	private final Pool<byte[]> decompressionPool;
 	/**
-	 * Contains configuration options for the {@link OffsetIndex},
+	 * Size of the memory buffer used for write operations, in bytes.
+	 * This buffer size limits the maximum size of individual records that can be written to the offset index.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
-	@Getter private final StorageOptions storageOptions;
+	private final int outputBufferSize;
+	/**
+	 * Maximum number of read handles that can be simultaneously opened to the file.
+	 * Read handles are pooled to limit resource usage and prevent file descriptor exhaustion.
+	 * Sourced from {@link StorageOptions#maxOpenedReadHandles()}, typically defaults to 20 × CPU cores.
+	 */
+	private final int maxOpenedReadHandlesOrDefault;
+	/**
+	 * Timeout in seconds for acquiring locks on file handles.
+	 * If a lock cannot be acquired within this timeout, an exception is thrown.
+	 * Sourced from {@link StorageOptions#lockTimeoutSeconds()}, typically defaults to 5 seconds.
+	 */
+	private final int lockTimeoutSeconds;
+	/**
+	 * Timeout in seconds for waiting on processes to release read handles during cleanup operations.
+	 * Used when closing file handles to ensure graceful shutdown.
+	 * Sourced from {@link StorageOptions#waitOnCloseSeconds()}, typically defaults to 5 seconds.
+	 */
+	private final int waitOnCloseSeconds;
+	/**
+	 * Factory for creating checksums for data integrity verification during read and write operations.
+	 * Sourced from {@link StorageOptions#computeCRC32C()}.
+	 */
+	private final ChecksumFactory checksumFactory;
+	/**
+	 * Factory for creating compressor and decompressor instances for optional data compression.
+	 * Compression is applied only when it reduces data size below the original.
+	 * Sourced from {@link StorageOptions#compress()}.
+	 */
+	private final CompressionFactory compressionFactory;
 	/**
 	 * Contains configuration of record types that could be stored into the mem-table.
 	 */
@@ -171,7 +204,7 @@ public class OffsetIndex {
 	 */
 	private final FileOffsetIndexKryoPool readKryoPool;
 	/**
-	 * Pool of {@link ObservableInput} instances which are not thread safe.
+	 * Pool of {@link ReadOnlyHandle} instances which are not thread safe.
 	 */
 	private final OffsetIndexObservableInputPool readOnlyHandlePool = new OffsetIndexObservableInputPool();
 	/**
@@ -243,7 +276,8 @@ public class OffsetIndex {
 	 */
 	@Nonnull
 	public static <T extends StoragePart> T readSingleRecord(
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull ChecksumFactory checksumCalculatorFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull Path filePath,
 		@Nonnull FileLocation fileLocation,
 		@Nonnull RecordKey recordKey,
@@ -254,15 +288,11 @@ public class OffsetIndex {
 				new RandomAccessFileInputStream(
 					new RandomAccessFile(filePath.toFile(), "r"),
 					true
-				)
+				),
+				checksumCalculatorFactory.createChecksum(),
+				compressionFactory.createDecompressor().orElse(null)
 			)
 		) {
-			if (storageOptions.computeCRC32C()) {
-				input.computeCRC32();
-			}
-			if (storageOptions.compress()) {
-				input.compress();
-			}
 			final FilteringOffsetIndexBuilder filteringOffsetIndexBuilder = new FilteringOffsetIndexBuilder(recordKey);
 			deserialize(
 				input,
@@ -284,13 +314,23 @@ public class OffsetIndex {
 	public OffsetIndex(
 		long catalogVersion,
 		@Nonnull OffsetIndexDescriptor fileOffsetDescriptor,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		int maxOpenedReadHandlesOrDefault,
+		int lockTimeoutSeconds,
+		int waitOnCloseSeconds,
+		@Nonnull ChecksumFactory checksumFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nullable Consumer<Optional<OffsetDateTime>> historicalRecordObserver
 	) {
-		this.storageOptions = storageOptions;
+		this.outputBufferSize = outputBufferSize;
+		this.maxOpenedReadHandlesOrDefault = maxOpenedReadHandlesOrDefault;
+		this.lockTimeoutSeconds = lockTimeoutSeconds;
+		this.waitOnCloseSeconds = waitOnCloseSeconds;
+		this.checksumFactory = checksumFactory;
+		this.compressionFactory = compressionFactory;
 		this.fileOffsetDescriptor = fileOffsetDescriptor;
 		this.recordTypeRegistry = recordTypeRegistry;
 		this.volatileValues = new VolatileValues(
@@ -302,7 +342,7 @@ public class OffsetIndex {
 
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.readKryoPool = new FileOffsetIndexKryoPool(
-			storageOptions.maxOpenedReadHandlesOrDefault(),
+			maxOpenedReadHandlesOrDefault,
 			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 		);
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
@@ -332,7 +372,7 @@ public class OffsetIndex {
 			this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
 				@Override
 				protected byte[] create() {
-					return new byte[storageOptions.outputBufferSize()];
+					return new byte[outputBufferSize];
 				}
 			};
 		} catch (RuntimeException ex) {
@@ -346,14 +386,24 @@ public class OffsetIndex {
 		long catalogVersion,
 		@Nonnull Path filePath,
 		@Nonnull FileLocation fileLocation,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		int maxOpenedReadHandlesOrDefault,
+		int lockTimeoutSeconds,
+		int waitOnCloseSeconds,
+		@Nonnull ChecksumFactory checksumFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nullable Consumer<Optional<OffsetDateTime>> historicalRecordObserver,
 		@Nonnull BiFunction<OffsetIndexBuilder, ObservableInput<?>, ? extends OffsetIndexDescriptor> offsetIndexDescriptorFactory
 	) {
-		this.storageOptions = storageOptions;
+		this.outputBufferSize = outputBufferSize;
+		this.maxOpenedReadHandlesOrDefault = maxOpenedReadHandlesOrDefault;
+		this.lockTimeoutSeconds = lockTimeoutSeconds;
+		this.waitOnCloseSeconds = waitOnCloseSeconds;
+		this.checksumFactory = checksumFactory;
+		this.compressionFactory = compressionFactory;
 		this.writeHandle = writeHandle;
 		this.volatileValues = new VolatileValues(
 			nonFlushedBlockObserver == null ? nonFlushedBlock -> {
@@ -377,15 +427,11 @@ public class OffsetIndex {
 				new RandomAccessFileInputStream(
 					new RandomAccessFile(filePath.toFile(), "r"),
 					true
-				)
+				),
+				checksumFactory.createChecksum(),
+				compressionFactory.createDecompressor().orElse(null)
 			)
 		) {
-			if (storageOptions.computeCRC32C()) {
-				input.computeCRC32();
-			}
-			if (storageOptions.compress()) {
-				input.compress();
-			}
 			final CollectingOffsetIndexBuilder fileOffsetIndexBuilder = new CollectingOffsetIndexBuilder();
 			deserialize(
 				input,
@@ -399,14 +445,14 @@ public class OffsetIndex {
 			this.fileOffsetDescriptor = offsetIndexDescriptorFactory.apply(fileOffsetIndexBuilder, input);
 			this.keyCatalogVersion = catalogVersion;
 			this.readKryoPool = new FileOffsetIndexKryoPool(
-				storageOptions.maxOpenedReadHandlesOrDefault(),
+				maxOpenedReadHandlesOrDefault,
 				version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 			);
 			this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
 			this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
 				@Override
 				protected byte[] create() {
-					return new byte[storageOptions.outputBufferSize()];
+					return new byte[outputBufferSize];
 				}
 			};
 		} catch (FileNotFoundException e) {
@@ -421,7 +467,12 @@ public class OffsetIndex {
 	public OffsetIndex(
 		long catalogVersion,
 		@Nonnull Path filePath,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		int maxOpenedReadHandlesOrDefault,
+		int lockTimeoutSeconds,
+		int waitOnCloseSeconds,
+		@Nonnull ChecksumFactory checksumCalculatorFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
@@ -429,7 +480,12 @@ public class OffsetIndex {
 		@Nonnull OffsetIndex previousOffsetIndex,
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor
 	) {
-		this.storageOptions = storageOptions;
+		this.outputBufferSize = outputBufferSize;
+		this.maxOpenedReadHandlesOrDefault = maxOpenedReadHandlesOrDefault;
+		this.lockTimeoutSeconds = lockTimeoutSeconds;
+		this.waitOnCloseSeconds = waitOnCloseSeconds;
+		this.checksumFactory = checksumCalculatorFactory;
+		this.compressionFactory = compressionFactory;
 		this.recordTypeRegistry = recordTypeRegistry;
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.writeHandle = writeHandle;
@@ -455,14 +511,14 @@ public class OffsetIndex {
 		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
 		this.keyCatalogVersion = catalogVersion;
 		this.readKryoPool = new FileOffsetIndexKryoPool(
-			storageOptions.maxOpenedReadHandlesOrDefault(),
+			maxOpenedReadHandlesOrDefault,
 			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 		);
 		this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
 		this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
 			@Override
 			protected byte[] create() {
-				return new byte[storageOptions.outputBufferSize()];
+				return new byte[outputBufferSize];
 			}
 		};
 	}
@@ -755,7 +811,8 @@ public class OffsetIndex {
 								// use the latest possible version - we need actual count of records
 								this.count(Long.MAX_VALUE),
 								this.getTotalSizeBytes()
-							), this.getStorageOptions()
+							),
+							this.checksumFactory.createChecksum()
 						)
 					);
 				}
@@ -821,9 +878,11 @@ public class OffsetIndex {
 							final Map<RecordKey, byte[]> overriddenEntries;
 							if (updatedStorageParts != null && updatedStorageParts.length > 0) {
 								overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
-								final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.storageOptions.outputBufferSize());
+								final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.outputBufferSize);
 								final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
-									baos, this.storageOptions.outputBufferSize(), 0
+									baos, this.outputBufferSize, 0,
+									this.checksumFactory.createChecksum(),
+									this.compressionFactory.createCompressor().orElse(null)
 								);
 								for (StoragePart value : updatedStorageParts) {
 									final RecordKey recordKey = new RecordKey(
@@ -847,7 +906,10 @@ public class OffsetIndex {
 								catalogVersion,
 								overriddenEntries,
 								this.volatileValues,
-								progressConsumer
+								progressConsumer,
+								this.checksumFactory,
+								this.compressionFactory,
+								this.outputBufferSize
 							);
 							return new OffsetIndexDescriptor(
 								this.fileOffsetDescriptor.version() + 1,
@@ -904,7 +966,7 @@ public class OffsetIndex {
 	 */
 	private void clearReadOnlyOpenedHandles() {
 		long start = System.currentTimeMillis();
-		while (!this.readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > this.storageOptions.waitOnCloseSeconds() * 1000) {
+		while (!this.readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > this.waitOnCloseSeconds * 1000L) {
 			if (this.readOnlyHandlePool.getFree() > 0) {
 				final ReadOnlyHandle handleToClose = this.readOnlyHandlePool.obtain();
 				try {
@@ -1111,7 +1173,8 @@ public class OffsetIndex {
 	 * @return The total active size.
 	 */
 	private long getTotalActiveSize() {
-		return this.totalSizeBytes.get() + countFileOffsetTableSize(this.keyToLocations.size(), this.storageOptions);
+		return this.totalSizeBytes.get() +
+			countFileOffsetTableSize(this.keyToLocations.size(), this.outputBufferSize);
 	}
 
 	/**
@@ -1176,7 +1239,7 @@ public class OffsetIndex {
 							catalogVersion,
 							valuesToPromote,
 							this.getFileOffsetIndexLocation(),
-							this.getStorageOptions()
+							this.outputBufferSize
 						)
 					);
 				},
@@ -2420,7 +2483,7 @@ public class OffsetIndex {
 			try {
 				return logic.apply(readOnlyFileHandle);
 			} finally {
-				if (this.getFree() < OffsetIndex.this.storageOptions.maxOpenedReadHandlesOrDefault()) {
+				if (this.getFree() < OffsetIndex.this.maxOpenedReadHandlesOrDefault) {
 					this.free(readOnlyFileHandle);
 				} else {
 					readOnlyFileHandle.close();
@@ -2431,11 +2494,11 @@ public class OffsetIndex {
 		@Override
 		protected ReadOnlyHandle create() {
 			try {
-				if (this.readFilesLock.tryLock(OffsetIndex.this.storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
+				if (this.readFilesLock.tryLock(OffsetIndex.this.lockTimeoutSeconds, TimeUnit.SECONDS)) {
 					try {
 						final ReadOnlyHandle readOnlyFileHandle = OffsetIndex.this.writeHandle.toReadOnlyHandle();
-						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.storageOptions.maxOpenedReadHandlesOrDefault()) {
-							throw new PoolExhaustedException(OffsetIndex.this.storageOptions.maxOpenedReadHandlesOrDefault(), readOnlyFileHandle.toString());
+						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.maxOpenedReadHandlesOrDefault) {
+							throw new PoolExhaustedException(OffsetIndex.this.maxOpenedReadHandlesOrDefault, readOnlyFileHandle.toString());
 						}
 						OffsetIndex.this.readOnlyOpenedHandles.add(readOnlyFileHandle);
 						return readOnlyFileHandle;

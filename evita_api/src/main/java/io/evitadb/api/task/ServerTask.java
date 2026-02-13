@@ -31,21 +31,24 @@ import java.util.function.Predicate;
  * Extension of the {@link Task} interface that is used on the server side. It provides methods to execute and fail
  * the task (this cannot be done on client).
  *
+ * @param <S> the type of the task settings
+ * @param <T> the type of the task result
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface ServerTask<S, T> extends Task<S, T> {
 
 	/**
 	 * Executes the task and returns the result.
+	 *
 	 * @return The result of the task.
 	 */
 	@Nullable
 	T execute();
 
 	/**
-	 * Terminates the task using passed exception.
+	 * Terminates the task with the given exception.
 	 *
-	 * @param exception The exception that caused the task to be cancelled.
+	 * @param exception The exception that caused the task to fail.
 	 */
 	void fail(@Nonnull Exception exception);
 
@@ -60,6 +63,6 @@ public interface ServerTask<S, T> extends Task<S, T> {
 	 * @param taskPredicate The predicate to be evaluated against this server task.
 	 * @return True if the predicate evaluates to true for this task, false otherwise.
 	 */
-	boolean matches(@Nonnull Predicate<ServerTask<?,?>> taskPredicate);
+	boolean matches(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate);
 
 }

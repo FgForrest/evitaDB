@@ -36,13 +36,38 @@ import java.util.stream.Stream;
 import static java.util.Optional.of;
 
 /**
- * Exception is thrown when store entity lacks mandatory associated data.
+ * Exception thrown when attempting to persist an entity that lacks required associated data defined as mandatory
+ * in its schema.
+ *
+ * Associated data can be marked as mandatory (non-nullable) in the entity schema using
+ * {@link io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract}. When an entity is saved or
+ * updated, evitaDB validates that all mandatory associated data values are present. This exception is thrown
+ * if any required values are missing.
+ *
+ * The exception distinguishes between:
+ * - **Global associated data**: non-localized values required for all entities
+ * - **Localized associated data**: values required for each locale the entity supports
+ *
+ * The error message lists all missing associated data keys, grouped by whether they are global or localized,
+ * to facilitate debugging.
+ *
+ * **Usage Context:**
+ * - {@link io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor}: validates associated data
+ *   completeness before persisting entity mutations
+ * - Thrown during entity upsert operations when mandatory associated data is absent
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class MandatoryAssociatedDataNotProvidedException extends InvalidMutationException {
 	@Serial private static final long serialVersionUID = -8575134582708076162L;
 
+	/**
+	 * Creates a new exception listing all missing mandatory associated data.
+	 *
+	 * @param entityName the name (type) of the entity being validated
+	 * @param missingMandatedAssociatedData list of associated data keys that are required but missing; may include
+	 *                                      both global (non-localized) and localized keys
+	 */
 	public MandatoryAssociatedDataNotProvidedException(@Nonnull String entityName, @Nonnull List<AssociatedDataKey> missingMandatedAssociatedData) {
 		super(composeErrorMessage(entityName, missingMandatedAssociatedData));
 	}

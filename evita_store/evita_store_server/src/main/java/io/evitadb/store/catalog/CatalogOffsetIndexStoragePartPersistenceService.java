@@ -25,8 +25,6 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
@@ -49,6 +47,7 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.model.FileLocation;
@@ -87,14 +86,13 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	/**
 	 * Creates a CatalogOffsetIndexStoragePartPersistenceService object with the given parameters.
 	 * The code cannot be directly in the constructor, because we need to execute
-	 * {@link #loadOffsetIndex(String, Path, StorageOptions, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer, Consumer)}
+	 * {@link #loadOffsetIndex(String, Path, StorageSettings, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer, Consumer)}
 	 * and within it initialize the {@link #currentCatalogHeader} variable. This cannot be done in the consturctor
 	 * because the super constructor needs to be called first.
 	 *
 	 * @param catalogName            The name of the catalog.
 	 * @param catalogFilePath        The file path of the catalog.
-	 * @param storageOptions         The storage options.
-	 * @param transactionOptions     The transaction options.
+	 * @param storageSettings         The storage options.
 	 * @param catalogBootstrap       The last catalog bootstrap.
 	 * @param recordRegistry         The record type registry for offset index.
 	 * @param offHeapMemoryManager   The off-heap memory manager.
@@ -106,8 +104,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	public static CatalogOffsetIndexStoragePartPersistenceService create(
 		@Nonnull String catalogName,
 		@Nonnull Path catalogFilePath,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
@@ -118,7 +115,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	) {
 		final AtomicReference<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderRef = new AtomicReference<>();
 		final OffsetIndex offsetIndex = loadOffsetIndex(
-			catalogName, catalogFilePath, storageOptions,
+			catalogName, catalogFilePath, storageSettings,
 			catalogBootstrap, recordRegistry, observableOutputKeeper,
 			kryoFactory, nonFlushedBlockObserver, historyKeptObserver,
 			catalogHeaderRef::set
@@ -126,7 +123,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		return new CatalogOffsetIndexStoragePartPersistenceService(
 			catalogBootstrap.catalogVersion(),
 			catalogHeaderRef.get(),
-			transactionOptions,
+			storageSettings,
 			offsetIndex,
 			offHeapMemoryManager, observableOutputKeeper,
 			kryoFactory
@@ -144,8 +141,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogFilePath,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull CatalogBootstrap lastCatalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
@@ -169,13 +165,21 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		final OffsetIndex offsetIndex = new OffsetIndex(
 			lastCatalogBootstrap.catalogVersion(),
 			catalogFilePath,
-			storageOptions,
+			storageSettings.outputBufferSize(),
+			storageSettings.maxOpenedReadHandlesOrDefault(),
+			storageSettings.lockTimeoutSeconds(),
+			storageSettings.waitOnCloseSeconds(),
+			storageSettings,
+			storageSettings,
 			recordRegistry,
 			new WriteOnlyFileHandle(
 				catalogName,
 				FileType.CATALOG,
 				catalogName,
-				storageOptions,
+				storageSettings.outputBufferSize(),
+				storageSettings.syncWrites(),
+				storageSettings,
+				storageSettings,
 				catalogFilePath,
 				observableOutputKeeper
 			),
@@ -187,7 +191,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		return new CatalogOffsetIndexStoragePartPersistenceService(
 			lastCatalogBootstrap.catalogVersion(),
 			catalogHeader,
-			transactionOptions,
+			storageSettings,
 			offsetIndex,
 			offHeapMemoryManager, observableOutputKeeper,
 			kryoFactory
@@ -204,7 +208,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 */
 	@Nonnull
 	public static CatalogHeader<LogFileRecordReference, CollectionFileReference> readCatalogHeader(
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull Path catalogFilePath,
 		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry
@@ -213,7 +217,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		Assert.isPremiseValid(fileLocation != null, "File location must be present for catalog");
 		final RecordKey catalogHeaderRecord = new RecordKey(recordRegistry.idFor(CatalogHeader.class), 1L);
 		return OffsetIndex.readSingleRecord(
-			storageOptions,
+			storageSettings,
+			storageSettings,
 			catalogFilePath,
 			fileLocation,
 			catalogHeaderRecord,
@@ -309,7 +314,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 *
 	 * @param catalogName            The name of the catalog.
 	 * @param catalogFilePath        The file path of the catalog.
-	 * @param storageOptions         The storage options.
+	 * @param storageSettings         The storage options.
 	 * @param catalogBootstrap       The last catalog bootstrap.
 	 * @param recordRegistry         The record type registry for offset index.
 	 * @param observableOutputKeeper The observable output keeper.
@@ -321,7 +326,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	private static OffsetIndex loadOffsetIndex(
 		@Nonnull String catalogName,
 		@Nonnull Path catalogFilePath,
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
@@ -343,13 +348,21 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					// we don't know here yet - this will be recomputed on first flush
 					1.0, 0L
 				),
-				storageOptions,
+				storageSettings.outputBufferSize(),
+				storageSettings.maxOpenedReadHandlesOrDefault(),
+				storageSettings.lockTimeoutSeconds(),
+				storageSettings.waitOnCloseSeconds(),
+				storageSettings,
+				storageSettings,
 				recordRegistry,
 				new WriteOnlyFileHandle(
 					catalogName,
 					FileType.CATALOG,
 					catalogName,
-					storageOptions,
+					storageSettings.outputBufferSize(),
+					storageSettings.syncWrites(),
+					storageSettings,
+					storageSettings,
 					catalogFilePath,
 					observableOutputKeeper
 				),
@@ -373,13 +386,21 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				catalogBootstrap.catalogVersion(),
 				catalogFilePath,
 				fileLocation,
-				storageOptions,
+				storageSettings.outputBufferSize(),
+				storageSettings.maxOpenedReadHandlesOrDefault(),
+				storageSettings.lockTimeoutSeconds(),
+				storageSettings.waitOnCloseSeconds(),
+				storageSettings,
+				storageSettings,
 				recordRegistry,
 				new WriteOnlyFileHandle(
 					catalogName,
 					FileType.CATALOG,
 					catalogName,
-					storageOptions,
+					storageSettings.outputBufferSize(),
+					storageSettings.syncWrites(),
+					storageSettings,
+					storageSettings,
 					catalogFilePath,
 					observableOutputKeeper
 				),
@@ -396,7 +417,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	private CatalogOffsetIndexStoragePartPersistenceService(
 		long catalogVersion,
 		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
@@ -407,7 +428,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			catalogHeader.catalogName(),
 			catalogHeader.catalogName(),
 			FileType.CATALOG,
-			transactionOptions,
+			storageSettings,
 			offsetIndex,
 			offHeapMemoryManager,
 			observableOutputKeeper,

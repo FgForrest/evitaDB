@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -35,7 +36,9 @@ import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -103,7 +106,33 @@ public interface ReferenceAttributeSchemaMutation extends
 	}
 
 	/**
-	 * Replaces existing attribute schema with updated one but only when those schemas differ. Otherwise,
+	 * Applies this mutation to the reference schema by looking up the existing attribute, applying the
+	 * attribute-level mutation via
+	 * {@link AttributeSchemaMutation#mutate(CatalogSchemaContract, AttributeSchemaContract, Class)},
+	 * and replacing the attribute in the reference schema if it changed.
+	 *
+	 * Subclasses that need additional consistency checks (e.g., verifying that the reference is indexed in required
+	 * scopes) should override this method, perform their validation, and then delegate back via
+	 * `ReferenceAttributeSchemaMutation.super.mutate(entitySchema, referenceSchema, consistencyChecks)`.
+	 */
+	@Nullable
+	default ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
+		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, getName());
+		final AttributeSchemaContract updatedAttributeSchema = Objects.requireNonNull(
+			mutate(null, existingAttributeSchema, AttributeSchemaContract.class)
+		);
+		return replaceAttributeIfDifferent(
+			referenceSchema, existingAttributeSchema, updatedAttributeSchema
+		);
+	}
+
+	/**
+	 * Replaces existing attribute schema with an updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original reference schema is returned.
 	 */
 	@Nonnull

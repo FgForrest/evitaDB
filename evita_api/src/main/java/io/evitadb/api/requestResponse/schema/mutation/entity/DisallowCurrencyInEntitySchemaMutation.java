@@ -52,10 +52,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Mutation is responsible for removing one or more currencies to a {@link EntitySchemaContract#getCurrencies()}
+ * Mutation is responsible for removing one or more currencies from a {@link EntitySchemaContract#getCurrencies()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * or negative mutation {@link AllowCurrencyInEntitySchemaMutation} if those mutation are present in the mutation pipeline
+ * or negative mutation {@link AllowCurrencyInEntitySchemaMutation} if those mutations are present in the mutation pipeline
  * multiple times.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -65,7 +65,7 @@ import java.util.stream.Stream;
 @EqualsAndHashCode
 public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 8499615143393252355L;
-	@Getter private final Set<Currency> currencies;
+	@Getter @Nonnull private final Set<Currency> currencies;
 
 	@SerializableCreator
 	public DisallowCurrencyInEntitySchemaMutation(@Nonnull Currency... currencies) {
@@ -104,8 +104,20 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEn
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
-				currenciesToAdd.length == 0 ? null : (currenciesToAdd.length == ((AllowCurrencyInEntitySchemaMutation) existingMutation).getCurrencies().length ? existingMutation : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd)),
-				currenciesToRemove.size() == this.currencies.size() ? this : (currenciesToRemove.isEmpty() ? null : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove))
+				currenciesToAdd.length == 0
+					? null
+					: (
+						currenciesToAdd.length == allowCurrencyInEntitySchema.getCurrencies().length
+							? existingMutation
+							: new AllowCurrencyInEntitySchemaMutation(currenciesToAdd)
+				),
+				currenciesToRemove.size() == this.currencies.size()
+					? this
+					: (
+						currenciesToRemove.isEmpty()
+							? null
+							: new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove)
+				)
 			);
 		} else {
 			return null;

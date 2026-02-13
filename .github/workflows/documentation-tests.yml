@@ -7,8 +7,8 @@ on:
     - cron: '0 0 * * 1' # runs on Monday morning
 
 permissions:
-  contents: read  # Required for actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 to access the repository
-  actions: write  # Required for uploading artifacts using actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+  contents: read  # Required for actions/checkout to access the repository
+  checks: write   # Required for publishing test reports
 
 jobs:
   build:
@@ -16,15 +16,17 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 2
+          persist-credentials: false
 
       # inspiration from https://github.com/nvim-neorocks/luarocks-tag-release#version-optional
       - name: Get new commits   # initialize github env variable with count of commits into the repository that day
         run: |
-          echo "NEW_COMMIT_COUNT=$(git log --oneline --since '168 hours ago' | wc -l)" >> $GITHUB_ENV
-          echo "Commits found: $NEW_COMMIT_COUNT"
+          COMMIT_COUNT=$(git log --oneline --since '168 hours ago' | wc -l)
+          echo "NEW_COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_ENV
+          echo "Commits found: $COMMIT_COUNT"
 
       - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed this day
         uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0  # setup JDK 17 for building
@@ -44,3 +46,7 @@ jobs:
         with:
           name: test-results
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+
+      - name: Publish Test Report
+        uses: ./.github/actions/publish-test-report
+        if: ${{ env.NEW_COMMIT_COUNT != '0' && always() }}

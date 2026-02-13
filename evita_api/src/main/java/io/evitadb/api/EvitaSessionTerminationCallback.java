@@ -26,8 +26,47 @@ package io.evitadb.api;
 import javax.annotation.Nonnull;
 
 /**
- * Interface allows to define implementations that will get called back when {@link EvitaSessionContract} is about to be
- * terminated and can free the associated resources.
+ * Functional interface for session termination callbacks in evitaDB.
+ *
+ * **Purpose and Usage**
+ *
+ * This callback interface allows clients to register cleanup logic that executes when an {@link EvitaSessionContract}
+ * is being closed. It provides a hook for releasing session-associated resources, performing final logging, or
+ * triggering post-session actions.
+ *
+ * **When to Use**
+ *
+ * Use this callback when you need to:
+ * - Release external resources tied to a session lifecycle (connections, file handles, temporary data)
+ * - Log session duration or activity metrics
+ * - Trigger cleanup in external systems when a session ends
+ * - Perform custom finalization logic that depends on session state
+ *
+ * **Registration**
+ *
+ * Callbacks are registered when creating a session via {@link SessionTraits}:
+ *
+ * ```
+ * evita.createSession(new SessionTraits(
+ * "catalogName",
+ * session -> {
+ * // cleanup logic here
+ * },
+ * SessionFlags.READ_WRITE
+ * ));
+ * ```
+ *
+ * **Execution Guarantees**
+ *
+ * - Called exactly once per session, during {@link EvitaSessionContract#close()} or its variants
+ * - Invoked after all session operations are complete but before session resources are fully released
+ * - **Must not throw exceptions** - implementations should catch and log all errors internally
+ * - No guarantee on execution thread or timing relative to commit completion
+ *
+ * **Thread-Safety**
+ *
+ * Implementations must be thread-safe if shared across multiple sessions, though each session invokes its callback
+ * exactly once from a single thread.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -35,8 +74,14 @@ import javax.annotation.Nonnull;
 public interface EvitaSessionTerminationCallback {
 
 	/**
-	 * Method is called when Evita session is being terminated. Implementation should ensure that this method never
-	 * throws an exception.
+	 * Invoked when the evitaDB session is being terminated.
+	 *
+	 * This method is called during session closure, after all session operations are complete. Implementations should:
+	 * - Perform cleanup quickly to avoid blocking session termination
+	 * - Never throw exceptions (catch and log errors internally)
+	 * - Avoid accessing session data, as the session is in the process of being closed
+	 *
+	 * @param session the session being terminated (partially closed state)
 	 */
 	void onTermination(@Nonnull EvitaSessionContract session);
 

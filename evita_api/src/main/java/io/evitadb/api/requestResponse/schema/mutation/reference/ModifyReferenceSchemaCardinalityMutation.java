@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -43,7 +42,6 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
-import java.util.Optional;
 
 /**
  * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#getCardinality()}
@@ -63,6 +61,9 @@ public class ModifyReferenceSchemaCardinalityMutation
 	@Serial private static final long serialVersionUID = -6542945168078711713L;
 	@Nullable @Getter private final Cardinality cardinality;
 
+	/**
+	 * Creates mutation that will set the cardinality of the reference schema with the given name.
+	 */
 	public ModifyReferenceSchemaCardinalityMutation(@Nonnull String name, @Nullable Cardinality cardinality) {
 		super(name);
 		this.cardinality = cardinality;
@@ -75,7 +76,8 @@ public class ModifyReferenceSchemaCardinalityMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReferenceSchemaCardinalityMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyReferenceSchemaCardinalityMutation theExistingMutation
+			&& this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -84,7 +86,11 @@ public class ModifyReferenceSchemaCardinalityMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 			if (reflectedReferenceSchema.isReflectedReferenceAvailable() && reflectedReferenceSchema.getCardinality() == this.cardinality) {
@@ -98,7 +104,7 @@ public class ModifyReferenceSchemaCardinalityMutation
 				return referenceSchema;
 			} else {
 				return ReferenceSchema._internalBuild(
-					this.name,
+					referenceSchema.getName(),
 					referenceSchema.getNameVariants(),
 					referenceSchema.getDescription(),
 					referenceSchema.getDeprecationNotice(),
@@ -115,23 +121,6 @@ public class ModifyReferenceSchemaCardinalityMutation
 					referenceSchema.getSortableAttributeCompounds()
 				);
 			}
-		}
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
-		if (existingReferenceSchema.isEmpty()) {
-			// ups, the associated data is missing
-			throw new InvalidSchemaMutationException(
-				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			);
-		} else {
-			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = mutate(entitySchema, theSchema);
-			return replaceReferenceSchema(entitySchema, theSchema, updatedReferenceSchema);
 		}
 	}
 

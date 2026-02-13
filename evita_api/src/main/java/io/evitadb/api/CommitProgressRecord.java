@@ -38,53 +38,145 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 
 /**
- * CommitProgressRecord is an implementation of {@link CommitProgress} that represents the progress of a transaction
- * commit operation in a database. It contains multiple CompletableFuture objects that allow tracking the status of
- * various stages of the commit process.
+ * Mutable implementation of {@link CommitProgress} that tracks commit pipeline stages via {@link CompletableFuture}s.
  *
- * This implementation provides methods to complete all futures either successfully or exceptionally.
+ * **Purpose and Architecture**
+ *
+ * `CommitProgressRecord` is the concrete implementation used internally by evitaDB to manage commit progress. It
+ * provides methods for the transaction subsystem to signal completion of each commit stage, while exposing read-only
+ * {@link CompletionStage}s to client code via the {@link CommitProgress} interface.
+ *
+ * **Internal vs. Public API**
+ *
+ * - **Public API** ({@link CommitProgress}): Clients observe progress via read-only {@link CompletionStage}s
+ * - **Internal API** (this class): evitaDB transaction logic completes stages via `complete()` and
+ * `completeExceptionally()` methods
+ *
+ * **Completion Contract**
+ *
+ * This implementation enforces {@link CommitProgress} guarantees:
+ * 1. Stages complete sequentially (conflict resolution → WAL → visibility)
+ * 2. Exception in any stage immediately propagates to all later stages
+ * 3. All stages eventually complete (no hanging futures)
+ * 4. Idempotent completion (multiple calls to `complete()` have no effect after first completion)
+ *
+ * **Termination Sequence**
+ *
+ * The {@link #terminationSequence} callback is invoked just before marking a stage as complete, based on the
+ * {@link #terminationStage} setting. This allows session cleanup logic to execute at the appropriate commit milestone
+ * (e.g., close session resources after WAL persistence but before indexing).
+ *
+ * **Asynchronous Completion**
+ *
+ * The `complete(CommitBehavior, CommitVersions, Executor)` variant uses an executor to complete futures asynchronously,
+ * preventing the transaction pipeline thread from blocking on client callbacks. If the executor rejects the task,
+ * completion falls back to synchronous mode.
+ *
+ * **Thread-Safety**
+ *
+ * This class is thread-safe. Multiple threads can safely call completion methods and observe stages concurrently.
+ * Internal {@link CompletableFuture}s handle synchronization.
+ *
+ * **Typical Usage (Internal)**
+ *
+ * ```
+ * CommitProgressRecord progress = new CommitProgressRecord();
+ * progress.setTerminationStage(sessionTraits.commitBehaviour());
+ *
+ * // Stage 1: Conflict resolution
+ * try {
+ * resolveConflicts(transaction);
+ * progress.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, versions, executor);
+ * } catch (Exception ex) {
+ * progress.completeExceptionally(ex);
+ * return;
+ * }
+ *
+ * // Stage 2: WAL persistence
+ * walPersistenceService.persist(mutations)
+ * .thenAccept(v -> progress.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, versions, executor))
+ * .exceptionally(ex -> { progress.completeExceptionally(ex); return null; });
+ *
+ * // Stage 3: Index updates
+ * indexUpdateService.apply(mutations)
+ * .thenAccept(v -> progress.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, versions, executor))
+ * .exceptionally(ex -> { progress.completeExceptionally(ex); return null; });
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class CommitProgressRecord implements CommitProgress {
 
 	/**
-	 * Timestamp marking the start time of the commit process.
+	 * Timestamp marking when the commit process began.
+	 *
+	 * Captured when this `CommitProgressRecord` is created (typically when {@link EvitaSessionContract#closeNowWithProgress()}
+	 * is called). Used for performance monitoring and timeout detection.
 	 */
 	@Getter private final OffsetDateTime commitStartTime = OffsetDateTime.now();
 
 	/**
-	 * Callback that is executed just before the particular stage is marked as completed.
+	 * Callback invoked just before marking a stage as complete, based on {@link #terminationStage}.
+	 *
+	 * This callback enables session cleanup logic to execute at the appropriate commit milestone. For example:
+	 * - If `terminationStage` is {@link CommitBehavior#WAIT_FOR_WAL_PERSISTENCE}, callback runs after WAL persistence
+	 * but before indexing
+	 * - Session resources (connections, temp files) can be released at the configured stage
+	 *
+	 * **Signature**: `BiConsumer<CommitVersions, Throwable>`
+	 * - First parameter: commit versions (null on exception)
+	 * - Second parameter: exception (null on success)
+	 *
+	 * **Exception Handling**: This callback must not throw exceptions; any errors should be logged internally.
 	 */
 	public final BiConsumer<CommitVersions, Throwable> terminationSequence;
 
 	/**
-	 * CompletableFuture that completes when the system verifies changes are not in conflict with
-	 * changes from other transactions committed in the meantime.
+	 * Future that completes when optimistic lock conflict resolution finishes.
+	 *
+	 * Exposed publicly via {@link #onConflictResolved()}. Completed internally by evitaDB transaction logic when
+	 * conflict check passes or fails.
 	 */
 	private final CompletableFuture<CommitVersions> onConflictResolved;
 
 	/**
-	 * CompletableFuture that completes when the changes are appended to the Write Ahead Log (WAL).
+	 * Future that completes when changes are persisted to the Write-Ahead Log (WAL).
+	 *
+	 * Exposed publicly via {@link #onWalAppended()}. Completed internally after WAL fsync succeeds or I/O error occurs.
 	 */
 	private final CompletableFuture<CommitVersions> onWalAppended;
 
 	/**
-	 * CompletableFuture that completes when the changes are visible to all readers.
+	 * Future that completes when changes are visible in all indexes.
+	 *
+	 * Exposed publicly via {@link #onChangesVisible()}. Completed internally after index updates finish or indexing
+	 * fails.
 	 */
 	private final CompletableFuture<CommitVersions> onChangesVisible;
+
 	/**
-	 * The stage of the commit that represents the termination phase of the session.
+	 * The commit stage at which the {@link #terminationSequence} callback should be invoked.
+	 *
+	 * Defaults to {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE}. Set to earlier stages (e.g.,
+	 * {@link CommitBehavior#WAIT_FOR_WAL_PERSISTENCE}) to release session resources sooner.
+	 *
+	 * **Mutable**: This field is set after construction to match the session's {@link SessionTraits#commitBehaviour()}.
 	 */
 	@Getter @Setter public CommitBehavior terminationStage = CommitBehavior.WAIT_FOR_CHANGES_VISIBLE;
 
 	/**
-	 * Completes the given CompletableFuture with the provided CommitVersions object, either by scheduling the completion
-	 * asynchronously in the specified executor or, in case the executor cannot accept the task, by completing it immediately.
+	 * Asynchronously completes a stage, preventing transaction thread from blocking on client callbacks.
 	 *
-	 * @param thisStage         a CompletableFuture to resolve when the completion is processed
-	 * @param commitVersions the CommitVersions object containing catalog and schema versions to complete the future with
-	 * @param executor       the executor in which the completion should be scheduled asynchronously
+	 * This method attempts to complete the future in the provided executor to offload client callback execution
+	 * from the evitaDB transaction pipeline thread. If the executor rejects the task (shutdown or queue full),
+	 * falls back to synchronous completion.
+	 *
+	 * **Cancellation Handling**: If the async completion is cancelled, the future is still completed with the result
+	 * to ensure all stages eventually complete.
+	 *
+	 * @param thisStage      the future to complete
+	 * @param commitVersions the versions to complete with
+	 * @param executor       the executor to run completion asynchronously
 	 */
 	private static void completeStage(
 		@Nonnull CompletableFuture<CommitVersions> thisStage,
@@ -111,11 +203,15 @@ public class CommitProgressRecord implements CommitProgress {
 	}
 
 	/**
-	 * Completes the given CompletableFuture with the provided CommitVersions object, either by scheduling the completion
-	 * asynchronously in the specified executor or, in case the executor cannot accept the task, by completing it immediately.
+	 * Chains completion of this stage to the previous stage.
 	 *
-	 * @param previousStage  the previous CompletionStage that is expected to be completed before this one
-	 * @param thisStage         a CompletableFuture to resolve when the completion is processed
+	 * This method synchronously completes `thisStage` when `previousStage` completes. Used for later stages
+	 * (WAL, visibility) that chain off the async completion of the first stage (conflict resolution).
+	 *
+	 * Since the first stage is completed asynchronously, chaining here is safe and won't block the transaction thread.
+	 *
+	 * @param previousStage the stage that must complete first
+	 * @param thisStage     the stage to complete when previous stage finishes
 	 */
 	private static void completeStage(
 		@Nonnull CompletionStage<CommitVersions> previousStage,
@@ -128,14 +224,22 @@ public class CommitProgressRecord implements CommitProgress {
 	}
 
 	/**
-	 * Creates a new instance of CommitProgressRecord with the specified CompletableFuture objects.
+	 * Creates a new `CommitProgressRecord` with no termination callback.
+	 *
+	 * Equivalent to `new CommitProgressRecord(Functions.noOpBiConsumer())`. Used when no session cleanup logic
+	 * is needed at commit milestones.
 	 */
 	public CommitProgressRecord() {
 		this(Functions.noOpBiConsumer());
 	}
 
 	/**
-	 * Creates a new instance of CommitProgressRecord with the specified CompletableFuture objects.
+	 * Creates a new `CommitProgressRecord` with the specified termination callback.
+	 *
+	 * The callback is invoked just before marking the stage configured in {@link #terminationStage} as complete.
+	 * This allows session cleanup logic to execute at the appropriate commit milestone.
+	 *
+	 * @param terminationSequence callback invoked before completing the termination stage; must not throw exceptions
 	 */
 	public CommitProgressRecord(@Nonnull BiConsumer<CommitVersions, Throwable> terminationSequence) {
 		this.terminationSequence = terminationSequence;
@@ -187,9 +291,21 @@ public class CommitProgressRecord implements CommitProgress {
 	}
 
 	/**
-	 * Completes all non-finished futures exceptionally with the specified exception.
+	 * Fails all incomplete stages with the specified exception, propagating failure through the pipeline.
 	 *
-	 * @param exception the exception to complete the futures with
+	 * This method implements the guarantee that when any stage fails, all later stages fail immediately with the same
+	 * exception. Invokes {@link #terminationSequence} callback with the exception when completing the configured
+	 * {@link #terminationStage}.
+	 *
+	 * **Idempotency**: Already-completed stages are not affected; only incomplete stages are failed.
+	 *
+	 * **Use Cases**
+	 *
+	 * - Conflict detection fails: call with `ConcurrentSchemaUpdateException`
+	 * - WAL I/O error: call with `IOException`
+	 * - Catalog shutdown: call with `InstanceTerminatedException`
+	 *
+	 * @param exception the exception to fail all incomplete stages with
 	 */
 	public void completeExceptionally(@Nonnull Throwable exception) {
 		if (!this.onConflictResolved.isDone()) {
@@ -213,15 +329,27 @@ public class CommitProgressRecord implements CommitProgress {
 	}
 
 	/**
-	 * Completes the appropriate CompletableFuture based on the specified commit behavior and commit versions.
-	 * The method determines the kind of commit behavior and completes the corresponding CompletableFuture
-	 * with the provided commit versions.
+	 * Completes the stage corresponding to the specified commit behavior synchronously.
 	 *
-	 * @param commitBehavior the behavior determining how the commit process should proceed,
-	 *                       such as waiting for conflict resolution, WAL persistence, or visibility of changes
-	 * @param commitVersions the commit versions to be used for completing the futures;
-	 *                       it encapsulates information such as catalog version and schema version
-	 * @throws IllegalArgumentException if the specified commit behavior is unsupported
+	 * This method marks the specified stage as complete with the provided versions. If the stage is already complete,
+	 * this call has no effect (idempotent). Invokes {@link #terminationSequence} callback when completing the
+	 * configured {@link #terminationStage}.
+	 *
+	 * **Synchronous Completion**: This variant completes the future immediately on the calling thread. Client callbacks
+	 * registered via `thenAccept()` etc. will execute on this thread, potentially blocking the transaction pipeline.
+	 * Prefer {@link #complete(CommitBehavior, CommitVersions, Executor)} for production use.
+	 *
+	 * **Use Cases**
+	 *
+	 * - Testing: deterministic completion order
+	 * - Read-only sessions: no client callbacks expected
+	 * - Empty transactions: immediate completion of all stages
+	 *
+	 * @param commitBehavior the stage to complete ({@link CommitBehavior#WAIT_FOR_CONFLICT_RESOLUTION},
+	 *                       {@link CommitBehavior#WAIT_FOR_WAL_PERSISTENCE}, or
+	 *                       {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE})
+	 * @param commitVersions the versions to complete the stage with
+	 * @throws IllegalArgumentException if an unsupported commit behavior is provided (should never happen)
 	 */
 	public void complete(@Nonnull CommitBehavior commitBehavior, @Nonnull CommitVersions commitVersions) {
 		switch (commitBehavior) {
@@ -254,18 +382,35 @@ public class CommitProgressRecord implements CommitProgress {
 	}
 
 	/**
-	 * Completes the appropriate CompletableFuture based on the specified commit behavior and commit versions.
-	 * The method determines the kind of commit behavior and completes the corresponding CompletableFuture
-	 * with the provided commit versions.
+	 * Completes the stage corresponding to the specified commit behavior asynchronously.
 	 *
-	 * @param commitBehavior the behavior determining how the commit process should proceed,
-	 *                       such as waiting for conflict resolution, WAL persistence, or visibility of changes
-	 * @param commitVersions the commit versions to be used for completing the futures;
-	 *                       it encapsulates information such as catalog version and schema version
-	 * @param executor       the executor to run the completion asynchronously
-	 * @throws IllegalArgumentException if the specified commit behavior is unsupported
+	 * This is the preferred method for production use. It completes the specified stage asynchronously in the provided
+	 * executor to prevent client callbacks from blocking the transaction pipeline thread.
+	 *
+	 * **Asynchronous Behavior**
+	 *
+	 * - **WAIT_FOR_CONFLICT_RESOLUTION**: Completes `onConflictResolved` async in executor
+	 * - **WAIT_FOR_WAL_PERSISTENCE**: Chains `onWalAppended` to `onConflictResolved` (synchronous chaining is safe
+	 * because the first stage is already async)
+	 * - **WAIT_FOR_CHANGES_VISIBLE**: Chains `onChangesVisible` to `onWalAppended` (synchronous chaining is safe)
+	 *
+	 * **Fallback**: If the executor rejects the task, falls back to synchronous completion (see
+	 * {@link #completeStage(CompletableFuture, CommitVersions, Executor)}).
+	 *
+	 * **Use Cases**
+	 *
+	 * - Production commit pipeline: offload client callbacks from transaction threads
+	 * - High-throughput scenarios: prevent slow client callbacks from blocking commit processing
+	 *
+	 * @param commitBehavior the stage to complete ({@link CommitBehavior#WAIT_FOR_CONFLICT_RESOLUTION},
+	 *                       {@link CommitBehavior#WAIT_FOR_WAL_PERSISTENCE}, or
+	 *                       {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE})
+	 * @param commitVersions the versions to complete the stage with
+	 * @param executor       the executor to run completion asynchronously (usually a dedicated callback executor)
+	 * @throws IllegalArgumentException if an unsupported commit behavior is provided (should never happen)
 	 */
-	public void complete(@Nonnull CommitBehavior commitBehavior, @Nonnull CommitVersions commitVersions, @Nonnull Executor executor) {
+	public void complete(
+		@Nonnull CommitBehavior commitBehavior, @Nonnull CommitVersions commitVersions, @Nonnull Executor executor) {
 		switch (commitBehavior) {
 			case WAIT_FOR_CONFLICT_RESOLUTION -> {
 				if (!this.onConflictResolved.isDone()) {
@@ -296,11 +441,23 @@ public class CommitProgressRecord implements CommitProgress {
 	}
 
 	/**
-	 * Completes all non-finished futures successfully.
-	 * For onConflictResolved, it completes with null.
-	 * For onWalAppended and onChangesVisible, it completes with the specified CommitVersions.
+	 * Immediately completes all incomplete stages successfully with the provided versions.
 	 *
-	 * @param commitVersions the result to complete the futures with
+	 * This method is a convenience for completing all stages at once, typically used for:
+	 * - Read-only sessions (no actual commit processing)
+	 * - Empty transactions (no mutations to process)
+	 * - Test scenarios requiring deterministic completion
+	 *
+	 * **Behavior**: Completes all incomplete stages synchronously in sequence:
+	 * 1. `onConflictResolved`
+	 * 2. `onWalAppended`
+	 * 3. `onChangesVisible`
+	 *
+	 * **Idempotency**: Already-completed stages are skipped.
+	 *
+	 * **Termination Callback**: Invoked when completing the stage configured in {@link #terminationStage}.
+	 *
+	 * @param commitVersions the versions to complete all stages with
 	 */
 	public void complete(@Nonnull CommitVersions commitVersions) {
 		if (!this.onConflictResolved.isDone()) {

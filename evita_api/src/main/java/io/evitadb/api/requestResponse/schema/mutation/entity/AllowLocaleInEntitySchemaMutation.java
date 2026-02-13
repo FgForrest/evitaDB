@@ -50,10 +50,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Mutation is responsible for adding one or more currencies to a {@link EntitySchemaContract#getLocales()}
+ * Mutation is responsible for adding one or more locales to a {@link EntitySchemaContract#getLocales()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * or negative mutation {@link DisallowCurrencyInEntitySchemaMutation} if those mutation are present in the mutation pipeline
+ * or negative mutation {@link DisallowLocaleInEntitySchemaMutation} if those mutations are present in the mutation pipeline
  * multiple times.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -63,7 +63,7 @@ import java.util.stream.Stream;
 @EqualsAndHashCode
 public class AllowLocaleInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 1784723680307128191L;
-	@Getter private final Locale[] locales;
+	@Getter @Nonnull private final Locale[] locales;
 
 	public AllowLocaleInEntitySchemaMutation(@Nonnull Locale... locales) {
 		this.locales = locales;
@@ -98,8 +98,20 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableLocalEntityS
 				.toArray(Locale[]::new);
 
 			return new MutationCombinationResult<>(
-				localesToRemove.isEmpty() ? null : (localesToRemove.size() == ((DisallowLocaleInEntitySchemaMutation) existingMutation).getLocales().size() ? existingMutation : new DisallowLocaleInEntitySchemaMutation(localesToRemove)),
-				localesToAdd.length == this.locales.length ? this : (localesToAdd.length == 0 ? null : new AllowLocaleInEntitySchemaMutation(localesToAdd))
+				localesToRemove.isEmpty()
+					? null
+					: (
+						localesToRemove.size() == disallowLocaleInEntitySchema.getLocales().size()
+							? existingMutation
+							: new DisallowLocaleInEntitySchemaMutation(localesToRemove)
+				),
+				localesToAdd.length == this.locales.length
+					? this
+					: (
+						localesToAdd.length == 0
+							? null
+							: new AllowLocaleInEntitySchemaMutation(localesToAdd)
+				)
 			);
 		} else {
 			return null;

@@ -27,13 +27,40 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when two parallel processes try to alter the catalog with {@link io.evitadb.api.requestResponse.mutation.EngineMutation}.
+ * Exception thrown when concurrent engine-level mutation operations conflict with each
+ * other.
+ *
+ * Engine mutations operate at the evitaDB instance level rather than within a specific
+ * catalog. They include operations like catalog creation, deletion, and global
+ * configuration changes. Conflicts occur when two sessions concurrently attempt
+ * incompatible engine-level operations.
+ *
+ * **Typical Causes:**
+ * - Two sessions concurrently creating or deleting catalogs with the same name
+ * - Concurrent modification of engine-wide configuration or state
+ * - Race condition during evitaDB instance initialization or shutdown
+ *
+ * **Resolution:**
+ * Retry the engine mutation operation. Engine-level operations are relatively rare, so
+ * conflicts should be infrequent. If conflicts persist, consider serializing engine
+ * mutations through a single coordination point in your application.
+ *
+ * **Design Note:**
+ * Unlike catalog-level conflicts which provide fine-grained conflict keys, engine
+ * mutations typically use coarser-grained conflict detection since they are infrequent and
+ * often inherently global in scope.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ConflictingEngineMutationException extends SchemaAlteringException {
 	@Serial private static final long serialVersionUID = 6171875392157371536L;
 
+	/**
+	 * Creates a new exception describing an engine mutation conflict.
+	 *
+	 * @param publicMessage detailed description of the conflict, typically including the
+	 *                      conflicting operation type and conflict key
+	 */
 	public ConflictingEngineMutationException(@Nonnull String publicMessage) {
 		super(publicMessage);
 	}

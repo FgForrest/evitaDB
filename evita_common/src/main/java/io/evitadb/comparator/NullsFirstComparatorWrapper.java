@@ -26,6 +26,7 @@ package io.evitadb.comparator;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Comparator;
@@ -41,7 +42,7 @@ public class NullsFirstComparatorWrapper<T extends Comparable<T>> implements Com
 	@Nonnull private final Comparator<T> delegate;
 
 	@Override
-	public int compare(T o1, T o2) {
+	public int compare(@Nullable T o1, @Nullable T o2) {
 		if (o1 == null && o2 != null) {
 			return -1;
 		} else if (o2 == null && o1 != null) {

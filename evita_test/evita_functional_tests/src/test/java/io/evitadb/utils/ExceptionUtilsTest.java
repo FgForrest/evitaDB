@@ -23,6 +23,7 @@
 
 package io.evitadb.utils;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
@@ -37,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@DisplayName("ExceptionUtils contract tests")
 class ExceptionUtilsTest {
 
     @Test

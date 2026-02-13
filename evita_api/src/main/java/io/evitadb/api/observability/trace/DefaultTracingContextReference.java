@@ -26,18 +26,44 @@ package io.evitadb.api.observability.trace;
 import javax.annotation.Nonnull;
 
 /**
- * Dummy context reference when no tracing context implementation is present. This does nothing.
+ * No-op implementation of {@link TracingContextReference} used when no active tracing system is
+ * configured. This class uses `Void` as the context type and returns `null` from
+ * {@link #getContext()}, indicating the absence of any real tracing context.
+ *
+ * **Design Purpose:**
+ * Serves as a null object pattern for {@link DefaultTracingContext}, allowing code to safely call
+ * context reference methods without null checks or special-case handling. This reference is
+ * stateless and reusable.
+ *
+ * **Usage Context:**
+ * - Returned by {@link DefaultTracingContext#getCurrentContext()}
+ * - Reused as a singleton instance in {@link DefaultTracingContext#EMPTY_CONTEXT_HOLDER}
+ * - Safe to pass to `executeWithinBlockWithParentContext` methods (which ignore it in no-op mode)
+ *
+ * **Thread-Safety:**
+ * This class is stateless and thread-safe.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 public class DefaultTracingContextReference implements TracingContextReference<Void> {
 
+	/**
+	 * Returns `Void.class` to indicate that no real context type exists.
+	 *
+	 * @return `Void.class`
+	 */
 	@Nonnull
 	@Override
 	public Class<Void> getType() {
 		return Void.class;
 	}
 
+	/**
+	 * Returns `null` since no actual tracing context is maintained. The `@Nonnull` annotation is
+	 * inherited from the interface but cannot be satisfied for `Void` types.
+	 *
+	 * @return `null` (always)
+	 */
 	@Nonnull
 	@Override
 	public Void getContext() {

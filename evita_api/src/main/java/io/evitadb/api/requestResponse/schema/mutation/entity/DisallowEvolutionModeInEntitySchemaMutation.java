@@ -52,10 +52,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Mutation is responsible for removing one or more evolution modes to a {@link EntitySchemaContract#getEvolutionMode()}
+ * Mutation is responsible for removing one or more evolution modes from a {@link EntitySchemaContract#getEvolutionMode()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * or negative mutation {@link DisallowEvolutionModeInEntitySchemaMutation} if those mutation are present in the mutation pipeline
+ * or negative mutation {@link AllowEvolutionModeInEntitySchemaMutation} if those mutations are present in the mutation pipeline
  * multiple times.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -65,7 +65,7 @@ import java.util.stream.Stream;
 @EqualsAndHashCode
 public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 1246857825698363659L;
-	@Getter private final Set<EvolutionMode> evolutionModes;
+	@Getter @Nonnull private final Set<EvolutionMode> evolutionModes;
 
 	public DisallowEvolutionModeInEntitySchemaMutation(@Nonnull Set<EvolutionMode> evolutionModes) {
 		this.evolutionModes = EnumSet.noneOf(EvolutionMode.class);
@@ -105,8 +105,20 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
-				modesToAdd.length == 0 ? null : (modesToAdd.length == ((AllowEvolutionModeInEntitySchemaMutation) existingMutation).getEvolutionModes().length ? existingMutation : new AllowEvolutionModeInEntitySchemaMutation(modesToAdd)),
-				modesToRemove.size() == this.evolutionModes.size() ? this : (modesToRemove.isEmpty() ? null : new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove))
+				modesToAdd.length == 0
+					? null
+					: (
+						modesToAdd.length == allowEvolutionModeInEntitySchema.getEvolutionModes().length
+							? existingMutation
+							: new AllowEvolutionModeInEntitySchemaMutation(modesToAdd)
+				),
+				modesToRemove.size() == this.evolutionModes.size()
+					? this
+					: (
+						modesToRemove.isEmpty()
+							? null
+							: new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove)
+				)
 			);
 		} else {
 			return null;

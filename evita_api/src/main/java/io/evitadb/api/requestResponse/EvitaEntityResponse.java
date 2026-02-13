@@ -32,13 +32,22 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 
 /**
- * This class passes simple references to the found entities - i.e. full {@link EntityContract}.
+ * This class passes simple references to the found entities -
+ * i.e. full {@link EntityContract}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class EvitaEntityResponse<T extends Serializable> extends EvitaResponse<T> {
-	@Getter private final int[] primaryKeys;
+	@Getter @Nonnull private final int[] primaryKeys;
 
+	/**
+	 * Creates a new entity response with the given source query,
+	 * record page, and primary keys of the returned entities.
+	 *
+	 * @param sourceQuery the input query that produced this response
+	 * @param recordPage  the page of entity records
+	 * @param primaryKeys the primary keys of the entities
+	 */
 	public EvitaEntityResponse(
 		@Nonnull Query sourceQuery,
 		@Nonnull DataChunk<T> recordPage,
@@ -48,6 +57,15 @@ public final class EvitaEntityResponse<T extends Serializable> extends EvitaResp
 		this.primaryKeys = primaryKeys;
 	}
 
+	/**
+	 * Creates a new entity response with the given source query,
+	 * record page, primary keys, and additional extra results.
+	 *
+	 * @param sourceQuery  the input query that produced this response
+	 * @param recordPage   the page of entity records
+	 * @param primaryKeys  the primary keys of the entities
+	 * @param extraResults varargs of extra results to attach
+	 */
 	public EvitaEntityResponse(
 		@Nonnull Query sourceQuery,
 		@Nonnull DataChunk<T> recordPage,

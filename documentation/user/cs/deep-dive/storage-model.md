@@ -174,11 +174,26 @@ Datové záznamy obsahují konkrétní datový payload dle typu záznamu a použ
 
 Write-ahead log je separátní datová struktura, do které se zapisují všechny transakční změny ve formě serializovaných "mutací" ve chvíli, kdy je akceptován commit transakce. Jednotlivé mutace jsou zapisovány ve [standardní struktuře](#struktura-záznamu-v-úložišti) za sebou tak, jak byly v dané transakci provedeny. Jednotlivé transakce jsou mezi sebou odděleny tzv. hlavičkou, která obsahuje celkovou délku transakce v bajtech (`int32`). Zároveň je na začátek každé transakce zapsána úvodní <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass>, která obsahuje základní informace o provedené transakci pro lepší orientaci. Za ní následuje seznam jednotlivých mutací, které byly v rámci transakce provedeny. Hlavička s celkovou délkou transakce umožňuje rychlou navigaci mezi transakcemi v rámci WAL souboru, aniž by bylo nutné deserializovat jednotlivé mutace v něm.
 
+Každá transakce ve WAL je následována kumulativním kontrolním součtem CRC32C (8 bajtů jako `int64`). Tento kontrolní součet je vypočten přes všechny bajty zapsané do WAL souboru od jeho začátku až do (ale bez) samotného kontrolního součtu. To zahrnuje hlavičky s délkou transakce, záznamy TransactionMutation a všechny payload mutací. Kumulativní povaha tohoto kontrolního součtu znamená, že jakékoli poškození v kterékoli části WAL souboru bude detekováno při čtení následujících transakcí. Pokud je při čtení WAL souboru zjištěna neshoda kontrolního součtu, databáze zkrátí WAL v místě poškození a obnoví data pouze z platných předcházejících transakcí.
+
 Write-ahead log má omezenou maximální velikost danou nastavením `[walFileSizeBytes](https://evitadb.io/documentation/operate/configure#transaction-configuration)` a po jejím dosažení dochází k uzavření souboru a vytvoření nového s dalším číslem indexu v jeho názvu. Maximální počet WAL souborů je dán nastavením `[walFileCountKept](https://evitadb.io/documentation/operate/configure#transaction-configuration)`. Po dosažení maximálního počtu WAL souborů se nejstarší soubor odstraní. Tento mechanismus zajišťuje, že WAL soubory nebudou nikdy příliš velké a zároveň se nebudou hromadit na disku.
 
-Na konci každého WAL souboru je zapsána dvojice `int32` čísel, které představují první a poslední verzi katalogu, která byla v rámci tohoto WAL souboru zapsána. Tato informace nám umožňuje rychlou navigaci mezi WAL soubory pokud se snažíme najít konkrétní transakci, která provádí změny v katalogu odpovídající konkrétní požadované verzi.
+Na konci každého WAL souboru kromě aktuálního, do kterého se stále zapisuje, je zapsána dvojice `int64` čísel představující první a poslední verzi katalogu zaznamenanou v tomto WAL souboru, následovaná třetí hodnotou `int64` obsahující finální kumulativní kontrolní součet CRC32C celého obsahu WAL souboru. Tato informace nám umožňuje rychlou navigaci mezi WAL soubory a ověření, že obsah souboru je neporušený. Kumulativní kontrolní součet na konci souboru odpovídá poslednímu kontrolnímu součtu transakce zapsanému do tohoto souboru.
 
 Pokud se na konci WAL souboru nalezne nedopsaný záznam - tj. jeho velikost neodpovídá velikosti v hlavičce transakce nebo transakční mutaci, je WAL soubor při startu databáze zkrácen na poslední validní WAL záznam.
+
+#### Formát WAL transakce
+
+Každá transakce ve WAL souboru má následující strukturu:
+
+| Informace              | Datový typ | Délka v bajtech |
+|------------------------|------------|-----------------|
+| Délka transakce        | int32      | 4B              |
+| TransactionMutation    | záznam     | proměnlivá      |
+| Payload mutací         | záznam[]   | proměnlivá      |
+| Kumulativní CRC32C     | int64      | 8B              |
+
+Kumulativní CRC32C je počítán inkrementálně při zápisu bajtů do WAL souboru. Při čtení transakcí je tento kontrolní součet ověřován pro zajištění integrity dat. Pokud ověření selže, je vyhozena výjimka `WriteAheadLogCorruptedException` (pro WAL katalogu) nebo `EngineMutationLogCorruptedException` (pro WAL enginu) a WAL je zkrácen na poslední platnou transakci.
 
 ## Mechanika dat
 

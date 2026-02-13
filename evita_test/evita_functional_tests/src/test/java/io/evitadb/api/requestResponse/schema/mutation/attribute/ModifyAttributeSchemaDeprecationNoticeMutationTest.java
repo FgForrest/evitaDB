@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -46,14 +47,16 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("ModifyAttributeSchemaDeprecationNoticeMutation")
 class ModifyAttributeSchemaDeprecationNoticeMutationTest {
 
 	@Test
+	@DisplayName("Should override deprecation notice of previous global attribute mutation when names match")
 	void shouldOverrideDeprecationNoticeOfPreviousGlobalAttributeMutationIfNamesMatch() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
-		ModifyAttributeSchemaDeprecationNoticeMutation existingMutation = new ModifyAttributeSchemaDeprecationNoticeMutation(ATTRIBUTE_NAME, "oldDeprecationNotice");
+		final ModifyAttributeSchemaDeprecationNoticeMutation existingMutation = new ModifyAttributeSchemaDeprecationNoticeMutation(ATTRIBUTE_NAME, "oldDeprecationNotice");
 		final CatalogSchemaContract entitySchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
 		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation);
@@ -65,20 +68,22 @@ class ModifyAttributeSchemaDeprecationNoticeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new global attribute mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewGlobalAttributeMutationDoesntMatch() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
-		ModifyAttributeSchemaDeprecationNoticeMutation existingMutation = new ModifyAttributeSchemaDeprecationNoticeMutation("differentName", "oldDeprecationNotice");
+		final ModifyAttributeSchemaDeprecationNoticeMutation existingMutation = new ModifyAttributeSchemaDeprecationNoticeMutation("differentName", "oldDeprecationNotice");
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation));
 	}
 
 	@Test
+	@DisplayName("Should override deprecation notice of previous mutation when names match")
 	void shouldOverrideDeprecationNoticeOfPreviousMutationIfNamesMatch() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
-		ModifyAttributeSchemaDeprecationNoticeMutation existingMutation = new ModifyAttributeSchemaDeprecationNoticeMutation(ATTRIBUTE_NAME, "oldDeprecationNotice");
+		final ModifyAttributeSchemaDeprecationNoticeMutation existingMutation = new ModifyAttributeSchemaDeprecationNoticeMutation(ATTRIBUTE_NAME, "oldDeprecationNotice");
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
 		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
@@ -90,17 +95,19 @@ class ModifyAttributeSchemaDeprecationNoticeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
-		ModifyAttributeSchemaDeprecationNoticeMutation existingMutation = new ModifyAttributeSchemaDeprecationNoticeMutation("differentName", "oldDeprecationNotice");
+		final ModifyAttributeSchemaDeprecationNoticeMutation existingMutation = new ModifyAttributeSchemaDeprecationNoticeMutation("differentName", "oldDeprecationNotice");
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation));
 	}
 
 	@Test
+	@DisplayName("Should mutate global attribute schema")
 	void shouldMutateGlobalAttributeSchema() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
 		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(), GlobalAttributeSchemaContract.class);
@@ -109,8 +116,9 @@ class ModifyAttributeSchemaDeprecationNoticeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate entity attribute schema")
 	void shouldMutateEntityAttributeSchema() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
 		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(), EntityAttributeSchemaContract.class);
@@ -119,8 +127,9 @@ class ModifyAttributeSchemaDeprecationNoticeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate catalog schema")
 	void shouldMutateCatalogSchema() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
@@ -137,8 +146,9 @@ class ModifyAttributeSchemaDeprecationNoticeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate entity schema")
 	void shouldMutateEntitySchema() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -154,8 +164,9 @@ class ModifyAttributeSchemaDeprecationNoticeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate reference schema")
 	void shouldMutateReferenceSchema() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
@@ -170,8 +181,9 @@ class ModifyAttributeSchemaDeprecationNoticeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating entity schema with non-existing attribute")
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithNonExistingAttribute() {
-		ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+		final ModifyAttributeSchemaDeprecationNoticeMutation mutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
 			ATTRIBUTE_NAME, "newDeprecationNotice"
 		);
 		assertThrows(

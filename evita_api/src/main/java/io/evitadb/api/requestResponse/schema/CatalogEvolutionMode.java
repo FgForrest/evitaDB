@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.requestResponse.data.EntityContract;
 
 /**
- * Evolution mode allows to specify how strict is evitaDB when unknown information is presented to her for the first
+ * Evolution mode allows to specify how strict is evitaDB when unknown information is presented to it for the first
  * time. When no evolution mode is set, each violation of the {@link CatalogSchemaContract} is
  * reported by an exception. This behaviour can be changed by this evolution mode, however.
  *

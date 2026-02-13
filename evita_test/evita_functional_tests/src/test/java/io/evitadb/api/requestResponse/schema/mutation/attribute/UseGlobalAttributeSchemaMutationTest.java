@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -44,12 +45,14 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("UseGlobalAttributeSchemaMutation")
 class UseGlobalAttributeSchemaMutationTest {
 	static final String ATTRIBUTE_NAME = "name";
 
 	@Test
+	@DisplayName("Should create entity attribute")
 	void shouldCreateEntityAttribute() {
-		UseGlobalAttributeSchemaMutation mutation = new UseGlobalAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final UseGlobalAttributeSchemaMutation mutation = new UseGlobalAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(catalogSchemaContract.getAttribute(ATTRIBUTE_NAME))
 			.thenReturn(of(createExistingGlobalAttributeSchema()));
@@ -74,8 +77,9 @@ class UseGlobalAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should create attribute in entity")
 	void shouldCreateAttributeInEntity() {
-		UseGlobalAttributeSchemaMutation mutation = new UseGlobalAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final UseGlobalAttributeSchemaMutation mutation = new UseGlobalAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(catalogSchemaContract.getAttribute(ATTRIBUTE_NAME))
 			.thenReturn(of(createExistingGlobalAttributeSchema()));
@@ -102,8 +106,9 @@ class UseGlobalAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when no attribute of such name is present in catalog schema")
 	void shouldThrowExceptionWhenNoAttributeOfSuchNameIsPresentInCatalogSchema() {
-		UseGlobalAttributeSchemaMutation mutation = new UseGlobalAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final UseGlobalAttributeSchemaMutation mutation = new UseGlobalAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(catalogSchemaContract.getAttribute(ATTRIBUTE_NAME)).thenReturn(empty());
 		assertThrows(
@@ -116,8 +121,9 @@ class UseGlobalAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating entity schema with existing attribute")
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithExistingAttribute() {
-		UseGlobalAttributeSchemaMutation mutation = new UseGlobalAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final UseGlobalAttributeSchemaMutation mutation = new UseGlobalAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(catalogSchemaContract.getAttribute(ATTRIBUTE_NAME))
 			.thenReturn(of(createExistingGlobalAttributeSchema()));

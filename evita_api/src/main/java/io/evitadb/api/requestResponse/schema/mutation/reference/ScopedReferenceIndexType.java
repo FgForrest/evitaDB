@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
@@ -48,8 +47,14 @@ public record ScopedReferenceIndexType(
 	@Nonnull Scope scope,
 	@Nonnull ReferenceIndexType indexType
 ) implements Serializable {
+	/**
+	 * Reusable empty array constant to avoid repeated zero-length array allocations.
+	 */
 	public static final ScopedReferenceIndexType[] EMPTY = new ScopedReferenceIndexType[0];
 
+	/**
+	 * Compact constructor that validates neither `scope` nor `indexType` is null.
+	 */
 	public ScopedReferenceIndexType {
 		Assert.notNull(scope, "Scope must not be null");
 		Assert.notNull(indexType, "Index type must not be null");

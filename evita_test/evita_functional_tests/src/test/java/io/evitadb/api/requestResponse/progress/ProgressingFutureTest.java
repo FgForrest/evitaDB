@@ -729,7 +729,7 @@ class ProgressingFutureTest {
 		);
 		// onFailure might be called multiple times when manually completing exceptionally
 		// while nested futures are running (once for manual completion, once for nested future cancellation)
-		assertTrue(onFailureCalls.size() >= 1, "onFailure should be called at least once");
+		assertTrue(!onFailureCalls.isEmpty(), "onFailure should be called at least once");
 		assertTrue(
 			onFailureCalls.stream().anyMatch(call -> call.contains("Manual exception")),
 			"At least one onFailure call should contain the manual exception"

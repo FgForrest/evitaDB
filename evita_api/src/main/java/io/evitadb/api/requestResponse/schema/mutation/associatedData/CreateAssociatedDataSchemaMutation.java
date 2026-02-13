@@ -80,6 +80,19 @@ public class CreateAssociatedDataSchemaMutation
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
 
+	/**
+	 * Creates a mutation that will set up a new associated data schema with the given properties.
+	 *
+	 * @param name              unique name of the associated data
+	 * @param description       optional human-readable description of the associated data
+	 * @param deprecationNotice optional deprecation notice if the associated data is deprecated
+	 * @param type              the data type stored in this associated data (must be a supported evitaDB type
+	 *                          or {@link ComplexDataObject}; {@link Predecessor} and
+	 *                          {@link ReferencedEntityPredecessor} are not allowed)
+	 * @param localized         whether the associated data values are locale-specific
+	 * @param nullable          whether the associated data value can be null
+	 * @throws InvalidSchemaMutationException if the type is not allowed in associated data
+	 */
 	public CreateAssociatedDataSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -111,7 +124,8 @@ public class CreateAssociatedDataSchemaMutation
 	) {
 		// when the associated schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
-		if (existingMutation instanceof RemoveAssociatedDataSchemaMutation removeAssociatedDataSchema && Objects.equals(removeAssociatedDataSchema.getName(), this.name)) {
+		if (existingMutation instanceof RemoveAssociatedDataSchemaMutation removeAssociatedDataSchema && Objects.equals(
+			removeAssociatedDataSchema.getName(), this.name)) {
 			final AssociatedDataSchemaContract createdVersion = mutate(null);
 			final AssociatedDataSchemaContract existingVersion = currentEntitySchema.getAssociatedData(this.name)
 				.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
@@ -168,10 +182,12 @@ public class CreateAssociatedDataSchemaMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final AssociatedDataSchemaContract newAssociatedDataSchema = mutate(null);
-		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(this.name);
+		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(
+			this.name);
 		if (existingAssociatedDataSchema.isEmpty()) {
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,

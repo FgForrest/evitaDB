@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -34,7 +35,9 @@ import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundS
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -96,6 +99,56 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 				"The sortable attribute compound `" + attributeCompoundName + "` is not defined in entity `" + entitySchema.getName() +
 					"` schema for reference with name `" + referenceSchema.getName() + "`!"
 			));
+	}
+
+	/**
+	 * Applies this mutation to the entity schema by looking up the existing sortable attribute compound,
+	 * applying the mutation via {@link #mutate(EntitySchemaContract, ReferenceSchemaContract, SortableAttributeCompoundSchemaContract)},
+	 * and replacing the compound if the result differs from the original.
+	 *
+	 * @param entitySchema  the entity schema containing the compound, must not be `null`
+	 * @return the updated entity schema with the mutated compound, or the original if unchanged
+	 */
+	@Nonnull
+	default EntitySchemaContract mutateEntitySchema(
+		@Nullable EntitySchemaContract entitySchema
+	) {
+		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
+		final EntitySortableAttributeCompoundSchemaContract existingCompoundSchema =
+			entitySchema.getSortableAttributeCompound(getName())
+				.orElseThrow(() -> new InvalidSchemaMutationException(
+					"The sortable attribute compound `" + getName() + "` is not defined in entity `" +
+						entitySchema.getName() + "` schema!"
+				));
+		final EntitySortableAttributeCompoundSchemaContract updatedSchema =
+			mutate(entitySchema, null, existingCompoundSchema);
+		return replaceSortableAttributeCompoundIfDifferent(
+			entitySchema, existingCompoundSchema, Objects.requireNonNull(updatedSchema)
+		);
+	}
+
+	/**
+	 * Applies this mutation to a reference schema by looking up the existing sortable attribute compound,
+	 * applying the mutation via {@link #mutate(EntitySchemaContract, ReferenceSchemaContract, SortableAttributeCompoundSchemaContract)},
+	 * and replacing the compound if the result differs from the original.
+	 *
+	 * @param entitySchema    the entity schema for context, never `null`
+	 * @param referenceSchema the reference schema containing the compound, must not be `null`
+	 * @return the updated reference schema with the mutated compound, or the original if unchanged
+	 */
+	@Nullable
+	default ReferenceSchemaContract mutateReferenceSchema(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
+		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		final SortableAttributeCompoundSchemaContract existingCompoundSchema =
+			getReferenceSortableAttributeCompoundSchemaOrThrow(entitySchema, referenceSchema, getName());
+		final SortableAttributeCompoundSchemaContract updatedSchema =
+			mutate(entitySchema, referenceSchema, existingCompoundSchema);
+		return replaceSortableAttributeCompoundIfDifferent(
+			referenceSchema, existingCompoundSchema, Objects.requireNonNull(updatedSchema)
+		);
 	}
 
 	/**

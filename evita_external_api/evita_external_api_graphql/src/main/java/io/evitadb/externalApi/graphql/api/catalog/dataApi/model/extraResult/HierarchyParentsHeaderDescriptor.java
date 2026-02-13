@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,9 +36,11 @@ public interface HierarchyParentsHeaderDescriptor extends HierarchyRequireHeader
 
 	PropertyDescriptor SIBLINGS = PropertyDescriptor.builder()
 		.name("siblings")
-		// TOBEDONE JNO: proper docs for siblings inside parents
 		.description("""
-			Requests sibling nodes besides the parent nodes.
+			When used within `parents`, requests sibling nodes of each parent node along
+			the path towards the root. The `siblings` argument simply extends the data
+			available in the `parents` data structure. You can define a custom `stopAt`
+			argument specific to siblings within the `siblings` argument.
 			""")
 		// type is expected to be a sibling specification object
 		.build();
@@ -51,9 +53,10 @@ public interface HierarchyParentsHeaderDescriptor extends HierarchyRequireHeader
 
 		PropertyDescriptor STOP_AT = PropertyDescriptor.builder()
 			.name("stopAt")
-			// TOBEDONE JNO: stopAt constraint docs
 			.description("""
-				Defines node at which the hierarchy will stop expanding.
+				Limits the traversal of the sibling hierarchy tree. By default, the traversal
+				produces a flat list of siblings. The constraint accepts one of the following
+				inner constraints: `distance`, `level`, or `node`.
 				""")
 			// type is expected to be a `stopAt` constraint
 			.build();

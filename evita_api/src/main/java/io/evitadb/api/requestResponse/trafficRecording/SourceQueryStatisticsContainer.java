@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.trafficRecording;
 
-
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
@@ -38,15 +37,18 @@ import java.util.UUID;
  * This container holds information about the source query finalization.
  *
  * @param sessionSequenceOrder   the session sequence order of the source query statistics (similar to session id but monotonic)
- * @param sessionId              the session id which the mutation belongs to
+ * @param sessionId              the session id which the source query statistics belongs to
  * @param recordSessionOffset    the order (sequence) of the record in the session
+ * @param sessionRecordsCount    the total count of the records in the session
  * @param sourceQueryId          the source query id
- * @param created                the time when the mutation was created
+ * @param created                the time when the source query statistics was created
  * @param durationInMilliseconds the overall duration of the session in milliseconds
  * @param ioFetchCount           the overall number of IO fetches performed in this session
  * @param ioFetchedSizeBytes     the overall total size of the data fetched in this session in bytes
  * @param returnedRecordCount    the total number of records returned by the query ({@link EvitaResponse#getRecordData()} size)
  * @param totalRecordCount       the total number of records calculated by the query ({@link EvitaResponse#getTotalRecordCount()})
+ * @param labels                 the client labels associated with the source query
+ * @param finishedWithError      the error message if the source query statistics finished with an error
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -103,7 +105,7 @@ public record SourceQueryStatisticsContainer(
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (!(o instanceof SourceQueryStatisticsContainer that)) return false;
 
 		return this.ioFetchCount == that.ioFetchCount &&

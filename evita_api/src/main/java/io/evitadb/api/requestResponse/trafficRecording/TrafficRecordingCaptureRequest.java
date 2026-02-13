@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@
  */
 
 package io.evitadb.api.requestResponse.trafficRecording;
-
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -133,12 +132,12 @@ public record TrafficRecordingCaptureRequest(
 		 */
 		SESSION_CLOSE,
 		/**
-		 * Query received via. API from the client - container contains original string of the client query.
+		 * Query received via API from the client - container contains original string of the client query.
 		 * API might call multiple queries related to the same source query.
 		 */
 		SOURCE_QUERY,
 		/**
-		 * Query received via. API from the client is finalized and sent to the client. Container contains the final
+		 * Query received via API from the client is finalized and sent to the client. Container contains the final
 		 * statistics aggregated over all operations related to the source query.
 		 */
 		SOURCE_QUERY_STATISTICS,
@@ -204,6 +203,7 @@ public record TrafficRecordingCaptureRequest(
 			this.sessionId = request.sessionId();
 			this.longerThan = request.longerThan();
 			this.fetchingMoreBytesThan = request.fetchingMoreBytesThan();
+			this.labels = request.labels();
 		}
 
 		/**

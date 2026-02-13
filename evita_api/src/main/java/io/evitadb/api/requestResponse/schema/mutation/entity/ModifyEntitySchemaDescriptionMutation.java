@@ -83,7 +83,7 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableLocalEnt
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		if (Objects.equals(entitySchema.getDescription(), this.description)) {
-			// entity schema is already removed - no need to do anything
+			// description already matches - no need to do anything
 			return entitySchema;
 		} else {
 			return EntitySchema._internalBuild(

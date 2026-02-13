@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ public interface CacheableHistogramContract extends Serializable {
 
 		@Override
 		public String toString() {
-			return "EMPTY HISTOGRAM";
+			return HistogramContract.EMPTY.toString();
 		}
 	};
 
@@ -144,17 +144,56 @@ public interface CacheableHistogramContract extends Serializable {
 	HistogramContract convertToHistogram(@Nonnull Predicate<BigDecimal> requestedPredicate);
 
 	/**
+	 * Converts the histogram represented by the current instance into a formatted string.
+	 * The string representation includes details about the buckets, their thresholds, occurrences,
+	 * and other histogram-specific data.
+	 *
+	 * @return A textual representation of the histogram, formatted to summarize its structure and data.
+	 */
+	@Nonnull
+	default String asString() {
+		final CacheableBucket[] buckets = getBuckets();
+		return HistogramContract.formatHistogram(
+			buckets.length,
+			index -> buckets[index].threshold(),
+			index -> buckets[index].occurrences(),
+			index -> buckets[index].relativeFrequency(),
+			index -> false,
+			getMax(),
+			getOverallCount()
+		);
+	}
+
+	/**
 	 * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 	 *
-	 * @param threshold   Contains threshold (left bound - inclusive) of the bucket.
-	 * @param occurrences Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
-	 *                    between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
+	 * @param threshold         Contains threshold (left bound - inclusive) of the bucket.
+	 * @param occurrences       Contains number of entity occurrences in this bucket - e.g. number of entities that
+	 *                          has monitored property value between previous bucket threshold (exclusive) and this
+	 *                          bucket threshold (inclusive)
+	 * @param relativeFrequency Relative frequency value for visualization (0-100 scale).
+	 *                          For standard histograms: `(occurrences / overallCount) * 100`.
+	 *                          For equalized histograms: normalized value density considering both
+	 *                          occurrences and bucket width. Raw frequency is `occurrences * (totalRange / bucketWidth)`,
+	 *                          then normalized so all values sum to 100. Empty buckets have relativeFrequency = 0.
 	 */
 	record CacheableBucket(
 		@Nonnull BigDecimal threshold,
-		int occurrences
+		int occurrences,
+		@Nonnull BigDecimal relativeFrequency
 	) implements Serializable {
-		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE;
-		@Serial private static final long serialVersionUID = 4216355542992506073L;
+		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE * 2;
+		@Serial private static final long serialVersionUID = 4216355542992506074L;
+
+		@Nonnull
+		@Override
+		public String toString() {
+			return '[' +
+				String.valueOf(this.threshold) +
+				": " + this.occurrences +
+				" (" + this.relativeFrequency + ")" +
+				']';
+		}
+
 	}
 }

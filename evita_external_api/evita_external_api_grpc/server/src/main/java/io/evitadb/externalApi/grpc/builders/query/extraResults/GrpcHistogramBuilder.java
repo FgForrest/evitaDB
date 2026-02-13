@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,6 +88,7 @@ public class GrpcHistogramBuilder {
 			.setThreshold(EvitaDataTypesConverter.toGrpcBigDecimal(bucket.threshold()))
 			.setOccurrences(bucket.occurrences())
 			.setRequested(bucket.requested())
+			.setRelativeFrequency(EvitaDataTypesConverter.toGrpcBigDecimal(bucket.relativeFrequency()))
 			.build()));
 		return GrpcHistogram.newBuilder()
 			.setMin(EvitaDataTypesConverter.toGrpcBigDecimal(histogram.getMin()))

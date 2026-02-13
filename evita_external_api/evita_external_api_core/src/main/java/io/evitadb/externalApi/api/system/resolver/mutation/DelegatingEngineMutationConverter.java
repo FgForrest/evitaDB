@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.api.resolver.mutation.DelegatingMutationConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;

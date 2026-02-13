@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -45,13 +44,13 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
- * Mutation is a holder for a single {@link AttributeSchemaMutation} that affect any
+ * Mutation is a holder for a single {@link AttributeSchemaMutation} that affects any
  * of {@link ReferenceSchemaContract#getAttributes()} in the {@link EntitySchemaContract}.
- * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * combination if it is placed twice in the mutation pipeline.
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve
+ * conflicts with the same mutation combination if it is placed twice in the mutation
+ * pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -64,7 +63,17 @@ public class ModifyReferenceAttributeSchemaMutation
 	@Serial private static final long serialVersionUID = -5779012919587623154L;
 	@Nonnull @Getter private final ReferenceAttributeSchemaMutation attributeSchemaMutation;
 
-	public ModifyReferenceAttributeSchemaMutation(@Nonnull String name, @Nonnull ReferenceAttributeSchemaMutation attributeSchemaMutation) {
+	/**
+	 * Creates a mutation that wraps the given attribute schema mutation and targets the
+	 * reference identified by `name`.
+	 *
+	 * @param name                   the name of the reference whose attribute is being modified
+	 * @param attributeSchemaMutation the attribute-level mutation to apply within the reference
+	 */
+	public ModifyReferenceAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nonnull ReferenceAttributeSchemaMutation attributeSchemaMutation
+	) {
 		super(name);
 		Assert.isTrue(attributeSchemaMutation instanceof AttributeSchemaMutation, "The mutation must implement AttributeSchemaMutation interface!");
 		this.attributeSchemaMutation = attributeSchemaMutation;
@@ -77,8 +86,10 @@ public class ModifyReferenceAttributeSchemaMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReferenceAttributeSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())
-				&& this.attributeSchemaMutation.getName().equals(theExistingMutation.getAttributeSchemaMutation().getName())) {
+		if (existingMutation instanceof ModifyReferenceAttributeSchemaMutation theExistingMutation
+			&& this.name.equals(theExistingMutation.getName())
+			&& this.attributeSchemaMutation.getName().equals(theExistingMutation.getAttributeSchemaMutation().getName())
+		) {
 			if (this.attributeSchemaMutation instanceof CombinableLocalEntitySchemaMutation combinableAttributeCombinationMutation) {
 				final MutationCombinationResult<LocalEntitySchemaMutation> result = combinableAttributeCombinationMutation.combineWith(
 					currentCatalogSchema, currentEntitySchema, (LocalEntitySchemaMutation) theExistingMutation.getAttributeSchemaMutation()
@@ -120,30 +131,16 @@ public class ModifyReferenceAttributeSchemaMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		return this.attributeSchemaMutation.mutate(
 			entitySchema, referenceSchema,
 			referenceSchema instanceof ReflectedReferenceSchemaContract rrsc && !rrsc.isReflectedReferenceAvailable() ?
 				ConsistencyChecks.SKIP : consistencyChecks
 		);
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
-		if (existingReferenceSchema.isEmpty()) {
-			// ups, the reference schema is missing
-			throw new InvalidSchemaMutationException(
-				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			);
-		} else {
-			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedSchema = mutate(entitySchema, theSchema);
-			Assert.isPremiseValid(updatedSchema != null, "Updated reference schema is not expected to be null!");
-			return replaceReferenceSchema(entitySchema, theSchema, updatedSchema);
-		}
 	}
 
 	@Nonnull

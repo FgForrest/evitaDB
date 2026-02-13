@@ -56,7 +56,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Internal {@link SortableAttributeCompoundSchema} builder used solely from within {@link InternalEntitySchemaBuilder}.
+ * Internal {@link SortableAttributeCompoundSchemaEditor.SortableAttributeCompoundSchemaBuilder} builder used
+ * solely from within {@link InternalEntitySchemaBuilder}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -216,7 +217,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 	@Nonnull
 	public SortableAttributeCompoundSchemaContract toInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
-			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// if the dirty flag is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = 0;

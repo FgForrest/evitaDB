@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.trafficRecording;
 
-
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
@@ -39,10 +38,12 @@ import java.util.UUID;
  * @param sessionSequenceOrder the session sequence order of the source query (similar to session id but monotonic)
  * @param sessionId            unique identifier of the session the mutation belongs to
  * @param recordSessionOffset  the order (sequence) of the record in the session
+ * @param sessionRecordsCount  the total count of the records in the session
  * @param sourceQueryId        unique identifier of the source query
- * @param created              time when the mutation was created
+ * @param created              time when the source query was received
  * @param sourceQuery          unparsed, raw source query in particular format
  * @param labels               the client labels associated with the query
+ * @param finishedWithError    the error message if the source query finished with an error
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -102,7 +103,7 @@ public record SourceQueryContainer(
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (!(o instanceof SourceQueryContainer that)) return false;
 
 		return this.recordSessionOffset == that.recordSessionOffset &&

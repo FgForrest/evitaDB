@@ -90,7 +90,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	private final EntitySchemaProvider entitySchemaAccessor;
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
+	 * This method is for internal purposes only. It could be used for reconstruction of CatalogSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
@@ -109,7 +109,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
+	 * This method is for internal purposes only. It could be used for reconstruction of CatalogSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!

@@ -27,7 +27,7 @@ import java.io.Serializable;
 
 /**
  * This interface is simple "marking" interface that allows fast lookup for all possible variants of extra results
- * of {@link EvitaResponse} data transfer object. There is no other reason for existence of this interface.
+ * of {@link EvitaResponse} data transfer object. There is no other reason for the existence of this interface.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

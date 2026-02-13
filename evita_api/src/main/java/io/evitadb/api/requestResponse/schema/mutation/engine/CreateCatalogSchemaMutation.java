@@ -66,6 +66,11 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Serial private static final long serialVersionUID = 6996920692477020274L;
 	@Nonnull @Getter private final String catalogName;
 
+	/**
+	 * Creates a new mutation that will set up a new catalog with the specified name.
+	 *
+	 * @param catalogName name of the catalog to create
+	 */
 	public CreateCatalogSchemaMutation(@Nonnull String catalogName) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
 		this.catalogName = catalogName;
@@ -82,7 +87,7 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		if (evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` already exists!");
 		}
-		// check the names in all naming conventions are unique in the entity schema
+		// check the names in all naming conventions are unique among catalogs
 		CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
 	}
 

@@ -45,7 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
 

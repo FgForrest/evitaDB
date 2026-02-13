@@ -32,7 +32,7 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 
 /**
- * CDC event that is sent to the subscriber if it matches to the request he made.
+ * CDC event that is sent to the subscriber if it matches the subscriber's request.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -40,6 +40,8 @@ public sealed interface ChangeCapture extends Serializable permits ChangeSystemC
 
 	/**
 	 * Returns the target version of the data source to which this mutation advances it.
+	 *
+	 * @return the target version
 	 */
 	long version();
 
@@ -49,11 +51,13 @@ public sealed interface ChangeCapture extends Serializable permits ChangeSystemC
 	 * starts with index 0.
 	 *
 	 * This index allows client to build on the previously interrupted CDC stream even in the middle of the transaction.
-	 * This is beneficial in case of very large transactions that still needs to be fully transferred to the client, but
+	 * This is beneficial in case of very large transactions that still need to be fully transferred to the client, but
 	 * could be done so in multiple separate chunks.
 	 *
 	 * Combination of {@link #version()} and this index precisely identifies the position of a single operation in
 	 * the CDC stream.
+	 *
+	 * @return the index of the event within the version
 	 */
 	int index();
 
@@ -66,13 +70,17 @@ public sealed interface ChangeCapture extends Serializable permits ChangeSystemC
 
 	/**
 	 * The operation that was performed.
+	 *
+	 * @return the operation that was performed
 	 */
 	@Nonnull
 	Operation operation();
 
 	/**
-	 * Optional body of the operation when it is requested initial request. Carries information about what exactly
-	 * happened.
+	 * Optional body of the operation when requested by the initial capture request. Carries information about what
+	 * exactly happened.
+	 *
+	 * @return the mutation body, or null if not requested
 	 */
 	@Nullable
 	Mutation body();

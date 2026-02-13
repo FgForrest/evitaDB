@@ -30,7 +30,14 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation marks all enums that are supported by EvitaDB and doesn't need to be converted to string.
+ * Annotation marks all enums that are natively supported by evitaDB and don't need to be converted to string
+ * for storage or serialization. Enums annotated with `@SupportedEnum` are handled directly by evitaDB's binary
+ * serialization mechanism, preserving their enum identity and allowing efficient storage and querying.
+ *
+ * User-defined enums that are NOT annotated with `@SupportedEnum` are automatically converted to their string
+ * representation (via `Enum.name()`) when stored in evitaDB and converted back when retrieved.
+ *
+ * This annotation is meant to be used only internally within evitaDB core modules to mark framework-provided enums.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

@@ -25,8 +25,8 @@ package io.evitadb.core.traffic;
 
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.LabelIntrospector;
-import io.evitadb.api.TrafficRecordingReader;
+import io.evitadb.api.traffic.LabelIntrospector;
+import io.evitadb.api.traffic.TrafficRecordingReader;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;

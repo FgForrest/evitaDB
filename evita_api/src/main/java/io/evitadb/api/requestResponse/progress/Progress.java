@@ -36,7 +36,8 @@ import java.util.function.IntConsumer;
  *
  * 1. the operation must eventually complete (either successfully or exceptionally)
  * 2. the percentage completion is monotonically increasing from 0 to 100
- * 3. once the operation completes successfully, the result is available through the completion stage
+ * 3. once the operation completes successfully, the result is available through the
+ *    completion stage
  * 4. if the operation completes exceptionally, the system remains in its previous state
  * 5. the completion stage allows asynchronous waiting for the operation to finish
  *

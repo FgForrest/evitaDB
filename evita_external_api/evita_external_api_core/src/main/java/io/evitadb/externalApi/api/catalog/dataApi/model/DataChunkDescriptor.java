@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -43,7 +44,7 @@ public interface DataChunkDescriptor {
 		.description("""
 			Actual found sorted page/strip of records.
 			""")
-		// type is expected to be a collection of `Entity` objects
+		// type is expected to be a collection of target objects, this field is added to the final object type, not the interface
 		.build();
 	PropertyDescriptor TOTAL_RECORD_COUNT = PropertyDescriptor.builder()
 		.name("totalRecordCount")
@@ -93,5 +94,17 @@ public interface DataChunkDescriptor {
 			Returns true if there are no data available.
 			""")
 		.type(nonNull(Boolean.class))
+		.build();
+
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
+		.name("DataChunk")
+		.description("Represents partial chunk of records according to pagination rules in input query.")
+		.staticProperty(TOTAL_RECORD_COUNT)
+		.staticProperty(FIRST)
+		.staticProperty(LAST)
+		.staticProperty(HAS_PREVIOUS)
+		.staticProperty(HAS_NEXT)
+		.staticProperty(SINGLE_PAGE)
+		.staticProperty(EMPTY)
 		.build();
 }

@@ -64,6 +64,7 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	 * @param cardinality the cardinality of the reflected reference
 	 * @return the builder to continue with configuration
 	 */
+	@Nonnull
 	S withCardinality(@Nonnull Cardinality cardinality);
 
 	/**

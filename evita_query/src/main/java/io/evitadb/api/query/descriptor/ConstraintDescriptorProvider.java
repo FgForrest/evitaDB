@@ -153,7 +153,11 @@ public class ConstraintDescriptorProvider {
 			)
 			.findFirst()
 			.orElseThrow(() ->
-				new GenericEvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
+				new GenericEvitaInternalError(
+					"Unknown constraint `" + constraintClass.getName() + "` " +
+						(suffix == null ? "without suffix" : "with suffix `" + suffix + "`") +
+						". Is it properly registered?"
+				));
 	}
 
 	@Nonnull
@@ -228,11 +232,14 @@ public class ConstraintDescriptorProvider {
 	                                                                          @Nonnull ConstraintPropertyType requiredPropertyType,
 	                                                                          @Nonnull ConstraintDomain requiredSupportedDomain) {
 		return CONSTRAINT_DESCRIPTORS.stream()
-			.filter(cd -> cd.type().equals(requiredType) &&
-				cd.propertyType().equals(requiredPropertyType) &&
-				cd.supportedIn().contains(requiredSupportedDomain) &&
-				cd.supportedValues() != null &&
-				cd.supportedValues().compoundsSupported())
+			.filter(cd -> {
+				final SupportedValues cdsv = cd.supportedValues();
+				return cd.type().equals(requiredType) &&
+					cd.propertyType().equals(requiredPropertyType) &&
+					cd.supportedIn().contains(requiredSupportedDomain) &&
+					cdsv != null &&
+					cdsv.compoundsSupported();
+			})
 			.collect(Collectors.toUnmodifiableSet());
 	}
 

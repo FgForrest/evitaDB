@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TrappedChanges;

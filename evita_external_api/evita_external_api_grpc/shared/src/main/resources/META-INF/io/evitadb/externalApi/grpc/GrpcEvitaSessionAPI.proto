@@ -658,8 +658,12 @@ service EvitaSessionService {
   rpc GoLiveAndCloseWithProgress(google.protobuf.Empty) returns (stream GrpcGoLiveAndCloseWithProgressResponse);
   // Procedure used to backup an existing catalog.
   rpc BackupCatalog(GrpcBackupCatalogRequest) returns (GrpcBackupCatalogResponse);
+  // Procedure used to backup an existing catalog, streaming progress updates.
+  rpc BackupCatalogWithProgress(GrpcBackupCatalogRequest) returns (stream GrpcBackupCatalogResponse);
   // Procedure used to backup an existing catalog.
   rpc FullBackupCatalog(google.protobuf.Empty) returns (GrpcFullBackupCatalogResponse);
+  // Procedure used to fully backup an existing catalog, streaming progress updates.
+  rpc FullBackupCatalogWithProgress(google.protobuf.Empty) returns (stream GrpcFullBackupCatalogResponse);
   // Procedure that closes the session.
   rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
   // Procedure that closes the session opening a stream that listens to transaction processing phases.

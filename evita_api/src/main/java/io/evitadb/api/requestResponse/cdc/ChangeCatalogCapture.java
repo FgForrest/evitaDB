@@ -35,16 +35,19 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 
 /**
- * Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+ * Record represents a CDC event that is sent to the subscriber if it matches the subscriber's request.
  *
- * @param version    the version of the catalog where the operation was performed
- * @param index      the index of the event within the enclosed transaction, index 0 is the transaction lead event
- * @param timestamp  the timestamp when the operation was performed
- * @param area       the area of the operation
- * @param entityType the {@link EntitySchema#getName()} of the entity or its schema that was affected by the operation
- *                   (if the operation is executed on catalog schema this field is null)
- * @param operation  the operation that was performed
- * @param body       optional body of the operation when it is requested by the {@link ChangeSystemCaptureRequest#content()}
+ * @param version          the version of the catalog where the operation was performed
+ * @param index            the index of the event within the enclosed transaction, index 0 is the transaction
+ *                         lead event
+ * @param timestamp        the timestamp when the operation was performed
+ * @param area             the area of the operation
+ * @param entityType       the {@link EntitySchema#getName()} of the entity or its schema that was affected by
+ *                         the operation (if the operation is executed on catalog schema this field is null)
+ * @param entityPrimaryKey the primary key of the entity affected by the operation (only for data captures)
+ * @param operation        the operation that was performed
+ * @param body             optional body of the operation when it is requested by
+ *                         the {@link ChangeCatalogCaptureRequest#content()}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeCatalogCapture(
@@ -76,7 +79,7 @@ public record ChangeCatalogCapture(
 			context.getVersion(),
 			context.getIndex(),
 			context.getTimestamp(),
-			io.evitadb.api.requestResponse.cdc.CaptureArea.DATA,
+			CaptureArea.DATA,
 			context.getEntityType(),
 			context.getEntityPrimaryKey().isPresent() ?
 				context.getEntityPrimaryKey().getAsInt() : null,
@@ -103,7 +106,7 @@ public record ChangeCatalogCapture(
 			context.getVersion(),
 			context.getIndex(),
 			context.getTimestamp(),
-			io.evitadb.api.requestResponse.cdc.CaptureArea.SCHEMA,
+			CaptureArea.SCHEMA,
 			context.getEntityType(),
 			null,
 			operation,
@@ -129,7 +132,7 @@ public record ChangeCatalogCapture(
 			context.getVersion(),
 			context.getIndex(),
 			context.getTimestamp(),
-			io.evitadb.api.requestResponse.cdc.CaptureArea.INFRASTRUCTURE,
+			CaptureArea.INFRASTRUCTURE,
 			context.getEntityType(),
 			null,
 			operation,
@@ -137,8 +140,8 @@ public record ChangeCatalogCapture(
 		);
 	}
 
-	@SuppressWarnings("unchecked")
 	@Nonnull
+	@Override
 	public ChangeCatalogCapture as(@Nonnull ChangeCaptureContent content) {
 		switch (content) {
 			case BODY -> {
@@ -164,6 +167,7 @@ public record ChangeCatalogCapture(
 		}
 	}
 
+	// timestamp is intentionally excluded - version+index uniquely identify the CDC position
 	@Override
 	public boolean equals(Object o) {
 		if (!(o instanceof ChangeCatalogCapture that)) return false;

@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -35,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -60,7 +58,6 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -78,6 +75,7 @@ public class CreateReflectedReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -3833868605223655352L;
+
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nullable private final Cardinality cardinality;
@@ -88,6 +86,10 @@ public class CreateReflectedReferenceSchemaMutation
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributeInheritanceBehavior;
 	@Getter @Nonnull private final String[] attributeInheritanceFilter;
 
+	/**
+	 * Compares a property between the created and existing reflected reference schema versions.
+	 * Returns a mutation if the values differ, or null if they are equal.
+	 */
 	@Nullable
 	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
 		@Nonnull ReflectedReferenceSchemaContract createdVersion,
@@ -96,10 +98,21 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
 	) {
 		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
+		final T existingValue = propertyRetriever.apply(existingVersion);
+		// Arrays require content-based comparison instead of reference equality
+		final boolean equal;
+		if (newValue instanceof Object[] newArray && existingValue instanceof Object[] existingArray) {
+			equal = Arrays.equals(newArray, existingArray);
+		} else {
+			equal = Objects.equals(existingValue, newValue);
+		}
+		return equal ? null : mutationCreator.apply(newValue);
 	}
 
+	/**
+	 * Creates mutation that sets up a new reflected reference schema using a simple boolean
+	 * flag for faceted configuration.
+	 */
 	public CreateReflectedReferenceSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -121,6 +134,10 @@ public class CreateReflectedReferenceSchemaMutation
 		);
 	}
 
+	/**
+	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
+	 * indexed/faceted configuration.
+	 */
 	@SerializableCreator
 	public CreateReflectedReferenceSchemaMutation(
 		@Nonnull String name,
@@ -168,7 +185,7 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
 		// when the reference schema was removed before and added again, we may remove both operations
-		// and leave only operations that reset the original settings do defaults
+		// and leave only operations that reset the original settings to defaults
 		final Optional<ReferenceSchemaContract> currentReference = currentEntitySchema.getReference(this.name);
 		if (
 			existingMutation instanceof RemoveReferenceSchemaMutation removeReferenceMutation &&
@@ -232,7 +249,11 @@ public class CreateReflectedReferenceSchemaMutation
 
 	@Nonnull
 	@Override
-	public ReflectedReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReflectedReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		return ReflectedReferenceSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
 			this.referencedEntityType, this.reflectedReferenceName,
@@ -248,55 +269,21 @@ public class CreateReflectedReferenceSchemaMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final ReflectedReferenceSchema newReferenceSchema = Objects.requireNonNull((ReflectedReferenceSchema) this.mutate(entitySchema, null));
-		final Optional<ReferenceSchemaContract> referencedReferenceSchema = catalogSchema.getEntitySchema(newReferenceSchema.getReferencedEntityType())
+		final ReflectedReferenceSchema newReferenceSchema = Objects.requireNonNull(
+			(ReflectedReferenceSchema) this.mutate(entitySchema, null)
+		);
+		final Optional<ReferenceSchemaContract> referencedReferenceSchema = catalogSchema
+			.getEntitySchema(newReferenceSchema.getReferencedEntityType())
 			.flatMap(it -> it.getReference(newReferenceSchema.getReflectedReferenceName()));
 		final ReferenceSchemaContract referenceToInsert = referencedReferenceSchema
 			.map(newReferenceSchema::withReferencedSchema)
 			.orElse(newReferenceSchema);
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
-		if (existingReferenceSchema.isEmpty()) {
-			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.getHierarchyIndexedInScopes(),
-				entitySchema.isWithPrice(),
-				entitySchema.getPriceIndexedInScopes(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				entitySchema.getAttributes(),
-				entitySchema.getAssociatedData(),
-				Stream.concat(
-						entitySchema.getReferences().values().stream(),
-						Stream.of(referenceToInsert)
-					)
-					.collect(
-						Collectors.toMap(
-							ReferenceSchemaContract::getName,
-							Function.identity()
-						)
-					),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
-			);
-		} else if (existingReferenceSchema.get().equals(newReferenceSchema)) {
-			// the mutation must have been applied previously - return the schema we don't need to alter
-			return entitySchema;
-		} else {
-			// ups, there is conflict in associated data settings
-			throw new InvalidSchemaMutationException(
-				"The reference `" + this.name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
-					" has different definition. To alter existing reference schema you need to use different mutations."
-			);
-		}
+		return insertNewReference(entitySchema, this.name, referenceToInsert, newReferenceSchema);
 	}
 
 	@Nonnull
@@ -307,6 +294,22 @@ public class CreateReflectedReferenceSchemaMutation
 
 	@Override
 	public String toString() {
+		final String indexedDescription;
+		if (this.indexedInScopes == null) {
+			indexedDescription = "(inherited)";
+		} else if (ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes)) {
+			indexedDescription = "(not indexed)";
+		} else {
+			indexedDescription = "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")";
+		}
+		final String facetedDescription;
+		if (this.facetedInScopes == null) {
+			facetedDescription = "(inherited)";
+		} else if (ArrayUtils.isEmptyOrItsValuesNull(this.facetedInScopes)) {
+			facetedDescription = "(not faceted)";
+		} else {
+			facetedDescription = "(faceted in scopes: " + Arrays.toString(this.facetedInScopes) + ")";
+		}
 		return "Create entity reflected reference schema: " +
 			"name='" + this.name + '\'' +
 			", description='" + this.description + '\'' +
@@ -314,10 +317,11 @@ public class CreateReflectedReferenceSchemaMutation
 			", cardinality=" + this.cardinality +
 			", entityType='" + this.referencedEntityType + '\'' +
 			", reflectedReferenceName='" + this.reflectedReferenceName + '\'' +
-			", indexed=" + (this.indexedInScopes == null ? "(inherited)" : (ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes) ? "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "(not indexed)")) +
-			", faceted=" + (this.facetedInScopes == null ? "(inherited)" : (ArrayUtils.isEmptyOrItsValuesNull(this.facetedInScopes) ? "(faceted in scopes: " + Arrays.toString(this.facetedInScopes) + ")" : "(not faceted)")) +
+			", indexed=" + indexedDescription +
+			", faceted=" + facetedDescription +
 			", attributesInherited=" + this.attributeInheritanceBehavior +
-			", attributesExcludedFromInheritance=" + Arrays.toString(this.attributeInheritanceFilter);
+			", attributesExcludedFromInheritance=" +
+			Arrays.toString(this.attributeInheritanceFilter);
 	}
 
 }

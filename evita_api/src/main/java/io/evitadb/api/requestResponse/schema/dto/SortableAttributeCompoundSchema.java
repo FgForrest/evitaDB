@@ -65,8 +65,8 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 	private volatile Boolean memoizedLocalized;
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * This method is for internal purposes only. It could be used for reconstruction of SortableAttributeCompoundSchema
+	 * from different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
 	 */
@@ -89,8 +89,8 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * This method is for internal purposes only. It could be used for reconstruction of SortableAttributeCompoundSchema
+	 * from different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
 	 */
@@ -114,8 +114,8 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * This method is for internal purposes only. It could be used for reconstruction of SortableAttributeCompoundSchema
+	 * from different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
 	 */

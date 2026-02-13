@@ -30,13 +30,42 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when the code needs the entity type to be managed by evitaDB, but it is not.
+ * Exception thrown when an operation requires an entity type to be managed by evitaDB, but it is marked as external
+ * (not managed).
+ *
+ * evitaDB distinguishes between **managed entity types** (those fully stored and indexed by evitaDB) and
+ * **external entity types** (referenced but not managed by evitaDB). References can point to external entity types
+ * via {@link io.evitadb.api.requestResponse.schema.ReferenceSchemaContract#isReferencedEntityTypeManaged()}.
+ *
+ * This exception is thrown when operations require full entity management capabilities but encounter external
+ * (non-managed) entity types:
+ *
+ * - **Referenced entity fetching** with filters: attempting to use `entityHaving()` filter on references to external
+ *   entities, since evitaDB doesn't store the referenced entity data
+ * - **Entity fetch requirements** on external references: requesting full entity fetch via `entityFetch()` for
+ *   references pointing to non-managed entity types
+ * - **Index operations** on external entity collections: attempting to access global entity index methods for
+ *   external entity types
+ *
+ * **Typical scenario:**
+ *
+ * A Product entity has a reference to Brand, but Brand is marked as external (managed by another system). Attempting
+ * to filter products by brand properties via `entityHaving(attributeEquals('brandName', 'Nike'))` would fail because
+ * evitaDB doesn't have Brand entities stored internally.
+ *
+ * **Resolution**: Either make the referenced entity type managed by evitaDB (store and index it), or remove operations
+ * that require managed entity access (such as filtering by referenced entity properties).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class EntityNotManagedException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 2826263371602773442L;
 
+	/**
+	 * Creates exception identifying the non-managed entity type.
+	 *
+	 * @param entityType the name of the entity type that is not managed by evitaDB
+	 */
 	public EntityNotManagedException(@Nonnull String entityType) {
 		super(
 			"Cannot execute the operation, entity type `" + entityType + "` is not managed by evitaDB!"

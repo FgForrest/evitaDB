@@ -907,11 +907,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				.toArray()
 		);
 
-		for (SealedEntity liveProduct : liveAndArchiveProductsTogether) {
-			assertEquals(1, liveProduct.getReferences(Entities.BRAND).size());
-			assertEquals(1, liveProduct.getReferences(Entities.CATEGORY).size());
+		for (SealedEntity product : liveAndArchiveProductsTogether) {
+			assertEquals(1, product.getReferences(Entities.BRAND).size());
+			assertEquals(1, product.getReferences(Entities.CATEGORY).size());
 			// all bodies are fetched
-			for (ReferenceContract reference : liveProduct.getReferences()) {
+			for (ReferenceContract reference : product.getReferences()) {
 				assertNotNull(reference.getReferencedEntity());
 			}
 		}

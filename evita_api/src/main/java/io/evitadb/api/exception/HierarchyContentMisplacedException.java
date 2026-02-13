@@ -34,7 +34,49 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Exception is thrown when there is attempt to fetch hierarchy outside {@link EntityFetch} container.
+ * Exception thrown when `hierarchyContent` requirement is used outside of its required container constraints.
+ *
+ * The `hierarchyContent` requirement fetches parent entity references for hierarchical entities. However, this
+ * requirement must be properly nested within an entity fetching container to define which entities should have
+ * their hierarchy content loaded.
+ *
+ * **Required containers:**
+ *
+ * - **{@link EntityFetch}**: When fetching hierarchy content for main query entities
+ * - **`entityGroupFetch`**: When fetching hierarchy content for facet group entities
+ *
+ * **Why this constraint exists:**
+ *
+ * The `hierarchyContent` requirement specifies how to traverse and load parent entities in the hierarchy tree.
+ * Without a containing `entityFetch` or `entityGroupFetch`, evitaDB cannot determine which entities should have
+ * their hierarchy loaded, making the requirement ambiguous and unexecutable.
+ *
+ * **Invalid usage example:**
+ *
+ * ```
+ * query(
+ *   collection('Category'),
+ *   require(
+ *     hierarchyContent()  // ERROR: not inside entityFetch
+ *   )
+ * )
+ * ```
+ *
+ * **Valid usage example:**
+ *
+ * ```
+ * query(
+ *   collection('Category'),
+ *   require(
+ *     entityFetch(
+ *       hierarchyContent()  // OK: properly nested
+ *     )
+ *   )
+ * )
+ * ```
+ *
+ * **Resolution**: Wrap the `hierarchyContent()` requirement inside an `entityFetch()` or `entityGroupFetch()`
+ * container constraint.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -42,6 +84,11 @@ public class HierarchyContentMisplacedException extends EvitaInvalidUsageExcepti
 
 	@Serial private static final long serialVersionUID = -4235850574041141230L;
 
+	/**
+	 * Creates exception showing the constraint chain where the misplacement occurred.
+	 *
+	 * @param constraintChain the sequence of requirement constraints leading to the misplaced hierarchyContent
+	 */
 	public HierarchyContentMisplacedException(@Nonnull Stream<RequireConstraint> constraintChain) {
 		super(
 			"The `hierarchyContent` needs to be wrapped inside `entityFetch` or `entityGroupFetch` container: `" +

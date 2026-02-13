@@ -135,21 +135,17 @@ public record ReferencedSetEntityFetcher(
 	@Nullable
 	@Override
 	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
-		if (!referenceSchema.isReferencedEntityTypeManaged()) {
+		final PrefetchedEntities prefetchedEntities = this.fetchedEntities.get(referenceSchema.getName());
+		if (prefetchedEntities == null) {
 			return null;
 		} else {
-			final PrefetchedEntities prefetchedEntities = this.fetchedEntities.get(referenceSchema.getName());
-			if (prefetchedEntities == null) {
-				return null;
-			} else {
-				final ValidEntityToReferenceMapping vm = prefetchedEntities.validityMapping();
-				return vm == null ?
-					null :
-					(entityPrimaryKey, referenceDecorator) ->
-						ofNullable(referenceDecorator)
-							.map(refDec -> vm.isReferenceSelected(entityPrimaryKey, refDec))
-							.orElse(false);
-			}
+			final ValidEntityToReferenceMapping vm = prefetchedEntities.validityMapping();
+			return vm == null ?
+				null :
+				(entityPrimaryKey, referenceDecorator) ->
+					ofNullable(referenceDecorator)
+						.map(refDec -> vm.isReferenceSelected(entityPrimaryKey, refDec))
+						.orElse(false);
 		}
 	}
 

@@ -26,6 +26,9 @@ package io.evitadb.store.offsetIndex;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
@@ -57,7 +60,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
-import java.util.zip.CRC32C;
 
 import static java.util.Optional.ofNullable;
 
@@ -95,15 +97,15 @@ public class OffsetIndexSerializationService {
 	/**
 	 * Estimates the size of the offset index file record based on the number of records.
 	 *
-	 * @param recordCount The number of records.
+	 * @param recordCount      The number of records.
+	 * @param outputBufferSize The output buffer size.
 	 * @return The estimated size of the offset index file record.
 	 */
 	public static long countFileOffsetTableSize(
-		int recordCount,
-		@Nonnull StorageOptions storageOptions
+		int recordCount, int outputBufferSize
 	) {
 		final long estimatedSize = (long) recordCount * (MEM_TABLE_RECORD_SIZE);
-		final int fragments = computeExpectedRecordCount(storageOptions, recordCount).fragments();
+		final int fragments = computeExpectedRecordCount(recordCount, outputBufferSize).fragments();
 		return estimatedSize + ((long) StorageRecord.getOverheadSize() + MEM_TABLE_FRAGMENT_HEADER_SIZE) * (long) fragments;
 	}
 
@@ -113,8 +115,8 @@ public class OffsetIndexSerializationService {
 	 *
 	 * @param inputStream The input stream containing the offset index file.
 	 * @param fileLength  The length of the offset index file.
-	 * @param statistics The statistics about the offset index file to be updated during verification.
-	 * @param storageOptions The storage options that define how the file is processed, including whether CRC32 checksums are computed.
+	 * @param statistics  The statistics about the offset index file to be updated during verification.
+	 * @param checksum    The checksum algorithm to use for verification.
 	 * @return The statistics about the offset index file after verification.
 	 */
 	@SuppressWarnings("StringConcatenationMissingWhitespace")
@@ -123,10 +125,9 @@ public class OffsetIndexSerializationService {
 		@Nonnull ObservableInput<?> inputStream,
 		long fileLength,
 		@Nonnull FileOffsetIndexStatistics statistics,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull Checksum checksum
 	) {
 		inputStream.resetToPosition(0);
-		final CRC32C crc32C = storageOptions.computeCRC32C() ? new CRC32C() : null;
 		byte[] buffer = new byte[inputStream.getBuffer().length];
 		int recCount = 0;
 		long startPosition = 0;
@@ -163,33 +164,35 @@ public class OffsetIndexSerializationService {
 					);
 				}
 
-				ofNullable(crc32C).ifPresent(CRC32C::reset);
+				checksum.reset();
 				// first 4 bytes of length are not part of the CRC check
 				int processedRecordLength = StorageRecord.CRC_NOT_COVERED_HEAD;
 				inputStream.resetToPosition(startPosition + processedRecordLength);
 				// we have to avoid reading last 8 bytes of CRC check value
 				while (processedRecordLength < recordLength - ObservableOutput.TAIL_MANDATORY_SPACE) {
-					final int read = inputStream.read(buffer, 0, Math.min(recordLength - processedRecordLength - ObservableOutput.TAIL_MANDATORY_SPACE, buffer.length));
-					ofNullable(crc32C).ifPresent(it -> it.update(buffer, 0, read));
+					final int read = inputStream.read(
+						buffer, 0, Math.min(
+							recordLength - processedRecordLength - ObservableOutput.TAIL_MANDATORY_SPACE, buffer.length)
+					);
+					ofNullable(checksum).ifPresent(it -> it.update(buffer, 0, read));
 					processedRecordLength += read;
 				}
 				// verify CRC32-C checksum
-				if (crc32C != null) {
-					crc32C.update(control);
-					final long computedChecksum = crc32C.getValue();
-					inputStream.resetToPosition(startPosition + recordLength - ObservableOutput.TAIL_MANDATORY_SPACE);
-					final long storedChecksum = inputStream.readLong();
-					processedRecordLength += ObservableOutput.TAIL_MANDATORY_SPACE;
-					if (computedChecksum != storedChecksum) {
-						throw new CorruptedRecordException(
-							"Invalid checksum for record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B]", computedChecksum, storedChecksum
-						);
-					}
+				checksum.update(control);
+				inputStream.resetToPosition(startPosition + recordLength - ObservableOutput.TAIL_MANDATORY_SPACE);
+				final long storedChecksum = inputStream.readLong();
+				processedRecordLength += ObservableOutput.TAIL_MANDATORY_SPACE;
+				if (!checksum.equalsTo(storedChecksum)) {
+					throw new CorruptedRecordException(
+						"Invalid checksum for record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B]",
+						checksum.getValue(), storedChecksum
+					);
 				}
 
 				if (processedRecordLength != recordLength) {
 					throw new CorruptedRecordException(
-						"Record no. " + finalRecCount + " prematurely ended - file position: [" + finalStartPosition + ", length " + recordLength + "B]", processedRecordLength, recordLength
+						"Record no. " + finalRecCount + " prematurely ended - file position: [" + finalStartPosition + ", length " + recordLength + "B]",
+						processedRecordLength, recordLength
 					);
 				}
 
@@ -232,22 +235,21 @@ public class OffsetIndexSerializationService {
 		long catalogVersion,
 		@Nonnull Map<RecordKey, byte[]> valuesToOverride,
 		@Nonnull VolatileValues volatileValues,
-		@Nullable IntConsumer progressConsumer
+		@Nullable IntConsumer progressConsumer,
+		@Nonnull ChecksumFactory checksumFactory,
+		@Nonnull CompressionFactory compressionFactory,
+		int outputBufferSize
 	) {
 		// we don't close neither input stream nor the output stream
 		// input stream is still used in callee and the output stream is managed by the callee
 		final ObservableOutput<OutputStream> output = new ObservableOutput<>(
 			outputStream,
-			Math.min(StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, offsetIndex.getStorageOptions().outputBufferSize()),
-			offsetIndex.getStorageOptions().outputBufferSize(),
-			0
+			Math.min(StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, outputBufferSize),
+			outputBufferSize,
+			0,
+			checksumFactory.createChecksum(),
+			compressionFactory.createCompressor().orElse(null)
 		);
-		if (offsetIndex.getStorageOptions().computeCRC32C()) {
-			output.computeCRC32();
-		}
-		if (offsetIndex.getStorageOptions().compress()) {
-			output.compress();
-		}
 		final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
 		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
 		int counter = 0;
@@ -287,7 +289,8 @@ public class OffsetIndexSerializationService {
 					// write original value in raw form
 					byte[] rawData = sourceRecord.rawData();
 
-					final FileLocation recordLocation = StorageRecord.writeRaw(output, control, catalogVersion, rawData);
+					final FileLocation recordLocation = StorageRecord.writeRaw(
+						output, control, catalogVersion, rawData);
 					if (startPosition == -1) {
 						startPosition = recordLocation.startingPosition();
 					}
@@ -335,7 +338,7 @@ public class OffsetIndexSerializationService {
 			catalogVersion,
 			nonFlushedValues,
 			FileLocation.EMPTY,
-			offsetIndex.getStorageOptions()
+			outputBufferSize
 		);
 	}
 
@@ -348,15 +351,18 @@ public class OffsetIndexSerializationService {
 		long catalogVersion,
 		@Nonnull Collection<VersionedValue> nonFlushedEntries,
 		@Nonnull FileLocation lastFileOffsetIndexLocation,
-		@Nonnull StorageOptions storageOptions
+		int outputBufferSize
 	) {
 		final Iterator<VersionedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
 		output.flush();
 		// this holds file location pointer to the last stored OffsetIndex fragment and is used to allow single direction pointing
-		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(lastFileOffsetIndexLocation);
-		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(storageOptions, nonFlushedEntries.size());
+		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(
+			lastFileOffsetIndexLocation);
+		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(
+			nonFlushedEntries.size(), outputBufferSize
+		);
 
 		if (fileOffsetIndexRecordCount.fragments() == 0 && lastFileOffsetIndexLocation == FileLocation.EMPTY) {
 			// no previous offset index fragment and no new entries - serialize empty record at least
@@ -396,7 +402,8 @@ public class OffsetIndexSerializationService {
 							}
 							// write number of records in this fragment
 							final int recordsToWrite = nonFlushedEntries.size() - fileOffsetIndexRecordCount.recordsInFragment() * fragmentNo;
-							final int recordsInSegment = Math.min(fileOffsetIndexRecordCount.recordsInFragment(), recordsToWrite);
+							final int recordsInSegment = Math.min(
+								fileOffsetIndexRecordCount.recordsInFragment(), recordsToWrite);
 							stream.writeInt(recordsInSegment);
 							// iterate over entries (iterator is global and continues where last fragment finished)
 							// we need to stop at the point when we know we would not be able to store any more records
@@ -463,13 +470,17 @@ public class OffsetIndexSerializationService {
 						fileOffsetIndexFragmentLocation.set(FileLocation.EMPTY);
 					} else {
 						fileOffsetIndexFragmentLocation.set(
-							new FileLocation(previousFileOffsetIndexFragmentPosition, previousFileOffsetIndexFragmentLength)
+							new FileLocation(
+								previousFileOffsetIndexFragmentPosition, previousFileOffsetIndexFragmentLength)
 						);
 					}
 
 					// calculate or read number of records in fragment
 					int recordsInFragment;
-					if (!BitUtils.isBitSet(control, StorageRecord.COMPRESSION_BIT) && (effectiveLength - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) % MEM_TABLE_RECORD_SIZE == 0) {
+					if (!BitUtils.isBitSet(
+						control,
+						StorageRecord.COMPRESSION_BIT
+					) && (effectiveLength - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) % MEM_TABLE_RECORD_SIZE == 0) {
 						// old format is always uncompressed and the number of records can be calculated form length
 						recordsInFragment = (effectiveLength - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) / MEM_TABLE_RECORD_SIZE;
 					} else {
@@ -508,7 +519,8 @@ public class OffsetIndexSerializationService {
 					fragmentRecords.clear();
 
 					return null;
-				});
+				}
+			);
 
 			if (head) {
 				Assert.isTrue(
@@ -530,12 +542,17 @@ public class OffsetIndexSerializationService {
 
 	/**
 	 * Computes number of records that are required to store OffsetIndex record pointers of specified count.
+	 *
+	 * @param recordCount      Number of records to store
+	 * @param outputBufferSize Output buffer size
 	 */
 	@Nonnull
-	static ExpectedCounts computeExpectedRecordCount(@Nonnull StorageOptions storageOptions, int recordCount) {
-		final int maxRecordCountPerStorageRecords = (storageOptions.outputBufferSize() - StorageRecord.getOverheadSize() - MEM_TABLE_FRAGMENT_HEADER_SIZE) / MEM_TABLE_RECORD_SIZE;
+	static ExpectedCounts computeExpectedRecordCount(int recordCount, int outputBufferSize) {
+		final int maxRecordCountPerStorageRecords = (outputBufferSize - StorageRecord.getOverheadSize() - MEM_TABLE_FRAGMENT_HEADER_SIZE) / MEM_TABLE_RECORD_SIZE;
 		return new ExpectedCounts(
-			maxRecordCountPerStorageRecords == 0 ? 0 : (recordCount + maxRecordCountPerStorageRecords - 1) / maxRecordCountPerStorageRecords,
+			maxRecordCountPerStorageRecords == 0 ?
+				0 :
+				(recordCount + maxRecordCountPerStorageRecords - 1) / maxRecordCountPerStorageRecords,
 			maxRecordCountPerStorageRecords
 		);
 	}

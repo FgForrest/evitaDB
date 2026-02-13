@@ -201,10 +201,11 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 
 	/**
 	 * Returns true if passed moment is within the specified range (inclusive).
+	 *
+	 * @see #isWithin(OffsetDateTime)
 	 */
 	public boolean isValidFor(@Nonnull OffsetDateTime theMoment) {
-		final long comparedValue = theMoment.toEpochSecond();
-		return this.fromToCompare <= comparedValue && this.toToCompare >= comparedValue;
+		return isWithin(theMoment);
 	}
 
 	@Override

@@ -36,7 +36,10 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Class wraps an {@link ExpressionNode} object and provides a way to evaluate the expression.
+ * Top-level entry point for expression evaluation. It wraps the root {@link ExpressionNode} of a parsed expression
+ * tree and delegates all computation and range analysis to it. The expression tree is built from operators
+ * (e.g. arithmetic, comparison, logical) and operands (constants, variables) that together form evaluable
+ * mathematical or boolean expressions.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -44,6 +47,9 @@ import java.io.Serializable;
 @EqualsAndHashCode
 public class Expression implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 661548006498130632L;
+	/**
+	 * The root node of the expression tree to which all operations are delegated.
+	 */
 	private final ExpressionNode root;
 
 	@Nonnull

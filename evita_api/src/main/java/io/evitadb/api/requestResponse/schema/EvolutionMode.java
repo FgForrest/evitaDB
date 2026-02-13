@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 
 /**
- * Evolution mode allows to specify how strict is evitaDB when unknown information is presented to her for the first
+ * Evolution mode allows to specify how strict is evitaDB when unknown information is presented to it for the first
  * time. When no evolution mode is set, each violation of the {@link EntitySchemaContract} is
  * reported by an exception. This behaviour can be changed by this evolution mode, however.
  *

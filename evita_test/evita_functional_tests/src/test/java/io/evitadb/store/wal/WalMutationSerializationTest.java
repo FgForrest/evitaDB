@@ -74,7 +74,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEnt
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import org.junit.jupiter.api.DisplayName;

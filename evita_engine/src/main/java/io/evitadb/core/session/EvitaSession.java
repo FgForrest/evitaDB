@@ -358,7 +358,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		this.catalog = catalog;
 		this.startCatalogSchemaVersion = catalog.getSchema().version();
 		this.reflectionLookup = reflectionLookup;
-		this.proxyFactory = catalog.getProxyFactory();
+		this.proxyFactory = evita.getProxyFactory();
 		this.commitBehaviour = commitBehaviour;
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;
@@ -1591,6 +1591,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean methodIsRunning() {
+		// method invocation should be handled on session proxy level
+		throw new UnsupportedOperationException("This method is not supported in this session!");
+	}
+
+	@Override
+	public boolean isInactiveAndIdle(long allowedInactivityInSeconds) {
 		// method invocation should be handled on session proxy level
 		throw new UnsupportedOperationException("This method is not supported in this session!");
 	}

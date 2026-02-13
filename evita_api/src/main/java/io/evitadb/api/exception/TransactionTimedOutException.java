@@ -23,17 +23,42 @@
 
 package io.evitadb.api.exception;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * This exception is thrown when open transaction was not finished in reasonable time.
+ * Exception thrown when a transaction exceeds the configured timeout while waiting to acquire necessary
+ * locks or complete internal processing. This prevents transactions from blocking indefinitely and ensures
+ * system responsiveness under high contention.
+ *
+ * **Timeouts can occur at several stages:**
+ *
+ * - **Conflict resolution lock timeout** - waiting to acquire lock for resolving concurrent modifications
+ * - **WAL appending lock timeout** - waiting to write transaction to the Write-Ahead Log
+ * - **Catalog propagation lock timeout** - waiting to propagate changes to catalog metadata
+ * - **Engine state lock timeout** - waiting to acquire lock for modifying engine state
+ *
+ * The timeout threshold is configured via `evitaDB.server.transactionTimeoutInMilliseconds` server setting.
+ * When this exception occurs, the transaction is automatically rolled back. Clients should:
+ *
+ * 1. Retry the transaction if the timeout was caused by temporary high load
+ * 2. Reduce transaction size if it's consistently timing out
+ * 3. Consider increasing the timeout threshold if transactions are legitimately long-running
+ *
+ * This exception extends {@link TransactionException} and indicates a potentially recoverable condition,
+ * unlike other transaction failures that suggest bugs or corruption.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class TransactionTimedOutException extends TransactionException {
 	@Serial private static final long serialVersionUID = -2432902995243551105L;
 
-	public TransactionTimedOutException(String message) {
+	/**
+	 * Creates a new exception with details about which lock or operation timed out.
+	 *
+	 * @param message description of what timed out and how long it waited
+	 */
+	public TransactionTimedOutException(@Nonnull String message) {
 		super(message);
 	}
 

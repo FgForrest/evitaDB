@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,13 +42,17 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * This class represents a mock implementation of the EntitySchemaProvider interface, specifically designed
- * for mutation scenarios. It prevents access to entity schemas and always throws an UnsupportedOperationException.
+ * Implementation of {@link EntitySchemaProvider} that tracks entity schema mutations during catalog schema
+ * mutation processing. It exists in two forms:
  *
- * Note: This class is a singleton and should be accessed using the INSTANCE constant.
+ * - **Singleton (immutable)**: accessed via {@link #INSTANCE}, ignores all mutations and returns empty results.
+ * Used as a no-op placeholder when entity schema tracking is not needed.
+ * - **Mutable instance**: created via {@link #MutationEntitySchemaAccessor(EntitySchemaProvider)}, delegates
+ * to a base accessor and overlays local additions, replacements, and removals on top of it.
  */
-public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
-	public static final MutationEntitySchemaAccessor INSTANCE = new MutationEntitySchemaAccessor();
+public class MutationEntitySchemaAccessor implements EntitySchemaProvider, Serializable {
+	@Serial private static final long serialVersionUID = -2458022868837507981L;
+	@Nonnull public static final MutationEntitySchemaAccessor INSTANCE = new MutationEntitySchemaAccessor();
 	/**
 	 * The base accessor for accessing entity schema.
 	 */
@@ -82,12 +88,12 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 	public void addUpsertedEntitySchema(@Nonnull EntitySchemaContract entitySchema) {
 		if (this.baseAccessor == null) {
 			// do nothing - this instance is immutable
-		} else {
-			if (this.entitySchemas == null) {
-				this.entitySchemas = new HashMap<>(8);
-			}
-			this.entitySchemas.put(entitySchema.getName(), entitySchema);
+			return;
 		}
+		if (this.entitySchemas == null) {
+			this.entitySchemas = new HashMap<>(8);
+		}
+		this.entitySchemas.put(entitySchema.getName(), entitySchema);
 	}
 
 	/**
@@ -98,39 +104,39 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 	public void removeEntitySchema(@Nonnull String name) {
 		if (this.baseAccessor == null) {
 			// do nothing - this instance is immutable
-		} else {
-			if (this.removedEntitySchemas == null) {
-				this.removedEntitySchemas = new HashSet<>(8);
-			}
-			if (this.entitySchemas != null) {
-				this.entitySchemas.remove(name);
-			}
-			if (this.baseAccessor.getEntitySchema(name).isPresent()) {
-				this.removedEntitySchemas.add(name);
-			}
+			return;
+		}
+		if (this.removedEntitySchemas == null) {
+			this.removedEntitySchemas = new HashSet<>(8);
+		}
+		if (this.entitySchemas != null) {
+			this.entitySchemas.remove(name);
+		}
+		if (this.baseAccessor.getEntitySchema(name).isPresent()) {
+			this.removedEntitySchemas.add(name);
 		}
 	}
 
 	/**
 	 * Replaces an entity schema with a new entity schema.
 	 *
-	 * @param oldName the name of the entity schema to be replaced
+	 * @param oldName      the name of the entity schema to be replaced
 	 * @param entitySchema the new entity schema to be added
 	 */
 	public void replaceEntitySchema(@Nonnull String oldName, @Nonnull EntitySchemaContract entitySchema) {
 		if (this.baseAccessor == null) {
 			// do nothing - this instance is immutable
-		} else {
-			if (this.entitySchemas == null) {
-				this.entitySchemas = new HashMap<>(8);
-			}
+			return;
+		}
+		if (this.entitySchemas == null) {
+			this.entitySchemas = new HashMap<>(8);
+		}
+		this.entitySchemas.put(entitySchema.getName(), entitySchema);
+		if (!oldName.equals(entitySchema.getName()) && this.baseAccessor.getEntitySchema(oldName).isPresent()) {
 			if (this.removedEntitySchemas == null) {
 				this.removedEntitySchemas = new HashSet<>(8);
 			}
-			this.entitySchemas.put(entitySchema.getName(), entitySchema);
-			if (this.baseAccessor.getEntitySchema(oldName).isPresent()) {
-				this.removedEntitySchemas.add(oldName);
-			}
+			this.removedEntitySchemas.add(oldName);
 		}
 	}
 
@@ -138,14 +144,15 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
 		return Stream.concat(
-			this.entitySchemas == null ?
-				Stream.empty() : this.entitySchemas.values().stream(),
-			this.baseAccessor == null ?
-				Stream.empty() :
-				this.baseAccessor.getEntitySchemas()
-					.stream()
-					.filter(it -> this.entitySchemas == null || !this.entitySchemas.containsKey(it.getName()))
-		)
+				this.entitySchemas == null
+					? Stream.empty()
+					: this.entitySchemas.values().stream(),
+				this.baseAccessor == null
+					? Stream.empty()
+					: this.baseAccessor.getEntitySchemas()
+						.stream()
+						.filter(it -> this.entitySchemas == null || !this.entitySchemas.containsKey(it.getName()))
+			)
 			.filter(it -> this.removedEntitySchemas == null || !this.removedEntitySchemas.contains(it.getName()))
 			.toList();
 	}

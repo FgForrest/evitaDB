@@ -39,6 +39,12 @@ message GrpcHistogram {
     int32 occurrences = 3;
     // Contains true if the `bucket` is overlapping the attribute between filtering constraint
     bool requested = 4;
+    // Relative frequency value used for visualization purposes.
+    // For standard histograms: percentage of total occurrences (0-100).
+    // For equalized histograms: normalized value density (0-100) accounting for both
+    // occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+    // indicate denser data concentration in this bucket.
+    GrpcBigDecimal relativeFrequency = 5;
   }
   // Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
   // values.

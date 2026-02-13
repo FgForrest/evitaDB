@@ -37,13 +37,42 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.util.stream.Stream;
 
 /**
- * Entity {@link Mutation} allows to execute mutation operations on {@link EntitySchemaContract} object itself.
- * Each change increments {@link EntitySchemaContract#version()} by one.
+ * Root interface for all schema-related {@link Mutation} operations in evitaDB. This interface marks mutations that
+ * modify schema structures including catalog schemas ({@link io.evitadb.api.requestResponse.schema.CatalogSchemaContract}),
+ * entity schemas ({@link EntitySchemaContract}), and nested schemas for attributes, references, associated data, and
+ * sortable attribute compounds.
  *
- * These traits should help to manage concurrent transactional process as updates to the same entity could be executed
- * safely and concurrently as long as schema modification doesn't overlap. Modification alters only the schema model,
- * but mutation application on the engine side have side effects such as index creation or removal. Schema mutations
- * happen transactionally - either completely or not at all.
+ * Each schema mutation increments the version of the affected schema by one. Schema mutations are executed
+ * transactionally — either the mutation is applied completely or not at all. While the mutation itself only modifies
+ * the schema model, the engine-side application may have side effects such as index creation, removal, or rebuilding.
+ *
+ * **Schema Mutation Hierarchy**
+ *
+ * - {@link CatalogSchemaMutation}: Mutations affecting catalog schemas
+ * - {@link LocalCatalogSchemaMutation}: Local mutations applicable to an already-identified catalog schema
+ * - {@link TopLevelCatalogSchemaMutation}: Mutations that must be executed at the evitaDB level (not local to
+ * a single catalog)
+ * - {@link EntitySchemaMutation}: Mutations affecting entity schemas
+ * - {@link LocalEntitySchemaMutation}: Local mutations applicable to an already-identified entity schema
+ *
+ * **Thread-Safety and Concurrency**
+ *
+ * Schema mutations are immutable and thread-safe. Concurrent transactional updates to the same entity can execute
+ * safely as long as schema modifications don't overlap. The version increment mechanism helps detect concurrent
+ * modifications and ensures serializability.
+ *
+ * **Change Data Capture**
+ *
+ * Schema mutations implement the {@link #toChangeCatalogCapture(MutationPredicate, ChangeCaptureContent)} default
+ * method to support change data capture (CDC). This method converts the mutation into a stream of
+ * {@link ChangeCatalogCapture} records that represent the schema change event. The method respects the provided
+ * predicate to determine whether to include the mutation in the capture and supports two content modes:
+ *
+ * - {@link ChangeCaptureContent#BODY}: Includes the full mutation object in the capture
+ * - {@link ChangeCaptureContent#HEADER}: Includes only metadata (operation type, context) without the mutation body
+ *
+ * The default implementation checks the predicate and, if it matches, emits a single `schemaCapture` event with the
+ * mutation's operation type and optional body content.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -51,6 +80,18 @@ import java.util.stream.Stream;
 @ThreadSafe
 public non-sealed interface SchemaMutation extends CatalogBoundMutation {
 
+	/**
+	 * Converts this schema mutation into a stream of {@link ChangeCatalogCapture} events for change data capture
+	 * (CDC) purposes. The method evaluates the provided predicate to determine whether this mutation should be
+	 * included in the capture.
+	 *
+	 * @param predicate the predicate used to filter mutations for capture; if `predicate.test(this)` returns false,
+	 *                  an empty stream is returned
+	 * @param content   the requested content mode: {@link ChangeCaptureContent#BODY} includes the full mutation
+	 *                  object, {@link ChangeCaptureContent#HEADER} includes only metadata without the mutation body
+	 * @return a stream containing a single {@link ChangeCatalogCapture} event if the predicate matches, or an empty
+	 * stream otherwise
+	 */
 	@Override
 	@Nonnull
 	default Stream<ChangeCatalogCapture> toChangeCatalogCapture(

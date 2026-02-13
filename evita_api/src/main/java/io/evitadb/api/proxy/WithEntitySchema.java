@@ -28,15 +28,62 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import javax.annotation.Nonnull;
 
 /**
- * Interface can be implemented by client model classes that want to access {@link EntitySchemaContract} of the entity.
+ * Provides access to the entity schema of the wrapped entity instance.
  *
+ * This interface can be implemented by client-defined proxy contracts (interfaces, abstract classes, POJOs)
+ * when they need to access the {@link EntitySchemaContract} of the underlying entity. The entity schema
+ * contains metadata about the entity type, including:
+ * - Defined attributes and their types/constraints
+ * - Associated data schemas
+ * - Reference schemas
+ * - Price configuration
+ * - Localization settings
+ * - Evolution history
+ *
+ * **Use Cases:**
+ *
+ * Access to the entity schema is useful for:
+ * - **Dynamic behavior**: Implementing generic methods that adapt based on schema configuration (e.g.,
+ *   listing all attributes, checking if a specific attribute exists)
+ * - **Validation**: Verifying that operations comply with schema constraints before attempting them
+ * - **Introspection**: Building UI components or documentation from schema metadata
+ * - **Schema evolution**: Programmatically checking schema version and capabilities
+ *
+ * **Implementation Note:**
+ *
+ * When a client proxy contract implements this interface, the proxy infrastructure automatically provides
+ * the implementation. The method returns the schema of the underlying entity's collection.
+ *
+ * **Example Usage:**
+ *
+ * ```java
+ * public interface Product extends WithEntitySchema {
+ *     String getName();
+ *
+ *     default Set<String> getAvailableLocales() {
+ *         return entitySchema().getLocales();
+ *     }
+ *
+ *     default boolean isAttributeDefined(String attributeName) {
+ *         return entitySchema().getAttribute(attributeName).isPresent();
+ *     }
+ * }
+ * ```
+ *
+ * @see WithEntityContract
+ * @see WithLocales
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface WithEntitySchema {
 
 	/**
-	 * Returns actual {@link EntitySchemaContract} of the entity.
-	 * @return entity schema
+	 * Returns the entity schema of the underlying entity.
+	 *
+	 * The schema is immutable and represents the current definition of the entity type at the time the entity
+	 * was retrieved. If the schema evolves after the entity is fetched, this method continues to return the
+	 * snapshot from the time of retrieval (entities carry their schema version).
+	 *
+	 * @return the entity schema defining the structure and constraints of this entity type
 	 */
 	@Nonnull
 	EntitySchemaContract entitySchema();

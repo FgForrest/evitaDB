@@ -1,10 +1,10 @@
 ---
 title: REST
-perex: Protokol Representational State Transfer (REST) je standardizovaný přístup k vytváření webových služeb, které využívají HTTP metody k vytváření, čtení, aktualizaci a mazání dat. Protokol je navržen kolem zdrojů, což jsou jakékoli objekty, data nebo služby, ke kterým může klient přistupovat. Díky své jednoduchosti, škálovatelnosti a výkonu je REST nejpopulárnějším protokolem pro API, široce používaným v cloudových službách, mobilních službách a sociálních sítích.
+perex: Protokol REST (Representational State Transfer) je standardizovaný přístup k vytváření webových služeb, které využívají HTTP metody pro vytváření, čtení, aktualizaci a mazání dat. Protokol je navržen kolem zdrojů, což může být jakýkoli objekt, data nebo služba, ke kterým má klient přístup. Díky své jednoduchosti, škálovatelnosti a výkonu je REST nejpopulárnějším protokolem pro API a je široce využíván v cloudových službách, mobilních službách a sociálních sítích.
 date: '24.3.2023'
 author: Lukáš Hornych
 preferredLang: rest
-commit: '326bb602a2e94395b5ee6e1cb294421d3b671143'
+commit: '151ed5c62c63f3e087500e5f2d76d7ffad686420'
 ---
 <LS to="e,j,c,g">
 Tato kapitola popisuje REST protokol pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají
@@ -86,6 +86,36 @@ Každý endpoint pak přijímá argumenty a vrací data specifická pro danou ko
 Kromě uživatelsky definovaných kolekcí existuje v REST API pro každý katalog „virtuální“ zjednodušená kolekce s názvem `entity`,
 která umožňuje uživatelům získávat entity podle globálních atributů bez znalosti cílové kolekce. Kolekce `entity`
 má však k dispozici pouze omezenou sadu endpointů.
+
+#### Model
+
+Schéma se skládá především z:
+
+- dynamických typů objektů entit
+    - samostatné typy objektů pro každou kolekci na základě interního schématu evitaDB
+- dynamických typů objektů schématu
+- vstupních typů pro dotazovací omezení
+    - kontejnery pro dotazování entit na základě definic omezení evitaDB a interního schématu evitaDB
+- společných pomocných typů
+    - výčty, mutace atd.
+
+##### Znovupoužitelnost
+
+Ačkoli je většina typů generována na základě uživatelsky definovaného schématu bez vzájemných vazeb, existují oblasti,
+kde můžeme automaticky vypočítat znovupoužitelné typy rozhraní. To může výrazně pomoci klientskému kódu
+vytvářet znovupoužitelné komponenty.
+
+Znovupoužitelné typy rozhraní lze nalézt v:
+
+**Datových blocích**. Existují dvě základní implementace: stránkované seznamy
+a pásové seznamy. Obvykle entity a reference implementují své vlastní rozšíření těchto rozhraní.
+
+<Note type="info">
+
+Zkoumáme další místa, kde bychom mohli generovat znovupoužitelné typy rozhraní na základě reálných případů použití.
+Nechceme schéma API zbytečně komplikovat jen kvůli této možnosti.
+
+</Note>
 
 ### Struktura system API
 

@@ -138,6 +138,7 @@ public class CreateEntitySchemaMutation
 		);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "Create entity schema: " +

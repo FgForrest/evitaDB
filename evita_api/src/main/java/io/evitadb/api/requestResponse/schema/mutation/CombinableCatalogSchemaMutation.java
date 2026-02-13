@@ -48,13 +48,27 @@ import javax.annotation.Nullable;
 public interface CombinableCatalogSchemaMutation extends LocalCatalogSchemaMutation {
 
 	/**
-	 * Method checks the passed `existingMutation` in the mutation pipeline and optionally creates
-	 * {@link MutationCombinationResult} that contains the description of required changes in order to keep
-	 * the pipeline short without duplicated or redundant information.
+	 * Examines an existing mutation in the pipeline and optionally produces a
+	 * {@link MutationCombinationResult} describing changes needed to eliminate redundancy or resolve
+	 * conflicts.
 	 *
-	 * @param currentCatalogSchema the current state of the schema that can be consulted
-	 * @param existingMutation the existing mutation in the pipeline
-	 * @return NULL if pipeline should not be changed, combination result otherwise
+	 * This method is called by {@link io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper}
+	 * for each new mutation being added to the builder pipeline. It compares the new mutation (this)
+	 * against an existing mutation already in the pipeline, allowing mutations to:
+	 * - Merge themselves with existing mutations (e.g., combine attribute modifications)
+	 * - Cancel out conflicting mutations (e.g., make filterable + make not filterable = no-op)
+	 * - Replace existing mutations with optimized variants
+	 * - Signal that they should be discarded as redundant
+	 *
+	 * The combination logic can consult the current schema state to make intelligent decisions about
+	 * whether mutations are truly conflicting or can coexist.
+	 *
+	 * @param currentCatalogSchema the current state of the schema that can be consulted for
+	 *                             context-aware combination decisions
+	 * @param existingMutation     the existing mutation in the pipeline to check for conflicts or
+	 *                             combination opportunities
+	 * @return NULL if the pipeline should not be changed, or a {@link MutationCombinationResult}
+	 * describing how to modify the pipeline (replace, remove, or split mutations)
 	 * @see MutationCombinationResult
 	 */
 	@Nullable

@@ -41,6 +41,7 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
+import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
@@ -59,7 +60,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -190,6 +191,10 @@ public final class Evita implements EvitaContract {
 	 * Contains the main evitaDB management service.
 	 */
 	private final EvitaManagement management;
+	/**
+	 * Contains reference to the proxy factory that is used to create proxies for the entities.
+	 */
+	@Getter private final ProxyFactory proxyFactory;
 	/**
 	 * Contains a session registry that keeps track of all active sessions in the Evita instance and handles associated
 	 * operation with them.
@@ -327,6 +332,7 @@ public final class Evita implements EvitaContract {
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		this.management = new EvitaManagement(this);
+		this.proxyFactory = ProxyFactory.createInstance(this.reflectionLookup);
 
 		final EngineState<LogRecordReference> engineState = enginePersistenceService.getEngineState();
 		final HashMap<String, CatalogContract> catalogs = CollectionUtils.createHashMap(
@@ -971,7 +977,7 @@ public final class Evita implements EvitaContract {
 			catalogSchema,
 			this.cacheSupervisor,
 			this,
-			this.reflectionLookup,
+			this.proxyFactory,
 			this.management.exportService(),
 			this.management.fileManagementService(),
 			this::replaceCatalogReference,
@@ -993,7 +999,7 @@ public final class Evita implements EvitaContract {
 			readOnly,
 			this.cacheSupervisor,
 			this,
-			this.reflectionLookup,
+			this.proxyFactory,
 			this.management.exportService(),
 			this.management.fileManagementService(),
 			this::replaceCatalogReference,

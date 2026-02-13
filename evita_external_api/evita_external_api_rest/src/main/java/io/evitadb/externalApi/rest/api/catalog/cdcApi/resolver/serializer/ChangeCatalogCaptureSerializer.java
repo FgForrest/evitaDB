@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingLocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;

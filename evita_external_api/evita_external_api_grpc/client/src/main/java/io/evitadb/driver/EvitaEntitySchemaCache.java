@@ -24,8 +24,6 @@
 package io.evitadb.driver;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
-import io.evitadb.api.proxy.ProxyFactory;
-import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
@@ -40,9 +38,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -105,19 +101,9 @@ class EvitaEntitySchemaCache {
 	 * Contains the timestamp of the last check for entity schemas in {@link #cachedSchemas} being obsolete.
 	 */
 	private final AtomicLong lastObsoleteCheck = new AtomicLong();
-	/**
-	 * Contains reference to the proxy factory that is used to create proxies for the entities.
-	 */
-	@Getter private final ProxyFactory proxyFactory;
 
-	public EvitaEntitySchemaCache(@Nonnull String catalogName, @Nonnull ReflectionLookup reflectionLookup) {
+	public EvitaEntitySchemaCache(@Nonnull String catalogName) {
 		this.catalogName = catalogName;
-		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
-			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
-			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
-				.getConstructor(ReflectionLookup.class)
-				.newInstance(reflectionLookup)
-		).orElse(UnsatisfiedDependencyFactory.INSTANCE);
 	}
 
 	/**

@@ -27,17 +27,48 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exceptions encapsulates specific exceptions that can occur during schema altering or defining.
+ * Abstract base exception for all errors that occur during schema definition or modification
+ * operations. This exception categorizes failures related to schema evolution, validation, and
+ * structural changes to entity or catalog schemas.
+ *
+ * Schema altering encompasses operations such as:
+ *
+ * - Defining new entity schemas or modifying existing ones
+ * - Adding, removing, or updating attributes, references, or associated data definitions
+ * - Changing cardinality, uniqueness, or indexing properties
+ * - Validating schema constraints and compatibility
+ * - Analyzing Java classes for automatic schema generation
+ *
+ * Subclasses of this exception represent specific failure modes during schema operations, such
+ * as naming conflicts, invalid class structures, or attempts to replace existing schemas. By
+ * extending {@link InvalidMutationException}, schema altering exceptions are treated as a
+ * category of mutation failures, since schema changes are represented as mutations in evitaDB's
+ * architecture.
+ *
+ * This exception is typically thrown during schema builder operations, schema mutation
+ * application, or reflection-based schema generation from annotated classes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public abstract class SchemaAlteringException extends InvalidMutationException {
 	@Serial private static final long serialVersionUID = 4307756062648183906L;
 
+	/**
+	 * Constructs a new schema altering exception with a descriptive message.
+	 *
+	 * @param message explanation of what schema operation failed and why
+	 */
 	protected SchemaAlteringException(@Nonnull String message) {
 		super(message);
 	}
 
+	/**
+	 * Constructs a new schema altering exception with a descriptive message and the underlying
+	 * cause of the failure.
+	 *
+	 * @param message explanation of what schema operation failed and why
+	 * @param cause   the underlying exception that caused the schema operation to fail
+	 */
 	protected SchemaAlteringException(@Nonnull String message, @Nonnull Throwable cause) {
 		super(message, cause);
 	}

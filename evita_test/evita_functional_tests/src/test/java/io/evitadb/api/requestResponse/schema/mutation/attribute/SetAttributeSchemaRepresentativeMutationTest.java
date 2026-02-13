@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -46,17 +47,21 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("SetAttributeSchemaRepresentativeMutation")
 class SetAttributeSchemaRepresentativeMutationTest {
 
 	@Test
+	@DisplayName("Should override representative of previous global attribute mutation when names match")
 	void shouldOverrideRepresentativeOfPreviousGlobalAttributeMutationIfNamesMatch() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
-		SetAttributeSchemaRepresentativeMutation existingMutation = new SetAttributeSchemaRepresentativeMutation(ATTRIBUTE_NAME, false);
+		final SetAttributeSchemaRepresentativeMutation existingMutation = new SetAttributeSchemaRepresentativeMutation(
+			ATTRIBUTE_NAME, false);
 		final CatalogSchemaContract entitySchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
-		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation);
+		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -65,23 +70,28 @@ class SetAttributeSchemaRepresentativeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new global attribute mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewGlobalAttributeMutationDoesntMatch() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
-		SetAttributeSchemaRepresentativeMutation existingMutation = new SetAttributeSchemaRepresentativeMutation("differentName", false);
+		final SetAttributeSchemaRepresentativeMutation existingMutation = new SetAttributeSchemaRepresentativeMutation(
+			"differentName", false);
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation));
 	}
 
 	@Test
+	@DisplayName("Should override representative of previous mutation when names match")
 	void shouldOverrideRepresentativeOfPreviousMutationIfNamesMatch() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
-		SetAttributeSchemaRepresentativeMutation existingMutation = new SetAttributeSchemaRepresentativeMutation(ATTRIBUTE_NAME, false);
+		final SetAttributeSchemaRepresentativeMutation existingMutation = new SetAttributeSchemaRepresentativeMutation(
+			ATTRIBUTE_NAME, false);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
-		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -90,37 +100,52 @@ class SetAttributeSchemaRepresentativeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
-		SetAttributeSchemaRepresentativeMutation existingMutation = new SetAttributeSchemaRepresentativeMutation("differentName", false);
-		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation));
+		final SetAttributeSchemaRepresentativeMutation existingMutation = new SetAttributeSchemaRepresentativeMutation(
+			"differentName", false);
+		assertNull(
+			mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class),
+				existingMutation
+			));
 	}
 
 	@Test
+	@DisplayName("Should mutate global attribute schema")
 	void shouldMutateGlobalAttributeSchema() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
-		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(), GlobalAttributeSchemaContract.class);
+		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(),
+			GlobalAttributeSchemaContract.class
+		);
 		assertNotNull(mutatedSchema);
 		assertTrue(mutatedSchema.isRepresentative());
 	}
 
 	@Test
+	@DisplayName("Should mutate entity attribute schema")
 	void shouldMutateEntityAttributeSchema() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
-		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(), EntityAttributeSchemaContract.class);
+		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(),
+			EntityAttributeSchemaContract.class
+		);
 		assertNotNull(mutatedSchema);
 		assertTrue(mutatedSchema.isRepresentative());
 	}
 
 	@Test
+	@DisplayName("Should mutate catalog schema")
 	void shouldMutateCatalogSchema() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
@@ -137,8 +162,9 @@ class SetAttributeSchemaRepresentativeMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate entity schema")
 	void shouldMutateEntitySchema() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -149,13 +175,15 @@ class SetAttributeSchemaRepresentativeMutationTest {
 			entitySchema
 		);
 		assertEquals(2, newEntitySchema.version());
-		final EntityAttributeSchemaContract newAttributeSchema = newEntitySchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
+		final EntityAttributeSchemaContract newAttributeSchema = newEntitySchema.getAttribute(ATTRIBUTE_NAME)
+			.orElseThrow();
 		assertTrue(newAttributeSchema.isRepresentative());
 	}
 
 	@Test
+	@DisplayName("Should make reference schema attribute representative")
 	void shouldMakeReferenceSchemaAttributeRepresentative() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -166,13 +194,15 @@ class SetAttributeSchemaRepresentativeMutationTest {
 			entitySchema,
 			referenceSchema
 		);
-		final AttributeSchemaContract newAttributeSchema = newReferenceSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
+		final AttributeSchemaContract newAttributeSchema = newReferenceSchema.getAttribute(ATTRIBUTE_NAME)
+			.orElseThrow();
 		assertTrue(newAttributeSchema.isRepresentative());
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating entity schema with non-existing attribute")
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithNonExistingAttribute() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
+		final SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
 		assertThrows(

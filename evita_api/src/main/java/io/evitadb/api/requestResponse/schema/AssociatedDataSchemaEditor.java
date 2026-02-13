@@ -48,14 +48,14 @@ public interface AssociatedDataSchemaEditor extends
 	 * Localized associated data has to be ALWAYS used in connection with specific {@link java.util.Locale}. In other
 	 * words - it cannot be stored unless associated locale is also provided.
 	 *
-	 * @param decider returns true when attribute should be localized
+	 * @param decider returns true when associated data should be localized
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	AssociatedDataSchemaEditor localized(@Nonnull BooleanSupplier decider);
 
 	/**
-	 * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+	 * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
 	 * non-null checks upon upserting of the entity.
 	 *
 	 * @return builder to continue with configuration
@@ -64,10 +64,10 @@ public interface AssociatedDataSchemaEditor extends
 	AssociatedDataSchemaEditor nullable();
 
 	/**
-	 * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
+	 * When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
 	 * non-null checks upon upserting of the entity.
 	 *
-	 * @param decider returns true when attribute should be localized
+	 * @param decider returns true when associated data should be nullable
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull

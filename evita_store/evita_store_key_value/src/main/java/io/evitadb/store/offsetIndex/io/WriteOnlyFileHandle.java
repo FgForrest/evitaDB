@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.OffsetIndex;
@@ -47,6 +50,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.zip.Deflater;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 
@@ -75,11 +79,30 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * The maximum time (in seconds) that a thread may wait to acquire the lock on the file handle.
 	 * If a thread cannot acquire the lock within this time, a StorageException is thrown.
 	 */
-	private final long lockTimeoutSeconds;
+	private final int lockTimeoutSeconds;
 	/**
-	 * Reference to the {@link StorageOptions} object that contains configuration options for the storage system.
+	 * Size of the memory buffer used for write operations, in bytes.
+	 * This buffer size limits the maximum size of individual records that can be written.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
-	private final StorageOptions storageOptions;
+	private final int outputBufferSize;
+	/**
+	 * Controls whether OS buffer flush is forced at safe points to ensure data durability.
+	 * When true, forces file system sync operations to persist data to physical storage.
+	 * Sourced from {@link StorageOptions#syncWrites()}.
+	 */
+	private final boolean syncWrites;
+	/**
+	 * Factory for creating checksums for data integrity verification during write operations.
+	 * Sourced from {@link StorageOptions#computeCRC32C()}.
+	 */
+	private final ChecksumFactory checksumFactory;
+	/**
+	 * Factory for creating compressor and decompressor instances for optional data compression.
+	 * Compression is applied only when it reduces data size below the original.
+	 * Sourced from {@link StorageOptions#compress()}.
+	 */
+	private final CompressionFactory compressionFactory;
 	/**
 	 * The path to the target file that this handle is associated with.
 	 * This handle provides write-only access to the file at this path.
@@ -162,29 +185,32 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * The method ensures the file is opened for writing, optionally computes a CRC32 checksum,
 	 * and applies compression if specified in the storage options.
 	 *
-	 * @param theFilePath    The path to the target file to which data will be written.
-	 * @param storageOptions The storage options that define buffer size, checksum computation, and compression settings.
+	 * @param theFilePath The path to the target file to which data will be written.
+	 * @param outputBufferSize the size of the output buffer to use for writing data.
+	 * @param checksum The checksum calculator touse for data integrity verification.
+	 * @param deflater The deflater to use for compressing data, or {@code null} if no compression is desired.
+	 *
 	 * @return An {@code ObservableOutput} instance wrapping a {@code FileOutputStream} for the specified file.
 	 * @throws UnexpectedIOException If the target file cannot be opened or accessed.
 	 */
 	@Nonnull
-	static ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath, @Nonnull StorageOptions storageOptions) {
+	static ObservableOutput<FileOutputStream> createObservableOutput(
+		@Nonnull Path theFilePath,
+		int outputBufferSize,
+		@Nonnull Checksum checksum,
+		@Nullable Deflater deflater
+	) {
 		try {
 			final File theFile = theFilePath.toFile();
 			final FileOutputStream targetOs = new FileOutputStream(theFile, true);
-			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
+			return new ObservableOutput<>(
 				targetOs,
-				Math.min(ObservableOutput.DEFAULT_FLUSH_SIZE, storageOptions.outputBufferSize()),
-				storageOptions.outputBufferSize(),
-				theFile.length()
+				Math.min(ObservableOutput.DEFAULT_FLUSH_SIZE, outputBufferSize),
+				outputBufferSize,
+				theFile.length(),
+				checksum,
+				deflater
 			);
-			if (storageOptions.computeCRC32C()) {
-				output.computeCRC32();
-			}
-			if (storageOptions.compress()) {
-				output.compress();
-			}
-			return output;
 		} catch (FileNotFoundException ex) {
 			throw new UnexpectedIOException(
 				"Target file " + theFilePath + " cannot be opened!",
@@ -214,27 +240,44 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	public WriteOnlyFileHandle(
 		@Nonnull Path targetFile,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		boolean syncWrites,
+		@Nonnull ChecksumFactory checksumCalculatorFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
-		this(null, null, null, storageOptions, targetFile, observableOutputKeeper);
+		this(
+			null, null, null, outputBufferSize, syncWrites,
+			checksumCalculatorFactory, compressionFactory,
+			targetFile, observableOutputKeeper
+		);
 	}
 
 	public WriteOnlyFileHandle(
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
 		@Nonnull Path targetFile,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		boolean syncWrites,
+		@Nonnull ChecksumFactory checksumCalculatorFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
-		this(null, fileType, logicalName, storageOptions, targetFile, observableOutputKeeper);
+		this(
+			null, fileType, logicalName, outputBufferSize, syncWrites,
+			checksumCalculatorFactory, compressionFactory,
+			targetFile, observableOutputKeeper
+		);
 	}
 
 	public WriteOnlyFileHandle(
 		@Nullable String catalogName,
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
-		@Nonnull StorageOptions storageOptions,
+		int outputBufferSize,
+		boolean syncWrites,
+		@Nonnull ChecksumFactory checksumFactory,
+		@Nonnull CompressionFactory compressionFactory,
 		@Nonnull Path targetFile,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
@@ -242,7 +285,10 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		this.fileType = fileType;
 		this.logicalName = logicalName;
 		this.lockTimeoutSeconds = observableOutputKeeper.getLockTimeoutSeconds();
-		this.storageOptions = storageOptions;
+		this.outputBufferSize = outputBufferSize;
+		this.syncWrites = syncWrites;
+		this.checksumFactory = checksumFactory;
+		this.compressionFactory = compressionFactory;
 		this.targetFile = targetFile;
 		isPremiseValid(getTargetFile(targetFile) != null, "Target file should be created or exception thrown!");
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -281,7 +327,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 						this::createObservableOutput,
 						observableOutput -> {
 							logic.accept(observableOutput);
-							doSync(observableOutput, this.storageOptions.syncWrites());
+							doSync(observableOutput, this.syncWrites);
 						}
 					);
 					return;
@@ -307,7 +353,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 						this::createObservableOutput,
 						observableOutput -> {
 							final S result = logic.apply(observableOutput);
-							doSync(observableOutput, this.storageOptions.syncWrites());
+							doSync(observableOutput, this.syncWrites);
 							return postExecutionLogic.apply(observableOutput, result);
 						}
 					);
@@ -332,7 +378,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	public ReadOnlyHandle toReadOnlyHandle() {
 		return new ReadOnlyFileHandle(
 			this.catalogName, this.fileType, this.logicalName,
-			this.targetFile, this.storageOptions
+			this.targetFile, this.checksumFactory, this.compressionFactory
 		);
 	}
 
@@ -359,7 +405,12 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 */
 	@Nonnull
 	private ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath) {
-		return createObservableOutput(theFilePath, this.storageOptions);
+		return createObservableOutput(
+			theFilePath,
+			this.outputBufferSize,
+			this.checksumFactory.createChecksum(),
+			this.compressionFactory.createCompressor().orElse(null)
+		);
 	}
 
 }

@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -46,17 +47,21 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("SetAttributeSchemaLocalizedMutation")
 class SetAttributeSchemaLocalizedMutationTest {
 
 	@Test
+	@DisplayName("Should override localized of previous global attribute mutation when names match")
 	void shouldOverrideLocalizedOfPreviousGlobalAttributeMutationIfNamesMatch() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
-		SetAttributeSchemaLocalizedMutation existingMutation = new SetAttributeSchemaLocalizedMutation(ATTRIBUTE_NAME, false);
+		final SetAttributeSchemaLocalizedMutation existingMutation = new SetAttributeSchemaLocalizedMutation(
+			ATTRIBUTE_NAME, false);
 		final CatalogSchemaContract entitySchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
-		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation);
+		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -65,23 +70,28 @@ class SetAttributeSchemaLocalizedMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new global attribute mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewGlobalAttributeMutationDoesntMatch() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
-		SetAttributeSchemaLocalizedMutation existingMutation = new SetAttributeSchemaLocalizedMutation("differentName", false);
+		final SetAttributeSchemaLocalizedMutation existingMutation = new SetAttributeSchemaLocalizedMutation(
+			"differentName", false);
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation));
 	}
 
 	@Test
+	@DisplayName("Should override localized of previous mutation when names match")
 	void shouldOverrideLocalizedOfPreviousMutationIfNamesMatch() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
-		SetAttributeSchemaLocalizedMutation existingMutation = new SetAttributeSchemaLocalizedMutation(ATTRIBUTE_NAME, false);
+		final SetAttributeSchemaLocalizedMutation existingMutation = new SetAttributeSchemaLocalizedMutation(
+			ATTRIBUTE_NAME, false);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
-		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -90,37 +100,52 @@ class SetAttributeSchemaLocalizedMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
-		SetAttributeSchemaLocalizedMutation existingMutation = new SetAttributeSchemaLocalizedMutation("differentName", false);
-		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation));
+		final SetAttributeSchemaLocalizedMutation existingMutation = new SetAttributeSchemaLocalizedMutation(
+			"differentName", false);
+		assertNull(
+			mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class),
+				existingMutation
+			));
 	}
 
 	@Test
+	@DisplayName("Should mutate global attribute schema")
 	void shouldMutateGlobalAttributeSchema() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
-		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(), GlobalAttributeSchemaContract.class);
+		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(),
+			GlobalAttributeSchemaContract.class
+		);
 		assertNotNull(mutatedSchema);
 		assertTrue(mutatedSchema.isLocalized());
 	}
 
 	@Test
+	@DisplayName("Should mutate entity attribute schema")
 	void shouldMutateEntityAttributeSchema() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
-		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(), EntityAttributeSchemaContract.class);
+		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(),
+			EntityAttributeSchemaContract.class
+		);
 		assertNotNull(mutatedSchema);
 		assertTrue(mutatedSchema.isLocalized());
 	}
 
 	@Test
+	@DisplayName("Should mutate catalog schema")
 	void shouldMutateCatalogSchema() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
@@ -137,8 +162,9 @@ class SetAttributeSchemaLocalizedMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate entity schema")
 	void shouldMutateEntitySchema() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -154,8 +180,9 @@ class SetAttributeSchemaLocalizedMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate reference schema")
 	void shouldMutateReferenceSchema() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
@@ -170,8 +197,9 @@ class SetAttributeSchemaLocalizedMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating entity schema with non-existing attribute")
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithNonExistingAttribute() {
-		SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
+		final SetAttributeSchemaLocalizedMutation mutation = new SetAttributeSchemaLocalizedMutation(
 			ATTRIBUTE_NAME, true
 		);
 		assertThrows(

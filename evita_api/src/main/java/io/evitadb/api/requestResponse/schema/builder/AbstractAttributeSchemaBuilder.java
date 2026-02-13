@@ -31,7 +31,17 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
@@ -146,7 +156,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new SetAttributeSchemaFilterableMutation(
 					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isFilterableInScope(it) || !excludedScopes.contains(it))
+						.filter(it -> isFilterableInScope(it) && !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
 			)
@@ -178,11 +188,12 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
-				new SetAttributeSchemaSortableMutation(
+				new SetAttributeSchemaUniqueMutation(
 					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isUniqueInScope(it) || !excludedScopes.contains(it))
-						.toArray(Scope[]::new)
+						.filter(it -> isUniqueInScope(it) && !excludedScopes.contains(it))
+						.map(it -> new ScopedAttributeUniquenessType(it, getUniquenessType(it)))
+						.toArray(ScopedAttributeUniquenessType[]::new)
 				)
 			)
 		);
@@ -238,7 +249,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new SetAttributeSchemaSortableMutation(
 					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isSortableInScope(it) || !excludedScopes.contains(it))
+						.filter(it -> isSortableInScope(it) && !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
 			)
@@ -291,6 +302,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return (T) this;
 	}
 
+	@Nonnull
 	@Override
 	public T nonLocalized() {
 		this.updatedSchemaDirty = updateMutationImpact(
@@ -452,7 +464,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Nonnull
 	public S toInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
-			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// if the dirty flag is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = 0;

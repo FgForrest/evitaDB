@@ -77,6 +77,10 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 	@Getter
 	private JsonNode rootNode;
 
+	/**
+	 * Converts a {@link DataItemArray} into a Jackson {@link ArrayNode}, visits each child element recursively,
+	 * and nests the result under the current parent node in the JSON tree.
+	 */
 	@Override
 	public void visit(@Nonnull DataItemArray arrayItem) {
 		final ArrayNode newArrayNode = this.objectMapper.getNodeFactory().arrayNode(arrayItem.children().length);
@@ -118,6 +122,10 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 		this.stack.pop();
 	}
 
+	/**
+	 * Converts a {@link DataItemMap} into a Jackson {@link ObjectNode}, iterates over all map properties recursively,
+	 * and nests the result under the current parent node in the JSON tree.
+	 */
 	@Override
 	public void visit(@Nonnull DataItemMap mapItem) {
 		if (this.rootNode == null) {
@@ -159,6 +167,11 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 		this.stack.pop();
 	}
 
+	/**
+	 * Writes a {@link DataItemValue} as a leaf node to the current parent ({@link ObjectNode} or {@link ArrayNode}).
+	 * Handles type-specific conversions: {@link Long} and {@link BigDecimal} are written as strings to avoid
+	 * precision loss in ECMAScript environments.
+	 */
 	@Override
 	public void visit(@Nonnull DataItemValue valueItem) {
 		if (this.rootNode == null) {

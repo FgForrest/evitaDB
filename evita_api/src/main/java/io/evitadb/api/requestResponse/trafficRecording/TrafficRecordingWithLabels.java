@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.trafficRecording;
 import javax.annotation.Nonnull;
 
 /**
- * This interface unifies all {@link TrafficRecording} implementation s that contain labels.
+ * This interface unifies all {@link TrafficRecording} implementations that contain labels.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

@@ -25,9 +25,36 @@ package io.evitadb.api.proxy.impl;
 
 
 /**
- * Type of the referenced object.
+ * Discriminates between the two kinds of entities that a reference can point to.
+ *
+ * In evitaDB's data model, a reference (e.g., "product → category") always points to a **target** entity,
+ * and may optionally point to a **group** entity that clusters several references together. For example,
+ * a product's "parameterValues" reference might target individual parameter-value entities while grouping
+ * them under parameter-group entities.
+ *
+ * This enum is used throughout the proxy infrastructure to distinguish which entity is being accessed,
+ * cached, or mutated when working with references:
+ *
+ * - In **cache keys** ({@link AbstractEntityProxyState}) — to store separate proxy instances for target
+ *   and group entities of the same reference
+ * - In **getter classifiers** — to resolve whether a proxy method returns the referenced entity or its group
+ * - In **setter classifiers** — to route mutations to the correct referenced entity (target vs. group)
+ *
+ * @see AbstractEntityProxyState
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public enum ReferencedObjectType {
+	/**
+	 * The primary entity that the reference points to.
+	 *
+	 * For example, in a "product → category" reference, the category entity is the TARGET.
+	 */
 	TARGET,
+	/**
+	 * The optional grouping entity that clusters multiple references of the same type.
+	 *
+	 * For example, in a "product → parameterValue" reference grouped by "parameterGroup",
+	 * the parameter-group entity is the GROUP.
+	 */
 	GROUP
 }

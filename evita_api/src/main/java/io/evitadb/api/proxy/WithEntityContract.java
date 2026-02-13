@@ -28,16 +28,46 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import javax.annotation.Nonnull;
 
 /**
- * An interface that provides access to an underlying entity.
+ * Provides direct access to the underlying sealed entity wrapped by a proxy instance.
  *
+ * This interface can be implemented by client-defined proxy contracts (interfaces, abstract classes, POJOs)
+ * when they need to access the raw {@link EntityContract} instance. This is useful for:
+ * - Accessing entity data that doesn't have a corresponding proxy method
+ * - Performing operations that require the low-level entity API
+ * - Debugging and inspection of the underlying entity state
+ * - Integration with code that works directly with {@link EntityContract}
+ *
+ * **Implementation Note:**
+ *
+ * When a client proxy contract implements this interface, the proxy infrastructure automatically provides
+ * the implementation. The method delegates to the proxy state object which holds the wrapped entity.
+ *
+ * **Example Usage:**
+ *
+ * ```java
+ * public interface Product extends WithEntityContract {
+ *     String getName();
+ *
+ *     default boolean hasAttribute(String name) {
+ *         return entity().getAttributeValue(name) != null;
+ *     }
+ * }
+ * ```
+ *
+ * @see WithEntityBuilder
+ * @see SealedEntityProxy
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface WithEntityContract {
 
 	/**
-	 * Returns the underlying sealed entity that is wrapped into a requested proxy type.
+	 * Returns the underlying sealed entity that is wrapped by this proxy instance.
 	 *
-	 * @return the underlying sealed entity
+	 * The returned entity is either a {@link io.evitadb.api.requestResponse.data.SealedEntity} for read-only
+	 * proxies or an {@link io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder} wrapper for
+	 * mutable proxies. The entity contains all the data that was fetched according to the query requirements.
+	 *
+	 * @return the underlying sealed entity (never a proxy, always the raw entity instance)
 	 */
 	@Nonnull
 	EntityContract entity();

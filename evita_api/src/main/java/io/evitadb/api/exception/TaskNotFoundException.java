@@ -31,14 +31,38 @@ import java.io.Serial;
 import java.util.UUID;
 
 /**
- * Exception is thrown when a task with the given ID is not found.
+ * Exception thrown when attempting to access, query, or cancel a background task that cannot be found
+ * by its unique identifier. evitaDB uses background tasks for long-running operations such as:
+ *
+ * - Traffic recording
+ * - JFR (Java Flight Recorder) recording
+ * - Catalog restoration from backups
+ * - Data export operations
+ *
+ * **This exception can occur when:**
+ *
+ * - The task ID is invalid or mistyped
+ * - The task has already completed and been removed from the task registry
+ * - The task was never created (incorrect UUID)
+ * - The server was restarted and task state was not persisted
+ *
+ * Clients should verify the task ID and check the list of available tasks before attempting to
+ * access a specific task.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class TaskNotFoundException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 6188715534953413955L;
+	/**
+	 * The UUID of the task that could not be found, useful for client-side debugging.
+	 */
 	@Getter private final UUID taskId;
 
+	/**
+	 * Creates a new exception indicating that the task with the specified ID was not found.
+	 *
+	 * @param taskId the UUID of the task that could not be located
+	 */
 	public TaskNotFoundException(@Nonnull UUID taskId) {
 		super(
 			"Task not found: " + taskId,

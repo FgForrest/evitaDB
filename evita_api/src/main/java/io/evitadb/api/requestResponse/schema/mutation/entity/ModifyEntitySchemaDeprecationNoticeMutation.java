@@ -83,7 +83,7 @@ public class ModifyEntitySchemaDeprecationNoticeMutation implements CombinableLo
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		if (Objects.equals(entitySchema.getDeprecationNotice(), this.deprecationNotice)) {
-			// entity schema is already removed - no need to do anything
+			// deprecation notice already matches - no need to do anything
 			return entitySchema;
 		} else {
 			return EntitySchema._internalBuild(

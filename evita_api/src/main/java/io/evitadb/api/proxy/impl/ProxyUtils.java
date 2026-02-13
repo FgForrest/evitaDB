@@ -49,6 +49,7 @@ import static one.edee.oss.proxycian.utils.GenericsUtils.getNestedMethodReturnTy
 /**
  * Class contains utility methods for working with generics.
  *
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class ProxyUtils {
@@ -76,8 +77,14 @@ public class ProxyUtils {
 	}
 
 	/**
-	 * Returns multiple wrapped generic type of the method.
+	 * Returns resolved generic type chain for the method's return type, starting from the outermost
+	 * type and recursively unwrapping nested generics.
+	 *
+	 * @param method the method whose return type chain to resolve
+	 * @param ownerClass the declaring class used for generic type resolution
+	 * @return array of resolved types from outermost to innermost generic parameter
 	 */
+	@Nonnull
 	public static Class<?>[] getResolvedTypes(
 		@Nonnull Method method,
 		@Nonnull Class<?> ownerClass
@@ -96,8 +103,14 @@ public class ProxyUtils {
 	}
 
 	/**
-	 * Returns multiple wrapped generic type of the parameter.
+	 * Returns resolved generic type chain for the parameter's type, starting from the outermost
+	 * type and recursively unwrapping nested generics.
+	 *
+	 * @param parameter the parameter whose type chain to resolve
+	 * @param ownerClass the declaring class used for generic type resolution
+	 * @return array of resolved types from outermost to innermost generic parameter
 	 */
+	@Nonnull
 	public static Class<?>[] getResolvedTypes(
 		@Nonnull Parameter parameter,
 		@Nonnull Class<?> ownerClass
@@ -152,13 +165,13 @@ public class ProxyUtils {
 	 */
 	@Nonnull
 	public static List<GenericBundle> getNestedParameterTypes(@Nonnull Class<?> mainClass, @Nonnull Parameter parameter) {
-		Type genericReturnType = parameter.getParameterizedType();
-		Class<?> returnType = parameter.getType();
+		final Type genericReturnType = parameter.getParameterizedType();
+		final Class<?> returnType = parameter.getType();
 		if (genericReturnType == returnType) {
 			return Collections.emptyList();
 		} else {
 			if (!(genericReturnType instanceof Class)) {
-				List<GenericBundle> resolvedTypes = getGenericType(mainClass, genericReturnType);
+				final List<GenericBundle> resolvedTypes = getGenericType(mainClass, genericReturnType);
 				if (!resolvedTypes.isEmpty()) {
 					return resolvedTypes;
 				}
@@ -192,11 +205,11 @@ public class ProxyUtils {
 	}
 
 	/**
-	 * The class is returns directly the result produced by {@link Supplier} and swallows all
+	 * The class returns directly the result produced by {@link Supplier} and swallows all
 	 * possible exceptions that might occur during the {@link Supplier#get()} method call.
 	 */
 	private record UnaryResultWrapperSwallowing() implements ResultWrapper {
-		private final static UnaryResultWrapperSwallowing INSTANCE = new UnaryResultWrapperSwallowing();
+		private static final UnaryResultWrapperSwallowing INSTANCE = new UnaryResultWrapperSwallowing();
 
 		@Nullable
 		@Override
@@ -210,7 +223,7 @@ public class ProxyUtils {
 	}
 
 	/**
-	 * The class is returns directly the result produced by {@link Supplier} and rethrows all exceptions declared as
+	 * The class returns directly the result produced by {@link Supplier} and rethrows all exceptions declared as
 	 * thrown by the originally called method. The undeclared exceptions that might occur in {@link Supplier#get()}
 	 * method call are swallowed.
 	 *
@@ -231,7 +244,7 @@ public class ProxyUtils {
 						throw ex;
 					}
 				}
-				return null;
+				throw ex;
 			}
 		}
 	}
@@ -241,7 +254,7 @@ public class ProxyUtils {
 	 * possible exceptions that might occur during the {@link Supplier#get()} method call.
 	 */
 	private record OptionalIntUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
-		private final static OptionalIntUnaryResultWrapperSwallowing INSTANCE = new OptionalIntUnaryResultWrapperSwallowing();
+		private static final OptionalIntUnaryResultWrapperSwallowing INSTANCE = new OptionalIntUnaryResultWrapperSwallowing();
 
 		@Nonnull
 		@Override
@@ -278,7 +291,7 @@ public class ProxyUtils {
 						throw ex;
 					}
 				}
-				return OptionalInt.empty();
+				throw ex;
 			}
 		}
 	}
@@ -288,7 +301,7 @@ public class ProxyUtils {
 	 * possible exceptions that might occur during the {@link Supplier#get()} method call.
 	 */
 	private record OptionalLongUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
-		private final static OptionalLongUnaryResultWrapperSwallowing INSTANCE = new OptionalLongUnaryResultWrapperSwallowing();
+		private static final OptionalLongUnaryResultWrapperSwallowing INSTANCE = new OptionalLongUnaryResultWrapperSwallowing();
 
 		@Nonnull
 		@Override
@@ -325,7 +338,7 @@ public class ProxyUtils {
 						throw ex;
 					}
 				}
-				return OptionalLong.empty();
+				throw ex;
 			}
 		}
 	}
@@ -335,7 +348,7 @@ public class ProxyUtils {
 	 * possible exceptions that might occur during the {@link Supplier#get()} method call.
 	 */
 	private record OptionalUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
-		private final static OptionalUnaryResultWrapperSwallowing INSTANCE = new OptionalUnaryResultWrapperSwallowing();
+		private static final OptionalUnaryResultWrapperSwallowing INSTANCE = new OptionalUnaryResultWrapperSwallowing();
 
 		@Nonnull
 		@Override
@@ -343,7 +356,7 @@ public class ProxyUtils {
 			try {
 				final Object value = resultProducer.get();
 				// collections are not allowed in the evitaDB values, but may be present on proxied interfaces
-				// when empty collection is returned, the value is null and we need to return Optional.empty()
+				// when an empty collection is returned, the value is null and we need to return Optional.empty()
 				if (value instanceof Collection<?> collection) {
 					return collection.isEmpty() ? Optional.empty() : Optional.of(collection);
 				} else {
@@ -372,7 +385,7 @@ public class ProxyUtils {
 			try {
 				final Object value = resultProducer.get();
 				// collections are not allowed in the evitaDB values, but may be present on proxied interfaces
-				// when empty collection is returned, the value is null and we need to return Optional.empty()
+				// when an empty collection is returned, the value is null and we need to return Optional.empty()
 				if (value instanceof Collection<?> collection) {
 					return collection.isEmpty() ? Optional.empty() : Optional.of(collection);
 				} else {
@@ -384,7 +397,7 @@ public class ProxyUtils {
 						throw ex;
 					}
 				}
-				return Optional.empty();
+				throw ex;
 			}
 		}
 	}

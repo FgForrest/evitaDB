@@ -258,7 +258,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
-	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
+	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the sortable attribute must
 	 * implement {@link Comparable} interface.
 	 *
 	 * @return true if attribute is sortable in any scope
@@ -270,7 +270,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
-	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
+	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the sortable attribute must
 	 * implement {@link Comparable} interface.
 	 *
 	 * This method returns true only if the attribute is sortable in the default (i.e. {@link Scope#LIVE}) scope.
@@ -284,11 +284,11 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
-	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
+	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the sortable attribute must
 	 * implement {@link Comparable} interface.
 	 *
-	 * @param scope to check attribute is filterable in
-	 * @return true if attribute is filterable in particular scope
+	 * @param scope to check attribute is sortable in
+	 * @return true if attribute is sortable in particular scope
 	 */
 	boolean isSortableInScope(@Nonnull Scope scope);
 

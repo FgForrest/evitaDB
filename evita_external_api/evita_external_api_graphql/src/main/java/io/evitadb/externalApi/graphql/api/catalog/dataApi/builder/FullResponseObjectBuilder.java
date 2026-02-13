@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
+import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.PropertyDataFetcher;
@@ -49,6 +50,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.SegmentDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordPageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityRecordStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
@@ -57,7 +60,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResults
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
@@ -77,12 +80,13 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.R
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordStripDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.*;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLInputFieldTransformer;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.HelperInterfaceTypeResolver;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
-import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -95,7 +99,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
-import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
@@ -115,6 +118,7 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
@@ -122,18 +126,22 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
 	@Nonnull private final RequireConstraintSchemaBuilder complementaryRequireConstraintSchemaBuilder;
 
-	public FullResponseObjectBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
-	                                 @Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
-	                                 @Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
-									 @Nonnull ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer,
-	                                 @Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer,
-									 @Nonnull PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer,
-	                                 @Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingContext,
-	                                 @Nonnull FilterConstraintSchemaBuilder filterConstraintSchemaBuilder,
-	                                 @Nonnull OrderConstraintSchemaBuilder orderConstraintSchemaBuilder) {
+	public FullResponseObjectBuilder(
+		@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
+		@Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
+		@Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
+		@Nonnull ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer,
+		@Nonnull ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer,
+		@Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer,
+		@Nonnull PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer,
+		@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingContext,
+		@Nonnull FilterConstraintSchemaBuilder filterConstraintSchemaBuilder,
+		@Nonnull OrderConstraintSchemaBuilder orderConstraintSchemaBuilder
+	) {
 		this.buildingContext = buildingContext;
 		this.argumentBuilderTransformer = argumentBuilderTransformer;
 		this.objectBuilderTransformer = objectBuilderTransformer;
+		this.interfaceBuilderTransformer = interfaceBuilderTransformer;
 		this.inputObjectBuilderTransformer = inputObjectBuilderTransformer;
 		this.fieldBuilderTransformer = fieldBuilderTransformer;
 		this.inputFieldBuilderTransformer = inputFieldBuilderTransformer;
@@ -146,6 +154,16 @@ public class FullResponseObjectBuilder {
 	}
 
 	public void buildCommonTypes() {
+		final GraphQLInterfaceType recordPageInterface = RecordPageDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer)
+			.build();
+		this.buildingContext.registerType(recordPageInterface);
+		this.buildingContext.registerTypeResolver(recordPageInterface, HelperInterfaceTypeResolver.getInstance());
+
+		final GraphQLInterfaceType recordStripInterface = RecordStripDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer)
+			.build();
+		this.buildingContext.registerType(recordStripInterface);
+		this.buildingContext.registerTypeResolver(recordStripInterface, HelperInterfaceTypeResolver.getInstance());
+
 		this.buildingContext.registerType(BucketDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(buildHistogramObject());
 		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
@@ -205,11 +223,12 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private GraphQLObjectType buildRecordPageObject(@Nonnull EntitySchemaContract entitySchema) {
-		final String objectName = RecordPageDescriptor.THIS.name(entitySchema);
+		final String objectName = EntityRecordPageDescriptor.THIS.name(entitySchema);
 
-		return RecordPageDescriptor.THIS
+		return EntityRecordPageDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
+			.description(EntityRecordPageDescriptor.THIS.description(entitySchema))
 			.field(DataChunkDescriptor.DATA
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema)))))))
@@ -235,11 +254,12 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private GraphQLObjectType buildRecordStripObject(@Nonnull EntitySchemaContract entitySchema) {
-		final String objectName = RecordStripDescriptor.THIS.name(entitySchema);
+		final String objectName = EntityRecordStripDescriptor.THIS.name(entitySchema);
 
-		return RecordStripDescriptor.THIS
+		return EntityRecordStripDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
+			.description(EntityRecordStripDescriptor.THIS.description(entitySchema))
 			.field(DataChunkDescriptor.DATA
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema)))))))
@@ -604,10 +624,10 @@ public class FullResponseObjectBuilder {
 			null;
 		final GraphQLOutputType facetEntityObject = buildReferencedEntityObject(facetEntitySchema);
 
-		return FacetStatisticsDescriptor.THIS
+		return EntityFacetStatisticsDescriptor.THIS
 			.to(this.objectBuilderTransformer)
-			.name(FacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema))
-			.field(FacetStatisticsDescriptor.FACET_ENTITY
+			.name(EntityFacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema))
+			.field(EntityFacetStatisticsDescriptor.FACET_ENTITY
 				.to(this.fieldBuilderTransformer)
 				.type(facetEntityObject))
 			.build();

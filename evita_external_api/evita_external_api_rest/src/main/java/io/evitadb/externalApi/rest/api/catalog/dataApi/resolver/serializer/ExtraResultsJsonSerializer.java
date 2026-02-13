@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.dto.QueryTelemetryDto;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
@@ -180,8 +180,8 @@ public class ExtraResultsJsonSerializer {
 	@Nonnull
 	private JsonNode serializeFacetStatistics(@Nonnull FacetStatistics facetStatistics, @Nonnull CatalogSchemaContract catalogSchema) {
 		final ObjectNode facetStatsNode = this.objectJsonSerializer.objectNode();
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.REQUESTED.name(), this.objectJsonSerializer.serializeObject(facetStatistics.isRequested()));
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.COUNT.name(), this.objectJsonSerializer.serializeObject(facetStatistics.getCount()));
+		facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.REQUESTED.name(), this.objectJsonSerializer.serializeObject(facetStatistics.isRequested()));
+		facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.COUNT.name(), this.objectJsonSerializer.serializeObject(facetStatistics.getCount()));
 		if (facetStatistics.getImpact() != null) {
 			final ObjectNode impactNode = this.objectJsonSerializer.objectNode();
 			final RequestImpact impact = facetStatistics.getImpact();
@@ -189,9 +189,9 @@ public class ExtraResultsJsonSerializer {
 			impactNode.putIfAbsent(FacetRequestImpactDescriptor.MATCH_COUNT.name(), this.objectJsonSerializer.serializeObject(impact.matchCount()));
 			impactNode.putIfAbsent(FacetRequestImpactDescriptor.HAS_SENSE.name(), this.objectJsonSerializer.serializeObject(impact.hasSense()));
 
-			facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.IMPACT.name(), impactNode);
+			facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.IMPACT.name(), impactNode);
 		}
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.FACET_ENTITY.name(), serializeEntity(facetStatistics.getFacetEntity(), catalogSchema));
+		facetStatsNode.putIfAbsent(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), serializeEntity(facetStatistics.getFacetEntity(), catalogSchema));
 		return facetStatsNode;
 	}
 

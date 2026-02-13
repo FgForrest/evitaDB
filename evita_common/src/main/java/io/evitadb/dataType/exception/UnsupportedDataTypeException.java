@@ -37,9 +37,18 @@ import java.util.stream.Collectors;
  */
 public class UnsupportedDataTypeException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -4608107879558419907L;
+	/**
+	 * The unsupported type that was encountered.
+	 */
 	@Getter private final Class<?> type;
+	/**
+	 * The set of data types supported by EvitaDB.
+	 */
 	@Getter private final Set<Class<?>> supportedDataTypes;
 
+	/**
+	 * Creates a new exception for an unsupported type, listing all types that are supported.
+	 */
 	public UnsupportedDataTypeException(Class<?> type, Set<Class<?>> supportedDataTypes) {
 		super(
 				"Type " + type.getName() + " is not supported. Only these data types are known to Evita: " +

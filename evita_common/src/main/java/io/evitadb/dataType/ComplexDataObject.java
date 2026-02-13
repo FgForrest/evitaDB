@@ -75,6 +75,8 @@ public record ComplexDataObject(
 
 	/**
 	 * Returns true if no data are present in root container.
+	 * Note: a {@link DataItemArray} with zero children is NOT considered empty,
+	 * because an empty array container still represents an explicit empty array value.
 	 */
 	public boolean isEmpty() {
 		return this.root.isEmpty() && !(this.root instanceof DataItemArray);

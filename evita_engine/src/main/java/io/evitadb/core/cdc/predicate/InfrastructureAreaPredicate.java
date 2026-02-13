@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.cdc.CaptureSite;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;

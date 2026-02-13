@@ -24,33 +24,86 @@
 package io.evitadb.api.observability;
 
 /**
- * This enum represents the possible health problems that can be signaled by the server.
+ * Enumeration of health problems that can be detected by the evitaDB server's liveness probe. These problems
+ * represent system-level issues that may degrade performance or indicate resource exhaustion.
+ *
+ * **Health vs. Readiness**
+ *
+ * Health problems affect the "liveness" probe (is the server alive?), whereas {@link ReadinessState} affects the
+ * "readiness" probe (is the server ready to accept traffic?). A server can be alive but not ready, or alive with
+ * health problems but still accepting requests.
+ *
+ * **Detection and Reporting**
+ *
+ * Health problems are detected by {@link io.evitadb.externalApi.observability.metric.ObservabilityProbesDetector}
+ * and reported via the System API's health endpoint and Prometheus metrics (`io_evitadb_health_problems`).
+ *
+ * **Usage Context**
+ *
+ * - {@link io.evitadb.externalApi.api.system.ProbesProvider#getHealthProblems} returns the current set of detected
+ * problems
+ * - {@link io.evitadb.externalApi.observability.ObservabilityManager#recordHealthProblem} records problems to
+ * Prometheus metrics
+ * - {@link io.evitadb.externalApi.observability.ObservabilityManager#clearHealthProblem} clears problems from metrics
+ * when resolved
+ * - gRPC API exposes these via `GrpcHealthProblem` enum in management service responses
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public enum HealthProblem {
 
 	/**
-	 * Signalized when the consumed memory never goes below 85% of the maximum heap size and the GC tries to free
-	 * old generation at least once (this situation usually leads to repeated attempts of expensive old generation GC
-	 * and pressure on system CPUs).
+	 * Signaled when the JVM memory usage exceeds 90% of maximum heap size and either:
+	 * - Old generation garbage collection has occurred (G1 Old Generation, PS MarkSweep, ConcurrentMarkSweep), or
+	 * - An `OutOfMemoryError` has been thrown
+	 *
+	 * This condition indicates memory pressure that typically leads to repeated expensive full GC cycles, degrading
+	 * system performance and increasing CPU usage. The problem persists until memory usage drops below the threshold
+	 * and no new GC cycles or OOM errors occur.
+	 *
+	 * **Detection Logic**: Memory usage > 90% AND (old GC count increased OR OOM count increased)
 	 */
 	MEMORY_SHORTAGE,
+
 	/**
-	 * Signalized when the readiness probe signals that at least one external API, that is configured to be enabled
-	 * doesn't respond to internal HTTP check call.
+	 * Signaled when at least one configured external API (gRPC, REST, GraphQL, System, Observability, Lab) fails
+	 * to respond to internal health check calls within the expected timeout.
+	 *
+	 * This indicates that an API endpoint that should be serving requests is unresponsive, even though the server
+	 * is running. Health checks are performed by
+	 * {@link io.evitadb.externalApi.observability.metric.ObservabilityProbesDetector} by checking the readiness
+	 * state of each enabled API.
+	 *
+	 * **Detection Logic**: At least one enabled API has `isReady() == false` or does not respond to check
 	 */
 	EXTERNAL_API_UNAVAILABLE,
+
 	/**
-	 * Signalized when the input queues are full and the server is not able to process incoming requests. The problem
-	 * is reported when there is ration of rejected tasks to accepted tasks >= 2. This flag is cleared when the rejection
-	 * ratio decreases below the specified threshold, which signalizes that server is able to process incoming requests
-	 * again.
+	 * Signaled when the server's request executor rejects tasks due to full input queues, indicating the server
+	 * cannot keep up with incoming request load.
+	 *
+	 * The problem is reported when the ratio of rejected tasks to submitted tasks (since last check) is greater
+	 * than or equal to 2. This means for every task accepted, at least 2 are being rejected.
+	 *
+	 * The flag is cleared when the rejection ratio falls below the threshold, indicating the server has recovered
+	 * and can process requests at the incoming rate again.
+	 *
+	 * **Detection Logic**: (rejected - lastRejected) / max((submitted - lastSubmitted), 1) > 2
 	 */
 	INPUT_QUEUES_OVERLOADED,
+
 	/**
-	 * Signaled when there are occurrences of Java internal errors. These errors are usually caused by the server
-	 * itself and are not related to the client's requests. Java errors signal fatal problems inside the JVM.
+	 * Signaled when Java `Error` exceptions occur within the JVM, indicating fatal internal problems such as
+	 * `StackOverflowError`, `OutOfMemoryError`, `InternalError`, or other serious JVM failures.
+	 *
+	 * These errors are usually not caused by client requests but represent fatal problems within the JVM itself,
+	 * such as bytecode verification failures, class loading issues, or resource exhaustion. The presence of Java
+	 * errors indicates the JVM may be in an unstable state.
+	 *
+	 * Errors are captured by {@link io.evitadb.externalApi.observability.agent.ErrorMonitor} via bytecode
+	 * instrumentation and counted via `MetricHandler.JAVA_ERRORS_TOTAL` Prometheus counter.
+	 *
+	 * **Detection Logic**: Java error count has increased since last check
 	 */
 	JAVA_INTERNAL_ERRORS
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,24 +78,15 @@ public interface PaginatedListDescriptor extends DataChunkDescriptor {
 		.type(nonNull(Integer.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*PaginatedList")
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(DataChunkDescriptor.THIS_INTERFACE)
+		.name("PaginatedList")
 		.description("""
 			Page of records according to pagination rules in input query.
 			""")
-		.staticProperties(List.of(
-			PAGE_SIZE,
-			PAGE_NUMBER,
-			LAST_PAGE_NUMBER,
-			FIRST_PAGE_ITEM_NUMBER,
-			LAST_PAGE_ITEM_NUMBER,
-			TOTAL_RECORD_COUNT,
-			FIRST,
-			LAST,
-			HAS_PREVIOUS,
-			HAS_NEXT,
-			SINGLE_PAGE,
-			EMPTY
-		))
+		.staticProperty(PAGE_SIZE)
+		.staticProperty(PAGE_NUMBER)
+		.staticProperty(LAST_PAGE_NUMBER)
+		.staticProperty(FIRST_PAGE_ITEM_NUMBER)
+		.staticProperty(LAST_PAGE_ITEM_NUMBER)
 		.build();
 }

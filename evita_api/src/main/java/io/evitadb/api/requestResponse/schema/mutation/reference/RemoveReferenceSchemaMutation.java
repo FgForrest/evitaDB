@@ -62,6 +62,9 @@ public class RemoveReferenceSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -7746714314557968775L;
 
+	/**
+	 * Creates mutation that removes the reference schema with the given name.
+	 */
 	public RemoveReferenceSchemaMutation(@Nonnull String name) {
 		super(name);
 	}
@@ -73,7 +76,8 @@ public class RemoveReferenceSchemaMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ReferenceSchemaMutation referenceSchemaMutation && Objects.equals(this.name, referenceSchemaMutation.getName())) {
+		if (existingMutation instanceof ReferenceSchemaMutation referenceSchemaMutation
+			&& Objects.equals(this.name, referenceSchemaMutation.getName())) {
 			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
@@ -82,14 +86,21 @@ public class RemoveReferenceSchemaMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		return null;
 	}
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {

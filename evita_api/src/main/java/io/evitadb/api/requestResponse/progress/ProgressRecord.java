@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.progress;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,8 +43,8 @@ import java.util.function.IntConsumer;
  * operation in a database. The operation switches a catalog from warm-up mode to transactional
  * mode.
  *
- * This implementation provides methods to track completion percentage and complete the operation either
- * successfully or exceptionally.
+ * This implementation provides methods to track completion percentage and complete the operation
+ * either successfully or exceptionally.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -94,7 +95,13 @@ public class ProgressRecord<T> implements Progress<T> {
 	}
 
 	/**
-	 * Creates a new instance of ProgressRecord with the specified termination sequence callback.
+	 * Creates a basic ProgressRecord for manual progress tracking. Progress must be updated explicitly via
+	 * {@link #updatePercentCompleted(int)} and completed via {@link #complete(Object)} or
+	 * {@link #completeExceptionally(Throwable)}.
+	 *
+	 * @param operationName    name of the operation being tracked
+	 * @param progressObserver optional observer notified on progress changes; may be null if no external
+	 *                         observation is needed
 	 */
 	public ProgressRecord(
 		@Nonnull String operationName,
@@ -109,7 +116,14 @@ public class ProgressRecord<T> implements Progress<T> {
 	}
 
 	/**
-	 * Creates a new instance of ProgressRecord with the specified termination sequence callback.
+	 * Creates a ProgressRecord that tracks progress from a {@link ProgressingFuture}. The future is executed
+	 * immediately on the provided executor. Progress percentage is automatically calculated from the future's
+	 * step-based progress.
+	 *
+	 * @param operationName    name of the operation being tracked
+	 * @param progressObserver optional observer notified on progress changes; may be null
+	 * @param progressingFuture the future whose progress will be tracked
+	 * @param executor         the executor used to run the progressing future
 	 */
 	public ProgressRecord(
 		@Nonnull String operationName,
@@ -128,7 +142,16 @@ public class ProgressRecord<T> implements Progress<T> {
 	}
 
 	/**
-	 * Creates a new instance of ProgressRecord with the specified termination sequence callback.
+	 * Creates a ProgressRecord that tracks progress from a {@link ProgressingFuture} with lifecycle callbacks.
+	 * The {@code onProgressExecution} consumer is called during construction (before the future starts), and
+	 * {@code onProgressCompletion} is called when the future completes.
+	 *
+	 * @param operationName        name of the operation being tracked
+	 * @param progressObserver     optional observer notified on progress changes; may be null
+	 * @param progressingFuture    the future whose progress will be tracked
+	 * @param onProgressExecution  callback invoked during construction, before future execution
+	 * @param onProgressCompletion callback invoked when the future completes
+	 * @param executor             the executor used to run the progressing future
 	 */
 	public ProgressRecord(
 		@Nonnull String operationName,
@@ -185,7 +208,9 @@ public class ProgressRecord<T> implements Progress<T> {
 	 */
 	public void updatePercentCompleted(int percentage) {
 		if (percentage < 0 || percentage > 100) {
-			throw new IllegalArgumentException("Percentage must be between 0 and 100, but was: " + percentage);
+			throw new GenericEvitaInternalError(
+				"Percentage must be between 0 and 100, but was: " + percentage
+			);
 		}
 		final int previousValue = this.percentCompleted.getAndSet(percentage);
 		if (previousValue != percentage) {
@@ -217,7 +242,7 @@ public class ProgressRecord<T> implements Progress<T> {
 	public void completeExceptionally(@Nonnull Throwable exception) {
 		if (!this.onCompletion.isDone()) {
 			log.error("{} has failed with error: {}", this.operationName, exception.getMessage(), exception);
-			notifyClientObserver(100);
+			updatePercentCompleted(100);
 			this.onCompletion.completeExceptionally(exception);
 		}
 	}
@@ -244,7 +269,7 @@ public class ProgressRecord<T> implements Progress<T> {
 			try {
 				progressObserver.accept(percentage);
 			} catch (Throwable t) {
-				log.error("Error notifying progress observer with percentage: " + percentage, t);
+				log.error("Error notifying progress observer with percentage: {}", percentage, t);
 			}
 		}
 	}

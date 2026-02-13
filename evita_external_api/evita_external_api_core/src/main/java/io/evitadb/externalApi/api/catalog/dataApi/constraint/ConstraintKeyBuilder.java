@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,8 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -86,15 +88,15 @@ public class ConstraintKeyBuilder {
 			return StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_NAMING_CONVENTION);
 		}
 
-		final StringBuilder keyBuilder = new StringBuilder(3);
+		final List<String> keyBuilder = new ArrayList<>(3);
 		if (!prefix.isEmpty()) {
-			keyBuilder.append(prefix);
+			keyBuilder.add(prefix);
 		}
 		if (creator.hasClassifier()) {
 			final Optional<ImplicitClassifier> implicitClassifier = creator.implicitClassifier();
 			if (implicitClassifier.isPresent()) {
 				if (implicitClassifier.get() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
-					keyBuilder.append(StringUtils.toSpecificCase(fixedImplicitClassifier.classifier(), PROPERTY_NAME_PART_NAMING_CONVENTION));
+					keyBuilder.add(fixedImplicitClassifier.classifier());
 				}
 			} else {
 				Assert.isPremiseValid(
@@ -103,11 +105,15 @@ public class ConstraintKeyBuilder {
 						"Constraint `" + constraintDescriptor.fullName() + "` requires classifier resolver but no resolver passed."
 					)
 				);
-				keyBuilder.append(StringUtils.toSpecificCase(classifierSupplier.get(), PROPERTY_NAME_PART_NAMING_CONVENTION));
+				keyBuilder.add(classifierSupplier.get());
 			}
 		}
-		keyBuilder.append(StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_PART_NAMING_CONVENTION));
+		keyBuilder.add(constraintDescriptor.fullName());
 
-		return StringUtils.toSpecificCase(keyBuilder.toString(), PROPERTY_NAME_NAMING_CONVENTION);
+		keyBuilder.set(0, StringUtils.toSpecificCase(keyBuilder.get(0), PROPERTY_NAME_NAMING_CONVENTION));
+		for (int i = 1; i < keyBuilder.size(); i++) {
+			keyBuilder.set(i, StringUtils.toSpecificCase(keyBuilder.get(i), PROPERTY_NAME_PART_NAMING_CONVENTION));
+		}
+		return String.join("", keyBuilder);
 	}
 }

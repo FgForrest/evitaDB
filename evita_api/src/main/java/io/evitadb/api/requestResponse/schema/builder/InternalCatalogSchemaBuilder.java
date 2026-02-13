@@ -105,7 +105,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	 * This variable represents the accessor object for the updated entity schema.
 	 * It provides access to the current state of all the entity schemas altered by the mutations of this builder.
 	 */
-	private MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
+	private final MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
 
 	public InternalCatalogSchemaBuilder(
 		@Nonnull CatalogSchemaContract baseSchema,
@@ -193,7 +193,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 								builder.toMutation().stream().map(LocalCatalogSchemaMutation.class::cast)
 							);
 						})
-						.orElse(Stream.empty());
+						.orElseGet(() -> Stream.of(new CreateEntitySchemaMutation(entityType)));
 
 					this.updatedSchemaDirty = updateMutationImpact(
 						this.updatedSchemaDirty,
@@ -321,7 +321,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Override
 	public CatalogSchemaContract toInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
-			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// if the dirty flag is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = -1;

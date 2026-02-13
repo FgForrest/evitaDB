@@ -34,7 +34,7 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
@@ -59,7 +59,7 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	 * List of all chunks used in this instance.
 	 */
 	@Nonnull
-	private final List<T[]> chunks = new LinkedList<>();
+	private final List<T[]> chunks = new ArrayList<>();
 	/**
 	 * Generic class of the object that is used to create new arrays.
 	 */
@@ -162,16 +162,24 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	 * Returns true if the specified record is already part of the array.
 	 */
 	public boolean contains(@Nonnull T recordId) {
-		for (Object[] chunk : this.chunks) {
+		for (int i = 0; i < this.chunks.size(); i++) {
+			final Object[] chunk = this.chunks.get(i);
 			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
-				if (Arrays.binarySearch(chunk, recordId) >= 0) {
-					return true;
+				if (i == this.chunks.size() - 1) {
+					if (this.chunkPeek >= 0 && Arrays.binarySearch(chunk, 0, this.chunkPeek + 1, recordId) >= 0) {
+						return true;
+					}
+				} else {
+					if (Arrays.binarySearch(chunk, recordId) >= 0) {
+						return true;
+					}
 				}
 			} else {
 				// else array must be full scanned
-				for (final Object comparable : chunk) {
-					@SuppressWarnings("unchecked") final T theNumber = (T) comparable;
+				final int limit = (i == this.chunks.size() - 1) ? this.chunkPeek + 1 : chunk.length;
+				for (int j = 0; j < limit; j++) {
+					@SuppressWarnings("unchecked") final T theNumber = (T) chunk[j];
 					if (Objects.equals(recordId, theNumber)) {
 						return true;
 					}
@@ -198,8 +206,9 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 				}
 			} else {
 				// else array must be full scanned
+				final int limit = (i == this.chunks.size() - 1) ? this.chunkPeek + 1 : chunk.length;
 				index = -1 * (CHUNK_SIZE + 1);
-				for (int j = 0; j < chunk.length; j++) {
+				for (int j = 0; j < limit; j++) {
 					@SuppressWarnings("unchecked") final T theNumber = (T) chunk[j];
 					if (Objects.equals(theNumber, recordId)) {
 						index = j;
@@ -299,7 +308,7 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	 */
 	public void addAll(@Nonnull T[] objects, int srcPosition, int length) {
 
-		if (objects.length == 0) {
+		if (objects.length == 0 || length == 0) {
 			return;
 		}
 
@@ -314,7 +323,7 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 				this.monotonic = false;
 			} else {
 				T lastRecord = objects[srcPosition];
-				for (int i = srcPosition + 1; i < length; i++) {
+				for (int i = srcPosition + 1; i < srcPosition + length; i++) {
 					//noinspection unchecked
 					if (((Comparable<T>) lastRecord).compareTo(objects[i]) >= 0) {
 						this.monotonic = false;

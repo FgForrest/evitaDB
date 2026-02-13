@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.cdc;
 /**
  * The unifying interface for all capture sites.
  *
+ * @param <T> the concrete type of the capture site for self-referential comparison
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public sealed interface CaptureSite<T extends CaptureSite<T>> extends Comparable<T> permits SchemaSite, DataSite {

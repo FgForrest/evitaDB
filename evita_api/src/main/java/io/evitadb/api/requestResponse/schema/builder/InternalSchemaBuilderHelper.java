@@ -32,14 +32,20 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder.AttributeNamingConventionConflict;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -48,12 +54,15 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -68,12 +77,12 @@ public interface InternalSchemaBuilderHelper {
 	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
 	 * compute combination result with all previous mutations.
 	 *
-	 * @param mutationType      just for the Java generics sake, damn!
-	 * @param combiner          again a lambda that satisfies the damned Java generics - we just need to call combineWith method
+	 * @param mutationType      type class required for Java generics array creation
+	 * @param combiner          function that combines an existing mutation with a new mutation
 	 * @param existingMutations set of existing mutations in the pipeline
 	 * @param newMutations      array of new mutations we want to add to the pipeline
-	 * @param <T>               :) having Java more clever, we wouldn't need this
-	 * @return mutation impact to signalize that the pipeline was modified and the cached schema needs te "recalculated"
+	 * @param <T>               mutation type parameter required by Java generics constraints
+	 * @return mutation impact to signalize that the pipeline was modified and the cached schema needs to be recalculated
 	 */
 	@Nonnull
 	@SafeVarargs
@@ -175,6 +184,28 @@ public interface InternalSchemaBuilderHelper {
 			existingImpactLevel = newImpactLevel;
 		}
 		return existingImpactLevel;
+	}
+
+	/**
+	 * Sorts mutations in a list so that {@link ModifyReferenceAttributeSchemaMutation} instances
+	 * always come last. This ensures that reference schema properties (such as faceted/indexed)
+	 * are applied before attribute mutations.
+	 *
+	 * @param mutations the list of mutations to sort (modified in place)
+	 */
+	default void sortReferenceAttributeMutationsLast(
+		@Nonnull List<LocalEntitySchemaMutation> mutations
+	) {
+		final Iterator<LocalEntitySchemaMutation> it = mutations.iterator();
+		final List<LocalEntitySchemaMutation> movedMutations = new LinkedList<>();
+		while (it.hasNext()) {
+			final LocalEntitySchemaMutation mutation = it.next();
+			if (mutation instanceof ModifyReferenceAttributeSchemaMutation) {
+				it.remove();
+				movedMutations.add(mutation);
+			}
+		}
+		mutations.addAll(movedMutations);
 	}
 
 	/**
@@ -381,6 +412,164 @@ public interface InternalSchemaBuilderHelper {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Shared logic for adding a sortable attribute compound to a reference schema.
+	 * Used by both {@link ReferenceSchemaBuilder} and {@link ReflectedReferenceSchemaBuilder}
+	 * to avoid code duplication.
+	 *
+	 * @param catalogSchema       the catalog schema
+	 * @param entitySchema        the entity schema
+	 * @param referenceSchema     the current reference schema (the builder's live view)
+	 * @param baseReferenceSchema the base reference schema (for looking up existing compounds)
+	 * @param mutations           the mutation list to append to
+	 * @param currentDirty        the current mutation impact
+	 * @param compoundName        the name of the compound to add
+	 * @param attributeElements   the attribute elements of the compound
+	 * @param whichIs             optional consumer to further configure the compound
+	 * @return the updated mutation impact
+	 */
+	default MutationImpact addSortableAttributeCompoundToReference(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchemaContract baseReferenceSchema,
+		@Nonnull List<LocalEntitySchemaMutation> mutations,
+		@Nonnull MutationImpact currentDirty,
+		@Nonnull String compoundName,
+		@Nonnull AttributeElement[] attributeElements,
+		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
+	) {
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompound =
+			referenceSchema.getSortableAttributeCompound(compoundName);
+		final SortableAttributeCompoundSchemaBuilder builder = new SortableAttributeCompoundSchemaBuilder(
+			catalogSchema,
+			entitySchema,
+			referenceSchema,
+			baseReferenceSchema.getSortableAttributeCompound(compoundName).orElse(null),
+			compoundName,
+			Arrays.asList(attributeElements),
+			Collections.emptyList(),
+			true
+		);
+		final SortableAttributeCompoundSchemaBuilder schemaBuilder =
+			existingCompound
+				.map(it -> {
+					Assert.isTrue(
+						it.getAttributeElements().equals(Arrays.asList(attributeElements)),
+						() -> new AttributeAlreadyPresentInEntitySchemaException(
+							it, builder.toInstance(), null, compoundName
+						)
+					);
+					return builder;
+				})
+				.orElse(builder);
+
+		if (whichIs != null) {
+			whichIs.accept(schemaBuilder);
+		}
+		final SortableAttributeCompoundSchemaContract compoundSchema = schemaBuilder.toInstance();
+		validateSortableAttributeCompound(
+			compoundName, compoundSchema, referenceSchema.getAttributes(),
+			referenceSchema.getSortableAttributeCompounds().values()
+		);
+
+		if (existingCompound.map(it -> !it.equals(compoundSchema)).orElse(true)) {
+			return updateMutationImpact(
+				currentDirty,
+				addMutations(
+					catalogSchema, entitySchema, mutations,
+					schemaBuilder
+						.toReferenceMutation(referenceSchema.getName())
+						.stream()
+						.map(LocalEntitySchemaMutation.class::cast)
+						.toArray(LocalEntitySchemaMutation[]::new)
+				)
+			);
+		}
+		return currentDirty;
+	}
+
+	/**
+	 * Shared logic for indexing a reference for a specific {@link ReferenceIndexType} in given scopes.
+	 * Used by both {@link ReferenceSchemaBuilder} and {@link ReflectedReferenceSchemaBuilder}
+	 * to implement {@code indexedForFilteringInScope} and {@code indexedForFilteringAndPartitioningInScope}.
+	 *
+	 * @param catalogSchema the catalog schema
+	 * @param entitySchema  the entity schema
+	 * @param mutations     the mutation list to append to
+	 * @param currentDirty  the current mutation impact
+	 * @param referenceName the name of the reference
+	 * @param indexType     the type of reference index to apply
+	 * @param inScope       the scopes to apply the index in
+	 * @return the updated mutation impact
+	 */
+	default MutationImpact indexedForTypeInScope(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull List<LocalEntitySchemaMutation> mutations,
+		@Nonnull MutationImpact currentDirty,
+		@Nonnull String referenceName,
+		@Nonnull ReferenceIndexType indexType,
+		@Nonnull Scope... inScope
+	) {
+		final ScopedReferenceIndexType[] scopedIndexTypes = Arrays.stream(inScope)
+			.map(scope -> new ScopedReferenceIndexType(scope, indexType))
+			.toArray(ScopedReferenceIndexType[]::new);
+
+		return updateMutationImpact(
+			currentDirty,
+			addMutations(
+				catalogSchema, entitySchema, mutations,
+				new SetReferenceSchemaIndexedMutation(referenceName, scopedIndexTypes)
+			)
+		);
+	}
+
+	/**
+	 * Validates a sortable attribute compound schema against business rules:
+	 *
+	 * - the compound must contain more than one attribute element
+	 * - all attribute names within the compound must be unique
+	 * - all referenced attributes must have valid sortable traits
+	 * - names must be unique across all naming conventions
+	 *
+	 * @param compoundName   the name of the sortable attribute compound
+	 * @param compoundSchema the compound schema to validate
+	 * @param attributes     available attribute schemas (used for sortable trait checks)
+	 * @param compounds      existing compound schemas (used for naming uniqueness checks)
+	 * @throws SortableAttributeCompoundSchemaException if any validation fails
+	 */
+	default void validateSortableAttributeCompound(
+		@Nonnull String compoundName,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nonnull Map<String, ? extends AttributeSchemaContract> attributes,
+		@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> compounds
+	) {
+		Assert.isTrue(
+			compoundSchema.getAttributeElements().size() > 1,
+			() -> new SortableAttributeCompoundSchemaException(
+				"Sortable attribute compound requires more than one attribute element!",
+				compoundSchema
+			)
+		);
+		Assert.isTrue(
+			compoundSchema.getAttributeElements().size() ==
+				compoundSchema.getAttributeElements()
+					.stream()
+					.map(AttributeElement::attributeName)
+					.distinct()
+					.count(),
+			() -> new SortableAttributeCompoundSchemaException(
+				"Attribute names of elements in sortable attribute compound must be unique!",
+				compoundSchema
+			)
+		);
+		checkSortableTraits(compoundName, compoundSchema, attributes);
+		checkNamesAreUniqueInAllNamingConventions(
+			attributes.values(), compounds, compoundSchema
+		);
 	}
 
 	/**

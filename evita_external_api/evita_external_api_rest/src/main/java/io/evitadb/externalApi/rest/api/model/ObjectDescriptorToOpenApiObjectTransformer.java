@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ public class ObjectDescriptorToOpenApiObjectTransformer implements ObjectDescrip
 			.map(this.propertyDescriptorTransformer)
 			.forEach(objectBuilder::property);
 
-		if (objectDescriptor.interfaceDescriptor() != null) {
+		if (objectDescriptor.interfaceDescriptor() != null && objectDescriptor.interfaceDescriptor().isNameStatic()) {
 			objectBuilder.implementedInterface(OpenApiTypeReference.typeRefTo(objectDescriptor.interfaceDescriptor().name()));
 		}
 

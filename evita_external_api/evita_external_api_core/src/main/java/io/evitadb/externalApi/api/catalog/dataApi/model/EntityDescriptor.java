@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.WithNamedReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -45,7 +47,8 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface EntityDescriptor extends VersionedDescriptor, AttributesProviderDescriptor {
+public interface EntityDescriptor extends VersionedDescriptor, AttributesProviderDescriptor,
+    WithNamedReferenceDescriptor {
 
     PropertyDescriptor PRIMARY_KEY = PropertyDescriptor.builder()
         .name("primaryKey")
@@ -131,21 +134,6 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
             Price inner record handling controls how prices that share same `inner entity id` will behave during filtering and sorting.
             """)
         .type(nonNull(PriceInnerRecordHandling.class))
-        .build();
-    PropertyDescriptor REFERENCE = PropertyDescriptor.builder()
-        .name("*")
-        .description("References")
-        // type is expected to be reference or list of references
-        .build();
-    PropertyDescriptor REFERENCE_PAGE = PropertyDescriptor.builder()
-        .name("*Page")
-        .description("Paginated list of references.")
-        // type is expected to be paginated list of references
-        .build();
-    PropertyDescriptor REFERENCE_STRIP = PropertyDescriptor.builder()
-        .name("*Strip")
-        .description("Strip list of references.")
-        // type is expected to be strip list of references
         .build();
 
     ObjectDescriptor THIS_CLASSIFIER = ObjectDescriptor.builder()

@@ -1,5 +1,5 @@
 ---
-commit: fdd473011173afaf1d49c8ab2b74b1e0e97033aa
+commit: '6f067f6807adc51959f1921abade4fe252f5721e'
 ---
 ### Metriky
 
@@ -81,19 +81,18 @@ Klientský pohled je doba vnímaná z pohledu HTTP klienta ovlivněná timeouty,
   <dd>Celkový počet požadavků<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>requestResult</Term><br/></dd>
 </dl>
 
-#### API / GraphQL / Instance / Schema
+#### API / GraphQL / Instance / Schéma
 
 <dl>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlinstance_build_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_ql_instance_build_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd><strong>Doba sestavení API</strong>: Doba sestavení jedné API v milisekundách.<br/><br/><strong>Popisky:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlschema_build_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_ql_schema_build_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd><strong>Doba sestavení GraphQL schématu</strong>: Doba sestavení jednoho schématu GraphQL API v milisekundách.<br/><br/><strong>Popisky:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlschema_dsl_lines</code> (GAUGE)</dt>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_ql_schema_dsl_lines</code> (GAUGE)</dt>
   <dd><strong>Počet řádků</strong>: Počet řádků vygenerovaných v sestaveném GraphQL schema DSL.<br/><br/><strong>Popisky:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_instance_built_total</code> (COUNTER)</dt>
   <dd>Celkový počet sestavených GraphQL instancí<br/><br/><strong>Popisky:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
 </dl>
-
 #### API / gRPC
 
 <dl>

@@ -71,8 +71,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * This test verifies whether entities can be filtered by attributes.
  *
- * TOBEDONE JNO - create functional tests - one run with enabled SelectionFormula, one with disabled
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j

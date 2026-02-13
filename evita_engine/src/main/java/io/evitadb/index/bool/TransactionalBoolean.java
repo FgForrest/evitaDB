@@ -54,14 +54,25 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private boolean value;
 
+	/**
+	 * Creates a new instance with an initial value of `false`.
+	 */
 	public TransactionalBoolean() {
 		this.value = false;
 	}
 
+	/**
+	 * Creates a new instance with the given initial value.
+	 *
+	 * @param value the initial boolean value
+	 */
 	public TransactionalBoolean(boolean value) {
 		this.value = value;
 	}
 
+	/**
+	 * Creates a new transactional layer initialized with the current value of this boolean.
+	 */
 	@Override
 	public BooleanChanges createLayer() {
 		return new BooleanChanges(this.value);
@@ -92,7 +103,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	}
 
 	/**
-	 * Sets the value to FALSE in a transactional safe way (if transaction is available).
+	 * Returns the current boolean value in a transactional safe way (if transaction is available).
 	 */
 	public boolean isTrue() {
 		final BooleanChanges layer = getTransactionalMemoryLayerIfExists(this);
@@ -104,7 +115,9 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	}
 
 	/**
-	 * Method resets the local value to FALSE.
+	 * Resets the value to false in a transactional safe way (if transaction is available).
+	 * Functionally equivalent to {@link #setToFalse()}, provided for semantic clarity at call
+	 * sites where "reset" better conveys intent.
 	 */
 	public void reset() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);

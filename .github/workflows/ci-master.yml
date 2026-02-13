@@ -23,9 +23,6 @@ jobs:
     permissions:
       # write permission is required to create a github release
       contents: write
-      # write permission is required for autolabeler
-      # otherwise, read permission is required at least
-      pull-requests: write
     outputs:
       released_version: ${{ steps.release_version.outputs.version }}
       release_branch: ${{ steps.release_branch.outputs.branch }}
@@ -37,7 +34,6 @@ jobs:
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1 checkout sources
       with:
-        ref: ${{ github.head_ref }}
         fetch-depth: 0
 
     - name: Setup Java JDK
@@ -46,19 +42,10 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
         cache: 'maven'
-        server-id: ossrh
-        server-username: MAVEN_USERNAME
-        server-password: MAVEN_CENTRAL_TOKEN
-        gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-        gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Compilation Check
       run: |
         mvn -T 1C -B -Dmaven.test.skip=true install --file pom.xml
-      env:
-        MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
-        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
-        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
     - name: PGP Keys Check
       run: |
@@ -84,9 +71,10 @@ jobs:
 
     - name: Determine release branch name
       id: release_branch
+      env:
+        VERSION: ${{ steps.release_version.outputs.version }}
       run: |
         # Extract version without 'v' prefix and remove patch version
-        VERSION="${{ steps.release_version.outputs.version }}"
         VERSION_WITHOUT_PREFIX="${VERSION#v}"
         MAJOR_MINOR=$(echo "$VERSION_WITHOUT_PREFIX" | awk -F. '{print $1"."$2}')
         RELEASE_BRANCH="release_${MAJOR_MINOR//./-}"
@@ -95,10 +83,11 @@ jobs:
 
     - name: Check if release branch exists
       id: check_branch
+      env:
+        RELEASE_BRANCH: ${{ steps.release_branch.outputs.branch }}
       run: |
-        RELEASE_BRANCH="${{ steps.release_branch.outputs.branch }}"
         git fetch origin
-        if git ls-remote --heads origin $RELEASE_BRANCH | grep -q $RELEASE_BRANCH; then
+        if git ls-remote --heads origin "$RELEASE_BRANCH" | grep -q "$RELEASE_BRANCH"; then
           echo "exists=true" >> $GITHUB_OUTPUT
           echo "Release branch $RELEASE_BRANCH exists"
         else
@@ -108,31 +97,36 @@ jobs:
 
     - name: Create release branch
       if: steps.check_branch.outputs.exists == 'false'
+      env:
+        RELEASE_BRANCH: ${{ steps.release_branch.outputs.branch }}
       run: |
-        RELEASE_BRANCH="${{ steps.release_branch.outputs.branch }}"
-        git checkout -b $RELEASE_BRANCH
-        git push origin $RELEASE_BRANCH
+        git checkout -b "$RELEASE_BRANCH"
+        git push origin "$RELEASE_BRANCH"
         echo "Created new release branch: $RELEASE_BRANCH"
 
     - name: Update release branch
       if: steps.check_branch.outputs.exists == 'true'
+      env:
+        RELEASE_BRANCH: ${{ steps.release_branch.outputs.branch }}
       run: |
-        RELEASE_BRANCH="${{ steps.release_branch.outputs.branch }}"
         git fetch origin
-        git checkout $RELEASE_BRANCH
+        git checkout "$RELEASE_BRANCH"
         if ! git merge --ff-only origin/master; then
           echo "Error: Cannot fast-forward release branch $RELEASE_BRANCH to match master branch."
           echo "The release branch may have commits that are not in the master branch."
           exit 1
         fi
-        git push origin $RELEASE_BRANCH
+        git push origin "$RELEASE_BRANCH"
         echo "Fast-forwarded release branch: $RELEASE_BRANCH"
 
     # Create workflow data files for the release workflow
     - name: Create workflow data files
+      env:
+        RELEASE_BRANCH: ${{ steps.release_branch.outputs.branch }}
+        RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
       run: |
-        echo "${{ steps.release_branch.outputs.branch }}" > release_branch.txt
-        echo "${{ steps.release_version.outputs.version }}" > released_version.txt
+        echo "$RELEASE_BRANCH" > release_branch.txt
+        echo "$RELEASE_VERSION" > released_version.txt
 
     # Upload workflow data for the release workflow
     - name: Upload workflow data

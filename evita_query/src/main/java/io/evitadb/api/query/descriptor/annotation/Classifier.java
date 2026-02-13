@@ -33,19 +33,75 @@ import java.lang.annotation.Target;
 
 
 /**
- * Constraint classifier parameter definition that marks concrete query
- * constructor's (one that is annotated with {@link Creator}) parameter as classifier.
- * Currently, only one parameter in single creator can be marked with this annotation.
- * <p>
- * Such an annotated parameter must have supported classifier type by Evita, e.g. {@link String} and specifies usually
- * entity type or attribute name.
- * If dynamic classifier cannot be used, alternative is to specify {@link Creator#implicitClassifier()}.
- * <p>
- * This data is then processed by {@link ConstraintDescriptorProvider}.
+ * Marks a creator parameter as the classifier that identifies the target of the constraint (attribute name, reference
+ * name, entity type, etc.). The classifier determines what data the constraint operates on.
  *
+ * **Purpose**
+ *
+ * Classifiers are used throughout evitaDB constraints to specify:
+ * - Which attribute to filter/sort by (e.g., `attributeEquals("code", "PHONE")` - `"code"` is the classifier)
+ * - Which reference to navigate (e.g., `referenceContent("brand")` - `"brand"` is the classifier)
+ * - Which entity type to query (e.g., `entityFetch("product")` - `"product"` is the classifier)
+ *
+ * The classifier is typically the first parameter in a constraint and must be a non-nullable, non-array value.
+ *
+ * **Parameter Requirements**
+ *
+ * A parameter annotated with `@Classifier` must:
+ * - Have a type supported by evitaDB as a classifier (currently `String`)
+ * - NOT be nullable (must not have `@Nullable` annotation)
+ * - NOT be an array type
+ * - Be unique within the creator (only one classifier parameter per creator)
+ *
+ * **Mutual Exclusivity with Implicit Classifiers**
+ *
+ * A creator can have only one classifier mechanism:
+ * - Either a `@Classifier` parameter
+ * - OR `{@link Creator#silentImplicitClassifier()} = true`
+ * - OR `{@link Creator#implicitClassifier()}` with a non-empty value
+ *
+ * If a classifier cannot be parameterized (e.g., it's always a fixed value or determined by context), use one of the
+ * implicit classifier options on the `@Creator` annotation instead.
+ *
+ * **Example Usage**
+ *
+ * ```
+ * @ConstraintDefinition(name = "equals", ...)
+ * public class AttributeEquals extends ... {
+ *
+ * @Creator
+ * public AttributeEquals(@Classifier String attributeName, @Value Serializable attributeValue) {
+ * super(attributeName, attributeValue);
+ * }
+ * }
+ * ```
+ *
+ * In this example, `attributeName` is the classifier that identifies which attribute to compare. When the constraint
+ * is used in a query like `attributeEquals("code", "ABC")`, the string `"code"` is the classifier value.
+ *
+ * **Processing**
+ *
+ * During startup, `{@link io.evitadb.api.query.descriptor.ConstraintProcessor}` validates classifier parameters and
+ * creates a `{@link io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDescriptor}` for runtime
+ * use.
+ *
+ * External API builders (GraphQL, REST) use the classifier information to:
+ * - Generate schema-specific query fields (e.g., separate fields for each attribute name)
+ * - Validate that referenced classifiers (attribute names, reference names) exist in the entity schema
+ * - Build constraint keys in the format `{propertyType}{classifier}{fullName}` for non-generic constraints
+ *
+ * **Related Annotations**
+ *
+ * - `{@link Value}` - for primitive/serializable value parameters
+ * - `{@link Child}` - for nested constraint parameters of the same type
+ * - `{@link AdditionalChild}` - for nested constraint parameters of a different type
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @see Creator
  * @see ConstraintDefinition
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @see Value
+ * @see Child
+ * @see AdditionalChild
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)

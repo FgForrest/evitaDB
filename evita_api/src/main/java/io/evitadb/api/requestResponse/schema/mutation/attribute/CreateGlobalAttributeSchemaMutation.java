@@ -85,8 +85,8 @@ public class CreateGlobalAttributeSchemaMutation
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
 	@Getter @Nonnull private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
-	@Getter private final Scope[] filterableInScopes;
-	@Getter private final Scope[] sortableInScopes;
+	@Getter @Nonnull private final Scope[] filterableInScopes;
+	@Getter @Nonnull private final Scope[] sortableInScopes;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
 	@Getter private final boolean representative;
@@ -147,9 +147,13 @@ public class CreateGlobalAttributeSchemaMutation
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.uniqueInScopes = uniqueInScopes == null ?
-			new ScopedAttributeUniquenessType[] { new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE) } : uniqueInScopes;
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE)
+			} : uniqueInScopes;
 		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?
-			new ScopedGlobalAttributeUniquenessType[] { new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE) } : uniqueGloballyInScopes;
+			new ScopedGlobalAttributeUniquenessType[] {
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE)
+			} : uniqueGloballyInScopes;
 		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
 		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
 		this.localized = localized;
@@ -357,8 +361,8 @@ public class CreateGlobalAttributeSchemaMutation
 			"name='" + this.name + '\'' +
 			", description='" + this.description + '\'' +
 			", deprecationNotice='" + this.deprecationNotice + '\'' +
-			", unique=(" + (Arrays.stream(this.uniqueInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")" +
-			", uniqueGlobally=(" + (Arrays.stream(this.uniqueGloballyInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")" +
+			", unique=(" + join(this.uniqueInScopes) + ")" +
+			", uniqueGlobally=(" + join(this.uniqueGloballyInScopes) + ")" +
 			", filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
 			", localized=" + this.localized +

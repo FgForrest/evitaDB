@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,18 +25,28 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
- * Represents {@link PaginatedList} for entities
- *
- * Note: this descriptor is meant be template for generated specific entity DTOs base on internal data. Fields in this
- * descriptor are supposed to be dynamically registered to target generated entity DTO.
+ * Represents base {@link PaginatedList} for entities.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public interface RecordPageDescriptor extends PaginatedListDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.from(PaginatedListDescriptor.THIS)
-		.name("*RecordPage")
+	PropertyDescriptor DATA = PropertyDescriptor.builder()
+		.name("data")
+		.description("""
+			Actual found sorted page/strip of records.
+			""")
+		.type(nonNullListRef(EntityDescriptor.THIS_CLASSIFIER))
+		.build();
+
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.implementing(PaginatedListDescriptor.THIS_INTERFACE)
+		.name("RecordPage")
+		.description("Page of entity records according to pagination rules in input query.")
+		.staticProperty(DATA)
 		.build();
 }

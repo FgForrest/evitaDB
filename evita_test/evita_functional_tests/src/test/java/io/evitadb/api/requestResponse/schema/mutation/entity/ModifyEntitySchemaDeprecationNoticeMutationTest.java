@@ -23,49 +23,158 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies {@link ModifyEntitySchemaDeprecationNoticeMutation} class.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ModifyEntitySchemaDeprecationNoticeMutationTest {
+@DisplayName("ModifyEntitySchemaDeprecationNoticeMutation")
+class ModifyEntitySchemaDeprecationNoticeMutationTest {
 
-	@Test
-	void shouldOverrideDeprecationNoticeOfPreviousMutationIfNamesMatch() {
-		ModifyEntitySchemaDeprecationNoticeMutation mutation = new ModifyEntitySchemaDeprecationNoticeMutation("newDeprecationNotice");
-		ModifyEntitySchemaDeprecationNoticeMutation existingMutation = new ModifyEntitySchemaDeprecationNoticeMutation("oldDeprecationNotice");
-		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
-		assertNotNull(result);
-		assertNull(result.origin());
-		assertNotNull(result.current());
-		assertInstanceOf(ModifyEntitySchemaDeprecationNoticeMutation.class, result.current()[0]);
-		assertEquals("newDeprecationNotice", ((ModifyEntitySchemaDeprecationNoticeMutation) result.current()[0]).getDeprecationNotice());
+	@Nested
+	@DisplayName("Combine with other mutations")
+	class CombineWith {
+
+		@Test
+		@DisplayName("should replace previous deprecation notice mutation")
+		void shouldReplacePreviousDeprecationNoticeMutation() {
+			final ModifyEntitySchemaDeprecationNoticeMutation mutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("newNotice");
+			final ModifyEntitySchemaDeprecationNoticeMutation existingMutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("oldNotice");
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(catalogSchema, entitySchema, existingMutation);
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			assertEquals(1, result.current().length);
+			assertInstanceOf(ModifyEntitySchemaDeprecationNoticeMutation.class, result.current()[0]);
+			assertEquals(
+				"newNotice",
+				((ModifyEntitySchemaDeprecationNoticeMutation) result.current()[0]).getDeprecationNotice()
+			);
+		}
+
+		@Test
+		@DisplayName("should return null when combined with unrelated mutation")
+		void shouldReturnNullForUnrelatedMutation() {
+			final ModifyEntitySchemaDeprecationNoticeMutation mutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("notice");
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
+			final LocalEntitySchemaMutation unrelatedMutation =
+				new ModifyEntitySchemaDescriptionMutation("desc");
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(catalogSchema, entitySchema, unrelatedMutation);
+			assertNull(result);
+		}
 	}
 
-	@Test
-	void shouldMutateEntitySchema() {
-		ModifyEntitySchemaDeprecationNoticeMutation mutation = new ModifyEntitySchemaDeprecationNoticeMutation("newDeprecationNotice");
-		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		Mockito.when(entitySchema.version()).thenReturn(1);
-		final EntitySchemaContract newEntitySchema = mutation.mutate(
-			Mockito.mock(CatalogSchemaContract.class),
-			entitySchema
-		);
-		assertEquals(2, newEntitySchema.version());
-		assertEquals("newDeprecationNotice", newEntitySchema.getDeprecationNotice());
+	@Nested
+	@DisplayName("Mutate entity schema")
+	class Mutate {
+
+		@Test
+		@DisplayName("should set deprecation notice on entity schema")
+		void shouldSetDeprecationNotice() {
+			final ModifyEntitySchemaDeprecationNoticeMutation mutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("deprecated");
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.version()).thenReturn(1);
+			final EntitySchemaContract result = mutation.mutate(
+				Mockito.mock(CatalogSchemaContract.class),
+				entitySchema
+			);
+			assertEquals(2, result.version());
+			assertEquals("deprecated", result.getDeprecationNotice());
+		}
+
+		@Test
+		@DisplayName("should return unchanged schema when deprecation notice is the same")
+		void shouldReturnUnchangedSchemaWhenNoticeIsSame() {
+			final ModifyEntitySchemaDeprecationNoticeMutation mutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("sameNotice");
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getDeprecationNotice()).thenReturn("sameNotice");
+			final EntitySchemaContract result = mutation.mutate(
+				Mockito.mock(CatalogSchemaContract.class),
+				entitySchema
+			);
+			assertSame(entitySchema, result);
+		}
+
+		@Test
+		@DisplayName("should throw when entity schema is null")
+		void shouldThrowWhenEntitySchemaIsNull() {
+			final ModifyEntitySchemaDeprecationNoticeMutation mutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("notice");
+			assertThrows(
+				Exception.class,
+				() -> mutation.mutate(Mockito.mock(CatalogSchemaContract.class), null)
+			);
+		}
 	}
 
+	@Nested
+	@DisplayName("Contract methods")
+	class Metadata {
+
+		@Test
+		@DisplayName("should return UPSERT operation")
+		void shouldReturnUpsertOperation() {
+			final ModifyEntitySchemaDeprecationNoticeMutation mutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("notice");
+			assertEquals(Operation.UPSERT, mutation.operation());
+		}
+
+		@Test
+		@DisplayName("should return collection conflict key")
+		void shouldReturnCollectionConflictKey() {
+			final ModifyEntitySchemaDeprecationNoticeMutation mutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("notice");
+			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+				"testEntity", null,
+				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+			);
+			assertEquals(1, keys.size());
+			assertInstanceOf(CollectionConflictKey.class, keys.get(0));
+		}
+
+		@Test
+		@DisplayName("should produce readable toString output")
+		void shouldProduceReadableToString() {
+			final ModifyEntitySchemaDeprecationNoticeMutation mutation =
+				new ModifyEntitySchemaDeprecationNoticeMutation("this is deprecated");
+			final String result = mutation.toString();
+			assertTrue(result.contains("Modify entity schema"));
+			assertTrue(result.contains("deprecationNotice"));
+			assertTrue(result.contains("this is deprecated"));
+		}
+	}
 }

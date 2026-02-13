@@ -293,7 +293,7 @@ public class AssertionUtils {
 	/**
 	 * Verifies whether the passed arrays differ one from another. Arrays are expected to be of the same size.
 	 */
-	public static void assertArrayAreDifferent(int[] arrayA, int[] arrayB) {
+	public static void assertArrayAreDifferent(@Nonnull int[] arrayA, @Nonnull int[] arrayB) {
 		assertEquals(arrayA.length, arrayB.length, "Both arrays should have same size.");
 		for (int i = 0; i < arrayA.length; i++) {
 			int i1 = arrayA[i];

@@ -33,6 +33,7 @@ import java.io.PrintWriter;
 import java.io.Serializable;
 import java.io.StringWriter;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -42,16 +43,22 @@ import java.util.concurrent.CancellationException;
  * and result.
  *
  * @param taskType                The name of the task (short class name).
- * @param taskName                The human readable name of the task.
+ * @param taskName                The human-readable name of the task.
  * @param taskId                  The unique identifier of the task.
- * @param catalogName             The name of the catalog that the task belongs to (may be NULL if the task is not bound to any particular catalog).
+ * @param catalogName             The name of the catalog that the task belongs to (may be NULL if
+ *                                the task is not bound to any particular catalog).
+ * @param created                 The time when the task was created.
  * @param issued                  The time when the task was issued.
  * @param started                 The time when the task was started.
  * @param finished                The time when the task was finished.
  * @param progress                The progress of the task (0-100).
  * @param settings                The settings of the task.
  * @param result                  The result of the task.
+ * @param publicExceptionMessage  The public-facing exception message if the task failed.
  * @param exceptionWithStackTrace The exception with stack trace if the task failed.
+ * @param traits                  The set of traits describing the task's capabilities.
+ * @param <S>                     the type of the task settings
+ * @param <T>                     the type of the task result
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TaskStatus<S, T>(
@@ -69,7 +76,7 @@ public record TaskStatus<S, T>(
 	@Nullable String publicExceptionMessage,
 	@Nullable String exceptionWithStackTrace,
 	@Nonnull EnumSet<TaskTrait> traits
-	) implements Serializable {
+) implements Serializable {
 
 	/**
 	 * Returns the shortened state of the task.
@@ -126,12 +133,15 @@ public record TaskStatus<S, T>(
 	 * with the updated task name, if the new name is different from the current name.
 	 *
 	 * @param taskName The new name for the task.
-	 * @param traits  The traits of the task.
+	 * @param traits   The traits of the task.
 	 * @return The new instance of {@link TaskStatus} with the updated task name.
 	 */
 	@Nonnull
 	public TaskStatus<S, T> updateTaskNameAndTraits(@Nonnull String taskName, @Nonnull TaskTrait... traits) {
-		if (!taskName.equals(this.taskName) || !ArrayUtils.equals(traits, this.traits)) {
+		final EnumSet<TaskTrait> newTraits = ArrayUtils.isEmpty(traits)
+			? EnumSet.noneOf(TaskTrait.class)
+			: EnumSet.copyOf(Arrays.asList(traits));
+		if (!taskName.equals(this.taskName) || !newTraits.equals(this.traits)) {
 			return new TaskStatus<>(
 				this.taskType,
 				taskName,
@@ -146,8 +156,7 @@ public record TaskStatus<S, T>(
 				this.result,
 				this.publicExceptionMessage,
 				this.exceptionWithStackTrace,
-				ArrayUtils.isEmpty(traits) ?
-					EnumSet.noneOf(TaskTrait.class) : EnumSet.of(traits[0], traits)
+				newTraits
 			);
 		} else {
 			return this;
@@ -174,8 +183,8 @@ public record TaskStatus<S, T>(
 			0,
 			this.settings,
 			this.result,
-			this.publicExceptionMessage,
-			this.exceptionWithStackTrace,
+			null,
+			null,
 			this.traits
 		);
 	}
@@ -199,8 +208,8 @@ public record TaskStatus<S, T>(
 			0,
 			this.settings,
 			this.result,
-			this.publicExceptionMessage,
-			this.exceptionWithStackTrace,
+			null,
+			null,
 			this.traits
 		);
 	}
@@ -208,7 +217,7 @@ public record TaskStatus<S, T>(
 	/**
 	 * Returns new instance of {@link TaskStatus} with updated finished time and result.
 	 *
-	 * @param result   The result of the task.
+	 * @param result The result of the task.
 	 * @return The new instance of {@link TaskStatus} with updated finished time and result.
 	 */
 	@Nonnull
@@ -241,7 +250,9 @@ public record TaskStatus<S, T>(
 	public TaskStatus<S, T> transitionToFailed(@Nonnull Throwable exception) {
 		// copy the stack trace
 		final StringWriter sw = new StringWriter(512);
-		exception.printStackTrace(new PrintWriter(sw));
+		try (final PrintWriter pw = new PrintWriter(sw)) {
+			exception.printStackTrace(pw);
+		}
 
 		final String publicException;
 		if (exception instanceof EvitaError evitaError) {
@@ -275,7 +286,7 @@ public record TaskStatus<S, T>(
 	 */
 	public enum TaskSimplifiedState {
 		/**
-		 * Task is waiting in for precondition to be fulfilled.
+		 * Task is waiting for a precondition to be fulfilled.
 		 */
 		WAITING_FOR_PRECONDITION,
 		/**

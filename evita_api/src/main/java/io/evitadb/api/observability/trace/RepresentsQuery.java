@@ -30,7 +30,44 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Methods annotated with this annotation represents a call that emits query to the database.
+ * Marker annotation indicating that a method represents a database read operation (query). This
+ * annotation serves as metadata for observability systems, enabling differentiation between read
+ * operations and write operations ({@link RepresentsMutation}) in tracing, metrics, and traffic
+ * recording.
+ *
+ * **Design Purpose:**
+ * evitaDB's observability layer uses this annotation to:
+ * - Tag trace spans as query operations in OpenTelemetry
+ * - Record read traffic separately from write traffic in {@link io.evitadb.core.traffic.TrafficRecordingEngine}
+ * - Generate query-specific metrics (e.g., query duration, result count, cache hit rate)
+ * - Enable filtering and analysis of read patterns
+ *
+ * **Usage Context:**
+ * Apply this annotation to methods in {@link io.evitadb.api.EvitaSessionContract} that retrieve
+ * data without modifying database state, such as:
+ * - `query()`, `queryList()`, `queryOne()`
+ * - `getEntity()`, `getEntityOrThrow()`
+ * - Schema retrieval methods like `getEntitySchema()`, `getCatalogSchema()`
+ * - CDC methods like `getAllEntityTypes()`, `subscribeChangeCatalogEvents()`
+ *
+ * **Example:**
+ * ```java
+ * @RepresentsQuery
+ * public <S extends Serializable, T extends EvitaResponse<S>> T query(
+ * @Nonnull Query query,
+ * @Nonnull Class<S> expectedType
+ * ) {
+ * // ... query logic
+ * }
+ * ```
+ *
+ * **Relationship to Other Annotations:**
+ * - Mutually exclusive with {@link RepresentsMutation} (a method cannot be both read and write)
+ * - Often combined with {@link Traced} to enable detailed span creation
+ *
+ * **Runtime Behavior:**
+ * This annotation is retained at runtime and can be discovered via reflection by tracing
+ * interceptors, AOP proxies, or annotation processors.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

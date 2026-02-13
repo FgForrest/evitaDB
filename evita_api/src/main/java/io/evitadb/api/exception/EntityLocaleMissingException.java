@@ -32,16 +32,49 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
- * Exception is thrown when there is attempt to query entity localized attributes or associated data without providing
- * a locale information.
+ * Exception thrown when a query or entity operation requires locale information but none is provided.
+ *
+ * evitaDB supports localized attributes and associated data that vary by language/locale. When accessing localized
+ * properties, the system must know which locale to retrieve. This exception is thrown when:
+ *
+ * - **Query filtering** uses localized attributes without specifying locale via `entityLocaleEquals()`
+ * - **Entity fetching** requests localized attributes or associated data without locale context
+ * - **Unique attribute lookups** access locale-specific unique attributes without providing locale
+ * - **Index operations** attempt to retrieve unique values from locale-specific unique indexes without locale
+ *
+ * **Common scenarios:**
+ *
+ * - Filtering by localized attribute: `attributeEquals('title', 'Product')` when `title` is localized but no
+ *   `entityLocaleEquals(Locale.ENGLISH)` is present
+ * - Fetching localized data: `attributeContent('description')` when `description` is localized but query has no locale
+ * - Global unique attribute access across locales where locale-specific uniqueness applies
+ *
+ * **Special cases:**
+ *
+ * - Attributes marked as globally unique (not locale-specific) can be accessed without locale
+ * - Some attributes may be unique within locale but the index allows cross-locale access in specific contexts
+ *
+ * **Resolution**: Add `entityLocaleEquals(locale)` constraint to the query filter, or ensure the query context
+ * includes locale information when accessing localized entity properties.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2020
  */
 public class EntityLocaleMissingException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -252413231677437811L;
+	/**
+	 * Names of localized attributes that require locale information.
+	 */
 	@Getter private final String[] attributeNames;
+	/**
+	 * Names of localized associated data that require locale information.
+	 */
 	@Getter private final String[] associatedDataNames;
 
+	/**
+	 * Creates exception for localized attributes accessed without locale.
+	 *
+	 * @param attributeNames names of the localized attributes that cannot be accessed without locale
+	 */
 	public EntityLocaleMissingException(
 		@Nonnull String... attributeNames
 	) {
@@ -53,6 +86,12 @@ public class EntityLocaleMissingException extends EvitaInvalidUsageException {
 		this.associatedDataNames = new String[0];
 	}
 
+	/**
+	 * Creates exception for localized attributes and/or associated data accessed without locale.
+	 *
+	 * @param attributeNames names of the localized attributes requiring locale, or null if none
+	 * @param associatedDataNames names of the localized associated data requiring locale, or null if none
+	 */
 	public EntityLocaleMissingException(
 		@Nullable String[] attributeNames,
 		@Nullable String[] associatedDataNames

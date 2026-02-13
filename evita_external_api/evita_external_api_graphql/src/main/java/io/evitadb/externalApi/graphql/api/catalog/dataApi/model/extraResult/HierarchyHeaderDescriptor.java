@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,9 +35,9 @@ public interface HierarchyHeaderDescriptor {
 
 	PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
 		.name("orderBy")
-		// TOBEDONE JNO: hierarchyOfSelf/hierarchyOfReference orderBy parameter proper docs
 		.description("""
-            Orders individual hierarchy nodes
+			Optional ordering constraint that allows you to specify an order of
+			the hierarchy nodes in the result hierarchy data structure.
 			""")
 		// type is expected to be a `orderBy` constraint
 		.build();

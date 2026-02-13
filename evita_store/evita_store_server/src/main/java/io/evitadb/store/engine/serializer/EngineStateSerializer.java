@@ -72,6 +72,8 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			final FileLocation fileLocation = walFileReference.fileLocation();
 			output.writeVarLong(fileLocation.startingPosition(), true);
 			output.writeVarInt(fileLocation.recordLength(), true);
+			// Write cumulative checksum for WAL integrity verification
+			output.writeLong(walFileReference.cumulativeChecksum());
 		}
 
 		// Write active catalogs
@@ -107,10 +109,13 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			final int fileIndex = input.readVarInt(true);
 			final long startingPosition = input.readVarLong(true);
 			final int recordLength = input.readVarInt(true);
+			// Read cumulative checksum for WAL integrity verification
+			final long cumulativeChecksum = input.readLong();
 			walFileReference = new LogFileRecordReference(
 				EnginePersistenceService::getWalFileName,
 				fileIndex,
-				new FileLocation(startingPosition, recordLength)
+				new FileLocation(startingPosition, recordLength),
+				cumulativeChecksum
 			);
 		} else {
 			// No WAL file reference

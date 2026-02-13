@@ -34,7 +34,38 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Exception is thrown when there is attempt to fetch associated data outside {@link EntityFetch} container.
+ * Thrown when an `associatedDataContent` query constraint is placed outside the required container
+ * constraints in a query's require section.
+ *
+ * The `associatedDataContent` constraint must be nested inside either `entityFetch` or `entityGroupFetch`
+ * to indicate which entities (main entities or group entities in references) should have their associated
+ * data fetched. Placing it outside these containers makes it unclear which entities the associated data
+ * request applies to.
+ *
+ * **When this is thrown:**
+ * - During query processing when validating the require constraint hierarchy
+ * - When `associatedDataContent` appears at the root level or in other non-entity-fetch containers
+ * - Thrown by `AssociatedDataContentTranslator` during query translation
+ *
+ * **Correct usage:**
+ * ```
+ * query(
+ *   require(
+ *     entityFetch(
+ *       associatedDataContent('description', 'specifications')
+ *     )
+ *   )
+ * )
+ * ```
+ *
+ * **Incorrect usage:**
+ * ```
+ * query(
+ *   require(
+ *     associatedDataContent('description')  // Error: not inside entityFetch
+ *   )
+ * )
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -42,6 +73,9 @@ public class AssociatedDataContentMisplacedException extends EvitaInvalidUsageEx
 
 	@Serial private static final long serialVersionUID = 3364888804230783679L;
 
+	/**
+	 * Creates exception showing the actual constraint hierarchy that caused the violation.
+	 */
 	public AssociatedDataContentMisplacedException(@Nonnull Stream<RequireConstraint> constraintChain) {
 		super(
 			"The `associatedDataContent` needs to be wrapped inside `entityFetch` or `entityGroupFetch` container: `" +

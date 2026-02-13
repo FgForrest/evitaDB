@@ -204,8 +204,15 @@ public class Hierarchy implements EvitaResponseExtraResult {
 			return false;
 		}
 
-		if (this.selfStatistics != null) {
-			for (Entry<String, List<LevelInfo>> entry : this.selfStatistics.entrySet()) {
+		if (this.referenceHierarchies.size() != that.referenceHierarchies.size()) {
+			return false;
+		}
+
+		if (this.selfStatistics != null && that.selfStatistics != null) {
+			if (this.selfStatistics.size() != that.selfStatistics.size()) {
+				return false;
+			}
+			for (final Entry<String, List<LevelInfo>> entry : this.selfStatistics.entrySet()) {
 				final List<LevelInfo> stats = entry.getValue();
 				final List<LevelInfo> otherStats = that.selfStatistics.get(entry.getKey());
 
@@ -219,7 +226,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 			}
 		}
 
-		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : this.referenceHierarchies.entrySet()) {
+		for (final Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : this.referenceHierarchies.entrySet()) {
 			final Map<String, List<LevelInfo>> stats = statisticsEntry.getValue();
 			final Map<String, List<LevelInfo>> otherStats = that.referenceHierarchies.get(statisticsEntry.getKey());
 
@@ -227,7 +234,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 				return false;
 			}
 
-			for (Entry<String, List<LevelInfo>> entry : stats.entrySet()) {
+			for (final Entry<String, List<LevelInfo>> entry : stats.entrySet()) {
 				final List<LevelInfo> innerStats = entry.getValue();
 				final List<LevelInfo> innerOtherStats = otherStats.get(entry.getKey());
 
@@ -251,21 +258,21 @@ public class Hierarchy implements EvitaResponseExtraResult {
 		final StringBuilder treeBuilder = new StringBuilder(128);
 
 		if (this.selfStatistics != null) {
-			for (Map.Entry<String, List<LevelInfo>> statsByOutputName : this.selfStatistics.entrySet()) {
+			for (final Map.Entry<String, List<LevelInfo>> statsByOutputName : this.selfStatistics.entrySet()) {
 				treeBuilder.append(statsByOutputName.getKey()).append(System.lineSeparator());
 
-				for (LevelInfo levelInfo : statsByOutputName.getValue()) {
+				for (final LevelInfo levelInfo : statsByOutputName.getValue()) {
 					appendLevelInfoTreeString(treeBuilder, levelInfo, 1);
 				}
 			}
 		}
 
-		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : this.referenceHierarchies.entrySet()) {
+		for (final Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : this.referenceHierarchies.entrySet()) {
 			treeBuilder.append(statisticsEntry.getKey()).append(System.lineSeparator());
-			for (Map.Entry<String, List<LevelInfo>> statisticsByType : statisticsEntry.getValue().entrySet()) {
+			for (final Map.Entry<String, List<LevelInfo>> statisticsByType : statisticsEntry.getValue().entrySet()) {
 				treeBuilder.append("    ").append(statisticsByType.getKey()).append(System.lineSeparator());
 
-				for (LevelInfo levelInfo : statisticsByType.getValue()) {
+				for (final LevelInfo levelInfo : statisticsByType.getValue()) {
 					appendLevelInfoTreeString(treeBuilder, levelInfo, 2);
 				}
 			}
@@ -286,7 +293,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 			.append(levelInfo)
 			.append(System.lineSeparator());
 
-		for (LevelInfo child : levelInfo.children()) {
+		for (final LevelInfo child : levelInfo.children()) {
 			appendLevelInfoTreeString(treeBuilder, child, currentLevel + 1);
 		}
 	}

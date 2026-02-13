@@ -28,10 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntitySchemaMutation;
-import lombok.EqualsAndHashCode;
 
-import javax.annotation.concurrent.Immutable;
-import javax.annotation.concurrent.ThreadSafe;
 import java.util.Locale;
 
 /**
@@ -39,10 +36,7 @@ import java.util.Locale;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@ThreadSafe
-@Immutable
-@EqualsAndHashCode
-public class AllowLocaleInEntitySchemaMutationSerializer  extends Serializer<AllowLocaleInEntitySchemaMutation> {
+public class AllowLocaleInEntitySchemaMutationSerializer extends Serializer<AllowLocaleInEntitySchemaMutation> {
 
 	@Override
 	public void write(Kryo kryo, Output output, AllowLocaleInEntitySchemaMutation object) {

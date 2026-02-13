@@ -111,15 +111,15 @@ public interface MemoryMeasuringConstants {
 	 * Returns estimated size per component.
 	 */
 	static int getElementSize(Class<?> componentType) {
-		if (byte.class.isInstance(componentType)) {
+		if (byte.class.equals(componentType)) {
 			return BYTE_SIZE;
-		} else if (short.class.isInstance(componentType)) {
+		} else if (short.class.equals(componentType)) {
 			return SMALL_SIZE;
-		} else if (int.class.isInstance(componentType)) {
+		} else if (int.class.equals(componentType)) {
 			return INT_SIZE;
-		} else if (long.class.isInstance(componentType)) {
+		} else if (long.class.equals(componentType)) {
 			return LONG_SIZE;
-		} else if (char.class.isInstance(componentType)) {
+		} else if (char.class.equals(componentType)) {
 			return CHAR_SIZE;
 		} else {
 			return REFERENCE_SIZE;

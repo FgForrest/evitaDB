@@ -32,21 +32,66 @@ import java.io.Serializable;
 import java.util.stream.Stream;
 
 /**
- * This interface is implemented by {@link SealedEntityProxy} and {@link SealedEntityReferenceProxy} that both provide
- * access to external entity builders.
+ * Provides access to entity builders for referenced entities that were modified through a proxy object tree.
  *
+ * This interface is implemented by {@link SealedEntityProxy} and {@link SealedEntityReferenceProxy} to enable
+ * deep upsert operations where modifications cascade through the entire object graph. When a proxy wraps an
+ * entity that has references to other entities (e.g., product → categories, product → brand), and those
+ * referenced entities are also accessed/modified through nested proxies, this interface collects all the
+ * pending mutations.
+ *
+ * **Deep Upsert Use Case:**
+ *
+ * Deep upsert ({@link EvitaSessionContract#upsertEntityDeeply(Serializable)}) saves not only the main entity
+ * but also all referenced entities that were modified through the proxy tree. For example:
+ *
+ * ```java
+ * Product product = session.getEntity(Product.class, 1, ...);
+ * Category category = product.getMainCategory();
+ * category.setName("Updated Category");  // modifies referenced entity
+ * product.setName("Updated Product");    // modifies main entity
+ * session.upsertEntityDeeply(product);   // saves both entities
+ * ```
+ *
+ * The `getReferencedEntityBuildersWithCallback` method returns builders for all modified referenced entities
+ * (in this case, the category), allowing the session to persist them alongside the main entity.
+ *
+ * **Callback Mechanism:**
+ *
+ * Each builder is wrapped with a callback ({@link SealedEntityProxy.EntityBuilderWithCallback}) that is
+ * invoked after the referenced entity is persisted. This allows the main entity to be updated with newly
+ * assigned primary keys or other post-upsert information (e.g., version numbers).
+ *
+ * @see SealedEntityProxy
+ * @see SealedEntityReferenceProxy
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface ReferencedEntityBuilderProvider {
 
 	/**
-	 * Returns stream of entity mutations that related not to internal wrapped entity but to
-	 * entities that are referenced from this internal entity. This stream is used in method
-	 * {@link EvitaSessionContract#upsertEntityDeeply(Serializable)} to store all changes that were made to the object
-	 * tree originating from this proxy.
+	 * Returns a stream of entity builders for all referenced entities that were modified through this proxy.
 	 *
-	 * @return stream of all mutations that were made to the object tree originating from this proxy, empty stream if
-	 * no mutations were made or mutations were made only to the internally wrapped entity
+	 * This method is used by {@link EvitaSessionContract#upsertEntityDeeply(Serializable)} to collect all
+	 * pending mutations across the entire object graph. The returned builders represent entities that were:
+	 * - Accessed through reference methods on this proxy (e.g., `product.getCategories()`)
+	 * - Modified through their own proxy instances
+	 * - Not yet persisted to the database
+	 *
+	 * Each builder is wrapped with a callback that is executed after the referenced entity is successfully
+	 * upserted. The callback typically updates internal references (e.g., setting newly assigned primary keys).
+	 *
+	 * **Propagation Mode:**
+	 *
+	 * The `propagation` parameter controls how deep the collection should go:
+	 * - {@link SealedEntityProxy.Propagation#SHALLOW}: Only collect builders from the first level of proxies
+	 *   (proxies created directly from the main entity)
+	 * - {@link SealedEntityProxy.Propagation#DEEP}: Collect builders from all proxies in the entire object tree
+	 *   (transitive closure of all referenced entities)
+	 *
+	 * @param propagation determines whether to collect builders from immediate proxies only or from the entire
+	 *                    object tree
+	 * @return stream of entity builders with callbacks for all modified referenced entities; empty stream if no
+	 *         referenced entities were modified
 	 */
 	@Nonnull
 	Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback(@Nonnull Propagation propagation);

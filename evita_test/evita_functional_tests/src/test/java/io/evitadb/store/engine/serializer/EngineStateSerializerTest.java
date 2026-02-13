@@ -48,85 +48,91 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @DisplayName("EngineStateSerializer should serialize and deserialize")
 class EngineStateSerializerTest {
 
-    /**
-     * Create a Kryo instance with all required configurers
-     */
-    protected final Kryo kryo = KryoFactory.createKryo(
-        EngineKryoConfigurer.INSTANCE
-    );
+	/**
+	 * Create a Kryo instance with all required configurers
+	 */
+	protected final Kryo kryo = KryoFactory.createKryo(
+		EngineKryoConfigurer.INSTANCE
+	);
 
-    /**
-     * Serializes and deserializes the given object and verifies that the deserialized object equals the original.
-     *
-     * @param object the object to test
-     */
-    protected void assertSerializationRound(@Nonnull Object object) {
-        final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
-        try (final Output output = new Output(os, 4_096)) {
-            this.kryo.writeObject(output, object);
-        }
-        try (final Input input = new Input(os.toByteArray())) {
-            final Object deserialized = this.kryo.readObject(input, object.getClass());
-            assertEquals(object, deserialized);
-        }
-    }
+	/**
+	 * Serializes and deserializes the given object and verifies that the deserialized object equals the original.
+	 *
+	 * @param object the object to test
+	 */
+	protected void assertSerializationRound(@Nonnull Object object) {
+		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
+		try (final Output output = new Output(os, 4_096)) {
+			this.kryo.writeObject(output, object);
+		}
+		try (final Input input = new Input(os.toByteArray())) {
+			final Object deserialized = this.kryo.readObject(input, object.getClass());
+			assertEquals(object, deserialized);
+		}
+	}
 
-    @Test
-    @DisplayName("EngineState with all fields")
-    void shouldSerializeAndDeserializeEngineStateWithAllFields() {
-        // Create an EngineState with all fields populated
-        final EngineState engineState = EngineState.builder()
-            .storageProtocolVersion(1)
-            .version(2L)
-            .walFileReference(new LogFileRecordReference(
-                EnginePersistenceService::getWalFileName,
-                3,
-                new FileLocation(100L, 200)
-            ))
-            .activeCatalogs(new String[]{"catalog1", "catalog2"})
-            .inactiveCatalogs(new String[]{"catalog3"})
-            .readOnlyCatalogs(new String[]{"catalog4", "catalog5"})
-            .build();
+	@Test
+	@DisplayName("EngineState with all fields")
+	void shouldSerializeAndDeserializeEngineStateWithAllFields() {
+		// Create an EngineState with all fields populated
+		final EngineState<LogFileRecordReference> engineState = EngineState.<LogFileRecordReference>builder()
+			.storageProtocolVersion(1)
+			.version(2L)
+			.walFileReference(
+				new LogFileRecordReference(
+					EnginePersistenceService::getWalFileName,
+					3,
+					new FileLocation(100L, 200),
+					123L
+				)
+			)
+			.activeCatalogs(new String[]{"catalog1", "catalog2"})
+			.inactiveCatalogs(new String[]{"catalog3"})
+			.readOnlyCatalogs(new String[]{"catalog4", "catalog5"})
+			.build();
 
-        // Test serialization and deserialization
-        assertSerializationRound(engineState);
-    }
+		// Test serialization and deserialization
+		assertSerializationRound(engineState);
+	}
 
-    @Test
-    @DisplayName("EngineState with null LogFileRecordReference")
-    void shouldSerializeAndDeserializeEngineStateWithNullWalFileReference() {
-        // Create an EngineState with null LogFileRecordReference
-        final EngineState engineState = EngineState.builder()
-            .storageProtocolVersion(1)
-            .version(2L)
-            .walFileReference(null)
-            .activeCatalogs(new String[]{"catalog1", "catalog2"})
-            .inactiveCatalogs(new String[]{"catalog3"})
-            .readOnlyCatalogs(new String[]{"catalog6"})
-            .build();
+	@Test
+	@DisplayName("EngineState with null LogFileRecordReference")
+	void shouldSerializeAndDeserializeEngineStateWithNullWalFileReference() {
+		// Create an EngineState with null LogFileRecordReference
+		final EngineState<LogFileRecordReference> engineState = EngineState.<LogFileRecordReference>builder()
+			.storageProtocolVersion(1)
+			.version(2L)
+			.walFileReference(null)
+			.activeCatalogs(new String[]{"catalog1", "catalog2"})
+			.inactiveCatalogs(new String[]{"catalog3"})
+			.readOnlyCatalogs(new String[]{"catalog6"})
+			.build();
 
-        // Test serialization and deserialization
-        assertSerializationRound(engineState);
-    }
+		// Test serialization and deserialization
+		assertSerializationRound(engineState);
+	}
 
-    @Test
-    @DisplayName("EngineState with empty catalog arrays")
-    void shouldSerializeAndDeserializeEngineStateWithEmptyCatalogArrays() {
-        // Create an EngineState with empty catalog arrays
-        final EngineState engineState = EngineState.builder()
-            .storageProtocolVersion(1)
-            .version(2L)
-            .walFileReference(new LogFileRecordReference(
-                EnginePersistenceService::getWalFileName,
-                3,
-                new FileLocation(100L, 200)
-            ))
-            .activeCatalogs(new String[0])
-            .inactiveCatalogs(new String[0])
-            .readOnlyCatalogs(new String[0])
-            .build();
+	@Test
+	@DisplayName("EngineState with empty catalog arrays")
+	void shouldSerializeAndDeserializeEngineStateWithEmptyCatalogArrays() {
+		// Create an EngineState with empty catalog arrays
+		final EngineState<LogFileRecordReference> engineState = EngineState.<LogFileRecordReference>builder()
+			.storageProtocolVersion(1)
+			.version(2L)
+			.walFileReference(
+				new LogFileRecordReference(
+					EnginePersistenceService::getWalFileName,
+					3,
+					new FileLocation(100L, 200),
+					123L
+				)
+			)
+			.activeCatalogs(new String[0])
+			.inactiveCatalogs(new String[0])
+			.readOnlyCatalogs(new String[0])
+			.build();
 
-        // Test serialization and deserialization
-        assertSerializationRound(engineState);
-    }
+		// Test serialization and deserialization
+		assertSerializationRound(engineState);
+	}
 }

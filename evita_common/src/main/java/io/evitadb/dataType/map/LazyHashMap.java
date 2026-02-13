@@ -23,7 +23,6 @@
 
 package io.evitadb.dataType.map;
 
-
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
@@ -48,8 +47,9 @@ import java.util.Set;
  *
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
- *           @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@SuppressWarnings({"NonFinalFieldReferenceInEquals", "NonFinalFieldReferencedInHashCode"})
 @RequiredArgsConstructor
 public class LazyHashMap<K, V> implements Map<K, V> {
 	private final int expectedSize;
@@ -66,30 +66,30 @@ public class LazyHashMap<K, V> implements Map<K, V> {
 	}
 
 	@Override
-	public boolean containsKey(Object key) {
+	public boolean containsKey(@Nullable Object key) {
 		return this.delegate != null && this.delegate.containsKey(key);
 	}
 
 	@Override
-	public boolean containsValue(Object value) {
+	public boolean containsValue(@Nullable Object value) {
 		return this.delegate != null && this.delegate.containsValue(value);
 	}
 
 	@Nullable
 	@Override
-	public V get(Object key) {
+	public V get(@Nullable Object key) {
 		return this.delegate != null ? this.delegate.get(key) : null;
 	}
 
 	@Nullable
 	@Override
-	public V put(K key, V value) {
+	public V put(@Nullable K key, @Nullable V value) {
 		return this.getDelegate().put(key, value);
 	}
 
 	@Nullable
 	@Override
-	public V remove(Object key) {
+	public V remove(@Nullable Object key) {
 		return this.delegate != null ? this.delegate.remove(key) : null;
 	}
 
@@ -123,6 +123,9 @@ public class LazyHashMap<K, V> implements Map<K, V> {
 		return this.delegate != null ? this.delegate.entrySet() : Set.of();
 	}
 
+	/**
+	 * Returns the underlying HashMap delegate, creating it lazily if needed.
+	 */
 	@Nonnull
 	private HashMap<K, V> getDelegate() {
 		if (this.delegate == null) {
@@ -131,20 +134,33 @@ public class LazyHashMap<K, V> implements Map<K, V> {
 		return this.delegate;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
-	public final boolean equals(Object o) {
-		return Objects.equals(this.delegate, o);
+	public final boolean equals(@Nullable Object o) {
+		if (this == o) return true;
+		if (this.delegate == null) {
+			return o instanceof Map<?, ?> && ((Map<?, ?>) o).isEmpty();
+		}
+		return this.delegate.equals(o);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public int hashCode() {
 		if (this.delegate != null) {
 			return Objects.hashCode(this.delegate);
 		} else {
-			return this.expectedSize;
+			return 0;
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public String toString() {
 		return this.delegate == null ? "{}" : this.delegate.toString();

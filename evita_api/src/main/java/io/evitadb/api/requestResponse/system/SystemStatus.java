@@ -34,13 +34,12 @@ import java.time.OffsetDateTime;
  * @param version version of evitaDB server taken from the MANIFEST.MF file
  * @param startedAt date and time when the server was started
  * @param engineVersion version of the current evitaDB server engine state (change in engine state)
- * @param introducedAt date and time when the current engine version was introduced (last change occurred)
+ * @param introducedAt date and time when the current engine version was introduced (the last change occurred)
  * @param uptime duration of time since the server was started
  * @param instanceId unique identifier of the server instance
  * @param catalogsCorrupted number of corrupted catalogs
- * @param catalogsActive number of catalogs that are active and has been successfully opened
- *                       (i.e. not corrupted)
- * @param catalogsInactive number of catalogs that are inactive and has not been deliberately opened
+ * @param catalogsActive number of catalogs that are active and have been successfully opened (i.e. not corrupted)
+ * @param catalogsInactive number of catalogs that are inactive and have not been deliberately opened
  */
 public record SystemStatus(
 	@Nonnull String version,

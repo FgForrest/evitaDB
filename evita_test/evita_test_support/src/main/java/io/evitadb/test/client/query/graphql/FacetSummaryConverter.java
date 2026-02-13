@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetGroupStatisticsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetStatisticsHeaderDescriptor;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
@@ -303,12 +303,12 @@ public class FacetSummaryConverter extends RequireConverter {
 										@Nonnull ReferenceSchemaContract referenceSchema,
 	                                    @Nonnull FacetSummaryOfReference facetSummaryOfReference) {
 		facetStatisticsBuilder
-			.addPrimitiveField(FacetStatisticsDescriptor.REQUESTED)
-			.addPrimitiveField(FacetStatisticsDescriptor.COUNT);
+			.addPrimitiveField(EntityFacetStatisticsDescriptor.REQUESTED)
+			.addPrimitiveField(EntityFacetStatisticsDescriptor.COUNT);
 
 		if (facetSummaryOfReference.getStatisticsDepth() == FacetStatisticsDepth.IMPACT) {
 			facetStatisticsBuilder.addObjectField(
-				FacetStatisticsDescriptor.IMPACT,
+				EntityFacetStatisticsDescriptor.IMPACT,
 				impactBuilder -> impactBuilder
 					.addPrimitiveField(FacetRequestImpactDescriptor.DIFFERENCE)
 					.addPrimitiveField(FacetRequestImpactDescriptor.MATCH_COUNT)
@@ -317,7 +317,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		}
 
 		facetStatisticsBuilder.addObjectField(
-			FacetStatisticsDescriptor.FACET_ENTITY,
+			EntityFacetStatisticsDescriptor.FACET_ENTITY,
 			facetEntityBuilder -> this.entityFetchBuilder.convert(
 				facetEntityBuilder,
 				referenceSchema.getReferencedEntityType(),

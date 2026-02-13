@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,7 +98,8 @@ public class CacheableHistogram implements CacheableHistogramContract {
 					bucket -> new Bucket(
 						bucket.threshold(),
 						bucket.occurrences(),
-						requestedPredicate.test(bucket.threshold())
+						requestedPredicate.test(bucket.threshold()),
+						bucket.relativeFrequency()
 					)
 				)
 				.toArray(Bucket[]::new),
@@ -108,21 +109,6 @@ public class CacheableHistogram implements CacheableHistogramContract {
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder();
-		for (int i = 0; i < this.buckets.length; i++) {
-			final CacheableBucket bucket = this.buckets[i];
-			final boolean hasNext = i + 1 < this.buckets.length;
-			sb.append("[")
-				.append(bucket.threshold())
-				.append(" - ")
-				.append(hasNext ? this.buckets[i + 1].threshold() : this.max)
-				.append("]: ")
-				.append(bucket.occurrences());
-			if (hasNext) {
-				sb.append(", ");
-			}
-		}
-		return sb.toString();
+		return asString();
 	}
-
 }

@@ -89,7 +89,9 @@ public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEnti
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (this.withHierarchy == entitySchema.isWithHierarchy()) {
+		if (this.withHierarchy == entitySchema.isWithHierarchy() &&
+			entitySchema.getHierarchyIndexedInScopes().equals(ArrayUtils.toEnumSet(Scope.class, this.indexedInScopes))
+		) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -135,7 +137,7 @@ public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEnti
 
 	@Override
 	public String toString() {
-		final boolean indexed = ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
+		final boolean indexed = !ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
 		return "Set entity schema: " +
 			"withHierarchy=" + this.withHierarchy +
 			", indexed=" + (indexed ? "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "(not indexed)");

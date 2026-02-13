@@ -34,7 +34,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.stream.Collectors;
 
@@ -122,7 +121,9 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		if (recordIds instanceof RoaringBitmapBackedBitmap) {
 			this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());
 		} else {
-			for (Integer recordId : recordIds) {
+			final OfInt it = recordIds.iterator();
+			while (it.hasNext()) {
+				final int recordId = it.nextInt();
 				this.roaringBitmap.remove(recordId);
 			}
 		}
@@ -152,7 +153,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		} else {
 			final PeekableIntIterator it = this.roaringBitmap.getIntIterator();
 			while (it.hasNext()) {
-				int next = it.next();
+				final int next = it.next();
 				if (predicate.apply(next)) {
 					writer.add(next);
 				}
@@ -186,7 +187,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		} else {
 			final PeekableIntIterator it = this.roaringBitmap.getIntIterator();
 			while (it.hasNext()) {
-				int next = it.next();
+				final int next = it.next();
 				if (!predicate.apply(next)) {
 					writer.add(next);
 				}
@@ -276,7 +277,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	@Nonnull
 	@Override
 	public OfInt iterator() {
-		return this.roaringBitmap.stream().iterator();
+		return new RoaringBitmapBackedBitmap.RoaringIntIteratorAdapter(this.roaringBitmap.getIntIterator());
 	}
 
 	@Override
@@ -294,7 +295,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.roaringBitmap);
+		return this.roaringBitmap.hashCode();
 	}
 
 	@Override

@@ -25,8 +25,32 @@ package io.evitadb.api.proxy.impl;
 
 
 /**
- * Cache key for generated proxies.
+ * Marker interface for cache keys used to identify and deduplicate generated proxy instances within
+ * an {@link AbstractEntityProxyState}.
  *
+ * When a proxy wraps an entity that references other entities (e.g., product → categories), accessing
+ * those references through proxy methods creates nested proxy instances. To ensure that repeated calls
+ * to the same getter return the **same proxy instance** (identity guarantee), generated proxies are cached
+ * in a `Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback>`. This interface is the common type for all
+ * cache key variants.
+ *
+ * **Implementations:**
+ *
+ * Each cache key variant captures a different kind of proxy relationship:
+ *
+ * - **ReferencedEntityProxyCacheKey** — identifies a proxy for a referenced entity (target or group)
+ *   by reference name, entity primary key, and {@link ReferencedObjectType}
+ * - **ParentProxyCacheKey** — identifies a proxy for a parent entity by its primary key
+ * - **ReferenceProxyCacheKey** — identifies a proxy for a reference itself (the relationship object
+ *   with attributes), keyed by reference name and primary keys
+ *
+ * **Why a Marker Interface:**
+ *
+ * The different cache key types have different fields (some need reference names, some need object type
+ * discriminators, etc.), so a common base record is not practical. The marker interface allows them all
+ * to be stored in the same map while remaining type-safe.
+ *
+ * @see AbstractEntityProxyState
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public interface ProxyInstanceCacheKey {

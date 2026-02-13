@@ -30,13 +30,44 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when there is attempt to retrieve primary key that has not been assigned yet.
+ * Exception thrown when attempting to retrieve the primary key of an entity that has not been persisted yet.
+ *
+ * In evitaDB, entities can be created and manipulated in memory before being stored. When an entity is first
+ * created using a builder without an explicitly assigned primary key, the primary key remains `null` until the
+ * entity is successfully persisted to the database. The database assigns a unique primary key during the first
+ * upsert operation.
+ *
+ * This exception is thrown when client code calls {@link io.evitadb.api.requestResponse.data.EntityClassifier#getPrimaryKeyNotNull()}
+ * on an entity that has not yet been assigned a primary key.
+ *
+ * **Typical Scenario:**
+ * ```java
+ * Entity newEntity = session.createNewEntity("Product")
+ *     .setAttribute("name", "New Product")
+ *     .toInstance();
+ *
+ * // This will throw PrimaryKeyNotAssignedException:
+ * int pk = newEntity.getPrimaryKeyNotNull();
+ *
+ * // Must persist first to get a primary key:
+ * EntityReference ref = session.upsertEntity(newEntity);
+ * int assignedPk = ref.getPrimaryKey();  // Now has a value
+ * ```
+ *
+ * **Usage Context:**
+ * - {@link io.evitadb.api.requestResponse.data.EntityClassifier#getPrimaryKeyNotNull()}: throws this exception
+ *   when primary key is `null`
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class PrimaryKeyNotAssignedException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -2077933335811704930L;
 
+	/**
+	 * Creates a new exception indicating that an entity's primary key has not been assigned.
+	 *
+	 * @param entityType the type (name) of the entity that lacks a primary key
+	 */
 	public PrimaryKeyNotAssignedException(@Nonnull String entityType) {
 		super("Primary key for entity `" + entityType + "` has not been assigned yet. Please store the entity first.");
 	}

@@ -86,7 +86,9 @@ public class SetAttributeSchemaUniqueMutation
 	}
 
 	@SerializableCreator
-	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nullable ScopedAttributeUniquenessType[] uniqueInScopes) {
+	public SetAttributeSchemaUniqueMutation(
+		@Nonnull String name, @Nullable ScopedAttributeUniquenessType[] uniqueInScopes
+	) {
 		super(name);
 		this.uniqueInScopes = uniqueInScopes == null ?
 			new ScopedAttributeUniquenessType[]{
@@ -105,8 +107,12 @@ public class SetAttributeSchemaUniqueMutation
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof SetAttributeSchemaUniqueMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation
+	) {
+		if (existingMutation instanceof SetAttributeSchemaUniqueMutation theExistingMutation &&
+			this.name.equals(theExistingMutation.getName())
+		) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -120,7 +126,9 @@ public class SetAttributeSchemaUniqueMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof SetAttributeSchemaUniqueMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAttributeSchemaUniqueMutation theExistingMutation &&
+			this.name.equals(theExistingMutation.getName())
+		) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -129,7 +137,9 @@ public class SetAttributeSchemaUniqueMutation
 
 	@Nonnull
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
+	public <S extends AttributeSchemaContract> S mutate(
+		@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType
+	) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		final EnumMap<Scope, AttributeUniquenessType> unique = AttributeSchema.toUniquenessEnumMap(this.uniqueInScopes);
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
@@ -175,7 +185,7 @@ public class SetAttributeSchemaUniqueMutation
 					entityAttributeSchema.getIndexedDecimalPlaces()
 				);
 			}
-		} else  {
+		} else {
 			if (attributeSchema.getUniquenessTypeInScopes().equals(unique)) {
 				return attributeSchema;
 			} else {
@@ -201,37 +211,18 @@ public class SetAttributeSchemaUniqueMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
-		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
-			));
-
-		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
-		return replaceAttributeIfDifferent(
-			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
-		);
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(this.name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			));
-
-		final EntityAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, EntityAttributeSchemaContract.class);
-		return replaceAttributeIfDifferent(
-			entitySchema, existingAttributeSchema, updatedAttributeSchema
-		);
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
+		return mutateGlobalAttributeSchema(catalogSchema, entitySchemaAccessor, this);
 	}
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (consistencyChecks != ReferenceSchemaMutator.ConsistencyChecks.SKIP) {
 			final List<Scope> nonIndexedScopes = Arrays.stream(this.uniqueInScopes)
@@ -243,16 +234,13 @@ public class SetAttributeSchemaUniqueMutation
 				nonIndexedScopes.isEmpty(),
 				() -> new InvalidSchemaMutationException(
 					"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() +
-						"` is not indexed in required scopes: " + nonIndexedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + "! " +
+						"` is not indexed in required scopes: " +
+						nonIndexedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + "! " +
 						"Non-indexed references must not contain unique attribute `" + this.name + "`!"
 				)
 			);
 		}
-		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, this.name);
-		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema, AttributeSchemaContract.class);
-		return replaceAttributeIfDifferent(
-			referenceSchema, existingAttributeSchema, updatedAttributeSchema
-		);
+		return ReferenceAttributeSchemaMutation.super.mutate(entitySchema, referenceSchema, consistencyChecks);
 	}
 
 	@Nonnull
@@ -264,6 +252,6 @@ public class SetAttributeSchemaUniqueMutation
 	@Override
 	public String toString() {
 		return "Set attribute `" + this.name + "` schema: " +
-			", unique=(" + (Arrays.stream(this.uniqueInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")";
+			"unique=(" + join(this.uniqueInScopes) + ")";
 	}
 }

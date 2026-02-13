@@ -23,13 +23,13 @@
 
 package io.evitadb.dataType.iterator;
 
-
 import io.evitadb.dataType.array.CompositeIntArray;
 
+import javax.annotation.Nonnull;
 import java.util.Iterator;
 
 /**
- * Interface that allows to wrap both RoaringBitmap batchIterator and {@link CompositeIntArray} to unified
+ * Interface that allows wrapping both RoaringBitmap batchIterator and {@link CompositeIntArray} to unified
  * iterator that optimally traverses the internal structures providing arrays with data loaded optimally in a batch
  * fashion.
  *
@@ -45,6 +45,7 @@ public interface BatchArrayIterator {
 	/**
 	 * Returns array with data - analogy to {@link Iterator#next()}.
 	 */
+	@Nonnull
 	int[] nextBatch();
 
 	/**
@@ -56,23 +57,23 @@ public interface BatchArrayIterator {
 	 * (e.g., int[] x = {1,4,5}) and a BatchIterator.
 	 *
 	 * You might do it as follows...
-	 * <pre><code>
-	 *     int[] buffer = new int[128];
-	 *     BatchIterator j = // get an iterator
-	 *     int val = // first value from my other data structure
-	 *     j.advanceIfNeeded(val);
-	 *     while ( j.hasNext() ) {
-	 *       int limit = j.nextBatch(buffer);
-	 *       for (int i = 0; i < limit; i++) {
-	 *         if (buffer[i] == val) {
-	 *           // got it!
-	 *           // do something here
-	 *           val = // get next value?
-	 *         }
-	 *       }
-	 *       j.advanceIfNeeded(val);
+	 * ```
+	 * int[] buffer = new int[128];
+	 * BatchIterator j = // get an iterator
+	 * int val = // first value from my other data structure
+	 * j.advanceIfNeeded(val);
+	 * while ( j.hasNext() ) {
+	 *   int limit = j.nextBatch(buffer);
+	 *   for (int i = 0; i < limit; i++) {
+	 *     if (buffer[i] == val) {
+	 *       // got it!
+	 *       // do something here
+	 *       val = // get next value?
 	 *     }
-	 *     </code></pre>
+	 *   }
+	 *   j.advanceIfNeeded(val);
+	 * }
+	 * ```
 	 *
 	 * The benefit of calling advanceIfNeeded is that each such call can be much faster than repeated calls to "next".
 	 * The underlying implementation can "skip" over some data.
@@ -84,7 +85,7 @@ public interface BatchArrayIterator {
 	/**
 	 * Returns size in the data really fetched into the array returned by {@link #nextBatch()}. The array is pre-allocated
 	 * and shared for all calls and in case of last page there may not be enough records to fill it up fully. The peek
-	 * marks the end of the sensible data in the array. Last readable data is <code>array[getPeek() - 1]</code>.
+	 * marks the end of the sensible data in the array. Last readable data is `array[getPeek() - 1]`.
 	 */
 	int getPeek();
 

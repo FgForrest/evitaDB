@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@
 package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,10 +54,16 @@ class GraphQLOutputFieldsBuilderTest {
 			new GraphQLOutputFieldsBuilder(0)
 				.addPrimitiveField(EntityDescriptor.PRIMARY_KEY)
 				.addPrimitiveField(EntityDescriptor.TYPE)
-				.addObjectField("store", b1 -> b1
-					.addPrimitiveField(ReferenceDescriptor.REFERENCED_PRIMARY_KEY)
-					.addObjectField(ReferenceDescriptor.REFERENCED_ENTITY, b2 -> b2
-						.addPrimitiveField(EntityDescriptor.PRIMARY_KEY)))
+				.addObjectField(
+					"store",
+					b1 -> b1
+						.addPrimitiveField(ReferenceDescriptor.REFERENCED_PRIMARY_KEY)
+						.addObjectField(
+							ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY,
+							b2 -> b2
+								.addPrimitiveField(EntityDescriptor.PRIMARY_KEY)
+						)
+				)
 				.build()
 		);
 	}

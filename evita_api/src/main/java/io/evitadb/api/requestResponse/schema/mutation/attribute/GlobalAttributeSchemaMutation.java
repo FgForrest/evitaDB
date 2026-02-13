@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -31,8 +32,11 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,6 +47,39 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, CatalogSchemaMutation {
+
+	/**
+	 * Looks up the existing global attribute in the catalog schema, applies the attribute-level mutation via
+	 * {@link AttributeSchemaMutation#mutate(CatalogSchemaContract, AttributeSchemaContract, Class)}, and replaces
+	 * the attribute in the catalog schema if it changed.
+	 *
+	 * The `entitySchemaMutation` parameter is propagated to entity schemas that reference the modified global
+	 * attribute, ensuring they stay in sync with the catalog-level change.
+	 *
+	 * This helper cannot be a direct default for `mutate(CatalogSchemaContract, EntitySchemaProvider)` because
+	 * `GlobalAttributeSchemaMutation` and `LocalCatalogSchemaMutation` are unrelated interfaces — implementing
+	 * classes would get a compile error from inheriting conflicting defaults. Instead, standard implementations
+	 * delegate to this helper in a one-liner.
+	 */
+	@Nullable
+	default CatalogSchemaWithImpactOnEntitySchemas mutateGlobalAttributeSchema(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor,
+		@Nonnull EntityAttributeSchemaMutation entitySchemaMutation
+	) {
+		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
+		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(getName())
+			.orElseThrow(() -> new InvalidSchemaMutationException(
+				"The attribute `" + getName() + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
+			));
+
+		final GlobalAttributeSchemaContract updatedAttributeSchema = Objects.requireNonNull(
+			mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class)
+		);
+		return replaceAttributeIfDifferent(
+			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, entitySchemaMutation
+		);
+	}
 
 	/**
 	 * Replaces existing attribute schema with updated one but only when those schemas differ. Otherwise,
@@ -68,7 +105,10 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 					catalogSchema.getDescription(),
 					catalogSchema.getCatalogEvolutionMode(),
 					Stream.concat(
-							catalogSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+							catalogSchema.getAttributes()
+								.values()
+								.stream()
+								.filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
 							Stream.of(updatedAttributeSchema)
 						)
 						.collect(

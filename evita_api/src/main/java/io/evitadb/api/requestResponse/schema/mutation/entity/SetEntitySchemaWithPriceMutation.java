@@ -50,7 +50,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Mutation is responsible for setting a {@link EntitySchemaContract#isWithPrice()} ()}
+ * Mutation is responsible for setting a {@link EntitySchemaContract#isWithPrice()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if it's present in the mutation pipeline.
@@ -91,7 +91,10 @@ public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySc
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (this.withPrice == entitySchema.isWithPrice() && this.indexedPricePlaces == entitySchema.getIndexedPricePlaces()) {
+		if (this.withPrice == entitySchema.isWithPrice() &&
+			this.indexedPricePlaces == entitySchema.getIndexedPricePlaces() &&
+			entitySchema.getPriceIndexedInScopes().equals(ArrayUtils.toEnumSet(Scope.class, this.indexedInScopes))
+		) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -137,7 +140,7 @@ public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySc
 
 	@Override
 	public String toString() {
-		final boolean indexed = ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
+		final boolean indexed = !ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
 		return "Set entity schema: " +
 			"withPrice=" + this.withPrice +
 			", indexedPricePlaces=" + this.indexedPricePlaces +

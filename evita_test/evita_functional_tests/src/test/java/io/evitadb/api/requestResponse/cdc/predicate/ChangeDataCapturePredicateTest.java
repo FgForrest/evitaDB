@@ -42,7 +42,7 @@ import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.test.Entities;

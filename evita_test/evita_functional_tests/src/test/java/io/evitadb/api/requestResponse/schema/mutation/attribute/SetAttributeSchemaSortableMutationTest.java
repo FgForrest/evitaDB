@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.Cata
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -47,85 +48,111 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("SetAttributeSchemaSortableMutation")
 class SetAttributeSchemaSortableMutationTest {
 
 	@Test
+	@DisplayName("Should override sortable of previous global attribute mutation when names match")
 	void shouldOverrideSortableOfPreviousGlobalAttributeMutationIfNamesMatch() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
-		SetAttributeSchemaSortableMutation existingMutation = new SetAttributeSchemaSortableMutation(ATTRIBUTE_NAME, Scope.NO_SCOPE);
+		final SetAttributeSchemaSortableMutation existingMutation = new SetAttributeSchemaSortableMutation(
+			ATTRIBUTE_NAME, Scope.NO_SCOPE);
 		final CatalogSchemaContract entitySchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
-		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation);
+		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(SetAttributeSchemaSortableMutation.class, result.current()[0]);
 		assertTrue(((SetAttributeSchemaSortableMutation) result.current()[0]).isSortable());
-		assertArrayEquals(Scope.DEFAULT_SCOPES, ((SetAttributeSchemaSortableMutation) result.current()[0]).getSortableInScopes());
+		assertArrayEquals(
+			Scope.DEFAULT_SCOPES, ((SetAttributeSchemaSortableMutation) result.current()[0]).getSortableInScopes());
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new global attribute mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewGlobalAttributeMutationDoesntMatch() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
-		SetAttributeSchemaSortableMutation existingMutation = new SetAttributeSchemaSortableMutation("differentName", Scope.NO_SCOPE);
+		final SetAttributeSchemaSortableMutation existingMutation = new SetAttributeSchemaSortableMutation(
+			"differentName", Scope.NO_SCOPE);
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation));
 	}
 
 	@Test
+	@DisplayName("Should override sortable of previous mutation when names match")
 	void shouldOverrideSortableOfPreviousMutationIfNamesMatch() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
-		SetAttributeSchemaSortableMutation existingMutation = new SetAttributeSchemaSortableMutation(ATTRIBUTE_NAME, Scope.NO_SCOPE);
+		final SetAttributeSchemaSortableMutation existingMutation = new SetAttributeSchemaSortableMutation(
+			ATTRIBUTE_NAME, Scope.NO_SCOPE);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
-		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(SetAttributeSchemaSortableMutation.class, result.current()[0]);
 		assertTrue(((SetAttributeSchemaSortableMutation) result.current()[0]).isSortable());
-		assertArrayEquals(Scope.DEFAULT_SCOPES, ((SetAttributeSchemaSortableMutation) result.current()[0]).getSortableInScopes());
+		assertArrayEquals(
+			Scope.DEFAULT_SCOPES, ((SetAttributeSchemaSortableMutation) result.current()[0]).getSortableInScopes());
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
-		SetAttributeSchemaSortableMutation existingMutation = new SetAttributeSchemaSortableMutation("differentName", Scope.NO_SCOPE);
-		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation));
+		final SetAttributeSchemaSortableMutation existingMutation = new SetAttributeSchemaSortableMutation(
+			"differentName", Scope.NO_SCOPE);
+		assertNull(
+			mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class),
+				existingMutation
+			));
 	}
 
 	@Test
+	@DisplayName("Should mutate global attribute schema")
 	void shouldMutateGlobalAttributeSchema() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
-		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(), GlobalAttributeSchemaContract.class);
+		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(),
+			GlobalAttributeSchemaContract.class
+		);
 		assertNotNull(mutatedSchema);
 		assertTrue(mutatedSchema.isSortable());
 		assertArrayEquals(Scope.DEFAULT_SCOPES, mutatedSchema.getSortableInScopes().toArray(Scope[]::new));
 	}
 
 	@Test
+	@DisplayName("Should mutate entity attribute schema")
 	void shouldMutateEntityAttributeSchema() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
-		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(), EntityAttributeSchemaContract.class);
+		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(),
+			EntityAttributeSchemaContract.class
+		);
 		assertNotNull(mutatedSchema);
 		assertTrue(mutatedSchema.isSortable());
 		assertArrayEquals(Scope.DEFAULT_SCOPES, mutatedSchema.getSortableInScopes().toArray(Scope[]::new));
 	}
 
 	@Test
+	@DisplayName("Should mutate catalog schema")
 	void shouldMutateCatalogSchema() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
@@ -143,8 +170,9 @@ class SetAttributeSchemaSortableMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate entity schema")
 	void shouldMutateEntitySchema() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -161,8 +189,9 @@ class SetAttributeSchemaSortableMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate reference schema")
 	void shouldMutateReferenceSchema() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
@@ -180,8 +209,9 @@ class SetAttributeSchemaSortableMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should fail to mutate reference schema when not indexed")
 	void shouldFailMutateReferenceSchemaIfNotIndexed() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
@@ -198,8 +228,9 @@ class SetAttributeSchemaSortableMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating entity schema with non-existing attribute")
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithNonExistingAttribute() {
-		SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
+		final SetAttributeSchemaSortableMutation mutation = new SetAttributeSchemaSortableMutation(
 			ATTRIBUTE_NAME, Scope.DEFAULT_SCOPES
 		);
 		assertThrows(

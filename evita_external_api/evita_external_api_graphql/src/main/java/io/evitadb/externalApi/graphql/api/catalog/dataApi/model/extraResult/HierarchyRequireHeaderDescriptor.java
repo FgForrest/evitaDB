@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,9 +38,10 @@ public interface HierarchyRequireHeaderDescriptor {
 
 	PropertyDescriptor STOP_AT = PropertyDescriptor.builder()
 		.name("stopAt")
-		// TOBEDONE JNO: stopAt constraint docs
 		.description("""
-			Defines node at which the hierarchy will stop expanding.
+			Limits the traversal of the hierarchy tree. By default, the traversal goes all
+			the way to the end of the hierarchy tree unless you tell it to stop. The constraint
+			accepts one of the following inner constraints: `distance`, `level`, or `node`.
 			""")
 		// type is expected to be a `stopAt` constraint
 		.build();

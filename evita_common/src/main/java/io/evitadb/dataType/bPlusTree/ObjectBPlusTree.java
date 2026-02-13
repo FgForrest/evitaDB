@@ -25,7 +25,6 @@ package io.evitadb.dataType.bPlusTree;
 
 
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -48,8 +47,13 @@ import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
 
 /**
- * Represents a B+ Tree data structure specifically designed for integer keys and generic values.
+ * Represents a B+ Tree data structure designed for comparable object keys and generic values.
  * The tree is balanced and allows for efficient insertion, deletion, and search operations.
+ *
+ * NOTE: This class is structurally paired with {@link IntBPlusTree}. When modifying this file,
+ * check whether the same change should be applied to its counterpart. The key difference is that
+ * this class uses generic `K[]` keys (where K extends Comparable) while IntBPlusTree uses
+ * primitive `int[]` keys.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -1011,7 +1015,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 			System.arraycopy(originKeys, keyStart, keys, 0, keyEnd - keyStart);
 			//noinspection ArrayEquality
 			if (keys == originKeys) {
-				Arrays.fill(keys, keyEnd - keyStart, keys.length, 0);
+				Arrays.fill(keys, keyEnd - keyStart, keys.length, null);
 			}
 			System.arraycopy(originChildren, childrenStart, children, 0, childrenEnd - childrenStart);
 			//noinspection ArrayEquality
@@ -1026,7 +1030,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 			final int originPeek = this.peek;
 			this.peek = peek;
 			if (peek < originPeek) {
-				Arrays.fill(this.keys, Math.max(0, peek), originPeek, 0);
+				Arrays.fill(this.keys, Math.max(0, peek), originPeek, null);
 				Arrays.fill(this.children, peek + 1, originPeek + 1, null);
 			}
 		}
@@ -1276,7 +1280,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 			System.arraycopy(originKeys, start, keys, 0, end - start);
 			//noinspection ArrayEquality
 			if (keys == originKeys) {
-				Arrays.fill(keys, end - start, keys.length, 0);
+				Arrays.fill(keys, end - start, keys.length, null);
 			}
 			System.arraycopy(originValues, start, values, 0, end - start);
 			//noinspection ArrayEquality
@@ -1291,7 +1295,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 			final int originPeek = this.peek;
 			this.peek = peek;
 			if (peek < originPeek) {
-				Arrays.fill(this.keys, peek + 1, originPeek + 1, 0);
+				Arrays.fill(this.keys, peek + 1, originPeek + 1, null);
 				Arrays.fill(this.values, peek + 1, originPeek + 1, null);
 			}
 		}
@@ -1411,7 +1415,6 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 		 *
 		 * @param key the key of the entry to be removed from the leaf node
 		 * @return true if the key was found and removed, false otherwise
-		 * @throws GenericEvitaInternalError if the key is not found in the node
 		 */
 		public boolean delete(@Nonnull M key) {
 			final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
@@ -1819,7 +1822,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 					} else {
 						// we need to continue search with the parent of the parent
 						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
+						parentLevel = level >= 0 ? this.path[level] : null;
 					}
 				}
 				this.hasNext = false;
@@ -1900,7 +1903,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 					} else {
 						// we need to continue search with the parent of the parent
 						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
+						parentLevel = level >= 0 ? this.path[level] : null;
 					}
 				}
 				this.hasNext = false;
@@ -2004,7 +2007,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 					} else {
 						// we need to continue search with the parent of the parent
 						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
+						parentLevel = level >= 0 ? this.path[level] : null;
 					}
 				}
 				this.hasNext = false;
@@ -2087,7 +2090,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 					} else {
 						// we need to continue search with the parent of the parent
 						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
+						parentLevel = level >= 0 ? this.path[level] : null;
 					}
 				}
 				this.hasNext = false;

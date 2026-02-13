@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,10 +26,13 @@ package io.evitadb.core.query.filter;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -80,13 +83,33 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 			final SubTree subTree = popContext(this.treeStack);
 			final Set<Formula> updatedChildren = subTree.getChildren();
 			final boolean childrenHaveNotChanged = updatedChildren.size() == formula.getInnerFormulas().length &&
-				Arrays.stream(formula.getInnerFormulas()).allMatch(updatedChildren::contains);
+				Arrays.stream(formula.getInnerFormulas())
+					.allMatch(updatedChildren::contains);
 
 			if (childrenHaveNotChanged) {
 				// use entire formula tree block
 				formulaToStore = this.mutator.apply(this, formula);
-			} else if (formula instanceof NotFormula && updatedChildren.size() == 1) {
-				formulaToStore = updatedChildren.iterator().next();
+			} else if (formula instanceof NotFormula notFormula) {
+				// Logic: NotFormula is (Superset \ Subtracted)
+				// We must determine if the Superset survived optimization.
+				Formula originalSuperset = notFormula.getSupersetFormula();
+				Formula optimizedSuperset = this.formulasProcessed.get(originalSuperset);
+
+				// Case 1: Superset became Empty or Null -> Result is Empty
+				if (optimizedSuperset == null || optimizedSuperset instanceof EmptyFormula) {
+					formulaToStore = null;
+				}
+				// Case 2: Superset exists, but Subtracted is gone (set size is 1) -> Result is Superset
+				else if (updatedChildren.size() == 1) {
+					formulaToStore = optimizedSuperset;
+				}
+				// Case 3: Both survived -> Reconstruct
+				else {
+					formulaToStore = this.mutator.apply(
+						this,
+						formula.getCloneWithInnerFormulas(updatedChildren.toArray(Formula[]::new))
+					);
+				}
 			} else if (updatedChildren.isEmpty() && formula instanceof ChildrenDependentFormula) {
 				// remove the formula if it has no children after optimization
 				formulaToStore = null;
@@ -172,6 +195,38 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 					}
 				}
 				return impactfulChild;
+			} else if (formula instanceof NotFormula notFormula) {
+				// DeMorgan's law: S \ (A OR B) -> (S \ A) AND (S \ B)
+				Formula subtracted = notFormula.getSubtractedFormula();
+				Formula superset = notFormula.getSupersetFormula();
+
+				// We only optimize if the 'subtracted' part is an OR (the expensive operation)
+				if (subtracted instanceof final OrFormula innerOr) {
+					final Formula[] innerFormulas = innerOr.getInnerFormulas();
+					final Bitmap[] bitmaps = innerOr.getBitmaps();
+					final int totalChildren = innerFormulas.length + bitmaps.length;
+
+					if (totalChildren > 0) {
+						// Create AND of individual NOTs: AND(NOT(A, S), NOT(B, S))
+						final Formula[] newAndChildren = new Formula[totalChildren];
+						int idx = 0;
+
+						// Handle formula-based children
+						for (final Formula innerFormula : innerFormulas) {
+							newAndChildren[idx++] = new NotFormula(innerFormula, superset);
+						}
+
+						// Handle bitmap-based children (wrap each in ConstantFormula)
+						for (final Bitmap bitmap : bitmaps) {
+							newAndChildren[idx++] = new NotFormula(
+								new ConstantFormula(bitmap), superset
+							);
+						}
+
+						// Return the CHEAP 'AndFormula' replacing the EXPENSIVE 'OrFormula'
+						return FormulaFactory.and(newAndChildren);
+					}
+				}
 			}
 			// No change for other cases – keep the node as is.
 			return formula;

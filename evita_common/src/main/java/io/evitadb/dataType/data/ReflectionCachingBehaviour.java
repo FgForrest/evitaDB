@@ -32,6 +32,13 @@ import io.evitadb.utils.ReflectionLookup;
  */
 public enum ReflectionCachingBehaviour {
 
-	CACHE, NO_CACHE
+	/**
+	 * Reflection lookup results are cached for repeated access.
+	 */
+	CACHE,
+	/**
+	 * Reflection lookup results are not cached and are computed on every access.
+	 */
+	NO_CACHE
 
 }

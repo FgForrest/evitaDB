@@ -62,8 +62,8 @@ public record EngineTransactionChanges(
 		return "Transaction to version: " + this.version +
 			", committed at " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(this.commitTimestamp) +
 			(processedTimestamp != null ?
-				"(processing lag " + StringUtils.formatDuration(processingLag(processedTimestamp)) + ")" : "") +
-			mutationCount() + " mutations, " + StringUtils.formatByteSize(walSizeInBytes()) + "):\n" +
+				" (processing lag " + StringUtils.formatDuration(processingLag(processedTimestamp)) + ")" : "") +
+			" (" + mutationCount() + " mutations, " + StringUtils.formatByteSize(walSizeInBytes()) + "):\n" +
 			String.join("\n", this.changes);
 	}
 

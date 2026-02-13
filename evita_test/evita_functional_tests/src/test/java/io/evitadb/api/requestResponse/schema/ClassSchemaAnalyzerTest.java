@@ -3384,4 +3384,104 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName(
+		"extractDefaultValue propagates Error for non-default methods"
+	)
+	@Test
+	void shouldPropagateErrorFromExtractDefaultValueWhenNoDefaultImpl() {
+		// After fix: extractDefaultValue re-throws Error subclasses
+		// (e.g., AbstractMethodError) instead of swallowing them.
+		// getCode() has no default implementation, so unreflectSpecial
+		// throws AbstractMethodError which must not be caught.
+		final java.lang.reflect.Method getter = assertDoesNotThrow(
+			() -> GetterBasedEntity.class.getMethod("getCode")
+		);
+		assertThrows(
+			AbstractMethodError.class,
+			() -> ClassSchemaAnalyzer.extractDefaultValue(
+				GetterBasedEntity.class, getter
+			),
+			"Non-default method should propagate " +
+				"AbstractMethodError"
+		);
+	}
+
+	@DisplayName("extractDefaultValue returns value from default method implementation")
+	@Test
+	void shouldReturnValueFromExtractDefaultValueWhenDefaultImpl() {
+		final java.io.Serializable result = ClassSchemaAnalyzer.extractDefaultValue(
+			GetterBasedEntity.class,
+			assertDoesNotThrow(() -> GetterBasedEntity.class.getMethod("getYears"))
+		);
+		// getYears() has a default implementation returning {1978, 2005, 2020}
+		assertNotNull(result, "Default method should return non-null value");
+		assertInstanceOf(int[].class, result);
+		assertArrayEquals(new int[]{1978, 2005, 2020}, (int[]) result);
+	}
+
+	@DisplayName("extractFieldType resolves Collection generic element type from field")
+	@Test
+	void shouldResolveCollectionGenericTypeFromField() {
+		// This test verifies Bug 5: extractFieldType must use
+		// field.getGenericType() (not field.getType()) to resolve the
+		// generic element type from a Collection field.
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(
+					FieldBasedEntityWithCollectionAttribute.class
+				);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"FieldBasedEntityWithCollectionAttribute"
+				).orElseThrow();
+
+				// The tags attribute should be String[]
+				// (List<String> -> String[])
+				final AttributeSchemaContract tagsAttribute = entitySchema
+					.getAttribute("tags")
+					.orElseThrow();
+				assertEquals(
+					String[].class, tagsAttribute.getType(),
+					"List<String> field should be resolved to String[]"
+				);
+			}
+		);
+	}
+
+	@DisplayName(
+		"extractRecordComponentType resolves Collection generic element" +
+			" type from record component"
+	)
+	@Test
+	void shouldResolveCollectionGenericTypeFromRecordComponent() {
+		// This test verifies Bug 6: extractRecordComponentType must use
+		// recordComponent.getGenericType() (not recordComponent.getType())
+		// to resolve the generic element type from a Collection
+		// record component.
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(
+					RecordBasedEntityWithCollectionAttribute.class
+				);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"RecordBasedEntityWithCollectionAttribute"
+				).orElseThrow();
+
+				// The tags attribute should be String[]
+				// (List<String> -> String[])
+				final AttributeSchemaContract tagsAttribute = entitySchema
+					.getAttribute("tags")
+					.orElseThrow();
+				assertEquals(
+					String[].class, tagsAttribute.getType(),
+					"List<String> record component should be " +
+						"resolved to String[]"
+				);
+			}
+		);
+	}
+
 }

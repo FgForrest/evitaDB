@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -419,7 +420,8 @@ public class ResponseConverter {
 		return new Bucket(
 			toBigDecimal(grpcBucket.getThreshold()),
 			grpcBucket.getOccurrences(),
-			grpcBucket.getRequested()
+			grpcBucket.getRequested(),
+			grpcBucket.hasRelativeFrequency() ? toBigDecimal(grpcBucket.getRelativeFrequency()) : BigDecimal.ZERO
 		);
 	}
 }

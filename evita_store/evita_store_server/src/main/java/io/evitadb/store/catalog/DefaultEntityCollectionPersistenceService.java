@@ -97,6 +97,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStorag
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -113,6 +114,7 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
@@ -761,8 +763,7 @@ public class DefaultEntityCollectionPersistenceService
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull EntityCollectionFileHeader entityTypeHeader,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
@@ -781,7 +782,10 @@ public class DefaultEntityCollectionPersistenceService
 			catalogName,
 			FileType.ENTITY_COLLECTION,
 			this.entityCollectionFileReference.entityType(),
-			storageOptions,
+			storageSettings.outputBufferSize(),
+			storageSettings.syncWrites(),
+			storageSettings,
+			storageSettings,
 			this.entityCollectionFile,
 			observableOutputKeeper
 		);
@@ -791,7 +795,7 @@ public class DefaultEntityCollectionPersistenceService
 				catalogName,
 				this.entityCollectionFileReference.entityType(),
 				FileType.ENTITY_COLLECTION,
-				transactionOptions,
+				storageSettings,
 				new OffsetIndex(
 					catalogVersion,
 					new OffsetIndexDescriptor(
@@ -801,7 +805,12 @@ public class DefaultEntityCollectionPersistenceService
 						entityTypeHeader.activeRecordShare(),
 						this.entityCollectionFile.toFile().length()
 					),
-					storageOptions,
+					storageSettings.outputBufferSize(),
+					storageSettings.maxOpenedReadHandlesOrDefault(),
+					storageSettings.lockTimeoutSeconds(),
+					storageSettings.waitOnCloseSeconds(),
+					storageSettings,
+					storageSettings,
 					offsetIndexRecordTypeRegistry,
 					writeHandle,
 					nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock),

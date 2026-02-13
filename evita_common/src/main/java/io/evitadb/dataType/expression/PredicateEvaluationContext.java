@@ -30,33 +30,35 @@ import java.util.Random;
 import java.util.stream.Stream;
 
 /**
- * Interface defining a context for evaluating predicates. It provides access to variable names,
- * variable values, and a random number generator.
+ * Defines the evaluation context for {@link ExpressionNode expression nodes}. The context supplies named variable
+ * bindings (e.g. entity attributes) and a random number generator that expression operators may use during
+ * computation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface PredicateEvaluationContext {
 	/**
-	 * Returns stream of variable names available.
+	 * Returns the names of all variables available in this evaluation context.
 	 *
-	 * @return stream of variable names available
+	 * @return stream of available variable names
 	 */
 	@Nonnull
 	Stream<String> getVariableNames();
 
 	/**
-	 * Returns variable value by its name.
+	 * Returns the value of a variable identified by its name.
 	 *
-	 * @param variableName variable name
-	 * @return variable value or empty if variable with given name does not exist
+	 * @param variableName the name of the variable to look up
+	 * @return the variable value, or empty if no variable with the given name exists in this context
 	 */
 	@Nonnull
 	Optional<Object> getVariable(@Nonnull String variableName);
 
 	/**
-	 * Returns the random number generator.
+	 * Returns the random number generator used by expression operators that require randomness
+	 * (e.g. the `random()` function in expressions).
 	 *
-	 * @return the random number generator
+	 * @return the random number generator for this evaluation context
 	 */
 	@Nonnull
 	Random getRandom();

@@ -30,15 +30,24 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
-
 /**
- * This class passes simple references to the found entities - i.e. {@link EntityReference}.
+ * This class passes simple references to the found entities -
+ * i.e. {@link EntityReference}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public final class EvitaEntityReferenceResponse extends EvitaResponse<EntityReference> {
-	@Getter private final int[] primaryKeys;
+public final class EvitaEntityReferenceResponse
+	extends EvitaResponse<EntityReference> {
+	@Getter @Nonnull private final int[] primaryKeys;
 
+	/**
+	 * Creates a new entity reference response with the given source
+	 * query, record page, and primary keys.
+	 *
+	 * @param sourceQuery the input query that produced this response
+	 * @param recordPage  the page of entity reference records
+	 * @param primaryKeys the primary keys of the entities
+	 */
 	public EvitaEntityReferenceResponse(
 		@Nonnull Query sourceQuery,
 		@Nonnull DataChunk<EntityReference> recordPage,
@@ -48,6 +57,15 @@ public final class EvitaEntityReferenceResponse extends EvitaResponse<EntityRefe
 		this.primaryKeys = primaryKeys;
 	}
 
+	/**
+	 * Creates a new entity reference response with the given source
+	 * query, record page, primary keys, and extra results.
+	 *
+	 * @param sourceQuery  the input query that produced this response
+	 * @param recordPage   the page of entity reference records
+	 * @param primaryKeys  the primary keys of the entities
+	 * @param extraResults varargs of extra results to attach
+	 */
 	public EvitaEntityReferenceResponse(
 		@Nonnull Query sourceQuery,
 		@Nonnull DataChunk<EntityReference> recordPage,

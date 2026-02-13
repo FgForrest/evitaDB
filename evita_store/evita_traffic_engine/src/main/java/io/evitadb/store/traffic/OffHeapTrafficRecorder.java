@@ -25,8 +25,6 @@ package io.evitadb.store.traffic;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
-import io.evitadb.api.LabelIntrospector;
-import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.exception.IndexNotReady;
@@ -46,6 +44,9 @@ import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.executor.ScheduledTask;
+import io.evitadb.api.traffic.LabelIntrospector;
+import io.evitadb.api.traffic.TrafficRecordingReader;
+import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.exception.EvitaInternalError;
@@ -54,6 +55,7 @@ import io.evitadb.spi.store.catalog.trafficRecorder.RandomAccessFileSessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.SessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
@@ -651,7 +653,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					this.diskBuffer.getDiskBufferFileSize(),
 					filePosition
 				),
-				byteBuffer
+				byteBuffer,
+				Checksum.NO_OP,
+				null
 			);
 			return StorageRecord.read(
 				input,

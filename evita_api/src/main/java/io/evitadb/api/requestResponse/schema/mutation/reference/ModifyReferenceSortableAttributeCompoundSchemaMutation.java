@@ -23,10 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -44,13 +44,13 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
- * Mutation is a holder for a single {@link SortableAttributeCompoundSchemaMutation} that affect any
- * of {@link ReferenceSchemaContract#getSortableAttributeCompounds()} in the {@link EntitySchemaContract}.
- * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * combination if it is placed twice in the mutation pipeline.
+ * Mutation is a holder for a single {@link SortableAttributeCompoundSchemaMutation} that
+ * affects any of {@link ReferenceSchemaContract#getSortableAttributeCompounds()} in the
+ * {@link EntitySchemaContract}. Mutation implements {@link CombinableLocalEntitySchemaMutation}
+ * allowing to resolve conflicts with the same mutation combination if it is placed twice in
+ * the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -61,44 +61,80 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation
 	extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -1439568976069672739L;
-	@Nonnull @Getter private final ReferenceSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation;
+	@Nonnull @Getter
+	private final ReferenceSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation;
 
-	public ModifyReferenceSortableAttributeCompoundSchemaMutation(@Nonnull String name, @Nonnull ReferenceSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation) {
+	/**
+	 * Creates a mutation that wraps the given sortable attribute compound mutation and
+	 * targets the reference identified by `name`.
+	 *
+	 * @param name                                    the name of the reference whose sortable
+	 *                                                attribute compound is being modified
+	 * @param sortableAttributeCompoundSchemaMutation the compound-level mutation to apply
+	 *                                                within the reference
+	 */
+	public ModifyReferenceSortableAttributeCompoundSchemaMutation(
+		@Nonnull String name,
+		@Nonnull ReferenceSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation
+	) {
 		super(name);
-		Assert.isTrue(sortableAttributeCompoundSchemaMutation instanceof SortableAttributeCompoundSchemaMutation, "The mutation must implement SortableAttributeCompoundSchemaMutation interface!");
+		Assert.isTrue(
+			sortableAttributeCompoundSchemaMutation instanceof SortableAttributeCompoundSchemaMutation,
+			"The mutation must implement SortableAttributeCompoundSchemaMutation interface!"
+		);
 		this.sortableAttributeCompoundSchemaMutation = sortableAttributeCompoundSchemaMutation;
 	}
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull LocalEntitySchemaMutation existingMutation) {
-		if (existingMutation instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())
-				&& this.sortableAttributeCompoundSchemaMutation.getName().equals(theExistingMutation.getSortableAttributeCompoundSchemaMutation().getName())) {
-			if (this.sortableAttributeCompoundSchemaMutation instanceof CombinableLocalEntitySchemaMutation combinableSortableAttributeCompoundCombinationMutation) {
-				final MutationCombinationResult<LocalEntitySchemaMutation> result = combinableSortableAttributeCompoundCombinationMutation.combineWith(
-					currentCatalogSchema, currentEntitySchema, (LocalEntitySchemaMutation) theExistingMutation.getSortableAttributeCompoundSchemaMutation()
-				);
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
+		if (existingMutation instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation theExistingMutation
+			&& this.name.equals(theExistingMutation.getName())
+			&& this.sortableAttributeCompoundSchemaMutation.getName()
+			.equals(theExistingMutation.getSortableAttributeCompoundSchemaMutation().getName()
+			)) {
+			if (this.sortableAttributeCompoundSchemaMutation
+				instanceof CombinableLocalEntitySchemaMutation combinableMutation) {
+				final MutationCombinationResult<LocalEntitySchemaMutation> result =
+					combinableMutation.combineWith(
+						currentCatalogSchema,
+						currentEntitySchema,
+						(LocalEntitySchemaMutation) theExistingMutation
+							.getSortableAttributeCompoundSchemaMutation()
+					);
 				if (result == null) {
 					return null;
 				} else {
 					final LocalEntitySchemaMutation origin;
 					if (result.origin() == null) {
 						origin = null;
-					} else if (result.origin() == combinableSortableAttributeCompoundCombinationMutation) {
+					} else if (result.origin() == combinableMutation) {
 						origin = theExistingMutation;
 					} else {
-						origin = new ModifyReferenceSortableAttributeCompoundSchemaMutation(this.name, (ReferenceSortableAttributeCompoundSchemaMutation) result.origin());
+						origin = new ModifyReferenceSortableAttributeCompoundSchemaMutation(
+							this.name,
+							(ReferenceSortableAttributeCompoundSchemaMutation) result.origin()
+						);
 					}
 					final LocalEntitySchemaMutation[] current;
 					if (ArrayUtils.isEmpty(result.current())) {
 						current = result.current();
 					} else {
+						final ReferenceSortableAttributeCompoundSchemaMutation existingCompoundMutation =
+							theExistingMutation.getSortableAttributeCompoundSchemaMutation();
 						current = Arrays.stream(result.current())
 							.map(it -> {
-								if (it == ((ModifyReferenceSortableAttributeCompoundSchemaMutation) existingMutation).getSortableAttributeCompoundSchemaMutation()) {
+								if (it == existingCompoundMutation) {
 									return existingMutation;
 								} else {
-									return new ModifyReferenceSortableAttributeCompoundSchemaMutation(this.name, (ReferenceSortableAttributeCompoundSchemaMutation) it);
+									return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
+										this.name,
+										(ReferenceSortableAttributeCompoundSchemaMutation) it
+									);
 								}
 							})
 							.toArray(LocalEntitySchemaMutation[]::new);
@@ -115,26 +151,22 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
-		return this.sortableAttributeCompoundSchemaMutation.mutate(entitySchema, referenceSchema);
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
+		return this.sortableAttributeCompoundSchemaMutation.mutate(
+			entitySchema, referenceSchema,
+			referenceSchema instanceof ReflectedReferenceSchemaContract rrsc && !rrsc.isReflectedReferenceAvailable() ?
+				ConsistencyChecks.SKIP : consistencyChecks
+		);
 	}
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
-		if (existingReferenceSchema.isEmpty()) {
-			// ups, the reference schema is missing
-			throw new InvalidSchemaMutationException(
-				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			);
-		} else {
-			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedSchema = mutate(entitySchema, theSchema);
-			Assert.isPremiseValid(updatedSchema != null, "Updated reference schema is not expected to be null!");
-			return replaceReferenceSchema(entitySchema, theSchema, updatedSchema);
-		}
+	public String containerName() {
+		return super.containerName() + "." + this.sortableAttributeCompoundSchemaMutation.getName();
 	}
 
 	@Override

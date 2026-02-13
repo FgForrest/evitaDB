@@ -63,6 +63,11 @@ public class JsonToComplexDataObjectConverter {
 	 */
 	private final ObjectMapper objectMapper;
 
+	/**
+	 * Recursively converts a Jackson {@link JsonNode} tree into a {@link DataItem} tree. Array nodes are converted
+	 * to {@link DataItemArray}, object nodes to {@link DataItemMap}, and value nodes to {@link DataItemValue}.
+	 * Returns null for JSON null nodes.
+	 */
 	@Nullable
 	private static DataItem convertToDataItem(@Nonnull JsonNode jsonNode) {
 		if (jsonNode.isNull()) {
@@ -79,9 +84,9 @@ public class JsonToComplexDataObjectConverter {
 		} else if (jsonNode instanceof ObjectNode objectNode) {
 			final int itemCount = objectNode.size();
 			final HashMap<String, DataItem> outputElements = CollectionUtils.createHashMap(itemCount);
-			final Iterator<Entry<String, JsonNode>> inputElements = objectNode.fields();
-			while (inputElements.hasNext()) {
-				final Entry<String, JsonNode> inputElement = inputElements.next();
+			final Iterator<Entry<String, JsonNode>> it = objectNode.fields();
+			while (it.hasNext()) {
+				final Entry<String, JsonNode> inputElement = it.next();
 				outputElements.put(inputElement.getKey(), convertToDataItem(inputElement.getValue()));
 			}
 			return new DataItemMap(outputElements);
@@ -94,7 +99,11 @@ public class JsonToComplexDataObjectConverter {
 		} else if (jsonNode.isLong()) {
 			return new DataItemValue(jsonNode.longValue());
 		} else if (jsonNode.isBigDecimal()) {
-			return new DataItemValue(new BigDecimal(jsonNode.textValue()));
+			return new DataItemValue(jsonNode.decimalValue());
+		} else if (jsonNode.isDouble() || jsonNode.isFloat()) {
+			return new DataItemValue(new BigDecimal(jsonNode.asText()));
+		} else if (jsonNode.isBigInteger()) {
+			return new DataItemValue(new BigDecimal(jsonNode.bigIntegerValue()));
 		} else if (jsonNode.isTextual()) {
 			return new DataItemValue(jsonNode.textValue());
 		} else if (jsonNode.isValueNode()) {

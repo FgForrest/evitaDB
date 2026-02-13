@@ -24,6 +24,7 @@
 package io.evitadb.export.file.configuration;
 
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.utils.UUIDUtil;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -56,7 +57,24 @@ public class FileSystemExportOptions extends ExportOptions {
 	 * Directory on local disk where Evita files are exported - for example, backups,
 	 * JFR recordings, query recordings etc.
 	 */
-	private Path directory;
+	private final Path directory;
+
+	/**
+	 * Builder method is planned to be used only in tests.
+	 */
+	@Nonnull
+	public static FileSystemExportOptions temporary() {
+		return new FileSystemExportOptions(
+			true,
+			DEFAULT_SIZE_LIMIT_BYTES,
+			DEFAULT_HISTORY_EXPIRATION_SECONDS,
+			Path.of(
+				System.getProperty("java.io.tmpdir"),
+				"evita", "export",
+				UUIDUtil.randomUUID().toString()
+			)
+		);
+	}
 
 	/**
 	 * Default constructor with default values.

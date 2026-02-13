@@ -27,18 +27,26 @@ import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
 
 /**
- * This implementation {@link OfInt} represents empty iterator.
+ * This implementation of {@link OfInt} represents an empty iterator.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 public class EmptyIntIterator implements OfInt {
 	public static final EmptyIntIterator INSTANCE = new EmptyIntIterator();
 
+	private EmptyIntIterator() {}
+
+	/**
+	 * Always throws {@link NoSuchElementException} since this iterator is empty.
+	 */
 	@Override
 	public int nextInt() {
 		throw new NoSuchElementException("No data in stream!");
 	}
 
+	/**
+	 * Always returns false since this iterator is empty.
+	 */
 	@Override
 	public boolean hasNext() {
 		return false;

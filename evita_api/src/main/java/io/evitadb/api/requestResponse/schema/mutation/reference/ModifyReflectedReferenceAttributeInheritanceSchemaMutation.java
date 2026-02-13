@@ -23,8 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -45,8 +43,6 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
-import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Mutation is responsible for setting value to a {@link ReflectedReferenceSchemaContract#getAttributesInheritanceBehavior()}
@@ -74,6 +70,9 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 	 */
 	@Nonnull @Getter private final String[] attributeInheritanceFilter;
 
+	/**
+	 * Creates mutation that changes the attribute inheritance behavior of a reflected reference schema.
+	 */
 	public ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
 		@Nonnull String name,
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
@@ -91,7 +90,9 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReflectedReferenceAttributeInheritanceSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyReflectedReferenceAttributeInheritanceSchemaMutation theExistingMutation
+			&& this.name.equals(theExistingMutation.getName())
+		) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -100,7 +101,11 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		Assert.isPremiseValid(
 			referenceSchema instanceof ReflectedReferenceSchema,
@@ -112,30 +117,16 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 		);
 	}
 
-	@Nonnull
-	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
-		if (existingReferenceSchema.isEmpty()) {
-			// ups, the associated data is missing
-			throw new InvalidSchemaMutationException(
-				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			);
-		} else {
-			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = Objects.requireNonNull(mutate(entitySchema, theSchema));
-			return replaceReferenceSchema(entitySchema, theSchema, updatedReferenceSchema);
-		}
-	}
-
 	@Override
 	public String toString() {
 		return "Modify entity reflected reference `" + this.name + "` schema: " +
 			"attributes inherited: " + this.attributeInheritanceBehavior +
 			(
 				ArrayUtils.isEmpty(this.attributeInheritanceFilter) ?
-					"" : (", excluding: " + Arrays.toString(this.attributeInheritanceFilter))
+					"" :
+					(this.attributeInheritanceBehavior == AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT ?
+						", excluding: " : ", only: ") +
+						Arrays.toString(this.attributeInheritanceFilter)
 			);
 	}
 }

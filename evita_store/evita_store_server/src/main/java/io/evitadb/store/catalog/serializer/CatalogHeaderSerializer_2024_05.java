@@ -67,7 +67,8 @@ public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHe
 			walFileReference = new LogFileRecordReference(
 				newIndex -> CatalogPersistenceService.getWalFileName(catalogName, newIndex),
 				walFileIndex,
-				new FileLocation(walStartingPosition, walRecordLength)
+				new FileLocation(walStartingPosition, walRecordLength),
+				0L
 			);
 		} else {
 			walFileReference = null;

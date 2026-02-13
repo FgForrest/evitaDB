@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,11 +32,14 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 /**
- * Bitmap represents simple sorted "array" or plain integers that represents record ids.
- * Internal representation may be more effective data structure providing that it can any time produce sorted array
- * of integers (record ids).
+ * Bitmap represents a sorted set of unique integers that represent record ids. Internal representation
+ * may use a more efficient data structure (e.g. {@link org.roaringbitmap.RoaringBitmap}) but can always
+ * produce a sorted array of integers (record ids) on demand.
  *
- * Bitmaps always contains sorted row of integer values. Bitmaps may or may not contain duplicate integers.
+ * Bitmaps always contain a sorted sequence of unique integer values - duplicates are never stored.
+ *
+ * Some implementations are immutable and throw {@link UnsupportedOperationException} on mutation methods
+ * ({@link #add(int)}, {@link #addAll(int...)}, {@link #remove(int)}, {@link #removeAll(int...)}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -53,36 +56,49 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	int size();
 
 	/**
-	 * Adds single record to the bitmap. Record is not added when it's already present in the bitmap.
+	 * Adds single record to the bitmap. The record is not added when it is already present.
+	 * The sorted order of the bitmap is maintained automatically.
 	 *
-	 * @return true if record was added
+	 * @return true if the record was added, false if it was already present
+	 * @throws UnsupportedOperationException if the bitmap is immutable
 	 */
 	boolean add(int recordId);
 
 	/**
-	 * Adds multiple record ids to the bitmap. Duplicated ids are skipped silently.
+	 * Adds multiple record ids to the bitmap. Duplicate ids are skipped silently.
+	 * The sorted order of the bitmap is maintained automatically.
+	 *
+	 * @throws UnsupportedOperationException if the bitmap is immutable
 	 */
 	void addAll(int... recordId);
 
 	/**
-	 * Adds multiple record ids to the bitmap. Duplicated ids are skipped silently.
+	 * Adds multiple record ids to the bitmap. Duplicate ids are skipped silently.
+	 * The sorted order of the bitmap is maintained automatically.
+	 *
+	 * @throws UnsupportedOperationException if the bitmap is immutable
 	 */
 	void addAll(@Nonnull Bitmap recordIds);
 
 	/**
-	 * Removes single record from the bitmap. If record doesn't exist it's not removed.
+	 * Removes single record from the bitmap. If the record doesn't exist, nothing happens.
 	 *
-	 * @return true if record was removed
+	 * @return true if the record was removed, false if it was not present
+	 * @throws UnsupportedOperationException if the bitmap does not support removals
 	 */
 	boolean remove(int recordId);
 
 	/**
-	 * Removes multiple record ids from the bitmap. Non existing record ids in bitmap are skipped silently.
+	 * Removes multiple record ids from the bitmap. Non-existing record ids are skipped silently.
+	 *
+	 * @throws UnsupportedOperationException if the bitmap does not support removals
 	 */
 	void removeAll(int... recordId);
 
 	/**
-	 * Removes multiple record ids from the bitmap. Non existing record ids in bitmap are skipped silently.
+	 * Removes multiple record ids from the bitmap. Non-existing record ids are skipped silently.
+	 *
+	 * @throws UnsupportedOperationException if the bitmap does not support removals
 	 */
 	void removeAll(@Nonnull Bitmap recordIds);
 
@@ -92,9 +108,12 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	boolean contains(int recordId);
 
 	/**
-	 * Returns index of the record id in the bitmap.
+	 * Returns index of the record id in the bitmap. The method follows the same contract as
+	 * {@link java.util.Arrays#binarySearch(int[], int)} - when the record id is found, returns its
+	 * zero-based index; when not found, returns `-(insertion point) - 1` where the insertion point
+	 * is the index at which the record id would be inserted to maintain sorted order.
 	 *
-	 * @return negative value if record id is not part of the bitmap
+	 * @return zero-based index of the record id, or a negative value if not present
 	 */
 	int indexOf(int recordId);
 
@@ -114,16 +133,16 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	int[] getRange(int start, int end);
 
 	/**
-	 * Returns first record id in bitmap.
+	 * Returns first (smallest) record id in the bitmap.
 	 *
-	 * @throws IndexOutOfBoundsException bitmap is empty
+	 * @throws IndexOutOfBoundsException when the bitmap is empty
 	 */
 	int getFirst();
 
 	/**
-	 * Returns last record id in bitmap.
+	 * Returns last (largest) record id in the bitmap.
 	 *
-	 * @throws IndexOutOfBoundsException bitmap is empty
+	 * @throws IndexOutOfBoundsException when the bitmap is empty
 	 */
 	int getLast();
 
@@ -139,7 +158,9 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	OfInt iterator();
 
 	/**
-	 * Serves bitmap as stream of its values.
+	 * Returns an {@link IntStream} over all record ids in the bitmap. The stream has
+	 * {@link Spliterator#ORDERED}, {@link Spliterator#DISTINCT}, {@link Spliterator#IMMUTABLE},
+	 * and {@link Spliterator#SORTED} characteristics.
 	 */
 	@Nonnull
 	default IntStream stream() {
