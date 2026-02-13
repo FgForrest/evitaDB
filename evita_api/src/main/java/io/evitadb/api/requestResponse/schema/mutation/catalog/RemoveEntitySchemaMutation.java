@@ -125,6 +125,7 @@ public class RemoveEntitySchemaMutation
 		return Stream.of(new CollectionConflictKey(this.name));
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "Remove entity schema: " +

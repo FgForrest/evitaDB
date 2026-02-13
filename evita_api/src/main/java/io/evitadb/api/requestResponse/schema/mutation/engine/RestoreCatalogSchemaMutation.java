@@ -62,6 +62,11 @@ public class RestoreCatalogSchemaMutation implements TopLevelCatalogSchemaMutati
 	@Serial private static final long serialVersionUID = 3313004990813564229L;
 	@Nonnull @Getter private final String catalogName;
 
+	/**
+	 * Creates a new mutation that will restore a catalog with the specified name in inactive state.
+	 *
+	 * @param catalogName name of the catalog to restore
+	 */
 	public RestoreCatalogSchemaMutation(@Nonnull String catalogName) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
 		this.catalogName = catalogName;
@@ -72,7 +77,7 @@ public class RestoreCatalogSchemaMutation implements TopLevelCatalogSchemaMutati
 		if (evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` already exists!");
 		}
-		// check the names in all naming conventions are unique in the entity schema
+		// check the names in all naming conventions are unique among catalogs
 		CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
 	}
 

@@ -86,8 +86,10 @@ public class ModifyEntitySchemaMutation
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && this.name.equals(modifyEntitySchemaMutation.getName())) {
+	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
+		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && this.name.equals(
+			modifyEntitySchemaMutation.getName())) {
 			final List<LocalEntitySchemaMutation> mutations = new ArrayList<>(this.schemaMutations.length);
 			mutations.addAll(Arrays.asList(this.schemaMutations));
 			final MutationImpact updated = addMutations(
@@ -111,7 +113,8 @@ public class ModifyEntitySchemaMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
 				.getEntitySchema(this.name)
@@ -131,7 +134,8 @@ public class ModifyEntitySchemaMutation
 
 	@Nullable
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		EntitySchemaContract alteredSchema = entitySchema;
 		for (EntitySchemaMutation schemaMutation : this.schemaMutations) {
 			alteredSchema = schemaMutation.mutate(catalogSchema, alteredSchema);
@@ -159,7 +163,8 @@ public class ModifyEntitySchemaMutation
 	) {
 		final MutationPredicateContext context = predicate.getContext();
 		context.setEntityType(this.name);
-		final Stream<ChangeCatalogCapture> entitySchemaCapture = CombinableCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
+		final Stream<ChangeCatalogCapture> entitySchemaCapture = CombinableCatalogSchemaMutation.super.toChangeCatalogCapture(
+			predicate, content);
 
 		if (context.getDirection() == StreamDirection.FORWARD) {
 			return Stream.concat(
@@ -193,6 +198,7 @@ public class ModifyEntitySchemaMutation
 		return Stream.of(new CollectionConflictKey(this.name));
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "Modify entity `" + this.name + "` schema:\n" +
@@ -200,5 +206,4 @@ public class ModifyEntitySchemaMutation
 				.map(Object::toString)
 				.collect(Collectors.joining(",\n"));
 	}
-
 }

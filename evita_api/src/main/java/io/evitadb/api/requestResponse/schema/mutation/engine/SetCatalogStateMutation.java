@@ -92,7 +92,10 @@ public class SetCatalogStateMutation implements TopLevelCatalogSchemaMutation<Vo
 		} else {
 			final CatalogState catalogState = evita.getCatalogState(this.catalogName).orElse(null);
 			if (catalogState == null || (!catalogState.isActive() && catalogState != CatalogState.INACTIVE)) {
-				throw new InvalidMutationException("Catalog `" + this.catalogName + "` is not in a valid state for this operation! Current state: " + catalogState);
+				throw new InvalidMutationException(
+					"Catalog `" + this.catalogName + "` is not in a valid state for this operation!" +
+						" Current state: " + catalogState
+				);
 			}
 			if (this.active) {
 				if (catalogState.isActive()) {
