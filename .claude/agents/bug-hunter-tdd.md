@@ -192,6 +192,21 @@ Before declaring a bug fix complete, verify ALL of these:
 - [ ] Edge cases covered (null, empty, boundary values)
 - [ ] Code follows evitaDB style conventions
 - [ ] Bug fix summary provided with git evidence
+- [ ] No temporary workaround markers left in code (see Cleanup Verification below)
+
+## Cleanup Verification
+
+After all fixes are applied and tests pass, **always** search for leftover temporary workaround markers in the test files you touched. These markers indicate bugs that were documented but not yet fixed, or stale comments from already-fixed bugs:
+
+```bash
+grep -rn "Known limitation\|KNOWN LIMITATION\|BUG-[0-9]\|FIXME.*bug\|TODO.*workaround\|HACK.*bug\|temporary workaround" evita_test/
+```
+
+For each match found:
+1. **If you introduced it** during this session — the bug was not fixed yet. Either fix it now (TDD cycle) or explicitly report it as an unresolved finding in your summary.
+2. **If it pre-existed** — verify whether the limitation still applies. If the bug was already fixed, remove the stale comment.
+
+**No `// Known limitation` or equivalent comment should remain in the codebase after your work is complete unless the bug is genuinely unfixed and explicitly reported as such in your summary.**
 
 ## Update Your Agent Memory
 

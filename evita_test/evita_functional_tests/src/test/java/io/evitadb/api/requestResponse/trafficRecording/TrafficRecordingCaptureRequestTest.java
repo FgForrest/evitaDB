@@ -183,7 +183,6 @@ class TrafficRecordingCaptureRequestTest {
 			final TrafficRecordingCaptureRequest copy =
 				TrafficRecordingCaptureRequest.builder(original).build();
 
-			// Known limitation: Builder copy constructor does not copy labels
 			assertArrayEquals(original.labels(), copy.labels());
 		}
 	}

@@ -496,11 +496,6 @@ class WeakConcurrentMapTest {
 	@DisplayName("Equals edge cases")
 	class EqualsEdgeCasesTest {
 
-		// Known limitation: WeakKey.equals and LatentKey.equals
-		// throw ClassCastException for unknown types
-		// (i.e., objects that are neither WeakKey nor LatentKey).
-		// Since these are private inner classes, we verify the
-		// map's public API works correctly without errors.
 		@Test
 		@DisplayName(
 			"Should not throw ClassCastException "

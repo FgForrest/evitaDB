@@ -108,7 +108,6 @@ class TrafficRecordingContainerTest {
 				Label.EMPTY_LABELS, CREATED, 100, 5, 2, 1024,
 				new int[]{1, 2, 3}, null
 			);
-			// Known limitation: queryDescription is NOT included in equals/hashCode
 			assertNotEquals(container1, container2);
 		}
 

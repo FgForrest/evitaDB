@@ -58,6 +58,7 @@ Run agents one at a time, each building on the previous:
 
 **Step 3: bug-hunter-tdd** (execution):
 - Update tests from Step 1 that documented broken behavior to assert correct behavior
+- Remove `// Known limitation` comments from tests whose bugs are now fixed
 - Apply minimal fixes following TDD: update test first, then fix code
 - Build and run all tests to verify fixes and no regressions
 
@@ -66,6 +67,7 @@ Run agents one at a time, each building on the previous:
 After all execution steps complete:
 - Run the full test suite for the affected package
 - Run broader related tests to check for regressions
+- Search for leftover temporary workaround markers (`Known limitation`, `BUG-`, `FIXME.*bug`, `TODO.*workaround`) in touched files — remove any that are stale
 - Summarize all changes made across all three phases
 
 ## Agent Launch Template

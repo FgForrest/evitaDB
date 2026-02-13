@@ -131,11 +131,6 @@ class ComplexDataObjectTest {
 			"should return false for empty DataItemArray"
 		)
 		void shouldReturnFalseForEmptyArray() {
-			// Known limitation (BUG-6): isEmpty returns
-			// false for DataItemArray even when the array
-			// has no children, because the implementation
-			// explicitly checks !(root instanceof
-			// DataItemArray)
 			final ComplexDataObject obj =
 				new ComplexDataObject(
 					new DataItemArray(new DataItem[0])
