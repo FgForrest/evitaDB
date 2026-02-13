@@ -89,7 +89,7 @@ public enum ConstraintDomain {
 	SEGMENT;
 
 	/**
-	 * Dynamic domain should be used directly because it doesn't point to any specific data until a context is known.
+	 * Dynamic domain should not be used directly because it doesn't point to any specific data until a context is known.
 	 * Rather is a placeholder for a domain which changes depending on current constraint context.
 	 */
 	private final boolean dynamic;

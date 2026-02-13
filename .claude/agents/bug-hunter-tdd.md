@@ -86,6 +86,54 @@ Provide a comprehensive summary including:
 - **Fix applied**: What was changed and why
 - **Verification**: Confirmation that the test failed before the fix and passes after
 
+### Phase 6: Test Retention Evaluation
+
+After the bug is proven (test fails) and fixed (test passes), evaluate **each test written during this session individually** to decide whether it should remain in the test suite permanently or be removed. This is a deliberate architectural decision, not an afterthought.
+
+For each test, assess:
+
+1. **Regression guard value** — Does this test protect against a realistic regression? Could a future refactoring, optimization, or feature addition plausibly reintroduce the exact bug this test catches? If the bug was caused by a subtle interaction or non-obvious invariant, the test has high regression guard value.
+
+2. **Coverage overlap** — Does the test cover behavior already verified by existing tests? If removing this test would leave the specific edge case or code path untested, it should stay. If existing tests already cover the same invariant from a different angle, the new test may be redundant.
+
+3. **Documentation value** — Does the test document an important behavioral contract or a non-obvious invariant that future developers would benefit from seeing? Tests that serve as executable documentation of tricky edge cases have value beyond pure regression detection.
+
+4. **Maintenance cost** — Is the test brittle, slow, or tightly coupled to implementation details? Tests that break on legitimate refactorings, depend on internal state via reflection, or require complex setup that is hard to maintain impose ongoing cost.
+
+5. **Specificity vs. generality** — Is the test narrowly targeting a one-time coding mistake (e.g., a typo, a copy-paste error) that is unlikely to recur? Or does it test a general edge case (e.g., boundary values, empty inputs, concurrent access) that any future implementation must handle correctly?
+
+**Verdict for each test** — One of:
+
+| Verdict | Criteria | Action |
+|---------|----------|--------|
+| **KEEP** | High regression guard value, covers an untested edge case, documents a non-obvious invariant, or tests a general class of error likely to recur | Leave the test in the suite permanently |
+| **REMOVE** | Low regression risk, tests a one-time mistake unlikely to recur, duplicates existing coverage, or has high maintenance cost relative to its value | Delete the test after confirming the fix passes |
+| **SIMPLIFY & KEEP** | The test has value but is over-engineered for its purpose — uses reflection when a public API test would suffice, has excessive setup, or tests too many things at once | Rewrite the test to be simpler and more maintainable, then keep it |
+
+**Output format** — Include this evaluation in your Bug Fix Summary as a dedicated section:
+
+```
+## Test Retention Evaluation
+
+### Test: `shouldHandleBoundaryWhenRangeWrapsAround`
+- Regression guard: HIGH — wrap-around logic is subtle and has broken before
+- Coverage overlap: NONE — no existing test covers the wrap-around boundary
+- Documentation value: HIGH — documents a non-obvious invariant
+- Maintenance cost: LOW — uses public API, minimal setup
+- Specificity: GENERAL — any future ring buffer implementation must handle this
+- **Verdict: KEEP**
+
+### Test: `shouldNotThrowWhenValueIsExactlyMaxInt`
+- Regression guard: LOW — the original bug was a typo (`<` vs `<=`), unlikely to recur
+- Coverage overlap: PARTIAL — existing `shouldHandleLargeValues` covers nearby range
+- Documentation value: LOW — the boundary is obvious from the method contract
+- Maintenance cost: LOW — simple test
+- Specificity: NARROW — one-time copy-paste error
+- **Verdict: REMOVE**
+```
+
+If the verdict is REMOVE, delete the test immediately after documenting the verdict. If the verdict is SIMPLIFY & KEEP, rewrite it now and run the simplified version to confirm it still passes.
+
 ## Code Style (evitaDB Specific)
 
 - **Indentation**: Use tabs
@@ -192,6 +240,8 @@ Before declaring a bug fix complete, verify ALL of these:
 - [ ] Edge cases covered (null, empty, boundary values)
 - [ ] Code follows evitaDB style conventions
 - [ ] Bug fix summary provided with git evidence
+- [ ] Each test evaluated for long-term retention (Phase 6) with documented verdict
+- [ ] Tests with REMOVE verdict deleted; tests with SIMPLIFY & KEEP verdict rewritten
 - [ ] No temporary workaround markers left in code (see Cleanup Verification below)
 
 ## Cleanup Verification

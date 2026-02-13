@@ -39,15 +39,15 @@ import java.util.regex.Pattern;
  * to the main query system and reconstruct from it the original query. Each variant of query has its own unique
  * full name (name + creator suffix) and corresponding creator (each {@link Creator}
  * in {@link Constraint} create one descriptor).
- * <p>
+ *
  * Descriptor contains basic categorizing data such as {@link #type()} and {@link #propertyType()} as well as concrete
  * metadata like {@link #fullName()} or {@link #supportedValues()}.
  * Descriptor also contains the default creator constructor and its parameters to be able to reconstruct the original query.
- * <p>
+ *
  * It uses set of annotations for describing actual constraints with {@link ConstraintDefinition}
  * as the main one. Those annotations are then processed by {@link ConstraintDescriptorProvider} which generated these
  * descriptors.
- * <p>
+ *
  * Equality is determined only {@link #type()}, {@link #propertyType()} and {@link #fullName()} as these properties defines
  * uniqueness of each query. There cannot be multiple constraints with these properties because that would create
  * ambiguity in query search and reconstruction.
@@ -117,7 +117,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	}
 
 	/**
-	 * Specifies what is purpose of the constraint
+	 * Specifies the purpose of the constraint
 	 */
 	@Nonnull
 	public ConstraintType type() {

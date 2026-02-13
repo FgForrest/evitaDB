@@ -59,7 +59,7 @@ public enum ConstraintType {
 	 */
 	ORDER(OrderConstraint.class),
 	/**
-	 * Requirement represents an additional data passed to the query, that can somewhat alter returned result
+	 * Requirement represents additional data passed to the query, that can somewhat alter returned result
 	 *  - not in a way of filter or ordering, but rather a form.
 	 * Conforms to {@link io.evitadb.api.query.RequireConstraint}.
 	 */

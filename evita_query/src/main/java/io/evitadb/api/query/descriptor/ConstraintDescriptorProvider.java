@@ -153,7 +153,11 @@ public class ConstraintDescriptorProvider {
 			)
 			.findFirst()
 			.orElseThrow(() ->
-				new GenericEvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
+				new GenericEvitaInternalError(
+					"Unknown constraint `" + constraintClass.getName() + "` " +
+						(suffix == null ? "without suffix" : "with suffix `" + suffix + "`") +
+						". Is it properly registered?"
+				));
 	}
 
 	@Nonnull
