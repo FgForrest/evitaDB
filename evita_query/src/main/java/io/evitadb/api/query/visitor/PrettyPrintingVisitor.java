@@ -56,7 +56,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	/**
 	 * Contains the printed form of the input constraint.
 	 */
-	private final StringBuilder result = new StringBuilder();
+	private final StringBuilder result = new StringBuilder(256);
 	/**
 	 * Contains the parameters extracted from the original query in the correct order as they're used in {@link #result}.
 	 * Non-null only when {@link #extractParameters} is TRUE.
