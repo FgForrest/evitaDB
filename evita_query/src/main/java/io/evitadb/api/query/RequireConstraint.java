@@ -24,9 +24,80 @@
 package io.evitadb.api.query;
 
 /**
- * Requirement represents an additional data passed to the query, that can somewhat alter returned result
- * - not in a way of filter or ordering, but rather a form.
+ * Marker interface for constraints that specify additional data requirements and computational requests in an evitaDB
+ * query. Require constraints control what data is fetched for matched entities, what extra computations are performed,
+ * and how results are paginated — but they **never** affect which entities are matched or their ordering.
  *
+ * Require constraints have no direct parallel in SQL. While they superficially resemble `SELECT` clauses (controlling
+ * what data is returned), they also encompass pagination settings, extra computations (histograms, statistics,
+ * facet summaries, hierarchy trees), and contextual data fetching (associated prices, attributes, references).
+ *
+ * **Design Context:**
+ *
+ * This interface extends {@link TypeDefiningConstraint} which provides type identity for the constraint system.
+ * Require constraints are one of the four primary constraint categories in evitaDB's query language (EvitaQL),
+ * alongside {@link HeadConstraint}, {@link FilterConstraint}, and {@link OrderConstraint}.
+ *
+ * Require constraints are used in the {@link io.evitadb.api.query.require.Require} container which wraps all
+ * requirement specifications in a query. By default, evitaDB returns only the primary keys of matched entities.
+ * To receive entity bodies, attributes, associated data, prices, or references, explicit require constraints must
+ * be provided.
+ *
+ * **Common Implementations:**
+ *
+ * - **Entity fetching**: `entityFetch`, `entityFetchAll`, `attributeContent`, `associatedDataContent`,
+ *   `priceContent`, `referenceContent`
+ * - **Pagination**: `page`, `strip` (for offset-based and cursor-based pagination)
+ * - **Extra computations**: `facetSummary`, `attributeHistogram`, `priceHistogram`, `hierarchyOfSelf`,
+ *   `hierarchyOfReference`
+ * - **Statistics**: `queryTelemetry` (for performance profiling)
+ * - **Data localization**: `dataInLocales` (for fetching localized content)
+ *
+ * **Key Behavioral Contracts:**
+ *
+ * - Require constraints **never filter** entities — they only control what data is returned and what extra
+ *   computations are performed.
+ * - Most require constraints are independent and can be combined freely. Some have implicit dependencies (e.g.,
+ *   `attributeHistogram` requires the filtered attributes to exist in the schema).
+ * - Entity fetching constraints define a "projection" — which parts of the entity should be hydrated. Without
+ *   explicit fetching requirements, only entity primary keys are returned.
+ *
+ * **Usage Example:**
+ *
+ * ```java
+ * // Using require constraints via QueryConstraints factory methods
+ * Query query = query(
+ *     collection("Product"),
+ *     filterBy(
+ *         and(
+ *             equals("visible", true),
+ *             priceBetween(100, 1000)
+ *         )
+ *     ),
+ *     orderBy(
+ *         priceDescending()
+ *     ),
+ *     require(
+ *         page(1, 20),
+ *         entityFetch(
+ *             attributeContent("code", "name"),
+ *             priceContentRespectingFilter(),
+ *             referenceContent("brand")
+ *         ),
+ *         facetSummary(COUNTS),
+ *         priceHistogram(20)
+ *     )
+ * );
+ * ```
+ *
+ * **Thread Safety:**
+ *
+ * All implementations of this interface must be immutable and therefore thread-safe. Require constraints are
+ * designed to be safely shared across multiple queries and threads without synchronization.
+ *
+ * @see io.evitadb.api.query.require.Require
+ * @see io.evitadb.api.query.QueryConstraints
+ * @see TypeDefiningConstraint
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 public interface RequireConstraint extends TypeDefiningConstraint<RequireConstraint> {
