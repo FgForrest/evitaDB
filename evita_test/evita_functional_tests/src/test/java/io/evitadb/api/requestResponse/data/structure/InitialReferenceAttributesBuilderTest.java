@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -38,55 +40,107 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for InitialReferenceAttributesBuilder built on top of shared InitialAttributesBuilderTest.
+ * Tests for InitialReferenceAttributesBuilder built on top
+ * of shared InitialAttributesBuilderTest.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-class InitialReferenceAttributesBuilderTest extends InitialAttributesBuilderTest {
+@DisplayName("InitialReferenceAttributesBuilder")
+class InitialReferenceAttributesBuilderTest
+	extends InitialAttributesBuilderTest {
+
 	@Override
 	protected InitialAttributesBuilder<?, ?> builder() {
 		return new InitialReferenceAttributesBuilder(
 			EntitySchema._internalBuild("whatever"),
-			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_MORE, null),
+			ReferencesBuilder.createImplicitSchema(
+				PRODUCT_SCHEMA,
+				"brand", "brand",
+				Cardinality.ZERO_OR_MORE, null
+			),
 			new HashMap<>(4)
 		);
 	}
 
 	@Override
-	protected Attributes<?> build(InitialAttributesBuilder<?, ?> builder) {
-		return ((InitialReferenceAttributesBuilder) builder).build();
+	protected Attributes<?> build(
+		InitialAttributesBuilder<?, ?> builder
+	) {
+		return ((InitialReferenceAttributesBuilder) builder)
+			.build();
 	}
 
-	@Test
-	void shouldDefineAttributeTypesAlongTheWay() {
-		final ReferenceAttributes attributes = ((InitialReferenceAttributesBuilder) builder()
-			.setAttribute("abc", 1)
-			.setAttribute("def", io.evitadb.dataType.IntegerNumberRange.between(4, 8))
-			.setAttribute("dd", new BigDecimal("1.123"))
-			.setAttribute("greetings", Locale.ENGLISH, "Hello")
-			.setAttribute("greetings", Locale.FRENCH, "Tschüss")
-		).build();
+	@Nested
+	@DisplayName("Schema validation")
+	class SchemaValidationTest {
 
-		final Set<String> names = attributes.getAttributeNames();
-		assertEquals(4, names.size());
-		assertTrue(names.contains("abc"));
-		assertTrue(names.contains("def"));
-		assertTrue(names.contains("dd"));
-		assertTrue(names.contains("greetings"));
+		@Test
+		@DisplayName(
+			"Should define attribute types along the way"
+		)
+		void shouldDefineAttributeTypesAlongTheWay() {
+			final ReferenceAttributes attributes =
+				((InitialReferenceAttributesBuilder) builder()
+					.setAttribute("abc", 1)
+					.setAttribute(
+						"def",
+						io.evitadb.dataType
+							.IntegerNumberRange
+							.between(4, 8)
+					)
+					.setAttribute(
+						"dd", new BigDecimal("1.123")
+					)
+					.setAttribute(
+						"greetings",
+						Locale.ENGLISH, "Hello"
+					)
+					.setAttribute(
+						"greetings",
+						Locale.FRENCH, "Tschüss"
+					)
+				).build();
 
-		assertEquals(
-			AttributeSchema._internalBuild("abc", Integer.class, false),
-			attributes.getAttributeSchema("abc").orElse(null)
-		);
-		assertEquals(
-			AttributeSchema._internalBuild("def", io.evitadb.dataType.IntegerNumberRange.class, false),
-			attributes.getAttributeSchema("def").orElse(null)
-		);
-		assertEquals(
-			AttributeSchema._internalBuild("dd", BigDecimal.class, false),
-			attributes.getAttributeSchema("dd").orElse(null)
-		);
-		assertEquals(
-			AttributeSchema._internalBuild("greetings", String.class, true),
-			attributes.getAttributeSchema("greetings").orElse(null)
-		);
+			final Set<String> names =
+				attributes.getAttributeNames();
+			assertEquals(4, names.size());
+			assertTrue(names.contains("abc"));
+			assertTrue(names.contains("def"));
+			assertTrue(names.contains("dd"));
+			assertTrue(names.contains("greetings"));
+
+			assertEquals(
+				AttributeSchema._internalBuild(
+					"abc", Integer.class, false
+				),
+				attributes.getAttributeSchema("abc")
+					.orElse(null)
+			);
+			assertEquals(
+				AttributeSchema._internalBuild(
+					"def",
+					io.evitadb.dataType
+						.IntegerNumberRange.class,
+					false
+				),
+				attributes.getAttributeSchema("def")
+					.orElse(null)
+			);
+			assertEquals(
+				AttributeSchema._internalBuild(
+					"dd", BigDecimal.class, false
+				),
+				attributes.getAttributeSchema("dd")
+					.orElse(null)
+			);
+			assertEquals(
+				AttributeSchema._internalBuild(
+					"greetings", String.class, true
+				),
+				attributes
+					.getAttributeSchema("greetings")
+					.orElse(null)
+			);
+		}
 	}
 }
