@@ -317,7 +317,7 @@ public class AssociatedData implements AssociatedDataContract {
 				.map(AssociatedDataValue::key)
 				.map(AssociatedDataKey::associatedDataName)
 				.filter(dataName -> this.associatedDataTypes.get(dataName) != null)
-				.collect(Collectors.toSet());
+				.collect(Collectors.toUnmodifiableSet());
 		}
 		return this.associatedDataNames;
 	}
@@ -348,7 +348,7 @@ public class AssociatedData implements AssociatedDataContract {
 				.values()
 				.stream()
 				.filter(ad -> this.associatedDataTypes.get(ad.key().associatedDataName()) != null)
-				.collect(Collectors.toList());
+				.toList();
 		}
 		return this.filteredAssociatedDataValues;
 	}
@@ -363,7 +363,7 @@ public class AssociatedData implements AssociatedDataContract {
 				.entrySet()
 				.stream().filter(it -> associatedDataName.equals(it.getKey().associatedDataName()))
 				.map(Entry::getValue)
-				.collect(Collectors.toList());
+				.toList();
 		}
 	}
 

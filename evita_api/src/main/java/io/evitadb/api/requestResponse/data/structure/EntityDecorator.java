@@ -1049,7 +1049,7 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
 		final AttributeKey attributeKey;
 		if (this.attributePredicate.isLocaleSet()) {
-			final Locale locale = this.attributePredicate.getLocale();
+			final Locale locale = this.attributePredicate.getRequestedLocale();
 			attributeKey = locale == null ?
 				new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		} else {
@@ -1204,7 +1204,7 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
 		final AssociatedDataKey associatedDataKey;
 		if (this.associatedDataPredicate.isLocaleSet()) {
-			final Locale locale = this.associatedDataPredicate.getLocale();
+			final Locale locale = this.associatedDataPredicate.getRequestedLocale();
 			associatedDataKey = locale == null ?
 				new AssociatedDataKey(associatedDataName) : new AssociatedDataKey(associatedDataName, locale);
 		} else {

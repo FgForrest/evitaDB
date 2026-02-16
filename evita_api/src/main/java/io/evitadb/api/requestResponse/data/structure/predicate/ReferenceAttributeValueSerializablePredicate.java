@@ -35,40 +35,80 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static java.util.Optional.ofNullable;
+
 /**
- * This predicate allows limiting number of attributes visible to the client based on query constraints.
+ * Serializable predicate that filters reference attributes based on query requirements.
+ *
+ * This predicate controls which attributes of entity references are visible to clients by filtering based on
+ * attribute names and locales specified in the reference-specific query constraints. Unlike
+ * {@link AttributeValueSerializablePredicate} which handles entity-level attributes, this predicate is scoped
+ * to attributes within a specific reference.
+ *
+ * The predicate supports:
+ * - Name-based filtering (specific attributes or all attributes within the reference)
+ * - Locale-based filtering (specific locales, implicit locale, or all locales)
+ * - Combined name + locale filtering for localized reference attributes
+ *
+ * Reference attributes are attributes attached to references (relationships between entities), not to entities
+ * themselves. For example, a "product -> category" reference might have a "priority" attribute on the reference.
+ *
+ * **Thread-safety**: This class is immutable and thread-safe.
+ *
+ * **No underlying predicate**: Unlike entity-level predicates, reference attribute predicates do not support
+ * the underlying predicate pattern, as they are already scoped to individual references.
+ *
+ * **Empty set semantics**: An empty `attributeSet` in `referenceAttributes` means "all attributes are allowed"
+ * when attributes are required. Similarly, an empty `locales` set means "all locales are allowed".
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ReferenceAttributeValueSerializablePredicate implements SerializablePredicate<AttributeValue> {
 	@Serial private static final long serialVersionUID = 2628834850476260927L;
 	/**
-	 * Contains information about single locale defined for the entity.
+	 * Single resolved locale for the reference, derived from `implicitLocale` or `locales` when exactly one locale
+	 * is present. Used for single-locale reference attribute access patterns. May be null if multiple locales are
+	 * requested.
 	 */
 	@Nullable @Getter private final Locale locale;
 	/**
-	 * Contains information about implicitly derived locale during entity fetch.
+	 * Implicitly derived locale determined from query context or defaults. Takes precedence over explicit locales
+	 * when evaluating localized reference attribute visibility. May be null if no implicit locale was derived.
 	 */
 	@Nullable @Getter private final Locale implicitLocale;
 	/**
-	 * Contains information about all attribute locales that has been fetched / requested for the entity.
+	 * Set of explicitly requested locales from the query. An empty set means all locales are allowed; null means
+	 * no locales were requested. Used in conjunction with `implicitLocale` for filtering localized reference
+	 * attributes.
 	 */
 	@Nullable private final Set<Locale> locales;
 	/**
-	 * Contains information about all attribute names that has been requested for the entity reference.
+	 * Attribute requirements specific to this reference, containing both the flag indicating whether attributes
+	 * are required and the set of specific attribute names (if any). Empty attribute set means all attributes
+	 * are allowed when attributes are required.
 	 */
 	@Nonnull @Getter private final AttributeRequest referenceAttributes;
 
+	/**
+	 * Package-private constructor for creating reference attribute predicates with specific configuration.
+	 *
+	 * Used by {@link ReferenceContractSerializablePredicate} to create predicates for individual references.
+	 * The single `locale` field is populated only when exactly one locale is specified.
+	 *
+	 * @param implicitLocale the implicit locale, if any
+	 * @param locales the set of explicitly requested locales, if any
+	 * @param referenceAttributes the attribute requirements for this reference
+	 */
 	ReferenceAttributeValueSerializablePredicate(
 		@Nullable Locale implicitLocale,
 		@Nullable Set<Locale> locales,
 		@Nonnull AttributeRequest referenceAttributes
 	) {
-		this.locale = Optional.ofNullable(implicitLocale)
+		// Derive single locale from implicit locale or single-element locale set
+		this.locale = ofNullable(implicitLocale)
 			.orElseGet(() -> locales != null && locales.size() == 1 ? locales.iterator().next() : null);
 		this.implicitLocale = implicitLocale;
 		this.locales = locales;
@@ -76,28 +116,48 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	}
 
 	/**
-	 * Returns true if the attributes were fetched along with the entity.
+	 * Checks whether any reference attributes were fetched with the reference.
+	 *
+	 * @return true if reference attributes are accessible (subject to name/locale filtering)
 	 */
 	public boolean wasFetched() {
 		return this.referenceAttributes.isRequiresEntityAttributes();
 	}
 
 	/**
-	 * Returns true if the attributes in specified locale were fetched along with the entity.
+	 * Checks whether reference attributes in the specified locale were fetched with the reference.
+	 *
+	 * An empty `locales` set means all locales were fetched; null means no locales were requested.
+	 *
+	 * @param locale the locale to check
+	 * @return true if reference attributes in this locale are accessible
 	 */
 	public boolean wasFetched(@Nonnull Locale locale) {
 		return this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale));
 	}
 
 	/**
-	 * Returns true if the attribute of particular name was fetched along with the entity.
+	 * Checks whether a reference attribute with the specified name was fetched with the reference.
+	 *
+	 * An empty attribute set in `referenceAttributes` means all attributes were fetched (when attributes are
+	 * required).
+	 *
+	 * @param attributeName the attribute name to check
+	 * @return true if the reference attribute is accessible
 	 */
 	public boolean wasFetched(@Nonnull String attributeName) {
 		return this.referenceAttributes.isRequiresEntityAttributes() && (this.referenceAttributes.attributeSet().isEmpty() || this.referenceAttributes.attributeSet().contains(attributeName));
 	}
 
 	/**
-	 * Returns true if the attribute of particular name was in specified locale were fetched along with the entity.
+	 * Checks whether a localized reference attribute with the specified name and locale was fetched with
+	 * the reference.
+	 *
+	 * Combines both attribute name and locale filtering logic.
+	 *
+	 * @param attributeName the attribute name to check
+	 * @param locale the locale to check
+	 * @return true if the localized reference attribute is accessible
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
 		return (this.referenceAttributes.isRequiresEntityAttributes() && (this.referenceAttributes.attributeSet().isEmpty() || this.referenceAttributes.attributeSet().contains(attributeName))) &&
@@ -105,7 +165,11 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	}
 
 	/**
-	 * Method verifies that the requested attribute was fetched with the entity.
+	 * Verifies that reference attributes were fetched with the reference, throwing an exception if not.
+	 *
+	 * This method should be called before accessing any reference attribute data to ensure the data is available.
+	 *
+	 * @throws ContextMissingException if no reference attributes were fetched with the reference
 	 */
 	public void checkFetched() throws ContextMissingException {
 		if (!this.referenceAttributes.isRequiresEntityAttributes()) {
@@ -114,7 +178,13 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	}
 
 	/**
-	 * Method verifies that the requested attribute was fetched with the entity.
+	 * Verifies that a specific reference attribute was fetched with the reference, throwing an exception if not.
+	 *
+	 * Checks both attribute name availability and locale availability (for localized attributes). This method
+	 * should be called before accessing specific reference attribute data to ensure the data is available.
+	 *
+	 * @param attributeKey the attribute key identifying the attribute by name and optionally locale
+	 * @throws ContextMissingException if the reference attribute or its locale was not fetched with the reference
 	 */
 	public void checkFetched(@Nonnull AttributeKey attributeKey) throws ContextMissingException {
 		if (!(this.referenceAttributes.isRequiresEntityAttributes() && (this.referenceAttributes.attributeSet().isEmpty() || this.referenceAttributes.attributeSet().contains(attributeKey.attributeName())))) {
@@ -133,10 +203,27 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 		}
 	}
 
+	/**
+	 * Checks whether any locale information is present in this predicate.
+	 *
+	 * @return true if locale, implicitLocale, or locales is set
+	 */
 	public boolean isLocaleSet() {
-		return this.locale != null || this.implicitLocale != null || this.locales != null;
+		return PredicateLocaleHelper.isLocaleSet(this.locale, this.implicitLocale, this.locales);
 	}
 
+	/**
+	 * Tests whether the given reference attribute value should be visible based on query requirements.
+	 *
+	 * A reference attribute passes the test if all of the following conditions are met:
+	 * - Reference attributes are required (`referenceAttributes.isRequiresEntityAttributes()` is true)
+	 * - The attribute exists (not dropped)
+	 * - The attribute name matches (if attribute set is non-empty)
+	 * - For localized attributes: the locale matches implicit locale, OR explicit locales are empty/contain it
+	 *
+	 * @param attributeValue the reference attribute value to test
+	 * @return true if the reference attribute should be visible to the client
+	 */
 	@Override
 	public boolean test(AttributeValue attributeValue) {
 		if (this.referenceAttributes.isRequiresEntityAttributes()) {

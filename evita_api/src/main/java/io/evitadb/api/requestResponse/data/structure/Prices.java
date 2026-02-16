@@ -65,11 +65,11 @@ import static java.util.Optional.ofNullable;
  * Entity prices container allows defining set of prices of the entity.
  * Attributes may be indexed for fast filtering ({@link Price#indexed()}). Prices are not automatically indexed
  * in order not to waste precious memory space for data that will never be used in search queries.
- * <p>
+ *
  * Filtering in prices is executed by using constraints like {@link io.evitadb.api.query.filter.PriceBetween},
  * {@link io.evitadb.api.query.filter.PriceValidIn}, {@link PriceInPriceLists} or
  * {@link QueryPriceMode}.
- * <p>
+ *
  * Class is immutable on purpose - we want to support caching the entities in a shared cache and accessed by many threads.
  * For altering the contents use {@link InitialPricesBuilder}.
  *
@@ -97,7 +97,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
 	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 	 * customers.
-	 * <p>
+	 *
 	 * Specifying prices on entity allows usage of {@link io.evitadb.api.query.filter.PriceValidIn},
 	 * {@link io.evitadb.api.query.filter.PriceBetween}, {@link QueryPriceMode}
 	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural},
@@ -330,7 +330,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		if (this.priceIndex.size() != otherPrices.priceIndex.size()) return true;
 
 		for (Entry<PriceKey, PriceContract> entry : this.priceIndex.entrySet()) {
-			final PriceContract otherPrice = otherPrices.getPrice(entry.getKey()).orElse(null);
+			final PriceContract otherPrice = otherPrices.getPriceWithoutSchemaCheck(entry.getKey()).orElse(null);
 			if (otherPrice == null || entry.getValue().differsFrom(otherPrice)) {
 				return true;
 			}

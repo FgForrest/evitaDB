@@ -54,7 +54,6 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.*;
@@ -2140,19 +2139,51 @@ class EvitaTest implements EvitaTestSupport {
 					.withAttribute("name", String.class, whichIs -> whichIs.localized())
 					.updateVia(session);
 
+				final Locale theLocale = new Locale("cs");
 				session.createNewEntity(Entities.PRODUCT, 1)
-					.setAttribute("name", new Locale("cs"), "Produkt 1")
+					.setAttribute("name", theLocale, "Produkt 1")
 					.upsertVia(session);
 
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent()).orElseThrow();
+				final SealedEntity product = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll()
+				).orElseThrow();
 
 				assertThrows(
 					ContextMissingException.class,
-					() -> ((Entity) ((EntityDecorator) product).getDelegate()).getAttribute("name")
+					() -> ((EntityDecorator) product).getDelegate().getAttribute("name")
 				);
 				assertThrows(
 					ContextMissingException.class,
-					() -> ((EntityDecorator) product).getAttribute("name")
+					() -> product.getAttribute("name")
+				);
+
+				final SealedEntity productWithAllLocalesFetched = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll(), dataInLocalesAll()
+				).orElseThrow();
+
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((EntityDecorator) productWithAllLocalesFetched).getDelegate().getAttribute("name")
+				);
+				assertThrows(
+					ContextMissingException.class,
+					() -> productWithAllLocalesFetched.getAttribute("name")
+				);
+
+				final SealedEntity productWithSingleLocaleFetched = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll(), dataInLocales(theLocale)
+				).orElseThrow();
+
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((EntityDecorator) productWithAllLocalesFetched).getDelegate().getAttribute("name")
+				);
+				assertEquals(
+					"Produkt 1",
+					productWithSingleLocaleFetched.getAttribute("name")
 				);
 			}
 		);

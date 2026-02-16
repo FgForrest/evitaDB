@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
 import io.evitadb.utils.Assert;
@@ -43,13 +42,30 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
 /**
- * This predicate allows limiting number of attributes visible to the client based on query constraints.
+ * Serializable predicate that filters entity attributes based on query requirements.
+ *
+ * This predicate controls which attributes are visible to clients by filtering based on attribute names and
+ * locales specified in the query. It supports:
+ * - Name-based filtering (specific attributes or all attributes)
+ * - Locale-based filtering (specific locales, implicit locale, or all locales)
+ * - Combined name + locale filtering for localized attributes
+ *
+ * The predicate is used by {@link EntityDecorator} to ensure that only requested attributes are exposed in
+ * entity data, even when the underlying cached entity contains additional attributes. This enables efficient
+ * entity caching while maintaining query-specific data visibility contracts.
+ *
+ * **Thread-safety**: This class is immutable and thread-safe.
+ *
+ * **Underlying predicate pattern**: Supports an optional underlying predicate that represents the original entity's
+ * complete attribute scope. This pattern is used when creating limited views from fully-fetched entities.
+ *
+ * **Empty set semantics**: An empty `attributeSet` means "all attributes are allowed" when `requiresEntityAttributes`
+ * is true. Similarly, an empty `locales` set means "all locales are allowed".
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -57,45 +73,63 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	public static final AttributeValueSerializablePredicate DEFAULT_INSTANCE = new AttributeValueSerializablePredicate(null, null, Collections.emptySet(), Collections.emptySet(), true);
 	@Serial private static final long serialVersionUID = 2628834850476260927L;
 	/**
-	 * Contains information about single locale defined for the entity.
+	 * Single resolved locale for the entity, derived from `implicitLocale` or `locales` when exactly one locale
+	 * is present. Used for single-locale entity access patterns. May be null if multiple locales are requested.
 	 */
 	@Nullable @Getter private final Locale locale;
 	/**
-	 * Contains information about implicitly derived locale during entity fetch.
+	 * Implicitly derived locale determined from query context or defaults. Takes precedence over explicit locales
+	 * when evaluating localized attribute visibility. May be null if no implicit locale was derived.
 	 */
 	@Nullable @Getter private final Locale implicitLocale;
 	/**
-	 * Contains information about all attribute locales that has been fetched / requested for the entity.
+	 * Set of explicitly requested locales from the query. An empty set means all locales are allowed; null means
+	 * no locales were requested. Used in conjunction with `implicitLocale` for filtering localized attributes.
 	 */
 	@Nullable private final Set<Locale> locales;
 	/**
-	 * Contains information about all attribute names that has been fetched / requested for the entity.
+	 * Set of explicitly requested attribute names from the query. An empty set means all attributes are allowed
+	 * (when `requiresEntityAttributes` is true); otherwise specific attributes are filtered by name.
 	 */
 	@Nonnull @Getter private final Set<String> attributeSet;
 	/**
-	 * Contains true if any of the attributes of the entity has been fetched / requested.
+	 * Indicates whether any attributes were requested with the entity. When false, all attribute access will fail.
+	 * When true, attributes are accessible subject to name and locale filtering.
 	 */
 	@Getter private final boolean requiresEntityAttributes;
 	/**
-	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
-	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}
-	 * is invoked on the entity.
+	 * Optional underlying predicate representing the complete entity's attribute scope. Used when creating
+	 * limited views from fully-fetched entities via
+	 * {@link io.evitadb.api.EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}.
+	 * Must not be nested (only one level allowed).
 	 */
 	@Nullable @Getter private final AttributeValueSerializablePredicate underlyingPredicate;
 
+	/**
+	 * Creates a default predicate with attribute access disabled.
+	 */
 	public AttributeValueSerializablePredicate() {
 		this.requiresEntityAttributes = false;
 		this.attributeSet = Collections.emptySet();
 		this.locale = null;
-		this.implicitLocale  = null;
+		this.implicitLocale = null;
 		this.locales = null;
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates an attribute predicate from an Evita request.
+	 *
+	 * Extracts attribute name requirements, locale requirements, and derives the single locale if applicable.
+	 * The single `locale` field is populated only when exactly one locale is specified (either implicitly or
+	 * explicitly), enabling optimized single-locale access patterns.
+	 *
+	 * @param evitaRequest the request containing attribute and locale requirements
+	 */
 	public AttributeValueSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
+		// Derive single locale from implicit locale, explicit locale, or single-element locale set
 		this.locale = ofNullable(this.implicitLocale)
 			.orElseGet(
 				() -> ofNullable(evitaRequest.getLocale())
@@ -106,6 +140,16 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates an attribute predicate with an underlying predicate for entity limitation scenarios.
+	 *
+	 * This constructor is used when applying additional restrictions to an already-fetched entity
+	 * (e.g., when calling `limitEntity`). The underlying predicate preserves the original fetch scope.
+	 *
+	 * @param evitaRequest the request containing new attribute and locale requirements
+	 * @param underlyingPredicate the predicate representing the original entity's complete attribute scope
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if underlyingPredicate is already nested
+	 */
 	public AttributeValueSerializablePredicate(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull AttributeValueSerializablePredicate underlyingPredicate
@@ -118,6 +162,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		);
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
+		// Derive single locale from implicit locale, explicit locale, or single-element locale set
 		this.locale = ofNullable(this.implicitLocale)
 			.orElseGet(
 				() -> ofNullable(evitaRequest.getLocale())
@@ -128,6 +173,17 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		this.underlyingPredicate = underlyingPredicate;
 	}
 
+	/**
+	 * Package-private constructor for creating predicates with specific attribute and locale configuration.
+	 *
+	 * Used internally for creating enriched copies via {@link #createRicherCopyWith(EvitaRequest)}.
+	 *
+	 * @param implicitLocale the implicit locale, if any
+	 * @param locale the single resolved locale, if exactly one locale is specified
+	 * @param locales the set of explicitly requested locales, if any
+	 * @param attributeSet the set of attribute names to include
+	 * @param requiresEntityAttributes whether attributes are required at all
+	 */
 	AttributeValueSerializablePredicate(
 		@Nullable Locale implicitLocale,
 		@Nullable Locale locale,
@@ -144,28 +200,46 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	}
 
 	/**
-	 * Returns true if the attributes were fetched along with the entity.
+	 * Checks whether any attributes were fetched with the entity.
+	 *
+	 * @return true if attributes are accessible (subject to name/locale filtering)
 	 */
 	public boolean wasFetched() {
 		return this.requiresEntityAttributes;
 	}
 
 	/**
-	 * Returns true if the attributes in specified locale were fetched along with the entity.
+	 * Checks whether attributes in the specified locale were fetched with the entity.
+	 *
+	 * An empty `locales` set means all locales were fetched; null means no locales were requested.
+	 *
+	 * @param locale the locale to check
+	 * @return true if attributes in this locale are accessible
 	 */
 	public boolean wasFetched(@Nonnull Locale locale) {
 		return this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale));
 	}
 
 	/**
-	 * Returns true if the attribute of particular name was fetched along with the entity.
+	 * Checks whether an attribute with the specified name was fetched with the entity.
+	 *
+	 * An empty `attributeSet` means all attributes were fetched (when `requiresEntityAttributes` is true).
+	 *
+	 * @param attributeName the attribute name to check
+	 * @return true if the attribute is accessible
 	 */
 	public boolean wasFetched(@Nonnull String attributeName) {
 		return this.requiresEntityAttributes && (this.attributeSet.isEmpty() || this.attributeSet.contains(attributeName));
 	}
 
 	/**
-	 * Returns true if the attribute of particular name was in specified locale were fetched along with the entity.
+	 * Checks whether a localized attribute with the specified name and locale was fetched with the entity.
+	 *
+	 * Combines both attribute name and locale filtering logic.
+	 *
+	 * @param attributeName the attribute name to check
+	 * @param locale the locale to check
+	 * @return true if the localized attribute is accessible
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
 		return (this.requiresEntityAttributes && (this.attributeSet.isEmpty() || this.attributeSet.contains(attributeName))) &&
@@ -173,7 +247,11 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	}
 
 	/**
-	 * Method verifies that attributes were fetched with the entity.
+	 * Verifies that attributes were fetched with the entity, throwing an exception if not.
+	 *
+	 * This method should be called before accessing any attribute data to ensure the data is available.
+	 *
+	 * @throws ContextMissingException if no attributes were fetched with the entity
 	 */
 	public void checkFetched() throws ContextMissingException {
 		if (!this.requiresEntityAttributes) {
@@ -182,7 +260,13 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	}
 
 	/**
-	 * Method verifies that the requested attribute was fetched with the entity.
+	 * Verifies that a specific attribute was fetched with the entity, throwing an exception if not.
+	 *
+	 * Checks both attribute name availability and locale availability (for localized attributes).
+	 * This method should be called before accessing specific attribute data to ensure the data is available.
+	 *
+	 * @param attributeKey the attribute key identifying the attribute by name and optionally locale
+	 * @throws ContextMissingException if the attribute or its locale was not fetched with the entity
 	 */
 	public void checkFetched(@Nonnull AttributeKey attributeKey) throws ContextMissingException {
 		if (!(this.requiresEntityAttributes && (this.attributeSet.isEmpty() || this.attributeSet.contains(attributeKey.attributeName())))) {
@@ -201,10 +285,27 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		}
 	}
 
+	/**
+	 * Checks whether any locale information is present in this predicate.
+	 *
+	 * @return true if locale, implicitLocale, or locales is set
+	 */
 	public boolean isLocaleSet() {
-		return this.locale != null || this.implicitLocale != null || this.locales != null;
+		return PredicateLocaleHelper.isLocaleSet(this.locale, this.implicitLocale, this.locales);
 	}
 
+	/**
+	 * Tests whether the given attribute value should be visible based on query requirements.
+	 *
+	 * An attribute passes the test if all of the following conditions are met:
+	 * - Attributes are required (`requiresEntityAttributes` is true)
+	 * - The attribute exists (not dropped)
+	 * - The attribute name matches (if `attributeSet` is non-empty)
+	 * - For localized attributes: the locale matches implicit locale, OR explicit locales are empty/contain it
+	 *
+	 * @param attributeValue the attribute value to test
+	 * @return true if the attribute should be visible to the client
+	 */
 	@Override
 	public boolean test(AttributeValue attributeValue) {
 		if (this.requiresEntityAttributes) {
@@ -222,15 +323,27 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		}
 	}
 
+	/**
+	 * Creates an enriched copy that combines this predicate's attribute scope with additional requirements.
+	 *
+	 * This method is used when progressively enriching an entity with more data. If the new request doesn't
+	 * add any new attribute or locale requirements, returns this instance for efficiency. The implicit locale
+	 * cannot change between enrichments.
+	 *
+	 * Enrichment logic:
+	 * - Attributes: Union of existing and new attribute sets (empty set dominates as "all attributes")
+	 * - Locales: Union of existing and new locale sets
+	 * - RequiresAttributes: OR logic (once true, stays true)
+	 *
+	 * @param evitaRequest the request containing additional attribute and locale requirements to merge
+	 * @return an enriched predicate, or this instance if no changes are needed
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if implicit locales differ
+	 */
+	@Nonnull
 	public AttributeValueSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		final Set<Locale> requiredLocales = combineLocales(evitaRequest);
+		final Set<Locale> requiredLocales = PredicateLocaleHelper.combineLocales(this.locales, evitaRequest);
 		final Set<String> requiredAttributeSet = combineAttributes(evitaRequest);
-		Assert.isPremiseValid(
-			evitaRequest.getImplicitLocale() == null ||
-				this.implicitLocale == null ||
-				Objects.equals(this.implicitLocale, evitaRequest.getImplicitLocale()),
-			"Implicit locales cannot differ (`" + this.implicitLocale + "` vs. `" + evitaRequest.getImplicitLocale() + "`)!"
-		);
+		PredicateLocaleHelper.assertImplicitLocalesConsistent(this.implicitLocale, evitaRequest);
 
 		if ((this.requiresEntityAttributes || this.requiresEntityAttributes == evitaRequest.isRequiresEntityAttributes()) &&
 			Objects.equals(this.locales, requiredLocales) &&
@@ -238,16 +351,9 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 			(Objects.equals(this.implicitLocale, evitaRequest.getImplicitLocale()) || evitaRequest.getImplicitLocale() == null)) {
 			return this;
 		} else {
-			final Locale resultImplicitLocale = this.implicitLocale == null ? evitaRequest.getImplicitLocale() : this.implicitLocale;
-			final Locale resultLocale = this.locale == null ?
-				ofNullable(evitaRequest.getImplicitLocale())
-					.orElseGet(
-						() -> ofNullable(evitaRequest.getLocale())
-							.orElseGet(() -> evitaRequest.getRequiredLocales() != null && evitaRequest.getRequiredLocales().size() == 1 ? evitaRequest.getRequiredLocales().iterator().next() : null)
-					) : this.locale;
 			return new AttributeValueSerializablePredicate(
-				resultImplicitLocale,
-				resultLocale,
+				PredicateLocaleHelper.resolveImplicitLocale(this.implicitLocale, evitaRequest),
+				PredicateLocaleHelper.resolveLocale(this.locale, evitaRequest),
 				requiredLocales,
 				requiredAttributeSet,
 				evitaRequest.isRequiresEntityAttributes() || this.requiresEntityAttributes
@@ -255,30 +361,52 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		}
 	}
 
+	/**
+	 * Returns all locales available in this predicate (implicit + explicit).
+	 *
+	 * Combines implicit locale with the explicit locale set for a complete view of all accessible locales.
+	 *
+	 * @return a set of all locales, or null if no locales are defined
+	 */
 	@Nullable
 	public Set<Locale> getAllLocales() {
-		if (this.implicitLocale != null && this.locales == null) {
-			return Set.of(this.implicitLocale);
-		} else if (this.implicitLocale != null) {
-			return Stream.concat(
-				Stream.of(this.implicitLocale),
-				this.locales.stream()
-			).collect(Collectors.toSet());
-		} else {
-			return this.locales;
-		}
+		return PredicateLocaleHelper.getAllLocales(this.implicitLocale, this.locales);
 	}
 
+	/**
+	 * Returns the single requested locale, or null if none or multiple locales are set.
+	 *
+	 * This method is used when the client expects exactly one locale to be present. The locale is derived from
+	 * (in priority order): `locale`, `implicitLocale`, or single-element `locales` set.
+	 *
+	 * @return the single requested locale or null
+	 */
+	@Nullable
+	public Locale getRequestedLocale() {
+		return PredicateLocaleHelper.getRequestedLocale(this.locale, this.implicitLocale, this.locales);
+	}
+
+	/**
+	 * Combines existing attribute names with newly requested attributes from an Evita request.
+	 *
+	 * If either set is empty (meaning "all attributes"), the empty set is preserved. Otherwise, both sets
+	 * are merged to form a union.
+	 *
+	 * @param evitaRequest the request containing potentially new attribute requirements
+	 * @return the combined set of attribute names
+	 */
+	@Nonnull
 	private Set<String> combineAttributes(@Nonnull EvitaRequest evitaRequest) {
 		Set<String> requiredAttributeSet;
 		final Set<String> newlyRequiredAttributeSet = evitaRequest.getEntityAttributeSet();
 		if (this.requiresEntityAttributes && evitaRequest.isRequiresEntityAttributes()) {
+			// Both require attributes — merge sets (empty set means "all" and dominates)
 			if (this.attributeSet.isEmpty()) {
 				requiredAttributeSet = this.attributeSet;
 			} else if (newlyRequiredAttributeSet.isEmpty()) {
 				requiredAttributeSet = newlyRequiredAttributeSet;
 			} else {
-				requiredAttributeSet = new HashSet<>(this.attributeSet.size(), newlyRequiredAttributeSet.size());
+				requiredAttributeSet = new HashSet<>(this.attributeSet.size() + newlyRequiredAttributeSet.size());
 				requiredAttributeSet.addAll(this.attributeSet);
 				requiredAttributeSet.addAll(newlyRequiredAttributeSet);
 			}
@@ -290,19 +418,4 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		return requiredAttributeSet;
 	}
 
-	@Nullable
-	private Set<Locale> combineLocales(@Nonnull EvitaRequest evitaRequest) {
-		final Set<Locale> requiredLanguages;
-		final Set<Locale> newlyRequiredLanguages = evitaRequest.getRequiredLocales();
-		if (this.locales == null) {
-			requiredLanguages = newlyRequiredLanguages;
-		} else if (newlyRequiredLanguages != null) {
-			requiredLanguages = new HashSet<>(this.locales.size() + newlyRequiredLanguages.size());
-			requiredLanguages.addAll(this.locales);
-			requiredLanguages.addAll(newlyRequiredLanguages);
-		} else {
-			requiredLanguages = this.locales;
-		}
-		return requiredLanguages;
-	}
 }

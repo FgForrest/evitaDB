@@ -55,8 +55,17 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
@@ -68,7 +77,7 @@ import static java.util.Optional.ofNullable;
  * References refer to other entities (of same or different entity type).
  * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
  * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
- * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
+ * is uniquely represented by int positive number (max. 2^63-1) and {@link Serializable} entity type and can be
  * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
  *
  * Reference id in one entity is unique and belongs to single reference group id. Among multiple entities reference may be part
@@ -141,7 +150,8 @@ public class References implements ReferencesContract {
 	private final ChunkTransformerAccessor referenceChunkTransformer;
 
 	/**
-	 * Creates mock instance of reference contract that
+	 * Creates a mock instance of reference contract that throws
+	 * on any method call, used as a marker for duplicate references.
 	 */
 	@Nonnull
 	private static ReferenceContract createThrowingStub() {
@@ -206,7 +216,7 @@ public class References implements ReferencesContract {
 		this.initialReferences = references;
 		// this doesn't make copy of the original array, but is made unmodifiable to avoid external changes
 		this.referenceCollection = Collections.unmodifiableCollection(Arrays.asList(references));
-		// this quite ugly part is necessary so that we can propely handle references that allow duplicates
+		// this quite ugly part is necessary so that we can properly handle references that allow duplicates
 		// i.e. references with same ReferenceKey, that are distinguished only by their set of attributes
 		Map<ReferenceKey, ReferenceContract> indexedReferences = references.length == 0 ? null : CollectionUtils.createHashMap(references.length);
 		Map<ReferenceKey, List<ReferenceContract>> duplicatedIndexedReferences = null;
