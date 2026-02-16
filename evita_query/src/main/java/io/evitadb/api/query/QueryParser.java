@@ -33,8 +33,114 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Transforms string representation of EvitaQL queries to actual objects.
+ * Interface for parsing string representations of EvitaQL (evitaDB Query Language) into executable query constraint
+ * objects. This parser acts as the bridge between the human-readable text-based query language and the internal
+ * Java object representation used by the query engine.
  *
+ * EvitaQL is a functional query language with a syntax similar to function calls, designed to be concise and
+ * expressive for filtering, ordering, and configuring entity queries. The parser transforms EvitaQL strings into
+ * immutable constraint trees that can be executed by the evitaDB query engine.
+ *
+ * **Design Context:**
+ *
+ * This interface defines the contract for all EvitaQL parsers in evitaDB. The default implementation
+ * ({@link io.evitadb.api.query.parser.DefaultQueryParser}) uses ANTLR4-generated lexer and parser to process
+ * EvitaQL syntax. The parser supports two modes:
+ *
+ * - **Safe mode** (default): Requires all query values to be provided via parameters (positional or named).
+ *   Value literals are forbidden to prevent injection attacks. Use the standard `parseQuery` methods.
+ * - **Unsafe mode**: Allows value literals directly in the query string. This mode is convenient for prototyping
+ *   and testing but should **never** be used with user-provided input in production. Use the `parseQueryUnsafe`
+ *   methods.
+ *
+ * **Supported Parse Operations:**
+ *
+ * The parser supports parsing at multiple granularities:
+ *
+ * 1. **Complete queries** (`parseQuery`): Parses a full EvitaQL query including head, filter, order, and require
+ *    sections.
+ * 2. **Constraint lists** (`parseHeadConstraintList`, `parseFilterConstraintList`, etc.): Parses a list of
+ *    constraints of a specific type without wrapping containers.
+ * 3. **Wrapped constraints** (`parseFilterConstraint`, `parseOrderConstraint`, etc.): Parses constraint lists
+ *    and wraps them in their respective container types (`FilterBy`, `OrderBy`, `Require`).
+ * 4. **Scalar values** (`parseValue`): Parses individual values from EvitaQL syntax.
+ *
+ * **Parameter Substitution:**
+ *
+ * To prevent injection attacks and improve query reusability, EvitaQL supports parameterized queries:
+ *
+ * - **Positional parameters**: Specified with `?` placeholders, replaced by arguments in order.
+ *   Example: `filterBy(equals('code', ?))`
+ * - **Named parameters**: Specified with `@paramName` syntax, replaced by values from a map.
+ *   Example: `filterBy(equals('code', @productCode))`
+ *
+ * Parameters can be combined in a single query, allowing flexible query construction.
+ *
+ * **Safe vs. Unsafe Parsing:**
+ *
+ * In **safe mode**, the following query is **rejected** (throws an exception):
+ * ```
+ * filterBy(equals('code', 'PRODUCT-123'))  // Literal 'PRODUCT-123' is forbidden
+ * ```
+ *
+ * The safe equivalent uses parameters:
+ * ```java
+ * parser.parseQuery("filterBy(equals('code', ?))", "PRODUCT-123");
+ * ```
+ *
+ * In **unsafe mode**, literals are allowed:
+ * ```java
+ * parser.parseQueryUnsafe("filterBy(equals('code', 'PRODUCT-123'))");
+ * ```
+ *
+ * **Thread Safety:**
+ *
+ * Implementations of this interface (such as `DefaultQueryParser`) are required to be thread-safe. Parsing
+ * operations do not modify parser state, allowing concurrent parsing from multiple threads.
+ *
+ * **Usage Example:**
+ *
+ * ```java
+ * QueryParser parser = DefaultQueryParser.getInstance();
+ *
+ * // Parse a complete query with positional parameters
+ * Query query = parser.parseQuery(
+ *     "query(collection('Product'), filterBy(equals('visible', ?)), orderBy(descending('priority')))",
+ *     true
+ * );
+ *
+ * // Parse a filter constraint list with named parameters
+ * List<FilterConstraint> filters = parser.parseFilterConstraintList(
+ *     "equals('code', @code), greaterThan('price', @minPrice)",
+ *     Map.of("code", "ABC", "minPrice", 100)
+ * );
+ *
+ * // Parse and wrap in FilterBy container
+ * FilterBy filterBy = parser.parseFilterConstraint(
+ *     "equals('visible', ?), priceBetween(?, ?)",
+ *     true, 100, 1000
+ * );
+ * ```
+ *
+ * **Error Handling:**
+ *
+ * Parsing errors result in exceptions that indicate the syntax error location and nature. The default parser
+ * uses ANTLR4's {@link org.antlr.v4.runtime.BailErrorStrategy}, which immediately throws an exception on the
+ * first syntax error without attempting recovery.
+ *
+ * **Performance Considerations:**
+ *
+ * Parsing is a relatively expensive operation compared to executing pre-built constraint trees. For frequently
+ * executed queries, consider:
+ *
+ * - Parsing once and reusing the resulting constraint tree.
+ * - Using the {@link QueryConstraints} factory methods directly instead of parsing strings.
+ * - Caching parsed queries when parameterization allows.
+ *
+ * @see Query
+ * @see QueryConstraints
+ * @see io.evitadb.api.query.parser.DefaultQueryParser
+ * @see io.evitadb.api.query.parser.ParseMode
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
 public interface QueryParser {

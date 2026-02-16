@@ -52,10 +52,106 @@ import java.util.Objects;
 import static java.util.Optional.ofNullable;
 
 /**
- * Factory class for creating {@link Constraint} instances.
- * This factory class is handy so that developer doesn't need to remember all possible query variants and could
- * easily construct queries similar to textual format of the EQL.
+ * Factory interface providing static factory methods for constructing evitaDB query constraints. This interface serves
+ * as the primary API for building type-safe queries in Java, offering an ergonomic alternative to constructing
+ * constraint objects directly.
  *
+ * The factory methods in this interface mirror the structure and naming conventions of EvitaQL (evitaDB Query Language),
+ * the string-based query language for evitaDB. This design allows developers to write queries in Java that closely
+ * resemble their EvitaQL counterparts, improving readability and reducing the mental mapping between the two forms.
+ *
+ * **Design Rationale:**
+ *
+ * evitaDB queries are built from immutable constraint trees. While constraint objects can be instantiated directly
+ * via constructors, this interface provides several advantages:
+ *
+ * - **Discoverability**: IDE auto-completion reveals all available constraints when importing static methods from
+ *   this interface.
+ * - **Readability**: Method names match EvitaQL syntax, making queries self-documenting.
+ * - **Type Safety**: Factory methods enforce correct argument types at compile time.
+ * - **Null Handling**: Many factory methods return `null` when given null or empty arguments, allowing queries to
+ *   be built conditionally without explicit null checks.
+ * - **Consistency**: Provides a uniform API across all constraint types (head, filter, order, require).
+ *
+ * **Usage Pattern:**
+ *
+ * This interface is typically used via static imports in application code:
+ *
+ * ```java
+ * import static io.evitadb.api.query.QueryConstraints.*;
+ *
+ * Query query = query(
+ *     collection("Product"),
+ *     filterBy(
+ *         and(
+ *             equals("visible", true),
+ *             or(
+ *                 equals("code", "PROD-123"),
+ *                 startsWith("name", "Smart")
+ *             ),
+ *             priceBetween(100, 1000)
+ *         )
+ *     ),
+ *     orderBy(
+ *         descending("priority"),
+ *         priceDescending()
+ *     ),
+ *     require(
+ *         page(1, 20),
+ *         entityFetch(
+ *             attributeContent("code", "name", "description"),
+ *             priceContentRespectingFilter()
+ *         ),
+ *         facetSummary()
+ *     )
+ * );
+ * ```
+ *
+ * **Constraint Categories:**
+ *
+ * The factory methods are organized into four primary categories matching the structure of evitaDB queries:
+ *
+ * 1. **Head Constraints** (`head`, `collection`, `label`): Define the target entity collection and query metadata.
+ * 2. **Filter Constraints** (`filterBy`, `and`, `or`, `not`, `equals`, `greaterThan`, etc.): Define which entities
+ *    are included in results.
+ * 3. **Order Constraints** (`orderBy`, `ascending`, `descending`, `priceAscending`, etc.): Define result ordering.
+ * 4. **Require Constraints** (`require`, `entityFetch`, `page`, `facetSummary`, etc.): Define what data is fetched
+ *    and what extra computations are performed.
+ *
+ * **Key Behavioral Contracts:**
+ *
+ * - **Immutability**: All constraint objects returned by these factory methods are immutable. Modifying a query
+ *   requires constructing a new constraint tree.
+ * - **Null Tolerance**: Many factory methods accept nullable arguments and return `null` when constraints cannot
+ *   be meaningfully constructed (e.g., when all arguments are null or empty). This allows for fluent conditional
+ *   query building.
+ * - **Validation**: Factory methods perform basic validation (e.g., non-null checks for mandatory parameters) but
+ *   do not validate against schema — schema validation occurs at query execution time.
+ * - **Varargs Support**: Container constraints typically accept varargs, allowing flexible composition without
+ *   explicit array construction.
+ *
+ * **Thread Safety:**
+ *
+ * This interface is stateless and all factory methods are thread-safe. The constraint objects they produce are
+ * immutable and can be safely shared across threads.
+ *
+ * **Relationship to EvitaQL:**
+ *
+ * EvitaQL is the string-based query language parsed via {@link QueryParser}. The factory methods in this interface
+ * provide the programmatic equivalent. For example:
+ *
+ * - EvitaQL: `filterBy(equals('code', 'ABC'))`
+ * - Java: `filterBy(equals("code", "ABC"))`
+ *
+ * Both produce identical constraint trees internally.
+ *
+ * @see Query
+ * @see Constraint
+ * @see FilterConstraint
+ * @see OrderConstraint
+ * @see RequireConstraint
+ * @see HeadConstraint
+ * @see QueryParser
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @SuppressWarnings({"DataFlowIssue", "ConstantValue"})
