@@ -36,23 +36,38 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `head` is container for introducing multiple head constraints in query header. It's usually not necessary to use,
- * because the query header can contain directly {@link Collection} constraint. But if you want to tag the query for
- * further investigation with some custom labels, you'd need this container, since {@link Label} constraint is allowed
- * only in the header part of the query.
+ * The `head` container groups multiple head constraints (collection + labels) in the query header section.
+ *
+ * This container is usually not necessary when only the {@link Collection} constraint is needed — in such cases,
+ * the collection can appear directly in the query without wrapping it in `head()`. However, the `head` container
+ * becomes necessary when you want to tag the query with custom labels via {@link Label} constraints alongside
+ * the collection specification, since labels are only allowed in the header part of the query.
+ *
+ * The header is one of four logical parts that constitute an evitaDB query:
+ * 1. **Header** (head) — specifies the target entity collection and optional query labels
+ * 2. **Filter** (filterBy) — constraints limiting which entities are returned
+ * 3. **Order** (orderBy) — defines the sequence of returned entities
+ * 4. **Require** (require) — additional processing instructions (data fetching, statistics, pagination)
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
- *     head(
- *        collection("product"),
- *        label("query-name", "List all products")
- *     )
+ *    head(
+ *       collection('Product'),
+ *       label('query-name', 'List all products'),
+ *       label('page-url', '/products')
+ *    ),
+ *    filterBy(
+ *       attributeEquals('visible', true)
+ *    )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/header/header#head">Visit detailed user documentation</a></p>
+ * The container accepts any number of {@link HeadConstraint} children but typically contains one {@link Collection}
+ * and zero or more {@link Label} constraints.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/header/header#head)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2024
  */
@@ -69,6 +84,10 @@ public class Head extends AbstractHeadConstraintContainer implements GenericCons
 		super(children);
 	}
 
+	/**
+	 * Creates a copy of this head container with the given children. Throws if any additional children
+	 * are provided, since the head container does not support them.
+	 */
 	@Nonnull
 	@Override
 	public HeadConstraint getCopyWithNewChildren(@Nonnull HeadConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
@@ -79,6 +98,9 @@ public class Head extends AbstractHeadConstraintContainer implements GenericCons
 		return new Head(children);
 	}
 
+	/**
+	 * Not supported — the head container accepts no arguments. Always throws {@link UnsupportedOperationException}.
+	 */
 	@Nonnull
 	@Override
 	public HeadConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
