@@ -34,8 +34,8 @@ import javax.annotation.Nonnull;
 import java.util.function.Supplier;
 
 /**
- * Executes parsing function with thread local {@link ParseContext} with client metadata. This executor must be used
- * for all parsing functions that require access to {@link ParseContext}.
+ * Executes parsing function with thread local {@link ParseContext} with client metadata. This executor must be
+ * used for all parsing functions that require access to {@link ParseContext}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -44,6 +44,11 @@ public class ParserExecutor {
 
 	private static final ThreadLocal<ParseContext> CONTEXT = new ThreadLocal<>();
 
+	/**
+	 * Executes the given parsing supplier within a thread-local parse context. The context is set before execution
+	 * and cleaned up in the finally block. Syntax errors are rethrown directly, while other exceptions are wrapped
+	 * in {@link GenericEvitaInternalError}.
+	 */
 	@Nonnull
 	public static <T> T execute(@Nonnull ParseContext context, @Nonnull Supplier<T> executable) {
 		try {
@@ -61,16 +66,27 @@ public class ParserExecutor {
 			if (cause instanceof EvitaSyntaxException evitaSyntaxException) {
 				throw evitaSyntaxException;
 			} else {
-				// probably missed to wrap error with EvitaQL error, therefore it should be checked
-				throw new GenericEvitaInternalError(cause.getMessage(), "Internal error occurred during query parsing.", cause);
+				throw new GenericEvitaInternalError(
+					cause != null ? cause.getMessage() : e.getMessage(),
+					"Internal error occurred during query parsing.",
+					cause != null ? cause : e
+				);
 			}
 		} catch (Exception e) {
-			throw new GenericEvitaInternalError(e.getMessage(), "Internal error occurred during query parsing.", e);
+			throw new GenericEvitaInternalError(
+				e.getMessage(),
+				"Internal error occurred during query parsing.",
+				e
+			);
 		} finally {
 			CONTEXT.remove();
 		}
 	}
 
+	/**
+	 * Returns the current thread-local parse context. Must be called from within an active
+	 * {@link #execute} invocation.
+	 */
 	@Nonnull
 	public static ParseContext getContext() {
 		final ParseContext context = CONTEXT.get();

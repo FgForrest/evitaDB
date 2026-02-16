@@ -46,445 +46,670 @@ import java.util.Map;
 /**
  * Implementation of {@link QueryParser} using ANTLR4 parser and lexer.
  *
- * <b>Note: </b>the generated ANTLR4 parser is set to not to recover from syntax errors using {@link BailErrorStrategy}
- * so an exception is immediately thrown.
+ * **Note:** the generated ANTLR4 parser is set to not recover from syntax errors using
+ * {@link BailErrorStrategy} so an exception is immediately thrown.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
 public class DefaultQueryParser implements QueryParser {
-    private static final DefaultQueryParser INSTANCE = new DefaultQueryParser();
-
-    private final EvitaQLQueryVisitor queryVisitor = new EvitaQLQueryVisitor();
-    private final EvitaQLHeadConstraintListVisitor headConstraintListVisitor = new EvitaQLHeadConstraintListVisitor();
-    private final EvitaQLFilterConstraintListVisitor filterConstraintListVisitor = new EvitaQLFilterConstraintListVisitor();
-    private final EvitaQLOrderConstraintListVisitor orderConstraintListVisitor = new EvitaQLOrderConstraintListVisitor();
-    private final EvitaQLRequireConstraintListVisitor requireConstraintListVisitor = new EvitaQLRequireConstraintListVisitor();
-    private final EvitaQLValueTokenVisitor valueTokenVisitor = EvitaQLValueTokenVisitor.withAllDataTypesAllowed();
-
-    /**
-     * @return thread safe instance of this class
-     */
-    public static DefaultQueryParser getInstance() {
-        return INSTANCE;
-    }
-
-
-    @Nonnull
-    @Override
-    public Query parseQuery(@Nonnull String query, @Nonnull Object... positionalArguments) {
-        return parseQuery(query, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQuery(@Nonnull String query, @Nonnull List<Object> positionalArguments) {
-        return parseQuery(query, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQuery(@Nonnull String query, @Nonnull Map<String, Object> namedArguments) {
-        return parseQuery(query, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQuery(@Nonnull String query, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseQuery(query, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQuery(@Nonnull String query, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseQuery(query, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintList(@Nonnull String headConstraintList, @Nonnull Object... positionalArguments) {
-        return parseHeadConstraintList(headConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintList(@Nonnull String headConstraintList, @Nonnull List<Object> positionalArguments) {
-        return parseHeadConstraintList(headConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintList(@Nonnull String headConstraintList, @Nonnull Map<String, Object> namedArguments) {
-        return parseHeadConstraintList(headConstraintList, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintList(@Nonnull String headConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseHeadConstraintList(headConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintList(@Nonnull String headConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseHeadConstraintList(headConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintList(@Nonnull String filterConstraintList, @Nonnull Object... positionalArguments) {
-        return parseFilterConstraintList(filterConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintList(@Nonnull String filterConstraintList, @Nonnull List<Object> positionalArguments) {
-        return parseFilterConstraintList(filterConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintList(@Nonnull String filterConstraintList, @Nonnull Map<String, Object> namedArguments) {
-        return parseFilterConstraintList(filterConstraintList, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintList(@Nonnull String filterConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseFilterConstraintList(filterConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintList(@Nonnull String filterConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseFilterConstraintList(filterConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintList(@Nonnull String orderConstraintList, @Nonnull Object... positionalArguments) {
-        return parseOrderConstraintList(orderConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintList(@Nonnull String orderConstraintList, @Nonnull List<Object> positionalArguments) {
-        return parseOrderConstraintList(orderConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintList(@Nonnull String orderConstraintList, @Nonnull Map<String, Object> namedArguments) {
-        return parseOrderConstraintList(orderConstraintList, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintList(@Nonnull String orderConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseOrderConstraintList(orderConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintList(@Nonnull String orderConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseOrderConstraintList(orderConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintList(@Nonnull String requireConstraintList, @Nonnull Object... positionalArguments) {
-        return parseRequireConstraintList(requireConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintList(@Nonnull String requireConstraintList, @Nonnull List<Object> positionalArguments) {
-        return parseRequireConstraintList(requireConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintList(@Nonnull String requireConstraintList, @Nonnull Map<String, Object> namedArguments) {
-        return parseRequireConstraintList(requireConstraintList, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintList(@Nonnull String requireConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseRequireConstraintList(requireConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintList(@Nonnull String requireConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseRequireConstraintList(requireConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public <T extends Serializable> T parseValue(@Nonnull String value) {
-        return parseValue(value, new ParseContext());
-    }
-
-    @Nonnull
-    @Override
-    public <T extends Serializable> T parseValue(@Nonnull String value, @Nonnull Object positionalArgument) {
-        return parseValue(value, new ParseContext(positionalArgument));
-    }
-
-    @Nonnull
-    @Override
-    public <T extends Serializable> T parseValue(@Nonnull String value, @Nonnull Map<String, Object> namedArguments) {
-        return parseValue(value, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public <T extends Serializable> T parseValue(@Nonnull String value, @Nonnull Map<String, Object> namedArguments, @Nonnull Object positionalArgument) {
-        return parseValue(value, new ParseContext(namedArguments, positionalArgument));
-    }
-
-
-    @Nonnull
-    @Override
-    public Query parseQueryUnsafe(@Nonnull String query) {
-        return parseQueryUnsafe(query, new ParseContext());
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQueryUnsafe(@Nonnull String query, @Nonnull Object... positionalArguments) {
-        return parseQueryUnsafe(query, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQueryUnsafe(@Nonnull String query, @Nonnull List<Object> positionalArguments) {
-        return parseQueryUnsafe(query, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQueryUnsafe(@Nonnull String query, @Nonnull Map<String, Object> namedArguments) {
-        return parseQueryUnsafe(query, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQueryUnsafe(@Nonnull String query, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseQueryUnsafe(query, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public Query parseQueryUnsafe(@Nonnull String query, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseQueryUnsafe(query, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintListUnsafe(@Nonnull String headConstraintList, @Nonnull Object... positionalArguments) {
-        return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintListUnsafe(@Nonnull String headConstraintList, @Nonnull List<Object> positionalArguments) {
-        return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintListUnsafe(@Nonnull String headConstraintList, @Nonnull Map<String, Object> namedArguments) {
-        return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintListUnsafe(@Nonnull String headConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<HeadConstraint> parseHeadConstraintListUnsafe(@Nonnull String headConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintListUnsafe(@Nonnull String filterConstraintList, @Nonnull Object... positionalArguments) {
-        return parseFilterConstraintListUnsafe(filterConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintListUnsafe(@Nonnull String filterConstraintList, @Nonnull List<Object> positionalArguments) {
-        return parseFilterConstraintListUnsafe(filterConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintListUnsafe(@Nonnull String filterConstraintList, @Nonnull Map<String, Object> namedArguments) {
-        return parseFilterConstraintListUnsafe(filterConstraintList, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintListUnsafe(@Nonnull String filterConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseFilterConstraintListUnsafe(filterConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<FilterConstraint> parseFilterConstraintListUnsafe(@Nonnull String filterConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseFilterConstraintListUnsafe(filterConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintListUnsafe(@Nonnull String orderConstraintList, @Nonnull Object... positionalArguments) {
-        return parseOrderConstraintListUnsafe(orderConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintListUnsafe(@Nonnull String orderConstraintList, @Nonnull List<Object> positionalArguments) {
-        return parseOrderConstraintListUnsafe(orderConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintListUnsafe(@Nonnull String orderConstraintList, @Nonnull Map<String, Object> namedArguments) {
-        return parseOrderConstraintListUnsafe(orderConstraintList, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintListUnsafe(@Nonnull String orderConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseOrderConstraintListUnsafe(orderConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<OrderConstraint> parseOrderConstraintListUnsafe(@Nonnull String orderConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseOrderConstraintListUnsafe(orderConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintListUnsafe(@Nonnull String requireConstraintList, @Nonnull Object... positionalArguments) {
-        return parseRequireConstraintListUnsafe(requireConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintListUnsafe(@Nonnull String requireConstraintList, @Nonnull List<Object> positionalArguments) {
-        return parseRequireConstraintListUnsafe(requireConstraintList, new ParseContext(positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintListUnsafe(@Nonnull String requireConstraintList, @Nonnull Map<String, Object> namedArguments) {
-        return parseRequireConstraintListUnsafe(requireConstraintList, new ParseContext(namedArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintListUnsafe(@Nonnull String requireConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-        return parseRequireConstraintListUnsafe(requireConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-    @Nonnull
-    @Override
-    public List<RequireConstraint> parseRequireConstraintListUnsafe(@Nonnull String requireConstraintList, @Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-        return parseRequireConstraintListUnsafe(requireConstraintList, new ParseContext(namedArguments, positionalArguments));
-    }
-
-
-    @Nonnull
-    private Query parseQuery(@Nonnull String query, @Nonnull ParseContext context) {
-        final EvitaQLParser parser = ParserFactory.getParser(query);
-        return ParserExecutor.execute(
-            context,
-            () -> parser.queryUnit().query().accept(this.queryVisitor)
-        );
-    }
-
-    @Nonnull
-    public List<HeadConstraint> parseHeadConstraintList(@Nonnull String headConstraintList, @Nonnull ParseContext context) {
-        final EvitaQLParser parser = ParserFactory.getParser(headConstraintList);
-        return ParserExecutor.execute(
-            context,
-            () -> parser.headConstraintListUnit().headConstraintList().accept(this.headConstraintListVisitor)
-        );
-    }
-
-    @Nonnull
-    public List<FilterConstraint> parseFilterConstraintList(@Nonnull String filterConstraintList, @Nonnull ParseContext context) {
-        final EvitaQLParser parser = ParserFactory.getParser(filterConstraintList);
-        return ParserExecutor.execute(
-            context,
-            () -> parser.filterConstraintListUnit().filterConstraintList().accept(this.filterConstraintListVisitor)
-        );
-    }
-
-    @Nonnull
-    public List<OrderConstraint> parseOrderConstraintList(@Nonnull String orderConstraintList, @Nonnull ParseContext context) {
-        final EvitaQLParser parser = ParserFactory.getParser(orderConstraintList);
-        return ParserExecutor.execute(
-            context,
-            () -> parser.orderConstraintListUnit().orderConstraintList().accept(this.orderConstraintListVisitor)
-        );
-    }
-
-    @Nonnull
-    public List<RequireConstraint> parseRequireConstraintList(@Nonnull String requireConstraintList, @Nonnull ParseContext context) {
-        final EvitaQLParser parser = ParserFactory.getParser(requireConstraintList);
-        return ParserExecutor.execute(
-            context,
-            () -> parser.requireConstraintListUnit().requireConstraintList().accept(this.requireConstraintListVisitor)
-        );
-    }
-
-    @Nonnull
-    public <T extends Serializable> T parseValue(@Nonnull String value, @Nonnull ParseContext context) {
-        context.setMode(ParseMode.UNSAFE);
-        final EvitaQLParser parser = ParserFactory.getParser(value);
-        //noinspection unchecked
-        return ParserExecutor.execute(
-            context,
-            () -> (T) parser.valueTokenUnit().valueToken().accept(this.valueTokenVisitor).asSerializable()
-        );
-    }
-
-    @Nonnull
-    private Query parseQueryUnsafe(@Nonnull String query, @Nonnull ParseContext context) {
-        context.setMode(ParseMode.UNSAFE);
-        return parseQuery(query, context);
-    }
-
-    @Nonnull
-    public List<HeadConstraint> parseHeadConstraintListUnsafe(@Nonnull String headConstraintList, @Nonnull ParseContext context) {
-        context.setMode(ParseMode.UNSAFE);
-        return parseHeadConstraintList(headConstraintList, context);
-    }
-
-    @Nonnull
-    public List<FilterConstraint> parseFilterConstraintListUnsafe(@Nonnull String filterConstraintList, @Nonnull ParseContext context) {
-        context.setMode(ParseMode.UNSAFE);
-        return parseFilterConstraintList(filterConstraintList, context);
-    }
-
-    @Nonnull
-    public List<OrderConstraint> parseOrderConstraintListUnsafe(@Nonnull String orderConstraintList, @Nonnull ParseContext context) {
-        context.setMode(ParseMode.UNSAFE);
-        return parseOrderConstraintList(orderConstraintList, context);
-    }
-
-    @Nonnull
-    public List<RequireConstraint> parseRequireConstraintListUnsafe(@Nonnull String requireConstraintList, @Nonnull ParseContext context) {
-        context.setMode(ParseMode.UNSAFE);
-        return parseRequireConstraintList(requireConstraintList, context);
-    }
+	private static final DefaultQueryParser INSTANCE = new DefaultQueryParser();
+
+	private final EvitaQLQueryVisitor queryVisitor = new EvitaQLQueryVisitor();
+	private final EvitaQLHeadConstraintListVisitor headConstraintListVisitor = new EvitaQLHeadConstraintListVisitor();
+	private final EvitaQLFilterConstraintListVisitor filterConstraintListVisitor =
+		new EvitaQLFilterConstraintListVisitor();
+	private final EvitaQLOrderConstraintListVisitor orderConstraintListVisitor =
+		new EvitaQLOrderConstraintListVisitor();
+	private final EvitaQLRequireConstraintListVisitor requireConstraintListVisitor =
+		new EvitaQLRequireConstraintListVisitor();
+	private final EvitaQLValueTokenVisitor valueTokenVisitor = EvitaQLValueTokenVisitor.withAllDataTypesAllowed();
+
+	/**
+	 * @return thread safe instance of this class
+	 */
+	@Nonnull
+	public static DefaultQueryParser getInstance() {
+		return INSTANCE;
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQuery(@Nonnull String query, @Nonnull Object... positionalArguments) {
+		return parseQuery(query, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQuery(@Nonnull String query, @Nonnull List<Object> positionalArguments) {
+		return parseQuery(query, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQuery(@Nonnull String query, @Nonnull Map<String, Object> namedArguments) {
+		return parseQuery(query, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQuery(
+		@Nonnull String query,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseQuery(query, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQuery(
+		@Nonnull String query,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseQuery(query, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintList(
+		@Nonnull String headConstraintList,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseHeadConstraintList(headConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintList(
+		@Nonnull String headConstraintList,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseHeadConstraintList(headConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintList(
+		@Nonnull String headConstraintList,
+		@Nonnull Map<String, Object> namedArguments
+	) {
+		return parseHeadConstraintList(headConstraintList, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintList(
+		@Nonnull String headConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseHeadConstraintList(headConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintList(
+		@Nonnull String headConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseHeadConstraintList(headConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintList(
+		@Nonnull String filterConstraintList,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseFilterConstraintList(filterConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintList(
+		@Nonnull String filterConstraintList,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseFilterConstraintList(filterConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintList(
+		@Nonnull String filterConstraintList,
+		@Nonnull Map<String, Object> namedArguments
+	) {
+		return parseFilterConstraintList(filterConstraintList, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintList(
+		@Nonnull String filterConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseFilterConstraintList(filterConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintList(
+		@Nonnull String filterConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseFilterConstraintList(filterConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintList(
+		@Nonnull String orderConstraintList,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseOrderConstraintList(orderConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintList(
+		@Nonnull String orderConstraintList,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseOrderConstraintList(orderConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintList(
+		@Nonnull String orderConstraintList,
+		@Nonnull Map<String, Object> namedArguments
+	) {
+		return parseOrderConstraintList(orderConstraintList, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintList(
+		@Nonnull String orderConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseOrderConstraintList(orderConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintList(
+		@Nonnull String orderConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseOrderConstraintList(orderConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintList(
+		@Nonnull String requireConstraintList,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseRequireConstraintList(requireConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintList(
+		@Nonnull String requireConstraintList,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseRequireConstraintList(requireConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintList(
+		@Nonnull String requireConstraintList,
+		@Nonnull Map<String, Object> namedArguments
+	) {
+		return parseRequireConstraintList(requireConstraintList, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintList(
+		@Nonnull String requireConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseRequireConstraintList(requireConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintList(
+		@Nonnull String requireConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseRequireConstraintList(requireConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> T parseValue(@Nonnull String value) {
+		return parseValue(value, new ParseContext());
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> T parseValue(@Nonnull String value, @Nonnull Object positionalArgument) {
+		return parseValue(value, new ParseContext(positionalArgument));
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> T parseValue(@Nonnull String value, @Nonnull Map<String, Object> namedArguments) {
+		return parseValue(value, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> T parseValue(
+		@Nonnull String value,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object positionalArgument
+	) {
+		return parseValue(value, new ParseContext(namedArguments, positionalArgument));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQueryUnsafe(@Nonnull String query) {
+		return parseQueryUnsafe(query, new ParseContext());
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQueryUnsafe(@Nonnull String query, @Nonnull Object... positionalArguments) {
+		return parseQueryUnsafe(query, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQueryUnsafe(@Nonnull String query, @Nonnull List<Object> positionalArguments) {
+		return parseQueryUnsafe(query, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQueryUnsafe(@Nonnull String query, @Nonnull Map<String, Object> namedArguments) {
+		return parseQueryUnsafe(query, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQueryUnsafe(
+		@Nonnull String query,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseQueryUnsafe(query, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public Query parseQueryUnsafe(
+		@Nonnull String query,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseQueryUnsafe(query, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintListUnsafe(
+		@Nonnull String headConstraintList,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintListUnsafe(
+		@Nonnull String headConstraintList,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintListUnsafe(
+		@Nonnull String headConstraintList,
+		@Nonnull Map<String, Object> namedArguments
+	) {
+		return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintListUnsafe(
+		@Nonnull String headConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<HeadConstraint> parseHeadConstraintListUnsafe(
+		@Nonnull String headConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseHeadConstraintListUnsafe(headConstraintList, new ParseContext(namedArguments, positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintListUnsafe(
+		@Nonnull String filterConstraintList,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseFilterConstraintListUnsafe(filterConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintListUnsafe(
+		@Nonnull String filterConstraintList,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseFilterConstraintListUnsafe(filterConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintListUnsafe(
+		@Nonnull String filterConstraintList,
+		@Nonnull Map<String, Object> namedArguments
+	) {
+		return parseFilterConstraintListUnsafe(filterConstraintList, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintListUnsafe(
+		@Nonnull String filterConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseFilterConstraintListUnsafe(
+			filterConstraintList, new ParseContext(namedArguments, positionalArguments)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public List<FilterConstraint> parseFilterConstraintListUnsafe(
+		@Nonnull String filterConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseFilterConstraintListUnsafe(
+			filterConstraintList, new ParseContext(namedArguments, positionalArguments)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintListUnsafe(
+		@Nonnull String orderConstraintList,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseOrderConstraintListUnsafe(orderConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintListUnsafe(
+		@Nonnull String orderConstraintList,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseOrderConstraintListUnsafe(orderConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintListUnsafe(
+		@Nonnull String orderConstraintList,
+		@Nonnull Map<String, Object> namedArguments
+	) {
+		return parseOrderConstraintListUnsafe(orderConstraintList, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintListUnsafe(
+		@Nonnull String orderConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseOrderConstraintListUnsafe(
+			orderConstraintList, new ParseContext(namedArguments, positionalArguments)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public List<OrderConstraint> parseOrderConstraintListUnsafe(
+		@Nonnull String orderConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseOrderConstraintListUnsafe(
+			orderConstraintList, new ParseContext(namedArguments, positionalArguments)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintListUnsafe(
+		@Nonnull String requireConstraintList,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseRequireConstraintListUnsafe(requireConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintListUnsafe(
+		@Nonnull String requireConstraintList,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseRequireConstraintListUnsafe(requireConstraintList, new ParseContext(positionalArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintListUnsafe(
+		@Nonnull String requireConstraintList,
+		@Nonnull Map<String, Object> namedArguments
+	) {
+		return parseRequireConstraintListUnsafe(requireConstraintList, new ParseContext(namedArguments));
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintListUnsafe(
+		@Nonnull String requireConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull Object... positionalArguments
+	) {
+		return parseRequireConstraintListUnsafe(
+			requireConstraintList, new ParseContext(namedArguments, positionalArguments)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public List<RequireConstraint> parseRequireConstraintListUnsafe(
+		@Nonnull String requireConstraintList,
+		@Nonnull Map<String, Object> namedArguments,
+		@Nonnull List<Object> positionalArguments
+	) {
+		return parseRequireConstraintListUnsafe(
+			requireConstraintList, new ParseContext(namedArguments, positionalArguments)
+		);
+	}
+
+	/**
+	 * Parses a full query string using the given parse context.
+	 */
+	@Nonnull
+	private Query parseQuery(@Nonnull String query, @Nonnull ParseContext context) {
+		final EvitaQLParser parser = ParserFactory.getParser(query);
+		return ParserExecutor.execute(
+			context,
+			() -> parser.queryUnit().query().accept(this.queryVisitor)
+		);
+	}
+
+	/**
+	 * Parses a head constraint list string using the given parse context.
+	 */
+	@Nonnull
+	private List<HeadConstraint> parseHeadConstraintList(
+		@Nonnull String headConstraintList,
+		@Nonnull ParseContext context
+	) {
+		final EvitaQLParser parser = ParserFactory.getParser(headConstraintList);
+		return ParserExecutor.execute(
+			context,
+			() -> parser.headConstraintListUnit().headConstraintList().accept(this.headConstraintListVisitor)
+		);
+	}
+
+	/**
+	 * Parses a filter constraint list string using the given parse context.
+	 */
+	@Nonnull
+	private List<FilterConstraint> parseFilterConstraintList(
+		@Nonnull String filterConstraintList,
+		@Nonnull ParseContext context
+	) {
+		final EvitaQLParser parser = ParserFactory.getParser(filterConstraintList);
+		return ParserExecutor.execute(
+			context,
+			() -> parser.filterConstraintListUnit().filterConstraintList().accept(this.filterConstraintListVisitor)
+		);
+	}
+
+	/**
+	 * Parses an order constraint list string using the given parse context.
+	 */
+	@Nonnull
+	private List<OrderConstraint> parseOrderConstraintList(
+		@Nonnull String orderConstraintList,
+		@Nonnull ParseContext context
+	) {
+		final EvitaQLParser parser = ParserFactory.getParser(orderConstraintList);
+		return ParserExecutor.execute(
+			context,
+			() -> parser.orderConstraintListUnit().orderConstraintList().accept(this.orderConstraintListVisitor)
+		);
+	}
+
+	/**
+	 * Parses a require constraint list string using the given parse context.
+	 */
+	@Nonnull
+	private List<RequireConstraint> parseRequireConstraintList(
+		@Nonnull String requireConstraintList,
+		@Nonnull ParseContext context
+	) {
+		final EvitaQLParser parser = ParserFactory.getParser(requireConstraintList);
+		return ParserExecutor.execute(
+			context,
+			() -> parser.requireConstraintListUnit().requireConstraintList().accept(this.requireConstraintListVisitor)
+		);
+	}
+
+	/**
+	 * Parses a single value token string using the given parse context in unsafe mode.
+	 */
+	@Nonnull
+	private <T extends Serializable> T parseValue(@Nonnull String value, @Nonnull ParseContext context) {
+		context.setMode(ParseMode.UNSAFE);
+		final EvitaQLParser parser = ParserFactory.getParser(value);
+		//noinspection unchecked
+		return ParserExecutor.execute(
+			context,
+			() -> (T) parser.valueTokenUnit().valueToken().accept(this.valueTokenVisitor).asSerializable()
+		);
+	}
+
+	/**
+	 * Parses a full query string in unsafe mode using the given parse context.
+	 */
+	@Nonnull
+	private Query parseQueryUnsafe(@Nonnull String query, @Nonnull ParseContext context) {
+		context.setMode(ParseMode.UNSAFE);
+		return parseQuery(query, context);
+	}
+
+	/**
+	 * Parses a head constraint list string in unsafe mode.
+	 */
+	@Nonnull
+	private List<HeadConstraint> parseHeadConstraintListUnsafe(
+		@Nonnull String headConstraintList,
+		@Nonnull ParseContext context
+	) {
+		context.setMode(ParseMode.UNSAFE);
+		return parseHeadConstraintList(headConstraintList, context);
+	}
+
+	/**
+	 * Parses a filter constraint list string in unsafe mode.
+	 */
+	@Nonnull
+	private List<FilterConstraint> parseFilterConstraintListUnsafe(
+		@Nonnull String filterConstraintList,
+		@Nonnull ParseContext context
+	) {
+		context.setMode(ParseMode.UNSAFE);
+		return parseFilterConstraintList(filterConstraintList, context);
+	}
+
+	/**
+	 * Parses an order constraint list string in unsafe mode.
+	 */
+	@Nonnull
+	private List<OrderConstraint> parseOrderConstraintListUnsafe(
+		@Nonnull String orderConstraintList,
+		@Nonnull ParseContext context
+	) {
+		context.setMode(ParseMode.UNSAFE);
+		return parseOrderConstraintList(orderConstraintList, context);
+	}
+
+	/**
+	 * Parses a require constraint list string in unsafe mode.
+	 */
+	@Nonnull
+	private List<RequireConstraint> parseRequireConstraintListUnsafe(
+		@Nonnull String requireConstraintList,
+		@Nonnull ParseContext context
+	) {
+		context.setMode(ParseMode.UNSAFE);
+		return parseRequireConstraintList(requireConstraintList, context);
+	}
 }
-

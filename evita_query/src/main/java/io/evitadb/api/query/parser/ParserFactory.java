@@ -43,7 +43,7 @@ import javax.annotation.Nonnull;
 public class ParserFactory {
 
 	/**
-	 * Returns new preconfigured Evita QL parser with preconfigured lexer to string that is being parsed
+	 * Creates a new EvitaQL parser with a preconfigured lexer and error handling for the given input string.
 	 */
 	@Nonnull
 	public static EvitaQLParser getParser(@Nonnull String stringToParse) {
