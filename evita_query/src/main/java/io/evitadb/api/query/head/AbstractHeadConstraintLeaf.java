@@ -32,7 +32,21 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Represents base query leaf accepting only heading constraints.
+ * Abstract base class for all head constraint leaves. This class serves as the foundation for terminal constraints
+ * in the query header that cannot contain child constraints — they carry only arguments.
+ *
+ * It binds the generic type parameter of {@link ConstraintLeaf} to {@link HeadConstraint}, ensuring type safety
+ * at compile time. All head constraint leaves must extend this class to participate in the head constraint taxonomy.
+ *
+ * The class provides common infrastructure shared by all head leaves:
+ * - Type declaration via `getType()` returning `HeadConstraint.class`
+ * - Visitor acceptance via `accept(ConstraintVisitor)` for constraint tree traversal
+ * - Default applicability logic via `isApplicable()` requiring at least one non-null argument
+ * - Protected constructors supporting named and unnamed constraint variants
+ *
+ * Concrete implementations (such as {@link Label}) delegate to these constructors to initialize their arguments.
+ * This class is package-private and is not part of the public API — it exists solely to reduce code duplication
+ * among head constraint leaf implementations.
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
