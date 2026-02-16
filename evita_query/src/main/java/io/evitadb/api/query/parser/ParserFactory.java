@@ -45,6 +45,7 @@ public class ParserFactory {
 	/**
 	 * Returns new preconfigured Evita QL parser with preconfigured lexer to string that is being parsed
 	 */
+	@Nonnull
 	public static EvitaQLParser getParser(@Nonnull String stringToParse) {
 		final EvitaQLLexer lexer = new EvitaQLLexer(CharStreams.fromString(stringToParse));
 		lexer.removeErrorListeners();

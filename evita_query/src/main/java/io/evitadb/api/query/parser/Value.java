@@ -44,6 +44,7 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
@@ -151,7 +152,7 @@ public class Value {
 	 */
 	@Nonnull
 	public <T extends Number> T asNumber(@Nonnull Class<T> numberType) {
-		return EvitaDataTypes.toTargetType(asNumber(), numberType);
+		return Objects.requireNonNull(EvitaDataTypes.toTargetType(asNumber(), numberType));
 	}
 
 	public int asInt() {
@@ -237,7 +238,7 @@ public class Value {
 		if (this.actualValue instanceof Locale) {
 			return asSpecificType(this.actualValue, Locale.class);
 		} else if (this.actualValue instanceof String) {
-			return EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), Locale.class);
+			return Objects.requireNonNull(EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), Locale.class));
 		} else {
 			// correct passed type from client should be checked at visitor level, here should be should correct checked type
 			// if everything is correct on parser side
@@ -250,7 +251,7 @@ public class Value {
 		if (this.actualValue instanceof Currency) {
 			return asSpecificType(this.actualValue, Currency.class);
 		} else if (this.actualValue instanceof String) {
-			return EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), Currency.class);
+			return Objects.requireNonNull(EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), Currency.class));
 		} else {
 			throw new EvitaInvalidUsageException("Expected currency or string value but got `" + this.actualValue.getClass().getName() + "`.");
 		}
@@ -261,7 +262,7 @@ public class Value {
 		if (this.actualValue instanceof UUID) {
 			return asSpecificType(this.actualValue, UUID.class);
 		} else if (this.actualValue instanceof String) {
-			return EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), UUID.class);
+			return Objects.requireNonNull(EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), UUID.class));
 		} else {
 			throw new EvitaInvalidUsageException("Expected UUID or string value but got `" + this.actualValue.getClass().getName() + "`.");
 		}
