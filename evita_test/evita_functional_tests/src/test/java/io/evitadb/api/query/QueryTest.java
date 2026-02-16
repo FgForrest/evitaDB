@@ -23,6 +23,8 @@
 
 package io.evitadb.api.query;
 
+import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -31,8 +33,7 @@ import java.time.ZoneOffset;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test verifies {@link Query} object creation, normalization and java equals and hash code contract.
@@ -507,6 +508,67 @@ class QueryTest {
 				)
 			).normalizeQuery()
 		);
+	}
+
+	@Test
+	void shouldReturnHeadConstraint() {
+		final Query q = query(
+			collection("product"),
+			filterBy(attributeEquals("code", "abc"))
+		);
+		assertNotNull(q.getHead());
+	}
+
+	@Test
+	void shouldReturnNullHeadWhenNotProvided() {
+		final Query q = query(filterBy(attributeEquals("code", "abc")));
+		assertNull(q.getHead());
+	}
+
+	@Test
+	void shouldReturnCollectionFromHead() {
+		final Query q = query(
+			collection("product"),
+			filterBy(attributeEquals("code", "abc"))
+		);
+		final Collection c = q.getCollection();
+		assertNotNull(c);
+		assertEquals("product", c.getEntityType());
+	}
+
+	@Test
+	void shouldReturnNullCollectionWhenNoHead() {
+		final Query q = query(filterBy(attributeEquals("code", "abc")));
+		assertNull(q.getCollection());
+	}
+
+	@Test
+	void shouldExtractParametersFromQuery() {
+		final Query q = query(
+			collection("product"),
+			filterBy(attributeEquals("code", "samsung"))
+		);
+		final StringWithParameters result = q.toStringWithParameterExtraction();
+		assertNotNull(result);
+		assertNotNull(result.query());
+		assertNotNull(result.parameters());
+		assertFalse(result.parameters().isEmpty());
+	}
+
+	@Test
+	void shouldNormalizeQueryIdempotently() {
+		final Query q = query(
+			collection("product"),
+			filterBy(
+				and(
+					attributeEquals("code", "abc")
+				)
+			)
+		);
+		final Query first = q.normalizeQuery();
+		final Query second = first.normalizeQuery();
+		// second normalization should return the same instance (already normalized)
+		assertSame(second, first);
 	}
 
 	@Test
