@@ -29,11 +29,30 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception thrown when conflicting catalog mutations are detected during transaction resolution.
+ * Exception thrown when a commutative mutation conflict is detected during transaction
+ * resolution.
  *
- * This exception signals that the current transaction attempted to commit changes to a catalog that
- * conflict with mutations that were already committed earlier for the same `ConflictKey`.
- * It is a specialization of `TransactionException` intended for catalog-level conflicts.
+ * This is a specialized subclass of {@link ConflictingCatalogMutationException} for
+ * mutations that are commutative in nature (like attribute value deltas or numeric
+ * increments). While these operations are theoretically commutative, conflicts still arise
+ * when the mutation attempts to modify a value that changed between transaction start and
+ * commit time.
+ *
+ * **Example Scenario:**
+ * Transaction A reads attribute "count" with value 10 and applies delta +5. Transaction B
+ * reads the same attribute with value 10 and applies delta -3. If B commits first,
+ * changing the value to 7, then A's commit will fail with this exception because its base
+ * value (10) no longer matches the current value (7).
+ *
+ * **Resolution:**
+ * The transaction must be retried with fresh data. Read the current attribute value and
+ * reapply the delta operation. evitaDB's conflict detection ensures that concurrent deltas
+ * don't produce incorrect results even though mathematically they could be commutative.
+ *
+ * **Design Note:**
+ * evitaDB conservatively rejects commutative operations on stale data to prevent subtle
+ * bugs where business logic assumptions (like "never go below zero") might be violated by
+ * blindly applying deltas without validating current state.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -42,12 +61,14 @@ public class ConflictingCatalogCommutativeMutationException extends ConflictingC
     private static final long serialVersionUID = 401973444573552277L;
 
     /**
-     * Creates a new exception describing a mutation conflict for the given catalog and conflict key.
+     * Creates a new exception describing a commutative mutation conflict.
      *
      * @param catalogName    name of the catalog where the conflict occurred
-     * @param conflictKey    key identifying the conflicting mutation scope
-     * @param catalogVersion the catalog version at which the conflicting change was committed
-     * @param message        detailed message describing the conflict
+     * @param conflictKey    key identifying the conflicting mutation scope (e.g.,
+     *                       attribute name and entity reference)
+     * @param catalogVersion the catalog version at which the conflicting change was
+     *                       committed
+     * @param message        detailed message describing the nature of the conflict
      */
     public ConflictingCatalogCommutativeMutationException(
         @Nonnull String catalogName,

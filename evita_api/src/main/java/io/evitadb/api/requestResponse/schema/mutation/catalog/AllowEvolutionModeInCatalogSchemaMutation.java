@@ -50,8 +50,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Mutation is responsible for adding one or more evolution modes to a {@link CatalogSchemaContract#getCatalogEvolutionMode()}
- * in {@link CatalogSchemaContract}.
+ * Mutation is responsible for adding one or more evolution modes to
+ * a {@link CatalogSchemaContract#getCatalogEvolutionMode()} in {@link CatalogSchemaContract}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -68,7 +68,10 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		if (catalogSchema.getCatalogEvolutionMode().containsAll(List.of(this.evolutionModes))) {
 			// no need to change the schema
@@ -107,6 +110,7 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 		return Stream.of(new CatalogConflictKey(context.getCatalogName()));
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "Allow: evolutionModes=" + Arrays.toString(this.evolutionModes);

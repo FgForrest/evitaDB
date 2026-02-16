@@ -30,6 +30,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
@@ -37,6 +38,7 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.test.TestConstants;
@@ -69,13 +71,12 @@ class TransactionalStoragePartPersistenceServiceTest {
 
 	@BeforeEach
 	public void setUp() {
-		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1);
+		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1, ChecksumFactory.NO_OP);
 		this.delegateService = mock(StoragePartPersistenceService.class);
 		when(this.delegateService.getReadOnlyKeyCompressor()).thenReturn(new ReadOnlyKeyCompressor(Map.of()));
 		final StorageOptions storageOptions = StorageOptions.builder().build();
 		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
 		final ObservableOutputKeeper observableOutputKeeper = mock(ObservableOutputKeeper.class);
-		when(observableOutputKeeper.getOptions()).thenReturn(storageOptions);
 		final OffsetIndexRecordTypeRegistry registry = mock(OffsetIndexRecordTypeRegistry.class);
 		when(registry.idFor(EntityBodyStoragePart.class)).thenReturn((byte) 1);
 		doAnswer(invocation -> EntityBodyStoragePart.class).when(registry).typeFor((byte) 1);
@@ -85,8 +86,10 @@ class TransactionalStoragePartPersistenceServiceTest {
 			UUID.randomUUID(),
 			"test",
 			this.delegateService,
-			storageOptions,
-			transactionOptions,
+			new StorageSettings(
+				storageOptions,
+				transactionOptions
+			),
 			this.offHeapMemoryManager,
 			kryoKeyInputs -> VersionedKryoFactory.createKryo(
 				kryoKeyInputs.version(),

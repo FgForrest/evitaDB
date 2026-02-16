@@ -28,20 +28,57 @@ import io.evitadb.api.query.Query;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * This exception is thrown when {@link EvitaSessionContract#query(Query, Class)} contains different object
- * type in the result data than is expected by the other parameter.
+ * Exception thrown when the return type specified in {@link EvitaSessionContract#query(Query, Class)} does
+ * not match the actual result type determined by the query's `require` constraints. evitaDB supports
+ * multiple output formats controlled by the query definition, and the expected type parameter must align
+ * with the query's response structure.
+ *
+ * **Common mismatches:**
+ *
+ * - Expecting `SealedEntity` but query returns `EntityReference` (missing `entityFetch()` requirement)
+ * - Expecting `EntityReference` but query includes `entityFetch()` producing full entity
+ * - Expecting a custom proxy type but query doesn't specify the appropriate entity body requirements
+ * - Type parameter doesn't match the configured entity type in the query
+ *
+ * **Resolution:**
+ *
+ * The exception message explicitly instructs clients to add the correct `require` constraint:
+ *
+ * ```java
+ * // Wrong - expects SealedEntity but query returns EntityReference
+ * session.query(query(collection("Product")), SealedEntity.class);
+ *
+ * // Correct - add entityFetch to get full entities
+ * session.query(
+ *     query(collection("Product"), require(entityFetch())),
+ *     SealedEntity.class
+ * );
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class UnexpectedResultException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 334947152990851707L;
+	/**
+	 * The Java class that the client expected to receive in the query results.
+	 */
 	@Getter private final Class<?> expectedType;
+	/**
+	 * The actual Java class that the query produced based on its requirements.
+	 */
 	@Getter private final Class<?> actualType;
 
-	public UnexpectedResultException(Class<?> expectedType, Class<?> actualType) {
+	/**
+	 * Creates a new exception with details about the type mismatch.
+	 *
+	 * @param expectedType the class the client expected (from query method parameter)
+	 * @param actualType the class the query actually produced
+	 */
+	public UnexpectedResultException(@Nonnull Class<?> expectedType, @Nonnull Class<?> actualType) {
 		super(
 				"Evita response contains data of type " + actualType.getName() + " but client expects them " +
 						"to be of type " + expectedType.getName() + "! Please correct the query by adding proper " +

@@ -23,6 +23,7 @@
 
 package io.evitadb.utils;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.utils.BitUtils.copyBitSetFrom;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@DisplayName("BitUtils contract tests")
 class BitUtilsTest {
 
 	@Test

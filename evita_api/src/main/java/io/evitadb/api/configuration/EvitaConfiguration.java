@@ -106,7 +106,7 @@ public record EvitaConfiguration(
 			} else {
 				this.name = name;
 			}
-			ClassifierUtils.validateClassifierFormat(ClassifierType.SERVER_NAME, name);
+			ClassifierUtils.validateClassifierFormat(ClassifierType.SERVER_NAME, this.name);
 			this.server = server;
 			this.storage = storage;
 			this.transaction = transaction;
@@ -203,6 +203,7 @@ public record EvitaConfiguration(
 			return this;
 		}
 
+		@Nonnull
 		public EvitaConfiguration build() {
 			return new EvitaConfiguration(
 				this.name, this.server, this.storage, this.transaction, this.cache, this.export

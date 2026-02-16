@@ -25,17 +25,36 @@ package io.evitadb.api.exception;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * This exception is thrown when open transaction is not supported in this session.
+ * Exception thrown when attempting to open a transaction in a session or catalog that does not support
+ * transactional operations. Transactions are only available under specific conditions in evitaDB.
+ *
+ * **This exception occurs when:**
+ *
+ * - Attempting to open a transaction in a **read-only session** - only read-write sessions created via
+ *   {@link io.evitadb.api.EvitaContract#createReadWriteSession(String)} support transactions
+ * - Attempting to open a transaction in a catalog that is still in **WARMING_UP** state - the catalog
+ *   must first be brought to ALIVE state via `goLiveAndClose()` method
+ * - The session was created with flags that explicitly disable transaction support
+ *
+ * Clients should verify the session type and catalog state before attempting transactional operations.
+ * For read-only workloads, use {@link io.evitadb.api.EvitaContract#createReadOnlySession(String)} instead,
+ * which provides snapshot isolation without transaction overhead.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class TransactionNotSupportedException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 6758037223763511863L;
 
-	public TransactionNotSupportedException(String message) {
+	/**
+	 * Creates a new exception with the given error message explaining why transactions are not supported.
+	 *
+	 * @param message description of why the transaction could not be opened
+	 */
+	public TransactionNotSupportedException(@Nonnull String message) {
 		super(message);
 	}
 

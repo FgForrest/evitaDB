@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

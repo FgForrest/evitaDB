@@ -58,7 +58,7 @@ import java.io.ObjectInputStream;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -117,7 +117,7 @@ abstract class AbstractEntityProxyState implements
 	/**
 	 * The local data store that is used to store the data that are not part of the sealed entity.
 	 */
-	private Map<String, Serializable> localDataStore;
+	@Nullable private Map<String, Serializable> localDataStore;
 
 	protected AbstractEntityProxyState(
 		@Nonnull EntityContract entity,
@@ -244,10 +244,11 @@ abstract class AbstractEntityProxyState implements
 	 *
 	 * @return a non-null mutable map backing the local data store
 	 */
+	@Nonnull
 	@Override
 	public Map<String, Serializable> getOrCreateLocalDataStore() {
 		if (this.localDataStore == null) {
-			this.localDataStore = new ConcurrentHashMap<>();
+			this.localDataStore = new ConcurrentHashMap<>(16);
 		}
 		return this.localDataStore;
 	}
@@ -258,6 +259,7 @@ abstract class AbstractEntityProxyState implements
 	 *
 	 * @return the local data store map if already created, otherwise null
 	 */
+	@Nullable
 	@Override
 	public Map<String, Serializable> getLocalDataStoreIfPresent() {
 		return this.localDataStore;
@@ -861,7 +863,7 @@ abstract class AbstractEntityProxyState implements
 		 * @param callback the callback to execute when the entity is upserted
 		 */
 		public ProxyWithUpsertCallback(@Nonnull Object proxy, @Nonnull Consumer<EntityReferenceContract> callback) {
-			this.proxies = new LinkedList<>();
+			this.proxies = new ArrayList<>(2);
 			this.proxies.add(proxy);
 			this.callback = callback;
 		}

@@ -31,6 +31,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.catalog.task.RestoreTask;
 import io.evitadb.store.exception.DirectoryNotEmptyException;
 import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
@@ -57,7 +58,7 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
-		) {
+	) {
 		return new DefaultCatalogPersistenceService(
 			catalogName, storageOptions, transactionOptions, scheduler, exportService
 		);

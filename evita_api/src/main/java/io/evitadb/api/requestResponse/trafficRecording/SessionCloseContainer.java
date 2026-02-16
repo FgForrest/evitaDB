@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.trafficRecording;
 
-
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
@@ -35,17 +34,20 @@ import java.util.UUID;
  * This container holds information about the session closing (finalization).
  *
  * @param sessionSequenceOrder    the session sequence order of the session close (similar to session id but monotonic)
- * @param sessionId               the session id which the mutation belongs to
+ * @param sessionId               the session id of the closing session
  * @param recordSessionOffset     the order (sequence) of the record in the session
+ * @param sessionRecordsCount     the total count of the records in the session
  * @param catalogVersion          the version of the catalog
- * @param created                 the time when the mutation was created
+ * @param created                 the time when the session was closed
  * @param durationInMilliseconds  the overall duration of the session in milliseconds
  * @param ioFetchCount            the overall number of IO fetches performed in this session
  * @param ioFetchedSizeBytes      the overall total size of the data fetched in this session in bytes
  * @param trafficRecordCount      the overall number of traffic records recorded for this session
+ * @param trafficRecordsMissedOut the number of traffic records that were missed due to buffer overflow
  * @param queryCount              the overall number of queries executed in this session
  * @param entityFetchCount        the overall number of entities fetched in this session (excluding the entities fetched by queries)
  * @param mutationCount           the overall number of mutations executed in this session
+ * @param finishedWithError       the error message if the session finished with an error
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record SessionCloseContainer(
@@ -59,12 +61,16 @@ public record SessionCloseContainer(
 	int ioFetchCount,
 	int ioFetchedSizeBytes,
 	int trafficRecordCount,
+	int trafficRecordsMissedOut,
 	int queryCount,
 	int entityFetchCount,
 	int mutationCount,
 	@Nullable String finishedWithError
 ) implements TransientTrafficRecording {
 
+	/**
+	 * Convenience constructor that sets session sequence order to null (not yet assigned).
+	 */
 	public SessionCloseContainer(
 		@Nonnull UUID sessionId,
 		int recordSessionOffset,
@@ -92,6 +98,7 @@ public record SessionCloseContainer(
 			ioFetchCount,
 			ioFetchedSizeBytes,
 			trafficRecordCount,
+			trafficRecordsMissedOut,
 			queryCount,
 			entityFetchCount,
 			mutationCount,

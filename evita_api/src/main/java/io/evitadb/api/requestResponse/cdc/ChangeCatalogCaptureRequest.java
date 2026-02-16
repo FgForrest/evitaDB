@@ -80,8 +80,9 @@ public record ChangeCatalogCaptureRequest(
 	}
 
 	/**
-	 * Creates builder object that helps you create DataSite record using builder pattern.
-	 * @return new instance of {@link DataSite.Builder}
+	 * Creates builder object that helps you create ChangeCatalogCaptureRequest record using builder pattern.
+	 *
+	 * @return new instance of {@link ChangeCatalogCaptureRequest.Builder}
 	 */
 	@Nonnull
 	public static ChangeCatalogCaptureRequest.Builder builder() {

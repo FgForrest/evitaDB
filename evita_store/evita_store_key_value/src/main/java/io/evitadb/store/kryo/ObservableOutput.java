@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,10 +26,12 @@ package io.evitadb.store.kryo;
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
+import io.evitadb.utils.Crc32CWrapper;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
@@ -42,11 +44,10 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.zip.CRC32C;
 import java.util.zip.Deflater;
 
 /**
- * This observable output extends original Kryo {@link Output} allowing to automatically compute CRC32C checksums after
+ * This observable output extends original Kryo {@link Output} allowing to automatically compute checksums after
  * record has been written to the storage. It also collects the written record size automatically and writes it to the
  * specified position in the record. To avoid writing to already committed file page the record flushing is postponed
  * until entire record has been written and record length update is performed in not yet stored buffer in the memory.
@@ -71,17 +72,17 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	public static final int DEFAULT_FLUSH_SIZE = 16_384;
 	/**
-	 * CRC32C computation instance. Reused - instantiated only once.
+	 * Checksum computation instance. Reused - instantiated only once.
 	 */
-	private CRC32C crc32C;
+	private final Checksum checksum;
 	/**
 	 * Deflater instance. Reused - instantiated only once.
 	 */
-	private Deflater deflater;
+	private final Deflater deflater;
 	/**
 	 * Buffer used for compressed data.
 	 */
-	private byte[] deflateBuffer;
+	private final byte[] deflateBuffer;
 	/**
 	 * Accumulated count of bytes that have been saved by compress.
 	 * This number is crucial for correct file location calculation when multiple records are written to the output.
@@ -130,60 +131,90 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * part of the value and move it to the next buffer, completely wiping it from the current one.
 	 */
 	private int atomicPosition = -1;
+	/**
+	 * Internal flag set to true when {@link #markCumulativeChecksumStart()} is called
+	 * and output should calculate cumulative checksum for all data written.
+	 */
+	private boolean cumulatingChecksum;
+	/**
+	 * Holds the running cumulative checksum value since {@link #markCumulativeChecksumStart()}.
+	 * This is combined with each record's full checksum (header + payload + tail) in finishRecord().
+	 */
+	private long cumulativeChecksum;
 
-	public ObservableOutput(@Nonnull T outputStream, @Nonnull byte[] buffer) {
+	/**
+	 * Creates an ObservableOutput with a pre-allocated buffer.
+	 *
+	 * @param outputStream the output stream to write serialized data to
+	 * @param buffer       the pre-allocated byte buffer for buffering writes
+	 * @param checksum     the checksum instance for computing data integrity checksums
+	 * @param deflater     the deflater for optional data compression, or null if compression is disabled
+	 */
+	public ObservableOutput(
+		@Nonnull T outputStream,
+		@Nonnull byte[] buffer,
+		@Nonnull Checksum checksum,
+		@Nullable Deflater deflater
+	) {
 		super(buffer);
 		super.setOutputStream(outputStream);
+		this.checksum = checksum;
+		this.deflater = deflater;
+		this.deflateBuffer = this.deflater == null ? null : new byte[buffer.length];
 		// we need to hide CRC mandatory space from the Kryo output so that it asks for `require` when it reaches
 		// the end of the capacity - this way we will have reserved space for safely writing the CRC checksum
 		this.capacity = buffer.length - TAIL_MANDATORY_SPACE;
 	}
 
 	/**
-	 * Initializes {@link ObservableInput} with recommended settings for SSD drives.
+	 * Creates an ObservableOutput with specified buffer and flush sizes.
 	 *
-	 * @implNote <a href="https://codecapsule.com/2014/02/12/coding-for-ssds-part-6-a-summary-what-every-programmer-should-know-about-solid-state-drives/">Source</a>
-	 * @param bufferSize maximal size of the single record that can be stored
+	 * @param outputStream    the output stream to write serialized data to
+	 * @param flushSize       the size threshold in bytes for automatic buffer flushing
+	 * @param bufferSize      the size of the internal byte buffer
+	 * @param currentFileSize the current size of the output file for tracking total bytes written
+	 * @param checksum        the checksum instance for computing data integrity checksums
+	 * @param deflater        the deflater for optional data compression, or null if compression is disabled
 	 */
-	public ObservableOutput(@Nonnull T outputStream, int bufferSize, long currentFileSize) {
-		this(outputStream, DEFAULT_FLUSH_SIZE, bufferSize, currentFileSize);
-	}
-
-	public ObservableOutput(@Nonnull T outputStream, int flushSize, int bufferSize, long currentFileSize) {
+	public ObservableOutput(
+		@Nonnull T outputStream,
+		int flushSize,
+		int bufferSize,
+		long currentFileSize,
+		@Nonnull Checksum checksum,
+		@Nullable Deflater deflater
+	) {
 		super(outputStream, bufferSize);
 		if (bufferSize < flushSize) {
 			throw new UnexpectedIOException("Buffer size cannot be lower than flush limit with some reserve space!");
 		}
 		this.total = currentFileSize;
+		this.checksum = checksum;
+		this.deflater = deflater;
+		this.deflateBuffer = this.deflater == null ? null : new byte[bufferSize];
 		// we need to hide CRC mandatory space from the Kryo output so that it asks for `require` when it reaches
 		// the end of the capacity - this way we will have reserved space for safely writing the CRC checksum
 		this.capacity = bufferSize - TAIL_MANDATORY_SPACE;
 	}
 
 	/**
-	 * Enables CRC32C checksum computation for each record has been written to the file.
+	 * Initializes {@link ObservableInput} with recommended settings for SSD drives.
+	 *
+	 * @implNote <a href="https://codecapsule.com/2014/02/12/coding-for-ssds-part-6-a-summary-what-every-programmer-should-know-about-solid-state-drives/">Source</a>
+	 * @param outputStream    the output stream to write serialized data to
+	 * @param bufferSize      maximal size of the single record that can be stored
+	 * @param currentFileSize the current size of the output file for tracking total bytes written
+	 * @param checksum        the checksum instance for computing data integrity checksums
+	 * @param deflater        the deflater for optional data compression, or null if compression is disabled
 	 */
-	@Nonnull
-	public ObservableOutput<T> computeCRC32() {
-		if (this.crc32C == null) {
-			this.crc32C = new CRC32C();
-		}
-		return this;
-	}
-
-	/**
-	 * Enables compress for each record payload.
-	 */
-	@Nonnull
-	public ObservableOutput<T> compress() {
-		if (this.deflater == null) {
-			this.deflater = new Deflater(Deflater.DEFAULT_COMPRESSION, true);
-			// the deflate buffer must be the same size as the buffer,
-			// if the data exceed the buffer size, it means compressed data are larger than the original data
-			// and the compress would not be used at all
-			this.deflateBuffer = new byte[this.buffer.length];
-		}
-		return this;
+	public ObservableOutput(
+		@Nonnull T outputStream,
+		int bufferSize,
+		long currentFileSize,
+		@Nonnull Checksum checksum,
+		@Nullable Deflater deflater
+	) {
+		this(outputStream, DEFAULT_FLUSH_SIZE, bufferSize, currentFileSize, checksum, deflater);
 	}
 
 	/**
@@ -202,14 +233,12 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
-	 * Initializes start position of the record payload - i.e. since this moment CRC32C checksum starts to be computed
+	 * Initializes start position of the record payload - i.e. since this moment checksum starts to be computed
 	 * for each byte written from now on.
 	 */
 	public void markPayloadStart() {
 		this.payloadStartPosition = super.position;
-		if (this.crc32C != null) {
-			this.crc32C.reset();
-		}
+		this.checksum.reset();
 	}
 
 	/**
@@ -221,7 +250,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 
 	/**
 	 * Method finalizes the record writing.
-	 * When CRC32C checksum should be computed, it's done at this moment.
+	 * When checksum should be computed, it's done at this moment.
 	 * Record length is computed and is written to the specified position of the record as INT value.
 	 * Method resets all record related flags and another record can be written afterwards.
 	 * Record is marked as finished and can be safely written to the output stream (disk).
@@ -235,7 +264,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 
 	/**
 	 * Method finalizes the record writing.
-	 * When CRC32C checksum should be computed, it's done at this moment.
+	 * When checksum should be computed, it's done at this moment.
 	 * Record length is computed and is written to the specified position of the record as INT value.
 	 * Method resets all record related flags and another record can be written afterwards.
 	 * Record is marked as finished and can be safely written to the output stream (disk).
@@ -252,7 +281,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 
 	/**
 	 * Method finalizes the record writing.
-	 * When CRC32C checksum should be computed, it's done at this moment.
+	 * When checksum should be computed, it's done at this moment.
 	 * Record length is computed and is written to the specified position of the record as INT value.
 	 * Method resets all record related flags and another record can be written afterwards.
 	 * Record is marked as finished and can be safely written to the output stream (disk).
@@ -287,7 +316,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 
 			// compute CRC32 checksum if requested
 			final long crc;
-			if (this.crc32C == null) {
+			if (this.checksum == Checksum.NO_OP) {
 				crc = NULL_CRC;
 			} else {
 				alteredControlByte = BitUtils.setBit(alteredControlByte, StorageRecord.CRC32_BIT, true);
@@ -338,23 +367,102 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
-	 * Calculates a CRC32C checksum based on the given input parameters and updates
-	 * the CRC32C instance with the relevant data.
+	 * Returns the current checksum value.
+	 *
+	 * @return the current checksum as a long value.
+	 */
+	public long getChecksum() {
+		return this.checksum.getValue();
+	}
+
+	/**
+	 * Marks the start of cumulative checksum calculation. From this point, all bytes
+	 * written to the output stream will be included in the cumulative checksum.
+	 *
+	 * The cumulative checksum covers the entire record:
+	 * - Header (record length 4B + control byte 1B + generationId 8B = 13B)
+	 * - Payload (compressed if compression used, uncompressed otherwise)
+	 * - Tail CRC (8B)
+	 *
+	 * @throws io.evitadb.exception.EvitaInternalError if called while a record is being written
+	 */
+	public void markCumulativeChecksumStart() {
+		Assert.isPremiseValid(
+			this.startPosition == -1,
+			"Cannot mark cumulative checksum start while writing a record!"
+		);
+		this.cumulatingChecksum = true;
+		this.cumulativeChecksum = 0L;
+	}
+
+	/**
+	 * Marks the start of cumulative checksum calculation with an initial checksum value.
+	 * This allows continuing checksum calculation from a previously computed value, useful
+	 * when appending data to an existing file where the initial content's CRC32C is known.
+	 *
+	 * The cumulative checksum covers the entire record:
+	 * - Header (record length 4B + control byte 1B + generationId 8B = 13B)
+	 * - Payload (compressed if compression used, uncompressed otherwise)
+	 * - Tail CRC (8B)
+	 *
+	 * @param initialChecksum the initial checksum value to start from (typically computed
+	 *                        from existing file content before appending)
+	 * @throws io.evitadb.exception.EvitaInternalError if called while a record is being written
+	 */
+	public void markCumulativeChecksumStart(long initialChecksum) {
+		Assert.isPremiseValid(
+			this.startPosition == -1,
+			"Cannot mark cumulative checksum start while writing a record!"
+		);
+		this.cumulatingChecksum = true;
+		this.cumulativeChecksum = initialChecksum;
+	}
+
+	/**
+	 * Marks the end of cumulative checksum calculation and returns the computed checksum.
+	 *
+	 * @return the cumulative CRC32C checksum covering all written bytes
+	 */
+	public long markCumulativeChecksumEnd() {
+		this.cumulatingChecksum = false;
+		final long result = this.cumulativeChecksum;
+		this.cumulativeChecksum = 0L;
+		return result;
+	}
+
+	/**
+	 * Returns the current cumulative checksum value without stopping the accumulation.
+	 * This allows reading intermediate checksum values during a cumulative checksum session.
+	 *
+	 * @return the current cumulative CRC32C checksum value
+	 * @throws io.evitadb.exception.EvitaInternalError if cumulative checksum calculation is not active
+	 */
+	public long getCumulativeChecksum() {
+		Assert.isPremiseValid(
+			this.cumulatingChecksum,
+			"Cannot get cumulative checksum when cumulative checksum calculation is not active!"
+		);
+		return this.cumulativeChecksum;
+	}
+
+	/**
+	 * Calculates a checksum based on the given input parameters and updates
+	 * the instance with the relevant data.
 	 *
 	 * @param savedBytesByCompression the number of bytes saved by compress.
 	 *        This determines whether deflateBuffer or buffer is used for the checksum calculation.
 	 * @param payloadLength the length of the payload used in checksum computation.
 	 * @param alteredControlByte a single byte that will also be included in the checksum.
-	 * @return the computed CRC32C checksum as a long value.
+	 * @return the computed checksum as a long value.
 	 */
 	private long calculateChecksum(int savedBytesByCompression, int payloadLength, byte alteredControlByte) {
 		if (savedBytesByCompression > 0) {
-			this.crc32C.update(this.deflateBuffer, 0, payloadLength - savedBytesByCompression);
+			this.checksum.update(this.deflateBuffer, 0, payloadLength - savedBytesByCompression);
 		} else {
-			this.crc32C.update(this.buffer, this.payloadStartPosition, payloadLength);
+			this.checksum.update(this.buffer, this.payloadStartPosition, payloadLength);
 		}
-		this.crc32C.update(alteredControlByte);
-		return this.crc32C.getValue();
+		this.checksum.update(alteredControlByte);
+		return this.checksum.getValue();
 	}
 
 	/**
@@ -367,17 +475,54 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * @throws IOException if an I/O error occurs during writing
 	 */
 	private void finishRecord(int thePayloadLength, int theSavedBytesByCompression) throws IOException {
+		// calculate lengths for cumulative checksum
+		final int headerLength = this.payloadStartPosition - this.lastConsumedPosition;
+		final int actualPayloadLength = theSavedBytesByCompression > 0
+			? thePayloadLength - theSavedBytesByCompression
+			: thePayloadLength;
+
 		// write header to the output stream
-		this.outputStream.write(this.buffer, this.lastConsumedPosition, this.payloadStartPosition - this.lastConsumedPosition);
+		this.outputStream.write(this.buffer, this.lastConsumedPosition, headerLength);
+
 		// write payload to the output stream
 		if (theSavedBytesByCompression > 0) {
-			this.outputStream.write(this.deflateBuffer, 0, thePayloadLength - theSavedBytesByCompression);
-			this.savedBytesByCompressionSinceReset = Math.addExact(this.savedBytesByCompressionSinceReset, theSavedBytesByCompression);
+			this.outputStream.write(this.deflateBuffer, 0, actualPayloadLength);
+			this.savedBytesByCompressionSinceReset = Math.addExact(
+				this.savedBytesByCompressionSinceReset, theSavedBytesByCompression);
 		} else {
 			this.outputStream.write(this.buffer, this.payloadStartPosition, thePayloadLength);
 		}
-		// write tail to the output stream
+
+		// write tail to the output stream (contains the per-record CRC)
 		this.outputStream.write(this.buffer, this.position - TAIL_MANDATORY_SPACE, TAIL_MANDATORY_SPACE);
+
+		// update cumulative checksum if enabled - reuse existing checksum field
+		if (this.cumulatingChecksum && this.checksum != Checksum.NO_OP) {
+			// reset checksum for full record calculation (per-record CRC already written to buffer)
+			this.checksum.reset();
+
+			// update with header bytes (includes finalized control byte)
+			this.checksum.update(this.buffer, this.lastConsumedPosition, headerLength);
+
+			// update with payload bytes (compressed or uncompressed - what was actually written)
+			if (theSavedBytesByCompression > 0) {
+				this.checksum.update(this.deflateBuffer, 0, actualPayloadLength);
+			} else {
+				this.checksum.update(this.buffer, this.payloadStartPosition, thePayloadLength);
+			}
+
+			// update with tail bytes (the CRC value itself)
+			this.checksum.update(this.buffer, this.position - TAIL_MANDATORY_SPACE, TAIL_MANDATORY_SPACE);
+
+			// get this record's full checksum and combine with running cumulative
+			final long fullRecordChecksum = this.checksum.getValue();
+			final int fullRecordLength = headerLength + actualPayloadLength + TAIL_MANDATORY_SPACE;
+
+			// combine using CRC32C mathematical combination
+			this.cumulativeChecksum = Crc32CWrapper.combine(
+				this.cumulativeChecksum, fullRecordChecksum, fullRecordLength
+			);
+		}
 
 		// update counters as if the uncompressed data was written
 		final int consumedLength = this.position - this.lastConsumedPosition;
@@ -460,6 +605,9 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		this.payloadStartPosition = -1;
 		this.recordLengthPosition = -1;
 		this.savedBytesByCompressionSinceReset = 0;
+		// reset cumulative checksum state
+		this.cumulatingChecksum = false;
+		this.cumulativeChecksum = 0L;
 	}
 
 	/**
@@ -616,6 +764,14 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		final int flushPosition = this.startPosition == -1 ? this.position : this.startPosition;
 		final int flushLength = flushPosition - this.lastConsumedPosition;
 		if (flushLength > 0) {
+			// Update cumulative checksum for raw bytes written outside record lifecycle
+			if (this.cumulatingChecksum && this.startPosition == -1 && this.checksum != Checksum.NO_OP) {
+				this.checksum.reset();
+				this.checksum.update(this.buffer, this.lastConsumedPosition, flushLength);
+				this.cumulativeChecksum = Crc32CWrapper.combine(
+					this.cumulativeChecksum, this.checksum.getValue(), flushLength
+				);
+			}
 			IOUtils.executeSafely(
 				flushLength,
 				KryoException::new,

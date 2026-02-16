@@ -86,7 +86,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundSchemaIndexedMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConflictKeys;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.entity.serializer.EnumNameSerializer;

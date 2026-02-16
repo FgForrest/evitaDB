@@ -213,7 +213,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						}
 
 						// finally, store the catalog bootstrap
-						backupBootstrapRecord(catalogVersion, zipOutputStream, catalogDataFileDescriptor);
+						backupBootstrapRecord(
+							catalogVersion, zipOutputStream, catalogDataFileDescriptor, defaultCatalogPersistenceService
+						);
 					} catch (IOException e) {
 						throw new UnexpectedIOException(
 							"Failed to backup catalog `" + this.catalogName + "`!",
@@ -398,7 +400,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	private void backupBootstrapRecord(
 		long catalogVersion,
 		@Nonnull ZipOutputStream zipOutputStream,
-		@Nonnull OffsetIndexDescriptor catalogDataFileDescriptor
+		@Nonnull OffsetIndexDescriptor catalogDataFileDescriptor,
+		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService
 	) throws IOException {
 		final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
 		zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + bootstrapFileName));
@@ -407,7 +410,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			zipOutputStream,
 			CatalogBootstrap.BOOTSTRAP_RECORD_SIZE,
 			CatalogBootstrap.BOOTSTRAP_RECORD_SIZE << 1,
-			0L
+			0L,
+			catalogPersistenceService.createChecksum(),
+			null
 		);
 		final StorageRecord<CatalogBootstrap> catalogBootstrapStorageRecord = serializeBootstrapRecord(
 			boostrapOutput,

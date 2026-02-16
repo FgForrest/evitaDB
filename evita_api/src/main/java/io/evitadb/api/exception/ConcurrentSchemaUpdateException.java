@@ -30,14 +30,40 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when two parallel processes try to alter the schema of the entity type collection.
- * This problem can be resolved only by repeating the schema alter operation based on the current version of the schema.
+ * Exception thrown when concurrent schema modifications create a version conflict, similar
+ * to optimistic locking conflicts in databases.
+ *
+ * evitaDB uses versioned schemas to detect concurrent modifications. Each schema change
+ * increments the version number. When two sessions concurrently modify the same schema,
+ * the first commit succeeds, but the second fails with this exception because its base
+ * version is outdated.
+ *
+ * **Typical Causes:**
+ * - Two sessions concurrently modifying catalog schema or entity type schema
+ * - Schema cached in application code becomes stale during long-running operations
+ * - Parallel threads or services attempting schema evolution simultaneously
+ *
+ * **Resolution:**
+ * Retry the schema modification operation based on the current (latest) schema version.
+ * Fetch the fresh schema, reapply your intended changes, and commit again. This follows
+ * the optimistic locking pattern: read-modify-write with retry on conflict.
+ *
+ * **Design Note:**
+ * Schema modifications are relatively rare compared to data operations, so optimistic
+ * locking provides better overall throughput than pessimistic locking would. Most schema
+ * conflicts resolve successfully on retry.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ConcurrentSchemaUpdateException extends SchemaAlteringException {
 	@Serial private static final long serialVersionUID = 1176617132327079985L;
 
+	/**
+	 * Creates a new exception for a catalog schema version conflict.
+	 *
+	 * @param currentSchema the current (latest) catalog schema in the database
+	 * @param newSchema     the schema version being submitted (now outdated)
+	 */
 	public ConcurrentSchemaUpdateException(@Nonnull CatalogSchemaContract currentSchema, @Nonnull CatalogSchemaContract newSchema) {
 		super(
 			"Cannot update catalog schema `" + currentSchema.getName() + "` - someone else altered the schema in the meanwhile (current version is " +
@@ -45,6 +71,12 @@ public class ConcurrentSchemaUpdateException extends SchemaAlteringException {
 		);
 	}
 
+	/**
+	 * Creates a new exception for an entity schema version conflict.
+	 *
+	 * @param currentSchema the current (latest) entity schema in the database
+	 * @param newSchema     the schema version being submitted (now outdated)
+	 */
 	public ConcurrentSchemaUpdateException(@Nonnull EntitySchemaContract currentSchema, @Nonnull EntitySchemaContract newSchema) {
 		super(
 			"Cannot update entity schema `" + currentSchema.getName() + "` - someone else altered the schema in the meanwhile (current version is " +

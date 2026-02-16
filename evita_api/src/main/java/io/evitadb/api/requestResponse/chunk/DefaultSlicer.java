@@ -50,7 +50,7 @@ public class DefaultSlicer implements Slicer {
 			case PAGINATED_LIST -> {
 				final int calculatedOffset = PaginatedList.getFirstItemNumberForPage(offset, limit);
 				return new OffsetAndLimit(
-					Math.max(0, calculatedOffset < totalRecordCount ? calculatedOffset : 0),
+					calculatedOffset < totalRecordCount ? calculatedOffset : 0,
 					limit,
 					calculatedOffset < totalRecordCount ? offset : 1,
 					PaginatedList.getLastPageNumber(limit, totalRecordCount),

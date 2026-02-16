@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -79,7 +80,6 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchema
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -105,6 +105,7 @@ import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionManager;
+import io.evitadb.core.transaction.TransactionManager.ProcessResult;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -140,7 +141,6 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
-import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -258,7 +258,7 @@ public final class Catalog
 	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
-	@Getter private final ProxyFactory proxyFactory;
+	private final ProxyFactory proxyFactory;
 	/**
 	 * Reference to the current {@link EvitaConfiguration} settings.
 	 */
@@ -355,7 +355,7 @@ public final class Catalog
 		boolean readOnly,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull Evita evita,
-		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
@@ -374,7 +374,7 @@ public final class Catalog
 					catalogName,
 					cacheSupervisor,
 					evita,
-					reflectionLookup,
+					proxyFactory,
 					exportService,
 					fileManagementService,
 					newCatalogVersionConsumer,
@@ -517,7 +517,7 @@ public final class Catalog
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull Evita evita,
-		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
@@ -570,7 +570,7 @@ public final class Catalog
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
 		this.catalogIndex.attachToCatalog(null, this);
 		this.archiveCatalogIndex = null;
-		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
+		this.proxyFactory = proxyFactory;
 		this.flushExecutor = new SystemObservableExecutorService("flush", this.transactionalExecutor);
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -603,7 +603,7 @@ public final class Catalog
 		@Nonnull String catalogName,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull Evita evita,
-		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
@@ -674,7 +674,7 @@ public final class Catalog
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
 			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 
-		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
+		this.proxyFactory = proxyFactory;
 		this.flushExecutor = new SystemObservableExecutorService("flush", this.transactionalExecutor);
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = catalogSchema.version();
@@ -1157,7 +1157,7 @@ public final class Catalog
 						"Non-processed WAL transaction(s) found for catalog `{}`: {}. Processing it now ...",
 						this.getName(), nonProcessedTxCount
 					);
-					final Catalog catalog = this.transactionManager.processEntireWriteAheadLog(
+					final Optional<ProcessResult> processResult = this.transactionManager.processEntireWriteAheadLog(
 						firstNonProcessedTxVersion,
 						new LongConsumer() {
 							private long lastPercent;
@@ -1165,7 +1165,8 @@ public final class Catalog
 
 							@Override
 							public void accept(long txId) {
-								int percentDone = (int) ((txId - firstNonProcessedTxVersion) * 100 / Math.max(nonProcessedTxCount, 1));
+								int percentDone = (int) ((txId - firstNonProcessedTxVersion) * 100 / Math.max(
+									nonProcessedTxCount, 1));
 								if (percentDone > this.lastPercent) {
 									this.lastPercent = percentDone;
 									if (System.currentTimeMillis() - this.lastLoggedTime >= 5000) {
@@ -1180,17 +1181,25 @@ public final class Catalog
 						}
 					);
 
-					this.persistenceService.purgeAllObsoleteFiles();
-					log.info(
-						"WAL of `{}` catalog was processed in {}.", this.getName(),
-						StringUtils.formatNano(System.nanoTime() - start)
+					processResult.ifPresent(
+						pr -> {
+							final Catalog newCatalog = pr.catalog();
+							log.info(
+								"WAL of `{}` catalog was processed in {}.", this.getName(),
+								StringUtils.formatNano(System.nanoTime() - start)
+							);
+							newCatalog.persistenceService.verifyIntegrity();
+							newCatalog.persistenceService.purgeAllObsoleteFiles();
+							updatedCatalogConsumer.accept(newCatalog);
+						}
 					);
-					updatedCatalogConsumer.accept(catalog);
 				},
-				() -> updatedCatalogConsumer.accept(this)
+				() -> {
+					this.persistenceService.verifyIntegrity();
+					this.persistenceService.purgeAllObsoleteFiles();
+					updatedCatalogConsumer.accept(this);
+				}
 			);
-
-		this.persistenceService.verifyIntegrity();
 	}
 
 	@Nonnull
@@ -1277,7 +1286,7 @@ public final class Catalog
 		return new CatalogStatistics(
 			getCatalogId(),
 			getName(),
-			!(catalogState == CatalogState.ALIVE || catalogState == CatalogState.WARMING_UP),
+			!catalogState.isActive(),
 			this.readOnly.get(),
 			catalogState,
 			getVersion(),
@@ -1689,7 +1698,8 @@ public final class Catalog
 	 */
 	public void flush(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(getCatalogState() == CatalogState.ALIVE, "Catalog is not in ALIVE state!");
-		boolean changeOccurred = getInternalSchema().version() != this.lastPersistedSchemaVersion;
+		boolean changeOccurred = this.persistenceService.getLastCatalogVersion() != catalogVersion ||
+			getInternalSchema().version() != this.lastPersistedSchemaVersion;
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
 		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();

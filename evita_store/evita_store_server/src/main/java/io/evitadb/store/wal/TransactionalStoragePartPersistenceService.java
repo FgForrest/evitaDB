@@ -23,8 +23,6 @@
 
 package io.evitadb.store.wal;
 
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -41,6 +39,7 @@ import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.utils.FileUtils;
@@ -84,8 +83,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		@Nonnull UUID transactionId,
 		@Nonnull String name,
 		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> delegate,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry,
@@ -93,7 +91,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	) {
 		this.delegate = delegate;
 		// we create a duplicate offset index that targets temporary file in tx related directory
-		this.targetFile = transactionOptions.transactionWorkDirectory()
+		this.targetFile = storageSettings.transactionWorkDirectory()
 			.resolve(transactionId.toString())
 			.resolve(name + ".tmp");
 		this.offsetIndex = new OffsetIndex(
@@ -104,13 +102,21 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 				// we don't care here
 				1.0, 0L
 			),
-			storageOptions,
+			storageSettings.outputBufferSize(),
+			storageSettings.maxOpenedReadHandlesOrDefault(),
+			storageSettings.lockTimeoutSeconds(),
+			storageSettings.waitOnCloseSeconds(),
+			storageSettings,
+			storageSettings,
 			offsetIndexRecordTypeRegistry,
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.targetFile,
-				storageOptions,
+				storageSettings.outputBufferSize(),
+				storageSettings.syncWrites(),
 				observableOutputKeeper,
-				offHeapMemoryManager
+				offHeapMemoryManager,
+				storageSettings,
+				storageSettings
 			),
 			nonFlushedBlock -> {
 				// we don't care here

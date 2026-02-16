@@ -62,7 +62,13 @@ public class BitmapChanges {
 	 * Returns true if bitmap with applied changes is empty.
 	 */
 	public boolean isEmpty() {
-		return (this.originalBitmap.isEmpty() || RoaringBitmap.andNot(this.originalBitmap, this.removals).isEmpty()) && this.insertions.isEmpty();
+		if (!this.insertions.isEmpty()) {
+			return false;
+		}
+		if (this.originalBitmap.isEmpty()) {
+			return true;
+		}
+		return RoaringBitmap.andNotCardinality(this.originalBitmap, this.removals) == 0;
 	}
 
 	/**
@@ -124,7 +130,8 @@ public class BitmapChanges {
 			return this.originalBitmap;
 		} else {
 			// compute results only when we can't reuse previous computation
-			if (this.memoizedMergedBitmap == null) {
+			final RoaringBitmap memoizedBitmap = this.memoizedMergedBitmap;
+			if (memoizedBitmap == null) {
 				// memoize costly computation and return
 				final RoaringBitmap mergedBitmap = RoaringBitmap.andNot(
 					RoaringBitmap.or(this.originalBitmap, this.insertions),
@@ -132,9 +139,10 @@ public class BitmapChanges {
 				);
 				mergedBitmap.runOptimize();
 				this.memoizedMergedBitmap = mergedBitmap;
+				return mergedBitmap;
+			} else {
+				return memoizedBitmap;
 			}
-
-			return this.memoizedMergedBitmap;
 		}
 	}
 

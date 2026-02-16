@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
-
 import javax.annotation.Nonnull;
 import java.util.UUID;
 import java.util.concurrent.Flow;

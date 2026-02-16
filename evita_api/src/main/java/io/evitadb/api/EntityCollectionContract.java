@@ -51,36 +51,141 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Entity collection maintains all entities of same {@link Entity#getType()}. Entity collection could be imagined
- * as single table in RDBMS environment or document type in case of the Elasticsearch or Mongo DB no sql databases.
+ * Manages all entities of a single entity type within a catalog, analogous to a table in relational databases or
+ * a document type in NoSQL systems. Each entity collection is uniquely identified by its entity type name and
+ * maintains a consistent schema ({@link EntitySchemaContract}) for all contained entities.
  *
- * EntityCollection is set of records of the same type. In the relational world it would represent a table (or a single
- * main table with several other tables containing records referring to that main table). Entity collection maintains
- * all entities of the same type (i.e. same {@link EntitySchemaContract}).
+ * **Architecture and Purpose**
+ *
+ * An entity collection represents a homogeneous set of records sharing:
+ * - Common entity type (e.g., "Product", "Category", "Brand")
+ * - Unified schema defining allowed attributes, references, and associated data
+ * - Consistent indexing strategy for query performance
+ * - Independent versioning and mutation history
+ *
+ * **Entity Type Identity**
+ *
+ * Collections are identified by:
+ * - **Type name** (string): Human-readable identifier, e.g., "Product"
+ * - **Type primary key** (int): Numeric identifier assigned at collection creation, immutable
+ *
+ * **CRUD Operations**
+ *
+ * - **Create**: {@link #createNewEntity()}, {@link #createNewEntity(int)} for entity builders
+ * - **Read**: {@link #getEntity(int, EvitaRequest, EvitaSessionContract)} for single entity retrieval
+ * - **Update**: {@link #upsertEntity} to apply entity mutations
+ * - **Delete**: {@link #deleteEntity}, {@link #deleteEntityAndItsHierarchy}, {@link #deleteEntities}
+ *
+ * **Querying**
+ *
+ * - {@link #getEntities(EvitaRequest, EvitaSessionContract)}: Paginated query results
+ * - {@link #enrichEntity}: Lazy-load additional entity data
+ * - {@link #limitEntity}: Restrict entity data visibility (for caching scenarios)
+ *
+ * **Schema Evolution**
+ *
+ * Entity schemas can evolve over time via {@link #updateSchema}. Schema changes are validated and may trigger:
+ * - Index rebuilding for new indexed attributes
+ * - Data migration for structural changes
+ * - Cascading updates to related schemas (e.g., reflected references)
+ *
+ * **Archiving (Soft Delete)**
+ *
+ * Collections support multi-scope entity storage:
+ * - **Living scope** ({@link Scope#LIVE}): Normal active entities
+ * - **Archived scope** ({@link Scope#ARCHIVED}): Soft-deleted entities with minimal indexing
+ *
+ * Archiving operations:
+ * - {@link #archiveEntity}: Move entity to archived scope
+ * - {@link #restoreEntity}: Restore archived entity to living scope
+ * - Archived entities remain queryable but with limited index support
+ *
+ * **Hierarchical Entities**
+ *
+ * For entity types with hierarchy support:
+ * - {@link #deleteEntityAndItsHierarchy}: Cascade delete to child entities
+ * - Hierarchy structure maintained via parent references
+ * - Hierarchical queries use tree indexes for performance
+ *
+ * **Statistics and Monitoring**
+ *
+ * - {@link #getStatistics()}: Collection-level metrics (record count, index count, disk size)
+ * - {@link #isEmpty()}, {@link #size()}: Quick checks for collection state
+ * - {@link #getVersion()}: Mutation version for change tracking
+ *
+ * **Thread-Safety**
+ *
+ * Entity collection implementations are thread-safe for concurrent read and write operations in {@link CatalogState#ALIVE}.
+ * Write operations are serialized through transactions. Read operations use MVCC for lock-free access.
+ *
+ * **Lifecycle**
+ *
+ * - Created automatically when first entity of a type is inserted (if schema evolution allows)
+ * - Explicitly created via catalog schema mutations
+ * - Terminated via {@link #terminate()} when catalog is closed or deleted
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface EntityCollectionContract {
 
 	/**
-	 * Returns a unique identifier of the entity type that is assigned on entity collection creation and never changes.
-	 * The primary key can be used interchangeably to {@link EntitySchemaContract#getName() String entity type}.
+	 * Returns the immutable numeric identifier assigned to this entity type when the collection was first created.
+	 * This primary key provides a stable, efficient reference that never changes, even if the entity type is renamed.
+	 *
+	 * **Use Cases**
+	 *
+	 * - Internal indexing and storage keys
+	 * - Efficient numeric lookups avoiding string comparisons
+	 * - Stable references across schema evolution
+	 *
+	 * **Relationship to Entity Type Name**
+	 *
+	 * This integer key can be used interchangeably with {@link EntitySchemaContract#getName()} for identifying
+	 * entity collections, but offers better performance for internal operations.
+	 *
+	 * @return immutable numeric identifier for this entity type
 	 */
 	int getEntityTypePrimaryKey();
 
 	/**
-	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
-	 * access to the entity contents when primary key is known.
+	 * Retrieves a single entity by its primary key with requested level of data completeness specified by
+	 * {@link EvitaRequest}. This is the most efficient way to access entity data when the primary key is known.
+	 *
+	 * **Data Completeness**
+	 *
+	 * The {@link EvitaRequest} parameter controls what entity data is loaded:
+	 * - Entity body (attributes, associated data)
+	 * - References to other entities
+	 * - Price information
+	 * - Localized data
+	 *
+	 * **Performance Characteristics**
+	 *
+	 * - Direct primary key lookup: O(1) via internal hash maps
+	 * - Lazy loading: Only requested data is fetched from storage
+	 * - No query overhead: Bypasses query planning and filtering
+	 *
+	 * **Entity Scope**
+	 *
+	 * By default, searches in {@link Scope#LIVE} (active entities). To access archived entities, specify
+	 * {@link Scope#ARCHIVED} in the evitaRequest.
+	 *
+	 * @param primaryKey   unique identifier of the entity within this collection
+	 * @param evitaRequest specifies what entity data to load (attributes, references, prices, etc.)
+	 * @param session      session context providing transaction and security scope
+	 * @return sealed entity with requested data, or empty if entity doesn't exist or is not visible in requested scope
 	 */
 	@Nonnull
-	Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	Optional<SealedEntity> getEntity(
+		int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method returns a response containing entities that match passed `evitaRequest`. This is universal method for
 	 * accessing multiple entities from the collection in a paginated fashion in requested form of completeness.
 	 */
 	@Nonnull
-	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(
+		@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method returns entity with additionally loaded data specified by requirements in second argument. This method
@@ -94,7 +199,8 @@ public interface EntityCollectionContract {
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	SealedEntity enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session)
+	SealedEntity enrichEntity(
+		@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session)
 		throws EntityAlreadyRemovedException;
 
 	/**
@@ -108,7 +214,8 @@ public interface EntityCollectionContract {
 	 * @param session      that connect this request with an opened session
 	 */
 	@Nonnull
-	SealedEntity limitEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	SealedEntity limitEntity(
+		@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Returns UNIQUE name of the entity collection in the catalog.
@@ -143,7 +250,8 @@ public interface EntityCollectionContract {
 	 *                                  twice entity with the same primary key, or execute update that has no sense
 	 */
 	@Nonnull
-	EntityReferenceContract upsertEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException;
+	EntityReferenceContract upsertEntity(
+		@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException;
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
@@ -154,7 +262,10 @@ public interface EntityCollectionContract {
 	 *                                  twice entity with the same primary key, or execute update that has no sense
 	 */
 	@Nonnull
-	SealedEntity upsertAndFetchEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation, @Nonnull EvitaRequest evitaRequest);
+	SealedEntity upsertAndFetchEntity(
+		@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation,
+		@Nonnull EvitaRequest evitaRequest
+	);
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
@@ -175,7 +286,8 @@ public interface EntityCollectionContract {
 	 * @return removed entity fetched according to `require` definition
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
+	<T extends Serializable> Optional<T> deleteEntity(
+		@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
 
 	/**
 	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
@@ -198,7 +310,8 @@ public interface EntityCollectionContract {
 	 * @return number of removed entities and the body of the deleted root entity
 	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
 	 */
-	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(
+		@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method removes all entities that match passed query. All entities of other entity types that reference removed
@@ -211,21 +324,40 @@ public interface EntityCollectionContract {
 	int deleteEntities(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
 
 	/**
-	 * Method archives existing active (living) entity in collection by its primary key. Archiving in evitaDB resembles
-	 * soft-delete in the sense that the entity is not removed from the collection but is marked as archived and is not
-	 * visible in the regular queries. The entity can be restored back to the active state by calling {@link #restoreEntity(EvitaSessionContract, int)}.
-	 * Archived entities can still be retrieved using query using {@link EntityScope} requirement with {@link Scope#ARCHIVED}.
-	 * Archived entities have the same schema structure, but by default none of their data (except for primary key) are
-	 * indexed so that soft-deleted entities consume only minimal space in the memory. Set of indexed data can be
-	 * extended using schema definition process.
+	 * Archives (soft-deletes) an active entity by moving it from the living scope ({@link Scope#LIVE}) to the
+	 * archived scope ({@link Scope#ARCHIVED}). Archived entities are not visible in regular queries but can be
+	 * retrieved explicitly and later restored to active state.
 	 *
-	 * All entities of other entity types that reference removed entity in their {@link SealedEntity#getReference(String, int)}
-	 * still keep the data untouched. Automatically created - bi-directional references in the archived entity and
-	 * the entities on the opposite side are automatically removed along with the entity.
+	 * **Archiving vs. Deletion**
 	 *
-	 * @param session      that connect this request with an opened session
-	 * @param primaryKey primary key of the entity to be archived
-	 * @return true if entity existed in living scope and was archived
+	 * - **Archiving**: Entity remains in collection with minimal indexing, can be restored
+	 * - **Deletion**: Entity is permanently removed from collection, cannot be recovered
+	 *
+	 * **Indexed Data in Archived Scope**
+	 *
+	 * By default, archived entities have only their primary key indexed to minimize memory consumption. Additional
+	 * attributes or references can be marked for archival indexing via schema configuration to support queries
+	 * on archived data.
+	 *
+	 * **Reference Handling**
+	 *
+	 * - **Outgoing references**: Manually created references remain intact; bi-directional (reflected) references are removed
+	 * - **Incoming references**: References from other entities to this entity remain unchanged
+	 * - **Bi-directional references**: Automatically removed from both sides to maintain consistency
+	 *
+	 * **Restoration**
+	 *
+	 * Archived entities can be restored to living scope via {@link #restoreEntity(EvitaSessionContract, int)},
+	 * which reverses the archival process and recreates bi-directional references.
+	 *
+	 * **Querying Archived Entities**
+	 *
+	 * Use {@link EntityScope} requirement with {@link Scope#ARCHIVED} in queries to access archived entities.
+	 *
+	 * @param session    session context providing transaction and security scope
+	 * @param primaryKey primary key of the entity to archive
+	 * @return true if entity existed in living scope and was successfully archived, false if entity was not found
+	 * in living scope (may already be archived or never existed)
 	 */
 	boolean archiveEntity(@Nonnull EvitaSessionContract session, int primaryKey);
 
@@ -247,7 +379,8 @@ public interface EntityCollectionContract {
 	 * @return archived entity fetched according to `require` definition
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
+	<T extends Serializable> Optional<T> archiveEntity(
+		@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
 
 	/**
 	 * Method restores existing archived entity in collection by its primary key. Restoring process reverts the effects
@@ -256,7 +389,7 @@ public interface EntityCollectionContract {
 	 * The automatically created - bi-directional references in the restored entity and the entities on the opposite
 	 * side are automatically recreated along with the entity.
 	 *
-	 * @param session that connect this request with an opened session
+	 * @param session    that connect this request with an opened session
 	 * @param primaryKey primary key of the entity to be restored
 	 * @return true if entity was found in archive and was restored back to the living scope
 	 */
@@ -274,7 +407,8 @@ public interface EntityCollectionContract {
 	 * @return removed entity fetched according to `require` definition
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
+	<T extends Serializable> Optional<T> restoreEntity(
+		@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
 
 	/**
 	 * Method returns true if there is no single entity in the collection.

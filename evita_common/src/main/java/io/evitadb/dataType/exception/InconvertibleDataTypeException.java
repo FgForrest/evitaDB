@@ -37,10 +37,22 @@ import java.io.Serializable;
  */
 public class InconvertibleDataTypeException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -117475978928554127L;
+	/**
+	 * The target type that was requested for conversion.
+	 */
 	@Getter private final Class<?> requestedType;
+	/**
+	 * The actual type of the value that could not be converted.
+	 */
 	@Getter private final Class<?> providedType;
+	/**
+	 * The value that could not be converted, or null if only type information was available.
+	 */
 	@Getter private final Serializable value;
 
+	/**
+	 * Creates a new exception for a concrete value that cannot be converted to the requested type.
+	 */
 	public InconvertibleDataTypeException(@Nonnull Class<?> requestedType, @Nonnull Serializable value) {
 		super(
 			"The value `" + value + "` cannot be converted to the type `" + requestedType.getName() + "`!"
@@ -50,6 +62,9 @@ public class InconvertibleDataTypeException extends EvitaInvalidUsageException {
 		this.value = value;
 	}
 
+	/**
+	 * Creates a new exception when the provided type is known to be incompatible with the requested type.
+	 */
 	public InconvertibleDataTypeException(@Nonnull Class<?> requestedType, @Nonnull Class<?> providedType) {
 		super(
 			"The type `" + providedType.getName() + "` cannot be converted to the type `" + requestedType.getName() + "`!"

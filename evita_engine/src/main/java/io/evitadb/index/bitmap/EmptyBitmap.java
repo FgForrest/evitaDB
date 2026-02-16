@@ -32,7 +32,7 @@ import java.io.Serial;
 import java.util.PrimitiveIterator.OfInt;
 
 /**
- * This implementation of {@link EmptyBitmap} interface is immutable always empty bitmap, that could be safely used in
+ * This implementation of {@link Bitmap} interface is immutable always empty bitmap, that could be safely used in
  * multithreaded access for representing empty value.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

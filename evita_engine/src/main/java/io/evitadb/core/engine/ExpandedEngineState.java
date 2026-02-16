@@ -82,7 +82,7 @@ import static io.evitadb.utils.ArrayUtils.removeRecordFromOrderedArray;
 @Immutable
 public record ExpandedEngineState(
 	long startVersion,
-	@Nonnull EngineState engineState,
+	@Nonnull EngineState<LogRecordReference> engineState,
 	@Nonnull Map<String, CatalogWrapper> catalogs,
 	@Nonnull Set<String> readOnlyCatalogs
 ) {
@@ -110,7 +110,7 @@ public record ExpandedEngineState(
 	 * @param catalogs    catalog instances keyed by name (will be wrapped as unmodifiable)
 	 */
 	public static ExpandedEngineState create(
-		@Nonnull EngineState engineState,
+		@Nonnull EngineState<LogRecordReference> engineState,
 		@Nonnull Map<String, CatalogContract> catalogs
 	) {
 		return new ExpandedEngineState(
@@ -147,7 +147,7 @@ public record ExpandedEngineState(
 	 */
 	private ExpandedEngineState(
 		long startVersion,
-		@Nonnull EngineState engineState,
+		@Nonnull EngineState<LogRecordReference> engineState,
 		@Nonnull Map<String, CatalogWrapper> catalogs
 	) {
 		this(
@@ -262,7 +262,7 @@ public record ExpandedEngineState(
 		final HashMap<String, CatalogWrapper> updatedCatalogs = new HashMap<>(this.catalogs);
 		updatedCatalogs.put(catalog.getName(), new CatalogWrapper(catalog));
 
-		final EngineState.Builder engineStateBuilder = EngineState
+		final EngineState.Builder<LogRecordReference> engineStateBuilder = EngineState
 			.builder(this.engineState)
 			.version(this.engineState.version());
 
@@ -296,7 +296,7 @@ public record ExpandedEngineState(
 	 * @return a new {@link EngineState} identical to the current one except for the WAL reference
 	 */
 	@Nonnull
-	public EngineState engineState(
+	public EngineState<LogRecordReference> engineState(
 		@Nonnull LogRecordReference walFileReference,
 		long engineStateVersion
 	) {
@@ -408,7 +408,7 @@ public record ExpandedEngineState(
 		 */
 		@Nonnull
 		public ExpandedEngineState build() {
-			final EngineState.Builder engineStateBuilder = EngineState
+			final EngineState.Builder<LogRecordReference> engineStateBuilder = EngineState
 				.builder(this.base.engineState)
 				.version(this.version)
 				.activeCatalogs(this.activeCatalogs)

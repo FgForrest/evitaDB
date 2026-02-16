@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.transaction.model.mutation;
 
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
@@ -34,7 +34,7 @@ import java.util.UUID;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor representing the {@link io.evitadb.api.requestResponse.transaction.TransactionMutation}
+ * Descriptor representing the {@link io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation}
  *
  * Note: this descriptor has static structure.
  *

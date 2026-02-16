@@ -23,6 +23,7 @@
 
 package io.evitadb.utils;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Random;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@DisplayName("RandomUtils contract tests")
 class RandomUtilsTest {
 
 	@Test

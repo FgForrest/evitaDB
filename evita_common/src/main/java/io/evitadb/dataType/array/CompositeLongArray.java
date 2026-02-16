@@ -28,9 +28,11 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
@@ -48,14 +50,15 @@ import java.util.PrimitiveIterator.OfLong;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @Slf4j
-public class CompositeLongArray {
+public class CompositeLongArray implements Serializable {
+	@Serial private static final long serialVersionUID = -4719462226834432178L;
 	private static final int CHUNK_SIZE = 50;
 
 	/**
 	 * List of all chunks used in this instance.
 	 */
 	@Nonnull
-	private final List<long[]> chunks = new LinkedList<>();
+	private final List<long[]> chunks = new ArrayList<>();
 	/**
 	 * Contains TRUE if array contains only non-duplicated monotonically increasing numbers.
 	 */
@@ -108,8 +111,13 @@ public class CompositeLongArray {
 
 	/**
 	 * Returns last number written to the composite array.
+	 *
+	 * @throws NoSuchElementException if the array is empty
 	 */
 	public long getLast() {
+		if (isEmpty()) {
+			throw new NoSuchElementException("Array is empty!");
+		}
 		return this.currentChunk[this.chunkPeek];
 	}
 
@@ -158,13 +166,22 @@ public class CompositeLongArray {
 		for (long[] chunk : this.chunks) {
 			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
-				if (Arrays.binarySearch(chunk, recordId) >= 0) {
-					return true;
+				//noinspection ArrayEquality
+				if (chunk == this.currentChunk) {
+					if (Arrays.binarySearch(chunk, 0, this.chunkPeek + 1, recordId) >= 0) {
+						return true;
+					}
+				} else {
+					if (Arrays.binarySearch(chunk, recordId) >= 0) {
+						return true;
+					}
 				}
 			} else {
 				// else array must be full scanned
-				for (long theNumber : chunk) {
-					if (recordId == theNumber) {
+				//noinspection ArrayEquality
+				final int limit = chunk == this.currentChunk ? this.chunkPeek + 1 : chunk.length;
+				for (int j = 0; j < limit; j++) {
+					if (recordId == chunk[j]) {
 						return true;
 					}
 				}
@@ -179,14 +196,18 @@ public class CompositeLongArray {
 	public int indexOf(long recordId) {
 		for (int i = 0; i < this.chunks.size(); i++) {
 			final long[] chunk = this.chunks.get(i);
+			final boolean lastChunk = i == this.chunks.size() - 1;
 			int index;
 			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
-				index = Arrays.binarySearch(chunk, recordId);
+				index = lastChunk ?
+					(this.chunkPeek >= 0 ? Arrays.binarySearch(chunk, 0, this.chunkPeek + 1, recordId) : -1) :
+					Arrays.binarySearch(chunk, recordId);
 			} else {
 				// else array must be full scanned
+				final int limit = lastChunk ? this.chunkPeek + 1 : chunk.length;
 				index = -1 * (CHUNK_SIZE + 1);
-				for (int j = 0; j < chunk.length; j++) {
+				for (int j = 0; j < limit; j++) {
 					final long theNumber = chunk[j];
 					if (theNumber == recordId) {
 						index = j;
@@ -215,7 +236,7 @@ public class CompositeLongArray {
 	/**
 	 * Overwrites number at the specified index of the array.
 	 */
-	public void set(int recordId, int index) {
+	public void set(long recordId, int index) {
 		Assert.isTrue(index < getSize(), "Index out of bounds!");
 		this.chunks.get(index / CHUNK_SIZE)[index % CHUNK_SIZE] = recordId;
 	}
@@ -244,7 +265,7 @@ public class CompositeLongArray {
 	 */
 	public void addAll(@Nonnull long[] numbers, int srcPosition, int length) {
 
-		if (numbers.length == 0) {
+		if (numbers.length == 0 || length == 0) {
 			return;
 		}
 
@@ -258,7 +279,7 @@ public class CompositeLongArray {
 				this.monotonic = false;
 			} else {
 				long lastNumber = numbers[srcPosition];
-				for (int i = srcPosition + 1; i < length; i++) {
+				for (int i = srcPosition + 1; i < srcPosition + length; i++) {
 					if (lastNumber >= numbers[i]) {
 						this.monotonic = false;
 						break;
@@ -333,7 +354,7 @@ public class CompositeLongArray {
 		final OfLong it = iterator();
 		int hashCode = 0;
 		while (it.hasNext()) {
-			hashCode += 31 * it.next().hashCode();
+			hashCode += 31 * Long.hashCode(it.nextLong());
 		}
 		return hashCode;
 	}
@@ -346,7 +367,7 @@ public class CompositeLongArray {
 		final OfLong it = iterator();
 		final OfLong it2 = that.iterator();
 		while (it.hasNext() && it2.hasNext()) {
-			if (!it.next().equals(it2.next())) {
+			if (it.nextLong() != it2.nextLong()) {
 				return false;
 			}
 		}
@@ -373,7 +394,7 @@ public class CompositeLongArray {
 
 		@Override
 		public long nextLong() {
-			if (this.index == this.size) {
+			if (!hasNext()) {
 				throw new NoSuchElementException("End of the array reached - max number of elements is " + getSize());
 			}
 			if (this.chunkIndex + 1 >= CHUNK_SIZE) {

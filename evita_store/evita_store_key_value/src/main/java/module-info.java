@@ -3,6 +3,8 @@
  */
 module evita.store.key.value {
 
+	exports io.evitadb.store.checksum;
+	exports io.evitadb.store.compression;
 	exports io.evitadb.store.kryo;
 	exports io.evitadb.store.offsetIndex;
 	exports io.evitadb.store.offsetIndex.exception;

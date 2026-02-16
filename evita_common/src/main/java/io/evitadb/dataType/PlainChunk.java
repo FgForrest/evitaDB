@@ -24,12 +24,9 @@
 package io.evitadb.dataType;
 
 
-import lombok.RequiredArgsConstructor;
-
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -39,25 +36,31 @@ import java.util.List;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@RequiredArgsConstructor
 public final class PlainChunk<T extends Serializable> implements DataChunk<T> {
 	@Serial private static final long serialVersionUID = -5608217485991191285L;
-	private final Collection<T> data;
-	private List<T> dataList;
+	@Nonnull private final List<T> dataList;
+
+	/**
+	 * Creates a new PlainChunk wrapping the given collection. The collection
+	 * is eagerly converted to a {@link List} at construction time to satisfy
+	 * the {@link DataChunk} thread-safety and immutability contract.
+	 *
+	 * @param data the collection of elements to wrap
+	 */
+	public PlainChunk(@Nonnull java.util.Collection<T> data) {
+		this.dataList = data instanceof List<T> ?
+			(List<T>) data : List.copyOf(data);
+	}
 
 	@Nonnull
 	@Override
 	public List<T> getData() {
-		if (this.dataList == null) {
-			this.dataList = this.data instanceof List<T> ?
-				(List<T>) this.data : List.copyOf(this.data);
-		}
 		return this.dataList;
 	}
 
 	@Override
 	public int getTotalRecordCount() {
-		return this.data.size();
+		return this.dataList.size();
 	}
 
 	@Override
@@ -87,13 +90,13 @@ public final class PlainChunk<T extends Serializable> implements DataChunk<T> {
 
 	@Override
 	public boolean isEmpty() {
-		return this.data.isEmpty();
+		return this.dataList.isEmpty();
 	}
 
 	@Nonnull
 	@Override
 	public Iterator<T> iterator() {
-		return this.data.iterator();
+		return this.dataList.iterator();
 	}
 
 }

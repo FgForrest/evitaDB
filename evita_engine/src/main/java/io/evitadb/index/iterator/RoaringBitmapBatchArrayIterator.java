@@ -53,6 +53,7 @@ public class RoaringBitmapBatchArrayIterator implements BatchArrayIterator {
 		return this.delegate.hasNext();
 	}
 
+	@Nonnull
 	@Override
 	public int[] nextBatch() {
 		this.peek = this.delegate.nextBatch(this.buffer);

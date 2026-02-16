@@ -205,11 +205,12 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			name, NamingConvention.generate(name),
 			null, null, cardinality,
 			entityType,
-			referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(entityType),
+			referencedEntityTypeManaged ?
+				Collections.emptyMap() : NamingConvention.generate(entityType),
 			referencedEntityTypeManaged,
 			groupType,
-			groupType != null && groupType.isBlank() && !referencedGroupTypeManaged ?
-				NamingConvention.generate(groupType) : Collections.emptyMap(),
+			groupType != null && !groupType.isBlank() &&
+				!referencedGroupTypeManaged ? NamingConvention.generate(groupType) : Collections.emptyMap(),
 			referencedGroupTypeManaged,
 			indexedScopesMap,
 			facetedScopes,
@@ -255,8 +256,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(entityType),
 			referencedEntityTypeManaged,
 			groupType,
-			groupType != null && groupType.isBlank() && !referencedGroupTypeManaged ?
-				NamingConvention.generate(groupType) : Collections.emptyMap(),
+			groupType != null && !groupType.isBlank() &&
+				!referencedGroupTypeManaged ? NamingConvention.generate(groupType) : Collections.emptyMap(),
 			referencedGroupTypeManaged,
 			indexedScopesMap,
 			facetedScopes,

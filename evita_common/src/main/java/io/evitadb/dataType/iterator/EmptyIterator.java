@@ -28,20 +28,16 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * This implementation of {@link Iterator} represents empty iterator.
+ * This implementation of {@link Iterator} represents an empty iterator.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 public class EmptyIterator<T> implements Iterator<T> {
 	private static final EmptyIterator<?> INSTANCE = new EmptyIterator<>();
-	private static final Iterable<?> ITERABLE_INSTANCE = new Iterable<>() {
-		@SuppressWarnings("rawtypes")
-		@Nonnull
-		@Override
-		public Iterator iterator() {
-			return INSTANCE;
-		}
-	};
+	@SuppressWarnings("unchecked")
+	private static final Iterable<?> ITERABLE_INSTANCE = () -> (Iterator) INSTANCE;
+
+	private EmptyIterator() {}
 
 	/**
 	 * Returns a shared instance of {@code Iterable}, a singleton implementation of an empty iterable.
@@ -67,11 +63,17 @@ public class EmptyIterator<T> implements Iterator<T> {
 		return (Iterator<T>) INSTANCE;
 	}
 
+	/**
+	 * Always throws {@link NoSuchElementException} since this iterator is empty.
+	 */
 	@Override
 	public T next() {
 		throw new NoSuchElementException("No data in stream!");
 	}
 
+	/**
+	 * Always returns false since this iterator is empty.
+	 */
 	@Override
 	public boolean hasNext() {
 		return false;

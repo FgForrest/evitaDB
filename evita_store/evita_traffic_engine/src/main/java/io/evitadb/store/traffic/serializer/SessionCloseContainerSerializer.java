@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 		output.writeVarInt(object.ioFetchCount(), true);
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
 		output.writeVarInt(object.trafficRecordCount(), true);
+		output.writeVarInt(object.trafficRecordsMissedOut(), true);
 		output.writeVarInt(object.queryCount(), true);
 		output.writeVarInt(object.entityFetchCount(), true);
 		output.writeVarInt(object.mutationCount(), true);
@@ -63,6 +64,7 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			input.readLong(),
 			kryo.readObject(input, java.time.OffsetDateTime.class),
+			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),

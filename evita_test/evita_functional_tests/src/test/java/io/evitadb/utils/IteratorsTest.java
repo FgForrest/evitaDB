@@ -24,6 +24,7 @@
 package io.evitadb.utils;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.PrimitiveIterator.OfInt;
@@ -33,6 +34,7 @@ import java.util.PrimitiveIterator.OfInt;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("Iterators contract tests")
 class IteratorsTest {
 
 	@Test

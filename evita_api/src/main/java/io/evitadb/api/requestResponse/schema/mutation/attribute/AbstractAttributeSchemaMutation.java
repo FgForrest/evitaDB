@@ -38,7 +38,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -92,6 +94,39 @@ abstract class AbstractAttributeSchemaMutation implements NamedSchemaMutation {
 		return context.isEntityTypePresent() ?
 			Stream.of(new CollectionConflictKey(context.getEntityType())) :
 			Stream.of(new CatalogConflictKey(context.getCatalogName()));
+	}
+
+	/**
+	 * Joins an array of {@link ScopedAttributeUniquenessType} into a single string representation.
+	 * Each element in the array is transformed into a string format combining its scope and uniqueness type
+	 * (e.g., "scope: UNIQUENESS_TYPE") and concatenated with a comma separator.
+	 *
+	 * @param scopes an array of {@link ScopedAttributeUniquenessType} defining the scope and uniqueness type combinations;
+	 *               must not be null.
+	 * @return a comma-separated string representation of the input array; never null.
+	 */
+	@Nonnull
+	protected static String join(@Nonnull ScopedAttributeUniquenessType[] scopes) {
+		return Arrays.stream(scopes)
+			.map(it -> it.scope() + ": " + it.uniquenessType().name())
+			.collect(Collectors.joining(", "));
+	}
+
+	/**
+	 * Concatenates an array of {@code ScopedGlobalAttributeUniquenessType} entries into a single string.
+	 * Each entry in the array is transformed into a string representation in the format:
+	 * {@code "scope: uniquenessType"} and entries are joined with a comma and space.
+	 *
+	 * @param scopes an array of {@code ScopedGlobalAttributeUniquenessType} objects representing
+	 *               attribute uniqueness types scoped by a specific domain or context.
+	 * @return a concatenated string representation of all entries in the {@code scopes} array.
+	 *         Returns an empty string if the input array is null or empty.
+	 */
+	@Nonnull
+	protected static String join(ScopedGlobalAttributeUniquenessType[] scopes) {
+		return Arrays.stream(scopes)
+			.map(it -> it.scope() + ": " + it.uniquenessType().name())
+			.collect(Collectors.joining(", "));
 	}
 
 }

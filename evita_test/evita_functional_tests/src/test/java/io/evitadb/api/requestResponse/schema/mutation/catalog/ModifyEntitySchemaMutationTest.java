@@ -23,6 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -38,129 +42,279 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeU
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.util.List;
+import java.util.Set;
+
 import static java.util.Optional.of;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies {@link ModifyEntitySchemaMutation} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ModifyEntitySchemaMutationTest {
+@DisplayName("ModifyEntitySchemaMutation")
+class ModifyEntitySchemaMutationTest {
 
-	@Test
-	void shouldCombineWithAnotherMutationToSameSchema() {
-		ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
-			"entityName",
-			new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
-		);
+	@Nested
+	@DisplayName("Combine with other mutations")
+	class CombineWith {
 
-		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
-		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
-			catalogSchema,
-			new ModifyEntitySchemaMutation(
+		@Test
+		@DisplayName("should combine with another mutation to same schema")
+		void shouldCombineWithAnotherMutationToSameSchema() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
 				"entityName",
-				new SetAttributeSchemaFilterableMutation("someAttribute", true)
-			)
-		);
+				new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			);
 
-		assertNull(result.origin());
-		assertNotNull(result.current());
-		assertEquals(1, result.current().length);
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
+			final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+				catalogSchema,
+				new ModifyEntitySchemaMutation(
+					"entityName",
+					new SetAttributeSchemaFilterableMutation("someAttribute", true)
+				)
+			);
 
-		final ModifyEntitySchemaMutation entitySchemaMutation = (ModifyEntitySchemaMutation) result.current()[0];
-		assertEquals(2, entitySchemaMutation.getSchemaMutations().length);
-		assertInstanceOf(SetAttributeSchemaUniqueMutation.class, entitySchemaMutation.getSchemaMutations()[0]);
-		assertInstanceOf(SetAttributeSchemaFilterableMutation.class, entitySchemaMutation.getSchemaMutations()[1]);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			assertEquals(1, result.current().length);
+
+			final ModifyEntitySchemaMutation entitySchemaMutation = (ModifyEntitySchemaMutation) result.current()[0];
+			assertEquals(2, entitySchemaMutation.getSchemaMutations().length);
+			assertInstanceOf(
+				SetAttributeSchemaUniqueMutation.class, entitySchemaMutation.getSchemaMutations()[0]
+			);
+			assertInstanceOf(
+				SetAttributeSchemaFilterableMutation.class, entitySchemaMutation.getSchemaMutations()[1]
+			);
+		}
+
+		@Test
+		@DisplayName("should not combine with mutation to different schema")
+		void shouldNotCombineWithAnotherMutationToDifferentSchema() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"entityName",
+				new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			);
+
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
+			final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+				catalogSchema,
+				new ModifyEntitySchemaMutation(
+					"differentEntityName",
+					new SetAttributeSchemaFilterableMutation("someAttribute", true)
+				)
+			);
+
+			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("should not combine with different mutation type")
+		void shouldNotCombineWithDifferentMutationType() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"entityName",
+				new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			);
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
+			final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+				catalogSchema,
+				new CreateEntitySchemaMutation("entityName")
+			);
+			assertNull(result);
+		}
 	}
 
-	@Test
-	void shouldNotCombineWithAnotherMutationToDifferentSchema() {
-		ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
-			"entityName",
-			new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
-		);
+	@Nested
+	@DisplayName("Mutate catalog schema")
+	class MutateCatalogSchema {
 
-		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
-		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
-			catalogSchema,
-			new ModifyEntitySchemaMutation(
-				"differentEntityName",
-				new SetAttributeSchemaFilterableMutation("someAttribute", true)
-			)
-		);
+		@Test
+		@DisplayName("should mutate entity via schema accessor")
+		void shouldMutateCatalogSchema() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"entityName",
+				new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			);
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
+			Mockito.when(catalogSchema.version()).thenReturn(1);
 
-		assertNull(result);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
+			final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
+			Mockito.doReturn(Integer.class).when(attribute).getType();
+			Mockito.doReturn(
+				AttributeSchema.toUniquenessEnumMap(
+					new ScopedAttributeUniquenessType[]{
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+					}
+				)
+			).when(attribute).getUniquenessTypeInScopes();
+
+			Mockito.when(entitySchema.getAttribute("someAttribute")).thenReturn(of(attribute));
+			Mockito.when(entitySchema.getName()).thenReturn("entityName");
+			Mockito.when(entitySchema.version()).thenReturn(1);
+			Mockito.when(catalogSchema.getEntitySchema("entityName")).thenReturn(of(entitySchema));
+
+			final MutationEntitySchemaAccessor entitySchemaAccessor =
+				new MutationEntitySchemaAccessor(catalogSchema);
+			final CatalogSchemaWithImpactOnEntitySchemas result =
+				mutation.mutate(catalogSchema, entitySchemaAccessor);
+			final CatalogSchemaContract newCatalogSchema = result.updatedCatalogSchema();
+			assertEquals(1, newCatalogSchema.version());
+
+			final EntitySchemaContract updatedSchema =
+				entitySchemaAccessor.getEntitySchema("entityName").orElseThrow();
+			final EntityAttributeSchemaContract updatedAttribute =
+				updatedSchema.getAttribute("someAttribute").orElseThrow();
+			assertEquals(2, updatedSchema.version());
+			assertEquals(
+				AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, updatedAttribute.getUniquenessType()
+			);
+		}
+
+		@Test
+		@DisplayName("should throw when entity schema not found")
+		void shouldThrowWhenEntitySchemaNotFound() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"nonExistent",
+				new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
+			final MutationEntitySchemaAccessor entitySchemaAccessor =
+				new MutationEntitySchemaAccessor(catalogSchema);
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> mutation.mutate(catalogSchema, entitySchemaAccessor)
+			);
+		}
 	}
 
-	@Test
-	void shouldMutateCatalogSchema() {
-		ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
-			"entityName",
-			new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
-		);
-		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);
-		Mockito.when(catalogSchema.version()).thenReturn(1);
+	@Nested
+	@DisplayName("Mutate entity schema")
+	class MutateEntitySchema {
 
-		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
-		final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
-		Mockito.doReturn(Integer.class).when(attribute).getType();
-		Mockito.doReturn(
-			AttributeSchema.toUniquenessEnumMap(
-				new ScopedAttributeUniquenessType[]{
-					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
-				}
-			)
-		).when(attribute).getUniquenessTypeInScopes();
+		@Test
+		@DisplayName("should apply schema mutations to entity schema")
+		void shouldMutateEntitySchema() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"entityName",
+				new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			);
 
-		Mockito.when(entitySchema.getAttribute("someAttribute")).thenReturn(of(attribute));
-		Mockito.when(entitySchema.getName()).thenReturn("entityName");
-		Mockito.when(entitySchema.version()).thenReturn(1);
-		Mockito.when(catalogSchema.getEntitySchema("entityName")).thenReturn(of(entitySchema));
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
+			final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
+			Mockito.doReturn(Integer.class).when(attribute).getType();
+			Mockito.doReturn(
+				AttributeSchema.toUniquenessEnumMap(
+					new ScopedAttributeUniquenessType[]{
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+					}
+				)
+			).when(attribute).getUniquenessTypeInScopes();
 
-		final MutationEntitySchemaAccessor entitySchemaAccessor = new MutationEntitySchemaAccessor(catalogSchema);
-		final CatalogSchemaWithImpactOnEntitySchemas result = mutation.mutate(catalogSchema, entitySchemaAccessor);
-		final CatalogSchemaContract newCatalogSchema = result.updatedCatalogSchema();
-		assertEquals(1, newCatalogSchema.version());
+			Mockito.when(entitySchema.getAttribute("someAttribute")).thenReturn(of(attribute));
+			Mockito.when(entitySchema.getName()).thenReturn("entityName");
+			Mockito.when(entitySchema.version()).thenReturn(1);
 
-		final EntitySchemaContract updatedSchema = entitySchemaAccessor.getEntitySchema("entityName").orElseThrow();
-		final EntityAttributeSchemaContract updatedAttribute = updatedSchema.getAttribute("someAttribute").orElseThrow();
-		assertEquals(2, updatedSchema.version());
-		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, updatedAttribute.getUniquenessType());
+			final EntitySchemaContract updatedSchema =
+				mutation.mutate(Mockito.mock(CatalogSchema.class), entitySchema);
+			final EntityAttributeSchemaContract updatedAttribute =
+				updatedSchema.getAttribute("someAttribute").orElseThrow();
+			assertEquals(2, updatedSchema.version());
+			assertEquals(
+				AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, updatedAttribute.getUniquenessType()
+			);
+		}
 	}
 
-	@Test
-	void shouldMutateEntitySchema() {
-		ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
-			"entityName",
-			new SetAttributeSchemaUniqueMutation("someAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
-		);
+	@Nested
+	@DisplayName("Contract methods")
+	class ContractMethods {
 
-		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
-		final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
-		Mockito.doReturn(Integer.class).when(attribute).getType();
-		Mockito.doReturn(
-			AttributeSchema.toUniquenessEnumMap(
-				new ScopedAttributeUniquenessType[]{
-					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
-				}
-			)
-		).when(attribute).getUniquenessTypeInScopes();
+		@Test
+		@DisplayName("should return UPSERT operation")
+		void shouldReturnUpsertOperation() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"entityName", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			assertEquals(Operation.UPSERT, mutation.operation());
+		}
 
-		Mockito.when(entitySchema.getAttribute("someAttribute")).thenReturn(of(attribute));
-		Mockito.when(entitySchema.getName()).thenReturn("entityName");
-		Mockito.when(entitySchema.version()).thenReturn(1);
+		@Test
+		@DisplayName("should return entity name as container name")
+		void shouldReturnEntityNameAsContainerName() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"entityName", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			assertEquals("entityName", mutation.containerName());
+		}
 
-		final EntitySchemaContract updatedSchema = mutation.mutate(Mockito.mock(CatalogSchema.class), entitySchema);
-		final EntityAttributeSchemaContract updatedAttribute = updatedSchema.getAttribute("someAttribute").orElseThrow();
-		assertEquals(2, updatedSchema.version());
-		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, updatedAttribute.getUniquenessType());
+		@Test
+		@DisplayName("should return entity name via getName")
+		void shouldReturnEntityNameViaGetName() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"entityName", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			assertEquals("entityName", mutation.getName());
+		}
+
+		@Test
+		@DisplayName("should return collection conflict key")
+		void shouldReturnCollectionConflictKey() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"product", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+				"product", null,
+				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+			);
+			assertEquals(1, keys.size());
+			assertInstanceOf(CollectionConflictKey.class, keys.get(0));
+		}
+
+		@Test
+		@DisplayName("should produce readable toString output")
+		void shouldProduceReadableToString() {
+			final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+				"entityName", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			final String result = mutation.toString();
+			assertTrue(result.contains("entityName"));
+			assertTrue(result.contains("Modify"));
+		}
+
+		@Test
+		@DisplayName("should be equal to mutation with same parameters")
+		void shouldBeEqualToMutationWithSameParameters() {
+			final ModifyEntitySchemaMutation mutation1 = new ModifyEntitySchemaMutation(
+				"entityName", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			final ModifyEntitySchemaMutation mutation2 = new ModifyEntitySchemaMutation(
+				"entityName", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			assertEquals(mutation1, mutation2);
+			assertEquals(mutation1.hashCode(), mutation2.hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal to mutation with different name")
+		void shouldNotBeEqualToMutationWithDifferentName() {
+			final ModifyEntitySchemaMutation mutation1 = new ModifyEntitySchemaMutation(
+				"entity1", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			final ModifyEntitySchemaMutation mutation2 = new ModifyEntitySchemaMutation(
+				"entity2", new SetAttributeSchemaFilterableMutation("attr", true)
+			);
+			assertNotEquals(mutation1, mutation2);
+		}
 	}
-
 }

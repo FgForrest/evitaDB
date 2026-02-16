@@ -31,9 +31,48 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
- * This interface marks all implementations that alter the {@link EntitySchemaContract#getReferences()}.
- * The implementations can either modify the entire {@link EntitySchemaContract} or partially only a single
- * {@link ReferenceSchemaContract} of it.
+ * Marker interface for mutations that alter reference schemas within an entity schema.
+ *
+ * **Purpose and Design Context**
+ *
+ * This interface identifies mutations that modify the reference schemas stored in
+ * {@link EntitySchemaContract#getReferences()}. References define relationships between entities (e.g., a "Product"
+ * entity might have references to "Brand", "Category", "Tag" entities). Reference schemas specify the target entity
+ * type, cardinality constraints, indexing settings, faceting configuration, and reference-specific attributes.
+ *
+ * **Why It Extends Both LocalEntitySchemaMutation and ReferenceSchemaMutator**
+ *
+ * This interface combines two distinct behavioral contracts:
+ *
+ * - **LocalEntitySchemaMutation**: Marks this as a mutation that can be applied to an entity schema without
+ *   specifying the entity type (it operates "locally" within the entity schema). This allows reference mutations to
+ *   be accumulated in the {@link io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder} and
+ *   packaged into a {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation}.
+ * - **ReferenceSchemaMutator**: Provides the `mutate()` method that accepts an `EntitySchemaContract` and a
+ *   `ReferenceSchemaContract` and returns the mutated reference schema. This interface distinguishes mutations that
+ *   operate on the reference schema itself (not its attributes or sortable compounds) and supports consistency
+ *   checks via {@link ReferenceSchemaMutator.ConsistencyChecks}.
+ *
+ * **Usage Patterns**
+ *
+ * Reference schema mutations are created through the {@link io.evitadb.api.requestResponse.schema.EntitySchemaEditor}
+ * builder API, typically via methods like `withReferenceTo()`, `withReferenceName()`, `withCardinality()`,
+ * `withIndexed()`, `withFaceted()`, etc. Common implementations include:
+ *
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation}: Creates a new
+ *   reference schema
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation}: Removes an
+ *   existing reference schema
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutation}:
+ *   Changes cardinality constraints
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation}: Controls
+ *   indexing settings
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaNameMutation}: Renames the
+ *   reference
+ *
+ * **Thread-Safety**
+ *
+ * All implementations are immutable and thread-safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -42,7 +81,9 @@ import javax.annotation.concurrent.ThreadSafe;
 public interface ReferenceSchemaMutation extends LocalEntitySchemaMutation, ReferenceSchemaMutator {
 
 	/**
-	 * Returns the name of the reference the mutation is targeting.
+	 * Returns the name of the reference schema targeted by this mutation.
+	 *
+	 * @return reference name (never `null`)
 	 */
 	@Nonnull
 	String getName();

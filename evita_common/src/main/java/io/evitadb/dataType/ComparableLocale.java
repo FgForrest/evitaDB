@@ -41,7 +41,7 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class ComparableLocale implements Comparable<ComparableLocale>, Serializable {
 	@Serial private static final long serialVersionUID = -3500017809507870169L;
-	@Getter private final Locale locale;
+	@Nonnull @Getter private final Locale locale;
 
 	@Override
 	public int compareTo(@Nonnull ComparableLocale o) {

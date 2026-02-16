@@ -43,8 +43,11 @@ class OffsetIndexSerializationServiceTest {
 			Path.of(""), null, 1, 0, 59, 1,
 			false, false, false, 1.0, 0L, false
 		);
-		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(0, 1), OffsetIndexSerializationService.computeExpectedRecordCount(testOptions, 0));
-		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(1, 1), OffsetIndexSerializationService.computeExpectedRecordCount(testOptions, 1));
-		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(2, 1), OffsetIndexSerializationService.computeExpectedRecordCount(testOptions, 2));
+		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(0, 1), OffsetIndexSerializationService.computeExpectedRecordCount(
+			0, testOptions.outputBufferSize()));
+		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(1, 1), OffsetIndexSerializationService.computeExpectedRecordCount(
+			1, testOptions.outputBufferSize()));
+		assertEquals(new OffsetIndexSerializationService.ExpectedCounts(2, 1), OffsetIndexSerializationService.computeExpectedRecordCount(
+			2, testOptions.outputBufferSize()));
 	}
 }

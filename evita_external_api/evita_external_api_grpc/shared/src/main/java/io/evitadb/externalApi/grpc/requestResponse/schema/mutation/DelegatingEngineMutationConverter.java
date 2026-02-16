@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.MutationCase;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.MutationConverter;

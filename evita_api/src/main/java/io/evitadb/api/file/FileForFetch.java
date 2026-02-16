@@ -97,7 +97,11 @@ public record FileForFetch(
 	 */
 	@Nonnull
 	public Path path(@Nonnull Path directory) {
-		return directory.resolve(this.fileId + FileUtils.getFileExtension(this.name).map(it -> "." + it).orElse(""));
+		return directory.resolve(
+			this.fileId + FileUtils.getFileExtension(this.name)
+				.map(it -> "." + it)
+				.orElse("")
+		);
 	}
 
 	/**
@@ -112,11 +116,11 @@ public record FileForFetch(
 		return new FileForFetch(
 			UUIDUtil.uuid(metadataLines.get(0)),
 			metadataLines.get(1),
-			metadataLines.get(2),
+			metadataLines.get(2).isEmpty() ? null : metadataLines.get(2),
 			metadataLines.get(3),
 			Long.parseLong(metadataLines.get(4)),
 			OffsetDateTime.parse(metadataLines.get(5), DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-			metadataLines.get(6).split(",")
+			metadataLines.get(6).isEmpty() ? null : metadataLines.get(6).split(",")
 		);
 	}
 
@@ -128,7 +132,7 @@ public record FileForFetch(
 		return Arrays.asList(
 			this.fileId.toString(),
 			this.name,
-			this.description,
+			this.description == null ? "" : this.description,
 			this.contentType,
 			Long.toString(this.totalSizeInBytes),
 			this.created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
@@ -136,6 +140,9 @@ public record FileForFetch(
 		);
 	}
 
+	/**
+	 * Returns a human-readable string representation of this file record.
+	 */
 	@Nonnull
 	@Override
 	public String toString() {
@@ -150,15 +157,22 @@ public record FileForFetch(
 			'}';
 	}
 
+	/**
+	 * Two {@link FileForFetch} instances are equal if they share the same
+	 * {@link #fileId}.
+	 */
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 
-		FileForFetch that = (FileForFetch) o;
+		final FileForFetch that = (FileForFetch) o;
 		return this.fileId.equals(that.fileId);
 	}
 
+	/**
+	 * Hash code is based solely on {@link #fileId}.
+	 */
 	@Override
 	public int hashCode() {
 		return this.fileId.hashCode();

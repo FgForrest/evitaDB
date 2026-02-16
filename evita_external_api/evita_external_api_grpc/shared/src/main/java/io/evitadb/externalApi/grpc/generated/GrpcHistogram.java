@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -129,8 +129,9 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Relative frequency value used for visualization purposes.
      * For standard histograms: percentage of total occurrences (0-100).
-     * For equalized histograms: value density calculated as totalRange / bucketWidth.
-     * Higher values indicate denser data concentration in this bucket.
+     * For equalized histograms: normalized value density (0-100) accounting for both
+     * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+     * indicate denser data concentration in this bucket.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -141,8 +142,9 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Relative frequency value used for visualization purposes.
      * For standard histograms: percentage of total occurrences (0-100).
-     * For equalized histograms: value density calculated as totalRange / bucketWidth.
-     * Higher values indicate denser data concentration in this bucket.
+     * For equalized histograms: normalized value density (0-100) accounting for both
+     * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+     * indicate denser data concentration in this bucket.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -153,8 +155,9 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Relative frequency value used for visualization purposes.
      * For standard histograms: percentage of total occurrences (0-100).
-     * For equalized histograms: value density calculated as totalRange / bucketWidth.
-     * Higher values indicate denser data concentration in this bucket.
+     * For equalized histograms: normalized value density (0-100) accounting for both
+     * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+     * indicate denser data concentration in this bucket.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -276,8 +279,9 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Relative frequency value used for visualization purposes.
      * For standard histograms: percentage of total occurrences (0-100).
-     * For equalized histograms: value density calculated as totalRange / bucketWidth.
-     * Higher values indicate denser data concentration in this bucket.
+     * For equalized histograms: normalized value density (0-100) accounting for both
+     * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+     * indicate denser data concentration in this bucket.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -291,8 +295,9 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Relative frequency value used for visualization purposes.
      * For standard histograms: percentage of total occurrences (0-100).
-     * For equalized histograms: value density calculated as totalRange / bucketWidth.
-     * Higher values indicate denser data concentration in this bucket.
+     * For equalized histograms: normalized value density (0-100) accounting for both
+     * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+     * indicate denser data concentration in this bucket.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -306,8 +311,9 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Relative frequency value used for visualization purposes.
      * For standard histograms: percentage of total occurrences (0-100).
-     * For equalized histograms: value density calculated as totalRange / bucketWidth.
-     * Higher values indicate denser data concentration in this bucket.
+     * For equalized histograms: normalized value density (0-100) accounting for both
+     * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+     * indicate denser data concentration in this bucket.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -897,7 +903,7 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       private com.google.protobuf.SingleFieldBuilderV3<
-          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
           getThresholdFieldBuilder() {
         if (thresholdBuilder_ == null) {
           thresholdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1008,8 +1014,9 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -1022,8 +1029,9 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -1040,8 +1048,9 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -1063,8 +1072,9 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -1084,8 +1094,9 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -1112,8 +1123,9 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -1132,8 +1144,9 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -1147,8 +1160,9 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
@@ -1165,14 +1179,15 @@ private static final long serialVersionUID = 0L;
        * <pre>
        * Relative frequency value used for visualization purposes.
        * For standard histograms: percentage of total occurrences (0-100).
-       * For equalized histograms: value density calculated as totalRange / bucketWidth.
-       * Higher values indicate denser data concentration in this bucket.
+       * For equalized histograms: normalized value density (0-100) accounting for both
+       * occurrences and bucket width, scaled so all buckets sum to 100. Higher values
+       * indicate denser data concentration in this bucket.
        * </pre>
        *
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal relativeFrequency = 5;</code>
        */
       private com.google.protobuf.SingleFieldBuilderV3<
-          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
           getRelativeFrequencyFieldBuilder() {
         if (relativeFrequencyBuilder_ == null) {
           relativeFrequencyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1374,7 +1389,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
       getBucketsOrBuilderList() {
     return buckets_;
   }
@@ -1824,7 +1839,7 @@ private static final long serialVersionUID = 0L;
             bucketsBuilder_ = null;
             buckets_ = other.buckets_;
             bitField0_ = (bitField0_ & ~0x00000008);
-            bucketsBuilder_ =
+            bucketsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getBucketsFieldBuilder() : null;
           } else {
@@ -2051,7 +2066,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getMinFieldBuilder() {
       if (minBuilder_ == null) {
         minBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2235,7 +2250,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
         getMaxFieldBuilder() {
       if (maxBuilder_ == null) {
         maxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2565,7 +2580,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
          getBucketsOrBuilderList() {
       if (bucketsBuilder_ != null) {
         return bucketsBuilder_.getMessageOrBuilderList();
@@ -2606,12 +2621,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder> 
          getBucketsBuilderList() {
       return getBucketsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
         getBucketsFieldBuilder() {
       if (bucketsBuilder_ == null) {
         bucketsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

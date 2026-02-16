@@ -30,8 +30,30 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when the global {@link ServerOptions#readOnly()} flag is enabled and the client attempts
- * to update evitaDB data.
+ * Exception thrown when attempting to modify evitaDB data while operating in read-only mode.
+ *
+ * evitaDB supports read-only operation at three distinct levels, each enforced by throwing this exception
+ * when write operations are attempted:
+ *
+ * 1. **Engine Level**: The entire evitaDB instance is started with {@link ServerOptions#readOnly()} enabled,
+ *    preventing all write operations across all catalogs and sessions.
+ *
+ * 2. **Catalog Level**: A specific catalog is marked as read-only, preventing modifications to that catalog
+ *    while other catalogs remain writable.
+ *
+ * 3. **Session Level**: A session is opened with read-only mode, preventing write operations within that
+ *    session even if the underlying catalog supports writes.
+ *
+ * Read-only mode is useful for:
+ * - Operating on backup/replica instances without risk of accidental modification
+ * - Enforcing least-privilege access for read-only clients
+ * - Safely inspecting production data without write permissions
+ * - Running queries against archived or historical data
+ *
+ * **Usage Context:**
+ * - {@link io.evitadb.core.Evita}: enforces engine-level read-only restrictions
+ * - {@link io.evitadb.core.session.EvitaSession}: enforces session-level and catalog-level restrictions
+ * - Thrown before any mutation operations when the applicable read-only flag is set
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -39,10 +61,12 @@ public class ReadOnlyException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 8880217332792347590L;
 
 	/**
-	 * Creates a new {@link ReadOnlyException} with a message indicating that the evitaDB engine is in read-only mode
-	 * and updates are not allowed.
+	 * Creates a new exception indicating that the entire evitaDB engine is in read-only mode.
 	 *
-	 * @return a new {@link ReadOnlyException} with a preconfigured message about the engine's read-only state.
+	 * This is thrown when {@link ServerOptions#readOnly()} is enabled and any write operation is attempted
+	 * at the engine level.
+	 *
+	 * @return a new exception with a message about the engine's read-only state
 	 */
 	@Nonnull
 	public static ReadOnlyException engineReadOnly() {
@@ -50,11 +74,12 @@ public class ReadOnlyException extends EvitaInvalidUsageException {
 	}
 
 	/**
-	 * Creates a new {@link ReadOnlyException} indicating that the specified evitaDB catalog is in read-only mode
-	 * and does not allow updates.
+	 * Creates a new exception indicating that a specific catalog is in read-only mode.
 	 *
-	 * @param catalogName the name of the catalog that is read-only
-	 * @return a new {@link ReadOnlyException} instance with a message indicating the catalog is read-only
+	 * This is thrown when a catalog is marked as read-only and a write operation is attempted on that catalog.
+	 *
+	 * @param catalogName the name of the read-only catalog
+	 * @return a new exception indicating the catalog is read-only
 	 */
 	@Nonnull
 	public static ReadOnlyException catalogReadOnly(@Nonnull String catalogName) {
@@ -62,16 +87,23 @@ public class ReadOnlyException extends EvitaInvalidUsageException {
 	}
 
 	/**
-	 * Creates a new {@link ReadOnlyException} with a message indicating that the session is read-only
-	 * and no updates are allowed.
+	 * Creates a new exception indicating that the current session is read-only.
 	 *
-	 * @return a new {@link ReadOnlyException} instance indicating the session is in read-only mode.
+	 * This is thrown when a session is opened in read-only mode and a write operation is attempted within
+	 * that session, even if the underlying catalog supports writes.
+	 *
+	 * @return a new exception indicating the session is in read-only mode
 	 */
 	@Nonnull
 	public static ReadOnlyException sessionReadOnly() {
 		return new ReadOnlyException("The session is read-only. No updates are allowed!");
 	}
 
+	/**
+	 * Creates a new read-only exception with a custom message.
+	 *
+	 * @param publicMessage the error message to display
+	 */
 	public ReadOnlyException(@Nonnull String publicMessage) {
 		super(publicMessage);
 	}

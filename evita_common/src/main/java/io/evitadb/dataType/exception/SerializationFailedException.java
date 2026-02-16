@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
@@ -39,12 +40,38 @@ import java.io.Serial;
 public class SerializationFailedException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 1730199175730118094L;
 
-	public SerializationFailedException(String message) {
+	/**
+	 * Creates a new exception with a message describing the serialization failure.
+	 */
+	public SerializationFailedException(@Nonnull String message) {
 		super(message);
 	}
 
-	public SerializationFailedException(String message, Throwable ex) {
+	/**
+	 * Creates a new exception with a message describing the serialization failure and its cause.
+	 */
+	public SerializationFailedException(@Nonnull String message, @Nonnull Throwable ex) {
 		super(message, ex);
+	}
+
+	/**
+	 * Creates a new exception with separate private and public messages and a cause.
+	 * The private message contains technical details; the public message is safe
+	 * to expose to end users.
+	 */
+	public SerializationFailedException(
+		@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause
+	) {
+		super(privateMessage, publicMessage, cause);
+	}
+
+	/**
+	 * Creates a new exception with separate private and public messages.
+	 * The private message contains technical details; the public message is safe
+	 * to expose to end users.
+	 */
+	public SerializationFailedException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+		super(privateMessage, publicMessage);
 	}
 
 }

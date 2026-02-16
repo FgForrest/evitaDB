@@ -31,13 +31,17 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 
 /**
- * Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client
- * that receives the binary data must know how to deserialize them using Kryo deserializers which are internal to
- * the evitaDB (and even if they had been public they could not have been used because Kryo is not ported to other
- * platforms than Java). The response is triggered by {@link io.evitadb.api.query.require.BinaryForm} requirement.
+ * Response carries entities in a binary format and is part of the
+ * PRIVATE API that is used by Java driver. The client that receives
+ * the binary data must know how to deserialize them using Kryo
+ * deserializers which are internal to the evitaDB (and even if they
+ * had been public they could not have been used because Kryo is not
+ * ported to other platforms than Java). The response is triggered by
+ * {@link io.evitadb.api.query.require.BinaryForm} requirement.
  *
- * Passing binary format between server and the client is beneficial because we avoid several layers of (de)serialization
- * at the price of slight network waste. The general chain looks like this:
+ * Passing binary format between server and the client is beneficial
+ * because we avoid several layers of (de)serialization at the price
+ * of slight network waste. The general chain looks like this:
  *
  * 1. query
  * 2. fetch binaries from disk
@@ -47,7 +51,8 @@ import javax.annotation.Nonnull;
  * 6. deserialize gRPC from binary format to DTOs
  * 7. convert DTOs to Java objects on heap
  *
- * The chains where we pass directly the binary content from the disk looks like this:
+ * The chains where we pass directly the binary content from the disk
+ * looks like this:
  *
  * 1. query
  * 2. fetch binaries from disk
@@ -55,16 +60,25 @@ import javax.annotation.Nonnull;
  * 4. deserialize gRPC from binary format to DTOs
  * 5. convert DTOs to Java objects on heap using Kryo deserializers
  *
- * The network might be wasted because the query could ask only for a few attributes / references but due to
- * a storage format more information is fetched from the disk and thus sent over the network.
- *
- * TOBEDONE JNO - create the performance test that proves that binary format over gRPC will pay off
+ * The network might be wasted because the query could ask only for
+ * a few attributes / references but due to a storage format more
+ * information is fetched from the disk and thus sent over
+ * the network.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public final class EvitaBinaryEntityResponse extends EvitaResponse<BinaryEntity> {
-	@Getter private final int[] primaryKeys;
+public final class EvitaBinaryEntityResponse
+	extends EvitaResponse<BinaryEntity> {
+	@Getter @Nonnull private final int[] primaryKeys;
 
+	/**
+	 * Creates a new binary entity response with the given source
+	 * query, record page, and primary keys.
+	 *
+	 * @param sourceQuery the input query that produced this response
+	 * @param recordPage  the page of binary entity records
+	 * @param primaryKeys the primary keys of the entities
+	 */
 	public EvitaBinaryEntityResponse(
 		@Nonnull Query sourceQuery,
 		@Nonnull DataChunk<BinaryEntity> recordPage,
@@ -74,6 +88,15 @@ public final class EvitaBinaryEntityResponse extends EvitaResponse<BinaryEntity>
 		this.primaryKeys = primaryKeys;
 	}
 
+	/**
+	 * Creates a new binary entity response with the given source
+	 * query, record page, primary keys, and extra results.
+	 *
+	 * @param sourceQuery  the input query that produced this response
+	 * @param recordPage   the page of binary entity records
+	 * @param primaryKeys  the primary keys of the entities
+	 * @param extraResults varargs of extra results to attach
+	 */
 	public EvitaBinaryEntityResponse(
 		@Nonnull Query sourceQuery,
 		@Nonnull DataChunk<BinaryEntity> recordPage,

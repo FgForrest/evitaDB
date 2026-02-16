@@ -358,7 +358,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		this.catalog = catalog;
 		this.startCatalogSchemaVersion = catalog.getSchema().version();
 		this.reflectionLookup = reflectionLookup;
-		this.proxyFactory = catalog.getProxyFactory();
+		this.proxyFactory = evita.getProxyFactory();
 		this.commitBehaviour = commitBehaviour;
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;

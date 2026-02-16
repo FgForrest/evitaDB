@@ -23,14 +23,19 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,7 +48,33 @@ import java.util.stream.Stream;
 public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, LocalEntitySchemaMutation {
 
 	/**
-	 * Replaces existing attribute schema with updated one but only when those schemas differ. Otherwise,
+	 * Applies this mutation to the entity schema by looking up the existing attribute, applying the attribute-level
+	 * mutation via {@link AttributeSchemaMutation#mutate(CatalogSchemaContract, AttributeSchemaContract, Class)},
+	 * and replacing the attribute in the schema if it changed.
+	 *
+	 * Subclasses with custom mutation logic (e.g., type conversions wrapped in try/catch) should override this method.
+	 */
+	@Nonnull
+	default EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
+		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
+		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(getName())
+			.orElseThrow(() -> new InvalidSchemaMutationException(
+				"The attribute `" + getName() + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+			));
+
+		final EntityAttributeSchemaContract updatedAttributeSchema = Objects.requireNonNull(
+			mutate(catalogSchema, existingAttributeSchema, EntityAttributeSchemaContract.class)
+		);
+		return replaceAttributeIfDifferent(
+			entitySchema, existingAttributeSchema, updatedAttributeSchema
+		);
+	}
+
+	/**
+	 * Replaces existing attribute schema with an updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original entity schema is returned.
 	 */
 	@Nonnull
@@ -71,7 +102,10 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
 				Stream.concat(
-						entitySchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+						entitySchema.getAttributes()
+							.values()
+							.stream()
+							.filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
 						Stream.of(updatedAttributeSchema)
 					)
 					.collect(

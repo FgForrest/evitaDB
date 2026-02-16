@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,31 +36,37 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.AbstractMutationLog.FirstAndLastVersionsInWalFile;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
-import io.evitadb.test.TestConstants;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.UUIDUtil;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -85,20 +91,30 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
+import static io.evitadb.store.wal.CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile;
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getIndexFromWalFileName;
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Test verifying the behaviour of {@link CatalogWriteAheadLog}.
+ * Integration tests for verifying the behavior of {@link CatalogWriteAheadLog}.
+ *
+ * These tests exercise the full WAL lifecycle including writing transactions with realistic
+ * entity mutations, reading them back via mutation streams, and verifying correct behavior
+ * across multiple WAL files.
+ *
+ * The tests are organized into nested classes by feature area:
+ * - Transaction Read/Write Tests: verify basic WAL read/write operations and cache reuse
+ * - Multi-File WAL Tests: verify WAL rotation and reading across multiple files
+ * - Transaction Lookup Tests: verify finding transactions by UUID
+ * - Timestamp Reporting Tests: verify correct timestamp reporting for WAL files
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class CatalogWriteAheadLogIntegrationTest {
-	private final Path walDirectory = Path.of(System.getProperty("java.io.tmpdir"))
-	                                      .resolve("evita")
-	                                      .resolve(getClass().getSimpleName());
+@SuppressWarnings({"ResultOfMethodCallIgnored", "SameParameterValue"})
+@Slf4j
+@DisplayName("Catalog Write-Ahead Log Integration Tests")
+public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
+	private final Path walDirectory = getTestDirectory().resolve(getClass().getSimpleName());
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
 		protected Kryo create() {
@@ -106,19 +122,16 @@ public class CatalogWriteAheadLogIntegrationTest {
 		}
 	};
 	private final Path isolatedWalFilePath = this.walDirectory.resolve("isolatedWal.tmp");
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
-		TEST_CATALOG,
-		StorageOptions.builder()
-		              /* there are tests that rely on standard size of mutations on disk in this class */
-		              .compress(false)
-		              .build(),
+	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(
 		Mockito.mock(Scheduler.class)
 	);
 	private final CatalogOffHeapMemoryManager noOffHeapMemoryManager = new CatalogOffHeapMemoryManager(
-		TEST_CATALOG, 0, 0);
+		TEST_CATALOG, 0, 0, Crc32CChecksumFactory.INSTANCE
+	);
 	private final CatalogOffHeapMemoryManager bigOffHeapMemoryManager = new CatalogOffHeapMemoryManager(
-		TEST_CATALOG, 10_000_000, 128);
-	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
+		TEST_CATALOG, 10_000_000, 4, Crc32CChecksumFactory.INSTANCE
+	);
+	private final int[] txSizes = new int[]{1000, 2000, 3000, 4000, 5000, 7000, 9000};
 	private final MockCatalogVersionConsumer offsetConsumer = new MockCatalogVersionConsumer();
 	private CatalogWriteAheadLog wal;
 
@@ -146,8 +159,8 @@ public class CatalogWriteAheadLogIntegrationTest {
 			.withCurrencies(DataGenerator.CURRENCY_CZK)
 			.build();
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
-			TestConstants.TEST_CATALOG,
-			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			TEST_CATALOG,
+			NamingConvention.generate(TEST_CATALOG),
 			EnumSet.allOf(CatalogEvolutionMode.class),
 			EmptyEntitySchemaAccessor.INSTANCE
 		);
@@ -161,12 +174,12 @@ public class CatalogWriteAheadLogIntegrationTest {
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				isolatedWalFilePath,
-				StorageOptions.builder(StorageOptions.temporary())
-				              /* there are tests that rely on standard size of mutations on disk in this class */
-				              .compress(false)
-				              .build(),
+				StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+				false,
 				observableOutputKeeper,
-				offHeapMemoryManager
+				offHeapMemoryManager,
+				Crc32CChecksumFactory.INSTANCE,
+				CompressionFactory.NO_COMPRESSION
 			)
 		);
 
@@ -204,18 +217,18 @@ public class CatalogWriteAheadLogIntegrationTest {
 			);
 
 			final long start = wal.getWalFilePath().toFile().length();
-			wal.append(
+			final LogFileRecordReference reference = wal.append(
 				transactionMutation,
 				walReference
 			);
 
-			mutations.addFirst(
-				new TransactionMutationWithLocation(
-					transactionMutation,
-					new FileLocation(start, (int) (wal.getWalFilePath().toFile().length() - start)),
-					wal.getWalFileIndex()
-				)
+			final TransactionMutationWithLocation txMutation = new TransactionMutationWithLocation(
+				transactionMutation,
+				new FileLocation(start, (int) (wal.getWalFilePath().toFile().length() - start)),
+				wal.getWalFileIndex()
 			);
+			txMutation.withCumulativeChecksum(reference.cumulativeChecksum());
+			mutations.addFirst(txMutation);
 			txInMutations.put(catalogVersion, mutations);
 
 			timestamp = timestamp.plusMinutes(1);
@@ -224,9 +237,9 @@ public class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	@BeforeEach
-	void setUp() {
-		// clear the WAL directory
-		FileUtils.deleteDirectory(this.walDirectory);
+	void setUp() throws IOException {
+		cleanTestSubDirectory(getClass().getSimpleName());
+		this.walDirectory.toFile().mkdirs();
 		this.wal = createCatalogWriteAheadLogOfLargeEnoughSize();
 	}
 
@@ -234,148 +247,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 	void tearDown() throws IOException {
 		this.observableOutputKeeper.close();
 		this.wal.close();
-		// clear the WAL directory
 		FileUtils.deleteDirectory(this.walDirectory);
-	}
-
-	@Tag(LONG_RUNNING_TEST)
-	@Test
-	void shouldWriteAndRealSmallAmountOfTransactionsAndReuseCacheOnNextAccess() {
-		final int[] aFewTransactions = {1, 2, 3, 2, 1};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, aFewTransactions);
-		readAndVerifyWal(txInMutations, aFewTransactions, 0);
-
-		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 4);
-		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 3);
-		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 2);
-		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 1);
-		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 0);
-	}
-
-	@Test
-	void shouldWriteAndReadWalOverMultipleFiles() throws IOException {
-		this.wal.close();
-		this.wal = createCatalogWriteAheadLogOfSmallSize();
-
-		final int[] transactionSizes = {10, 15, 20, 15, 10};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, transactionSizes);
-		readAndVerifyWal(txInMutations, transactionSizes, 0);
-
-		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 4);
-		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 3);
-		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 2);
-		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 1);
-		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 0);
-	}
-
-	@Test
-	void shouldReadFirstAndLastCatalogVersionOfPreviousWalFiles() throws IOException {
-		this.wal.close();
-		this.wal = createCatalogWriteAheadLogOfSmallSize();
-
-		final int[] transactionSizes = {10, 15, 20, 15, 10};
-		writeWal(this.bigOffHeapMemoryManager, transactionSizes);
-
-		// list all existing WAL files and remove the oldest ones when their count exceeds the limit
-		final File[] walFiles = this.walDirectory.toFile().listFiles(
-			(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
-		);
-		// first sort the files from oldest to newest according to their index in the file name
-		Arrays.sort(
-			walFiles,
-			Comparator.comparingInt(f -> getIndexFromWalFileName(f.getName()))
-		);
-
-		assertEquals(3, walFiles.length);
-		final FirstAndLastVersionsInWalFile versionFirstFile = CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile(
-			walFiles[0]);
-		assertEquals(1, versionFirstFile.firstVersion());
-		assertEquals(2, versionFirstFile.lastVersion());
-
-		final FirstAndLastVersionsInWalFile versionsSecondFile = CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile(
-			walFiles[1]);
-		assertEquals(3, versionsSecondFile.firstVersion());
-		assertEquals(3, versionsSecondFile.lastVersion());
-	}
-
-	@Test
-	void shouldWriteAndReadWalOverMultipleFilesInReversedOrder() throws IOException {
-		this.wal.close();
-		this.wal = createCatalogWriteAheadLogOfSmallSize();
-
-		final int[] transactionSizes = {10, 15, 20, 15, 10};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, transactionSizes);
-		readAndVerifyWalInReverse(txInMutations, transactionSizes, 4);
-	}
-
-	@Test
-	void shouldFindProperTransactionUUID() {
-		final int[] aFewTransactions = {1, 2, 3, 2, 1};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, aFewTransactions);
-
-		for (int i = 1; i < aFewTransactions.length; i++) {
-			final List<Mutation> mutations = txInMutations.get((long) i);
-			final List<Mutation> nextMutations = txInMutations.get((long) i + 1);
-			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(
-				0);
-			final Optional<TransactionMutationWithWalFileReference> txId = this.wal.getFirstNonProcessedTransaction(
-				new LogFileRecordReference(
-					index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
-					transactionMutation.getWalFileIndex(),
-					transactionMutation.getTransactionSpan()
-				)
-			);
-			assertTrue(txId.isPresent());
-			assertEquals(nextMutations.get(0), txId.get().transactionMutation());
-		}
-
-		// last transaction must return empty value (there is no next transaction to transition to)
-		final List<Mutation> mutations = txInMutations.get((long) aFewTransactions.length);
-		final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
-		final Optional<TransactionMutationWithWalFileReference> txId = this.wal.getFirstNonProcessedTransaction(
-			new LogFileRecordReference(
-				index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
-				transactionMutation.getWalFileIndex(),
-				transactionMutation.getTransactionSpan()
-			)
-		);
-		assertFalse(txId.isPresent());
-	}
-
-	@Tag(LONG_RUNNING_TEST)
-	@Test
-	void shouldReadAllTransactionsUsingOffHeapIsolatedWal() {
-		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, this.txSizes);
-		readAndVerifyWal(txInMutations, this.txSizes, 0);
-	}
-
-	@Tag(LONG_RUNNING_TEST)
-	@Test
-	void shouldReadAllTransactionsUsingFileIsolatedWal() {
-		final Map<Long, List<Mutation>> txInMutations = writeWal(this.noOffHeapMemoryManager, this.txSizes);
-		readAndVerifyWal(txInMutations, this.txSizes, 0);
-	}
-
-	@Test
-	void shouldCorrectlyReportFirstAvailableTimestamp() throws IOException {
-		this.wal.close();
-		this.wal = createCatalogWriteAheadLogOfSmallSize();
-
-		final int justEnoughSize = 20;
-		final int[] transactionSizes = new int[7];
-		Arrays.fill(transactionSizes, justEnoughSize);
-
-		final OffsetDateTime initialTimestamp = OffsetDateTime.now();
-		writeWal(
-			this.bigOffHeapMemoryManager, transactionSizes, initialTimestamp, this.isolatedWalFilePath,
-			this.observableOutputKeeper, this.wal
-		);
-		this.wal.walProcessedUntil(Long.MAX_VALUE);
-		this.wal.removeWalFiles();
-
-		// only one call would occur with the latest version possible
-		assertEquals(1, this.offsetConsumer.getCatalogVersions().size());
-		assertEquals(3, this.offsetConsumer.getCatalogVersions().get(0));
 	}
 
 	@Nonnull
@@ -383,17 +255,18 @@ public class CatalogWriteAheadLogIntegrationTest {
 		return new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
-			index -> getWalFileName(TEST_CATALOG, index),
+			new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
 			this.walDirectory,
 			this.catalogKryoPool,
-			StorageOptions.builder()
-			              /* there are tests that rely on standard size of mutations on disk in this class */
-			              .compress(false)
-			              .build(),
-			TransactionOptions.builder()
-			                  .walFileCountKept(5)
-			                  .walFileSizeBytes(16_384)
-			                  .build(),
+			new StorageSettings(
+				StorageOptions.builder()
+					.compress(false)
+					.build(),
+				TransactionOptions.builder()
+					.walFileCountKept(5)
+					.walFileSizeBytes(16_384)
+					.build()
+			),
 			Mockito.mock(Scheduler.class),
 			this.offsetConsumer,
 			firstActiveCatalogVersion -> {
@@ -406,14 +279,17 @@ public class CatalogWriteAheadLogIntegrationTest {
 		return new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
-			index -> getWalFileName(TEST_CATALOG, index),
+			new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
 			this.walDirectory,
 			this.catalogKryoPool,
-			StorageOptions.builder()
-			              /* there are tests that rely on standard size of mutations on disk in this class */
-			              .compress(false)
-			              .build(),
-			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
+			new StorageSettings(
+				StorageOptions.builder()
+					.compress(false)
+					.build(),
+				TransactionOptions.builder()
+					.walFileSizeBytes(Long.MAX_VALUE)
+					.build()
+			),
 			Mockito.mock(Scheduler.class),
 			this.offsetConsumer,
 			firstActiveCatalogVersion -> {
@@ -422,10 +298,11 @@ public class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	private void createCachedSupplierReadAndVerifyFrom(
-		Map<Long, List<Mutation>> txInMutations, int[] aFewTransactions, int index) {
-		try (final MutationSupplier supplier = this.wal.createSupplier(index + 1, null)) {
+		Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int index
+	) {
+		try (final MutationSupplier<CatalogBoundMutation> supplier = this.wal.createSupplier(index + 1, null)) {
 			assertEquals(1, supplier.getTransactionsRead());
-			readAndVerifyWal(txInMutations, aFewTransactions, index);
+			readAndVerifyWal(txInMutations, transactionSizes, index);
 		}
 	}
 
@@ -438,7 +315,8 @@ public class CatalogWriteAheadLogIntegrationTest {
 	 */
 	@Nonnull
 	private Map<Long, List<Mutation>> writeWal(
-		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes) {
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes
+	) {
 		return writeWal(
 			offHeapMemoryManager, transactionSizes, null, this.isolatedWalFilePath, this.observableOutputKeeper,
 			this.wal
@@ -446,17 +324,18 @@ public class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	/**
-	 * Reads and verifies the Write-Ahead Log (WAL) using the provided transaction
-	 * mutations map.
+	 * Reads and verifies the Write-Ahead Log (WAL) using the provided transaction mutations map.
 	 *
 	 * @param txInMutations    a map of catalog versions to corresponding mutations
 	 * @param transactionSizes an array of transaction sizes
+	 * @param startIndex       the index to start reading from
 	 */
 	private void readAndVerifyWal(
-		@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
+		@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex
+	) {
 		long lastCatalogVersion = startIndex;
 		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedMutationStream(startIndex + 1)
-		                                                                .iterator();
+			.iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;
@@ -465,13 +344,17 @@ public class CatalogWriteAheadLogIntegrationTest {
 
 			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
 			final List<Mutation> mutationsInTx = txInMutations.get(transactionMutation.getVersion());
-			assertEquals(mutationsInTx.get(0), transactionMutation);
+			assertTransactionMutationEquals(
+				(TransactionMutation) mutationsInTx.get(0),
+				transactionMutation
+			);
 			for (int i = 0; i < transactionMutation.getMutationCount(); i++) {
 				final Mutation mutationInTx = mutationIterator.next();
 				assertEquals(mutationsInTx.get(i + 1), mutationInTx);
 			}
 
 			lastCatalogVersion = transactionMutation.getVersion();
+			log.info("Transaction {} verified.", transactionMutation.getVersion());
 		}
 
 		assertEquals(transactionSizes.length, lastCatalogVersion);
@@ -479,11 +362,11 @@ public class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	/**
-	 * Reads and verifies the Write-Ahead Log (WAL) using the provided transaction
-	 * mutations map in backward fashion.
+	 * Reads and verifies the Write-Ahead Log (WAL) using the provided transaction mutations map in backward fashion.
 	 *
 	 * @param txInMutations    a map of catalog versions to corresponding mutations
 	 * @param transactionSizes an array of transaction sizes
+	 * @param startIndex       the index to start reading from
 	 */
 	private void readAndVerifyWalInReverse(
 		@Nonnull Map<Long, List<Mutation>> txInMutations,
@@ -492,9 +375,9 @@ public class CatalogWriteAheadLogIntegrationTest {
 	) {
 		long firstCatalogVersion = -1L;
 		long catalogVersion = startIndex + 1;
-		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedReversedMutationStream(
-			                                                            catalogVersion)
-		                                                                .iterator();
+		final Iterator<CatalogBoundMutation> mutationIterator = this.wal
+			.getCommittedReversedMutationStream(catalogVersion)
+			.iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;
@@ -504,7 +387,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 				final Mutation mutationInTx = mutationIterator.next();
 				if (mutationInTx instanceof TransactionMutation txMut) {
 					transactionMutation = txMut;
-					assertEquals(mutationsInTx.get(i - transactionMutation.getMutationCount() - 1), mutationInTx);
+					assertTransactionMutationEquals(
+						(TransactionMutation) mutationsInTx.get(i - transactionMutation.getMutationCount() - 1),
+						txMut
+					);
 				} else {
 					assertEquals(mutationsInTx.get(i), mutationInTx);
 				}
@@ -521,14 +407,222 @@ public class CatalogWriteAheadLogIntegrationTest {
 		assertEquals(transactionSizes.length - (transactionSizes.length - startIndex) + 1, txRead);
 	}
 
+	/**
+	 * Nested tests for basic transaction read/write operations.
+	 */
+	@Nested
+	@DisplayName("Transaction Read/Write Tests")
+	class TransactionReadWriteTests {
+
+		@Tag(LONG_RUNNING_TEST)
+		@Test
+		@DisplayName("should write and read small amount of transactions and reuse cache on next access")
+		void shouldWriteAndReadSmallAmountOfTransactionsAndReuseCacheOnNextAccess() {
+			final int[] aFewTransactions = {1, 2, 3, 2, 1};
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, aFewTransactions);
+			readAndVerifyWal(txInMutations, aFewTransactions, 0);
+
+			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 4);
+			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 3);
+			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 2);
+			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 1);
+			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 0);
+		}
+
+		@Tag(LONG_RUNNING_TEST)
+		@Test
+		@DisplayName("should read all transactions using off-heap isolated WAL")
+		void shouldReadAllTransactionsUsingOffHeapIsolatedWal() {
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager,
+				CatalogWriteAheadLogIntegrationTest.this.txSizes
+			);
+			readAndVerifyWal(txInMutations, CatalogWriteAheadLogIntegrationTest.this.txSizes, 0);
+		}
+
+		@Tag(LONG_RUNNING_TEST)
+		@Test
+		@DisplayName("should read all transactions using file isolated WAL")
+		void shouldReadAllTransactionsUsingFileIsolatedWal() {
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.noOffHeapMemoryManager,
+				CatalogWriteAheadLogIntegrationTest.this.txSizes
+			);
+			readAndVerifyWal(txInMutations, CatalogWriteAheadLogIntegrationTest.this.txSizes, 0);
+		}
+	}
+
+	/**
+	 * Nested tests for multi-file WAL operations.
+	 */
+	@Nested
+	@DisplayName("Multi-File WAL Tests")
+	class MultiFileWalTests {
+
+		@Test
+		@DisplayName("should write and read WAL over multiple files")
+		void shouldWriteAndReadWalOverMultipleFiles() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+			readAndVerifyWal(txInMutations, transactionSizes, 0);
+
+			createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 4);
+			createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 3);
+			createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 2);
+			createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 1);
+			createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 0);
+		}
+
+		@Test
+		@DisplayName("should read first and last catalog version of previous WAL files")
+		void shouldReadFirstAndLastCatalogVersionOfPreviousWalFiles() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+
+			final File[] walFiles = CatalogWriteAheadLogIntegrationTest.this.walDirectory.toFile().listFiles(
+				(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
+			);
+			Arrays.sort(
+				walFiles,
+				Comparator.comparingInt(f -> getIndexFromWalFileName(f.getName()))
+			);
+
+			assertEquals(3, walFiles.length);
+			final FirstAndLastVersionsInWalFile versionFirstFile = getFirstAndLastVersionsFromWalFile(walFiles[0]);
+			assertEquals(1, versionFirstFile.firstVersion());
+			assertEquals(2, versionFirstFile.lastVersion());
+
+			final FirstAndLastVersionsInWalFile versionsSecondFile = getFirstAndLastVersionsFromWalFile(walFiles[1]);
+			assertEquals(3, versionsSecondFile.firstVersion());
+			assertEquals(3, versionsSecondFile.lastVersion());
+		}
+
+		@Test
+		@DisplayName("should write and read WAL over multiple files in reversed order")
+		void shouldWriteAndReadWalOverMultipleFilesInReversedOrder() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+			readAndVerifyWalInReverse(txInMutations, transactionSizes, 4);
+		}
+	}
+
+	/**
+	 * Nested tests for transaction lookup functionality.
+	 */
+	@Nested
+	@DisplayName("Transaction Lookup Tests")
+	class TransactionLookupTests {
+
+		@Test
+		@DisplayName("should find proper transaction UUID")
+		void shouldFindProperTransactionUUID() {
+			final int[] aFewTransactions = {1, 2, 3, 2, 1};
+			final Map<Long, List<Mutation>> txInMutations = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, aFewTransactions);
+
+			for (int i = 1; i < aFewTransactions.length; i++) {
+				final List<Mutation> mutations = txInMutations.get((long) i);
+				final List<Mutation> nextMutations = txInMutations.get((long) i + 1);
+				final TransactionMutationWithLocation transactionMutation =
+					(TransactionMutationWithLocation) mutations.get(0);
+				final Optional<TransactionMutationWithWalFileReference> txId = CatalogWriteAheadLogIntegrationTest.this.wal.getFirstNonProcessedTransaction(
+					new LogFileRecordReference(
+						index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
+						transactionMutation.getWalFileIndex(),
+						transactionMutation.getTransactionSpan(),
+						transactionMutation.getCumulativeChecksumOrThrow()
+					)
+				);
+				assertTrue(txId.isPresent());
+				assertInstanceOf(TransactionMutation.class, nextMutations.get(0));
+				assertTransactionMutationEquals((TransactionMutation) nextMutations.get(0), txId.get().transactionMutation());
+			}
+
+			// last transaction must return empty value (there is no next transaction to transition to)
+			final List<Mutation> mutations = txInMutations.get((long) aFewTransactions.length);
+			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
+			final Optional<TransactionMutationWithWalFileReference> txId = CatalogWriteAheadLogIntegrationTest.this.wal.getFirstNonProcessedTransaction(
+				new LogFileRecordReference(
+					index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
+					transactionMutation.getWalFileIndex(),
+					transactionMutation.getTransactionSpan(),
+					transactionMutation.getCumulativeChecksumOrThrow()
+				)
+			);
+			assertFalse(txId.isPresent());
+		}
+	}
+
+	/**
+	 * Nested tests for timestamp reporting functionality.
+	 */
+	@Nested
+	@DisplayName("Timestamp Reporting Tests")
+	class TimestampReportingTests {
+
+		@Test
+		@DisplayName("should correctly report first available timestamp")
+		void shouldCorrectlyReportFirstAvailableTimestamp() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int justEnoughSize = 20;
+			final int[] transactionSizes = new int[7];
+			Arrays.fill(transactionSizes, justEnoughSize);
+
+			final OffsetDateTime initialTimestamp = OffsetDateTime.now();
+			writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes, initialTimestamp,
+				CatalogWriteAheadLogIntegrationTest.this.isolatedWalFilePath,
+				CatalogWriteAheadLogIntegrationTest.this.observableOutputKeeper, CatalogWriteAheadLogIntegrationTest.this.wal
+			);
+			CatalogWriteAheadLogIntegrationTest.this.wal.walProcessedUntil(Long.MAX_VALUE);
+			CatalogWriteAheadLogIntegrationTest.this.wal.removeWalFiles();
+
+			// only one call would occur with the latest version possible
+			assertEquals(1, CatalogWriteAheadLogIntegrationTest.this.offsetConsumer.getCatalogVersions().size());
+			assertEquals(3, CatalogWriteAheadLogIntegrationTest.this.offsetConsumer.getCatalogVersions().get(0));
+		}
+	}
+
+	/**
+	 * Compares two {@link TransactionMutation} instances by their logical transaction
+	 * fields only, ignoring location-specific fields like {@code transactionSpan} and
+	 * {@code walFileIndex} that may differ between write and read.
+	 */
+	private static void assertTransactionMutationEquals(
+		@Nonnull TransactionMutation expected,
+		@Nonnull TransactionMutation actual
+	) {
+		assertEquals(expected.getTransactionId(), actual.getTransactionId());
+		assertEquals(expected.getVersion(), actual.getVersion());
+		assertEquals(expected.getMutationCount(), actual.getMutationCount());
+		assertEquals(expected.getWalSizeInBytes(), actual.getWalSizeInBytes());
+		assertEquals(expected.getCommitTimestamp(), actual.getCommitTimestamp());
+	}
+
+	/**
+	 * Mock consumer for catalog version updates.
+	 */
 	private static class MockCatalogVersionConsumer implements LongConsumer {
-		@Getter private final List<Long> catalogVersions = new LinkedList<>();
+		@Getter
+		private final List<Long> catalogVersions = new LinkedList<>();
 
 		@Override
 		public void accept(long value) {
 			this.catalogVersions.add(value);
 		}
-
 	}
-
 }
