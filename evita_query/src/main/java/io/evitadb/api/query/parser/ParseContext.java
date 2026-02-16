@@ -37,11 +37,12 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 
 /**
- * Context object shared in all parsing visitors. Contains metadata that should be accessible from any parsing visitor,
- * e.g. client arguments.
+ * Context object shared in all parsing visitors. Contains metadata that should be accessible from any parsing
+ * visitor, e.g. client arguments.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -64,59 +65,64 @@ public class ParseContext {
 		this.namedArguments = namedArguments;
 	}
 
+	/**
+	 * Creates an empty parse context with no arguments.
+	 */
 	public ParseContext() {
 		this((Queue<Object>) null, null);
 	}
 
+	/**
+	 * Creates a parse context with positional arguments passed as varargs.
+	 */
 	public ParseContext(@Nonnull Object... positionalArguments) {
-		this(
-			new LinkedList<>(Arrays.asList(positionalArguments)),
-			null
-		);
-	}
-
-	public ParseContext(@Nonnull List<Object> positionalArguments) {
-		this(
-			new LinkedList<>(positionalArguments),
-			null
-		);
-	}
-
-	public ParseContext(@Nonnull Map<String, Object> namedArguments) {
-		this(
-			null,
-			namedArguments
-		);
-	}
-
-	public ParseContext(@Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
-		this(
-			new LinkedList<>(Arrays.asList(positionalArguments)),
-			namedArguments
-		);
-	}
-
-	public ParseContext(@Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
-		this(
-			new LinkedList<>(positionalArguments),
-			namedArguments
-		);
+		this(new LinkedList<>(Arrays.asList(positionalArguments)), null);
 	}
 
 	/**
-	 * Tries to resolve next positional argument. Checks if there are any positional arguments left and if they have
-	 * supported data types. This method expects that syntax tree using positional parameters is parsed synchronously
-	 * in original order.
-	 * Also, each argument can be used only once in query.
+	 * Creates a parse context with positional arguments passed as a list.
+	 */
+	public ParseContext(@Nonnull List<Object> positionalArguments) {
+		this(new LinkedList<>(positionalArguments), null);
+	}
+
+	/**
+	 * Creates a parse context with named arguments only.
+	 */
+	public ParseContext(@Nonnull Map<String, Object> namedArguments) {
+		this(null, namedArguments);
+	}
+
+	/**
+	 * Creates a parse context with both named and positional (varargs) arguments.
+	 */
+	public ParseContext(@Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
+		this(new LinkedList<>(Arrays.asList(positionalArguments)), namedArguments);
+	}
+
+	/**
+	 * Creates a parse context with both named and positional (list) arguments.
+	 */
+	public ParseContext(@Nonnull Map<String, Object> namedArguments, @Nonnull List<Object> positionalArguments) {
+		this(new LinkedList<>(positionalArguments), namedArguments);
+	}
+
+	/**
+	 * Tries to resolve next positional argument. Checks if there are any positional arguments left and if they
+	 * have supported data types. This method expects that syntax tree using positional parameters is parsed
+	 * synchronously in original order. Also, each argument can be used only once in query.
 	 */
 	@Nonnull
 	public <A extends Serializable & Comparable<?>> A getNextPositionalArgument() {
-		Assert.notNull(this.positionalArguments, "Query uses positional parameters but no positional arguments were passed.");
+		Assert.notNull(
+			this.positionalArguments,
+			"Query uses positional parameters but no positional arguments were passed."
+		);
 		final Object argument;
 		try {
 			this.lastPositionalArgumentIndex++;
 			argument = this.positionalArguments.remove();
-		} catch (Exception e) {
+		} catch (NoSuchElementException e) {
 			throw new EvitaInvalidUsageException(
 				"Missing argument of index " + this.lastPositionalArgumentIndex + "."
 			);
@@ -135,17 +141,17 @@ public class ParseContext {
 	}
 
 	/**
-	 * Tries to resolve named parameter by name specified by client. Checks if there are any positional arguments left and if they have
-	 * supported data types. Each argument can be used multiple times in query.
+	 * Tries to resolve named parameter by name specified by client. Checks if there are any positional arguments
+	 * left and if they have supported data types. Each argument can be used multiple times in query.
 	 */
 	@Nonnull
 	public <A extends Serializable & Comparable<?>> A getNamedArgument(@Nonnull String name) {
-		Assert.notNull(this.namedArguments, "Query uses named parameters but no named arguments were passed.");
-		final Object argument = this.namedArguments.get(name);
 		Assert.notNull(
-			argument,
-			"Missing argument of name `" + name + "`."
+			this.namedArguments,
+			"Query uses named parameters but no named arguments were passed."
 		);
+		final Object argument = this.namedArguments.get(name);
+		Assert.notNull(argument, "Missing argument of name `" + name + "`.");
 		Assert.isTrue(
 			isArgumentDataTypeSupported(argument),
 			"Named argument of name `" + name + "` has unsupported data type."
@@ -156,14 +162,15 @@ public class ParseContext {
 	}
 
 	/**
-	 * Supported argument data types are: evita data types, enums, arrays of evita data types and enums, iterables of
-	 * evita data types or enums.
+	 * Supported argument data types are: evita data types, enums, arrays of evita data types and enums, iterables
+	 * of evita data types or enums.
 	 */
 	private static boolean isArgumentDataTypeSupported(@Nonnull Object argument) {
 		if (EvitaDataTypes.isSupportedTypeOrItsArray(argument.getClass())) {
 			return true;
 		}
-		if (argument.getClass().isEnum() || (argument.getClass().isArray() && argument.getClass().getComponentType().isEnum())) {
+		if (argument.getClass().isEnum()
+			|| (argument.getClass().isArray() && argument.getClass().getComponentType().isEnum())) {
 			return true;
 		}
 		if (argument instanceof final Iterable<?> iterable) {

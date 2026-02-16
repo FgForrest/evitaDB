@@ -26,9 +26,9 @@ package io.evitadb.api.query.parser;
 /**
  * Mode of parsing query/query. Changes how individual values and constraints are parsed.
  * The default mode should be the {@link #SAFE} in most cases. The {@link #UNSAFE} should be used only in edge cases.
- * <p>
- * Currently, only use of mode is to decide whether literal values are allowed, which are allowed only in {@link #UNSAFE}
- * for to prevent attacks described <a href="https://owasp.org/www-pdf-archive/GOD16-NOSQL.pdf">here</a>.
+ *
+ * Currently, only use of mode is to decide whether literal values are allowed, which are allowed only in
+ * {@link #UNSAFE} to prevent attacks described [here](https://owasp.org/www-pdf-archive/GOD16-NOSQL.pdf).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

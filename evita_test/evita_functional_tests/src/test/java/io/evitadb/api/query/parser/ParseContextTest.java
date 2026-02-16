@@ -24,67 +24,197 @@
 package io.evitadb.api.query.parser;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link ParseContext}
+ * Tests for {@link ParseContext} verifying argument handling,
+ * parse mode management, and data type validation.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author evitaDB
  */
+@DisplayName("ParseContext")
 class ParseContextTest {
 
-	@Test
-	void shouldReturnNextPositionalArgument() {
-		final ParseContext context1 = new ParseContext("name", 1);
-		assertEquals("name", context1.getNextPositionalArgument());
-		assertEquals(1, (Integer) context1.getNextPositionalArgument());
-
-		final ParseContext context2 = new ParseContext(Map.of("name", "code"), "name", 1);
-		assertEquals("name", context2.getNextPositionalArgument());
-		assertEquals(1, (Integer) context2.getNextPositionalArgument());
-	}
-
-	@Test
-	void shouldNotReturnNextPositionalArgument() {
-		final ParseContext context1 = new ParseContext();
-		assertThrows(EvitaInvalidUsageException.class, context1::getNextPositionalArgument);
-
-		final ParseContext context2 = new ParseContext("code");
-		context2.getNextPositionalArgument();
-		assertThrows(EvitaInvalidUsageException.class, context2::getNextPositionalArgument);
-
-		final ParseContext context3 = new ParseContext(new UnsupportedType());
-		assertThrows(EvitaInvalidUsageException.class, context3::getNextPositionalArgument);
-	}
-
-	@Test
-	void shouldReturnNamedArgument() {
-		final ParseContext context1 = new ParseContext(Map.of("name", "code", "otherName", "validity"));
-		assertEquals("validity", context1.getNamedArgument("otherName"));
-		assertEquals("code", context1.getNamedArgument("name"));
-
-		final ParseContext context2 = new ParseContext(Map.of("name", "code", "otherName", "validity"), "name", 1);
-		assertEquals("validity", context2.getNamedArgument("otherName"));
-		assertEquals("code", context2.getNamedArgument("name"));
-	}
-
-	@Test
-	void shouldNotReturnNamedArgument() {
-		final ParseContext context1 = new ParseContext();
-		assertThrows(EvitaInvalidUsageException.class, () -> context1.getNamedArgument("name"));
-
-		final ParseContext context2 = new ParseContext(Map.of("otherName", "validity"));
-		assertThrows(EvitaInvalidUsageException.class, () -> context2.getNamedArgument("name"));
-
-		final ParseContext context3 = new ParseContext(Map.of("name", new UnsupportedType()));
-		assertThrows(EvitaInvalidUsageException.class, () -> context3.getNamedArgument("name"));
-	}
-
-
+	/**
+	 * Type that is not supported by EvitaDataTypes,
+	 * used to verify argument data type validation.
+	 */
 	private static class UnsupportedType {}
+
+	/**
+	 * Enum used for testing enum argument support.
+	 */
+	enum TestEnum { ALPHA, BETA }
+
+	@Nested
+	@DisplayName("Positional arguments")
+	class PositionalArguments {
+
+		@Test
+		@DisplayName("should return positional arguments in order")
+		void shouldReturnPositionalArgumentsInOrder() {
+			final ParseContext context = new ParseContext("name", 1);
+
+			assertEquals("name", context.getNextPositionalArgument());
+			assertEquals(1, (Integer) context.getNextPositionalArgument());
+		}
+
+		@Test
+		@DisplayName("should accept List constructor for positional arguments")
+		void shouldAcceptListConstructorForPositionalArgs() {
+			final ParseContext context = new ParseContext(List.of("hello", 42));
+
+			assertEquals("hello", context.getNextPositionalArgument());
+			assertEquals(42, (Integer) context.getNextPositionalArgument());
+		}
+
+		@Test
+		@DisplayName("should return positional arguments alongside named arguments")
+		void shouldReturnPositionalWithNamedArguments() {
+			final ParseContext context = new ParseContext(Map.of("name", "code"), "name", 1);
+
+			assertEquals("name", context.getNextPositionalArgument());
+			assertEquals(1, (Integer) context.getNextPositionalArgument());
+		}
+
+		@Test
+		@DisplayName("should accept List constructor with named args")
+		void shouldAcceptListConstructorWithNamedArgs() {
+			final ParseContext context = new ParseContext(Map.of("key", "val"), List.of("a", "b"));
+
+			assertEquals("a", context.getNextPositionalArgument());
+			assertEquals("b", context.getNextPositionalArgument());
+		}
+
+		@Test
+		@DisplayName("should throw when no positional args provided")
+		void shouldThrowWhenNoPositionalArgsProvided() {
+			final ParseContext context = new ParseContext();
+
+			assertThrows(EvitaInvalidUsageException.class, context::getNextPositionalArgument);
+		}
+
+		@Test
+		@DisplayName("should throw when positional args exhausted")
+		void shouldThrowWhenPositionalArgsExhausted() {
+			final ParseContext context = new ParseContext("code");
+
+			context.getNextPositionalArgument();
+
+			assertThrows(EvitaInvalidUsageException.class, context::getNextPositionalArgument);
+		}
+
+		@Test
+		@DisplayName("should throw for unsupported positional arg type")
+		void shouldThrowForUnsupportedPositionalArgType() {
+			final ParseContext context = new ParseContext(new UnsupportedType());
+
+			assertThrows(EvitaInvalidUsageException.class, context::getNextPositionalArgument);
+		}
+	}
+
+	@Nested
+	@DisplayName("Named arguments")
+	class NamedArguments {
+
+		@Test
+		@DisplayName("should return named arguments by name")
+		void shouldReturnNamedArgumentsByName() {
+			final ParseContext context = new ParseContext(Map.of("name", "code", "otherName", "validity"));
+
+			assertEquals("validity", context.getNamedArgument("otherName"));
+			assertEquals("code", context.getNamedArgument("name"));
+		}
+
+		@Test
+		@DisplayName("should return named args when both types present")
+		void shouldReturnNamedArgsWhenBothTypesPresent() {
+			final ParseContext context = new ParseContext(
+				Map.of("name", "code", "otherName", "validity"),
+				"name", 1
+			);
+
+			assertEquals("validity", context.getNamedArgument("otherName"));
+			assertEquals("code", context.getNamedArgument("name"));
+		}
+
+		@Test
+		@DisplayName("should throw when no named args provided")
+		void shouldThrowWhenNoNamedArgsProvided() {
+			final ParseContext context = new ParseContext();
+
+			assertThrows(EvitaInvalidUsageException.class, () -> context.getNamedArgument("name"));
+		}
+
+		@Test
+		@DisplayName("should throw when named arg not found")
+		void shouldThrowWhenNamedArgNotFound() {
+			final ParseContext context = new ParseContext(Map.of("otherName", "validity"));
+
+			assertThrows(EvitaInvalidUsageException.class, () -> context.getNamedArgument("name"));
+		}
+
+		@Test
+		@DisplayName("should throw for unsupported named arg type")
+		void shouldThrowForUnsupportedNamedArgType() {
+			final ParseContext context = new ParseContext(Map.of("name", new UnsupportedType()));
+
+			assertThrows(EvitaInvalidUsageException.class, () -> context.getNamedArgument("name"));
+		}
+	}
+
+	@Nested
+	@DisplayName("Parse mode handling")
+	class ParseModeHandling {
+
+		@Test
+		@DisplayName("should default to SAFE mode")
+		void shouldDefaultToSafeMode() {
+			final ParseContext context = new ParseContext();
+
+			assertEquals(ParseMode.SAFE, context.getMode());
+		}
+
+		@Test
+		@DisplayName("should allow setting and getting mode")
+		void shouldAllowSettingAndGettingMode() {
+			final ParseContext context = new ParseContext();
+
+			context.setMode(ParseMode.UNSAFE);
+
+			assertEquals(ParseMode.UNSAFE, context.getMode());
+		}
+	}
+
+	@Nested
+	@DisplayName("Data type validation")
+	class DataTypeValidation {
+
+		@Test
+		@DisplayName("should accept enum as positional argument")
+		void shouldAcceptEnumAsPositionalArgument() {
+			final ParseContext context = new ParseContext(TestEnum.ALPHA);
+
+			final TestEnum result = context.getNextPositionalArgument();
+
+			assertEquals(TestEnum.ALPHA, result);
+		}
+
+		@Test
+		@DisplayName("should accept iterable as positional argument")
+		void shouldAcceptIterableAsPositionalArgument() {
+			final ParseContext context = new ParseContext((Object) List.of("a", "b"));
+
+			final List<String> result = context.getNextPositionalArgument();
+
+			assertEquals(List.of("a", "b"), result);
+		}
+	}
 }
