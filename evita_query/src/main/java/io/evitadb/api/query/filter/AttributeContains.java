@@ -35,28 +35,70 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `contains` is query that searches value of the attribute with name passed in first argument for presence of the
- * {@link String} value passed in the second argument.
+ * Filters entities by testing whether an attribute value contains a specified substring at any position.
  *
- * Function returns true if attribute value contains secondary argument (starting with any position). Function is case
- * sensitive and comparison is executed using `UTF-8` encoding (Java native).
+ * This constraint implements substring search semantics identical to Java's {@link String#contains(CharSequence)} method. It performs
+ * case-sensitive matching using UTF-8 encoding (Java native string representation) and returns true if the search pattern appears anywhere
+ * within the attribute value.
  *
- * Example:
+ * ## Syntax
  *
- * <pre>
- * contains("code", "evitaDB")
- * </pre>
+ * ```
+ * attributeContains(attributeName:string!, searchValue:string!)
+ * ```
  *
- * Function supports attribute arrays and when attribute is of array type `contains` returns true if any of attribute
- * values contains the value in the query. If we have the attribute `code` with value `["cat","mouse","dog"]` all these
- * constraints will match:
+ * ## Type Requirements
  *
- * <pre>
- * contains("code","mou")
- * contains("code","o")
- * </pre>
+ * The target attribute must be of type {@link String} and must be defined as either filterable or unique in the entity schema. Non-string
+ * attributes or attributes lacking the required filterable/unique definition will cause query execution to fail.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">Visit detailed user documentation</a></p>
+ * ## Matching Behavior
+ *
+ * - **Case-sensitive**: "abc" matches "abc" but not "ABC" or "Abc"
+ * - **UTF-8 encoding**: Full Unicode character support including multi-byte characters
+ * - **Position-independent**: Matches if the search pattern appears anywhere within the attribute value
+ * - **Exact substring**: No wildcard expansion — the search pattern is matched literally
+ *
+ * ## Array Support
+ *
+ * When the attribute is an array type, the constraint returns true if ANY element in the array contains the search pattern. This uses
+ * existential quantification semantics: at least one array element must match.
+ *
+ * For example, given an attribute `tags` with value `["smartphone", "electronics", "android"]`:
+ *
+ * ```
+ * attributeContains("tags", "phone")  // matches (found in "smartphone")
+ * attributeContains("tags", "smart")  // matches (found in "smartphone")
+ * attributeContains("tags", "tron")   // matches (found in "electronics")
+ * attributeContains("tags", "ios")    // does not match
+ * ```
+ *
+ * ## Usage Patterns
+ *
+ * Common use cases include:
+ * - **Product search**: Find products whose descriptions contain keywords
+ * - **SKU filtering**: Match partial SKU codes or identifiers
+ * - **Category matching**: Search for products in categories whose names contain specific terms
+ * - **Tag-based filtering**: Find entities with tags containing search phrases
+ *
+ * Example query filtering products whose description contains "wireless":
+ *
+ * ```
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeContains("description", "wireless")
+ *     )
+ * )
+ * ```
+ *
+ * ## Related Constraints
+ *
+ * - {@link AttributeStartsWith}: Match prefix patterns (more efficient for prefix matching)
+ * - {@link AttributeEndsWith}: Match suffix patterns
+ * - {@link AttributeEquals}: Exact string matching (most efficient for equality checks)
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/string#attribute-contains)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -70,7 +112,7 @@ import java.io.Serializable;
 public class AttributeContains extends AbstractAttributeFilterStringSearchConstraintLeaf {
 	@Serial private static final long serialVersionUID = 5307621598413172503L;
 
-	private AttributeContains(Serializable... arguments) {
+	private AttributeContains(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

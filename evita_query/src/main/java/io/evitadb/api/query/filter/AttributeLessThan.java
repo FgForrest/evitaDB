@@ -30,29 +30,63 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `lessThan` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
- * Type of the attribute value and second argument must be convertible one to another otherwise `lessThan` function
- * returns false.
+ * Filters entities where a named attribute value is strictly less than a specified threshold value, establishing an
+ * exclusive upper bound for range-based queries. This constraint is fundamental for numeric and ordered data filtering,
+ * commonly used in conjunction with {@link AttributeGreaterThan} or {@link AttributeGreaterThanEquals} to define open
+ * or half-open intervals.
  *
- * Function returns true if value in a filterable attribute of such a name is less than value in second argument.
+ * The constraint performs type-safe comparison via {@link EvitaDataTypes} conversion. Both the
+ * attribute value and threshold must be convertible to a common comparable type, or the constraint evaluates to false.
+ * String comparisons follow alphabetical ordering (locale-specific collation for localized attributes). Range types
+ * compare left boundary first, then right boundary. Boolean values are treated as numeric (true=1, false=0).
  *
- * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
- * query is used in combination with array type attribute. This may however change in the future.
+ * **EvitaQL syntax:**
  *
- * Example:
+ * ```
+ * attributeLessThan(attributeName:string!, value:comparable!)
+ * ```
  *
- * <pre>
- * lessThan("age", 20)
- * </pre>
+ * **Constraint classification:**
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than">Visit detailed user documentation</a></p>
+ * - Implements {@link FilterConstraint} - usable in filterBy clauses
+ * - Implements {@link io.evitadb.api.query.AttributeConstraint} - operates on named attributes
+ * - Supported in: {@link ConstraintDomain#ENTITY}, {@link ConstraintDomain#REFERENCE},
+ *   {@link ConstraintDomain#INLINE_REFERENCE}
+ *
+ * **Array attribute limitations:**
+ *
+ * When the attribute is array-typed, the constraint matches if **any** element in the array is lesser than
+ * the threshold value.
+ *
+ * **Common use cases:**
+ *
+ * - Maximum price filtering: `attributeLessThan("price", 100.00)`
+ * - Date cutoffs: `attributeLessThan("expiryDate", "2024-12-31")`
+ * - Age restrictions: `attributeLessThan("age", 65)`
+ * - Low-stock detection: `attributeLessThan("quantity", 10)`
+ * - Performance thresholds: `attributeLessThan("responseTime", 500)`
+ *
+ * **Combining with other constraints:**
+ *
+ * Commonly paired with lower-bound constraints to form ranges:
+ *
+ * ```
+ * and(
+ *     attributeGreaterThanEquals("price", 50.00),
+ *     attributeLessThan("price", 100.00)
+ * )
+ * ```
+ *
+ * For closed intervals (inclusive on both ends), use {@link AttributeBetween} for better readability and performance.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -66,7 +100,7 @@ import java.io.Serializable;
 public class AttributeLessThan extends AbstractAttributeFilterComparisonConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -1531450217250657781L;
 
-	private AttributeLessThan(Serializable... arguments) {
+	private AttributeLessThan(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -77,7 +111,7 @@ public class AttributeLessThan extends AbstractAttributeFilterComparisonConstrai
 	}
 
 	/**
-	 * Returns value that must be less than attribute value.
+	 * Returns the threshold value that the attribute value must be less than.
 	 */
 	@Nonnull
 	public <T extends Serializable> T getAttributeValue() {

@@ -25,71 +25,232 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
+import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link Not} query.
+ * Tests for {@link Not} verifying construction, applicability, necessity, copy/clone operations,
+ * child access, visitor acceptance, and equality contract.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("Not constraint")
 class NotTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final ConstraintContainer<FilterConstraint> not =
-				not(
-					attributeEquals("abc", "def")
-				);
-		assertNotNull(not);
-		assertEquals(1, not.getChildrenCount());
-		assertEquals("abc", ((AttributeEquals)not.getChildren()[0]).getAttributeName());
-		assertEquals("def", ((AttributeEquals)not.getChildren()[0]).getAttributeValue());
+	@Nested
+	@DisplayName("Construction and factory method")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should create via factory method with single child")
+		void shouldCreateViaFactoryClassWorkAsExpected() {
+			final ConstraintContainer<FilterConstraint> not = not(
+				attributeEquals("abc", "def")
+			);
+
+			assertNotNull(not);
+			assertEquals(1, not.getChildrenCount());
+			assertEquals("abc", ((AttributeEquals) not.getChildren()[0]).getAttributeName());
+			assertEquals("def", ((AttributeEquals) not.getChildren()[0]).getAttributeValue());
+		}
+
+		@Test
+		@DisplayName("should return the single child via getChild()")
+		void shouldReturnSingleChildViaGetChild() {
+			final AttributeEquals child = new AttributeEquals("abc", "def");
+			final Not not = new Not(child);
+
+			final FilterConstraint result = not.getChild();
+
+			assertEquals(child, result);
+		}
+
+		@Test
+		@DisplayName("should throw EvitaInvalidUsageException when getChild() called on empty Not")
+		void shouldThrowWhenGetChildCalledOnEmptyNot() {
+			final Not emptyNot = (Not) new Not(attributeEquals("abc", "def"))
+				.getCopyWithNewChildren(new FilterConstraint[0], new Constraint<?>[0]);
+
+			assertFalse(emptyNot.isNecessary());
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				emptyNot::getChild
+			);
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertTrue(new Not(attributeEquals("abc", "def")).isApplicable());
-		final Not hackedCopyByInternalAPI = (Not) new Not(attributeEquals("abc", "def")).getCopyWithNewChildren(new FilterConstraint[0], new Constraint<?>[0]);
-		assertFalse(hackedCopyByInternalAPI.isApplicable());
+	@Nested
+	@DisplayName("Applicability and necessity")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should be applicable when it has a child")
+		void shouldRecognizeApplicability() {
+			assertTrue(new Not(attributeEquals("abc", "def")).isApplicable());
+
+			final Not hackedCopy = (Not) new Not(attributeEquals("abc", "def"))
+				.getCopyWithNewChildren(new FilterConstraint[0], new Constraint<?>[0]);
+			assertFalse(hackedCopy.isApplicable());
+		}
+
+		@Test
+		@DisplayName("should be necessary when it has a child")
+		void shouldRecognizeNecessity() {
+			assertTrue(new Not(attributeEquals("abc", "def")).isNecessary());
+
+			final Not hackedCopy = (Not) new Not(attributeEquals("abc", "def"))
+				.getCopyWithNewChildren(new FilterConstraint[0], new Constraint<?>[0]);
+			assertFalse(hackedCopy.isNecessary());
+		}
 	}
 
-	@Test
-	void shouldRecognizeNecessity() {
-		assertTrue(new Not(attributeEquals("abc", "def")).isNecessary());
-		final Not hackedCopyByInternalAPI = (Not) new Not(attributeEquals("abc", "def")).getCopyWithNewChildren(new FilterConstraint[0], new Constraint<?>[0]);
-		assertFalse(hackedCopyByInternalAPI.isNecessary());
+	@Nested
+	@DisplayName("Copy and clone operations")
+	class CopyAndCloneTest {
+
+		@Test
+		@DisplayName("should create copy with new child")
+		void shouldCreateCopyWithNewChild() {
+			final Not original = new Not(attributeEquals("abc", "def"));
+			final FilterConstraint copy = original.getCopyWithNewChildren(
+				new FilterConstraint[]{attributeEquals("xyz", "123")},
+				new Constraint<?>[0]
+			);
+
+			assertInstanceOf(Not.class, copy);
+			assertEquals(1, ((Not) copy).getChildrenCount());
+			assertEquals("xyz", ((AttributeEquals) ((Not) copy).getChild()).getAttributeName());
+		}
+
+		@Test
+		@DisplayName("should create empty copy when no children provided")
+		void shouldCreateEmptyCopyWhenNoChildrenProvided() {
+			final Not original = new Not(attributeEquals("abc", "def"));
+			final FilterConstraint copy = original.getCopyWithNewChildren(
+				new FilterConstraint[0],
+				new Constraint<?>[0]
+			);
+
+			assertInstanceOf(Not.class, copy);
+			assertFalse(((Not) copy).isApplicable());
+		}
+
+		@Test
+		@DisplayName("should reject non-empty additional children in getCopyWithNewChildren")
+		void shouldRejectNonEmptyAdditionalChildren() {
+			final Not original = new Not(attributeEquals("abc", "def"));
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> original.getCopyWithNewChildren(
+					new FilterConstraint[]{attributeEquals("xyz", "123")},
+					new Constraint<?>[]{new OrderBy()}
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should throw UnsupportedOperationException when cloning with arguments")
+		void shouldThrowWhenCloningWithArguments() {
+			final Not not = new Not(attributeEquals("abc", "def"));
+
+			assertThrows(
+				UnsupportedOperationException.class,
+				() -> not.cloneWithArguments(new Serializable[]{"arg"})
+			);
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final ConstraintContainer<FilterConstraint> not =
-				not(
-					attributeEquals("abc", '\'')
-				);
-		assertNotNull(not);
-		assertEquals("not(attributeEquals('abc','\\''))", not.toString());
+	@Nested
+	@DisplayName("Type and visitor")
+	class TypeAndVisitorTest {
+
+		@Test
+		@DisplayName("should return FilterConstraint class as type")
+		void shouldReturnFilterConstraintClassAsType() {
+			final Not not = new Not(attributeEquals("abc", "def"));
+
+			assertEquals(FilterConstraint.class, not.getType());
+		}
+
+		@Test
+		@DisplayName("should accept visitor")
+		void shouldAcceptVisitor() {
+			final Not not = new Not(attributeEquals("abc", "def"));
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			not.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> constraint) {
+					visited.set(constraint);
+				}
+			});
+
+			assertSame(not, visited.get());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsOrHashContract() {
-		assertNotSame(createNotConstraint("def"), createNotConstraint("def"));
-		assertEquals(createNotConstraint("def"), createNotConstraint("def"));
-		assertNotEquals(createNotConstraint("def"), createNotConstraint("defe"));
-		assertNotEquals(createNotConstraint("def"), createNotConstraint(null));
-		assertNotEquals(createNotConstraint("def"), createNotConstraint(null));
-		assertEquals(createNotConstraint("def").hashCode(), createNotConstraint("def").hashCode());
-		assertNotEquals(createNotConstraint("def").hashCode(), createNotConstraint("defe").hashCode());
-		assertNotEquals(createNotConstraint("def").hashCode(), createNotConstraint(null).hashCode());
-		assertNotEquals(createNotConstraint("def").hashCode(), createNotConstraint(null).hashCode());
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce expected toString format")
+		void shouldToStringReturnExpectedFormat() {
+			final ConstraintContainer<FilterConstraint> not = not(
+				attributeEquals("abc", '\'')
+			);
+
+			assertNotNull(not);
+			assertEquals("not(attributeEquals('abc','\\''))", not.toString());
+		}
 	}
 
-	private static Not createNotConstraint(String value) {
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(createNotConstraint("def"), createNotConstraint("def"));
+			assertEquals(createNotConstraint("def"), createNotConstraint("def"));
+			assertNotEquals(createNotConstraint("def"), createNotConstraint("defe"));
+			assertNotEquals(createNotConstraint("def"), createNotConstraint(null));
+			assertEquals(
+				createNotConstraint("def").hashCode(),
+				createNotConstraint("def").hashCode()
+			);
+			assertNotEquals(
+				createNotConstraint("def").hashCode(),
+				createNotConstraint("defe").hashCode()
+			);
+			assertNotEquals(
+				createNotConstraint("def").hashCode(),
+				createNotConstraint(null).hashCode()
+			);
+		}
+	}
+
+	/**
+	 * Creates a {@link Not} constraint wrapping an {@link AttributeEquals} built from the given value.
+	 */
+	@Nonnull
+	private static Not createNotConstraint(@Nullable String value) {
 		return not(new AttributeEquals("abc", value));
 	}
-
 }

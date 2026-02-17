@@ -23,50 +23,163 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.FilterConstraint;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.attributeStartsWith;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link AttributeStartsWith} query.
+ * Tests for {@link AttributeStartsWith} verifying construction, applicability, property accessors,
+ * cloning, visitor support, string representation, and equality contract.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("AttributeStartsWith constraint")
 class AttributeStartsWithTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final AttributeStartsWith attributeStartsWith = attributeStartsWith("abc", "def");
-		assertEquals("abc", attributeStartsWith.getAttributeName());
-		assertEquals("def", attributeStartsWith.getTextToSearch());
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should create via factory method with correct properties")
+		void shouldCreateViaFactoryClassWorkAsExpected() {
+			final AttributeStartsWith constraint = attributeStartsWith("abc", "def");
+
+			assertEquals("abc", constraint.getAttributeName());
+			assertEquals("def", constraint.getTextToSearch());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertFalse(new AttributeStartsWith("abc", null).isApplicable());
-		assertFalse(new AttributeStartsWith(null, "abc").isApplicable());
-		assertFalse(new AttributeStartsWith(null, null).isApplicable());
-		assertTrue(attributeStartsWith("abc", "def").isApplicable());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should recognize applicable and non-applicable instances")
+		void shouldRecognizeApplicability() {
+			assertFalse(new AttributeStartsWith("abc", null).isApplicable());
+			assertFalse(new AttributeStartsWith(null, "abc").isApplicable());
+			assertFalse(new AttributeStartsWith(null, null).isApplicable());
+			assertTrue(attributeStartsWith("abc", "def").isApplicable());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final AttributeStartsWith attributeStartsWith = attributeStartsWith("abc", "def");
-		assertEquals("attributeStartsWith('abc','def')", attributeStartsWith.toString());
+	@Nested
+	@DisplayName("Property accessors")
+	class PropertyAccessorsTest {
+
+		@Test
+		@DisplayName("should return attribute name")
+		void shouldReturnAttributeName() {
+			final AttributeStartsWith constraint = attributeStartsWith("myAttr", "search");
+
+			assertEquals("myAttr", constraint.getAttributeName());
+		}
+
+		@Test
+		@DisplayName("should return text to search")
+		void shouldReturnTextToSearch() {
+			final AttributeStartsWith constraint = attributeStartsWith("abc", "searchText");
+
+			assertEquals("searchText", constraint.getTextToSearch());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(attributeStartsWith("abc", "def"), attributeStartsWith("abc", "def"));
-		assertEquals(attributeStartsWith("abc", "def"), attributeStartsWith("abc", "def"));
-		assertNotEquals(attributeStartsWith("abc", "def"), attributeStartsWith("abc", "defe"));
-		assertNotEquals(attributeStartsWith("abc", "def"), new AttributeStartsWith("abc", null));
-		assertNotEquals(attributeStartsWith("abc", "def"), new AttributeStartsWith(null, "abc"));
-		assertEquals(attributeStartsWith("abc", "def").hashCode(), attributeStartsWith("abc", "def").hashCode());
-		assertNotEquals(attributeStartsWith("abc", "def").hashCode(), attributeStartsWith("abc", "defe").hashCode());
-		assertNotEquals(attributeStartsWith("abc", "def").hashCode(), new AttributeStartsWith("abc", null).hashCode());
-		assertNotEquals(attributeStartsWith("abc", "def").hashCode(), new AttributeStartsWith(null, "abc").hashCode());
+	@Nested
+	@DisplayName("Cloning")
+	class CloningTest {
+
+		@Test
+		@DisplayName("should produce equal but not same instance via cloneWithArguments")
+		void shouldCloneWithArguments() {
+			final AttributeStartsWith original = attributeStartsWith("abc", "def");
+			final FilterConstraint clone = original.cloneWithArguments(new Serializable[]{"abc", "def"});
+
+			assertEquals(original, clone);
+			assertNotSame(original, clone);
+			assertInstanceOf(AttributeStartsWith.class, clone);
+		}
 	}
 
+	@Nested
+	@DisplayName("Visitor support")
+	class VisitorSupportTest {
+
+		@Test
+		@DisplayName("should accept visitor and call visit method")
+		void shouldAcceptVisitor() {
+			final AttributeStartsWith constraint = attributeStartsWith("abc", "def");
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			constraint.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> c) {
+					visited.set(c);
+				}
+			});
+
+			assertSame(constraint, visited.get());
+		}
+
+		@Test
+		@DisplayName("should return FilterConstraint class as type")
+		void shouldReturnCorrectType() {
+			final AttributeStartsWith constraint = attributeStartsWith("abc", "def");
+
+			assertEquals(FilterConstraint.class, constraint.getType());
+		}
+	}
+
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce expected toString format")
+		void shouldToStringReturnExpectedFormat() {
+			final AttributeStartsWith constraint = attributeStartsWith("abc", "def");
+
+			assertEquals("attributeStartsWith('abc','def')", constraint.toString());
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(attributeStartsWith("abc", "def"), attributeStartsWith("abc", "def"));
+			assertEquals(attributeStartsWith("abc", "def"), attributeStartsWith("abc", "def"));
+			assertNotEquals(attributeStartsWith("abc", "def"), attributeStartsWith("abc", "defe"));
+			assertNotEquals(attributeStartsWith("abc", "def"), new AttributeStartsWith("abc", null));
+			assertNotEquals(attributeStartsWith("abc", "def"), new AttributeStartsWith(null, "abc"));
+			assertEquals(
+				attributeStartsWith("abc", "def").hashCode(),
+				attributeStartsWith("abc", "def").hashCode()
+			);
+			assertNotEquals(
+				attributeStartsWith("abc", "def").hashCode(),
+				attributeStartsWith("abc", "defe").hashCode()
+			);
+			assertNotEquals(
+				attributeStartsWith("abc", "def").hashCode(),
+				new AttributeStartsWith("abc", null).hashCode()
+			);
+			assertNotEquals(
+				attributeStartsWith("abc", "def").hashCode(),
+				new AttributeStartsWith(null, "abc").hashCode()
+			);
+		}
+	}
 }

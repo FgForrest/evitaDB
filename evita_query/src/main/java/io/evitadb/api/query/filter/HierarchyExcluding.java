@@ -37,92 +37,178 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The constraint `excluding` is a constraint that can only be used within {@link HierarchyWithin} or
- * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
- * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
- * that are transitively or directly related to them, and the parent node itself.
+ * The `excluding` constraint removes specified subtrees from hierarchy query results by identifying root nodes that
+ * match filter criteria and excluding those nodes plus all their descendants. This is the inverse of the
+ * {@link HierarchyHaving} constraint and can only be used within {@link HierarchyWithin} or {@link HierarchyWithinRoot}
+ * parent constraints.
  *
- * The excluding constraint allows you to exclude one or more subtrees from the scope of the filter. This constraint is
- * the exact opposite of the having constraint. If the constraint is true for a hierarchy entity, it and all of its
- * children are excluded from the query. The excluding constraint is the same as declaring `having(not(expression))`,
- * but for the sake of readability it has its own constraint.
+ * **Syntax**
  *
- * The constraint accepts following arguments:
+ * ```evitaql
+ * excluding(
+ *     filtering: FilterConstraint+
+ * )
+ * ```
  *
- * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
- *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
+ * **Arguments**
  *
- * When the hierarchy constraint targets the hierarchy entity, the children that satisfy the inner constraints (and
- * their children, whether they satisfy them or not) are excluded from the result.
+ * - `filtering` (required): one or more filter constraints that identify hierarchy nodes whose subtrees should be
+ *   excluded from results. Multiple constraints are combined with implicit logical AND. The lookup traverses from root
+ *   to leaf, stopping at the first node that satisfies the constraints and excluding that node plus all descendants.
  *
- * For demonstration purposes, let's list all categories within the Accessories category, but exclude exactly
- * the Wireless headphones subcategory.
+ * **Early Termination Semantics**
  *
- * <pre>
+ * The `excluding` constraint implements early termination during hierarchy traversal:
+ * 1. Traversal proceeds from root nodes toward leaf nodes
+ * 2. For each node, the engine evaluates whether it matches the `excluding` filter
+ * 3. If a node matches, that node and its entire subtree are excluded from results
+ * 4. Traversal does NOT continue into the excluded subtree (descendants are not evaluated)
+ *
+ * This early termination is critical for performance: if a category has thousands of descendants, excluding the
+ * category avoids evaluating all those descendants.
+ *
+ * **Inverse Relationship with Having**
+ *
+ * The `excluding` constraint is semantically equivalent to `having(not(filtering))`, but exists as a separate
+ * constraint for improved readability. Both constraints use early termination, but with opposite conditions:
+ * - `having(condition)`: stops at first node that FAILS the condition, excluding that subtree
+ * - `excluding(condition)`: stops at first node that MATCHES the condition, excluding that subtree
+ *
+ * **Query Mode Behavior**
+ *
+ * The constraint behaves differently depending on whether the query is self-hierarchical or reference-hierarchical:
+ *
+ * 1. **Self-hierarchical mode**: evaluates against the queried entities themselves. Categories matching the `excluding`
+ *    filter and all their subcategories are removed from results.
+ *
+ * 2. **Reference-hierarchical mode**: evaluates against the referenced hierarchical entities but affects the queried
+ *    non-hierarchical entities. Products referencing categories that match the `excluding` filter (or any descendants
+ *    of those categories) are removed from results.
+ *
+ * **Multiple Category Assignment**
+ *
+ * In reference-hierarchical mode, when a product is assigned to multiple categories and only some are excluded, the
+ * product remains in the result if at least one of its assigned categories is within the visible part of the tree:
+ *
+ * ```
+ * Category tree:
+ *   - Electronics
+ *     - Computers
+ *     - Smartphones
+ *   - Clearance (excluded)
+ *     - Discontinued
+ *
+ * Product X: assigned to both "Smartphones" and "Discontinued"
+ * Result: Product X is INCLUDED because "Smartphones" is visible
+ * ```
+ *
+ * **Combining with Other Specifications**
+ *
+ * The `excluding` constraint can be combined with other {@link HierarchySpecificationFilterConstraint} instances:
+ * - Can coexist with `having` (apply both inclusion and exclusion filters)
+ * - Can coexist with `directRelation` (exclude subtrees but only consider direct children)
+ * - Can coexist with `excludingRoot` (exclude both subtrees and parent node)
+ * - Only one `excluding` constraint is evaluated per query (subsequent instances are ignored)
+ *
+ * **Examples**
+ *
+ * ```java
+ * // Self-hierarchical: exclude Wireless Headphones category and subcategories
+ * query(
+ *     collection("Category"),
+ *     filterBy(
+ *         hierarchyWithinSelf(
+ *             attributeEquals("code", "accessories"),
+ *             excluding(attributeEquals("code", "wireless-headphones"))
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(attributeContent("code"))
+ *     )
+ * )
+ *
+ * // Reference-hierarchical: exclude products in Wireless Headphones subtree
  * query(
  *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
  *             "categories",
  *             attributeEquals("code", "accessories"),
- *             excluding(
- *                 attributeEquals("code", "wireless-headphones")
- *             )
+ *             excluding(attributeEquals("code", "wireless-headphones"))
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent("code")
+ *         entityFetch(attributeContent("code"))
+ *     )
+ * )
+ *
+ * // Exclude multiple subtrees (categories marked as clearance)
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithinRoot(
+ *             "categories",
+ *             excluding(attributeEquals("clearance", true))
  *         )
  *     )
  * )
- * </pre>
  *
- * The category Wireless Headphones and all its subcategories will not be shown in the results list.
- *
- * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
- * is a product assigned to a category), the excluding constraint is evaluated against the hierarchical entity
- * (category), but affects the queried non-hierarchical entities (products). It excludes all products referencing
- * categories that satisfy the excluding inner constraints.
- *
- * Let's go back to our example query that excludes the Wireless Headphones category subtree. To list all products
- * available in the Accessories category except those related to the Wireless Headphones category or its subcategories,
- * issue the following query:
- *
- * <pre>
+ * // Exclude subtrees based on complex filter
  * query(
  *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
  *             "categories",
- *             attributeEquals("code", "accessories"),
+ *             attributeEquals("code", "electronics"),
  *             excluding(
- *                 attributeEquals("code", "wireless-headphones")
+ *                 and(
+ *                     attributeEquals("status", "INACTIVE"),
+ *                     attributeLessThan("priority", 10)
+ *                 )
  *             )
- *         )
- *     ),
- *     require(
- *         entityFetch(
- *             attributeContent("code")
  *         )
  *     )
  * )
- * </pre>
  *
- * You can see that wireless headphone products like Huawei FreeBuds 4, Jabra Elite 3 or Adidas FWD-02 Sport are not
- * present in the listing.
+ * // Combine excluding with having (only valid categories, exclude clearance)
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithinRoot(
+ *             "categories",
+ *             having(attributeInRange("validity", ZonedDateTime.now())),
+ *             excluding(attributeEquals("clearance", true))
+ *         )
+ *     )
+ * )
+ * ```
  *
- * When the product is assigned to two categories - one excluded and one part of the visible category tree, the product
- * remains in the result. See the example.
+ * **Use Cases**
  *
- * <strong>The lookup stops at the first node that satisfies the constraint!</strong>
+ * Common scenarios for `excluding`:
+ * - **Promotional exclusions**: hide sale/clearance categories during regular browsing
+ * - **Access control**: exclude restricted categories for certain user roles
+ * - **Seasonal filtering**: hide categories that are out of season
+ * - **Status-based hiding**: exclude inactive or deprecated category subtrees
+ * - **Data quality**: exclude test or placeholder categories from production queries
  *
- * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
- * whether the excluding constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child
- * nodes (entire subtree).
+ * **Performance Characteristics**
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding">Visit detailed user documentation</a></p>
+ * The early termination behavior makes `excluding` highly efficient for pruning large subtrees. When a high-level
+ * category with thousands of descendants is excluded, the engine avoids evaluating those thousands of nodes.
  *
+ * **Comparison with Not Constraint**
+ *
+ * Using `excluding(filter)` is NOT equivalent to wrapping the hierarchy query in `not(...)`:
+ * - `excluding(filter)`: removes matching subtrees but keeps rest of hierarchy
+ * - `not(hierarchyWithin(...))`: inverts the entire hierarchy filter (returns entities NOT in the hierarchy)
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/hierarchy#excluding)
+ *
+ * @see HierarchyHaving opposite constraint for including subtrees based on filter
+ * @see HierarchyExcludingRoot variant that excludes only the parent node, not its children
+ * @see HierarchyWithin primary hierarchy filter constraint
+ * @see HierarchyWithinRoot hierarchy filter for entire tree
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
@@ -131,7 +217,8 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/hierarchy#excluding",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
-public class HierarchyExcluding extends AbstractFilterConstraintContainer implements HierarchySpecificationFilterConstraint {
+public class HierarchyExcluding extends AbstractFilterConstraintContainer
+	implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
 	private static final String CONSTRAINT_NAME = "excluding";
 
@@ -162,12 +249,15 @@ public class HierarchyExcluding extends AbstractFilterConstraintContainer implem
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return this;
+		return new HierarchyExcluding(getChildren());
 	}
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public FilterConstraint getCopyWithNewChildren(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint HierarchyExcluding doesn't accept other than filtering constraints!"

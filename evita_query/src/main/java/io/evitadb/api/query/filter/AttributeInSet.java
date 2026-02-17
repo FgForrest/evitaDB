@@ -29,6 +29,7 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -36,31 +37,75 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * This `inSet` is query that compares value of the attribute with name passed in first argument with all the values passed
- * in the second, third and additional arguments. First argument must be {@link String}, additional arguments may be any
- * of {@link Comparable} type.
+ * Filters entities where a named attribute value matches at least one value from a provided set of comparable values.
+ * This constraint is functionally equivalent to a disjunction (logical OR) of multiple {@link AttributeEquals}
+ * constraints, but offers significantly better performance and more concise syntax when filtering against multiple
+ * discrete values.
  *
- * Type of the attribute value and additional arguments must be convertible one to another otherwise `in` function
- * skips value comparison and ultimately returns false.
+ * The constraint performs type-safe equality comparison via {@link EvitaDataTypes} conversion.
+ * The attribute value must be convertible to the type of at least one value in the provided set, otherwise that value
+ * is skipped. If no values are type-compatible, the constraint evaluates to false. String comparisons are
+ * case-sensitive. Range types compare using left boundary first, then right boundary. Boolean values are treated as
+ * numeric (true=1, false=0).
  *
- * Function returns true if attribute value is equal to at least one of additional values.
+ * **EvitaQL syntax:**
  *
- * Example:
+ * ```
+ * attributeInSet(attributeName:string!, value1:comparable!, value2:comparable!, ...)
+ * ```
  *
- * <pre>
- * inSet("level", 1, 2, 3)
- * </pre>
+ * **Constraint classification:**
  *
- * Function supports attribute arrays and when attribute is of array type `inSet` returns true if any of attribute values
- * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
+ * - Implements {@link FilterConstraint} - usable in filterBy clauses
+ * - Implements {@link io.evitadb.api.query.AttributeConstraint} - operates on named attributes
+ * - Supported in: {@link ConstraintDomain#ENTITY}, {@link ConstraintDomain#REFERENCE},
+ *   {@link ConstraintDomain#INLINE_REFERENCE}
+ *
+ * **Array attribute handling:**
+ *
+ * When the attribute is array-typed, the constraint matches if **any** element in the attribute array equals **any**
+ * value in the query set (set intersection is non-empty). For example, given `code=["A", "B", "C"]`, these constraints
  * match:
  *
- * <pre>
- * inSet("code","A","D")
- * inSet("code","A", "B")
- * </pre>
+ * ```
+ * attributeInSet("code", "A", "D")     // "A" matches
+ * attributeInSet("code", "A", "B")     // Both "A" and "B" match
+ * attributeInSet("code", "D", "E")     // No match (would return false)
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set">Visit detailed user documentation</a></p>
+ * **Common use cases:**
+ *
+ * - Multi-select filtering: `attributeInSet("category", "Electronics", "Computers", "Phones")`
+ * - Status filtering: `attributeInSet("status", "PUBLISHED", "FEATURED", "PROMOTED")`
+ * - Tag-based filtering: `attributeInSet("tags", "sale", "clearance", "discount")`
+ * - Enum value matching: `attributeInSet("size", "SMALL", "MEDIUM")`
+ * - Discrete numeric ranges: `attributeInSet("priority", 1, 2, 3)`
+ *
+ * **Advantages over multiple AttributeEquals:**
+ *
+ * Instead of:
+ *
+ * ```
+ * or(
+ *     attributeEquals("status", "PUBLISHED"),
+ *     attributeEquals("status", "FEATURED"),
+ *     attributeEquals("status", "PROMOTED")
+ * )
+ * ```
+ *
+ * Use:
+ *
+ * ```
+ * attributeInSet("status", "PUBLISHED", "FEATURED", "PROMOTED")
+ * ```
+ *
+ * Benefits:
+ * - More concise and readable syntax
+ * - Single index lookup instead of multiple (set membership test)
+ * - Better query optimization opportunities
+ * - Reduced constraint tree depth for large value sets
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -76,7 +121,7 @@ import java.util.Arrays;
 public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 500395477991778874L;
 
-	private AttributeInSet(Serializable... arguments) {
+	private AttributeInSet(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -91,10 +136,10 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 	/**
 	 * Returns set of {@link Serializable} values that attribute value must be part of.
 	 */
+	@Nonnull
 	public Serializable[] getAttributeValues() {
-		return Arrays.stream(getArguments())
-			.skip(1)
-			.toArray(Serializable[]::new);
+		final Serializable[] arguments = getArguments();
+		return Arrays.copyOfRange(arguments, 1, arguments.length);
 	}
 
 	@Override

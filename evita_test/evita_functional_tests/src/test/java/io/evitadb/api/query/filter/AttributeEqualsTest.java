@@ -23,63 +23,171 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link AttributeEquals} query.
+ * Tests for {@link AttributeEquals} verifying construction, applicability, property accessors,
+ * cloning, visitor support, string representation, and equality contract.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("AttributeEquals constraint")
 class AttributeEqualsTest {
 
-	@Test
-	void shouldFailToUseInvalidDataType() {
-		assertThrows(UnsupportedDataTypeException.class, () -> attributeEquals("abc", new MockObject()));
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should fail to use invalid data type")
+		void shouldFailToUseInvalidDataType() {
+			assertThrows(UnsupportedDataTypeException.class, () -> attributeEquals("abc", new MockObject()));
+		}
+
+		@Test
+		@DisplayName("should automatically convert data type")
+		void shouldAutomaticallyConvertDataType() {
+			assertEquals(new BigDecimal("1.0"), attributeEquals("abc", 1f).getAttributeValue());
+		}
+
+		@Test
+		@DisplayName("should create via factory method with correct properties")
+		void shouldCreateViaFactoryClassWorkAsExpected() {
+			final AttributeEquals eq = attributeEquals("abc", "def");
+
+			assertEquals("abc", eq.getAttributeName());
+			assertEquals("def", eq.getAttributeValue());
+		}
 	}
 
-	@Test
-	void shouldAutomaticallyConvertDataType() {
-		assertEquals(new BigDecimal("1.0"), attributeEquals("abc", 1f).getAttributeValue());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should recognize applicable and non-applicable instances")
+		void shouldRecognizeApplicability() {
+			assertFalse(new AttributeEquals("abc", null).isApplicable());
+			assertFalse(new AttributeEquals(null, "abc").isApplicable());
+			assertFalse(new AttributeEquals(null, null).isApplicable());
+			assertTrue(attributeEquals("abc", "def").isApplicable());
+		}
 	}
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final AttributeEquals eq = attributeEquals("abc", "def");
-		assertEquals("abc", eq.getAttributeName());
-		assertEquals("def", eq.getAttributeValue());
+	@Nested
+	@DisplayName("Property accessors")
+	class PropertyAccessorsTest {
+
+		@Test
+		@DisplayName("should return attribute name")
+		void shouldReturnAttributeName() {
+			final AttributeEquals eq = attributeEquals("testAttr", "val");
+
+			assertEquals("testAttr", eq.getAttributeName());
+		}
+
+		@Test
+		@DisplayName("should return attribute value")
+		void shouldReturnAttributeValue() {
+			final AttributeEquals eq = attributeEquals("abc", 42);
+
+			assertEquals(42, (int) eq.getAttributeValue());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertFalse(new AttributeEquals("abc", null).isApplicable());
-		assertFalse(new AttributeEquals(null, "abc").isApplicable());
-		assertFalse(new AttributeEquals(null, null).isApplicable());
-		assertTrue(attributeEquals("abc", "def").isApplicable());
+	@Nested
+	@DisplayName("Cloning")
+	class CloningTest {
+
+		@Test
+		@DisplayName("should produce equal but not same instance via cloneWithArguments")
+		void shouldCloneWithArguments() {
+			final AttributeEquals original = attributeEquals("abc", "def");
+			final FilterConstraint clone = original.cloneWithArguments(new Serializable[]{"abc", "def"});
+
+			assertEquals(original, clone);
+			assertNotSame(original, clone);
+			assertInstanceOf(AttributeEquals.class, clone);
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final AttributeEquals eq = attributeEquals("abc", "def");
-		assertEquals("attributeEquals('abc','def')", eq.toString());
+	@Nested
+	@DisplayName("Visitor support")
+	class VisitorSupportTest {
+
+		@Test
+		@DisplayName("should accept visitor and call visit method")
+		void shouldAcceptVisitor() {
+			final AttributeEquals eq = attributeEquals("abc", "def");
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			eq.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> constraint) {
+					visited.set(constraint);
+				}
+			});
+
+			assertSame(eq, visited.get());
+		}
+
+		@Test
+		@DisplayName("should return FilterConstraint class as type")
+		void shouldReturnCorrectType() {
+			final AttributeEquals eq = attributeEquals("abc", "def");
+
+			assertEquals(FilterConstraint.class, eq.getType());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(attributeEquals("abc", "def"), attributeEquals("abc", "def"));
-		assertEquals(attributeEquals("abc", "def"), attributeEquals("abc", "def"));
-		assertNotEquals(attributeEquals("abc", "def"), attributeEquals("abc", "defe"));
-		assertNotEquals(attributeEquals("abc", "def"), new AttributeEquals("abc", null));
-		assertNotEquals(attributeEquals("abc", "def"), new AttributeEquals(null, "abc"));
-		assertEquals(attributeEquals("abc", "def").hashCode(), attributeEquals("abc", "def").hashCode());
-		assertNotEquals(attributeEquals("abc", "def").hashCode(), attributeEquals("abc", "defe").hashCode());
-		assertNotEquals(attributeEquals("abc", "def").hashCode(), new AttributeEquals("abc", null).hashCode());
-		assertNotEquals(attributeEquals("abc", "def").hashCode(), new AttributeEquals(null, "abc").hashCode());
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce expected toString format")
+		void shouldToStringReturnExpectedFormat() {
+			final AttributeEquals eq = attributeEquals("abc", "def");
+
+			assertEquals("attributeEquals('abc','def')", eq.toString());
+		}
 	}
 
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(attributeEquals("abc", "def"), attributeEquals("abc", "def"));
+			assertEquals(attributeEquals("abc", "def"), attributeEquals("abc", "def"));
+			assertNotEquals(attributeEquals("abc", "def"), attributeEquals("abc", "defe"));
+			assertNotEquals(attributeEquals("abc", "def"), new AttributeEquals("abc", null));
+			assertNotEquals(attributeEquals("abc", "def"), new AttributeEquals(null, "abc"));
+			assertEquals(attributeEquals("abc", "def").hashCode(), attributeEquals("abc", "def").hashCode());
+			assertNotEquals(attributeEquals("abc", "def").hashCode(), attributeEquals("abc", "defe").hashCode());
+			assertNotEquals(
+				attributeEquals("abc", "def").hashCode(),
+				new AttributeEquals("abc", null).hashCode()
+			);
+			assertNotEquals(
+				attributeEquals("abc", "def").hashCode(),
+				new AttributeEquals(null, "abc").hashCode()
+			);
+		}
+	}
 }

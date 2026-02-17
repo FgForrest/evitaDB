@@ -38,27 +38,113 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `inScope` filter container can be used to enclose set of filtering constraints that should be applied only when
- * searching for entities in specific scope. It has single argument of type {@link Scope} that defines the scope where
- * the enclosed filtering constraints should be applied. Consider following example:
+ * The `inScope` constraint is a scope-restricting container that limits the application of its child filtering constraints to a specific data
+ * scope ({@link Scope#LIVE} or {@link Scope#ARCHIVED}). This constraint enables querying entities across multiple scopes simultaneously while
+ * applying different filtering logic to each scope based on their indexing capabilities and data availability.
+ *
+ * ## Purpose and Design Intent
+ *
+ * evitaDB organizes entities into separate scopes: LIVE entities are currently active and reside in fully-indexed data sets, while ARCHIVED
+ * entities represent soft-deleted or historical data with limited indexing (fewer indexed attributes, no facets, no hierarchies). When a query
+ * targets multiple scopes via {@link EntityScope}, certain filtering constraints may only be applicable to one scope due to indexing differences.
+ * The `inScope` container allows developers to specify scope-specific filtering logic without causing query failures.
+ *
+ * ## Scope Validation
+ *
+ * The scope specified in `inScope` must match one of the scopes declared in the query's {@link EntityScope} constraint. Using `inScope(LIVE, ...)`
+ * in a query that only searches `scope(ARCHIVED)` will result in a validation error, as the filtering constraints would never be applied.
+ *
+ * ## Multi-Scope Query Behavior
+ *
+ * When querying multiple scopes with `scope(LIVE, ARCHIVED)`:
+ *
+ * - Filtering constraints **outside** `inScope` containers apply to **all scopes** and must reference only attributes/properties indexed in all
+ *   target scopes
+ * - Filtering constraints **inside** `inScope(LIVE, ...)` apply **only when searching the LIVE scope**
+ * - Filtering constraints **inside** `inScope(ARCHIVED, ...)` apply **only when searching the ARCHIVED scope**
+ * - If no scope-specific constraints match, the entity is evaluated solely against the global constraints
+ *
+ * This design prevents query failures when attributes are indexed differently across scopes and allows flexible filtering logic tailored to each
+ * scope's capabilities.
+ *
+ * ## EvitaQL Syntax
  *
  * ```
- * filterBy(
- *    attributeEquals("code", "123"),
- *    inScope(LIVE, entityLocaleEquals(Locale.ENGLISH), attributeName("name", "LED TV")),
- *    scope(LIVE, ARCHIVED),
+ * inScope(
+ *     LIVE|ARCHIVED,
+ *     filterConstraint:any+
  * )
  * ```
  *
- * Query looks for matching entities in multiple scopes, but in archived scope the "name" attribute is not indexed and
- * cannot be used for filtering. If it's not enclosed in `inScope` container, the query would fail with exception that
- * the attribute is not indexed in ARCHIVED scope. To avoid this problem, the `inScope` container is used to limit the
- * filtering to LIVE scope only. Attribute "code" is indexed in both scopes and can be used for filtering without any
- * restrictions in this example.
+ * The constraint accepts:
+ * - A single {@link Scope} argument (LIVE or ARCHIVED) specifying the target scope
+ * - One or more child {@link FilterConstraint} instances that should apply only to that scope
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#in-scope">Visit detailed user documentation</a></p>
+ * ## Usage Examples
+ *
+ * **Example 1: Filtering by scope-specific indexed attributes**
+ *
+ * ```
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         and(
+ *             attributeEquals('code', '123'), // applies to both LIVE and ARCHIVED scopes
+ *             inScope(
+ *                 LIVE,
+ *                 entityLocaleEquals(Locale.ENGLISH), // locale filtering only in LIVE scope
+ *                 attributeEquals('name', 'LED TV') // 'name' attribute only indexed in LIVE
+ *             ),
+ *             scope(LIVE, ARCHIVED) // search both scopes
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * In this example, the `code` attribute is indexed in both scopes and filters all entities, while `name` attribute and locale context are only
+ * available in the LIVE scope. ARCHIVED entities are matched solely by the `code` filter.
+ *
+ * **Example 2: Different filtering logic per scope**
+ *
+ * ```
+ * query(
+ *     collection('Order'),
+ *     filterBy(
+ *         and(
+ *             inScope(LIVE, attributeGreaterThan('createdAt', '2025-01-01')), // recent orders in LIVE
+ *             inScope(ARCHIVED, attributeLessThan('createdAt', '2024-01-01')), // old orders in ARCHIVED
+ *             scope(LIVE, ARCHIVED)
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * This query searches for recent orders in LIVE scope and historical orders in ARCHIVED scope using distinct date ranges for each scope.
+ *
+ * **Example 3: Preventing query failure with scope-specific indexing**
+ *
+ * ```
+ * // This query would FAIL if 'description' is not indexed in ARCHIVED scope:
+ * filterBy(
+ *     and(
+ *         attributeContains('description', 'premium'),
+ *         scope(LIVE, ARCHIVED)
+ *     )
+ * )
+ *
+ * // Corrected query using inScope:
+ * filterBy(
+ *     and(
+ *         inScope(LIVE, attributeContains('description', 'premium')), // only filter by description in LIVE
+ *         scope(LIVE, ARCHIVED)
+ *     )
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/behavioral#in-scope)
  *
  * @see Scope
+ * @see EntityScope
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
@@ -115,12 +201,15 @@ public class FilterInScope extends AbstractFilterConstraintContainer implements 
 			newArguments.length == 1 && newArguments[0] instanceof Scope,
 			"Constraint InScope requires exactly one argument of type Scope!"
 		);
-		return this;
+		return new FilterInScope(newArguments, getChildren());
 	}
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public FilterConstraint getCopyWithNewChildren(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint InScope doesn't accept other than filtering constraints!"
