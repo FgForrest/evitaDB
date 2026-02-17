@@ -41,19 +41,21 @@ import java.util.Arrays;
 
 /**
  * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
- * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the referenced
- * entity property and within same referenced entity the main entity is ordered by the reference property. This constraint
- * is particularly useful when the reference is one-to-many and the referenced entity is hierarchical.
+ * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the
+ * referenced entity property and within the same referenced entity the main entity is ordered by the reference
+ * property. This constraint is particularly useful when the reference is one-to-many and the referenced entity
+ * is hierarchical.
  *
- * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
- * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
- * or one of its child categories. The order will first list products directly related to the *Accessories* category in
- * a particular order, then it will start listing products in the child categories in depth-first order. To specify which
+ * Consider the following example where we want to list products in the *Accessories* category ordered by the
+ * `orderInCategory` attribute on the reference to the category, but the products could either directly reference
+ * the *Accessories* category or one of its child categories. The order will first list products directly related
+ * to the *Accessories* category in a particular order, then it will start listing products in the child
+ * categories in depth-first order. To specify which
  * order to use when traversing the child categories, we can use the `traverseByEntityProperty` ordering constraint:
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -81,12 +83,12 @@ import java.util.Arrays;
  *          )
  *      )
  * )
- * </pre>
+ * ```
  *
  * You can also change the depth-first traversal to breadth-first traversal by declaring optional first argument as
  * follows:
  *
- * <pre>
+ * ```evitaql
  * referenceProperty(
  *     "categories",
  *     traverseByEntityProperty(
@@ -94,15 +96,29 @@ import java.util.Arrays;
  *     ),
  *     attributeNatural("orderInCategory", ASC)
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
+ * This constraint implements {@link ReferenceOrderingSpecification} and is therefore **mutually exclusive** with
+ * {@link PickFirstByEntityProperty} — at most one may appear as a direct child of {@link ReferenceProperty}.
+ * If neither is present, {@link ReferenceProperty} applies a built-in default that already mimics
+ * `traverseByEntityProperty(DEPTH_FIRST, primaryKeyNatural(ASC))` for hierarchical references. Use this constraint
+ * explicitly only when you need a different traversal mode or a different node-ordering criterion.
+ *
+ * For non-hierarchical references where you want to pick a specific reference as the sort key, use
+ * {@link PickFirstByEntityProperty} instead.
+ *
+ * @see ReferenceProperty
+ * @see ReferenceOrderingSpecification
+ * @see PickFirstByEntityProperty
+ * @see TraversalMode
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "traverseByEntityProperty",
-	shortDescription = "The constraint defines order of the 1:N references traversal before the ordering is applied.",
+	shortDescription = "For hierarchical 1:N references, traverses the referenced entity tree and orders within each node by the reference property.",
 	userDocsLink = "/documentation/query/ordering/reference#traverse-by-entity-property",
 	supportedIn = { ConstraintDomain.REFERENCE }
 )
@@ -111,7 +127,8 @@ public class TraverseByEntityProperty extends AbstractOrderConstraintContainer
 	ReferenceConstraint<OrderConstraint>,
 	ReferenceOrderingSpecification
 {
-	@Serial private static final long serialVersionUID = -4940847050046564050L;
+	@Serial
+	private static final long serialVersionUID = -4940847050046564050L;
 
 	private TraverseByEntityProperty(@Nonnull Serializable[] arguments, @Nonnull OrderConstraint[] children) {
 		super(arguments, children);
@@ -126,10 +143,10 @@ public class TraverseByEntityProperty extends AbstractOrderConstraintContainer
 	}
 
 	/**
-	 * Returns the {@link OrderConstraint} that defines the order of the 1:N references traversal before the ordering
+	 * Returns the {@link TraversalMode} that defines how 1:N references are traversed before the ordering
 	 * is applied.
 	 *
-	 * @return the {@link OrderConstraint} that defines the order of the 1:N references traversal before the ordering
+	 * @return the {@link TraversalMode} that defines how 1:N references are traversed before the ordering
 	 * is applied.
 	 * @see TraversalMode
 	 */
@@ -174,7 +191,10 @@ public class TraverseByEntityProperty extends AbstractOrderConstraintContainer
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(
 			additionalChildren.length == 0,
 			"TraverseByEntityProperty does not support additional children!"

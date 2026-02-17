@@ -40,7 +40,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * The `priceDiscount' constraint allows you to sort items by the difference between their selling price and
+ * The `priceDiscount` constraint allows you to sort items by the difference between their selling price and
  * the discounted price, which is calculated in the same way as the selling price but using a different set of price
  * lists. It requires the order direction, the array of price lists that define the discount price, and the price
  * constraints in the `filterBy` section of the query. The price variant (with or without tax) is determined by
@@ -50,33 +50,35 @@ import java.util.Arrays;
  * be zero. Sorting in ascending order means that the products with no discount are returned first, and the products
  * with the largest discount are returned last. Descending order returns the product with the largest discount first.
  *
- * Please read the <a href="https://evitadb.io/documentation/deep-dive/price-for-sale-calculation">price for sale
- * calculation algorithm documentation</a> to understand how the price for sale is calculated.
+ * Please read the [price for sale calculation algorithm documentation](https://evitadb.io/documentation/deep-dive/price-for-sale-calculation)
+ * to understand how the price for sale is calculated.
  *
  * If no order type is defined, DESC is used by default because the most common use case is to return the items with
  * the largest discount first.
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * priceDiscount("discount", "basic")
  * priceDiscount(DESC, "discount", "basic")
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-discount">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/price#price-discount)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2024
  */
 @ConstraintDefinition(
 	name = "discount",
-	shortDescription = "The constraint condition sorts the returned entities according to the difference between the sale price and the discounted price. The discounted price is based on the prioritized list of price lists in this constraint.",
+	shortDescription = "Sorts returned entities by the discount amount — the difference between the selling price" +
+		" and a discounted price derived from specified price lists.",
 	userDocsLink = "/documentation/query/ordering/price#price-discount",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
-public class PriceDiscount extends AbstractOrderConstraintLeaf implements ConstraintWithDefaults<OrderConstraint>, PriceConstraint<OrderConstraint> {
+public class PriceDiscount extends AbstractOrderConstraintLeaf
+	implements ConstraintWithDefaults<OrderConstraint>, PriceConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 994029933423451186L;
 
-	private PriceDiscount(Serializable... arguments) {
+	private PriceDiscount(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

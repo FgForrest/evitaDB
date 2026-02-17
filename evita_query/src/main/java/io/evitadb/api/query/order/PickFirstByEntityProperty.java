@@ -41,14 +41,14 @@ import java.io.Serializable;
  * constraint and makes sense only if the reference has cardinality 1:N. It allows to define which of the multiple
  * references will be picked and examined for a property that will be used for ordering.
  *
- * Consider the following example where we want to list products of with reference to "main" stock and sort them by
+ * Consider the following example where we want to list products with a reference to "main" stock and sort them by
  * the `quantityOnStock` attribute on the reference to the stock. The products may have multiple references to different
  * stocks, but we want to use only the one that is referenced by the `main` reference. This query will return products
  * for this situation:
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -76,7 +76,7 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
  * Constraint `pickFirstByEntityProperty` accepts ordering constraints as its arguments, orders the entity references by
  * them and picks the first reference whose attribute `quantityOnStock` will be used for ordering the main entity. In
@@ -84,13 +84,26 @@ import java.io.Serializable;
  * ordered by their primary key in ascending order. Since only the first reference matters, the other entity references
  * are ignored.
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/reference#pick-first-by-entity-property">Visit detailed user documentation</a></p>
+ * This constraint implements {@link ReferenceOrderingSpecification} and is therefore **mutually exclusive** with
+ * {@link TraverseByEntityProperty} — at most one may appear as a direct child of {@link ReferenceProperty}.
+ * If neither is present, {@link ReferenceProperty} applies a built-in default that mimics
+ * `pickFirstByEntityProperty(primaryKeyNatural(ASC))` for non-hierarchical references. Use this constraint
+ * explicitly only when you need a different pick order (e.g. to prefer a named reference over others).
+ *
+ * For hierarchical references where the ordering should follow the entity tree structure, use
+ * {@link TraverseByEntityProperty} instead.
+ *
+ * @see ReferenceProperty
+ * @see ReferenceOrderingSpecification
+ * @see TraverseByEntityProperty
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/reference#pick-first-by-entity-property)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "pickFirstByEntityProperty",
-	shortDescription = "The constraint defines which one of one to many references of certain name should be used for ordering.",
+	shortDescription = "For one-to-many references, picks the first reference according to a specified ordering and uses it as the sort key.",
 	userDocsLink = "/documentation/query/ordering/reference#pick-first-by-entity-property",
 	supportedIn = { ConstraintDomain.REFERENCE }
 )
@@ -98,7 +111,8 @@ public class PickFirstByEntityProperty extends AbstractOrderConstraintContainer
 	implements ReferenceConstraint<OrderConstraint>,
 	ReferenceOrderingSpecification
 {
-	@Serial private static final long serialVersionUID = 6947885672916582291L;
+	@Serial
+	private static final long serialVersionUID = 6947885672916582291L;
 
 	@Creator
 	public PickFirstByEntityProperty(@Nonnull @Child(domain = ConstraintDomain.ENTITY) OrderConstraint... orderBy) {
@@ -130,7 +144,10 @@ public class PickFirstByEntityProperty extends AbstractOrderConstraintContainer
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(
 			additionalChildren.length == 0,
 			"PickFirstByEntityProperty does not support additional children!"
