@@ -89,8 +89,6 @@ public class ExpressionTest {
 		assertEquals(range, determineRange(expression));
 	}
 
-	// todo lho test path
-
 	@Nonnull
 	static Stream<Arguments> expressions() {
 		return Stream.of(

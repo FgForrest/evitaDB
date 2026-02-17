@@ -96,4 +96,13 @@ public class FunctionOperator implements ExpressionNode {
 	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
 		visitor.visit(this);
 	}
+
+	@Override
+	public String toString() {
+		return this.functionProcessor.getName() + "(" +
+			this.argumentOperands.stream()
+				.map(ExpressionNode::toString)
+				.collect(java.util.stream.Collectors.joining(", ")) +
+			")";
+	}
 }

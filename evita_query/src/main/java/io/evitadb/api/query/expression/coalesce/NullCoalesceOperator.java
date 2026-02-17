@@ -81,4 +81,9 @@ public class NullCoalesceOperator implements ExpressionNode {
 		// todo lho
 		throw new UnsupportedOperationException();
 	}
+
+	@Override
+	public String toString() {
+		return this.valueOperator + " ?? " + this.defaultValueOperator;
+	}
 }

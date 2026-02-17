@@ -61,4 +61,9 @@ public class NullSafeAccessStep implements ObjectAccessStep {
 		}
 		return getNext().compute(context, operand);
 	}
+
+	@Override
+	public String toString() {
+		return "?" + this.next;
+	}
 }

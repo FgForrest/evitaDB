@@ -82,4 +82,9 @@ public class ObjectAccessOperator implements ExpressionNode {
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return this.operandOperator.determinePossibleRange();
 	}
+
+	@Override
+	public String toString() {
+		return this.operandOperator.toString() + this.accessChain.toString();
+	}
 }

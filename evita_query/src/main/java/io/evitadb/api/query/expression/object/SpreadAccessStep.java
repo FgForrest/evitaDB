@@ -204,4 +204,10 @@ public class SpreadAccessStep implements ObjectAccessStep {
 	) {
 		return this.mappingExpression.compute(context.withThis(item));
 	}
+
+	@Override
+	public String toString() {
+		return ".*" + (this.compact ? "!" : "") + "[" + this.mappingExpression + "]" +
+			(this.next != null ? this.next.toString() : "");
+	}
 }

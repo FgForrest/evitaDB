@@ -110,4 +110,9 @@ public class ElementAccessStep implements ObjectAccessStep {
 
 		return getNext().compute(context, result);
 	}
+
+	@Override
+	public String toString() {
+		return "[" + this.elementIdentifierOperand + "]" + (this.next != null ? this.next.toString() : "");
+	}
 }

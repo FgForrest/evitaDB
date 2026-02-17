@@ -198,4 +198,9 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 		// todo lho impl
 		throw new UnsupportedOperationException();
 	}
+
+	@Override
+	public String toString() {
+		return this.valueOperator + (this.nullSafe ? " ?*? " : " *? ") + this.defaultValueOperator;
+	}
 }

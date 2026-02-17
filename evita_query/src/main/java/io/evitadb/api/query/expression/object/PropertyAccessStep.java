@@ -85,4 +85,9 @@ public class PropertyAccessStep implements ObjectAccessStep {
 
 		return getNext().compute(context, result);
 	}
+
+	@Override
+	public String toString() {
+		return "." + this.propertyIdentifier + (this.next != null ? this.next.toString() : "");
+	}
 }

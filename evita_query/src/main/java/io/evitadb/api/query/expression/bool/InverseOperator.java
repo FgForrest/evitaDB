@@ -85,7 +85,6 @@ public class InverseOperator implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return this.operator instanceof ConstantOperand constantOperand && constantOperand.getValue() instanceof Boolean ?
-			"!" + constantOperand.getValue() : "!(" + this.operator.toString() + ")";
+		return "!" + this.operator.toString();
 	}
 }
