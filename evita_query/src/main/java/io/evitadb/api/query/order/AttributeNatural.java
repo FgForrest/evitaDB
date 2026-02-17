@@ -46,7 +46,7 @@ import java.io.Serializable;
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     orderBy(
@@ -58,10 +58,10 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * If you want to sort products by their name, which is a localized attribute, you need to specify the {@link EntityLocaleEquals}
- * constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
+ * If you want to sort products by their name, which is a localized attribute, you need to specify
+ * the {@link EntityLocaleEquals} constraint in the {@link FilterBy} part of the query. The correct {@link java.text.Collator} is used to
  * order the localized attribute string, so that the order is consistent with the national customs of the language.
  *
  * The sorting mechanism of evitaDB is somewhat different from what you might be used to. If you sort entities by two
@@ -76,23 +76,23 @@ import java.io.Serializable;
  * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
  * name instead of the default attribute name and achieve the expected results.
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/comparable#attribute-natural)
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
-    name = "natural",
-    shortDescription = "The constraint sorts returned entities by natural ordering of the values in the specified attribute.",
-    userDocsLink = "/documentation/query/ordering/comparable#attribute-natural",
-    supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
-    supportedValues = @ConstraintSupportedValues(allTypesSupported = true, compoundsSupported = true)
+	name = "natural",
+	shortDescription = "Sorts returned entities by the values of a specified attribute in their natural order (numeric, alphabetical, or temporal).",
+	userDocsLink = "/documentation/query/ordering/comparable#attribute-natural",
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
+	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, compoundsSupported = true)
 )
 public class AttributeNatural extends AbstractOrderConstraintLeaf implements AttributeConstraint<OrderConstraint> {
 
     @Serial
     private static final long serialVersionUID = -7066718742077227665L;
 
-    private AttributeNatural(Serializable... arguments) {
+    private AttributeNatural(@Nonnull Serializable... arguments) {
         super(arguments);
     }
 

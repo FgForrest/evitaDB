@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ import java.io.Serializable;
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -70,14 +70,14 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
  * Most of the time, you will want to group primarily by a group property and secondarily by a referenced entity
  * property, which can be achieved in the following way:
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -103,23 +103,25 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-group-property">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/reference#entity-group-property)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupProperty",
-	shortDescription = "The constraint sorts returned references by applying ordering constraint on referenced entity group.",
+	shortDescription = "Sorts returned references by attributes of the entity group the reference is aggregated within.",
 	userDocsLink = "/documentation/query/ordering/reference#entity-group-property",
 	supportedIn = ConstraintDomain.INLINE_REFERENCE
 )
-public class EntityGroupProperty extends AbstractOrderConstraintContainer implements EntityConstraint<OrderConstraint> {
+public class EntityGroupProperty extends AbstractOrderConstraintContainer
+	implements EntityConstraint<OrderConstraint> {
 
-	@Serial private static final long serialVersionUID = 3103623569235263761L;
+	@Serial
+	private static final long serialVersionUID = 3103623569235263761L;
 
-	private EntityGroupProperty(Serializable[] arguments, OrderConstraint... children) {
+	private EntityGroupProperty(@Nonnull Serializable[] arguments, @Nonnull OrderConstraint... children) {
 		super(arguments, children);
 	}
 
@@ -141,7 +143,10 @@ public class EntityGroupProperty extends AbstractOrderConstraintContainer implem
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new EntityGroupProperty(children);
 	}
 }

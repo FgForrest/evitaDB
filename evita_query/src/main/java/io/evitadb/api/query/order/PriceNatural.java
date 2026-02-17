@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,30 +40,30 @@ import java.io.Serializable;
  * The price variant (with or without tax) is determined by the {@link PriceType} requirement of the query (price with
  * tax is used by default).
  *
- * Please read the <a href="https://evitadb.io/documentation/deep-dive/price-for-sale-calculation">price for sale
- * calculation algorithm documentation</a> to understand how the price for sale is calculated.
+ * Please read the [price for sale calculation algorithm documentation](https://evitadb.io/documentation/deep-dive/price-for-sale-calculation)
+ * to understand how the price for sale is calculated.
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * priceNatural()
  * priceNatural(DESC)
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/price#price-natural)
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
 	name = "natural",
-	shortDescription = "The constraint sorts returned entities by selected price for sale.",
+	shortDescription = "Sorts returned entities by their selling price in natural numeric order.",
 	userDocsLink = "/documentation/query/ordering/price#price-natural",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class PriceNatural extends AbstractOrderConstraintLeaf implements PriceConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -1480893202599544659L;
 
-	private PriceNatural(Serializable... arguments) {
+	private PriceNatural(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -82,7 +82,7 @@ public class PriceNatural extends AbstractOrderConstraintLeaf implements PriceCo
 	}
 
 	/**
-	 * Returns order direction in the most prioritized prices must be sorted.
+	 * Returns the order direction in which entities are sorted by their selling price.
 	 */
 	@Nonnull
 	public OrderDirection getOrderDirection() {

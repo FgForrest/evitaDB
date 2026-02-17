@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Optional;
 
 import static java.util.Optional.ofNullable;
@@ -46,35 +45,36 @@ import static java.util.Optional.ofNullable;
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * random()
- * </pre>
+ * ```
  *
  * If you need to make output random, but always random in the same way (e.g. for testing purposes, or for consistent
  * output for a given user), you can use the `seed` constraint to provide a seed for the random number generator.
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * randomWithSeed(42)
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/random#random)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "random",
-	shortDescription = "The constraint sorts returned entities randomly.",
+	shortDescription = "Sorts returned entities in random order.",
 	userDocsLink = "/documentation/query/ordering/random#random",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
-public class Random extends AbstractOrderConstraintLeaf implements GenericConstraint<OrderConstraint>, ConstraintWithSuffix {
+public class Random extends AbstractOrderConstraintLeaf
+	implements GenericConstraint<OrderConstraint>, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = -7130233965171274166L;
 	public static final Random INSTANCE = new Random();
 	private static final String SUFFIX = "withSeed";
 
-	private Random(Serializable... arguments) {
+	private Random(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -94,11 +94,12 @@ public class Random extends AbstractOrderConstraintLeaf implements GenericConstr
 	 */
 	@Nullable
 	public Long getSeed() {
-		return Arrays.stream(getArguments())
-			.filter(Long.class::isInstance)
-			.map(Long.class::cast)
-			.findFirst()
-			.orElse(null);
+		for (final Serializable argument : getArguments()) {
+			if (argument instanceof Long seed) {
+				return seed;
+			}
+		}
+		return null;
 	}
 
 	@Nonnull

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,37 +44,26 @@ import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
- * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
- * sort it by the order clauses defined within particular segment and extract specified number of entities from
- * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
- * with the next segment until all segments are processed. If there are any entities left in the original result,
- * they are appended to the final result in the order or the primary key (ascending).
+ * The `segment` defines a single segment within the {@link Segments} container. Each segment specifies how a portion
+ * of the filtered result should be sorted and optionally how many entities to extract from that sorted portion.
  *
- * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
- * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
- * result but rather their order limited to this segment).
+ * A segment may contain:
  *
- * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
- * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
- * defined after this one, it will never be reached.
+ * - an optional {@link EntityHaving} filter that selects which entities this segment applies to
+ * - a mandatory {@link OrderBy} clause that defines the sorting order for this segment
+ * - an optional {@link SegmentLimit} that limits how many entities are taken from this segment
  *
- * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
- * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
- * orders for different parts of the result set.
+ * Entities matched and extracted by a segment are excluded from subsequent segments. If no limit is specified,
+ * all matching entities are taken. If no filter is specified, all remaining entities are matched.
  *
- * Example of usage:
+ * Example:
  *
- * 1. first 3 items in result will be sorted by orderedQuantity in descending order
- * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
- *    and only first 2 entities of those will be added to the final result
- * 3. the rest of the entities will be sorted by code and create date in ascending order
- *
- * <pre>
+ * ```evitaql
  * orderBy(
  *    segments(
  *       segment(
  *          orderBy(
- *             attributeNatural("orderedQuantity, DESC)
+ *             attributeNatural("orderedQuantity", DESC)
  *          ),
  *          limit(3)
  *       ),
@@ -95,15 +84,15 @@ import java.util.OptionalInt;
  *       )
  *    )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/segment)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "segment",
-	shortDescription = "The constraint specifies the order and scope of a single segment in the output.",
+	shortDescription = "Defines a single segment with its own sorting, optional filtering, and optional entity limit.",
 	userDocsLink = "/documentation/query/ordering/segment",
 	supportedIn = ConstraintDomain.SEGMENT
 )
@@ -198,7 +187,10 @@ public class Segment extends AbstractOrderConstraintContainer implements Generic
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new Segment(children, additionalChildren);
 	}
 
@@ -210,6 +202,6 @@ public class Segment extends AbstractOrderConstraintContainer implements Generic
 	@Nonnull
 	@Override
 	public OrderConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("OrderBy ordering query has no arguments!");
+		throw new UnsupportedOperationException("Segment ordering constraint has no arguments!");
 	}
 }

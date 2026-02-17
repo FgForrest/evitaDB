@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -39,19 +38,19 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
-import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.orderGroupBy;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link OrderBy} verifying construction, applicability, necessity, accessor methods,
+ * Tests for {@link OrderGroupBy} verifying construction, applicability, necessity, accessor methods,
  * copy/clone operations, visitor acceptance, and equality contract.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@DisplayName("OrderBy constraint")
-class OrderByTest {
+@DisplayName("OrderGroupBy constraint")
+class OrderGroupByTest {
 
 	@Nested
 	@DisplayName("Construction and factory method")
@@ -60,23 +59,23 @@ class OrderByTest {
 		@Test
 		@DisplayName("should create via factory method with children")
 		void shouldCreateViaFactoryMethodWithChildren() {
-			final ConstraintContainer<OrderConstraint> orderBy = orderBy(
+			final ConstraintContainer<OrderConstraint> orderGroupBy = orderGroupBy(
 				attributeNatural("abc"),
 				attributeNatural("def", DESC)
 			);
 
-			assertNotNull(orderBy);
-			assertEquals(2, orderBy.getChildrenCount());
-			assertEquals("abc", ((AttributeNatural) orderBy.getChildren()[0]).getAttributeName());
-			assertEquals(ASC, ((AttributeNatural) orderBy.getChildren()[0]).getOrderDirection());
-			assertEquals("def", ((AttributeNatural) orderBy.getChildren()[1]).getAttributeName());
-			assertEquals(DESC, ((AttributeNatural) orderBy.getChildren()[1]).getOrderDirection());
+			assertNotNull(orderGroupBy);
+			assertEquals(2, orderGroupBy.getChildrenCount());
+			assertEquals("abc", ((AttributeNatural) orderGroupBy.getChildren()[0]).getAttributeName());
+			assertEquals(ASC, ((AttributeNatural) orderGroupBy.getChildren()[0]).getOrderDirection());
+			assertEquals("def", ((AttributeNatural) orderGroupBy.getChildren()[1]).getAttributeName());
+			assertEquals(DESC, ((AttributeNatural) orderGroupBy.getChildren()[1]).getOrderDirection());
 		}
 
 		@Test
 		@DisplayName("should return null when factory method receives null")
 		void shouldReturnNullWhenFactoryMethodReceivesNull() {
-			final OrderBy result = orderBy((OrderConstraint[]) null);
+			final OrderGroupBy result = orderGroupBy((OrderConstraint[]) null);
 
 			assertNull(result);
 		}
@@ -89,44 +88,33 @@ class OrderByTest {
 		@Test
 		@DisplayName("should be applicable when it has children")
 		void shouldBeApplicableWhenItHasChildren() {
-			final OrderBy orderBy = new OrderBy(attributeNatural("abc"));
+			final OrderGroupBy orderGroupBy = new OrderGroupBy(attributeNatural("abc"));
 
-			assertTrue(orderBy.isApplicable());
+			assertTrue(orderGroupBy.isApplicable());
 		}
 
 		@Test
 		@DisplayName("should not be applicable when it has no children")
 		void shouldNotBeApplicableWhenItHasNoChildren() {
-			final OrderBy emptyOrderBy = new OrderBy();
+			final OrderGroupBy emptyOrderGroupBy = new OrderGroupBy();
 
-			assertFalse(emptyOrderBy.isApplicable());
+			assertFalse(emptyOrderGroupBy.isApplicable());
 		}
 
 		@Test
-		@DisplayName("should be necessary when applicable (single child is necessary)")
+		@DisplayName("should be necessary when applicable")
 		void shouldBeNecessaryWhenApplicable() {
-			final OrderBy singleChild = new OrderBy(attributeNatural("abc"));
+			final OrderGroupBy singleChild = new OrderGroupBy(attributeNatural("abc"));
 
 			assertTrue(singleChild.isNecessary());
 		}
 
 		@Test
-		@DisplayName("should be necessary with multiple children")
-		void shouldBeNecessaryWithMultipleChildren() {
-			final OrderBy multipleChildren = new OrderBy(
-				attributeNatural("abc"),
-				attributeNatural("xyz", DESC)
-			);
-
-			assertTrue(multipleChildren.isNecessary());
-		}
-
-		@Test
 		@DisplayName("should not be necessary when not applicable")
 		void shouldNotBeNecessaryWhenNotApplicable() {
-			final OrderBy emptyOrderBy = new OrderBy();
+			final OrderGroupBy emptyOrderGroupBy = new OrderGroupBy();
 
-			assertFalse(emptyOrderBy.isNecessary());
+			assertFalse(emptyOrderGroupBy.isNecessary());
 		}
 	}
 
@@ -137,17 +125,17 @@ class OrderByTest {
 		@Test
 		@DisplayName("should return null when getChild called on empty container")
 		void shouldReturnNullWhenGetChildCalledOnEmptyContainer() {
-			final OrderBy emptyOrderBy = new OrderBy();
+			final OrderGroupBy emptyOrderGroupBy = new OrderGroupBy();
 
-			assertNull(emptyOrderBy.getChild());
+			assertNull(emptyOrderGroupBy.getChild());
 		}
 
 		@Test
 		@DisplayName("should return single child from getChild")
 		void shouldReturnSingleChildFromGetChild() {
-			final OrderBy orderBy = new OrderBy(attributeNatural("abc"));
+			final OrderGroupBy orderGroupBy = new OrderGroupBy(attributeNatural("abc"));
 
-			final OrderConstraint child = orderBy.getChild();
+			final OrderConstraint child = orderGroupBy.getChild();
 
 			assertNotNull(child);
 			assertInstanceOf(AttributeNatural.class, child);
@@ -155,14 +143,19 @@ class OrderByTest {
 		}
 
 		@Test
-		@DisplayName("should throw when getChild called with multiple children")
-		void shouldThrowWhenGetChildCalledWithMultipleChildren() {
-			final OrderBy orderBy = new OrderBy(
+		@DisplayName("should return first child when getChild called with multiple children")
+		void shouldReturnFirstChildWhenGetChildCalledWithMultipleChildren() {
+			// Unlike OrderBy, OrderGroupBy returns first child silently when multiple children present
+			final OrderGroupBy orderGroupBy = new OrderGroupBy(
 				attributeNatural("abc"),
 				attributeNatural("def", DESC)
 			);
 
-			assertThrows(GenericEvitaInternalError.class, orderBy::getChild);
+			final OrderConstraint child = orderGroupBy.getChild();
+
+			assertNotNull(child);
+			assertInstanceOf(AttributeNatural.class, child);
+			assertEquals("abc", ((AttributeNatural) child).getAttributeName());
 		}
 	}
 
@@ -173,27 +166,27 @@ class OrderByTest {
 		@Test
 		@DisplayName("should return OrderConstraint class as type")
 		void shouldReturnOrderConstraintClassAsType() {
-			final OrderBy orderBy = new OrderBy(attributeNatural("abc"));
+			final OrderGroupBy orderGroupBy = new OrderGroupBy(attributeNatural("abc"));
 
-			assertEquals(OrderConstraint.class, orderBy.getType());
+			assertEquals(OrderConstraint.class, orderGroupBy.getType());
 		}
 
 		@Test
 		@DisplayName("should accept visitor")
 		void shouldAcceptVisitor() {
-			final OrderBy orderBy = new OrderBy(
+			final OrderGroupBy orderGroupBy = new OrderGroupBy(
 				attributeNatural("abc"),
 				attributeNatural("def", DESC)
 			);
 			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
-			orderBy.accept(new ConstraintVisitor() {
+			orderGroupBy.accept(new ConstraintVisitor() {
 				@Override
 				public void visit(@Nonnull Constraint<?> constraint) {
 					visited.set(constraint);
 				}
 			});
 
-			assertSame(orderBy, visited.get());
+			assertSame(orderGroupBy, visited.get());
 		}
 	}
 
@@ -204,53 +197,40 @@ class OrderByTest {
 		@Test
 		@DisplayName("should create copy with new children")
 		void shouldCreateCopyWithNewChildren() {
-			final OrderBy original = new OrderBy(attributeNatural("abc"));
+			final OrderGroupBy original = new OrderGroupBy(attributeNatural("abc"));
 			final OrderConstraint copy = original.getCopyWithNewChildren(
 				new OrderConstraint[]{attributeNatural("xyz", DESC)},
 				new Constraint<?>[0]
 			);
 
-			assertInstanceOf(OrderBy.class, copy);
-			assertEquals(1, ((OrderBy) copy).getChildrenCount());
-			assertEquals("xyz", ((AttributeNatural) ((OrderBy) copy).getChildren()[0]).getAttributeName());
+			assertInstanceOf(OrderGroupBy.class, copy);
+			assertEquals(1, ((OrderGroupBy) copy).getChildrenCount());
+			assertEquals("xyz", ((AttributeNatural) ((OrderGroupBy) copy).getChildren()[0]).getAttributeName());
 		}
 
 		@Test
-		@DisplayName("should create empty copy when no children provided")
-		void shouldCreateEmptyCopyWhenNoChildrenProvided() {
-			final OrderBy original = new OrderBy(attributeNatural("abc"));
+		@DisplayName("should silently ignore additional children in getCopyWithNewChildren")
+		void shouldSilentlyIgnoreAdditionalChildren() {
+			// Unlike OrderBy, OrderGroupBy does NOT reject additionalChildren
+			final OrderGroupBy original = new OrderGroupBy(attributeNatural("abc"));
 			final OrderConstraint copy = original.getCopyWithNewChildren(
-				new OrderConstraint[0],
-				new Constraint<?>[0]
+				new OrderConstraint[]{attributeNatural("xyz")},
+				new Constraint<?>[]{attributeNatural("extra")}
 			);
 
-			assertInstanceOf(OrderBy.class, copy);
-			assertFalse(((OrderBy) copy).isApplicable());
-		}
-
-		@Test
-		@DisplayName("should reject non-empty additional children")
-		void shouldRejectNonEmptyAdditionalChildren() {
-			final OrderBy original = new OrderBy(attributeNatural("abc"));
-
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> original.getCopyWithNewChildren(
-					new OrderConstraint[]{attributeNatural("xyz")},
-					new Constraint<?>[]{attributeNatural("extra")}
-				)
-			);
+			assertInstanceOf(OrderGroupBy.class, copy);
+			assertEquals(1, ((OrderGroupBy) copy).getChildrenCount());
 		}
 
 		@Test
 		@DisplayName("should throw UnsupportedOperationException when cloning with arguments")
 		void shouldThrowWhenCloningWithArguments() {
-			final OrderBy orderBy = new OrderBy(attributeNatural("abc"));
+			final OrderGroupBy orderGroupBy = new OrderGroupBy(attributeNatural("abc"));
 
 			// argument-less containers throw UnsupportedOperationException by convention
 			assertThrows(
 				UnsupportedOperationException.class,
-				() -> orderBy.cloneWithArguments(new Serializable[]{"arg"})
+				() -> orderGroupBy.cloneWithArguments(new Serializable[]{"arg"})
 			);
 		}
 	}
@@ -262,15 +242,15 @@ class OrderByTest {
 		@Test
 		@DisplayName("should produce expected toString format")
 		void shouldProduceExpectedToStringFormat() {
-			final ConstraintContainer<OrderConstraint> orderBy = orderBy(
+			final ConstraintContainer<OrderConstraint> orderGroupBy = orderGroupBy(
 				attributeNatural("ab'c"),
 				attributeNatural("abc", DESC)
 			);
 
-			assertNotNull(orderBy);
+			assertNotNull(orderGroupBy);
 			assertEquals(
-				"orderBy(attributeNatural('ab\\'c',ASC),attributeNatural('abc',DESC))",
-				orderBy.toString()
+				"orderGroupBy(attributeNatural('ab\\'c',ASC),attributeNatural('abc',DESC))",
+				orderGroupBy.toString()
 			);
 		}
 	}
@@ -282,29 +262,29 @@ class OrderByTest {
 		@Test
 		@DisplayName("should conform to equals and hashCode contract")
 		void shouldConformToEqualsAndHashContract() {
-			assertNotSame(createOrderBy("abc", "def"), createOrderBy("abc", "def"));
-			assertEquals(createOrderBy("abc", "def"), createOrderBy("abc", "def"));
-			assertNotEquals(createOrderBy("abc", "def"), createOrderBy("abc", "defe"));
-			assertNotEquals(createOrderBy("abc", "def"), createOrderBy("abc", null));
-			assertNotEquals(createOrderBy("abc", "def"), createOrderBy(null, "abc"));
+			assertNotSame(createOrderGroupBy("abc", "def"), createOrderGroupBy("abc", "def"));
+			assertEquals(createOrderGroupBy("abc", "def"), createOrderGroupBy("abc", "def"));
+			assertNotEquals(createOrderGroupBy("abc", "def"), createOrderGroupBy("abc", "defe"));
+			assertNotEquals(createOrderGroupBy("abc", "def"), createOrderGroupBy("abc", null));
+			assertNotEquals(createOrderGroupBy("abc", "def"), createOrderGroupBy(null, "abc"));
 			assertEquals(
-				createOrderBy("abc", "def").hashCode(),
-				createOrderBy("abc", "def").hashCode()
+				createOrderGroupBy("abc", "def").hashCode(),
+				createOrderGroupBy("abc", "def").hashCode()
 			);
 			assertNotEquals(
-				createOrderBy("abc", "def").hashCode(),
-				createOrderBy("abc", "defe").hashCode()
+				createOrderGroupBy("abc", "def").hashCode(),
+				createOrderGroupBy("abc", "defe").hashCode()
 			);
 		}
 	}
 
 	/**
-	 * Creates an {@link OrderBy} constraint containing {@link AttributeNatural} children built from the given
+	 * Creates an {@link OrderGroupBy} constraint containing {@link AttributeNatural} children built from the given
 	 * attribute names.
 	 */
 	@Nullable
-	private static OrderBy createOrderBy(@Nullable String... values) {
-		return orderBy(
+	private static OrderGroupBy createOrderGroupBy(@Nullable String... values) {
+		return orderGroupBy(
 			Arrays.stream(values)
 				.map(it -> attributeNatural(it))
 				.toArray(OrderConstraint[]::new)

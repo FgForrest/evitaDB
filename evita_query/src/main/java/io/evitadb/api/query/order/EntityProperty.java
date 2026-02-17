@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,12 +41,12 @@ import java.io.Serializable;
  * to change the context of the reference ordering from attributes of the reference itself to attributes of the entity
  * the reference points to.
  *
- * In other words, if the `Product` entity has multiple references to `Parameter` entities, you can sort those references
- * by, for example, the `priority` or `name` attribute of the `Parameter` entity.
+ * In other words, if the `Product` entity has multiple references to `Parameter` entities, you can sort those
+ * references by, for example, the `priority` or `name` attribute of the `Parameter` entity.
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -69,23 +69,24 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-property">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/reference#entity-property)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "property",
-	shortDescription = "The constraint sorts returned references by applying ordering constraint on referenced entity.",
+	shortDescription = "Sorts returned references by attributes of the referenced entity rather than reference attributes.",
 	userDocsLink = "/documentation/query/ordering/reference#entity-property",
 	supportedIn = ConstraintDomain.INLINE_REFERENCE
 )
 public class EntityProperty extends AbstractOrderConstraintContainer implements EntityConstraint<OrderConstraint> {
 
-	@Serial private static final long serialVersionUID = -9105193827407172235L;
+	@Serial
+	private static final long serialVersionUID = -9105193827407172235L;
 
-	private EntityProperty(Serializable[] arguments, OrderConstraint... children) {
+	private EntityProperty(@Nonnull Serializable[] arguments, @Nonnull OrderConstraint... children) {
 		super(arguments, children);
 	}
 
@@ -107,7 +108,10 @@ public class EntityProperty extends AbstractOrderConstraintContainer implements 
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new EntityProperty(children);
 	}
 }

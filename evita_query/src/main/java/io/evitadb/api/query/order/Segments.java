@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,12 +63,12 @@ import java.util.Arrays;
  *    and only first 2 entities of those will be added to the final result
  * 3. the rest of the entities will be sorted by code and create date in ascending order
  *
- * <pre>
+ * ```evitaql
  * orderBy(
  *    segments(
  *       segment(
  *          orderBy(
- *             attributeNatural("orderedQuantity, DESC)
+ *             attributeNatural("orderedQuantity", DESC)
  *          ),
  *          limit(3)
  *       ),
@@ -89,15 +89,15 @@ import java.util.Arrays;
  *       )
  *    )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/segment)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "segments",
-	shortDescription = "The container encapsulates inner segments into one main prioritized constraint container that controls the output of the query.",
+	shortDescription = "Defines multiple independent ordering styles applied to consecutive portions of the result set.",
 	userDocsLink = "/documentation/query/ordering/segment",
 	supportedIn = ConstraintDomain.ENTITY
 )
@@ -123,7 +123,10 @@ public class Segments extends AbstractOrderConstraintContainer implements Generi
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isPremiseValid(additionalChildren.length == 0, "Segments cannot have additional children!");
 		return new Segments(
 			Arrays.stream(children)
