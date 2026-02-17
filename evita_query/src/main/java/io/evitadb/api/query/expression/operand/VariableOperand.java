@@ -78,11 +78,10 @@ public class VariableOperand implements ExpressionNode {
 		try {
 			return context.getVariable(this.variableName)
 				.map(it -> {
-					// todo lho we need to support evita contracts
-//				Assert.isTrue(
-//					it instanceof Serializable && EvitaDataTypes.isSupportedType(it.getClass()),
-//					() -> new EvitaInvalidUsageException("Variable `" + this.variableName + "` has unsupported type `" + it.getClass().getSimpleName() + "`.")
-//				);
+					Assert.isTrue(
+						it instanceof Serializable,
+						() -> new EvitaInvalidUsageException("Variable `" + this.variableName + "` has unsupported type `" + it.getClass().getSimpleName() + "`.")
+					);
 					return (Serializable) it;
 				})
 				.orElse(null);
