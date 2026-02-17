@@ -32,9 +32,9 @@ import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 
@@ -50,6 +50,7 @@ public class MultiplicationOperator implements ExpressionNode {
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
 	@EqualsAndHashCode.Exclude
+	@Getter
 	private final ExpressionNode[] children;
 
 	public MultiplicationOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
@@ -80,12 +81,6 @@ public class MultiplicationOperator implements ExpressionNode {
 			this.rightOperator.determinePossibleRange(),
 			BigDecimal::multiply
 		);
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override

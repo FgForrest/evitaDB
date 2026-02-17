@@ -32,6 +32,7 @@ import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,6 +67,7 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 	@Nonnull private final ExpressionNode valueOperator;
 	@Nonnull private final ExpressionNode defaultValueOperator;
 	@EqualsAndHashCode.Exclude
+	@Getter
 	private final ExpressionNode[] children;
 
 	public SpreadNullCoalesceOperator(
@@ -184,12 +186,6 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 		return (Serializable) (item == null ? defaultValue : item);
 	}
 
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
-	}
 
 	@Override
 	public void accept(@Nonnull ExpressionNodeVisitor visitor) {

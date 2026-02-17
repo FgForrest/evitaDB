@@ -29,6 +29,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,6 +52,7 @@ public class Expression implements ExpressionNode {
 	 */
 	private final ExpressionNode root;
 	@EqualsAndHashCode.Exclude
+	@Getter
 	private final ExpressionNode[] children;
 
 	public Expression(@Nonnull ExpressionNode root) {
@@ -68,12 +70,6 @@ public class Expression implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return this.root.determinePossibleRange();
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override

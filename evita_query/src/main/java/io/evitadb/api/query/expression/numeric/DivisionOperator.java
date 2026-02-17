@@ -32,9 +32,9 @@ import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -51,6 +51,7 @@ public class DivisionOperator implements ExpressionNode {
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
 	@EqualsAndHashCode.Exclude
+	@Getter
 	private final ExpressionNode[] children;
 
 	public DivisionOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
@@ -90,12 +91,6 @@ public class DivisionOperator implements ExpressionNode {
 		}
 		// we need to automatically switch to float values when necessary
 		return a.divide(b, 16, RoundingMode.HALF_UP).stripTrailingZeros();
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override

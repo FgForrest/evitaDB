@@ -34,9 +34,9 @@ import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 
@@ -51,6 +51,7 @@ public class NegativeOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -1917894061802394775L;
 	private final ExpressionNode operator;
 	@EqualsAndHashCode.Exclude
+	@Getter
 	private final ExpressionNode[] children;
 
 	public NegativeOperator(ExpressionNode operator) {
@@ -79,12 +80,6 @@ public class NegativeOperator implements ExpressionNode {
 			this.operator.determinePossibleRange(),
 			BigDecimal::negate
 		);
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override

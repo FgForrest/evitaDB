@@ -53,6 +53,7 @@ public class ObjectAccessOperator implements ExpressionNode {
 
 	@Nonnull private final ExpressionNode operandOperator;
 	@Nonnull @Getter private final ObjectAccessStep accessChain;
+	@Getter
 	private final ExpressionNode[] children;
 
 	public ObjectAccessOperator(
@@ -69,12 +70,6 @@ public class ObjectAccessOperator implements ExpressionNode {
 	public Serializable compute(@Nonnull ExpressionEvaluationContext context) throws ExpressionEvaluationException {
 		final Serializable operand = this.operandOperator.compute(context);
 		return this.accessChain.compute(context, operand);
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override

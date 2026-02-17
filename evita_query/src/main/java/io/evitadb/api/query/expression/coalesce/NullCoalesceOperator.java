@@ -29,6 +29,7 @@ import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -52,6 +53,7 @@ public class NullCoalesceOperator implements ExpressionNode {
 	@Nonnull private final ExpressionNode valueOperator;
 	@Nonnull private final ExpressionNode defaultValueOperator;
 	@EqualsAndHashCode.Exclude
+	@Getter
 	private final ExpressionNode[] children;
 
 	public NullCoalesceOperator(@Nonnull ExpressionNode valueOperator, @Nonnull ExpressionNode defaultValueOperator) {
@@ -66,12 +68,6 @@ public class NullCoalesceOperator implements ExpressionNode {
 		final Serializable value = this.valueOperator.compute(context);
 		final Serializable defaultValue = this.defaultValueOperator.compute(context);
 		return value != null ? value : defaultValue;
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override

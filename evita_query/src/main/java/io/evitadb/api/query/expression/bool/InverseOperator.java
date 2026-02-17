@@ -34,9 +34,9 @@ import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -50,6 +50,7 @@ public class InverseOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 4825500310430824808L;
 	private final ExpressionNode operator;
 	@EqualsAndHashCode.Exclude
+	@Getter
 	private final ExpressionNode[] children;
 
 	public InverseOperator(ExpressionNode operator) {
@@ -75,12 +76,6 @@ public class InverseOperator implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return this.operator.determinePossibleRange().inverse(16);
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override

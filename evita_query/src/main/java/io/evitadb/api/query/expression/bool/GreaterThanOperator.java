@@ -33,9 +33,9 @@ import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -57,6 +57,7 @@ public class GreaterThanOperator implements ExpressionNode {
 	private final ExpressionNode rightOperator;
 
 	@EqualsAndHashCode.Exclude
+	@Getter
 	private final ExpressionNode[] children;
 
 	public GreaterThanOperator(ExpressionNode leftOperator, ExpressionNode rightOperator) {
@@ -99,12 +100,6 @@ public class GreaterThanOperator implements ExpressionNode {
 		} else {
 			return BigDecimalNumberRange.from(from1.add(BigDecimal.ONE.movePointLeft(16)));
 		}
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override

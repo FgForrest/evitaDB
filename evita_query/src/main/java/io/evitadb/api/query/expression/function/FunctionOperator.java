@@ -31,6 +31,7 @@ import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,6 +57,7 @@ public class FunctionOperator implements ExpressionNode {
 
 	@Nonnull private final FunctionProcessor functionProcessor;
 	@Nonnull private final List<ExpressionNode> argumentOperands;
+	@Getter
 	private final ExpressionNode[] children;
 
 	public FunctionOperator(
@@ -88,12 +90,6 @@ public class FunctionOperator implements ExpressionNode {
 		} else {
 			return BigDecimalNumberRange.INFINITE;
 		}
-	}
-
-	@Nullable
-	@Override
-	public ExpressionNode[] getChildren() {
-		return this.children;
 	}
 
 	@Override
