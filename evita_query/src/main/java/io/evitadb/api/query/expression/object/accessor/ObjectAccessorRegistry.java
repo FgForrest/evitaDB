@@ -156,11 +156,14 @@ public class ObjectAccessorRegistry {
 	public <T extends Serializable> Optional<ObjectPropertyAccessor> getPropertyAccessor(@Nonnull Class<T> type) {
 		return this.propertyAccessorCache.computeIfAbsent(
 			type,
-			t -> findAccessorInHierarchy(
-				t,
-				// todo lho use instanceof like bellow?
-				this.propertyAccessors::get
-			)
+			t -> {
+				for (final Map.Entry<Class<?>, ObjectPropertyAccessor> entry : this.propertyAccessors.entrySet()) {
+					if (entry.getKey().isAssignableFrom(t)) {
+						return Optional.of(entry.getValue());
+					}
+				}
+				return Optional.empty();
+			}
 		);
 	}
 
@@ -176,63 +179,14 @@ public class ObjectAccessorRegistry {
 	public <T extends Serializable> Optional<ObjectElementAccessor> getElementAccessor(@Nonnull Class<T> type) {
 		return this.elementAccessorCache.computeIfAbsent(
 			type,
-			t -> findAccessorInHierarchy(
-				t,
-				c -> {
-					// todo lho doesn't this eliminate the need for the hierarchy lookup?
-					for (final Map.Entry<Class<?>, ObjectElementAccessor> entry : this.elementAccessors.entrySet()) {
-						if (entry.getKey().isAssignableFrom(c)) {
-							return entry.getValue();
-						}
+			t -> {
+				for (final Map.Entry<Class<?>, ObjectElementAccessor> entry : this.elementAccessors.entrySet()) {
+					if (entry.getKey().isAssignableFrom(t)) {
+						return Optional.of(entry.getValue());
 					}
-					return null;
 				}
-			)
+				return Optional.empty();
+			}
 		);
-	}
-
-	/**
-	 * Searches for an accessor in the type hierarchy. It searches the type super classes and all interfaces hierarchy
-	 * breadth-first.
-	 *
-	 * @param startType the type to search for
-	 * @param accessorLookup the lookup function to use for finding a specific accessor in the hierarchy
-	 * @return an optional containing the accessor if found
-	 */
-	@Nonnull
-	private static <A> Optional<A> findAccessorInHierarchy(
-		@Nonnull Class<?> startType,
-		@Nonnull Function<Class<?>, A> accessorLookup
-	) {
-		final Set<Class<?>> visited = createHashSet(5);
-		final Queue<Class<?>> queue = new LinkedList<>();
-
-		queue.add(startType);
-		visited.add(startType);
-
-		while (!queue.isEmpty()) {
-			final Class<?> current = queue.poll();
-
-			// 1. Check if we have an accessor for this specific class/interface
-			final A accessor = accessorLookup.apply(current);
-			if (accessor != null) {
-				return Optional.of(accessor);
-			}
-
-			// 2. Add Superclass to queue (Next Layer)
-			Class<?> superclass = current.getSuperclass();
-			if (superclass != null && visited.add(superclass)) {
-				queue.add(superclass);
-			}
-
-			// 3. Add Interfaces to queue (Next Layer)
-			for (Class<?> iface : current.getInterfaces()) {
-				if (visited.add(iface)) {
-					queue.add(iface);
-				}
-			}
-		}
-
-		return Optional.empty(); // No accessor found
 	}
 }
