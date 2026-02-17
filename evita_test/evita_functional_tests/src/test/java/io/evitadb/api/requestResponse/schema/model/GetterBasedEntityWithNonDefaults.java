@@ -24,15 +24,7 @@
 package io.evitadb.api.requestResponse.schema.model;
 
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
-import io.evitadb.api.requestResponse.data.annotation.Attribute;
-import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
-import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 
@@ -129,7 +121,7 @@ public interface GetterBasedEntityWithNonDefaults {
 		groupEntityManaged = false,
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
-		faceted = true,
+		faceted = @Predicate("true"),
 		indexed = ReferenceIndexType.FOR_FILTERING
 	)
 	Brand[] getLicensingBrands();

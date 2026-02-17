@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.model;
 
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.Predicate;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
@@ -61,7 +62,7 @@ public interface GetterBasedEntityWithScopeReferenceSettings {
 			@ScopeReferenceSettings(
 				scope = Scope.LIVE,
 				indexed = ReferenceIndexType.FOR_FILTERING,
-				faceted = true
+				faceted = @Predicate("true")
 			)
 		}
 	)
@@ -76,7 +77,7 @@ public interface GetterBasedEntityWithScopeReferenceSettings {
 			@ScopeReferenceSettings(
 				scope = Scope.LIVE,
 				indexed = ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
-				faceted = true
+				faceted = @Predicate("true")
 			),
 			@ScopeReferenceSettings(
 				scope = Scope.ARCHIVED,
@@ -89,7 +90,11 @@ public interface GetterBasedEntityWithScopeReferenceSettings {
 	/**
 	 * Reference with no scope settings - should use defaults (LIVE scope only).
 	 */
-	@Reference(managed = false, indexed = ReferenceIndexType.FOR_FILTERING, faceted = true)
+	@Reference(
+		managed = false,
+		indexed = ReferenceIndexType.FOR_FILTERING,
+		faceted = @Predicate("true")
+	)
 	Brand getDefaultBrand();
 
 	interface Brand extends Serializable {

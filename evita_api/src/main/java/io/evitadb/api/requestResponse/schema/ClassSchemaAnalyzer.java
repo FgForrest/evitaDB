@@ -1462,6 +1462,7 @@ public class ClassSchemaAnalyzer {
 				final Scope[] facetedInScopes = Arrays.stream(scopedDefinition)
 					.filter(s -> !s.faceted().value().isEmpty())
 					.map(ScopeReferenceSettings::scope)
+					// TODO LHO - tady je něco blbě ... tady se to musí nějak vyhodnotit
 					.filter(scope -> editor.isFacetedInherited() || !editor.isFacetedInScope(scope))
 					.toArray(Scope[]::new);
 				if (!ArrayUtils.isEmptyOrItsValuesNull(facetedInScopes)) {
