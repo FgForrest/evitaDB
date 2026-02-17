@@ -26,7 +26,21 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.RequireConstraint;
 
 /**
- * This interface marks all requirements that chunk the response into multiple parts.
+ * Marker interface for require constraints that partition the primary entity result set into a *slice* for delivery
+ * to the client. At most one chunking constraint may be present in a single `require` clause; the engine uses it to
+ * determine how many entities to return and from which offset.
+ *
+ * Concrete implementations:
+ * - {@link Page} — page-based pagination (page number + page size); wraps its result in a `PaginatedList` data chunk
+ *   with total-page-count metadata. When the requested page exceeds the available pages, the engine automatically
+ *   returns the first page to avoid unnecessary round-trips.
+ * - {@link Strip} — offset/limit pagination (offset + limit); wraps its result in a `StripList` data chunk, suitable
+ *   for infinite-scroll or cursor-style UIs.
+ *
+ * Chunking constraints also appear inside {@link ReferenceContent} to paginate the references returned per entity,
+ * not just the top-level entity list.
+ *
+ * If no chunking constraint is present, the engine defaults to `page(1, 20)`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

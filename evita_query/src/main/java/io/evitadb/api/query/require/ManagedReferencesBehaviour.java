@@ -26,11 +26,19 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * This enumeration controls behavior of the {@link ReferenceContent} related to managed entities.
- * If the target entity is not (yet) present in the database and {@link ManagedReferencesBehaviour#EXISTING} is set,
- * the reference will not be returned as if it does not exist.
- * If {@link ManagedReferencesBehaviour#ANY} is set (default behavior), the reference will be returned if defined regardless
- * of its target entity existence.
+ * Controls how {@link ReferenceContent} handles references that point to *managed* entity collections — i.e.
+ * references whose target entity type is tracked within evitaDB itself (as opposed to references to external systems).
+ *
+ * In evitaDB it is valid to store a reference to an entity that does not yet exist in the database (e.g. during
+ * bulk import, or when referencing entities from another collection that has not been fully populated). This enum
+ * determines whether such "dangling" references are visible to the caller:
+ *
+ * - `ANY` — all references are returned regardless of whether the target entity currently exists in the database.
+ *   This is the default behaviour and is appropriate during data ingestion or when the caller explicitly wants to
+ *   enumerate both resolved and unresolved references.
+ * - `EXISTING` — only references whose target entity is present in the database at query time are returned; dangling
+ *   references are silently suppressed as if they did not exist. This is the correct choice for most read-side
+ *   queries where incomplete data should not leak to the API consumer.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

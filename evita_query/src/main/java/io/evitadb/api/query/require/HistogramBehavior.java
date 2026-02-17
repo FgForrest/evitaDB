@@ -23,10 +23,39 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * This enumeration describes the behaviour of {@link AttributeHistogram} and {@link PriceHistogram} calculation.
+ * Controls how bucket boundaries are computed and whether empty buckets are eliminated when computing
+ * {@link AttributeHistogram} and {@link PriceHistogram} results.
+ *
+ * The four values form a two-dimensional matrix:
+ *
+ * |                   | Equal-width intervals | Frequency-equalised intervals |
+ * |-------------------|-----------------------|-------------------------------|
+ * | Keep empty buckets| `STANDARD`            | `EQUALIZED`                   |
+ * | Drop empty buckets| `OPTIMIZED`           | `EQUALIZED_OPTIMIZED`         |
+ *
+ * **Equal-width vs. frequency-equalised boundaries**
+ *
+ * - Equal-width (`STANDARD`, `OPTIMIZED`): the value range [min, max] is divided into *N* equally sized intervals.
+ *   This is the classic histogram approach and is predictable, but buckets may be very uneven in population when data
+ *   is heavily skewed (e.g. most products priced between 0–50 EUR and a few luxury items above 500 EUR).
+ * - Frequency-equalised (`EQUALIZED`, `EQUALIZED_OPTIMIZED`): bucket boundaries are placed so that each bucket
+ *   covers approximately the same *number of entities*. This produces a more balanced visual distribution and is
+ *   preferable for heavily skewed data, but the bucket widths vary.
+ *
+ * **Keep vs. drop empty buckets**
+ *
+ * - Keep empty (`STANDARD`, `EQUALIZED`): the response always contains exactly the number of buckets requested,
+ *   even if some buckets contain no entities. Useful when the UI must maintain a fixed-width display.
+ * - Drop empty (`OPTIMIZED`, `EQUALIZED_OPTIMIZED`): buckets with no entities are removed, producing a more compact
+ *   histogram. The response may contain fewer buckets than requested. Recommended for most interactive UIs as it
+ *   avoids confusing empty columns.
+ *
+ * `STANDARD` is the default value and is treated as an implicit argument in the EvitaQL string representation
+ * (see {@link ConstraintWithDefaults}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

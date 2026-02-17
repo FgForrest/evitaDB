@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.require;
 
-
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -50,36 +49,41 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * The children requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
- * the filtering part of the same query using the {@link HierarchyWithin} or {@link HierarchyWithinRoot} constraints.
- * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
- * all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
- * statistical data, use the statistics constraint.
+ * Computes the hierarchy subtree rooted at the same node that is targeted by the `hierarchyWithin` (or
+ * `hierarchyWithinRoot`) filter constraint in the same query. The traversal then proceeds downward through
+ * children, grandchildren, and so on. This constraint is the natural choice for rendering the sub-navigation
+ * below the currently browsed category: the user is already scoped to "Audio", and you want to show them
+ * "Headphones", "Speakers", "True Wireless", etc.
  *
- * The constraint accepts following arguments:
+ * By default the traversal goes all the way to the leaf nodes. Use a {@link HierarchyStopAt} inner constraint —
+ * typically `stopAt(distance(1))` — to limit the result to only direct children (a flat list).
  *
- * - mandatory String argument specifying the output name for the calculated data structure
- * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
- *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
- *   present:
+ * **Interaction with `hierarchyWithin` filter:**
  *
- *      - {@link EntityFetch}
- *      - {@link HierarchyStopAt}
- *      - {@link HierarchyStatistics}
+ * The pivot node of `hierarchyWithin` is the starting point of the child traversal. The `having`, `anyHaving`,
+ * and `excluding` inner constraints of `hierarchyWithin` are also respected during statistics computation, keeping
+ * counts consistent with what the user would see when drilling into a sub-node.
  *
- * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
- * returns a computed subcategories data structure that lists the flat category list the currently focused category
- * Audio with a computed count of child categories for each menu item and an aggregated count of all products that would
- * fall into the given category.
+ * When used alongside `hierarchyWithinRoot`, the traversal starts from the virtual top root of the hierarchy,
+ * making it equivalent to computing the full top-level category list.
  *
- * <pre>
+ * **Required arguments:**
+ *
+ * - mandatory `outputName` (`String`): key under which the computed subtree is registered in the extra results map
+ *
+ * **Optional inner constraints:**
+ *
+ * - {@link EntityFetch}: specifies which data to fetch for each hierarchy entity in the result
+ * - {@link HierarchyStopAt}: limits how deep the downward traversal proceeds from the pivot node
+ * - {@link HierarchyStatistics}: requests computation of `CHILDREN_COUNT` and/or `QUERIED_ENTITY_COUNT` per node
+ *
+ * **Example — direct subcategories of the filtered category with statistics:**
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "audio")
- *         )
+ *         hierarchyWithin("categories", attributeEquals("code", "audio"))
  *     ),
  *     require(
  *         hierarchyOfReference(
@@ -88,30 +92,20 @@ import static java.util.Optional.of;
  *                 "subcategories",
  *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1)),
- *                 statistics(
- *                     CHILDREN_COUNT,
- *                     QUERIED_ENTITY_COUNT
- *                 )
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
  *             )
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * The calculated result for children is connected with the {@link HierarchyWithin} pivot hierarchy node (or
- * the "virtual" invisible top root referred to by the hierarchyWithinRoot constraint). If the {@link HierarchyWithin}
- * contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving} or {@link HierarchyExcluding},
- * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
- * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
- * remains consistent for the end user.
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#children)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "children",
-	shortDescription = "The constraint triggers computing the hierarchy subtree starting at currently requested hierarchy node in filter by constraint.",
+	shortDescription = "The constraint computes a hierarchy subtree starting at the node targeted by the hierarchyWithin filter constraint, traversing downward through children.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#children",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
@@ -119,7 +113,11 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 	@Serial private static final long serialVersionUID = 9160175156714580097L;
 	private static final String CONSTRAINT_NAME = "children";
 
-	private HierarchyChildren(@Nonnull String outputName, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+	private HierarchyChildren(
+		@Nonnull String outputName,
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
 		for (RequireConstraint requireConstraint : children) {
 			Assert.isTrue(
@@ -220,7 +218,10 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new HierarchyChildren(getOutputName(), children, additionalChildren);
 	}
 

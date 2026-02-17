@@ -24,7 +24,23 @@
 package io.evitadb.api.query.require;
 
 /**
- * This interface marks all query that produce extra result object in the query output.
+ * Marker interface for require constraints whose evaluation produces an *extra result* object in the query response,
+ * separate from the primary entity list.
+ *
+ * While entity-fetch constraints ({@link EntityFetchRequire}, {@link EntityContentRequire}) control *what data is
+ * returned per entity*, extra-result constraints instruct the engine to compute additional aggregated data structures
+ * that accompany the primary result set. These computations may involve additional index traversals or aggregation
+ * passes over the full filtered result set.
+ *
+ * Concrete implementations include:
+ * - {@link AttributeHistogram} — computes value-distribution histograms for numeric/range attributes
+ * - {@link PriceHistogram} — computes a value-distribution histogram over entity prices
+ * - {@link FacetSummary} / {@link FacetSummaryOfReference} — computes facet option counts and impact predictions
+ * - {@link HierarchyOfSelf} / {@link HierarchyOfReference} — compute hierarchical tree structures for navigation
+ *   menus (which also implement the more specific {@link HierarchyRequireConstraint})
+ *
+ * The `ExtraResultPlanningVisitor` in the engine identifies all constraints implementing this interface during
+ * query plan construction and schedules the corresponding extra-result producers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

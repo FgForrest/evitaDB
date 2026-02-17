@@ -46,21 +46,51 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in
- * the result. When this requirement is used result contains entity bodies along with associated data with names
- * specified in one or more arguments of this requirement.
+ * The `associatedDataContent` requirement fetches one or more named associated data items into the returned entity
+ * body. Associated data are arbitrary unstructured data payloads (JSON objects, binary blobs, complex records)
+ * stored alongside an entity that are not used for filtering or sorting — they exist solely to be displayed or
+ * processed by the application.
  *
- * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
- * Localized associated data is returned according to {@link EntityLocaleEquals} query. Requirement might be combined
- * with {@link AttributeContent} requirement.
+ * ## Storage model
  *
- * Example:
+ * Unlike attributes (which are stored together in a single record), each associated data item is persisted as an
+ * independent record. Fetching only the items you actually need is therefore an important optimization — loading
+ * every associated data item wastes both I/O bandwidth and memory when most items are not displayed on a given page.
  *
- * <pre>
- * associatedData("description", "gallery-3d")
- * </pre>
+ * ## Locale handling
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
+ * Localized associated data (those with a locale tag) are returned only when a locale context is active in the query,
+ * established via {@link EntityLocaleEquals} in the filter or via the `dataInLocales` require constraint. Without a
+ * locale context, only non-localized (global) associated data items are included in the result.
+ *
+ * ## Wildcard form
+ *
+ * Calling `associatedDataContent()` with no arguments (or using `associatedDataContentAll()`) fetches all associated
+ * data items stored on the entity. Use this only when all items are genuinely needed, since each item triggers a
+ * separate disk read.
+ *
+ * ## Combining
+ *
+ * When multiple `associatedDataContent` requirements are merged, the result is the union of all named items. If any
+ * fragment uses the no-argument (wildcard) form, it supersedes all named requests.
+ *
+ * Example — fetching two named associated data items:
+ *
+ * ```
+ * entityFetch(
+ *     associatedDataContent("description", "gallery-3d")
+ * )
+ * ```
+ *
+ * Example — fetching all associated data:
+ *
+ * ```
+ * entityFetch(
+ *     associatedDataContentAll()
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#associated-data-content)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -78,7 +108,7 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf
 	private LinkedHashSet<String> associatedDataNamesAsSet;
 	private String[] associatedDataNames;
 
-	private AssociatedDataContent(Serializable... arguments) {
+	private AssociatedDataContent(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

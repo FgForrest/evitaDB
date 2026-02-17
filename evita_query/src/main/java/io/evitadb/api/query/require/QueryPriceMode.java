@@ -26,11 +26,29 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * Determines which price will be used for filtering.
+ * Selects which price variant is used as the operative price for filtering, sorting, and histogram computation
+ * throughout a single query. The active mode is configured via the {@link PriceType} require constraint; when that
+ * constraint is absent the system defaults to {@link #WITH_TAX}.
+ *
+ * **Usage context**
+ *
+ * - `WITH_TAX` — standard B2C setting; consumers see and filter by gross prices including VAT.
+ * - `WITHOUT_TAX` — standard B2B setting; business customers see and filter by net prices excluding VAT.
+ *
+ * The selected mode applies uniformly to {@link io.evitadb.api.query.filter.PriceBetween} filtering,
+ * {@link io.evitadb.api.query.order.PriceNatural} ordering, and {@link PriceHistogram} computation within the
+ * same query.
  */
 @SupportedEnum
 public enum QueryPriceMode {
 
-	WITH_TAX, WITHOUT_TAX
+	/**
+	 * The price with tax is used for filtering and sorting.
+	 */
+	WITH_TAX,
+	/**
+	 * The price without tax is used for filtering and sorting.
+	 */
+	WITHOUT_TAX
 
 }

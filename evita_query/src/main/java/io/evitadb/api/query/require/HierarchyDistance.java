@@ -35,26 +35,34 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The distance constraint can only be used within the {@link HierarchyStopAt} container and limits the hierarchy
- * traversal to stop when the number of levels traversed reaches the specified constant. The distance is always relative
- * to the pivot node (the node where the hierarchy traversal starts) and is the same whether we are traversing
- * the hierarchy top-down or bottom-up. The distance between any two nodes in the hierarchy can be calculated as
- * `abs(level(nodeA) - level(nodeB))`.
+ * Specifies the maximum relative distance from the pivot node at which hierarchy traversal stops. The distance
+ * is always measured in edge hops from the pivot — the node where traversal starts — and applies regardless of
+ * the direction of traversal (top-down or bottom-up):
  *
- * The constraint accepts single integer argument `distance`, which defines a maximum relative distance from the pivot
- * node that can be traversed; the pivot node itself is at distance zero, its direct child or direct parent is
- * at distance one, each additional step adds a one to the distance.
+ * - Distance 0: the pivot node itself
+ * - Distance 1: the direct children (or parent) of the pivot node
+ * - Distance 2: grandchildren (or grandparent) of the pivot node
+ * - Distance N: nodes N hops away from the pivot
  *
- * See the following figure when the pivot node is Audio:
+ * The distance between any two nodes in the hierarchy can be computed as `abs(level(nodeA) - level(nodeB))`.
+ * The distance value must be greater than zero (a distance of zero would include only the pivot node itself,
+ * which is always included automatically).
  *
- * <pre>
+ * This constraint can only be used as the single inner constraint of a {@link HierarchyStopAt} container.
+ * It is the right choice when you need a traversal depth that is _relative_ to wherever the pivot sits in the
+ * tree — for example, "always show me one level below the currently focused node (direct children only)" —
+ * regardless of its absolute depth.
+ *
+ * Contrast with {@link HierarchyLevel}, which specifies an _absolute_ level from the root, and
+ * {@link HierarchyNode}, which stops dynamically based on a filter condition.
+ *
+ * **Example — flat direct-children list (distance 1) of the focused "Audio" category:**
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "audio")
- *         )
+ *         hierarchyWithin("categories", attributeEquals("code", "audio"))
  *     ),
  *     require(
  *         hierarchyOfReference(
@@ -67,19 +75,15 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * The following query lists products in category Audio and its subcategories. Along with the products returned, it
- * also returns a computed subcategories data structure that lists the flat category list the currently focused category
- * Audio.
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#distance">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#distance)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "distance",
-	shortDescription = "The constraint limits the traversing in stop at container at specified distance (number of nodes in path).",
+	shortDescription = "The constraint limits hierarchy traversal to a maximum distance (number of edge hops) from the pivot node.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#distance",
 	supportedIn = ConstraintDomain.HIERARCHY
 )

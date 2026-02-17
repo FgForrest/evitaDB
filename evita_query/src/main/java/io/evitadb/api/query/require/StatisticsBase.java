@@ -26,8 +26,25 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * The enum specifies whether the hierarchy statistics cardinality will be based on a complete query filter by
- * constraint or only the part without user defined filter.
+ * Specifies which subset of the `filterBy` constraint is used as the base entity set when computing statistics
+ * for the {@link HierarchyStatistics} requirement. This distinction matters for interactive UIs that combine
+ * mandatory system filters with optional user-controlled filters — the `userFilter` container separates these two
+ * concerns.
+ *
+ * - `COMPLETE_FILTER` — statistics are computed over the full result set produced by the entire `filterBy`,
+ *   including any constraints inside `userFilter`. Use this when you want the counts to reflect the currently
+ *   active user selection.
+ * - `WITHOUT_USER_FILTER` — the `userFilter` container and all its children are excluded before computing
+ *   statistics. The counts therefore reflect only the mandatory filter criteria, independent of user choices.
+ *   This is the default value (implicit argument in {@link HierarchyStatistics}) and the most common mode for
+ *   category-tree sidebars: the category counts remain stable as the user changes other filters.
+ * - `COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER` — similar to `COMPLETE_FILTER`, but any filter constraints
+ *   inside `userFilter` that limit the same hierarchical entity type as the one this statistics constraint is
+ *   applied to are excluded. This prevents self-referential filtering from collapsing the hierarchy statistics
+ *   of the hierarchy being navigated.
+ *
+ * `WITHOUT_USER_FILTER` is the default and is treated as an implicit argument in {@link HierarchyStatistics},
+ * meaning it is omitted from the EvitaQL string representation when not overridden.
  */
 @SupportedEnum
 public enum StatisticsBase {

@@ -26,13 +26,37 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * The enum specifies whether the {@link HierarchyStatistics} should produce the hierarchy children count or referenced
- * entity count.
+ * Specifies which type of count is computed for each hierarchy node in a {@link HierarchyStatistics} result.
+ * The two values are independent and can be combined — both can be requested simultaneously by passing multiple
+ * values to {@link HierarchyStatistics}. When no value is provided the statistics block is still produced but
+ * contains neither count, which is valid when callers only need the structural node information.
+ *
+ * - `CHILDREN_COUNT` — the number of direct and indirect (all descendant) hierarchy nodes that exist below the
+ *   given node in the tree, **regardless** of whether those children pass the query filter. This count is always
+ *   accurate even when the tree traversal is limited by a `stopAt` constraint. It is relatively cheap to compute
+ *   because it can prune dead branches early.
+ * - `QUERIED_ENTITY_COUNT` — the total number of entities that would appear in the primary result set if the
+ *   query were narrowed to this specific hierarchy node via a `hierarchyWithin` filter constraint. This metric is
+ *   considerably more expensive than `CHILDREN_COUNT` because it requires evaluating the full query formula for
+ *   every node; the engine must count entities all the way to the leaves. For large datasets or root-level nodes
+ *   this can be very slow — caching the result is strongly recommended.
+ *
+ * The base entity set used for `QUERIED_ENTITY_COUNT` is controlled by the {@link StatisticsBase} argument of
+ * the parent {@link HierarchyStatistics} constraint.
  */
 @SupportedEnum
 public enum StatisticsType {
 
+	/**
+	 * Triggers calculation of the count of child hierarchy nodes that exist in the hierarchy tree below the given
+	 * node; the count is correct regardless of whether the children themselves are requested/traversed by
+	 * the constraint definition.
+	 */
 	CHILDREN_COUNT,
+	/**
+	 * Triggers the calculation of the total number of queried entities that would be returned if the current query
+	 * is focused on this particular hierarchy node using the hierarchyWithin filter constraint.
+	 */
 	QUERIED_ENTITY_COUNT
 
 }

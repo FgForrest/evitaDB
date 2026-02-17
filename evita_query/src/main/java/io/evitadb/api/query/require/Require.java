@@ -29,34 +29,63 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Requirements have no direct parallel in other database languages. They define sideway calculations, paging,
- * the amount of data fetched for each returned entity, and so on, but never affect the number or order of returned
- * entities. They also allow to compute additional calculations that relate to the returned entities, but contain
- * other contextual data - for example hierarchy data for creating menus, facet summary for parametrized filter,
- * histograms for charts, and so on.
+ * The `require` container is one of the four top-level sections of an EvitaQL query (alongside `collection`,
+ * `filterBy`, and `orderBy`). It is the root holder for all {@link RequireConstraint} children and is the only
+ * place where requirement constraints are permitted in a query.
  *
- * Example:
+ * ## Purpose
  *
- * <pre>
+ * Requirements have no direct parallel in traditional SQL or other database query languages. They define
+ * **sideway computations** that accompany the main result set without altering the set of matched entities
+ * or their ordering. Specifically, they control:
+ *
+ * - **Paging** — how many entities are returned and at which offset ({@link Page}, {@link Strip})
+ * - **Entity content** — which attributes, associated data, prices, and references to load per entity
+ *   ({@link EntityFetch}, {@link EntityGroupFetch})
+ * - **Extra result computations** — facet summaries, attribute histograms, hierarchy trees, price histograms,
+ *   and other contextual data sets that enrich the response beyond the entity list itself
+ *
+ * ## Uniqueness of children
+ *
+ * The `require` container enforces that each child constraint type appears at most once (see `@Child(uniqueChildren = true)`).
+ * Duplicate constraint types within the same `require` block result in a validation error during query parsing.
+ *
+ * ## Applicability and necessity
+ *
+ * A `require` container without any children is considered neither applicable nor necessary. The query engine
+ * omits it from processing, which is equivalent to having no `require` section at all.
+ *
+ * ## Usage example
+ *
+ * ```evitaql
  * require(
- *     page(1, 2),
- *     entityFetch()
+ *     page(1, 20),
+ *     entityFetch(
+ *         attributeContentAll(),
+ *         priceContentAll()
+ *     ),
+ *     facetSummary()
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/basics#require">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/basics#require)
  *
+ * @see Page
+ * @see Strip
+ * @see EntityFetch
+ * @see RequireInScope
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "require",
-	shortDescription = "The container encapsulates inner require constraints into one main constraint that is required by the query",
+	shortDescription = "The top-level container that encapsulates all require constraints defining what additional data and computations the query should produce.",
 	userDocsLink = "/documentation/query/basics#require"
 )
 public class Require extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint> {
@@ -81,6 +110,10 @@ public class Require extends AbstractRequireConstraintContainer implements Gener
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("Require require query has no arguments!");
+		Assert.isPremiseValid(
+			newArguments.length == 0,
+			"Require constraint has no arguments!"
+		);
+		return new Require(getChildren());
 	}
 }

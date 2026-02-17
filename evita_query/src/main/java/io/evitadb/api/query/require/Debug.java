@@ -31,15 +31,31 @@ import java.io.Serializable;
 import java.util.EnumSet;
 
 /**
- * This `debug` require is targeted for internal purposes only and is not exposed in public evitaDB API.
+ * The `debug` require constraint activates one or more internal debug modes that alter or augment query execution for
+ * testing and verification purposes. It is an **internal constraint** and is intentionally not part of the public
+ * evitaDB API surface — it should never appear in production queries issued by end clients.
  *
- * @see DebugMode for more information
+ * The constraint accepts one or more {@link DebugMode} enum values. Multiple modes can be combined; they are
+ * collected into an {@link java.util.EnumSet} via {@link #getDebugMode()}.
+ *
+ * Supported modes and their effects are described in {@link DebugMode}. In summary:
+ *
+ * - {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} — forces the engine to evaluate all alternative index paths
+ *   and asserts they produce identical results; significantly increases query execution time.
+ * - {@link DebugMode#VERIFY_POSSIBLE_CACHING_TREES} — forces evaluation of all cacheable sub-tree variants and
+ *   verifies that cached and non-cached paths agree on their results.
+ * - {@link DebugMode#PREFER_PREFETCHING} — always selects the prefetch strategy when the query allows it, bypassing
+ *   the cost-based strategy selector; used to exercise the prefetch code path in integration tests.
+ *
+ * This class has no `@ConstraintDefinition` annotation because it is excluded from schema-driven API generation.
+ *
+ * @see DebugMode
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class Debug extends AbstractRequireConstraintLeaf {
 	@Serial private static final long serialVersionUID = 5631043212500743575L;
 
-	private Debug(Serializable[] arguments) {
+	private Debug(@Nonnull Serializable[] arguments) {
 		super(arguments);
 	}
 

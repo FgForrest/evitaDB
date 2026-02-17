@@ -27,8 +27,16 @@ import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 
 /**
- * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
- * be used within {@link HierarchyStopAt} container.
+ * Marker interface for require constraints that can be placed inside a {@link HierarchyStopAt} container to
+ * define the *tree traversal stop condition* for a hierarchy output computation.
+ *
+ * The {@link HierarchyStopAt} constraint wraps exactly one `HierarchyStopAtRequireConstraint` to specify at
+ * what point the hierarchy traversal should cease, preventing the engine from recursing deeper into the tree.
+ *
+ * Concrete implementations:
+ * - {@link HierarchyLevel} — stops traversal when a specific absolute level from the root is reached
+ * - {@link HierarchyDistance} — stops traversal when the node is more than N steps away from the starting node
+ * - {@link HierarchyNode} — stops traversal at a node that satisfies a given filter constraint
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

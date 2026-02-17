@@ -26,14 +26,32 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * The enumeration controls {@link HierarchyOfReference} behaviour whether the hierarchical nodes that are not referred
- * by any of the queried entities should be part of the result hierarchy statistics tree.
+ * Controls whether hierarchy nodes that have no queried entities associated with them are included or pruned from
+ * the hierarchy statistics tree returned by {@link HierarchyOfReference} (and related hierarchy output constraints).
+ *
+ * A hierarchy node is considered *empty* when none of the entities that pass the current query filter are directly
+ * associated with that node (or any of its descendants, when `QUERIED_ENTITY_COUNT` statistics are computed).
+ *
+ * - `LEAVE_EMPTY` — empty hierarchy nodes are preserved in the result tree. The tree structure mirrors the full
+ *   hierarchy regardless of which parts have matching entities. Useful for UIs that must display the complete
+ *   category tree and grey out or disable empty sections.
+ * - `REMOVE_EMPTY` — empty hierarchy nodes are pruned from the result tree (default behaviour). Ancestor nodes
+ *   that become leaf-less after pruning are also removed transitively. This produces a compact, meaningful tree
+ *   that contains only categories with available products, which is the typical requirement for e-commerce
+ *   faceted-navigation sidebars.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @SupportedEnum
 public enum EmptyHierarchicalEntityBehaviour {
 
-	LEAVE_EMPTY, REMOVE_EMPTY
+	/**
+	 * Empty hierarchical nodes will remain in computed data structures.
+	 */
+	LEAVE_EMPTY,
+	/**
+	 * Empty hierarchical nodes are omitted from computed data structures (default behavior).
+	 */
+	REMOVE_EMPTY
 
 }

@@ -32,7 +32,25 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Represents base constraint leaf accepting only requirement constraints.
+ * Base class for all leaf-level require constraints in the EvitaQL require constraint hierarchy. Leaf constraints
+ * carry arguments but have no child constraints — they are the terminal nodes of the constraint tree.
+ *
+ * Require constraints direct the query engine to fetch specific data or compute additional result structures.
+ * This abstract class handles the common plumbing: it wires the `RequireConstraint` type token into the
+ * `ConstraintLeaf` base, always reports itself as applicable (unlike container constraints that may become
+ * inapplicable when all children are stripped), and dispatches to the visitor without recursing into children
+ * (since leaves have none).
+ *
+ * Concrete subclasses include, for example:
+ * - {@link AttributeContent} — requests named attributes to be fetched for each entity
+ * - {@link AssociatedDataContent} — requests associated-data blobs to be loaded
+ * - {@link PriceContent} — controls which price records are included in the response
+ * - {@link DataInLocales} — specifies the locales for which localized data should be fetched
+ * - {@link Page} and {@link Strip} — pagination / offset-limit chunking constraints
+ * - {@link HierarchyStatistics} — requests per-node statistics for hierarchy output
+ *
+ * All subclasses are immutable. The protected `concat` helper method is provided for constructors that need to
+ * prepend a mandatory leading argument to a varargs tail (a common pattern in require constraint constructors).
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
@@ -64,13 +82,15 @@ abstract class AbstractRequireConstraintLeaf extends ConstraintLeaf<RequireConst
 	}
 
 	/**
-	 * Helper method for creating serializable arrays.
-	 * @param firstArg
-	 * @param rest
-	 * @param <T>
-	 * @return
+	 * Helper method for creating serializable arrays by concatenating a first argument with an array of rest arguments.
+	 *
+	 * @param firstArg the first argument to be placed at the beginning of the array
+	 * @param rest the remaining arguments to be appended after the first argument
+	 * @param <T> the type of the arguments, must extend Serializable
+	 * @return a new Serializable array containing the first argument followed by the rest arguments
 	 */
-	protected static <T extends Serializable> Serializable[] concat(T firstArg, T[] rest) {
+	@Nonnull
+	protected static <T extends Serializable> Serializable[] concat(@Nonnull T firstArg, @Nonnull T[] rest) {
 		final Serializable[] result = new Serializable[rest.length + 1];
 		result[0] = firstArg;
 		System.arraycopy(rest, 0, result, 1, rest.length);

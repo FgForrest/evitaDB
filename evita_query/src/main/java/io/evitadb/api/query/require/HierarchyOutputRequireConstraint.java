@@ -27,13 +27,24 @@ import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 
 /**
- * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
- * be used within these containers:
+ * Marker interface for require constraints that configure *what data is computed and returned* for each node in
+ * a hierarchy output structure. Implementations of this interface are valid children of the hierarchy traversal
+ * containers that generate segments of the navigation tree:
  *
- * - {@link HierarchyChildren}
- * - {@link HierarchyParents}
- * - {@link HierarchyFromRoot}
- * - {@link HierarchyFromNode}
+ * - {@link HierarchyChildren} — the sub-tree of direct/transitive children of the currently-filtered node
+ * - {@link HierarchyParents} — the ancestor chain from the currently-filtered node up to the root
+ * - {@link HierarchyFromRoot} — the complete tree from the virtual root, unaffected by hierarchy filters
+ * - {@link HierarchyFromNode} — a sub-tree rooted at an arbitrary node
+ *
+ * Concrete implementations include:
+ * - {@link EntityFetch} — requests entity body data to be loaded for each hierarchy node
+ * - {@link HierarchyStatistics} — requests per-node statistics (count of directly/transitively matching entities)
+ * - {@link HierarchyStopAt} — defines the traversal stop condition; wraps a {@link HierarchyStopAtRequireConstraint}
+ *
+ * The distinction from {@link HierarchyRequireConstraint} (which is placed directly inside
+ * {@link HierarchyOfSelf} / {@link HierarchyOfReference}) is one of nesting level: `HierarchyOutputRequireConstraint`
+ * instances configure individual named output segments, while `HierarchyRequireConstraint` instances *are* the named
+ * output segments.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

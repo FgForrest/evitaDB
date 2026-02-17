@@ -35,7 +35,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -48,28 +47,58 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * The `priceContent` requirement allows you to access the information about the prices of the entity.
+ * The `priceContent` requirement controls which prices are loaded and returned with an entity. It must be placed
+ * inside an {@link EntityFetch} constraint and accepts a {@link PriceContentMode} that selects the fetch strategy,
+ * plus an optional set of additional price-list names.
  *
- * If the {@link PriceContentMode#RESPECTING_FILTER} mode is used, the `priceContent` requirement will only retrieve
- * the prices selected by the {@link PriceInPriceLists} constraint. If the enum {@link PriceContentMode#NONE} is
- * specified, no prices are returned at all, if the enum {@link PriceContentMode#ALL} is specified, all prices of
- * the entity are returned regardless of the priceInPriceLists constraint in the filter (the constraint still controls
- * whether the entity is returned at all).
+ * ## Fetch modes
  *
- * You can also add additional price lists to the list of price lists passed in the priceInPriceLists constraint by
- * specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
- * fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
- * still want to fetch them to display in the UI for the user.
+ * - **{@link PriceContentMode#NONE}** — no prices are returned. This is the default when no `priceContent`
+ *   requirement is specified. Useful when only the entity body is needed without price information.
+ * - **{@link PriceContentMode#RESPECTING_FILTER}** (`priceContentRespectingFilter`) — only the prices that match
+ *   the {@link PriceInPriceLists} filter constraint are returned. This is the most common mode for product listing
+ *   pages where the displayed price must match what was used for filtering.
+ * - **{@link PriceContentMode#ALL}** (`priceContentAll`) — all prices stored on the entity are returned regardless
+ *   of the filter. The filter still controls entity eligibility, but all price records are included in the result.
+ *   Useful for administration UIs or price management tools.
+ *
+ * ## Additional price lists
+ *
+ * An optional list of price-list names can be appended as extra arguments. These price lists are loaded **on top of**
+ * whatever the fetch mode would otherwise load. This is useful for fetching non-indexed reference prices
+ * (e.g., the original retail price for comparison) that are intentionally excluded from the filtering index but
+ * still need to appear in the UI. Note that these additional price lists do not affect entity eligibility — they
+ * only supplement the returned price data.
+ *
+ * ## EvitaQL suffix variants
+ *
+ * The EvitaQL representation uses suffixes to encode the fetch mode concisely:
+ * - `priceContentAll()` — fetches all prices
+ * - `priceContentRespectingFilter()` — fetches prices matching the filter
+ * - `priceContentRespectingFilter("reference")` — fetches filter-matching prices plus the `reference` price list
+ * - `priceContent(NONE)` — no prices (explicit `NONE` form, rarely needed)
  *
  * Example:
  *
- * <pre>
- * priceContentRespectingFilter()
- * priceContentRespectingFilter("reference")
- * priceContentAll()
- * </pre>
+ * ```
+ * entityFetch(
+ *     priceContentRespectingFilter()
+ * )
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
+ * ```
+ * entityFetch(
+ *     priceContentRespectingFilter("reference")
+ * )
+ * ```
+ *
+ * ```
+ * entityFetch(
+ *     priceContentAll()
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#price-content)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -87,7 +116,7 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 	private LinkedHashSet<String> additionalPriceListsAsSet;
 	private String[] additionalPriceLists;
 
-	private PriceContent(Serializable... arguments) {
+	private PriceContent(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -103,7 +132,7 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 	}
 
 	@Creator(suffix = SUFFIX_FILTERED)
-	public static PriceContent respectingFilter(@Nullable String... priceLists) {
+	public static PriceContent respectingFilter(@Nonnull String... priceLists) {
 		return new PriceContent(PriceContentMode.RESPECTING_FILTER, priceLists);
 	}
 

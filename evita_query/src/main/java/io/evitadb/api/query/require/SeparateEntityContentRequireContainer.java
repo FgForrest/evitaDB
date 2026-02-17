@@ -26,10 +26,24 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.RequireConstraint;
 
 /**
- * This interface must be implemented by all {@link RequireConstraint} constraints that allow defining custom
- * {@link EntityContentRequire} in their body. By implementing this interface they declare, that they define new
- * separate context for entity content requirement specification that should not be mistaken with the global requirement
- * context.
+ * Marker interface that must be implemented by any {@link RequireConstraint} whose body may contain
+ * {@link EntityContentRequire} children that form an *isolated fetch scope*.
+ *
+ * During query planning the engine collects `EntityContentRequire` constraints from the global require clause for
+ * the primary entity type being queried. Without this scoping mechanism, nested fetch specifications would be
+ * incorrectly merged with the global entity-fetch context.
+ *
+ * By implementing `SeparateEntityContentRequireContainer`, a constraint declares: "my {@link EntityContentRequire}
+ * children describe a *different* entity (or role) and must not be merged with outer fetch requirements."
+ *
+ * Key implementations:
+ * - {@link EntityFetch} — defines the body richness for the queried entities or referenced entities (depending
+ *   on context); its children are scoped exclusively to the entity type it targets
+ * - {@link EntityGroupFetch} — defines the body richness for reference group entities inside facet/reference
+ *   contexts; isolated from the primary entity fetch scope
+ *
+ * The query planner (notably `QueryPurifierVisitor` and `DefaultPrefetchRequirementCollector`) uses this interface
+ * as a boundary marker to stop propagating `EntityContentRequire` resolution across different entity contexts.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
