@@ -47,29 +47,101 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * The constraint `hierarchyWithin` allows you to restrict the search to only those entities that are part of
- * the hierarchy tree starting with the root node identified by the first argument of this constraint. In e-commerce
- * systems the typical representative of a hierarchical entity is a category, which will be used in all of our examples.
+ * The `hierarchyWithin` constraint restricts query results to entities that are part of a hierarchy tree starting from
+ * one or more specified root nodes. This is the primary filtering constraint for hierarchical queries in evitaDB,
+ * enabling efficient subtree queries over tree-structured entity collections like product categories, organizational
+ * charts, or geographic regions.
  *
- * The constraint accepts following arguments:
+ * **Syntax**
  *
- * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
- *   type, your entity may target different hierarchical entities in different reference types, or it may target
- *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
- *   is used instead of the target entity type.
- * - a single mandatory filter constraint that identifies one or more hierarchy nodes that act as hierarchy roots;
- *   multiple constraints must be enclosed in AND / OR containers
- * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
+ * ```evitaql
+ * hierarchyWithin(
+ *     referenceName?: String,
+ *     ofParent: FilterConstraint!,
+ *     with?: HierarchySpecificationFilterConstraint+
+ * )
+ * ```
  *
- *      - {@link HierarchyDirectRelation}
- *      - {@link HierarchyHaving}
- *      - {@link HierarchyAnyHaving}
- *      - {@link HierarchyExcluding}
- *      - {@link HierarchyExcludingRoot}
+ * **Arguments**
  *
- * The most straightforward usage is filtering the hierarchical entities themselves.
+ * - `referenceName` (optional): name of the reference schema representing the relationship to the hierarchical entity
+ *   type. Omit this argument (or use the `hierarchyWithinSelf` variant) when querying hierarchical entities directly.
+ *   When present, this argument identifies which reference to follow when querying non-hierarchical entities that
+ *   reference hierarchical ones. The reference name is used instead of the target entity type because entities may
+ *   target the same hierarchical entity type through multiple semantically different references (e.g., `primaryCategory`
+ *   vs. `additionalCategories`).
+ * - `ofParent` (required): filter constraint identifying one or more hierarchy nodes that act as root nodes for the
+ *   query. This can be any filter constraint (typically `entityPrimaryKeyInSet` or `attributeEquals`). To specify
+ *   multiple root nodes, wrap them in {@link And} or {@link Or} containers. The selected root nodes and all their
+ *   direct and transitive descendants are included in the result (subject to refinement by specification constraints).
+ * - `with` (optional): zero or more {@link HierarchySpecificationFilterConstraint} instances that refine the hierarchy
+ *   query behavior:
+ *   - {@link HierarchyDirectRelation}: limits results to immediate children only
+ *   - {@link HierarchyHaving}: requires each node in traversal path to satisfy filter
+ *   - {@link HierarchyAnyHaving}: requires at least one node in subtree to satisfy filter
+ *   - {@link HierarchyExcluding}: excludes subtrees whose root matches filter
+ *   - {@link HierarchyExcludingRoot}: excludes the specified parent node from results (children remain)
  *
- * <pre>
+ * **Query Modes**
+ *
+ * The constraint operates in two modes depending on whether the queried entity collection is hierarchical:
+ *
+ * 1. **Self-hierarchical mode** (when `referenceName` is omitted): filters the hierarchical entities themselves. For
+ *    example, querying `Category` entities with `hierarchyWithinSelf(attributeEquals("code", "accessories"))` returns
+ *    the Accessories category and all its descendant categories.
+ *
+ * 2. **Reference-hierarchical mode** (when `referenceName` is provided): filters non-hierarchical entities that
+ *    reference hierarchical ones. For example, querying `Product` entities with
+ *    `hierarchyWithin("categories", attributeEquals("code", "accessories"))` returns all products assigned to the
+ *    Accessories category or any of its descendant categories.
+ *
+ * **Default Behavior**
+ *
+ * Without specification constraints, `hierarchyWithin`:
+ * - Returns the specified parent node(s) identified by `ofParent`
+ * - Returns all direct children of the parent node(s)
+ * - Returns all transitive descendants (children of children, recursively to leaf nodes)
+ * - Excludes orphaned nodes (nodes with parent references pointing to non-existent entities)
+ *
+ * **Deduplication**
+ *
+ * In reference-hierarchical mode, when a product is assigned to multiple categories within the same visible subtree,
+ * it appears only once in the result (unlike SQL-style joins which would produce duplicate rows). For example, if
+ * product X is assigned to both "Smartphones" and "Tablets" under the "Electronics" category tree, querying products
+ * within "Electronics" returns product X exactly once.
+ *
+ * **Multiple Root Nodes**
+ *
+ * The `ofParent` constraint can identify multiple root nodes using logical containers:
+ *
+ * ```java
+ * hierarchyWithin(
+ *     "categories",
+ *     or(
+ *         attributeEquals("code", "electronics"),
+ *         attributeEquals("code", "accessories")
+ *     )
+ * )
+ * ```
+ *
+ * This returns entities within either the Electronics subtree OR the Accessories subtree (or both).
+ *
+ * **Constraint Uniqueness**
+ *
+ * Only one `hierarchyWithin` or `hierarchyWithinRoot` constraint is allowed per query. Using multiple hierarchy filter
+ * constraints results in a validation error.
+ *
+ * **Suffix Support**
+ *
+ * This constraint implements {@link ConstraintContainerWithSuffix}, providing a `Self` suffix variant when
+ * `referenceName` is omitted. The constraint is serialized as `hierarchyWithinSelf(...)` in EvitaQL when targeting
+ * self-hierarchical entities, and as `hierarchyWithin("reference", ...)` when targeting referenced hierarchical
+ * entities.
+ *
+ * **Examples**
+ *
+ * ```java
+ * // Self-hierarchical: return Accessories category and all its subcategories
  * query(
  *     collection("Category"),
  *     filterBy(
@@ -78,17 +150,11 @@ import static java.util.Optional.ofNullable;
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent("code")
- *         )
+ *         entityFetch(attributeContent("code"))
  *     )
  * )
- * </pre>
  *
- * The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
- * The most common use case from the e-commerce world is a product that is assigned to one or more categories.
- *
- * <pre>
+ * // Reference-hierarchical: return products in Accessories category tree
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -98,23 +164,84 @@ import static java.util.Optional.ofNullable;
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent("code")
+ *         entityFetch(attributeContent("code"))
+ *     )
+ * )
+ *
+ * // Direct children only (no transitive descendants)
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
+ *             directRelation()
  *         )
  *     )
  * )
- * </pre>
  *
- * Products assigned to two or more subcategories of Accessories category will only appear once in the response
- * (contrary to what you might expect if you have experience with SQL).
+ * // Exclude wireless headphones subtree
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
+ *             excluding(attributeEquals("code", "wireless-headphones"))
+ *         )
+ *     )
+ * )
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">Visit detailed user documentation</a></p>
+ * // Include only valid categories (having constraint)
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
+ *             having(attributeInRange("validity", ZonedDateTime.now()))
+ *         )
+ *     )
+ * )
  *
+ * // Exclude parent node itself but include children
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
+ *             excludingRoot()
+ *         )
+ *     )
+ * )
+ *
+ * // Multiple root nodes with OR
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             or(
+ *                 attributeEquals("code", "electronics"),
+ *                 attributeEquals("code", "accessories")
+ *             )
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within)
+ *
+ * @see HierarchyWithinRoot variant for entire hierarchy tree without specifying root nodes
+ * @see HierarchyFilterConstraint parent interface defining hierarchy filter contract
+ * @see HierarchySpecificationFilterConstraint refinement constraints for modifying behavior
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "within",
-	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree (or has reference to any hierarchical entity in the tree).",
+	shortDescription = "The constraint checks if an entity is placed inside the defined hierarchy tree " +
+		"(or has reference to any hierarchical entity in the tree).",
 	userDocsLink = "/documentation/query/filtering/hierarchy#hierarchy-within",
 	supportedIn = ConstraintDomain.ENTITY
 )
@@ -213,8 +340,8 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer
 	}
 
 	/**
-	 * Returns filtering constraints that return entities whose have at least one children satisfying the filter in order
-	 * the hierarchy tree should be included in the hierarchy query.
+	 * Returns filtering constraints that return entities that have at least one child satisfying the filter
+	 * in order for the hierarchy tree to be included in the hierarchy query.
 	 */
 	@Override
 	@Nonnull
@@ -240,7 +367,7 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer
 	}
 
 	/**
-	 * Returns true if withinHierarchy should not return entities directly related to the {@link #getParentFilter()}} entity.
+	 * Returns true if withinHierarchy should not return entities directly related to the {@link #getParentFilter()} entity.
 	 */
 	public boolean isExcludingRoot() {
 		return Arrays.stream(getChildren())
@@ -271,14 +398,17 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public FilterConstraint getCopyWithNewChildren(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new HierarchyWithin(getArguments(), children, additionalChildren);
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new HierarchyWithin(newArguments, getChildren(), getExcludedChildrenFilter());
+		return new HierarchyWithin(newArguments, getChildren(), getAdditionalChildren());
 	}
 
 }

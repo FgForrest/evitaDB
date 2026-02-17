@@ -37,51 +37,92 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `between` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument and value passed in third argument. First argument must be {@link String}, second and third
- * argument may be any of {@link Comparable} type.
+ * Filters entities where a named attribute value falls within a specified closed interval, defined by inclusive lower
+ * and upper bounds. This is the primary constraint for efficient range-based filtering, optimized for both single-value
+ * and array-typed attributes, with specialized handling for Range-typed attributes (NumberRange, DateTimeRange, etc.).
  *
- * Type of the attribute value and second argument must be convertible one to another otherwise `between` function
- * returns false.
+ * The constraint performs type-safe comparison via {@link io.evitadb.dataType.EvitaDataTypes} conversion. The attribute
+ * value and both boundary values must be convertible to a common comparable type, or the constraint evaluates to false.
+ * String comparisons follow alphabetical ordering (locale-specific collation for localized attributes). Boolean values
+ * are treated as numeric (true=1, false=0). Both boundaries are **inclusive** - the constraint matches values that are
+ * exactly equal to either boundary.
  *
- * Function returns true if value in a filterable attribute of such a name is greater than or equal to value in second argument
- * and lesser than or equal to value in third argument.
+ * **EvitaQL syntax:**
  *
- * Example:
+ * ```
+ * attributeBetween(attributeName:string!, lowerBound:comparable!, upperBound:comparable!)
+ * ```
  *
- * <pre>
- * between("age", 20, 25)
- * </pre>
+ * **Constraint classification:**
  *
- * Function supports attribute arrays and when attribute is of array type `between` returns true if *any of attribute* values
- * is between the passed interval the value in the query. If we have the attribute `amount` with value `[1, 9]` all
- * these constraints will match:
+ * - Implements {@link io.evitadb.api.query.FilterConstraint} - usable in filterBy clauses
+ * - Implements {@link io.evitadb.api.query.AttributeConstraint} - operates on named attributes
+ * - Supported in: {@link io.evitadb.api.query.descriptor.ConstraintDomain#ENTITY}, {@link io.evitadb.api.query.descriptor.ConstraintDomain#REFERENCE},
+ *   {@link io.evitadb.api.query.descriptor.ConstraintDomain#INLINE_REFERENCE}
  *
- * <pre>
- * between("amount", 0, 50)
- * between("amount", 0, 5)
- * between("amount", 8, 10)
- * </pre>
+ * **Array attribute handling:**
  *
- * If attribute is of `Range` type `between` query behaves like overlap - it returns true if examined range and
- * any of the attribute ranges (see previous paragraph about array types) share anything in common. All the following
- * constraints return true when we have the attribute `validity` with following `NumberRange` values: `[[2,5],[8,10]]`:
+ * When the attribute is array-typed, the constraint matches if **any** element in the array falls within the specified
+ * range. For example, given `amount=[1, 9]`, all of these constraints match:
  *
- * <pre>
- * between("validity", 0, 3)
- * between("validity", 0, 100)
- * between("validity", 9, 10)
- * </pre>
+ * ```
+ * attributeBetween("amount", 0, 50)    // Both 1 and 9 are in [0,50]
+ * attributeBetween("amount", 0, 5)     // 1 is in [0,5]
+ * attributeBetween("amount", 8, 10)    // 9 is in [8,10]
+ * ```
  *
- * ... but these constraints will return false:
+ * **Range-typed attribute handling (overlap semantics):**
  *
- * <pre>
- * between("validity", 11, 15)
- * between("validity", 0, 1)
- * between("validity", 6, 7)
- * </pre>
+ * For Range-typed attributes (NumberRange, DateTimeRange, BigDecimalNumberRange, etc.), `between` performs **overlap
+ * detection** rather than simple containment. The constraint matches if the query range and **any** attribute range
+ * share at least one point in common.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-between">Visit detailed user documentation</a></p>
+ * Given `validity=[[2,5], [8,10]]` (two NumberRange values), these constraints match:
+ *
+ * ```
+ * attributeBetween("validity", 0, 3)    // Overlaps [2,5]
+ * attributeBetween("validity", 0, 100)  // Overlaps both ranges
+ * attributeBetween("validity", 9, 10)   // Overlaps [8,10]
+ * ```
+ *
+ * These constraints do **not** match (no overlap):
+ *
+ * ```
+ * attributeBetween("validity", 11, 15)  // Gap after [8,10]
+ * attributeBetween("validity", 0, 1)    // Gap before [2,5]
+ * attributeBetween("validity", 6, 7)    // Falls in gap between ranges
+ * ```
+ *
+ * **Common use cases:**
+ *
+ * - Date range queries: `attributeBetween("publishDate", "2024-01-01", "2024-12-31")`
+ * - Age group filtering: `attributeBetween("age", 25, 35)`
+ * - Rating ranges: `attributeBetween("rating", 3.5, 5.0)`
+ * - Temporal validity checks: `attributeBetween("validityPeriod", startDate, endDate)` (overlap semantics)
+ *
+ * **Advantages over separate inequalities:**
+ *
+ * While logically equivalent to:
+ *
+ * ```
+ * and(
+ *     attributeGreaterThanEquals("price", 50.00),
+ *     attributeLessThanEquals("price", 100.00)
+ * )
+ * ```
+ *
+ * The `between` constraint offers:
+ * - More concise and readable syntax
+ * - Better query optimization opportunities (single index scan instead of two)
+ * - Specialized handling for Range types (overlap vs. containment)
+ *
+ * **Null boundary handling:**
+ *
+ * At least one boundary must be non-null for the constraint to be applicable. A null boundary effectively removes that
+ * side of the constraint (open-ended range), though explicit use of {@link AttributeGreaterThanEquals} or
+ * {@link AttributeLessThanEquals} is clearer for such cases.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#attribute-between)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -95,7 +136,7 @@ import java.io.Serializable;
 public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 4684374310853295964L;
 
-	private AttributeBetween(Serializable... arguments) {
+	private AttributeBetween(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -126,6 +167,7 @@ public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf impl
 
 	@Override
 	public boolean isApplicable() {
+		//noinspection ConstantValue
 		return getArguments().length == 3 && getAttributeName() != null && (getFrom() != null || getTo() != null);
 	}
 

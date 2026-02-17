@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.filter;
 
-
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -32,6 +31,7 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collections;
@@ -39,31 +39,135 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * This `scope` filter constraint can be used to control the scope of the entity search. It has single vararg argument
- * that accepts one or more scopes where the entity should be searched. The following scopes are supported:
+ * The `scope` constraint specifies which data scopes the query should search within. evitaDB organizes entities into separate scopes with distinct
+ * indexing characteristics and access patterns. This constraint controls which scope(s) are included in the query execution, enabling searches
+ * across active data, archived data, or both simultaneously.
  *
- * - LIVE: entities that are currently active and reside in the live data set indexes
- * - ARCHIVED: entities that are no longer active and reside in the archive indexes (with limited accessibility)
+ * ## Available Scopes
  *
- * By default, entities are searched only in the LIVE scope. The ARCHIVED scope is being searched only when explicitly
- * requested. Archived entities are considered to be "soft-deleted", can be still queried if necessary, and can be
- * restored back to the LIVE scope.
+ * evitaDB currently supports two scopes defined by {@link Scope}:
  *
- * Example:
+ * - **{@link Scope#LIVE}**: Entities that are currently active and reside in fully-indexed data sets. All attributes, facets, hierarchies, and
+ *   prices are indexed and available for filtering, sorting, and aggregation. This is the default scope if none is specified.
+ * - **{@link Scope#ARCHIVED}**: Entities that have been soft-deleted or archived. They reside in separate indexes with limited accessibility—fewer
+ *   attributes are indexed, and facets and hierarchies are typically unavailable. Archived entities can still be queried when necessary and can
+ *   be restored back to the LIVE scope.
+ *
+ * ## Default Behavior
+ *
+ * If no `scope` constraint is present in a query, evitaDB defaults to searching only the **LIVE scope** (`scope(LIVE)`). The ARCHIVED scope is
+ * never searched unless explicitly requested.
+ *
+ * ## Multi-Scope Queries
+ *
+ * When multiple scopes are specified (e.g., `scope(LIVE, ARCHIVED)`), evitaDB searches both scopes and merges the results. However, there are
+ * important behavioral considerations:
+ *
+ * **Scope Priority for Duplicates**: If the same entity exists in multiple scopes (which should be rare but is technically possible during
+ * transitions), evitaDB prioritizes the entity from the **first declared scope** in the argument list. For example, `scope(LIVE, ARCHIVED)` will
+ * return the LIVE version of an entity if it exists in both scopes.
+ *
+ * **Unique Constraint Enforcement**: Unique attribute constraints are enforced **within each scope independently**, not globally. This means two
+ * entities in different scopes can have the same value for a unique attribute without violating uniqueness. For example, an ARCHIVED entity and
+ * a LIVE entity can both have `code='ABC-123'` if `code` is defined as unique.
+ *
+ * **Filtering Constraints**: When querying multiple scopes, filtering constraints apply to all scopes unless wrapped in {@link FilterInScope},
+ * which restricts constraints to a specific scope. This is critical because attributes indexed in LIVE may not be indexed in ARCHIVED, and
+ * attempting to filter by non-indexed attributes will cause query failures.
+ *
+ * ## EvitaQL Syntax
  *
  * ```
- * scope(ARCHIVED)
- * scope(LIVE,ARCHIVED)
+ * scope(LIVE|ARCHIVED+)
  * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#scope">Visit detailed user documentation</a></p>
+ * The constraint accepts one or more {@link Scope} enum values as varargs.
+ *
+ * ## Usage Examples
+ *
+ * **Example 1: Searching only archived entities**
+ *
+ * ```
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         scope(ARCHIVED)
+ *     )
+ * )
+ * ```
+ *
+ * This query searches only the ARCHIVED scope, returning soft-deleted or historical products.
+ *
+ * **Example 2: Searching both LIVE and ARCHIVED entities**
+ *
+ * ```
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         scope(LIVE, ARCHIVED)
+ *     )
+ * )
+ * ```
+ *
+ * This query searches both scopes and returns all products regardless of their archival status. LIVE entities are prioritized if duplicates exist.
+ *
+ * **Example 3: Combining scope with scope-specific filters**
+ *
+ * ```
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         and(
+ *             attributeEquals('category', 'electronics'), // applies to both scopes
+ *             inScope(LIVE, attributeEquals('inStock', true)), // only filter LIVE entities by stock
+ *             scope(LIVE, ARCHIVED)
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * This query searches both scopes for electronics products, but only filters LIVE entities by stock availability (assuming `inStock` is not
+ * indexed in ARCHIVED scope).
+ *
+ * **Example 4: Default scope behavior (implicit LIVE)**
+ *
+ * ```
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         attributeEquals('available', true)
+ *     )
+ *     // No scope constraint: defaults to scope(LIVE)
+ * )
+ * ```
+ *
+ * This query implicitly searches only the LIVE scope because no `scope` constraint is specified.
+ *
+ * ## Relationship to Uniqueness and Constraints
+ *
+ * **Unique Attributes**: When an attribute is marked as unique in the schema, evitaDB enforces uniqueness **per scope**. This allows the same
+ * unique value to exist in LIVE and ARCHIVED scopes simultaneously without conflict. For example:
+ *
+ * ```
+ * // These two entities can coexist without violating unique constraint on 'code':
+ * Entity in LIVE: { primaryKey: 1, code: 'PROD-001' }
+ * Entity in ARCHIVED: { primaryKey: 2, code: 'PROD-001' }
+ * ```
+ *
+ * **Scope Isolation**: Each scope maintains independent indexes, so queries that operate on a single scope never "see" entities from other scopes
+ * unless explicitly requested via multi-scope queries.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/behavioral#scope)
  *
  * @see Scope
+ * @see FilterInScope
+ * @see SeparateEntityScopeContainer
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "scope",
-	shortDescription = "Constraint can be used to control the scope of the entity search. It has single vararg argument that accepts one or more scopes where the entity should be searched",
+	shortDescription = "The constraint controls the scope of the entity search, accepting one or more scopes (LIVE, ARCHIVED)" +
+		" where entities should be searched.",
 	userDocsLink = "/documentation/query/filtering/behavioral#scope",
 	supportedIn = ConstraintDomain.ENTITY
 )
@@ -72,8 +176,8 @@ public class EntityScope extends AbstractFilterConstraintLeaf implements Generic
 	public static final String CONSTRAINT_NAME = "scope";
 	private final Set<Scope> theScope;
 
-	private EntityScope(Serializable[] arguments) {
-		super(arguments);
+	private EntityScope(@Nonnull Serializable[] arguments) {
+		super(CONSTRAINT_NAME, arguments);
 		this.theScope = getScope();
 	}
 
@@ -90,7 +194,7 @@ public class EntityScope extends AbstractFilterConstraintLeaf implements Generic
 	public Set<Scope> getScope() {
 		if (this.theScope == null) {
 			final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
-			for (Serializable argument : getArguments()) {
+			for (final Serializable argument : getArguments()) {
 				if (argument instanceof Scope scope) {
 					result.add(scope);
 				}
@@ -113,10 +217,10 @@ public class EntityScope extends AbstractFilterConstraintLeaf implements Generic
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		EntityScope that = (EntityScope) o;
+		final EntityScope that = (EntityScope) o;
 		return getScope().equals(that.getScope());
 	}
 

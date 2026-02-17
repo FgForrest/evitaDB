@@ -23,47 +23,147 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.FilterConstraint;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.Serializable;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link EntityLocaleEquals} query.
+ * Tests for {@link EntityLocaleEquals} verifying construction, applicability, property accessors,
+ * cloning, visitor support, string representation, and equality contract.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("EntityLocaleEquals constraint")
 class EntityLocaleEqualsTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final EntityLocaleEquals entityLocaleEquals = entityLocaleEquals(Locale.ENGLISH);
-		assertEquals(Locale.ENGLISH, entityLocaleEquals.getLocale());
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should create with locale via factory")
+		void shouldCreateWithLocaleViaFactory() {
+			final EntityLocaleEquals constraint = entityLocaleEquals(Locale.ENGLISH);
+
+			assertNotNull(constraint);
+			assertEquals(Locale.ENGLISH, constraint.getLocale());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertTrue(entityLocaleEquals(Locale.ENGLISH).isApplicable());
-		assertFalse(new EntityLocaleEquals(null).isApplicable());
+	@Nested
+	@DisplayName("Property accessors")
+	class PropertyAccessorTest {
+
+		@Test
+		@DisplayName("should return locale")
+		void shouldReturnLocale() {
+			final EntityLocaleEquals constraint = entityLocaleEquals(Locale.FRANCE);
+
+			assertEquals(Locale.FRANCE, constraint.getLocale());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final EntityLocaleEquals entityLocaleEquals = entityLocaleEquals(Locale.ENGLISH);
-		assertEquals("entityLocaleEquals('en')", entityLocaleEquals.toString());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should be applicable with non-null locale")
+		void shouldBeApplicableWithNonNullLocale() {
+			assertTrue(entityLocaleEquals(Locale.ENGLISH).isApplicable());
+		}
+
+		@Test
+		@DisplayName("should not be applicable with null locale")
+		void shouldNotBeApplicableWithNullLocale() {
+			assertFalse(new EntityLocaleEquals(null).isApplicable());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.ENGLISH));
-		assertEquals(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.ENGLISH));
-		assertNotEquals(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.FRANCE));
-		assertNotEquals(entityLocaleEquals(Locale.ENGLISH), new EntityLocaleEquals(null));
-		assertEquals(entityLocaleEquals(Locale.ENGLISH).hashCode(), entityLocaleEquals(Locale.ENGLISH).hashCode());
-		assertNotEquals(entityLocaleEquals(Locale.ENGLISH).hashCode(), entityLocaleEquals(Locale.FRANCE).hashCode());
-		assertNotEquals(entityLocaleEquals(Locale.ENGLISH).hashCode(), new EntityLocaleEquals(null).hashCode());
+	@Nested
+	@DisplayName("Clone with arguments")
+	class CloneWithArgumentsTest {
+
+		@Test
+		@DisplayName("should clone with new locale argument")
+		void shouldCloneWithNewLocaleArgument() {
+			final EntityLocaleEquals original = entityLocaleEquals(Locale.ENGLISH);
+
+			final FilterConstraint cloned = original.cloneWithArguments(
+				new Serializable[]{Locale.FRANCE}
+			);
+
+			assertInstanceOf(EntityLocaleEquals.class, cloned);
+			assertNotSame(original, cloned);
+			assertEquals(Locale.FRANCE, ((EntityLocaleEquals) cloned).getLocale());
+		}
 	}
 
+	@Nested
+	@DisplayName("Type and visitor")
+	class TypeAndVisitorTest {
+
+		@Test
+		@DisplayName("should return FilterConstraint type")
+		void shouldReturnFilterConstraintType() {
+			assertEquals(FilterConstraint.class, entityLocaleEquals(Locale.ENGLISH).getType());
+		}
+
+		@Test
+		@DisplayName("should accept visitor")
+		void shouldAcceptVisitor() {
+			final EntityLocaleEquals constraint = entityLocaleEquals(Locale.ENGLISH);
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+
+			constraint.accept(c -> visited.set((Constraint<?>) c));
+
+			assertSame(constraint, visited.get());
+		}
+	}
+
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should format with locale")
+		void shouldFormatWithLocale() {
+			assertEquals("entityLocaleEquals('en')", entityLocaleEquals(Locale.ENGLISH).toString());
+		}
+	}
+
+	@Nested
+	@DisplayName("Equals and hashCode")
+	class EqualsAndHashCodeTest {
+
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.ENGLISH));
+			assertEquals(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.ENGLISH));
+			assertNotEquals(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.FRANCE));
+			assertNotEquals(entityLocaleEquals(Locale.ENGLISH), new EntityLocaleEquals(null));
+			assertEquals(
+				entityLocaleEquals(Locale.ENGLISH).hashCode(),
+				entityLocaleEquals(Locale.ENGLISH).hashCode()
+			);
+			assertNotEquals(
+				entityLocaleEquals(Locale.ENGLISH).hashCode(),
+				entityLocaleEquals(Locale.FRANCE).hashCode()
+			);
+			assertNotEquals(
+				entityLocaleEquals(Locale.ENGLISH).hashCode(),
+				new EntityLocaleEquals(null).hashCode()
+			);
+		}
+	}
 }

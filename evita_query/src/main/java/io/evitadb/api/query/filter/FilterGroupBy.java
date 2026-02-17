@@ -39,26 +39,135 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's
- * similar to the "where" clause in SQL. FilterGroupBy container might contain one or more sub-constraints, that are
- * combined by logical disjunction (AND).
+ * A specialized filter container used exclusively within {@link FacetSummary} requirements to define which facet
+ * **groups** are included in the facet summary response. This constraint is analogous to {@link FilterBy} but operates
+ * on facet groups rather than entities.
  *
- * The `filterGroupBy` is equivalent to {@link FilterBy}, but can be used only within {@link FacetSummary} container
- * and defines the filter constraints limiting the facet groups returned in facet summary.
+ * **Purpose**
  *
- * Example:
+ * `FilterGroupBy` allows you to selectively include or exclude facet groups (the grouping entities in faceted
+ * navigation, such as "Brand", "Color", "Size") in the facet summary based on their properties. This is useful when
+ * you want to show only certain facet groups based on attributes like visibility flags, priority, or other metadata.
  *
- * <pre>
- * filterGroupBy(
- *    isNotNull("code"),
- *    or(
- *       equals("code", "ABCD"),
- *       startsWith("title", "Knife")
- *    )
+ * **Context: Facet Summary**
+ *
+ * In evitaDB's faceting model:
+ * - **Facets** are references to entities (e.g., specific brands like "Nike", "Adidas")
+ * - **Facet Groups** are the grouping entities (e.g., the "Brand" category entity that groups all brand facets)
+ * - **Facet Summary** is a statistical aggregation showing available facets and their impact on filtering
+ *
+ * When you request a {@link FacetSummary}, evitaDB computes statistics for all facet groups and their facets. The
+ * `filterGroupBy` constraint allows you to limit which facet groups appear in the summary by filtering the group
+ * entities themselves based on their attributes.
+ *
+ * **Default Conjunction Semantics**
+ *
+ * Like {@link FilterBy}, when multiple child constraints are specified directly within `filterGroupBy`, they are
+ * implicitly combined using **logical conjunction (AND)**. All child constraints must be satisfied for a facet group
+ * to be included in the summary:
+ * - `filterGroupBy(a, b, c)` is equivalent to `filterGroupBy(and(a, b, c))`
+ * - All conditions a, b, and c must evaluate to true for the facet group to appear
+ *
+ * To use different logical combinations (OR, NOT), you must explicitly nest the appropriate logical operators
+ * ({@link And}, {@link Or}, {@link Not}) within `filterGroupBy`.
+ *
+ * **Usage Context**
+ *
+ * This constraint can only be used in specific domains:
+ * - `REFERENCE`: within {@link FacetSummary} constraints for regular references
+ * - `INLINE_REFERENCE`: within {@link FacetSummary} constraints for inline references
+ *
+ * Unlike {@link FilterBy}, which is a top-level query section, `filterGroupBy` is always nested within a
+ * `facetSummary` requirement and cannot appear at the query root.
+ *
+ * **EvitaQL Syntax**
+ *
+ * ```evitaql
+ * filterGroupBy(filterConstraint:any*)
+ * ```
+ *
+ * **Example Usage**
+ *
+ * ```java
+ * // Show only visible facet groups in facet summary
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeEquals("category", "Electronics")
+ *     ),
+ *     require(
+ *         facetSummary(
+ *             COUNTS,
+ *             filterGroupBy(
+ *                 attributeEquals("visible", true)
+ *             )
+ *         )
+ *     )
  * )
- * </pre>
  *
- * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
+ * // Show facet groups with priority >= 5 or explicitly featured
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeEquals("available", true)
+ *     ),
+ *     require(
+ *         facetSummary(
+ *             COUNTS,
+ *             filterGroupBy(
+ *                 or(
+ *                     attributeGreaterThanEquals("priority", 5),
+ *                     attributeEquals("featured", true)
+ *                 )
+ *             )
+ *         )
+ *     )
+ * )
+ *
+ * // Exclude deprecated facet groups from facet summary
+ * query(
+ *     collection("Product"),
+ *     require(
+ *         facetSummary(
+ *             COUNTS,
+ *             filterGroupBy(
+ *                 not(
+ *                     attributeEquals("deprecated", true)
+ *                 )
+ *             )
+ *         )
+ *     )
+ * )
+ *
+ * // Complex group filtering - show groups that have a code and are either active or promoted
+ * query(
+ *     collection("Product"),
+ *     require(
+ *         facetSummaryOfReference(
+ *             "parameterValues",
+ *             COUNTS,
+ *             filterGroupBy(
+ *                 attributeIsNotNull("code"),
+ *                 or(
+ *                     attributeEquals("active", true),
+ *                     attributeEquals("promoted", true)
+ *                 )
+ *             )
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * **Relationship to FilterBy**
+ *
+ * The semantic difference between `filterBy` and `filterGroupBy` is the target of filtering:
+ * - **FilterBy**: filters the **entities** in the main query (e.g., products)
+ * - **FilterGroupBy**: filters the **facet groups** in the facet summary (e.g., parameter types, brand categories)
+ *
+ * Both use the same filtering constraint syntax and logical operators, but they apply to different entity types in
+ * different parts of the query evaluation.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/basics#filter-by)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
@@ -88,7 +197,7 @@ public class FilterGroupBy extends AbstractFilterConstraintContainer implements 
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("FilterBy filtering query has no arguments!");
+		throw new UnsupportedOperationException("FilterGroupBy filtering query has no arguments!");
 	}
 
 	@Nonnull
