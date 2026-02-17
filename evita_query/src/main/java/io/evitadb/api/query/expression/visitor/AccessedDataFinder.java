@@ -83,7 +83,7 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 	 */
 	@Nonnull
 	public static List<List<String>> findAccessedPaths(@Nonnull ExpressionNode expressionNode) {
-		AccessedDataFinder finder = new AccessedDataFinder();
+		final AccessedDataFinder finder = new AccessedDataFinder();
 		expressionNode.accept(finder);
 		return compactPaths(finder.accessedPaths);
 	}

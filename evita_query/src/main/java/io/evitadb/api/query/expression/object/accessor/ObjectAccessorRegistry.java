@@ -27,19 +27,14 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
-import java.util.Set;
-import java.util.function.Function;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Singleton registry for {@link ObjectPropertyAccessor}s and {@link ObjectElementAccessor}s. Accessors are registered

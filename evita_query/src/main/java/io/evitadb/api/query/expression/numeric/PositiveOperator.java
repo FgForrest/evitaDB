@@ -54,10 +54,10 @@ public class PositiveOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public PositiveOperator(ExpressionNode operator) {
+	public PositiveOperator(@Nonnull ExpressionNode operator) {
 		Assert.isTrue(
 			operator != null,
-			() -> new ParserException("Floor function must have at least one operand!")
+			() -> new ParserException("Positive operator must have at least one operand!")
 		);
 		this.operator = operator;
 		this.children = new ExpressionNode[]{this.operator};

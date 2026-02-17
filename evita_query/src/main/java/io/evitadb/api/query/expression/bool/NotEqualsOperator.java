@@ -56,7 +56,7 @@ public class NotEqualsOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public NotEqualsOperator(ExpressionNode leftOperator, ExpressionNode rightOperator) {
+	public NotEqualsOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
 		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};

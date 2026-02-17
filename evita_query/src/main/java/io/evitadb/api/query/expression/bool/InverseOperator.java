@@ -25,7 +25,6 @@ package io.evitadb.api.query.expression.bool;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
-import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
@@ -53,7 +52,7 @@ public class InverseOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public InverseOperator(ExpressionNode operator) {
+	public InverseOperator(@Nonnull ExpressionNode operator) {
 		Assert.isTrue(
 			operator != null,
 			() -> new ParserException("Inversion function must have at least one operand!")

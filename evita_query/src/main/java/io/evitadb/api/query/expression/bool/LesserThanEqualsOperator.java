@@ -60,7 +60,7 @@ public class LesserThanEqualsOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public LesserThanEqualsOperator(ExpressionNode leftOperator, ExpressionNode rightOperator) {
+	public LesserThanEqualsOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
 		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};

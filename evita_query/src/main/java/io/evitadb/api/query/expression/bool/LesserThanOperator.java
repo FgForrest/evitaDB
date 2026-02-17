@@ -43,7 +43,7 @@ import java.util.Objects;
 
 /**
  * Implementation of the LesserThanOperator that evaluates whether the result of the
- * leftOperator is lesser than or equal to the result of the rightOperator.
+ * leftOperator is lesser than the result of the rightOperator.
  *
  * The operands must be instances of {@link Comparable}.
  * The comparison is performed by converting the right operand to the type of the left operand.
@@ -60,7 +60,7 @@ public class LesserThanOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public LesserThanOperator(ExpressionNode leftOperator, ExpressionNode rightOperator) {
+	public LesserThanOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
 		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};

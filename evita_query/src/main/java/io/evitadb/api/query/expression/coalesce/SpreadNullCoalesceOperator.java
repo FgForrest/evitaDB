@@ -38,7 +38,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -117,9 +119,11 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 		@Nonnull Collection<?> collection,
 		@Nullable Serializable defaultValue
 	) {
-		final List<Serializable> mappedCollection = collection.stream()
-			.map(item -> coalesceItem(item, defaultValue))
-			.toList();
+		List<Serializable> mappedCollection = new ArrayList<>(collection.size());
+		for (final Object item : collection) {
+			mappedCollection.add(coalesceItem(item, defaultValue));
+		}
+		mappedCollection = Collections.unmodifiableList(mappedCollection);
 
 		Assert.isPremiseValid(
 			mappedCollection instanceof Serializable,

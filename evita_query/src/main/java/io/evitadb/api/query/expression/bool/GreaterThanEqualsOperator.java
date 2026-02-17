@@ -60,7 +60,7 @@ public class GreaterThanEqualsOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public GreaterThanEqualsOperator(ExpressionNode leftOperator, ExpressionNode rightOperator) {
+	public GreaterThanEqualsOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
 		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};

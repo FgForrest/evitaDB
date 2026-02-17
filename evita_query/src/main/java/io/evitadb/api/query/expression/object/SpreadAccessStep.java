@@ -35,7 +35,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -105,18 +107,21 @@ public class SpreadAccessStep implements ObjectAccessStep {
 		@Nonnull ExpressionEvaluationContext context,
 		@Nonnull Collection<?> collection
 	) {
-		final List<Serializable> mappedCollection = collection.stream()
-			.map(item -> {
-				if (item != null && !(item instanceof Serializable)) {
-					throw new ExpressionEvaluationException(
-						"Cannot access item `" + item.getClass().getName() + "`. Expected serializable item.",
-						"Unexpected internal error occurred while accessing collection."
-					);
-				}
-				return mapItem(context, (Serializable) item);
-			})
-			.filter(item -> item != null || !this.compact)
-			.toList();
+		List<Serializable> mappedCollection = new ArrayList<>(collection.size());
+		for (final Object item : collection) {
+			if (item != null && !(item instanceof Serializable)) {
+				throw new ExpressionEvaluationException(
+					"Cannot access item `" + item.getClass().getName() + "`. Expected serializable item.",
+					"Unexpected internal error occurred while accessing collection."
+				);
+			}
+			final Serializable mapped =
+				mapItem(context, (Serializable) item);
+			if (mapped != null || !this.compact) {
+				mappedCollection.add(mapped);
+			}
+		}
+		mappedCollection = Collections.unmodifiableList(mappedCollection);
 
 		Assert.isPremiseValid(
 			mappedCollection instanceof Serializable,

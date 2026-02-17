@@ -54,7 +54,7 @@ public class NegativeOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public NegativeOperator(ExpressionNode operator) {
+	public NegativeOperator(@Nonnull ExpressionNode operator) {
 		Assert.isTrue(
 			operator != null,
 			() -> new ParserException("Negation must have at least one operand!")

@@ -37,6 +37,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -72,21 +74,24 @@ public class FunctionOperator implements ExpressionNode {
 	@Nullable
 	@Override
 	public Serializable compute(@Nonnull ExpressionEvaluationContext context) throws ExpressionEvaluationException {
-		final List<Serializable> arguments = this.argumentOperands.stream()
-			.map(operand -> operand.compute(context))
-			.toList();
-		return this.functionProcessor.process(arguments);
+		final List<Serializable> arguments =
+			new ArrayList<>(this.argumentOperands.size());
+		for (final ExpressionNode operand : this.argumentOperands) {
+			arguments.add(operand.compute(context));
+		}
+		return this.functionProcessor.process(Collections.unmodifiableList(arguments));
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		if (this.functionProcessor instanceof NumericFunctionProcessor numericFunctionProcessor) {
-			return numericFunctionProcessor.determinePossibleRange(
-				this.argumentOperands.stream()
-					.map(ExpressionNode::determinePossibleRange)
-					.toList()
-			);
+			final List<BigDecimalNumberRange> ranges =
+				new java.util.ArrayList<>(this.argumentOperands.size());
+			for (final ExpressionNode operand : this.argumentOperands) {
+				ranges.add(operand.determinePossibleRange());
+			}
+			return numericFunctionProcessor.determinePossibleRange(Collections.unmodifiableList(ranges));
 		} else {
 			return BigDecimalNumberRange.INFINITE;
 		}
@@ -99,10 +104,19 @@ public class FunctionOperator implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return this.functionProcessor.getName() + "(" +
-			this.argumentOperands.stream()
-				.map(ExpressionNode::toString)
-				.collect(java.util.stream.Collectors.joining(", ")) +
-			")";
+		final int size = this.argumentOperands.size();
+		// estimate: function name + parens + ~10 chars per arg + separators
+		final StringBuilder sb = new StringBuilder(
+			this.functionProcessor.getName().length() + 2 + size * 12
+		);
+		sb.append(this.functionProcessor.getName()).append('(');
+		for (int i = 0; i < size; i++) {
+			if (i > 0) {
+				sb.append(", ");
+			}
+			sb.append(this.argumentOperands.get(i).toString());
+		}
+		sb.append(')');
+		return sb.toString();
 	}
 }

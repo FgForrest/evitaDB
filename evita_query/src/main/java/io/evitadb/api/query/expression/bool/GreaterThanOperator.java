@@ -60,7 +60,7 @@ public class GreaterThanOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public GreaterThanOperator(ExpressionNode leftOperator, ExpressionNode rightOperator) {
+	public GreaterThanOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
 		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
@@ -72,12 +72,12 @@ public class GreaterThanOperator implements ExpressionNode {
 		final Serializable value1 = this.leftOperator.compute(context);
 		Assert.isTrue(
 			value1 instanceof Comparable,
-			() -> new ParserException("Greater than or equals function operand must be comparable!")
+			() -> new ParserException("Greater than function operand must be comparable!")
 		);
 		final Serializable value2 = this.rightOperator.compute(context);
 		Assert.isTrue(
 			value2 instanceof Comparable,
-			() -> new ParserException("Greater than or equals function operand must be comparable!")
+			() -> new ParserException("Greater than function operand must be comparable!")
 		);
 		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked

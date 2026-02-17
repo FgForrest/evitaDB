@@ -56,10 +56,10 @@ public class NestedOperator implements ExpressionNode {
 	@Getter
 	private final ExpressionNode[] children;
 
-	public NestedOperator(ExpressionNode operator) {
+	public NestedOperator(@Nonnull ExpressionNode operator) {
 		Assert.isTrue(
 			operator != null,
-			() -> new ParserException("Inversion function must have at least one operand!")
+			() -> new ParserException("Nested operator must have at least one operand!")
 		);
 		this.operator = operator;
 		this.children = new ExpressionNode[]{this.operator};
