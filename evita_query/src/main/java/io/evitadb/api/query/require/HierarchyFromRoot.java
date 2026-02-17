@@ -48,42 +48,43 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * The `fromRoot` requirement computes the hierarchy tree starting from the "virtual" invisible top root of
- * the hierarchy, regardless of the potential use of the {@link HierarchyWithin} constraint in the filtering part of
- * the query. The scope of the calculated information can be controlled by the stopAt constraint. By default,
- * the traversal goes all the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere.
- * If you need to access statistical data, use statistics constraint. Calculated data is not affected by
- * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
- * category Accessories, while still allowing you to correctly compute menu at root level.
+ * Computes a hierarchy tree starting from the "virtual" invisible top root of the hierarchy, regardless of any
+ * {@link HierarchyWithin} filter constraint used in the same query. This makes it ideal for rendering complete
+ * navigation structures such as mega-menus, even when the query itself is filtered to a specific subtree.
  *
- * Please keep in mind that the full statistic calculation can be particularly expensive in the case of the fromRoot
- * requirement - it usually requires aggregation for the entire queried dataset (see more information about
- * the calculation).
+ * The traversal goes all the way to the leaf nodes unless limited by a {@link HierarchyStopAt} inner constraint.
+ * Statistical counts (child node counts, queried entity counts) can be added via a {@link HierarchyStatistics}
+ * inner constraint.
  *
- * The constraint accepts following arguments:
+ * **Interaction with `hierarchyWithin` filter:**
  *
- * - mandatory String argument specifying the output name for the calculated data structure
- * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
- *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
- *   present:
+ * The pivot node specified in `hierarchyWithin` does not affect which nodes `fromRoot` starts from — it always
+ * starts from the top. However, the `having`, `anyHaving`, and `excluding` inner constraints of `hierarchyWithin`
+ * _are_ respected during statistics computation, ensuring that entity counts stay consistent with what the user
+ * would see when navigating to a given node.
  *
- *      - {@link EntityFetch}
- *      - {@link HierarchyStopAt}
- *      - {@link HierarchyStatistics}
+ * **Performance note:** Computing {@link StatisticsType#QUERIED_ENTITY_COUNT} for `fromRoot` on large datasets is
+ * expensive because it requires aggregation across the entire indexed dataset. Consider using
+ * {@link StatisticsType#CHILDREN_COUNT} alone, or applying a tight {@link HierarchyStopAt} to limit the traversal
+ * depth when full statistics are not required. Caching is recommended for production use.
  *
- * The following query lists products in category Audio and its subcategories. Along with the returned products, it also
- * requires a computed megaMenu data structure that lists the top 2 levels of the Category hierarchy tree with
- * a computed count of child categories for each menu item and an aggregated count of all filtered products that would
- * fall into the given category.
+ * **Required arguments:**
  *
- * <pre>
+ * - mandatory `outputName` (`String`): key under which the computed result is registered in the extra results map
+ *
+ * **Optional inner constraints:**
+ *
+ * - {@link EntityFetch}: specifies which data to fetch for each hierarchy entity in the result
+ * - {@link HierarchyStopAt}: limits how deep the traversal descends
+ * - {@link HierarchyStatistics}: requests computation of `CHILDREN_COUNT` and/or `QUERIED_ENTITY_COUNT` per node
+ *
+ * **Example — full top-2-level mega-menu while filtering products in the Audio category:**
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "audio")
- *         )
+ *         hierarchyWithin("categories", attributeEquals("code", "audio"))
  *     ),
  *     require(
  *         hierarchyOfReference(
@@ -92,29 +93,20 @@ import static java.util.Optional.of;
  *                 "megaMenu",
  *                 entityFetch(attributeContent("code")),
  *                 stopAt(level(2)),
- *                 statistics(
- *                     CHILDREN_COUNT,
- *                     QUERIED_ENTITY_COUNT
- *                 )
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
  *             )
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * The calculated result for `fromRoot` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
- * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
- * or {@link HierarchyExcluding}, the `fromRoot` respects them. The reason is simple: when you render a menu for
- * the query result, you want the calculated statistics to respect the rules that apply to the {@link HierarchyWithin}
- * so that the calculated number remains consistent for the end user.
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#from-root)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "fromRoot",
-	shortDescription = "The constraint triggers computing the hierarchy subtree starting at root level.",
+	shortDescription = "The constraint computes a full hierarchy tree starting from the invisible top root, regardless of any hierarchyWithin filter.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#from-root",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
@@ -122,7 +114,11 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 	@Serial private static final long serialVersionUID = 8754876413427697151L;
 	private static final String CONSTRAINT_NAME = "fromRoot";
 
-	public HierarchyFromRoot(@Nonnull String outputName, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+	public HierarchyFromRoot(
+		@Nonnull String outputName,
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
 		for (RequireConstraint requireConstraint : children) {
 			Assert.isTrue(
@@ -227,7 +223,10 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new HierarchyFromRoot(getOutputName(), children, additionalChildren);
 	}
 

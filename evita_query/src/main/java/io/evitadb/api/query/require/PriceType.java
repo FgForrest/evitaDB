@@ -34,29 +34,33 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `useOfPrice` require constraint can be used to control the form of prices that will be used for computation in
- * {@link io.evitadb.api.query.filter.PriceBetween} filtering, and {@link PriceNatural},
- * ordering. Also {@link PriceHistogram} is sensitive to this setting.
+ * The `priceType` require constraint selects which price variant — with tax or without tax — is used as the operative
+ * price for all price-sensitive computations in the query. Specifically it affects:
  *
- * By default, end customer form of price (e.g. price with tax) is used in all above-mentioned constraints. This could
- * be changed by using this requirement query. It has single argument that can have one of the following values:
+ * - {@link io.evitadb.api.query.filter.PriceBetween} — the range filter is applied against the selected price variant.
+ * - {@link PriceNatural} ordering — entities are sorted by the selected price variant.
+ * - {@link PriceHistogram} — the histogram buckets are built from the selected price variant.
  *
- * - WITH_TAX
- * - WITHOUT_TAX
+ * When the constraint is absent, the default operative price is **with tax** ({@link QueryPriceMode#WITH_TAX}), which
+ * is the appropriate default for B2C (consumer-facing) storefronts. B2B storefronts that display prices without VAT
+ * should explicitly set `priceType(WITHOUT_TAX)`.
  *
- * Example:
+ * The constraint accepts a single mandatory argument of type {@link QueryPriceMode}.
  *
+ * **Example**
+ *
+ * ```evitaql
+ * priceType(WITH_TAX)
+ * priceType(WITHOUT_TAX)
  * ```
- * useOfPrice(WITH_TAX)
- * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/price#price-type">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/price#price-type)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "type",
-	shortDescription = "The constraint specifies which price type (with/without tax) will be used for handling filtering and sorting constraints.",
+	shortDescription = "The constraint selects which price variant (with or without tax) is used for price filtering, sorting, and histogram computation.",
 	userDocsLink = "/documentation/query/requirements/price#price-type"
 )
 public class PriceType extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint> {
@@ -68,8 +72,9 @@ public class PriceType extends AbstractRequireConstraintLeaf implements PriceCon
 	}
 
 	/**
-	 * Returns number of the items that should be omitted in the result.
+	 * Returns the price mode that determines which form of price (with or without tax) should be used.
 	 */
+	@Nonnull
 	public QueryPriceMode getQueryPriceMode() {
 		return (QueryPriceMode) getArguments()[0];
 	}
@@ -82,7 +87,7 @@ public class PriceType extends AbstractRequireConstraintLeaf implements PriceCon
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new PriceType(getQueryPriceMode());
+		return new PriceType((QueryPriceMode) newArguments[0]);
 	}
 
 }

@@ -38,41 +38,58 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * The `priceHistogram` is computed from the price for sale. The interval related constraints - i.e. {@link AttributeBetween}
- * and {@link PriceBetween} in the userFilter part are excluded for the sake of histogram calculation. If this weren't
- * the case, the user narrowing the filtered range based on the histogram results would be driven into a narrower and
- * narrower range and eventually into a dead end.
+ * The `priceHistogram` require constraint triggers computation of a value-distribution histogram based on the
+ * *price for sale* of the queried entities. The resulting histogram is included in the extra-results section of the
+ * response and is intended to power a price-range slider or similar UI component.
  *
- * It accepts two arguments:
+ * **How it works**
  *
- * 1. The number of buckets (columns) the histogram should contain.
- * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
- *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
- *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+ * The histogram is built from the prices of entities that pass the *mandatory* part of the `filterBy` constraint.
+ * {@link AttributeBetween} and {@link PriceBetween} constraints placed inside `userFilter` are intentionally excluded
+ * from the histogram calculation — the same rationale as for {@link AttributeHistogram}: without this exclusion a
+ * user narrowing the price range would progressively shrink the available range until reaching a dead end.
  *
- * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
- * visualizes the price with tax.
+ * The price variant used for the histogram (with tax vs. without tax) is determined by the {@link PriceType} require
+ * constraint present in the same query. When no `priceType` constraint is specified, the histogram defaults to the
+ * *price with tax* (consumer-facing price).
  *
- * Example:
+ * **Arguments**
  *
- * <pre>
+ * 1. `requestedBucketCount` (int, required) — the number of histogram buckets (columns) to produce.
+ * 2. `behavior` ({@link HistogramBehavior}, optional, default `STANDARD`) — controls how bucket boundaries are
+ *    positioned and whether empty buckets are suppressed:
+ *    - `STANDARD`: exactly the requested number of equal-width buckets.
+ *    - `OPTIMIZED`: up to the requested count, empty buckets are dropped for a denser result.
+ *    - `EQUALIZED`: frequency-equalised boundaries so each bucket covers roughly the same number of entities.
+ *    - `EQUALIZED_OPTIMIZED`: frequency-equalised boundaries with empty-bucket suppression combined.
+ *
+ * **ConstraintWithDefaults behaviour**
+ *
+ * `STANDARD` is an implicit (default) argument and is omitted from the EvitaQL string representation
+ * (`priceHistogram(20)` rather than `priceHistogram(20,STANDARD)`).
+ *
+ * **Example**
+ *
+ * ```evitaql
  * priceHistogram(20)
  * priceHistogram(20, OPTIMIZED)
- * </pre>
+ * priceHistogram(50, EQUALIZED)
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/histogram#price-histogram)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "histogram",
-	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of price for sale into response.",
+	shortDescription = "The constraint triggers computation of a price-for-sale histogram into response extra results.",
 	userDocsLink = "/documentation/query/requirements/histogram#price-histogram"
 )
-public class PriceHistogram extends AbstractRequireConstraintLeaf implements ConstraintWithDefaults<RequireConstraint>, PriceConstraint<RequireConstraint>, ExtraResultRequireConstraint {
+public class PriceHistogram extends AbstractRequireConstraintLeaf
+	implements ConstraintWithDefaults<RequireConstraint>, PriceConstraint<RequireConstraint>, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 7734875430759525982L;
 
-	private PriceHistogram(Serializable... arguments) {
+	private PriceHistogram(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

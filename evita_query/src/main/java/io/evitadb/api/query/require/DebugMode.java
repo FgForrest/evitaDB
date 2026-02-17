@@ -26,7 +26,21 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * Determines the extra mode for the query planning and execution to support our integration tests.
+ * Enumerates the internal debug modes that can be activated via the {@link Debug} require constraint. These modes
+ * are exclusively for use in integration tests and internal verification — they must never be used in production
+ * queries because they introduce significant additional computation.
+ *
+ * Each value targets a specific aspect of the query engine's correctness:
+ *
+ * - `VERIFY_ALTERNATIVE_INDEX_RESULTS` — exercises index redundancy by computing the query result through every
+ *   available alternative index (e.g. both a sorted and an inverted index for the same attribute) and asserting
+ *   that all paths produce bit-identical result sets. Detects inconsistencies between index implementations.
+ * - `VERIFY_POSSIBLE_CACHING_TREES` — exercises the formula caching layer by materialising every possible variant
+ *   of the query formula tree where sub-trees can be swapped with cached versions, and verifying that all
+ *   variants produce identical results. Detects caching bugs.
+ * - `PREFER_PREFETCHING` — overrides the cost-based strategy selector and unconditionally uses the prefetch
+ *   strategy whenever the query's filter constraints make prefetching feasible. Used to exercise the prefetch
+ *   code path that would otherwise be skipped for large datasets where the index scan is cheaper.
  */
 @SupportedEnum
 public enum DebugMode {

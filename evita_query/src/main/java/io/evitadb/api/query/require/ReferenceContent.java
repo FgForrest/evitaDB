@@ -60,47 +60,43 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * The `referenceContent` requirement allows you to access the information about the references the entity has towards
- * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
- * doesn't return the attributes set on the reference itself - if you need those attributes, use the
- * `referenceContentWithAttributes` variant of it.
+ * The `referenceContent` requirement fetches one or more named reference groups from the entity, returning the primary
+ * keys of the referenced entities and, optionally, their full bodies. It must be placed inside {@link EntityFetch}.
+ * Without it, references are not included in the result.
  *
- * Example:
+ * evitaDB references model associations between entities (e.g., product → brand, product → categories, product →
+ * parameter values). A reference record stores the target entity's primary key, an optional reference group,
+ * and optional reference-level attributes (metadata about the relationship itself, such as "sortOrder" or
+ * "isPrimary").
  *
- * <pre>
+ * ## Reference attribute variant
+ *
+ * The basic `referenceContent("name")` form returns only the reference primary keys (and any inline {@link EntityFetch}
+ * / {@link EntityGroupFetch} bodies) but does **not** include the attributes stored on the reference record.
+ * To retrieve reference attributes as well, use `referenceContentWithAttributes("name", attributeContent(...))` or
+ * `referenceContentAllWithAttributes()`.
+ *
+ * ## Managed references behaviour
+ *
+ * By default ({@link ManagedReferencesBehaviour#ANY}), all references are returned regardless of whether the target
+ * entity actually exists in the database. Set {@link ManagedReferencesBehaviour#EXISTING} to silently suppress
+ * references pointing to non-existent entities — useful when referential integrity is not strictly enforced.
+ *
+ * Example — returning brand reference only if the brand entity exists:
+ *
+ * ```
  * entityFetch(
- *    attributeContent("code"),
- *    referenceContent("brand"),
- *    referenceContent("categories")
+ *     referenceContent(EXISTING, "brand"),
+ *     referenceContent(ANY, "categories")
  * )
- * </pre>
+ * ```
  *
- * ## Excluding references to non-existing managed references
+ * ## Fetching referenced entity bodies
  *
- * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
- * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
- * this behavior.
+ * Nested {@link EntityFetch} and {@link EntityGroupFetch} constraints inside `referenceContent` instruct the engine
+ * to load the full bodies of the referenced entities and their group entities respectively:
  *
- * Example:
- *
- * <pre>
- * entityFetch(
- *    attributeContent("code"),
- *    referenceContent(EXISTING, "brand"),
- *    referenceContent(ANY, "categories")
- * )
- * </pre>
- *
- * This query will return brand entity only if the target brand entity is present in the database while categories
- * reference will be returned regardless of the target entity existence.
- *
- * ## Referenced entity (group) fetching
- *
- * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
- * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
- * a product:
- *
- * <pre>
+ * ```
  * referenceContent(
  *     "parameterValues",
  *     entityFetch(
@@ -110,22 +106,15 @@ import static java.util.Optional.ofNullable;
  *         attributeContent("code")
  *     )
  * )
- * </pre>
+ * ```
  *
  * ## Filtering references
  *
- * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
- * you can use the filter constraint to filter out the references you don't need.
+ * A nested `filterBy` constraint can reduce the returned reference set. Filter constraints inside `referenceContent`
+ * implicitly target attributes on the reference record itself. To filter on the referenced entity's attributes, wrap
+ * them in an {@link EntityHaving} container:
  *
- * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
- * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
- * you must wrap them in the {@link EntityHaving} container constraint.
- *
- * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
- * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
- * use the following query:
- *
- * <pre>
+ * ```
  * referenceContent(
  *     "parameterValues",
  *     filterBy(
@@ -138,29 +127,18 @@ import static java.util.Optional.ofNullable;
  *             )
  *         )
  *     ),
- *     entityFetch(
- *         attributeContent("code")
- *     ),
- *     entityGroupFetch(
- *         attributeContent("code", "isVisibleInDetail")
- *     )
+ *     entityFetch(attributeContent("code")),
+ *     entityGroupFetch(attributeContent("code", "isVisibleInDetail"))
  * )
- * </pre>
+ * ```
  *
- * ##Ordering references
+ * ## Ordering references
  *
- * By default, the references are ordered by the primary key of the referenced entity. If you want to order
- * the references by a different property - either the attribute set on the reference itself or the property of the
- * referenced entity - you can use the order constraint inside the referenceContent requirement.
+ * References are ordered by referenced entity primary key by default. A nested `orderBy` constraint can change this.
+ * Like the filter, ordering implicitly operates on reference attributes; use `entityProperty` to sort by referenced
+ * entity attributes:
  *
- * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
- * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
- * you must wrap them in the entityHaving container constraint.
- *
- * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
- * query:
- *
- * <pre>
+ * ```
  * referenceContent(
  *     "parameterValues",
  *     orderBy(
@@ -168,24 +146,38 @@ import static java.util.Optional.ofNullable;
  *             attributeNatural("name", ASC)
  *         )
  *     ),
- *     entityFetch(
- *         attributeContent("name")
- *     )
+ *     entityFetch(attributeContent("name"))
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+ * ## Paginating large reference sets
+ *
+ * For entities with very large reference sets, a nested {@link Page} or {@link Strip} chunking constraint can
+ * limit how many references are returned in a single request.
+ *
+ * ## Wildcard form
+ *
+ * `referenceContentAll()` returns all references of all types without specifying individual reference names. Use
+ * `referenceContentAllWithAttributes()` to also include all reference-level attributes.
+ *
+ * ## Aliased instances
+ *
+ * The same reference type can appear multiple times in a single `entityFetch` under different logical names (aliases),
+ * allowing different filtering/ordering configurations to be applied to the same reference type simultaneously.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#reference-content)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "content",
-	shortDescription = "The constraint triggers fetching referenced entity bodies into returned main entities.",
+	shortDescription = "The constraint triggers fetching entity references and optionally their referenced entity bodies into the returned entities.",
 	userDocsLink = "/documentation/query/requirements/fetching#reference-content",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceContent extends AbstractRequireConstraintContainer
-	implements ConstraintWithDefaults<RequireConstraint>, ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintContainerWithSuffix {
+	implements ConstraintWithDefaults<RequireConstraint>, ReferenceConstraint<RequireConstraint>,
+	SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintContainerWithSuffix {
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
 	private static final String SUFFIX_ALL = "all";
@@ -344,14 +336,21 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		);
 	}
 
-	public ReferenceContent(@Nullable ManagedReferencesBehaviour managedReferences, @Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nonnull String referenceName,
+		@Nullable AttributeContent attributeContent
+	) {
 		super(
 			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY), referenceName},
 			attributeContent
 		);
 	}
 
-	public ReferenceContent(@Nullable ManagedReferencesBehaviour managedReferences, @Nullable AttributeContent attributeContent) {
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nullable AttributeContent attributeContent
+	) {
 		super(
 			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 			attributeContent
@@ -656,7 +655,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	/**
 	 * Returns name of reference which should be loaded along with entity.
-	 * Note: this can be used only if there is single reference name. Otherwise {@link #getReferenceNames()} should be used.
+	 * Note: this can be used only if there is single reference name.
+	 * Otherwise {@link #getReferenceNames()} should be used.
 	 */
 	@Nonnull
 	public String getReferenceName() {
@@ -858,8 +858,14 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
+		if (additionalChildren.length > 2 ||
+			(additionalChildren.length == 2 &&
+				(!FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) ||
+				!OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType())))) {
 			throw new EvitaInvalidUsageException("Expected single or no additional filter and order child query.");
 		}
 		return new ReferenceContent(
@@ -906,14 +912,16 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			final Optional<EntityFetch> thatEntityRequirement = referenceContent.getEntityRequirement();
 			final Optional<EntityFetch> thisEntityRequirement = getEntityRequirement();
 			if (thisEntityRequirement.isPresent()) {
-				if (thatEntityRequirement.isEmpty() || !thisEntityRequirement.get().isFullyContainedWithin(thatEntityRequirement.get())) {
+				if (thatEntityRequirement.isEmpty() ||
+				!thisEntityRequirement.get().isFullyContainedWithin(thatEntityRequirement.get())) {
 					return false;
 				}
 			}
 			final Optional<EntityGroupFetch> thatGroupEntityRequirement = referenceContent.getGroupEntityRequirement();
 			final Optional<EntityGroupFetch> thisGroupEntityRequirement = getGroupEntityRequirement();
 			if (thisGroupEntityRequirement.isPresent()) {
-				if (thatGroupEntityRequirement.isEmpty() || !thisGroupEntityRequirement.get().isFullyContainedWithin(thatGroupEntityRequirement.get())) {
+				if (thatGroupEntityRequirement.isEmpty() ||
+				!thisGroupEntityRequirement.get().isFullyContainedWithin(thatGroupEntityRequirement.get())) {
 					return false;
 				}
 			}
@@ -935,7 +943,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
-		Assert.isTrue(anotherRequirement instanceof ReferenceContent, "Only References requirement can be combined with this one!");
+		Assert.isTrue(
+			anotherRequirement instanceof ReferenceContent,
+			"Only References requirement can be combined with this one!"
+		);
 		if (isAllRequested()) {
 			return (T) this;
 		} else {
@@ -958,7 +969,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 					);
 				}
 			} else {
-				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour() ?
+				final ManagedReferencesBehaviour managedReferencesBehaviour =
+				getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour() ?
 					getManagedReferencesBehaviour() : ManagedReferencesBehaviour.EXISTING;
 				final String[] referenceNames = isAllRequested() || anotherReferenceContent.isAllRequested() ?
 					new String[0] :
@@ -1006,7 +1018,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 						"Cannot combine multiple requirements with entity fetch: " + this + " and " + anotherRequirement,
 						"Cannot combine multiple requirements with entity fetch."
 					);
-				} else if (this.getGroupEntityRequirement().isPresent() || anotherReferenceContent.getGroupEntityRequirement().isPresent()) {
+				} else if (this.getGroupEntityRequirement().isPresent() ||
+				anotherReferenceContent.getGroupEntityRequirement().isPresent()) {
 					throw new EvitaInvalidUsageException(
 						"Cannot combine multiple requirements with entity group fetch: " + this + " and " + anotherRequirement,
 						"Cannot combine multiple requirements with entity group fetch."

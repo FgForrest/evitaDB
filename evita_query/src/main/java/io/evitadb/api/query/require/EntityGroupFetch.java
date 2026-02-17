@@ -39,12 +39,29 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 /**
- * The `entityGroupFetch` requirement is similar to {@link EntityFetch} but is used to trigger loading one or more
- * referenced group entities in the {@link ReferenceContent} parent.
+ * The `entityGroupFetch` requirement is the group-entity counterpart to {@link EntityFetch}. While `entityFetch`
+ * retrieves the bodies of the *referenced* entities, `entityGroupFetch` retrieves the bodies of the *group* entities
+ * that those references belong to. It is only meaningful inside a {@link ReferenceContent} constraint.
  *
- * Example:
+ * In evitaDB, references can be classified into named groups. For example, product parameters belong to parameter
+ * groups. When displaying a product detail page, you may need not only the parameter values (fetched via
+ * `entityFetch`) but also the group entity bodies (fetched via `entityGroupFetch`) to obtain group names and
+ * attributes for display purposes.
  *
- * <pre>
+ * Like {@link EntityFetch}, `entityGroupFetch` accepts any combination of {@link EntityContentRequire}
+ * sub-requirements to specify which data to load for each group entity:
+ *
+ * - {@link AttributeContent} — group entity attributes
+ * - {@link AssociatedDataContent} — group entity associated data
+ * - {@link PriceContent} — group entity prices
+ * - {@link HierarchyContent} — group entity parent chain
+ * - {@link ReferenceContent} — group entity's own references
+ *
+ * An empty `entityGroupFetch()` loads only the group entity body without any additional data containers.
+ *
+ * Example — fetching product parameters together with their group entities:
+ *
+ * ```
  * query(
  *     collection("Brand"),
  *     filterBy(
@@ -54,31 +71,23 @@ import java.util.stream.Stream;
  *     require(
  *         entityFetch(
  *             referenceContent(
- *                "parameterValues",
- *                entityGroupFetch(
- *                   attributeContent("code", "name")
- *                )
-*              )
+ *                 "parameterValues",
+ *                 entityGroupFetch(
+ *                     attributeContent("code", "name")
+ *                 )
+ *             )
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * See internal contents available for fetching in {@link EntityContentRequire}:
- *
- * - {@link AttributeContent}
- * - {@link AssociatedDataContent}
- * - {@link PriceContent}
- * - {@link HierarchyContent}
- * - {@link ReferenceContent}
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch)
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
 	name = "groupFetch",
-	shortDescription = "Returns richer group entities instead of just entity references (empty container returns only entity body).",
+	shortDescription = "The constraint triggers loading full group entity bodies instead of just primary key references inside reference content contexts.",
 	userDocsLink = "/documentation/query/requirements/fetching#entity-group-fetch",
 	supportedIn = {ConstraintDomain.FACET}
 )
@@ -86,7 +95,7 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 
 	@Serial private static final long serialVersionUID = -781235795350040285L;
 
-	private EntityGroupFetch(RequireConstraint[] requireConstraints) {
+	private EntityGroupFetch(@Nonnull RequireConstraint[] requireConstraints) {
 		super(requireConstraints);
 	}
 
@@ -157,7 +166,10 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new EntityGroupFetch(children);
 	}
 }

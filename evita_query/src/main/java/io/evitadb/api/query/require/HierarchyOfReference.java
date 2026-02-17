@@ -46,48 +46,69 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 
 /**
- * The requirement triggers the calculation of the Hierarchy data structure for the hierarchies of the referenced entity
- * type.
+ * Triggers computation of hierarchy data structures from the hierarchical entity type that is _referenced_ by
+ * the queried entity. For example, if you are querying Product entities and want to compute a category tree
+ * navigation based on the `categories` reference, use this constraint.
  *
- * The hierarchy of reference can still be combined with {@link HierarchyOfSelf} if the queried entity is a hierarchical
- * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
+ * This is the complement of {@link HierarchyOfSelf}: while `hierarchyOfSelf` operates on the queried entity's own
+ * hierarchy, `hierarchyOfReference` operates on a hierarchy reached through a named reference. Both constraints can
+ * appear together in a single query for unusual scenarios where the queried entity is itself hierarchical and also
+ * references another hierarchy.
  *
- * The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
- * settings for different reference types.
+ * The constraint may be repeated multiple times in a single query, once per reference type, when different
+ * hierarchy traversal settings are needed for different references.
  *
- * The constraint accepts following arguments:
+ * **Required arguments:**
  *
- * - specification of one or more reference names that identify the reference to the target hierarchical entity for
- *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
- *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
- *   that the same requirements apply to different references of the queried entity.
- * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
- *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
- *   filter constraint assigned to them - either directly or transitively):
+ * - one or more reference names (classifier strings) identifying which reference(s) lead to the target hierarchical
+ *   entity type; if multiple reference names share the same traversal requirements, they can be passed together
  *
- *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
- *        structures
- *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
- *        structures (default behavior)
+ * **Optional arguments:**
  *
- * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
- *   hierarchy data structure
- * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
- *   the constraints may be present:
+ * - {@link EmptyHierarchicalEntityBehaviour}: controls whether hierarchy nodes that contain no queried entities
+ *   (neither directly nor transitively through their subtree) are included in the result:
+ *     - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY} _(default)_: empty nodes are pruned from the tree
+ *     - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty nodes remain in the computed data structure
+ * - an `OrderBy` constraint (as an additional child) controlling the sort order of `LevelInfo` elements within
+ *   the computed hierarchy output
  *
- *      - {@link HierarchyFromRoot}
- *      - {@link HierarchyFromNode}
- *      - {@link HierarchySiblings}
- *      - {@link HierarchyChildren}
- *      - {@link HierarchyParents}
+ * **Required sub-constraints (at least one must be present):**
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
+ * - {@link HierarchyFromRoot}: starts traversal from the virtual top root of the hierarchy
+ * - {@link HierarchyFromNode}: starts traversal from a dynamically identified pivot node
+ * - {@link HierarchyChildren}: computes children of the node targeted by the current filter's `hierarchyWithin`
+ * - {@link HierarchyParents}: traverses the ancestor axis from the current filtered node toward the root
+ * - {@link HierarchySiblings}: lists siblings of the node targeted by the current filter's `hierarchyWithin`
+ *
+ * **Example — compute a category mega-menu for products filtered within a category:**
+ *
+ * ```evitaql
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin("categories", attributeEquals("code", "audio"))
+ *     ),
+ *     require(
+ *         hierarchyOfReference(
+ *             "categories",
+ *             fromRoot(
+ *                 "megaMenu",
+ *                 entityFetch(attributeContent("code")),
+ *                 stopAt(level(2)),
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
+ *             )
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "ofReference",
-	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response.",
+	shortDescription = "The constraint triggers computation of hierarchy data structures (tree, statistics, parent chain) for a referenced hierarchical entity type.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#hierarchy-of-reference"
 )
 public class HierarchyOfReference extends AbstractRequireConstraintContainer
@@ -173,8 +194,8 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	}
 
 	/**
-	 * Returns name of the reference this hierarchy query relates to. If there are multiple references, the {@link #getReferenceNames()}
-	 * must be used.
+	 * Returns name of the reference this hierarchy query relates to. If there are multiple references,
+	 * the {@link #getReferenceNames()} must be used.
 	 */
 	@Nonnull
 	public String getReferenceName() {
@@ -247,7 +268,10 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new HierarchyOfReference(getArguments(), children, additionalChildren);
 	}
 

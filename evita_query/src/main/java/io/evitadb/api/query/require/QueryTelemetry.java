@@ -33,16 +33,31 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `queryTelemetry` requirement triggers creation of the {@link QueryTelemetry} DTO and including it the evitaDB
- * response.
+ * The `queryTelemetry` require constraint instructs the engine to measure and expose detailed query execution
+ * metrics. When present, the response's extra-results section will contain an
+ * {@link io.evitadb.api.requestResponse.extraResult.QueryTelemetry} DTO with a hierarchical breakdown of all
+ * operations performed during query processing, including:
  *
- * Example:
+ * - the query phase (`operation`) — e.g. parsing, filtering, ordering, fetching
+ * - the wall-clock start time in nanoseconds (`start`)
+ * - sub-steps (`steps`) that recursively decompose each phase into its constituent operations
+ * - phase-specific arguments (`arguments`) — for example, the constraint name being evaluated
+ * - total wall time spent in each phase (`spentTime`, nanoseconds)
  *
- * <pre>
+ * This information is invaluable for diagnosing slow queries: it reveals which phase dominates the execution time
+ * and exposes the internal formula-tree evaluation hierarchy.
+ *
+ * The constraint takes no arguments and is never implicit — it must be explicitly included when telemetry is needed.
+ * Because gathering telemetry adds measurable overhead (instrumentation at each formula evaluation), it should be
+ * disabled in production hot paths and reserved for development, debugging, or profiling sessions.
+ *
+ * **Example**
+ *
+ * ```evitaql
  * queryTelemetry()
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/debug#query-telemetry">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/debug#query-telemetry)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -54,7 +69,7 @@ import java.io.Serializable;
 public class QueryTelemetry extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -5121347556508500340L;
 
-	private QueryTelemetry(Serializable... arguments) {
+	private QueryTelemetry(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

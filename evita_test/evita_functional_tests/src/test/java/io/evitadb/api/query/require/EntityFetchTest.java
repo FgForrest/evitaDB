@@ -26,162 +26,306 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.exception.GenericEvitaInternalError;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link EntityFetch} query.
+ * Tests for {@link EntityFetch} verifying construction, applicability, combining, containment, cloning, visitor support,
+ * string representation, and equality.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("EntityFetch constraint")
 class EntityFetchTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final EntityFetch entityFetch = entityFetch();
-		assertNotNull(entityFetch);
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
 
-		final EntityFetch entityFetch2 = entityFetch(attributeContentAll(), associatedDataContentAll());
-		assertArrayEquals(new EntityContentRequire[]{attributeContentAll(), associatedDataContentAll()}, entityFetch2.getRequirements());
+		@Test
+		@DisplayName("should create empty entity fetch via factory")
+		void shouldCreateEmptyEntityFetchViaFactory() {
+			final EntityFetch entityFetch = entityFetch();
+
+			assertNotNull(entityFetch);
+			assertArrayEquals(new EntityContentRequire[0], entityFetch.getRequirements());
+		}
+
+		@Test
+		@DisplayName("should create entity fetch with requirements via factory")
+		void shouldCreateEntityFetchWithRequirementsViaFactory() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll(), associatedDataContentAll());
+
+			assertArrayEquals(new EntityContentRequire[]{attributeContentAll(), associatedDataContentAll()}, entityFetch.getRequirements());
+		}
+
+		@Test
+		@DisplayName("should create entity fetch via no-arg constructor")
+		void shouldCreateEntityFetchViaNoArgConstructor() {
+			final EntityFetch entityFetch = new EntityFetch();
+
+			assertNotNull(entityFetch);
+			assertArrayEquals(new EntityContentRequire[0], entityFetch.getRequirements());
+		}
+
+		@Test
+		@DisplayName("should create entity fetch with requirements via constructor")
+		void shouldCreateEntityFetchWithRequirementsViaConstructor() {
+			final EntityFetch entityFetch = new EntityFetch(attributeContentAll(), associatedDataContentAll());
+
+			assertArrayEquals(new EntityContentRequire[]{attributeContentAll(), associatedDataContentAll()}, entityFetch.getRequirements());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertTrue(entityFetch().isApplicable());
-		assertTrue(entityFetch(attributeContentAll()).isApplicable());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should be applicable for empty entity fetch")
+		void shouldBeApplicableForEmptyEntityFetch() {
+			assertTrue(entityFetch().isApplicable());
+		}
+
+		@Test
+		@DisplayName("should be applicable with requirements")
+		void shouldBeApplicableWithRequirements() {
+			assertTrue(entityFetch(attributeContentAll()).isApplicable());
+			assertTrue(entityFetch(attributeContentAll(), associatedDataContentAll()).isApplicable());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final EntityFetch entityFetch = entityFetch();
-		assertEquals("entityFetch()", entityFetch.toString());
+	@Nested
+	@DisplayName("Visitor support")
+	class VisitorSupportTest {
 
-		final EntityFetch entityFetch2 = entityFetch(attributeContentAll());
-		assertEquals("entityFetch(attributeContentAll())", entityFetch2.toString());
+		@Test
+		@DisplayName("should delegate to visitor")
+		void shouldDelegateToVisitor() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll());
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+
+			entityFetch.accept(c -> {
+				visited.set(c);
+			});
+
+			assertSame(entityFetch, visited.get());
+		}
+
+		@Test
+		@DisplayName("should return RequireConstraint type")
+		void shouldReturnRequireConstraintType() {
+			final EntityFetch entityFetch = entityFetch();
+
+			assertEquals(RequireConstraint.class, entityFetch.getType());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(entityFetch(), entityFetch());
-		assertEquals(entityFetch(), entityFetch());
-		assertEquals(entityFetch().hashCode(), entityFetch().hashCode());
-		assertEquals(entityFetch(attributeContentAll()), entityFetch(attributeContentAll()));
-		assertEquals(entityFetch(attributeContentAll()).hashCode(), entityFetch(attributeContentAll()).hashCode());
-		assertNotEquals(entityFetch(), entityFetch(attributeContentAll()));
-		assertNotEquals(entityFetch().hashCode(), entityFetch(attributeContentAll()).hashCode());
+	@Nested
+	@DisplayName("String representation")
+	class StringRepresentationTest {
+
+		@Test
+		@DisplayName("should format toString for empty entity fetch")
+		void shouldFormatToStringForEmptyEntityFetch() {
+			final EntityFetch entityFetch = entityFetch();
+
+			assertEquals("entityFetch()", entityFetch.toString());
+		}
+
+		@Test
+		@DisplayName("should format toString with requirements")
+		void shouldFormatToStringWithRequirements() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll());
+
+			assertEquals("entityFetch(attributeContentAll())", entityFetch.toString());
+		}
+
+		@Test
+		@DisplayName("should format toString with multiple requirements")
+		void shouldFormatToStringWithMultipleRequirements() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll(), associatedDataContentAll());
+
+			assertEquals("entityFetch(attributeContentAll(),associatedDataContentAll())", entityFetch.toString());
+		}
 	}
 
-	@Test
-	void shouldCombineWithNullReturnSelf() {
-		EntityFetch entityFetch = entityFetch(attributeContentAll());
-		assertEquals(entityFetch, entityFetch.combineWith(null));
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should be equal for same empty entity fetches")
+		void shouldBeEqualForSameEmptyEntityFetches() {
+			assertNotSame(entityFetch(), entityFetch());
+			assertEquals(entityFetch(), entityFetch());
+			assertEquals(entityFetch().hashCode(), entityFetch().hashCode());
+		}
+
+		@Test
+		@DisplayName("should be equal for same requirements")
+		void shouldBeEqualForSameRequirements() {
+			assertEquals(entityFetch(attributeContentAll()), entityFetch(attributeContentAll()));
+			assertEquals(entityFetch(attributeContentAll()).hashCode(), entityFetch(attributeContentAll()).hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal for different requirements")
+		void shouldNotBeEqualForDifferentRequirements() {
+			assertNotEquals(entityFetch(), entityFetch(attributeContentAll()));
+			assertNotEquals(entityFetch().hashCode(), entityFetch(attributeContentAll()).hashCode());
+		}
 	}
 
-	@Test
-	void shouldCombineWithDifferentTypeThrowException() {
-		EntityFetch entityFetch = entityFetch(attributeContentAll());
-		assertThrows(GenericEvitaInternalError.class, () -> entityFetch.combineWith(entityGroupFetchAll()));
+	@Nested
+	@DisplayName("Combining with other requirements")
+	class CombiningTest {
+
+		@Test
+		@DisplayName("should combine with null and return self")
+		void shouldCombineWithNullAndReturnSelf() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll());
+
+			assertEquals(entityFetch, entityFetch.combineWith(null));
+		}
+
+		@Test
+		@DisplayName("should throw exception when combining with different type")
+		void shouldThrowExceptionWhenCombiningWithDifferentType() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll());
+
+			assertThrows(GenericEvitaInternalError.class, () -> entityFetch.combineWith(entityGroupFetchAll()));
+		}
+
+		@Test
+		@DisplayName("should combine empty entity fetches")
+		void shouldCombineEmptyEntityFetches() {
+			final EntityFetch entityFetch = entityFetch();
+
+			assertEquals(entityFetch(), entityFetch.combineWith(entityFetch()));
+		}
+
+		@Test
+		@DisplayName("should combine entity fetches with same requirement types")
+		void shouldCombineEntityFetchesWithSameRequirementTypes() {
+			final EntityFetch entityFetch1 = entityFetch(attributeContent("code"));
+			final EntityFetch entityFetch2 = entityFetch(attributeContent("name"));
+			final EntityFetch combined = entityFetch1.combineWith(entityFetch2);
+
+			assertNotSame(entityFetch1, combined);
+			assertNotSame(entityFetch2, combined);
+			assertEquals(entityFetch(attributeContent("code", "name")), combined);
+		}
+
+		@Test
+		@DisplayName("should combine entity fetches with different requirement types")
+		void shouldCombineEntityFetchesWithDifferentRequirementTypes() {
+			final EntityFetch entityFetch1 = entityFetch(attributeContent("code"));
+			final EntityFetch entityFetch2 = entityFetch(associatedDataContent("name"));
+			final EntityFetch combined = entityFetch1.combineWith(entityFetch2);
+
+			assertNotSame(entityFetch1, combined);
+			assertNotSame(entityFetch2, combined);
+			assertEquals(entityFetch(attributeContent("code"), associatedDataContent("name")), combined);
+		}
+
+		@Test
+		@DisplayName("should combine complex entity fetches")
+		void shouldCombineComplexEntityFetches() {
+			final EntityFetch entityFetch1 = entityFetch(attributeContent("code"), associatedDataContentAll());
+			final EntityFetch entityFetch2 = entityFetch(attributeContent("name"));
+			final EntityFetch combined = entityFetch1.combineWith(entityFetch2);
+
+			assertEquals(entityFetch(attributeContent("code", "name"), associatedDataContentAll()), combined);
+		}
 	}
 
-	@Test
-	void shouldCloneWithArgumentsReturnNewInstance() {
-		EntityFetch entityFetch = entityFetch(attributeContentAll());
-		EntityFetch clonedEntityFetch = (EntityFetch) entityFetch.cloneWithArguments(new Serializable[]{});
-		assertNotSame(entityFetch, clonedEntityFetch);
-		assertEquals(entityFetch, clonedEntityFetch);
+	@Nested
+	@DisplayName("Containment checking")
+	class ContainmentTest {
+
+		@Test
+		@DisplayName("should be fully contained within entityFetchAll")
+		void shouldBeFullyContainedWithinEntityFetchAll() {
+			final EntityFetch entityFetch = entityFetch(attributeContent("a"), hierarchyContent());
+
+			assertTrue(entityFetch.isFullyContainedWithin(entityFetchAll()));
+		}
+
+		@Test
+		@DisplayName("should not be fully contained within different requirements")
+		void shouldNotBeFullyContainedWithinDifferentRequirements() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll());
+
+			assertFalse(entityFetch.isFullyContainedWithin(entityFetch(associatedDataContentAll())));
+		}
+
+		@Test
+		@DisplayName("should be fully contained when requirements are subset")
+		void shouldBeFullyContainedWhenRequirementsAreSubset() {
+			final EntityFetch entityFetch1 = entityFetch(attributeContent("code", "name"));
+			final EntityFetch entityFetch2 = entityFetch(attributeContent("code"));
+
+			assertTrue(entityFetch2.isFullyContainedWithin(entityFetch1));
+		}
+
+		@Test
+		@DisplayName("should not be fully contained when requirements are not subset")
+		void shouldNotBeFullyContainedWhenRequirementsAreNotSubset() {
+			final EntityFetch entityFetch1 = entityFetch(attributeContent("code"));
+			final EntityFetch entityFetch2 = entityFetch(attributeContent("name"));
+
+			assertFalse(entityFetch1.isFullyContainedWithin(entityFetch2));
+		}
 	}
 
-	@Test
-	void shouldGetCopyWithNewChildrenReturnNewInstance() {
-		EntityFetch entityFetch = entityFetch(attributeContentAll());
-		EntityFetch newEntityFetch = (EntityFetch) entityFetch.getCopyWithNewChildren(new RequireConstraint[]{attributeContentAll()}, new Constraint<?>[]{});
-		assertNotSame(entityFetch, newEntityFetch);
-		assertEquals(entityFetch, newEntityFetch);
-	}
+	@Nested
+	@DisplayName("Cloning")
+	class CloningTest {
 
-	@Test
-	void shouldIsFullyContainedWithinReturnTrueForSameRequirements() {
-		EntityFetch entityFetch = entityFetch(attributeContent("a"), hierarchyContent());
-		assertTrue(entityFetch.isFullyContainedWithin(entityFetchAll()));
-	}
+		@Test
+		@DisplayName("should clone with arguments and preserve children")
+		void shouldCloneWithArgumentsAndPreserveChildren() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll());
+			final EntityFetch cloned = (EntityFetch) entityFetch.cloneWithArguments(new Serializable[]{});
 
-	@Test
-	void shouldIsFullyContainedWithinReturnFalseForDifferentRequirements() {
-		EntityFetch entityFetch = entityFetch(attributeContentAll());
-		assertFalse(entityFetch.isFullyContainedWithin(entityFetch(associatedDataContentAll())));
-	}
+			assertNotSame(entityFetch, cloned);
+			assertEquals(entityFetch, cloned);
+			assertArrayEquals(entityFetch.getRequirements(), cloned.getRequirements());
+		}
 
-	@Test
-	void shouldCorrectlyCombineWithAnotherRequirement() {
-		assertEquals(
-			entityFetch(),
-			entityFetch().combineWith(entityFetch())
-		);
+		@Test
+		@DisplayName("should get copy with new children")
+		void shouldGetCopyWithNewChildren() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll());
+			final EntityFetch newEntityFetch = (EntityFetch) entityFetch.getCopyWithNewChildren(
+				new RequireConstraint[]{associatedDataContentAll()},
+				new Constraint<?>[]{}
+			);
 
-		assertEquals(
-			entityFetch(attributeContent("code", "name"), associatedDataContentAll()),
-			entityFetch(attributeContent("code"), associatedDataContentAll()).combineWith(entityFetch(attributeContent("name")))
-		);
-	}
+			assertNotSame(entityFetch, newEntityFetch);
+			assertArrayEquals(new RequireConstraint[]{associatedDataContentAll()}, newEntityFetch.getRequirements());
+		}
 
-	@Test
-	void shouldCombineWithEmptyRequirementsReturnSelf() {
-		EntityFetch entityFetch = entityFetch();
-		assertEquals(entityFetch, entityFetch.combineWith(entityFetch()));
-	}
+		@Test
+		@DisplayName("should get copy with empty children")
+		void shouldGetCopyWithEmptyChildren() {
+			final EntityFetch entityFetch = entityFetch(attributeContentAll());
+			final EntityFetch newEntityFetch = (EntityFetch) entityFetch.getCopyWithNewChildren(
+				new RequireConstraint[]{},
+				new Constraint<?>[]{}
+			);
 
-	@Test
-	void shouldCombineWithNonEmptyRequirementsReturnCombinedInstance() {
-		EntityFetch entityFetch1 = entityFetch(attributeContent("code"));
-		EntityFetch entityFetch2 = entityFetch(attributeContent("name"));
-		EntityFetch combinedEntityFetch = entityFetch1.combineWith(entityFetch2);
-		assertNotSame(entityFetch1, combinedEntityFetch);
-		assertNotSame(entityFetch2, combinedEntityFetch);
-		assertEquals(entityFetch(attributeContent("code", "name")), combinedEntityFetch);
-	}
-
-	@Test
-	void shouldCombineWithDifferentRequirementTypesReturnCombinedInstance() {
-		EntityFetch entityFetch1 = entityFetch(attributeContent("code"));
-		EntityFetch entityFetch2 = entityFetch(associatedDataContent("name"));
-		EntityFetch combinedEntityFetch = entityFetch1.combineWith(entityFetch2);
-		assertNotSame(entityFetch1, combinedEntityFetch);
-		assertNotSame(entityFetch2, combinedEntityFetch);
-		assertEquals(entityFetch(attributeContent("code"), associatedDataContent("name")), combinedEntityFetch);
-	}
-
-	@Test
-	void shouldCloneWithArgumentsReturnNewInstanceWithSameRequirements() {
-		EntityFetch entityFetch = entityFetch(attributeContentAll());
-		EntityFetch clonedEntityFetch = (EntityFetch) entityFetch.cloneWithArguments(new Serializable[]{});
-		assertNotSame(entityFetch, clonedEntityFetch);
-		assertArrayEquals(entityFetch.getRequirements(), clonedEntityFetch.getRequirements());
-	}
-
-	@Test
-	void shouldGetCopyWithNewChildrenReturnNewInstanceWithNewChildren() {
-		EntityFetch entityFetch = entityFetch(attributeContentAll());
-		EntityFetch newEntityFetch = (EntityFetch) entityFetch.getCopyWithNewChildren(new RequireConstraint[]{associatedDataContentAll()}, new Constraint<?>[]{});
-		assertNotSame(entityFetch, newEntityFetch);
-		assertArrayEquals(new RequireConstraint[]{associatedDataContentAll()}, newEntityFetch.getRequirements());
-	}
-
-	@Test
-	void shouldIsFullyContainedWithinReturnTrueForSubsetRequirements() {
-		EntityFetch entityFetch1 = entityFetch(attributeContent("code", "name"));
-		EntityFetch entityFetch2 = entityFetch(attributeContent("code"));
-		assertTrue(entityFetch2.isFullyContainedWithin(entityFetch1));
-	}
-
-	@Test
-	void shouldIsFullyContainedWithinReturnFalseForNonSubsetRequirements() {
-		EntityFetch entityFetch1 = entityFetch(attributeContent("code"));
-		EntityFetch entityFetch2 = entityFetch(attributeContent("name"));
-		assertFalse(entityFetch1.isFullyContainedWithin(entityFetch2));
+			assertNotSame(entityFetch, newEntityFetch);
+			assertArrayEquals(new RequireConstraint[]{}, newEntityFetch.getRequirements());
+		}
 	}
 
 }

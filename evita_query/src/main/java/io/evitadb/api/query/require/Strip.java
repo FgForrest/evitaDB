@@ -37,36 +37,60 @@ import java.io.Serializable;
 import java.util.Optional;
 
 /**
- * The `strip` requirement controls the number and slice of entities returned in the query response. If the requested
- * strip exceeds the number of available records, a result from the zero offset with retained limit is returned.
- * An empty result is only returned if the query returns no result at all or the limit is set to zero. By automatically
- * returning the first strip result when the requested page is exceeded, we try to avoid the need to issue a secondary
- * request to fetch the data.
+ * The `strip` requirement controls the number and slice of entities returned in the query response using
+ * offset/limit–based pagination. It is one of two {@link ChunkingRequireConstraint} implementations; the other is
+ * {@link Page}, which uses a page-number model that maps better to classic page navigation UIs.
  *
- * The information about the actual returned page and data statistics can be found in the query response, which is
- * wrapped in a so-called data chunk object. In case of the strip constraint, the {@link StripList} is used as data
- * chunk object.
+ * Use `strip` when the consumer needs direct positional access — for example when implementing infinite-scroll
+ * or when the front-end tracks scroll position rather than discrete pages.
  *
- * Example:
+ * ## Defaults and out-of-range behaviour
  *
- * <pre>
- * strip(52, 24)
- * </pre>
+ * Both arguments accept `null`, in which case defaults are applied: offset defaults to `0` and limit defaults
+ * to `20`. Offset must be greater than or equal to zero; limit must be greater than or equal to zero (limit `0`
+ * produces an empty result while still returning total count metadata).
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/paging#strip">Visit detailed user documentation</a></p>
+ * When the requested strip starts beyond the last available record, the engine returns the **first strip** (offset
+ * reset to `0`, limit retained) instead of an empty result. This mirrors the behaviour of {@link Page} and avoids
+ * the need for a secondary corrective request when the result set shrinks between two calls.
  *
+ * ## Response structure
+ *
+ * The result is wrapped in a {@link StripList} data-chunk object, which exposes:
+ *
+ * - `offset` — the starting position of the returned slice (zero-based)
+ * - `limit` — the maximum number of records requested
+ * - `totalRecordCount` — total number of matching entities
+ * - `isFirst()`, `isLast()`, `hasNext()`, `hasPrevious()` — navigation flags
+ * - `data` — the list of entities in this strip
+ *
+ * Unlike {@link PaginatedList}, `StripList` does not expose a `lastPageNumber` because there is no inherent notion
+ * of pages — the caller is free to choose any offset within `[0, totalRecordCount - 1]`.
+ *
+ * ## Usage example
+ *
+ * ```evitaql
+ * require(
+ *    strip(52, 24)
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/paging#strip)
+ *
+ * @see Page
+ * @see StripList
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "strip",
-	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned.",
+	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned using offset/limit-based pagination.",
 	userDocsLink = "/documentation/query/requirements/paging#strip",
 	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE }
 )
 public class Strip extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;
 
-	private Strip(Serializable... arguments) {
+	private Strip(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

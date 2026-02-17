@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -38,20 +39,39 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * The `spacing` allows to define multiple rules for inserting gaps instead of entities on particular pages. The gaps
- * are defined by the {@link SpacingGap} sub-constraints, which specify the number of entities that should be skipped
- * on the page when the `onPage` expression is evaluated to true.
+ * The `spacing` container defines a set of {@link SpacingGap} rules that reserve visual slots on particular pages
+ * for non-entity content such as advertisements, banner images, or editorial inserts. It is a child constraint of
+ * {@link Page} and has no meaning outside of that context.
  *
- * All gap space definitions that satisfy the condition are used (the rules are cumulative). If no gap space is satisfied,
- * the page contains the number of entities defined by the `page` requirement (as long as there is enough entities
- * available in the result).
+ * ## How spacing works
  *
- * Example of usage:
+ * When computing a page result, the engine evaluates every {@link SpacingGap} rule contained in the `spacing`
+ * container against the current page number. All rules whose `onPage` expression evaluates to `true` are applied,
+ * and their sizes are summed. The resulting total gap count is subtracted from the page size to determine how many
+ * entity records are actually fetched and returned. If no rules match, the page is filled with the full page size
+ * worth of entities.
  *
- * 1. one ad block on each page, up to page 6
- * 2. an additional block of blog post teasers on the first three even pages
+ * For example, with `page(1, 20, spacing(...))` on a page that accumulates a gap of `3`, only `17` entities are
+ * returned — leaving `3` slots for the client to fill with non-entity UI elements.
  *
- * <pre>
+ * ## Expression language
+ *
+ * Each `gap` expression has access to a single variable, `$pageNumber`, representing the one-based index of the
+ * page currently being evaluated. The expression must evaluate to a boolean value. The full grammar of the expression
+ * language is documented at
+ * [the separate page](https://evitadb.io/documentation/user/en/query/expression-language.md).
+ *
+ * ## Applicability
+ *
+ * A `spacing` container is considered applicable only when it contains at least one {@link SpacingGap} child. An
+ * empty `spacing()` call returns `null` from the factory method and is excluded from the query tree.
+ *
+ * ## Usage example
+ *
+ * Two gap rules are defined: one reserving 2 slots on odd pages 1–6 (for a wide ad banner), and one reserving
+ * an additional slot on even pages 2–6 (for a blog teaser):
+ *
+ * ```evitaql
  * require(
  *    page(
  *       1, 20,
@@ -61,19 +81,17 @@ import java.util.Arrays;
  *       )
  *    )
  * )
- * </pre>
+ * ```
  *
- * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
- * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
- * the currently examined page number.
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/paging#spacing)
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing">Visit detailed user documentation</a></p>
- *
+ * @see Page
+ * @see SpacingGap
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  **/
 @ConstraintDefinition(
 	name = "spacing",
-	shortDescription = "The container allows to define rules for inserting gaps instead of entities on particular pages.",
+	shortDescription = "The constraint defines rules for reserving visual slots (gaps) on specific pages for non-entity content such as advertisements or banners.",
 	userDocsLink = "/documentation/query/requirements/paging#spacing",
 	supportedIn = ConstraintDomain.SEGMENT
 )
@@ -117,6 +135,7 @@ public class Spacing extends AbstractRequireConstraintContainer implements Gener
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("Segments container doesn't support arguments!");
+		Assert.isTrue(ArrayUtils.isEmpty(newArguments), "Spacing container doesn't support arguments!");
+		return new Spacing(getGaps());
 	}
 }
