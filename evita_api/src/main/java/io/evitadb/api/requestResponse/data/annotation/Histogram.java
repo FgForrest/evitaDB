@@ -23,45 +23,41 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
-import io.evitadb.dataType.Scope;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * Annotation is used only within {@link @Reference} annotation to define settings for the references in the particular
- * scope.
+ * Annotation for configuring histogram computation on a reference. Histograms
+ * allow computing distribution of referenced entities based on a value
+ * expression, optionally filtered by a condition predicate.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * When used within {@link Reference} or {@link ScopeReferenceSettings}, it
+ * defines a named histogram index with an optional condition and value
+ * expression.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ScopeReferenceSettings {
+public @interface Histogram {
 
 	/**
-	 * Definition of the scope for which the settings are applied.
+	 * Name of the histogram index. If left empty, a default name is derived
+	 * from the context.
 	 */
-	Scope scope() default Scope.LIVE;
+	String nameOfTheIndex() default "";
 
 	/**
-	 * Enables filtering / sorting by attributes of reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#getReferenceIndexType(Scope)}.
+	 * Condition predicate that determines whether a referenced entity
+	 * contributes to the histogram. Defaults to disabled (empty predicate).
 	 */
-	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
+	Predicate condition() default @Predicate;
 
 	/**
-	 * Enables facet computation for reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#isFacetedInScope(Scope)}.
+	 * Value expression that computes the histogram bucket value for each
+	 * referenced entity. Defaults to no expression (empty).
 	 */
-	Predicate faceted() default @Predicate;
-
-	/**
-	 * Configures histogram computation for reference of this name
-	 * in this scope.
-	 */
-	Histogram histogram() default @Histogram;
+	Expression value() default @Expression;
 
 }

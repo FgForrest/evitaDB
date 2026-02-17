@@ -23,45 +23,32 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
-import io.evitadb.dataType.Scope;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * Annotation is used only within {@link @Reference} annotation to define settings for the references in the particular
- * scope.
+ * Annotation representing a value expression. Used within other annotations
+ * (e.g. {@link Histogram}) to define computed values.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * Check the `documentation/user/en/query/expression-language.md` for possible expressions. Typical example is
+ * <pre>
+ *     $referencedEntity.attributes['basicUnitValue'] ?? 0.0
+ * </pre>
+ *
+ * Empty string (default) means no expression is defined.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ScopeReferenceSettings {
+public @interface Expression {
 
 	/**
-	 * Definition of the scope for which the settings are applied.
+	 * Value expression string. Supports
+	 * `referencedEntity.attributes['name']` syntax and fallback values
+	 * via `!'default'`.
 	 */
-	Scope scope() default Scope.LIVE;
-
-	/**
-	 * Enables filtering / sorting by attributes of reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#getReferenceIndexType(Scope)}.
-	 */
-	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
-
-	/**
-	 * Enables facet computation for reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#isFacetedInScope(Scope)}.
-	 */
-	Predicate faceted() default @Predicate;
-
-	/**
-	 * Configures histogram computation for reference of this name
-	 * in this scope.
-	 */
-	Histogram histogram() default @Histogram;
+	String value() default "";
 
 }

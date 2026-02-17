@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -128,7 +128,12 @@ public @interface Reference {
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#isFaceted()}.
 	 */
-	boolean faceted() default false;
+	Predicate faceted() default @Predicate;
+
+	/**
+	 * Configures histogram computation for reference of this name.
+	 */
+	Histogram histogram() default @Histogram;
 
 	/**
 	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to

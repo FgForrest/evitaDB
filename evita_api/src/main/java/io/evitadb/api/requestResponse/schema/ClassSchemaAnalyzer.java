@@ -1175,7 +1175,7 @@ public class ClassSchemaAnalyzer {
 					null
 				);
 				// faceted - only set if not already faceted in default scope
-				if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
+				if (!reference.faceted().value().isEmpty() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
 					editor.faceted();
 				}
 			} else {
@@ -1197,14 +1197,14 @@ public class ClassSchemaAnalyzer {
 				}
 
 				Assert.isTrue(
-					!reference.faceted(),
+					reference.faceted().value().isEmpty(),
 					"When `scope` is defined in `@Reference` annotation, " +
 						"the value of `faceted` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
 				);
 				// faceted in scopes - only set for scopes not already faceted
 				final Scope[] facetedInScopes = Arrays.stream(scopedDefinition)
-					.filter(ScopeReferenceSettings::faceted)
+					.filter(s -> !s.faceted().value().isEmpty())
 					.map(ScopeReferenceSettings::scope)
 					.filter(scope -> !editor.isFacetedInScope(scope))
 					.toArray(Scope[]::new);
@@ -1460,7 +1460,7 @@ public class ClassSchemaAnalyzer {
 
 				// faceted in scopes - only set for scopes not already faceted
 				final Scope[] facetedInScopes = Arrays.stream(scopedDefinition)
-					.filter(ScopeReferenceSettings::faceted)
+					.filter(s -> !s.faceted().value().isEmpty())
 					.map(ScopeReferenceSettings::scope)
 					.filter(scope -> editor.isFacetedInherited() || !editor.isFacetedInScope(scope))
 					.toArray(Scope[]::new);

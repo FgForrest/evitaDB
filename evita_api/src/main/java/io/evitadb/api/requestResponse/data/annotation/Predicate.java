@@ -23,45 +23,34 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
-import io.evitadb.dataType.Scope;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * Annotation is used only within {@link @Reference} annotation to define settings for the references in the particular
- * scope.
+ * todo jno: will it accept query language as state in issue, or will it use expression language instead? Decide and document the language here
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * Annotation representing a predicate expression that evaluates to a boolean
+ * value. Used within other annotations (e.g. {@link Reference},
+ * {@link ScopeReferenceSettings}) to specify conditional behavior.
+ *
+ * - Empty string (default) means the predicate is disabled (evaluates
+ *   to `false`).
+ * - `"true"` means the predicate is always enabled (equivalent to the former
+ *   `faceted = true`).
+ * - Any other value is interpreted as an expression that is evaluated
+ *   at runtime.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ScopeReferenceSettings {
+public @interface Predicate {
 
 	/**
-	 * Definition of the scope for which the settings are applied.
+	 * Predicate expression string. Empty string means disabled, `"true"` means
+	 * always enabled.
 	 */
-	Scope scope() default Scope.LIVE;
-
-	/**
-	 * Enables filtering / sorting by attributes of reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#getReferenceIndexType(Scope)}.
-	 */
-	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
-
-	/**
-	 * Enables facet computation for reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#isFacetedInScope(Scope)}.
-	 */
-	Predicate faceted() default @Predicate;
-
-	/**
-	 * Configures histogram computation for reference of this name
-	 * in this scope.
-	 */
-	Histogram histogram() default @Histogram;
+	String value() default "";
 
 }
