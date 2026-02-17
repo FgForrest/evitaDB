@@ -78,8 +78,10 @@ public class NullCoalesceOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		// todo lho
-		throw new UnsupportedOperationException();
+		return BigDecimalNumberRange.union(
+			this.valueOperator.determinePossibleRange(),
+			this.defaultValueOperator.determinePossibleRange()
+		);
 	}
 
 	@Override

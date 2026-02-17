@@ -195,8 +195,10 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		// todo lho impl
-		throw new UnsupportedOperationException();
+		return BigDecimalNumberRange.union(
+			this.valueOperator.determinePossibleRange(),
+			this.defaultValueOperator.determinePossibleRange()
+		);
 	}
 
 	@Override

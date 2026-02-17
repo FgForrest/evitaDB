@@ -74,7 +74,6 @@ public class XorOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		// todo lho xor op
 		return BigDecimalNumberRange.union(
 			this.leftOperator.determinePossibleRange(),
 			this.rightOperator.determinePossibleRange()
