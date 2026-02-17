@@ -29,10 +29,12 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 
@@ -47,10 +49,13 @@ public class ModuloOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -3399862430415797098L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
+	@EqualsAndHashCode.Exclude
+	private final ExpressionNode[] children;
 
 	public ModuloOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
+		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
 	}
 
 	@Nonnull
@@ -83,6 +88,17 @@ public class ModuloOperator implements ExpressionNode {
 			throw new ArithmeticException("Division by zero");
 		}
 		return a.remainder(b);
+	}
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return this.children;
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

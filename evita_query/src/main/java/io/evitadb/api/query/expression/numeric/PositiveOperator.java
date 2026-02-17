@@ -29,11 +29,13 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -48,6 +50,8 @@ import java.io.Serializable;
 public class PositiveOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 7806494928096151670L;
 	private final ExpressionNode operator;
+	@EqualsAndHashCode.Exclude
+	private final ExpressionNode[] children;
 
 	public PositiveOperator(ExpressionNode operator) {
 		Assert.isTrue(
@@ -55,6 +59,7 @@ public class PositiveOperator implements ExpressionNode {
 			() -> new ParserException("Floor function must have at least one operand!")
 		);
 		this.operator = operator;
+		this.children = new ExpressionNode[]{this.operator};
 	}
 
 	@Nonnull
@@ -71,6 +76,17 @@ public class PositiveOperator implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return this.operator.determinePossibleRange();
+	}
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return this.children;
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

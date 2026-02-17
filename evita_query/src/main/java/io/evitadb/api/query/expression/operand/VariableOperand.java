@@ -29,6 +29,7 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.exception.VariableNotDefinedException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -54,6 +55,10 @@ import java.util.stream.Collectors;
 public class VariableOperand implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 1575684554715298743L;
 	@Nullable private final String variableName;
+
+	public boolean isThis() {
+		return this.variableName == null;
+	}
 
 	@Nullable
 	@Override
@@ -93,6 +98,17 @@ public class VariableOperand implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return BigDecimalNumberRange.INFINITE;
+	}
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return null;
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

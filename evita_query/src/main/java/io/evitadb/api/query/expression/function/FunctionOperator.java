@@ -29,8 +29,8 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,13 +50,22 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@RequiredArgsConstructor
 public class FunctionOperator implements ExpressionNode {
 
 	@Serial private static final long serialVersionUID = -7377835303003418997L;
 
 	@Nonnull private final FunctionProcessor functionProcessor;
 	@Nonnull private final List<ExpressionNode> argumentOperands;
+	private final ExpressionNode[] children;
+
+	public FunctionOperator(
+		@Nonnull FunctionProcessor functionProcessor,
+		@Nonnull List<ExpressionNode> argumentOperands
+	) {
+		this.functionProcessor = functionProcessor;
+		this.argumentOperands = argumentOperands;
+		this.children = this.argumentOperands.toArray(new ExpressionNode[0]);
+	}
 
 	@Nullable
 	@Override
@@ -79,5 +88,16 @@ public class FunctionOperator implements ExpressionNode {
 		} else {
 			return BigDecimalNumberRange.INFINITE;
 		}
+	}
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return this.children;
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 }

@@ -50,12 +50,6 @@ public class NullSafeAccessStep implements ObjectAccessStep {
 	@Serial private static final long serialVersionUID = -2195956191525819662L;
 	@Nonnull @Getter private final ObjectAccessStep next;
 
-	@Nonnull
-	@Override
-	public Serializable getAccessedIdentifier() {
-		return null;
-	}
-
 	@Nullable
 	@Override
 	public Serializable compute(

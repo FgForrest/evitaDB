@@ -30,11 +30,13 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.math.BigDecimal;
 
@@ -48,6 +50,8 @@ import java.math.BigDecimal;
 public class NegativeOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -1917894061802394775L;
 	private final ExpressionNode operator;
+	@EqualsAndHashCode.Exclude
+	private final ExpressionNode[] children;
 
 	public NegativeOperator(ExpressionNode operator) {
 		Assert.isTrue(
@@ -55,6 +59,7 @@ public class NegativeOperator implements ExpressionNode {
 			() -> new ParserException("Negation must have at least one operand!")
 		);
 		this.operator = operator;
+		this.children = new ExpressionNode[]{this.operator};
 	}
 
 	@Nonnull
@@ -74,6 +79,17 @@ public class NegativeOperator implements ExpressionNode {
 			this.operator.determinePossibleRange(),
 			BigDecimal::negate
 		);
+	}
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return this.children;
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

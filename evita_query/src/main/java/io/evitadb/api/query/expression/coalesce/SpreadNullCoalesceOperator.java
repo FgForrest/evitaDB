@@ -27,11 +27,11 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,7 +58,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @EqualsAndHashCode
-@RequiredArgsConstructor
 public class SpreadNullCoalesceOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 2760082902212762061L;
 
@@ -66,6 +65,19 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 
 	@Nonnull private final ExpressionNode valueOperator;
 	@Nonnull private final ExpressionNode defaultValueOperator;
+	@EqualsAndHashCode.Exclude
+	private final ExpressionNode[] children;
+
+	public SpreadNullCoalesceOperator(
+		boolean nullSafe,
+		@Nonnull ExpressionNode valueOperator,
+		@Nonnull ExpressionNode defaultValueOperator
+	) {
+		this.nullSafe = nullSafe;
+		this.valueOperator = valueOperator;
+		this.defaultValueOperator = defaultValueOperator;
+		this.children = new ExpressionNode[]{this.valueOperator, this.defaultValueOperator};
+	}
 
 	@Nullable
 	@Override
@@ -172,6 +184,17 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 		return (Serializable) (item == null ? defaultValue : item);
 	}
 
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return this.children;
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
+	}
 
 	@Nonnull
 	@Override

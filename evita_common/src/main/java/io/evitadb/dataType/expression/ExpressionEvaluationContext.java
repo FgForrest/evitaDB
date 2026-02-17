@@ -40,9 +40,9 @@ import java.util.stream.Stream;
  */
 public interface ExpressionEvaluationContext {
 
-	// todo lho explain what `this` is
 	/**
-	 * Returns an object that represents `this` in expression.
+	 * Returns an object that represents `this` in expression in the current context. Usually refers to an item
+	 * of a mapped collection.
 	 *
 	 * @return `this` object reference, if is any available in the context
 	 */

@@ -59,19 +59,13 @@ public class SpreadAccessStep implements ObjectAccessStep {
 
 	@Serial private static final long serialVersionUID = 3389942116283673090L;
 
-	@Nonnull private final ExpressionNode mappingExpression;
+	@Nonnull @Getter private final ExpressionNode mappingExpression;
 	/**
 	 * Whether to compact the result collection/map, i.e. filter out null values.
 	 */
 	private final boolean compact;
 
 	@Nullable @Getter private final ObjectAccessStep next;
-
-	@Nonnull
-	@Override
-	public Serializable getAccessedIdentifier() {
-		return null;
-	}
 
 	@Nullable
 	@Override
