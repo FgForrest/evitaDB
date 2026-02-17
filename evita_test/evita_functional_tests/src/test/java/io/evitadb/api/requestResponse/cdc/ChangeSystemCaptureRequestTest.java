@@ -23,6 +23,9 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
+import io.evitadb.test.EvitaTestSupport;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,130 +34,193 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Test for {@link ChangeSystemCaptureRequest} and its builder.
+ * Tests for {@link ChangeSystemCaptureRequest} and its builder covering builder defaults,
+ * equality, and edge cases.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-class ChangeSystemCaptureRequestTest {
+@DisplayName("ChangeSystemCaptureRequest")
+class ChangeSystemCaptureRequestTest implements EvitaTestSupport {
 
-	@Test
-	void shouldBuildWithDefaults() {
-		final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
-			.build();
+	@Nested
+	@DisplayName("Builder")
+	class Builder {
 
-		assertNotNull(request);
-		assertNull(request.sinceVersion());
-		assertNull(request.sinceIndex());
-		assertEquals(ChangeCaptureContent.HEADER, request.content());
+		@Test
+		@DisplayName("should build with defaults")
+		void shouldBuildWithDefaults() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.build();
+
+			assertNotNull(request);
+			assertNull(request.sinceVersion());
+			assertNull(request.sinceIndex());
+			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with sinceVersion")
+		void shouldBuildWithSinceVersion() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.build();
+
+			assertNotNull(request);
+			assertEquals(100L, request.sinceVersion());
+			assertNull(request.sinceIndex());
+			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with sinceIndex")
+		void shouldBuildWithSinceIndex() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.sinceIndex(5)
+				.build();
+
+			assertNotNull(request);
+			assertNull(request.sinceVersion());
+			assertEquals(5, request.sinceIndex());
+			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with content")
+		void shouldBuildWithContent() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertNotNull(request);
+			assertNull(request.sinceVersion());
+			assertNull(request.sinceIndex());
+			assertEquals(ChangeCaptureContent.BODY, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with all parameters")
+		void shouldBuildWithAllParameters() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(5)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertNotNull(request);
+			assertEquals(100L, request.sinceVersion());
+			assertEquals(5, request.sinceIndex());
+			assertEquals(ChangeCaptureContent.BODY, request.content());
+		}
+
+		@Test
+		@DisplayName("should build multiple instances independently")
+		void shouldBuildMultipleInstancesIndependently() {
+			final ChangeSystemCaptureRequest request1 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.build();
+
+			final ChangeSystemCaptureRequest request2 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(200L)
+				.sinceIndex(10)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertEquals(100L, request1.sinceVersion());
+			assertNull(request1.sinceIndex());
+			assertEquals(ChangeCaptureContent.HEADER, request1.content());
+
+			assertEquals(200L, request2.sinceVersion());
+			assertEquals(10, request2.sinceIndex());
+			assertEquals(ChangeCaptureContent.BODY, request2.content());
+		}
 	}
 
-	@Test
-	void shouldBuildWithSinceVersion() {
-		final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(100L)
-			.build();
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityAndHashCode {
 
-		assertNotNull(request);
-		assertEquals(100L, request.sinceVersion());
-		assertNull(request.sinceIndex());
-		assertEquals(ChangeCaptureContent.HEADER, request.content());
+		@Test
+		@DisplayName("should be equal for identical requests")
+		void shouldHaveCorrectEquality() {
+			final ChangeSystemCaptureRequest request1 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(5)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			final ChangeSystemCaptureRequest request2 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(5)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertEquals(request1, request2);
+			assertEquals(request1.hashCode(), request2.hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal when fields differ")
+		void shouldHaveCorrectInequality() {
+			final ChangeSystemCaptureRequest request1 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.build();
+
+			final ChangeSystemCaptureRequest request2 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(200L)
+				.build();
+
+			final ChangeSystemCaptureRequest request3 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			assertNotEquals(request1, request2);
+			assertNotEquals(request1, request3);
+			assertNotEquals(request1.hashCode(), request2.hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal when sinceIndex differs")
+		void shouldNotBeEqualWhenSinceIndexDiffers() {
+			final ChangeSystemCaptureRequest request1 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(1)
+				.build();
+
+			final ChangeSystemCaptureRequest request2 = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.sinceIndex(2)
+				.build();
+
+			assertNotEquals(request1, request2);
+		}
+
+		@Test
+		@DisplayName("should not be equal to null")
+		void shouldNotBeEqualToNull() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.build();
+
+			assertNotEquals(null, request);
+		}
+
+		@Test
+		@DisplayName("should not be equal to different type")
+		void shouldNotBeEqualToDifferentType() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.build();
+
+			assertNotEquals("not a request", request);
+		}
+
+		@Test
+		@DisplayName("should be reflexive")
+		void shouldBeReflexive() {
+			final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
+				.sinceVersion(100L)
+				.build();
+
+			assertEquals(request, request);
+		}
 	}
-
-	@Test
-	void shouldBuildWithSinceIndex() {
-		final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
-			.sinceIndex(5)
-			.build();
-
-		assertNotNull(request);
-		assertNull(request.sinceVersion());
-		assertEquals(5, request.sinceIndex());
-		assertEquals(ChangeCaptureContent.HEADER, request.content());
-	}
-
-	@Test
-	void shouldBuildWithContent() {
-		final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertNotNull(request);
-		assertNull(request.sinceVersion());
-		assertNull(request.sinceIndex());
-		assertEquals(ChangeCaptureContent.BODY, request.content());
-	}
-
-	@Test
-	void shouldBuildWithAllParameters() {
-		final ChangeSystemCaptureRequest request = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(100L)
-			.sinceIndex(5)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertNotNull(request);
-		assertEquals(100L, request.sinceVersion());
-		assertEquals(5, request.sinceIndex());
-		assertEquals(ChangeCaptureContent.BODY, request.content());
-	}
-
-	@Test
-	void shouldHaveCorrectEquality() {
-		final ChangeSystemCaptureRequest request1 = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(100L)
-			.sinceIndex(5)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		final ChangeSystemCaptureRequest request2 = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(100L)
-			.sinceIndex(5)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertEquals(request1, request2);
-		assertEquals(request1.hashCode(), request2.hashCode());
-	}
-
-	@Test
-	void shouldHaveCorrectInequality() {
-		final ChangeSystemCaptureRequest request1 = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(100L)
-			.build();
-
-		final ChangeSystemCaptureRequest request2 = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(200L)
-			.build();
-
-		final ChangeSystemCaptureRequest request3 = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(100L)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertNotEquals(request1, request2);
-		assertNotEquals(request1, request3);
-		assertNotEquals(request1.hashCode(), request2.hashCode());
-	}
-
-	@Test
-	void shouldBuildMultipleInstancesIndependently() {
-		final ChangeSystemCaptureRequest request1 = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(100L)
-			.build();
-
-		final ChangeSystemCaptureRequest request2 = ChangeSystemCaptureRequest.builder()
-			.sinceVersion(200L)
-			.sinceIndex(10)
-			.content(ChangeCaptureContent.BODY)
-			.build();
-
-		assertEquals(100L, request1.sinceVersion());
-		assertNull(request1.sinceIndex());
-		assertEquals(ChangeCaptureContent.HEADER, request1.content());
-
-		assertEquals(200L, request2.sinceVersion());
-		assertEquals(10, request2.sinceIndex());
-		assertEquals(ChangeCaptureContent.BODY, request2.content());
-	}
-
 }

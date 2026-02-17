@@ -74,14 +74,16 @@ public record TrafficRecordingOptions(
 	public static final long DEFAULT_TRAFFIC_FLUSH_INTERVAL = 60_000L;
 
 	/**
-	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
+	 * Builder for the traffic recording options. Recommended to use to avoid binary compatibility problems
+	 * in the future.
 	 */
 	public static TrafficRecordingOptions.Builder builder() {
 		return new Builder();
 	}
 
 	/**
-	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
+	 * Builder for the traffic recording options. Recommended to use to avoid binary compatibility problems
+	 * in the future.
 	 */
 	public static TrafficRecordingOptions.Builder builder(@Nonnull TrafficRecordingOptions trafficRecordingOptions) {
 		return new Builder(trafficRecordingOptions);

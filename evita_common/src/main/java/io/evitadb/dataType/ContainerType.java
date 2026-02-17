@@ -23,38 +23,50 @@
 
 package io.evitadb.dataType;
 
-import lombok.RequiredArgsConstructor;
-
 import javax.annotation.Nonnull;
 
 /**
- * The container type describes internal evitaDB data structures.
+ * Enumeration of internal evitaDB data container types. These types represent the major structural elements
+ * within the evitaDB data model and are used for categorizing mutations, change capture events, and data site
+ * identifiers in the evitaDB change data capture (CDC) system.
+ *
+ * Each container type corresponds to a distinct data structure in the evitaDB entity model, from the top-level
+ * catalog down to individual attributes, prices, and references.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public enum ContainerType {
 
 	/**
-	 * Catalog - similar to relational database schema.
+	 * Catalog container - similar to a relational database schema. Represents the top-level data container
+	 * that holds collections of entities and their schemas.
 	 */
 	CATALOG,
 	/**
-	 * Entity - similar to relational database table (or better - set of inter-related tables).
+	 * Entity container - similar to a relational database table (or better - a set of inter-related tables).
+	 * Represents a single entity instance with all its attributes, prices, references, and associated data.
 	 */
 	ENTITY,
 	/**
-	 * Attribute - similar to relational database column.
+	 * Attribute container - similar to a relational database column. Represents a single named attribute
+	 * with a typed value attached to an entity.
 	 */
 	ATTRIBUTE,
 	/**
-	 * Reference - similar to an unstructured JSON document in relational database column.
+	 * Associated data container - similar to an unstructured JSON document stored in a relational database column.
+	 * Represents complex, schema-less data structures attached to an entity for storing auxiliary information
+	 * that doesn't require indexing or filtering.
 	 */
 	ASSOCIATED_DATA,
 	/**
-	 * Price - fixed structure data type, could be represented as row in a specialized table in relational database.
+	 * Price container - fixed structure data type, could be represented as a row in a specialized table in relational
+	 * database. Represents a single price point for an entity with price list, currency, validity, and amount.
 	 */
 	PRICE,
 	/**
-	 * Reference - similar to a foreign key in relational database or a binding table in many-to-many relationship.
+	 * Reference container - similar to a foreign key in relational database or a binding table in a many-to-many
+	 * relationship. Represents a link from one entity to another, optionally with attributes attached to the
+	 * relationship itself.
 	 */
 	REFERENCE
 

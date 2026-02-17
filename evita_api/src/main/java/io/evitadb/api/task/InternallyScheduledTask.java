@@ -30,8 +30,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * There is a subset of task, that can execute asynchronously but doesn't consume a thread from the pool. One of such
- * task is Java Flight Recorder recording task. This annotation is used to mark such tasks.
+ * There is a subset of tasks that can execute asynchronously but don't consume a thread from the pool. One such
+ * task is the Java Flight Recorder recording task. This annotation is used to mark such tasks.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

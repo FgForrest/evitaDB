@@ -27,7 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;

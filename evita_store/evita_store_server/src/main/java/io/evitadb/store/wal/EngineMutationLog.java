@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,13 +26,11 @@ package io.evitadb.store.wal;
 import com.carrotsearch.hppc.LongSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
@@ -41,6 +39,8 @@ import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.spi.store.catalog.wal.model.EngineTransactionChanges;
+import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,7 +53,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.IntFunction;
 import java.util.function.LongSupplier;
 
 /**
@@ -93,22 +92,32 @@ public class EngineMutationLog extends AbstractMutationLog<EngineMutation<?>> {
 		);
 	}
 
+	/**
+	 * Creates a new EngineMutationLog by opening an existing WAL file.
+	 * This log tracks engine-level mutations (catalog creations, deletions, renames)
+	 * as opposed to catalog-specific mutations.
+	 *
+	 * @param version                the last processed version number
+	 * @param logFileRecordReference reference to the WAL file including its cumulative checksum
+	 * @param storageFolder          the directory where WAL files are stored
+	 * @param kryoPool               pool of Kryo instances for serialization
+	 * @param storageSettings        storage configuration including checksum and compression factories
+	 * @param scheduler              scheduler for background tasks
+	 */
 	public EngineMutationLog(
 		long version,
-		@Nonnull IntFunction<String> walFileNameProvider,
+		@Nonnull LogFileRecordReference logFileRecordReference,
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull Scheduler scheduler
 	) {
 		super(
 			version,
-			walFileNameProvider,
+			logFileRecordReference,
 			storageFolder,
 			kryoPool,
-			storageOptions,
-			transactionOptions,
+			storageSettings,
 			scheduler
 		);
 	}

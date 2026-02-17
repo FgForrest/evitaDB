@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -45,17 +46,21 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("ModifyAttributeSchemaNameMutation")
 class ModifyAttributeSchemaNameMutationTest {
 
 	@Test
+	@DisplayName("Should override name of previous global attribute mutation when names match")
 	void shouldOverrideNamePreviousGlobalAttributeMutationIfNamesMatch() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
-		ModifyAttributeSchemaNameMutation existingMutation = new ModifyAttributeSchemaNameMutation(ATTRIBUTE_NAME, "differentName");
+		final ModifyAttributeSchemaNameMutation existingMutation = new ModifyAttributeSchemaNameMutation(
+			ATTRIBUTE_NAME, "differentName");
 		final CatalogSchemaContract entitySchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
-		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation);
+		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -64,23 +69,28 @@ class ModifyAttributeSchemaNameMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new global attribute mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewGlobalAttributeMutationDoesntMatch() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newDescription"
 		);
-		ModifyAttributeSchemaNameMutation existingMutation = new ModifyAttributeSchemaNameMutation("differentName", "oldDeprecationNotice");
+		final ModifyAttributeSchemaNameMutation existingMutation = new ModifyAttributeSchemaNameMutation(
+			"differentName", "oldDeprecationNotice");
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation));
 	}
 
 	@Test
+	@DisplayName("Should override name of previous mutation when names match")
 	void shouldOverrideNameOfPreviousMutationIfNamesMatch() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
-		ModifyAttributeSchemaNameMutation existingMutation = new ModifyAttributeSchemaNameMutation(ATTRIBUTE_NAME, "differentName");
+		final ModifyAttributeSchemaNameMutation existingMutation = new ModifyAttributeSchemaNameMutation(
+			ATTRIBUTE_NAME, "differentName");
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
-		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+			Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -90,37 +100,52 @@ class ModifyAttributeSchemaNameMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave both mutations when the name of new mutation doesn't match")
 	void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
-		ModifyAttributeSchemaNameMutation existingMutation = new ModifyAttributeSchemaNameMutation("differentName", "oldName");
-		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation));
+		final ModifyAttributeSchemaNameMutation existingMutation = new ModifyAttributeSchemaNameMutation(
+			"differentName", "oldName");
+		assertNull(
+			mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class),
+				existingMutation
+			));
 	}
 
 	@Test
+	@DisplayName("Should mutate global attribute schema")
 	void shouldMutateGlobalAttributeSchema() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
-		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(), GlobalAttributeSchemaContract.class);
+		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(),
+			GlobalAttributeSchemaContract.class
+		);
 		assertNotNull(mutatedSchema);
 		assertEquals("newName", mutatedSchema.getName());
 	}
 
 	@Test
+	@DisplayName("Should mutate entity attribute schema")
 	void shouldMutateEntityAttributeSchema() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
-		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(), EntityAttributeSchemaContract.class);
+		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(),
+			EntityAttributeSchemaContract.class
+		);
 		assertNotNull(mutatedSchema);
 		assertEquals("newName", mutatedSchema.getName());
 	}
 
 	@Test
+	@DisplayName("Should mutate catalog schema")
 	void shouldMutateCatalogSchema() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
@@ -136,8 +161,9 @@ class ModifyAttributeSchemaNameMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate entity schema")
 	void shouldMutateEntitySchema() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -152,8 +178,9 @@ class ModifyAttributeSchemaNameMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should mutate reference schema")
 	void shouldMutateReferenceSchema() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
@@ -168,8 +195,9 @@ class ModifyAttributeSchemaNameMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating entity schema with non-existing attribute")
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithNonExistingAttribute() {
-		ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
+		final ModifyAttributeSchemaNameMutation mutation = new ModifyAttributeSchemaNameMutation(
 			ATTRIBUTE_NAME, "newName"
 		);
 		assertThrows(

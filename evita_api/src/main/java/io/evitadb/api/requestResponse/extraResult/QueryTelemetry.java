@@ -33,10 +33,8 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * This DTO contains detailed information about query processing time and its decomposition to single operations.
@@ -86,7 +84,7 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		this.start = start;
 		this.spentTime = spentTime;
 		this.arguments = arguments;
-		for (QueryTelemetry step : steps) {
+		for (final QueryTelemetry step : steps) {
 			addStep(step);
 		}
 	}
@@ -96,7 +94,7 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public QueryTelemetry finish(@Nonnull String... arguments) {
-		this.spentTime += (System.nanoTime() - this.start);
+		this.spentTime = System.nanoTime() - this.start;
 		Assert.isTrue(ArrayUtils.isEmpty(this.arguments), "Arguments have been already set!");
 		this.arguments = arguments;
 		return this;
@@ -124,7 +122,7 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public QueryTelemetry finish() {
-		this.spentTime += (System.nanoTime() - this.start);
+		this.spentTime = System.nanoTime() - this.start;
 		return this;
 	}
 
@@ -140,16 +138,22 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 * @return a string representation of the QueryTelemetry object
 	 */
 	public String toString(int indent) {
-		final StringBuilder sb = new StringBuilder(" ".repeat(indent));
+		final StringBuilder sb = new StringBuilder(128 + indent);
+		sb.append(" ".repeat(indent));
 		sb.append(this.operation);
 		if (this.arguments.length > 0) {
-			sb.append("(")
-				.append(Arrays.stream(this.arguments).map(Object::toString).collect(Collectors.joining(", ")))
-				.append(") ");
+			sb.append("(");
+			for (int i = 0; i < this.arguments.length; i++) {
+				if (i > 0) {
+					sb.append(", ");
+				}
+				sb.append(this.arguments[i]);
+			}
+			sb.append(") ");
 		}
 		sb.append(": ").append(StringUtils.formatNano(this.spentTime)).append("\n");
 		if (!this.steps.isEmpty()) {
-			for (QueryTelemetry step : this.steps) {
+			for (final QueryTelemetry step : this.steps) {
 				sb.append(step.toString(indent + 5));
 			}
 		}

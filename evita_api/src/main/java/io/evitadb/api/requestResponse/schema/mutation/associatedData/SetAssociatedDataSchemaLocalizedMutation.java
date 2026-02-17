@@ -59,6 +59,12 @@ public class SetAssociatedDataSchemaLocalizedMutation
 	@Serial private static final long serialVersionUID = 1063335273832280511L;
 	@Getter private final boolean localized;
 
+	/**
+	 * Creates a mutation that will change the localized flag of an existing associated data schema.
+	 *
+	 * @param name      name of the associated data schema to modify
+	 * @param localized new value of the localized flag
+	 */
 	public SetAssociatedDataSchemaLocalizedMutation(@Nonnull String name, boolean localized) {
 		super(name);
 		this.localized = localized;
@@ -71,7 +77,8 @@ public class SetAssociatedDataSchemaLocalizedMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof SetAssociatedDataSchemaLocalizedMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAssociatedDataSchemaLocalizedMutation theExistingMutation && this.name.equals(
+			theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -95,9 +102,11 @@ public class SetAssociatedDataSchemaLocalizedMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(this.name);
+		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(
+			this.name);
 		if (existingAssociatedDataSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(

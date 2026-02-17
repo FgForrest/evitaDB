@@ -148,7 +148,7 @@ public class EntityDecorator implements SealedEntity {
 	/**
 	 * Optimization that ensures that expensive reference filtering using predicates happens only once.
 	 */
-	private Map<ReferenceKey, List<ReferenceContract>> filteredDuplicateReferences;
+	private Map<ReferenceKey, List<ReferenceContract>> filteredDuplicateReferences = Collections.emptyMap();
 	/**
 	 * Contains map of all references by their name. This map is used for fast lookup of the references by their name
 	 * and is initialized lazily on first request.
@@ -272,10 +272,13 @@ public class EntityDecorator implements SealedEntity {
 				returnedKeys.add(referenceContract.getReferenceKey());
 			}
 			for (ReferenceContract reference : references) {
-				if (reference != null && !returnedKeys.contains(reference.getReferenceKey())) {
-					final ReferenceContract removedReference = filteredReferences.remove(reference.getReferenceKey());
-					if (removedReference == DUPLICATE_REFERENCE) {
-						duplicatedReferences.remove(removedReference.getReferenceKey());
+				if (reference != null) {
+					final ReferenceKey referenceKey = reference.getReferenceKey();
+					if (!returnedKeys.contains(referenceKey)) {
+						final ReferenceContract removedReference = filteredReferences.remove(referenceKey);
+						if (removedReference == DUPLICATE_REFERENCE) {
+							duplicatedReferences.remove(referenceKey);
+						}
 					}
 				}
 			}
@@ -540,7 +543,7 @@ public class EntityDecorator implements SealedEntity {
 					entityPrimaryKey,
 					outputReferences,
 					referencePredicate,
-					referenceFetcher.getEntityFilter(referenceSchema),
+					entityFilter,
 					fetchedReferenceComparator,
 					index, i - filteredOutReferences
 				);
@@ -630,17 +633,14 @@ public class EntityDecorator implements SealedEntity {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
 			if (duplicatesAllowed) {
 				// mark reference key as duplicate bearer
-				final ReferenceKey genericKey = new ReferenceKey(
-					referenceKey.referenceName(), referenceKey.primaryKey()
-				);
+				final ReferenceKey genericKey = referenceKey.isUnknownReference() ?
+					referenceKey : new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
 				this.filteredReferences.put(genericKey, DUPLICATE_REFERENCE);
-				if (this.filteredDuplicateReferences == null) {
+				if (this.filteredDuplicateReferences.isEmpty()) {
 					this.filteredDuplicateReferences = createHashMap(schema.getReferences().size());
 				}
 				this.filteredDuplicateReferences
-					.computeIfAbsent(
-						genericKey, k -> new ArrayList<>(2)
-					)
+					.computeIfAbsent(genericKey, k -> new ArrayList<>(2))
 					.add(reference);
 			} else {
 				// entity decorator wraps entity with up-to-date schema, so having duplicate reference which is not
@@ -845,7 +845,7 @@ public class EntityDecorator implements SealedEntity {
 	public Collection<ReferenceContract> getReferences() {
 		this.referencePredicate.checkFetched();
 		final Map<ReferenceKey, ReferenceContract> theFilteredReferences = getFilteredReferences();
-		if (this.filteredDuplicateReferences == null || this.filteredDuplicateReferences.isEmpty()) {
+		if (this.filteredDuplicateReferences.isEmpty()) {
 			return theFilteredReferences.values();
 		} else {
 			// need to expand duplicates
@@ -1049,7 +1049,7 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
 		final AttributeKey attributeKey;
 		if (this.attributePredicate.isLocaleSet()) {
-			final Locale locale = this.attributePredicate.getLocale();
+			final Locale locale = this.attributePredicate.getRequestedLocale();
 			attributeKey = locale == null ?
 				new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		} else {
@@ -1204,7 +1204,7 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
 		final AssociatedDataKey associatedDataKey;
 		if (this.associatedDataPredicate.isLocaleSet()) {
-			final Locale locale = this.associatedDataPredicate.getLocale();
+			final Locale locale = this.associatedDataPredicate.getRequestedLocale();
 			associatedDataKey = locale == null ?
 				new AssociatedDataKey(associatedDataName) : new AssociatedDataKey(associatedDataName, locale);
 		} else {
@@ -1218,10 +1218,9 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
-		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-		                    .filter(this.associatedDataPredicate)
-		                    .map(it -> (T) it.value())
-		                    .orElse(null);
+		return getAssociatedDataValue(associatedDataName, locale)
+			.map(it -> (T) it.value())
+			.orElse(null);
 	}
 
 	@Nullable
@@ -1230,28 +1229,30 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-		                    .filter(this.associatedDataPredicate)
-		                    .map(AssociatedDataValue::value)
-		                    .map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
-		                    .orElse(null);
+		return getAssociatedDataValue(associatedDataName, locale)
+			.map(AssociatedDataValue::value)
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
+			.orElse(null);
 	}
 
 	@Nullable
 	@Override
 	public <T extends Serializable> T[] getAssociatedDataArray(
-		@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		@Nonnull String associatedDataName,
+		@Nonnull Locale locale
+	) {
 		//noinspection unchecked
-		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-		                    .filter(this.associatedDataPredicate)
-		                    .map(it -> (T[]) it.value())
-		                    .orElse(null);
+		return getAssociatedDataValue(associatedDataName, locale)
+			.map(it -> (T[]) it.value())
+			.orElse(null);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(
-		@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		@Nonnull String associatedDataName,
+		@Nonnull Locale locale
+	) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
 		this.associatedDataPredicate.checkFetched(associatedDataKey);
 		return this.delegate.getAssociatedDataValue(associatedDataKey)
@@ -1306,6 +1307,7 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
+		this.associatedDataPredicate.checkFetched(new AssociatedDataKey(associatedDataName));
 		return this.delegate.getAssociatedDataValues(associatedDataName)
 		                    .stream()
 		                    .filter(this.associatedDataPredicate)
@@ -1747,12 +1749,14 @@ public class EntityDecorator implements SealedEntity {
 								: lastResolvedSchema.getCardinality().allowsDuplicates();
 						}
 
-						if (lastReferenceKey != null && lastReferenceKey.equalsInGeneral(referenceKey.primaryKey())) {
+						if (lastReferenceKey != null && lastReferenceKey.equalsInGeneral(referenceKey)) {
 							if (duplicatesAllowed) {
 								if (duplicatedIndexedReferences == null) {
 									duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
 								}
-								final ReferenceKey genericKey = new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
+								final ReferenceKey genericKey = referenceKey.isUnknownReference() ?
+									referenceKey :
+									new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
 								final ReferenceContract previous = indexedReferences.remove(lastReferenceKey);
 								final List<ReferenceContract> duplicatedList;
 								if (previous == DUPLICATE_REFERENCE) {

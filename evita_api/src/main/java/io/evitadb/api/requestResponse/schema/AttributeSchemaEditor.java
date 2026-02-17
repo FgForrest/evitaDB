@@ -170,7 +170,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * having certain value of this attribute among other entities in the same collection.
 	 *
 	 *
-	 * The attribute valuess will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * The attribute values will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
 	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
 	 * comparison on its {@link Object#toString()} will be used
 	 *
@@ -313,7 +313,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * attribute must implement {@link Comparable} interface.
 	 *
 	 * This method makes attribute sortable only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be
-	 * sortable by this attribute unless explicitly set via {@link #uniqueInScope(Scope...)}.
+	 * sortable by this attribute unless explicitly set via {@link #sortableInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
@@ -358,7 +358,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
-	 * (memory/disk) space in the form of index. {@link AttributeSchemaContract#getType() Type} of the filterable attribute must
+	 * (memory/disk) space in the form of index. {@link AttributeSchemaContract#getType() Type} of the sortable attribute must
 	 * implement {@link Comparable} interface.
 	 *
 	 * @param decider returns true when attribute should be sortable
@@ -392,6 +392,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 *
 	 * @return builder to continue with configuration
 	 */
+	@Nonnull
 	T nonLocalized();
 
 	/**

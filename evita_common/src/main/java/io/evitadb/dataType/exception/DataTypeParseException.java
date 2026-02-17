@@ -29,14 +29,16 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import java.io.Serial;
 
 /**
- * Exception is thrown when {@link EvitaDataTypes} tries to parse string to any data type to
- * EvitaDB.
+ * Exception is thrown when {@link EvitaDataTypes} tries to parse a string to any EvitaDB data type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class DataTypeParseException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 1156296941391203458L;
 
+	/**
+	 * Creates a new exception with a message describing the parsing failure.
+	 */
 	public DataTypeParseException(String message) {
 		super(message);
 	}

@@ -13,6 +13,7 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 - **Local variables**: Use `final` for local variables
 - **Instance variables**: Use `this` for instance variables
 - **Type declarations**: Never use `var` - always use explicit types
+- **Resource management**: Use try-with-resources for all `AutoCloseable` resources wherever applicable
 - **Documentation**: Automatically add JavaDoc to all generated classes and methods
 - **Comments**: Add line comments to complex logic
 
@@ -23,6 +24,8 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 - Avoid unnecessary object boxing
 - Avoid streams - write allocation optimized loops instead
 - Avoid using exceptions for control flow
+- Always initialize `StringBuilder` with an estimated capacity — never use `new StringBuilder()` without arguments
+- Never use `Objects.hash()` with primitive arguments — it autoboxes every primitive into an `Object`. Use manual `31 * result + Type.hashCode(primitive)` computation instead
 
 ## Key External Libraries
 
@@ -74,7 +77,7 @@ Use conventional commits style with issue reference:
 Ref: #<issue-id>
 ```
 
-Do not write (co)author name or date in the commit message.
+Do not write (co)author name or date in the commit message!
 
 **Commit types:**
 - `feat`: New feature
@@ -96,6 +99,8 @@ Ref: #1075
 ```
 
 ### Pull Requests
+
+Do not write (co)author name or date in the PR request. 
 
 - **Target branch**: resolve using this command:
   ```shell
@@ -120,6 +125,15 @@ gh pr create --title "Fix session killer race condition" --body "Closes #1075"
 gh api --method POST /repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/requested_reviewers \
   -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
 ```
+
+### Review comments
+
+When addressing review comments, use the following commit message format, fetch all unresolved review comments, and address them one by one.
+Do not take notice of already resolved comments. Use `gh` CLI tool to fetch and manage review comments.
+
+1. first examine whether the review comment is valid and should be addressed (do not blindly try to address all comments, but operate as self-confident experienced developer)
+2. for each comment that you decide to address, create a commit and comment on the review comment how you addressed it
+3. for each comment that you decide to NOT address, comment on the review comment why you decided to not address it
 
 ### Issue Tracking
 
@@ -149,6 +163,8 @@ Use GitHub Issues for tracking tasks and bugs. When creating issues:
 - **Test naming**: Use format `shouldDoSomethingWhenCondition` or `shouldThrowExceptionWhenCondition`
 - **Display names**: Use `@DisplayName` for entire class and for test methods to provide clear descriptions (do not repeat class description content in method descriptions)
 - **Coverage**: Automatically generate test cases for all public methods
+- When creating new test consider implementing helper interface `io.evitadb.test.EvitaTestSupport` that provides utility methods for working with folders, ports, certificates and similar helpful things
+- When creating tests consolidate similar tests in nested classes using
 - for running tests try to use IntelliJ MCP, when not possible use Maven, 
   prefer running individual test classes over running entire test suite, if you run entire test suite use profile `unitAndFunctional`
 
@@ -169,6 +185,7 @@ Use GitHub Issues for tracking tasks and bugs. When creating issues:
 - **evita_traffic_engine**: Traffic engine recorder for storing traffic data
 
 ### Export
+
 - **evita_export_fs**: Export service implementation for local file system
 - **evita_export_s3**: Export service implementation for S3-compatible storage
 

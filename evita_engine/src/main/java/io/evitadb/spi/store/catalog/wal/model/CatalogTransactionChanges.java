@@ -66,9 +66,9 @@ public record CatalogTransactionChanges(
 		return "Transaction to version: " + this.catalogVersion +
 			", committed at " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(this.commitTimestamp) +
 			(processedTimestamp != null ?
-				"(processing lag " + StringUtils.formatDuration(processingLag(processedTimestamp)) + ")" :
+				" (processing lag " + StringUtils.formatDuration(processingLag(processedTimestamp)) + ")" :
 				"") +
-			"(" + (catalogSchemaChanges() > 0 ? catalogSchemaChanges() + " catalog schema changes, " : "") +
+			" (" + (catalogSchemaChanges() > 0 ? catalogSchemaChanges() + " catalog schema changes, " : "") +
 			mutationCount() + " mutations, " + StringUtils.formatByteSize(walSizeInBytes()) + "):\n" +
 			Arrays.stream(entityCollectionChanges())
 				.map(ec -> "\t - " + ec.toString())

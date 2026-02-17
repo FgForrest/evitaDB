@@ -54,7 +54,6 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.*;
@@ -96,6 +95,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.BufferedInputStream;
@@ -885,9 +886,7 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldKillInactiveSessionsAutomatically() throws NoSuchFieldException, IllegalAccessException {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			it -> {
-				it.goLiveAndClose();
-			}
+			EvitaSessionContract::goLiveAndClose
 		);
 		this.evita.close();
 
@@ -1587,9 +1586,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		this.evita.updateCatalog(
-			TEST_CATALOG, session -> {
-				session.goLiveAndClose();
-			}
+			TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 		);
 
 		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
@@ -1673,9 +1670,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		this.evita.updateCatalog(
-			TEST_CATALOG, session -> {
-				session.goLiveAndClose();
-			}
+			TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 		);
 
 		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
@@ -1723,9 +1718,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		this.evita.updateCatalog(
-			TEST_CATALOG, session -> {
-				session.goLiveAndClose();
-			}
+			TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 		);
 
 		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
@@ -1777,9 +1770,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		this.evita.updateCatalog(
-			TEST_CATALOG, session -> {
-				session.goLiveAndClose();
-			}
+			TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 		);
 
 		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
@@ -2148,19 +2139,51 @@ class EvitaTest implements EvitaTestSupport {
 					.withAttribute("name", String.class, whichIs -> whichIs.localized())
 					.updateVia(session);
 
+				final Locale theLocale = new Locale("cs");
 				session.createNewEntity(Entities.PRODUCT, 1)
-					.setAttribute("name", new Locale("cs"), "Produkt 1")
+					.setAttribute("name", theLocale, "Produkt 1")
 					.upsertVia(session);
 
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent()).orElseThrow();
+				final SealedEntity product = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll()
+				).orElseThrow();
 
 				assertThrows(
 					ContextMissingException.class,
-					() -> ((Entity) ((EntityDecorator) product).getDelegate()).getAttribute("name")
+					() -> ((EntityDecorator) product).getDelegate().getAttribute("name")
 				);
 				assertThrows(
 					ContextMissingException.class,
-					() -> ((EntityDecorator) product).getAttribute("name")
+					() -> product.getAttribute("name")
+				);
+
+				final SealedEntity productWithAllLocalesFetched = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll(), dataInLocalesAll()
+				).orElseThrow();
+
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((EntityDecorator) productWithAllLocalesFetched).getDelegate().getAttribute("name")
+				);
+				assertThrows(
+					ContextMissingException.class,
+					() -> productWithAllLocalesFetched.getAttribute("name")
+				);
+
+				final SealedEntity productWithSingleLocaleFetched = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll(), dataInLocales(theLocale)
+				).orElseThrow();
+
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((EntityDecorator) productWithAllLocalesFetched).getDelegate().getAttribute("name")
+				);
+				assertEquals(
+					"Produkt 1",
+					productWithSingleLocaleFetched.getAttribute("name")
 				);
 			}
 		);
@@ -2451,7 +2474,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::filterable)
 							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
@@ -2494,7 +2517,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::unique)
 							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
@@ -2537,7 +2560,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
@@ -2727,7 +2750,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::filterable)
 							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
@@ -2778,7 +2801,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::unique)
 							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
@@ -2829,7 +2852,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
@@ -2845,7 +2868,7 @@ class EvitaTest implements EvitaTestSupport {
 						.defineEntitySchema(Entities.CATEGORY)
 						.withReflectedReferenceToEntity(
 							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-							whichIs -> whichIs.nonIndexed()
+							ReflectedReferenceSchemaEditor::nonIndexed
 						)
 						.updateVia(session);
 				}
@@ -4062,7 +4085,7 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.BRAND)
-				       .withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+				       .withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
 				       .updateVia(session);
 
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -4082,14 +4105,15 @@ class EvitaTest implements EvitaTestSupport {
 				       .setReference(Entities.PARAMETER, 3)
 				       .upsertVia(session);
 
-				final SealedEntity fullEntity = session.getEntity(
-					                                       Entities.PRODUCT, 1,
-					                                       entityFetchAllContentAnd(
-						                                       referenceContent(Entities.BRAND, entityFetchAll()),
-						                                       referenceContent(Entities.PARAMETER, entityFetchAll())
-					                                       )
-				                                       )
-				                                       .orElseThrow();
+				final SealedEntity fullEntity = session
+					.getEntity(
+						Entities.PRODUCT, 1,
+						entityFetchAllContentAnd(
+							referenceContent(Entities.BRAND, entityFetchAll()),
+							referenceContentWithAttributes(Entities.PARAMETER)
+						)
+					)
+					.orElseThrow();
 
 				// we get only single brand because when brand with PK=2 was fetched it was not found, yet it should
 				// be present since entity maps to evita managed entity
@@ -4127,7 +4151,7 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 				session
 					.defineEntitySchema(Entities.PARAMETER_GROUP)
-					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 					.updateVia(session);
 
 				session
@@ -4386,16 +4410,15 @@ class EvitaTest implements EvitaTestSupport {
 	 * - The restored catalog has the same content as the original
 	 * - Both the original and restored catalogs can be modified after the restore operation
 	 */
-	@Test
+	@ParameterizedTest(name = "Create backup and restore transactional catalog (withWal={0})")
+	@ValueSource(booleans = {true, false})
 	@DisplayName("Create backup and restore transactional catalog")
-	void shouldCreateBackupAndRestoreTransactionalCatalog() throws IOException, ExecutionException, InterruptedException {
+	void shouldCreateBackupAndRestoreTransactionalCatalog(boolean withWal) throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			session -> {
-				session.goLiveAndClose();
-			}
+			EvitaSessionContract::goLiveAndClose
 		);
 
 		this.evita.updateCatalog(
@@ -4411,7 +4434,8 @@ class EvitaTest implements EvitaTestSupport {
 
 		final EvitaManagement management = this.evita.management();
 		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(
-			TEST_CATALOG, null, null, true);
+			TEST_CATALOG, null, null, withWal
+		);
 		final Path backupPath = backupPathFuture.join().path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
@@ -4504,9 +4528,7 @@ class EvitaTest implements EvitaTestSupport {
 		final int numberOfTasks = 20;
 
 		this.evita.updateCatalog(
-			TEST_CATALOG, session -> {
-				session.goLiveAndClose();
-			}
+			TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 		);
 
 		final EvitaManagement management = this.evita.management();
@@ -5031,7 +5053,7 @@ class EvitaTest implements EvitaTestSupport {
 				referenceType,
 				referenceName,
 				Cardinality.ZERO_OR_ONE,
-				it -> it.indexed()
+				ReferenceSchemaEditor::indexed
 			);
 		} else {
 			schemaBuilder.withReferenceTo(referenceType, referenceName, Cardinality.ZERO_OR_ONE);

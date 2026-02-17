@@ -54,7 +54,7 @@ import java.util.stream.Stream;
  * Mutation is responsible for adding one or more evolution modes to a {@link EntitySchemaContract#getEvolutionMode()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * or negative mutation {@link AllowEvolutionModeInEntitySchemaMutation} if those mutation are present in the mutation pipeline
+ * or negative mutation {@link DisallowEvolutionModeInEntitySchemaMutation} if those mutations are present in the mutation pipeline
  * multiple times.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -64,7 +64,7 @@ import java.util.stream.Stream;
 @EqualsAndHashCode
 public class AllowEvolutionModeInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 4888804452076108103L;
-	@Getter private final EvolutionMode[] evolutionModes;
+	@Getter @Nonnull private final EvolutionMode[] evolutionModes;
 
 	public AllowEvolutionModeInEntitySchemaMutation(@Nonnull EvolutionMode... evolutionModes) {
 		this.evolutionModes = evolutionModes;
@@ -99,8 +99,20 @@ public class AllowEvolutionModeInEntitySchemaMutation implements CombinableLocal
 				.toArray(EvolutionMode[]::new);
 
 			return new MutationCombinationResult<>(
-				modesToRemove.length == 0 ? null : (modesToRemove.length == ((DisallowEvolutionModeInEntitySchemaMutation) existingMutation).getEvolutionModes().size() ? existingMutation : new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove)),
-				modesToAdd.length == this.evolutionModes.length ? this : (modesToAdd.length == 0 ? null : new AllowEvolutionModeInEntitySchemaMutation(modesToAdd))
+				modesToRemove.length == 0
+					? null
+					: (
+					modesToRemove.length == disallowEvolutionModeInEntitySchema.getEvolutionModes().size()
+						? existingMutation
+						: new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove)
+				),
+				modesToAdd.length == this.evolutionModes.length
+					? this
+					: (
+					modesToAdd.length == 0
+						? null
+						: new AllowEvolutionModeInEntitySchemaMutation(modesToAdd)
+				)
 			);
 		} else {
 			return null;

@@ -60,6 +60,7 @@ import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -132,7 +133,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * computation of extra data - such as {@link HierarchyContent}. It can also invert type of returned
 	 * entities in case requirement {@link HierarchyOfSelf} is used.
 	 *
-	 * Method automatically enables hierarchy indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables hierarchy indexes for default scope ({@link Scope#LIVE}).
 	 */
 	@Nonnull
 	default S withHierarchy() {
@@ -184,7 +185,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
 	 * sorting by price, etc.).
 	 *
-	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE}).
 	 *
 	 * This method variant expects that prices may have up to two decimal places.
 	 */
@@ -232,7 +233,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
 	 * sorting by price, etc.).
 	 *
-	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE}).
 	 *
 	 * This method will use specified number of decimal places for indexing price information in the indexes.
 	 * The original price information in the entity data will remain precise in the form of {@link BigDecimal} with
@@ -282,7 +283,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
 	 * sorting by price, etc.).
 	 *
-	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE}).
 	 *
 	 * This method will use two decimal places for indexing price information in the indexes. The original price
 	 * information in the entity data will remain precise in the form of {@link BigDecimal} with "infinite" decimal
@@ -294,7 +295,11 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPriceInCurrency(@Nonnull Currency... currency) {
-		return withIndexedPriceInCurrency(currency, Scope.DEFAULT_SCOPE);
+		final Set<Scope> priceIndexedInScopes = getPriceIndexedInScopes();
+		return withIndexedPriceInCurrency(
+			currency,
+			priceIndexedInScopes.isEmpty() ? Scope.DEFAULT_SCOPES : priceIndexedInScopes.toArray(Scope.NO_SCOPE)
+		);
 	}
 
 	/**
@@ -340,7 +345,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
 	 * sorting by price, etc.).
 	 *
-	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE}).
 	 *
 	 * This method will use specified number of decimal places for indexing price information in the indexes.
 	 * The original price information in the entity data will remain precise in the form of {@link BigDecimal} with
@@ -352,7 +357,12 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency) {
-		return withPriceInCurrencyIndexedInScope(indexedPricePlaces, currency, Scope.DEFAULT_SCOPE);
+		final Set<Scope> priceIndexedInScopes = getPriceIndexedInScopes();
+		return withPriceInCurrencyIndexedInScope(
+			indexedPricePlaces,
+			currency,
+			priceIndexedInScopes.isEmpty() ? Scope.DEFAULT_SCOPES : priceIndexedInScopes.toArray(Scope.NO_SCOPE)
+		);
 	}
 
 	/**

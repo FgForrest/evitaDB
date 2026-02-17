@@ -41,7 +41,7 @@ import java.util.Currency;
 @RequiredArgsConstructor
 public class ComparableCurrency implements Comparable<ComparableCurrency>, Serializable {
 	@Serial private static final long serialVersionUID = -8356388816362776092L;
-	@Getter private final Currency currency;
+	@Nonnull @Getter private final Currency currency;
 
 	@Override
 	public int compareTo(@Nonnull ComparableCurrency o) {

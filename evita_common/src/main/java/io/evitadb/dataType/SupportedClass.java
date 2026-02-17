@@ -30,8 +30,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation marks all internal classes that are supported by EvitaDB.
- * Annotation is meant to be used only internally.
+ * Annotation marks all internal classes that are natively supported by evitaDB for serialization, type discovery,
+ * and reflection-based operations. Classes annotated with `@SupportedClass` are recognized by the evitaDB framework
+ * as first-class data types that can be stored, indexed, and queried without requiring custom serialization logic
+ * or type conversion.
+ *
+ * This annotation is meant to be used only internally within evitaDB core modules to mark framework-provided types.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

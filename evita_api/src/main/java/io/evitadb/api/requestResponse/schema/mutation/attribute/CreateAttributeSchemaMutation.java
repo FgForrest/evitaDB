@@ -86,8 +86,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
-	@Getter private final Scope[] filterableInScopes;
-	@Getter private final Scope[] sortableInScopes;
+	@Getter @Nonnull private final Scope[] filterableInScopes;
+	@Getter @Nonnull private final Scope[] sortableInScopes;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
 	@Getter private final boolean representative;
@@ -421,7 +421,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			"name='" + this.name + '\'' +
 			", description='" + this.description + '\'' +
 			", deprecationNotice='" + this.deprecationNotice + '\'' +
-			", unique=(" + (Arrays.stream(this.uniqueInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")" +
+			", unique=(" + join(this.uniqueInScopes) + ")" +
 			", filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
 			", localized=" + this.localized +

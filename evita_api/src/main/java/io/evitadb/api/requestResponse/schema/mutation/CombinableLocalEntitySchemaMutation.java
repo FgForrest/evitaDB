@@ -32,31 +32,65 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Implementations of this interface signalize that they might conflict with other {@link EntitySchemaMutation} in
- * the pipeline. Method {@link #combineWith(CatalogSchemaContract, EntitySchemaContract, LocalEntitySchemaMutation)}
- * allows to examine each of the pipeline mutation and react to it.
+ * Interface marking entity schema mutations that can detect and resolve conflicts with other mutations in the
+ * mutation pipeline, enabling intelligent mutation deduplication and merging.
  *
- * The interface was created mainly for the needs of {@link EntitySchemaEditor.EntitySchemaBuilder} where it's in our
- * interest to create the least amount of schema mutations possible. Most of the schema mutation are usually quite
- * expensive on larger databases and if there is chance to avoid those, we should try to do that. Consider situation
- * when the client calls operations like `attribute` -> `not filterable`, `attribute` -> filterable by accident.
- * Should we drop laboriously built index on such attribute just to create it again from the scratch or should we
- * eliminate the opposite commands on the spot?! We chose the latter - the builder produces only the minimal set of
- * necessary changes.
+ * **Purpose and Design Intent**
+ *
+ * This interface was created to minimize the number of schema mutations applied to large databases. Schema mutations
+ * (especially those affecting indexes) are expensive operations — creating an index only to immediately drop it due
+ * to conflicting mutations wastes resources. By implementing this interface, mutations can examine the existing
+ * pipeline and eliminate redundant or contradictory operations before execution.
+ *
+ * **Motivation: Avoiding Expensive Index Rebuilds**
+ *
+ * Consider a client that calls:
+ * 1. `withAttribute("price").filterable()` — creates a filterable index for "price"
+ * 2. `withAttribute("price").notFilterable()` — would drop the index
+ * 3. `withAttribute("price").filterable()` — would recreate the index again
+ *
+ * Without combination logic, evitaDB would laboriously build the index, tear it down, and rebuild it from scratch.
+ * With `CombinableLocalEntitySchemaMutation`, the builder detects the conflicting mutations and produces only the
+ * minimal set of changes (in this case, just the final `filterable()` state).
+ *
+ * **Usage Context**
+ *
+ * This interface is primarily used by {@link EntitySchemaEditor.EntitySchemaBuilder}, which accumulates mutations as
+ * the client calls builder methods. Before producing the final
+ * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation}, the builder invokes
+ * `combineWith()` on each new mutation against all existing mutations in the pipeline, allowing the new mutation to
+ * replace, merge with, or coexist alongside existing mutations.
+ *
+ * **Common Combination Patterns**
+ *
+ * - **Replacement**: A new mutation replaces an existing one (e.g., `SetAttributeSchemaFilterableMutation` replaces
+ * an earlier instance for the same attribute)
+ * - **Cancellation**: A new mutation cancels an existing one (e.g., `RemoveReferenceSchemaMutation` cancels
+ * `CreateReferenceSchemaMutation` for the same reference, leaving the schema unchanged)
+ * - **No conflict**: Return `null` to indicate the mutations can coexist without changes
+ *
+ * **Thread-Safety**
+ *
+ * All implementations are expected to be immutable and thread-safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @see CombinableCatalogSchemaMutation
  */
 public interface CombinableLocalEntitySchemaMutation extends LocalEntitySchemaMutation {
 
 	/**
-	 * Method checks the passed `existingMutation` in the mutation pipeline and optionally creates
-	 * {@link MutationCombinationResult} that contains the description of required changes in order to keep
-	 * the pipeline short without duplicated or redundant information.
+	 * Examines an existing mutation in the pipeline and optionally produces a combination result that describes how
+	 * the pipeline should be modified to keep it minimal and free of redundant operations.
 	 *
-	 * @param currentCatalogSchema the current state of the catalog schema that can be consulted
-	 * @param currentEntitySchema the current state of the entity schema that can be consulted
-	 * @param existingMutation the existing mutation in the pipeline
-	 * @return NULL if pipeline should not be changed, combination result otherwise
+	 * This method is called by the schema builder when a new mutation is added. The new mutation (this instance) is
+	 * compared against each existing mutation in the pipeline. If a conflict or redundancy is detected, this method
+	 * returns a {@link MutationCombinationResult} describing which mutations to remove and which to add.
+	 *
+	 * @param currentCatalogSchema current catalog schema state, can be consulted for validation or context
+	 * @param currentEntitySchema  current entity schema state, can be consulted for validation or context
+	 * @param existingMutation     the existing mutation in the pipeline to compare against
+	 * @return `null` if no changes are needed (mutations can coexist), or a `MutationCombinationResult` describing
+	 * which mutations to discard and which to replace them with
 	 * @see MutationCombinationResult
 	 */
 	@Nullable

@@ -26,7 +26,7 @@ package io.evitadb.core.session;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.TrafficRecordingReader;
+import io.evitadb.api.traffic.TrafficRecordingReader;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.InstanceTerminatedException;

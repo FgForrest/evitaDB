@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,6 +77,7 @@ class SessionKillerTest implements EvitaTestSupport {
 						.storageDirectory(getTestDirectory().resolve(SUB_DIRECTORY))
 						.build()
 				)
+				.export(FileSystemExportOptions.temporary())
 				.server(
 					ServerOptions.builder()
 						.closeSessionsAfterSecondsOfInactivity(1)

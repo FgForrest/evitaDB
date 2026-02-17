@@ -82,11 +82,11 @@ duration of the probe.</dd>
 #### API / GraphQL / Instance / Schema
 
 <dl>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlinstance_build_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_ql_instance_build_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd><strong>API build duration</strong>: Duration of build of a single API in milliseconds.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlschema_build_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_ql_schema_build_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd><strong>GraphQL schema build duration</strong>: Duration of build of a single GraphQL API schema in milliseconds.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlschema_dsl_lines</code> (GAUGE)</dt>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_ql_schema_dsl_lines</code> (GAUGE)</dt>
   <dd><strong>Number of lines</strong>: Number of lines generated in the built GraphQL schema DSL.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_instance_built_total</code> (COUNTER)</dt>
   <dd>GraphQL instance built total<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>

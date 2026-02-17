@@ -47,7 +47,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ServerModifyCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
@@ -371,7 +371,7 @@ public class TransactionManager implements Closeable {
 	 * @return the catalog instance after processing the write-ahead log
 	 */
 	@Nonnull
-	public Catalog processEntireWriteAheadLog(
+	public Optional<ProcessResult> processEntireWriteAheadLog(
 		long nextCatalogVersion,
 		@Nonnull LongConsumer progressCallback
 	) {
@@ -381,9 +381,7 @@ public class TransactionManager implements Closeable {
 			false,
 			true, // we should obtain lock here easily, since this is called only on catalog instantiation
 			progressCallback
-		)
-			.map(ProcessResult::catalog)
-			.orElseGet(this.lastFinalizedCatalog::get);
+		);
 	}
 
 	/**

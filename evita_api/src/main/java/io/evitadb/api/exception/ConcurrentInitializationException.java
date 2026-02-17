@@ -31,17 +31,44 @@ import java.io.Serial;
 import java.util.UUID;
 
 /**
- * Exception is used when there is an attempt to create second or additional session in phase
- * of {@link CatalogState#WARMING_UP}.
+ * Exception thrown when attempting to create a second session on a catalog that is in
+ * `{@link CatalogState#WARMING_UP}` state.
  *
- * In this phase there is only single session allowed to fill the database. Multiple sessiona are allowed only when
- * the state is changed to {@link CatalogState#ALIVE}.
+ * During warm-up, evitaDB allows only a single session for efficient bulk data loading.
+ * This session operates without full transactional overhead, enabling fast initial data
+ * population. Once the catalog transitions to `{@link CatalogState#ALIVE}` state (via
+ * `goLive()`), multiple concurrent sessions become available with full ACID transaction
+ * support.
+ *
+ * **Typical Causes:**
+ * - Calling `createSession()` or `createReadOnlySession()` multiple times without closing
+ *   the first session
+ * - Calling `update()` method on Evita while a session is still open
+ * - Forgetting to use try-with-resources for automatic session cleanup
+ *
+ * **Resolution:**
+ * - Close the existing session before creating a new one, or use try-with-resources
+ * - If you need concurrent access, call `goLive()` on the active session first to
+ *   transition to ALIVE state
+ * - Consider whether you actually need multiple sessions, or if reusing the existing one
+ *   is sufficient
+ *
+ * **Design Note:**
+ * The warm-up phase is optimized for bulk loading scenarios where transactional safety
+ * can be traded for speed. Once data loading is complete, transitioning to ALIVE state
+ * enables full concurrent access with ACID guarantees.
  *
  * @author Stɇvɇn Kamenik (kamenik.stepan@gmail.cz) (c) 2021
  **/
 public class ConcurrentInitializationException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -9062588323022507459L;
 
+	/**
+	 * Creates a new exception indicating that only one session is allowed in warm-up state.
+	 *
+	 * @param activeSessionId UUID of the existing active session that blocks creation of
+	 *                        a new session
+	 */
 	public ConcurrentInitializationException(@Nonnull UUID activeSessionId) {
 		super(
 			"Cannot create more than single session in \"warming up\" state! " +

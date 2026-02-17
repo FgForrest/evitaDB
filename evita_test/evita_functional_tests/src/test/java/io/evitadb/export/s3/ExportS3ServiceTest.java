@@ -24,6 +24,7 @@
 package io.evitadb.export.s3;
 
 import com.adobe.testing.s3mock.junit5.S3MockExtension;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
@@ -35,28 +36,30 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.utils.UUIDUtil;
+import io.minio.CloseableIterator;
+import io.minio.Result;
+import io.minio.messages.NotificationRecords;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -105,6 +108,74 @@ class ExportS3ServiceTest {
 	 */
 	private S3ExportOptions exportOptions;
 
+	/**
+	 * Builds a {@link NotificationRecords} instance by deserializing a JSON string
+	 * with the specified event type and object key.
+	 *
+	 * @param eventType the S3 event type string (e.g. "s3:ObjectCreated:*")
+	 * @param objectKey the S3 object key
+	 * @return the deserialized notification records
+	 * @throws Exception if JSON parsing fails
+	 */
+	@Nonnull
+	private static NotificationRecords buildNotificationRecords(
+		@Nonnull String eventType,
+		@Nonnull String objectKey
+	) throws Exception {
+		final String json = "{\"Records\":[{\"eventName\":\"" + eventType
+			+ "\",\"s3\":{\"object\":{\"key\":\"" + objectKey + "\"}}}]}";
+		final ObjectMapper mapper = new ObjectMapper();
+		return mapper.readValue(json, NotificationRecords.class);
+	}
+
+	/**
+	 * Injects a fake notification iterator into the service's private
+	 * `notificationIterator` field via reflection.
+	 *
+	 * @param service  the export service instance
+	 * @param iterator the fake iterator to inject
+	 * @throws Exception if reflection access fails
+	 */
+	private static void injectNotificationIterator(
+		@Nonnull ExportS3Service service,
+		@Nonnull CloseableIterator<Result<NotificationRecords>> iterator
+	) throws Exception {
+		final Field field = ExportS3Service.class.getDeclaredField("notificationIterator");
+		field.setAccessible(true);
+		field.set(service, iterator);
+	}
+
+	/**
+	 * Invokes the private `refreshFiles()` method on the given service via reflection.
+	 *
+	 * @param service the export service instance
+	 * @return the return value of refreshFiles() (the iterator, or null)
+	 * @throws Exception if reflection invocation fails
+	 */
+	@Nullable
+	private static Object invokeRefreshFiles(@Nonnull ExportS3Service service) throws Exception {
+		final Method method = ExportS3Service.class.getDeclaredMethod("refreshFiles");
+		method.setAccessible(true);
+		return method.invoke(service);
+	}
+
+	/**
+	 * Invokes the private static `normalizeMetadataNames` method via reflection.
+	 *
+	 * @param input the metadata map to normalize
+	 * @return the normalized metadata map
+	 * @throws Exception if reflection invocation fails
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	private static Map<String, String> invokeNormalizeMetadataNames(
+		@Nonnull Map<String, String> input
+	) throws Exception {
+		final Method method = ExportS3Service.class.getDeclaredMethod("normalizeMetadataNames", Map.class);
+		method.setAccessible(true);
+		return (Map<String, String>) method.invoke(null, input);
+	}
+
 	@BeforeEach
 	void setUp() {
 		// Create S3 client connected to the mock server (used only for cleanup in tearDown)
@@ -125,21 +196,6 @@ class ExportS3ServiceTest {
 
 		// Create service instance - this will also create the bucket
 		this.exportService = createExportService();
-	}
-
-	@Nonnull
-	private ExportS3Service createExportService() {
-		return new ExportS3Service(
-			this.exportOptions,
-			new Scheduler(new ImmediateScheduledThreadPoolExecutor()),
-			new FileManagementService(
-				StorageOptions.builder(StorageOptions.temporary())
-					.workDirectory(
-						Path.of(System.getProperty("java.io.tmpdir"), "evita/work", UUID.randomUUID().toString())
-					)
-					.build()
-			)
-		);
 	}
 
 	@AfterEach
@@ -301,16 +357,20 @@ class ExportS3ServiceTest {
 	@DisplayName("Should throw exception when fetching non-existent file")
 	void shouldThrowExceptionWhenFetchingNonExistentFile() {
 		final UUID nonExistentId = UUIDUtil.randomUUID();
-		assertThrows(FileForFetchNotFoundException.class,
-			() -> this.exportService.fetchFile(nonExistentId));
+		assertThrows(
+			FileForFetchNotFoundException.class,
+			() -> this.exportService.fetchFile(nonExistentId)
+		);
 	}
 
 	@Test
 	@DisplayName("Should throw exception when deleting non-existent file")
 	void shouldThrowExceptionWhenDeletingNonExistentFile() {
 		final UUID nonExistentId = UUIDUtil.randomUUID();
-		assertThrows(FileForFetchNotFoundException.class,
-			() -> this.exportService.deleteFile(nonExistentId));
+		assertThrows(
+			FileForFetchNotFoundException.class,
+			() -> this.exportService.deleteFile(nonExistentId)
+		);
 	}
 
 	@Test
@@ -360,7 +420,7 @@ class ExportS3ServiceTest {
 		assertTrue(remaining.getTotalRecordCount() < 7);
 		// Verify newest large file is kept
 		assertTrue(remaining.getData().stream()
-			.anyMatch(f -> f.name().equals("bigFile2.txt")));
+			           .anyMatch(f -> f.name().equals("bigFile2.txt")));
 	}
 
 	@Test
@@ -526,6 +586,330 @@ class ExportS3ServiceTest {
 		assertEquals(1, files.getTotalRecordCount());
 	}
 
+	@Test
+	@DisplayName("Should remove file from cache when object-removed event is received")
+	void shouldRemoveFileFromCacheWhenObjectRemovedEventReceived() throws Exception {
+		final FileForFetch stored = writeFile("removable.txt", "A");
+		final String objectKey = stored.fileId() + ".txt";
+
+		final NotificationRecords records = buildNotificationRecords(
+			"s3:ObjectRemoved:*", objectKey
+		);
+		injectNotificationIterator(
+			this.exportService,
+			new FakeNotificationIterator(List.of(new Result<>(records)).iterator())
+		);
+		invokeRefreshFiles(this.exportService);
+
+		assertTrue(
+			this.exportService.getFile(stored.fileId()).isEmpty(),
+			"File should be removed from cache after OBJECT_REMOVED event"
+		);
+	}
+
+	@Test
+	@DisplayName("Should add file to cache when object-created event is received")
+	void shouldAddFileToCacheWhenObjectCreatedEventReceived() throws Exception {
+		final UUID fileId = UUIDUtil.randomUUID();
+		final String objectKey = fileId + ".txt";
+		final OffsetDateTime created = OffsetDateTime.now();
+
+		uploadDirectlyToS3(
+			objectKey, "external-content".getBytes(StandardCharsets.UTF_8), Map.of(
+				"file-id", fileId.toString(),
+				"name", "external.txt",
+				"description", "Uploaded externally",
+				"content-type", "text/plain",
+				"created", created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+				"origin", "EXT"
+			)
+		);
+
+		final NotificationRecords records = buildNotificationRecords(
+			"s3:ObjectCreated:*", objectKey
+		);
+		injectNotificationIterator(
+			this.exportService,
+			new FakeNotificationIterator(List.of(new Result<>(records)).iterator())
+		);
+		invokeRefreshFiles(this.exportService);
+
+		final Optional<FileForFetch> fetched = this.exportService.getFile(fileId);
+		assertTrue(fetched.isPresent(), "File should appear in cache after OBJECT_CREATED event");
+		assertEquals("external.txt", fetched.get().name());
+		assertEquals("Uploaded externally", fetched.get().description());
+		assertArrayEquals(new String[]{"EXT"}, fetched.get().origin());
+	}
+
+	@Test
+	@DisplayName("Should update existing cache entry when object-created event received for same file")
+	void shouldUpdateExistingCacheEntryWhenObjectCreatedEventReceivedForSameFile() throws Exception {
+		final FileForFetch stored = writeFile("original.txt", "A");
+		final String objectKey = stored.fileId() + ".txt";
+
+		// Re-upload with different name in metadata
+		uploadDirectlyToS3(
+			objectKey, "updated-content".getBytes(StandardCharsets.UTF_8), Map.of(
+				"file-id", stored.fileId().toString(),
+				"name", "updated.txt",
+				"description", "Updated externally",
+				"content-type", "text/plain",
+				"created", stored.created().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+				"origin", "A"
+			)
+		);
+
+		final NotificationRecords records = buildNotificationRecords(
+			"s3:ObjectCreated:*", objectKey
+		);
+		injectNotificationIterator(
+			this.exportService,
+			new FakeNotificationIterator(List.of(new Result<>(records)).iterator())
+		);
+		invokeRefreshFiles(this.exportService);
+
+		final Optional<FileForFetch> fetched = this.exportService.getFile(stored.fileId());
+		assertTrue(fetched.isPresent(), "File should still be in cache");
+		assertEquals("updated.txt", fetched.get().name(), "Name should be updated");
+
+		// Verify no duplicates
+		final PaginatedList<FileForFetch> all = this.exportService.listFilesToFetch(1, 100, Set.of());
+		final long count = all.getData().stream()
+			.filter(f -> f.fileId().equals(stored.fileId()))
+			.count();
+		assertEquals(1, count, "There should be no duplicate entries");
+	}
+
+	@Test
+	@DisplayName("Should place new file at beginning of cache on created event")
+	void shouldPlaceNewFileAtBeginningOfCacheOnCreatedEvent() throws Exception {
+		writeFile("first.txt", null);
+		writeFile("second.txt", null);
+
+		final UUID newFileId = UUIDUtil.randomUUID();
+		final String objectKey = newFileId + ".txt";
+		uploadDirectlyToS3(
+			objectKey, "new-content".getBytes(StandardCharsets.UTF_8), Map.of(
+				"file-id", newFileId.toString(),
+				"name", "newest.txt",
+				"description", "",
+				"content-type", "text/plain",
+				"created", OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+				"origin", ""
+			)
+		);
+
+		final NotificationRecords records = buildNotificationRecords(
+			"s3:ObjectCreated:*", objectKey
+		);
+		injectNotificationIterator(
+			this.exportService,
+			new FakeNotificationIterator(List.of(new Result<>(records)).iterator())
+		);
+		invokeRefreshFiles(this.exportService);
+
+		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of());
+		assertEquals(
+			"newest.txt", files.getData().get(0).name(),
+			"Newly created file should be at the beginning of the list"
+		);
+	}
+
+	@Test
+	@DisplayName("Should handle multiple events in single notification batch")
+	void shouldHandleMultipleEventsInSingleNotificationBatch() throws Exception {
+		final FileForFetch toRemove = writeFile("toRemove.txt", null);
+		final String removeKey = toRemove.fileId() + ".txt";
+
+		// Upload 2 objects directly
+		final UUID id1 = UUIDUtil.randomUUID();
+		final UUID id2 = UUIDUtil.randomUUID();
+		uploadDirectlyToS3(
+			id1 + ".txt", "c1".getBytes(StandardCharsets.UTF_8), Map.of(
+				"file-id", id1.toString(),
+				"name", "ext1.txt",
+				"description", "",
+				"content-type", "text/plain",
+				"created", OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+				"origin", ""
+			)
+		);
+		uploadDirectlyToS3(
+			id2 + ".txt", "c2".getBytes(StandardCharsets.UTF_8), Map.of(
+				"file-id", id2.toString(),
+				"name", "ext2.txt",
+				"description", "",
+				"content-type", "text/plain",
+				"created", OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+				"origin", ""
+			)
+		);
+
+		// Build a notification with 3 events (2 created + 1 removed)
+		final String json = "{\"Records\":["
+			+ "{\"eventName\":\"s3:ObjectCreated:*\",\"s3\":{\"object\":{\"key\":\"" + id1 + ".txt\"}}},"
+			+ "{\"eventName\":\"s3:ObjectCreated:*\",\"s3\":{\"object\":{\"key\":\"" + id2 + ".txt\"}}},"
+			+ "{\"eventName\":\"s3:ObjectRemoved:*\",\"s3\":{\"object\":{\"key\":\"" + removeKey + "\"}}}"
+			+ "]}";
+		final ObjectMapper mapper = new ObjectMapper();
+		final NotificationRecords records = mapper.readValue(json, NotificationRecords.class);
+
+		injectNotificationIterator(
+			this.exportService,
+			new FakeNotificationIterator(List.of(new Result<>(records)).iterator())
+		);
+		invokeRefreshFiles(this.exportService);
+
+		assertTrue(this.exportService.getFile(id1).isPresent(), "First created file should be in cache");
+		assertTrue(this.exportService.getFile(id2).isPresent(), "Second created file should be in cache");
+		assertTrue(
+			this.exportService.getFile(toRemove.fileId()).isEmpty(),
+			"Removed file should no longer be in cache"
+		);
+	}
+
+	@Test
+	@DisplayName("Should ignore created event when object has no metadata")
+	void shouldIgnoreCreatedEventWhenObjectHasNoMetadata() throws Exception {
+		final int countBefore = this.exportService.listFilesToFetch(1, 100, Set.of()).getTotalRecordCount();
+
+		// Upload object without user metadata
+		final String objectKey = UUIDUtil.randomUUID() + ".txt";
+		this.s3Client.putObject(
+			PutObjectRequest.builder()
+				.bucket(BUCKET_NAME)
+				.key(objectKey)
+				.contentType("text/plain")
+				.build(),
+			RequestBody.fromBytes("no-meta".getBytes(StandardCharsets.UTF_8))
+		);
+
+		final NotificationRecords records = buildNotificationRecords(
+			"s3:ObjectCreated:*", objectKey
+		);
+		injectNotificationIterator(
+			this.exportService,
+			new FakeNotificationIterator(List.of(new Result<>(records)).iterator())
+		);
+		invokeRefreshFiles(this.exportService);
+
+		final int countAfter = this.exportService.listFilesToFetch(1, 100, Set.of()).getTotalRecordCount();
+		assertEquals(
+			countBefore, countAfter,
+			"Cache should remain unchanged when object has no required metadata"
+		);
+	}
+
+	@Test
+	@DisplayName("Should ignore removed event for invalid object key")
+	void shouldIgnoreRemovedEventForInvalidObjectKey() throws Exception {
+		final FileForFetch stored = writeFile("keeper.txt", null);
+
+		final NotificationRecords records = buildNotificationRecords(
+			"s3:ObjectRemoved:*", "not-a-uuid.txt"
+		);
+		injectNotificationIterator(
+			this.exportService,
+			new FakeNotificationIterator(List.of(new Result<>(records)).iterator())
+		);
+		invokeRefreshFiles(this.exportService);
+
+		assertTrue(
+			this.exportService.getFile(stored.fileId()).isPresent(),
+			"Existing file should remain in cache when invalid object key is processed"
+		);
+	}
+
+	@Test
+	@DisplayName("Should ignore removed event for non-existent file ID")
+	void shouldIgnoreRemovedEventForNonExistentFileId() throws Exception {
+		final FileForFetch stored = writeFile("existing.txt", null);
+
+		final UUID randomId = UUIDUtil.randomUUID();
+		final NotificationRecords records = buildNotificationRecords(
+			"s3:ObjectRemoved:*", randomId + ".txt"
+		);
+		injectNotificationIterator(
+			this.exportService,
+			new FakeNotificationIterator(List.of(new Result<>(records)).iterator())
+		);
+		invokeRefreshFiles(this.exportService);
+
+		assertTrue(
+			this.exportService.getFile(stored.fileId()).isPresent(),
+			"Existing file should remain in cache when event refers to non-existent file"
+		);
+		assertEquals(1, this.exportService.listFilesToFetch(1, 100, Set.of()).getTotalRecordCount());
+	}
+
+	@Test
+	@DisplayName("Should strip x-amz-meta- prefix when normalizing metadata names")
+	void shouldStripAmzPrefixWhenNormalizingMetadataNames() throws Exception {
+		final Map<String, String> input = new HashMap<>();
+		input.put("x-amz-meta-file-id", "v1");
+		input.put("x-amz-meta-name", "v2");
+
+		final Map<String, String> result = invokeNormalizeMetadataNames(input);
+
+		assertEquals("v1", result.get("file-id"));
+		assertEquals("v2", result.get("name"));
+		assertFalse(result.containsKey("x-amz-meta-file-id"));
+		assertFalse(result.containsKey("x-amz-meta-name"));
+	}
+
+	@Test
+	@DisplayName("Should return same map when metadata already normalized")
+	void shouldReturnSameMapWhenMetadataAlreadyNormalized() throws Exception {
+		final Map<String, String> input = new HashMap<>();
+		input.put("file-id", "v1");
+		input.put("name", "v2");
+
+		final Map<String, String> result = invokeNormalizeMetadataNames(input);
+
+		assertSame(input, result, "Should return exact same map instance when no normalization needed");
+	}
+
+	// --- Fallback behavior ---
+
+	@Test
+	@DisplayName("Should lowercase and strip prefix for mixed case metadata")
+	void shouldLowercaseAndStripPrefixForMixedCaseMetadata() throws Exception {
+		final Map<String, String> input = new HashMap<>();
+		input.put("X-Amz-Meta-File-Id", "v1");
+		input.put("X-Amz-Meta-Name", "v2");
+
+		final Map<String, String> result = invokeNormalizeMetadataNames(input);
+
+		assertEquals("v1", result.get("file-id"));
+		assertEquals("v2", result.get("name"));
+		assertFalse(result.containsKey("X-Amz-Meta-File-Id"));
+		assertFalse(result.containsKey("X-Amz-Meta-Name"));
+	}
+
+	@Test
+	@DisplayName("Should return null from refreshFiles when notifications unsupported")
+	void shouldReturnNullFromRefreshFilesWhenNotificationsUnsupported() throws Exception {
+		// Do not inject an iterator — the service will try to connect to S3Mock
+		// which does not support listenBucketNotification, causing an exception
+		final Object result = invokeRefreshFiles(this.exportService);
+		assertNull(result, "refreshFiles should return null when notification listening is unsupported");
+	}
+
+	@Nonnull
+	private ExportS3Service createExportService() {
+		return new ExportS3Service(
+			this.exportOptions,
+			new Scheduler(new ImmediateScheduledThreadPoolExecutor()),
+			new FileManagementService(
+				StorageOptions.builder(StorageOptions.temporary())
+					.workDirectory(
+						Path.of(System.getProperty("java.io.tmpdir"), "evita/work", UUID.randomUUID().toString())
+					)
+					.build()
+			)
+		);
+	}
+
 	/**
 	 * Helper method to write a file to the export service.
 	 *
@@ -574,6 +958,52 @@ class ExportS3ServiceTest {
 			return handle.fileForFetchFuture().get(30, TimeUnit.SECONDS);
 		} catch (InterruptedException | ExecutionException | TimeoutException e) {
 			throw new IOException("Failed to wait for file upload", e);
+		}
+	}
+
+	/**
+	 * Uploads an object directly to S3 (bypassing the export service) with user metadata.
+	 *
+	 * @param objectKey the S3 object key
+	 * @param content   the file content bytes
+	 * @param metadata  the user metadata to attach
+	 */
+	private void uploadDirectlyToS3(
+		@Nonnull String objectKey,
+		@Nonnull byte[] content,
+		@Nonnull Map<String, String> metadata
+	) {
+		this.s3Client.putObject(
+			PutObjectRequest.builder()
+				.bucket(BUCKET_NAME)
+				.key(objectKey)
+				.contentType("application/octet-stream")
+				.metadata(metadata)
+				.build(),
+			RequestBody.fromBytes(content)
+		);
+	}
+
+	/**
+	 * A fake {@link CloseableIterator} that returns pre-built notification records
+	 * for testing the `refreshFiles()` event processing loop.
+	 */
+	private record FakeNotificationIterator(@Nonnull Iterator<Result<NotificationRecords>> delegate)
+		implements CloseableIterator<Result<NotificationRecords>> {
+
+		@Override
+		public boolean hasNext() {
+			return this.delegate.hasNext();
+		}
+
+		@Override
+		public Result<NotificationRecords> next() {
+			return this.delegate.next();
+		}
+
+		@Override
+		public void close() {
+			// no-op
 		}
 	}
 

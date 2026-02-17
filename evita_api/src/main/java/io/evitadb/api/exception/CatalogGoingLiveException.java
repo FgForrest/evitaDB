@@ -30,18 +30,32 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception thrown when an attempt is made to access a catalog that is currently transitioning from warm-up state to live state.
- * This typically occurs during catalog initialization or recovery processes. The operation should be retried after the transition
- * is complete.
+ * Exception thrown when attempting to create a session on a catalog that is currently
+ * transitioning from `{@link io.evitadb.api.CatalogState#WARMING_UP}` state to
+ * `{@link io.evitadb.api.CatalogState#ALIVE}` state.
  *
- * This exception extends {@link EvitaInvalidUsageException} and is thrown to indicate a temporary unavailability of the catalog
- * rather than a permanent error condition.
+ * This exception indicates a temporary unavailability condition. During the transition,
+ * internal indexes are being built and the catalog cannot accept new sessions. Once the
+ * transition completes, the catalog will be fully operational and accept parallel sessions.
+ *
+ * **Typical Causes:**
+ * - Another session called `goLive()` and the transition is in progress
+ * - Catalog recovery or initialization triggered automatic transition to live state
+ *
+ * **Resolution:**
+ * Wait a moment and retry the session creation. The transition is typically fast unless
+ * the catalog contains a large dataset requiring index rebuilding.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class CatalogGoingLiveException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 5841060392678651511L;
 
+	/**
+	 * Creates a new exception for a catalog that is transitioning to live state.
+	 *
+	 * @param catalogName name of the catalog that is currently going live
+	 */
 	public CatalogGoingLiveException(@Nonnull String catalogName) {
 		super(
 			"Catalog `" + catalogName + "` is in process of transition from warm-up state to live state. " +

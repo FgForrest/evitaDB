@@ -30,19 +30,40 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Aggregates basic data about the catalog and entity types stored in it.
+ * Provides aggregated statistical information about a catalog instance, including its current state, size metrics,
+ * and per-collection statistics. This record is primarily used for monitoring, management dashboards, and system
+ * health checks.
  *
- * @param catalogId unique identifier of the catalog
- * @param catalogName name of the catalog
- * @param unusable true if the catalog is corrupted (other data will be not available)
- * @param readOnly true if the catalog is read-only (no mutations are allowed)
- * @param catalogState current state of the catalog, null for corrupted catalog
- * @param catalogVersion version of the catalog, -1 for corrupted catalog
- * @param totalRecords total number of records in the catalog, -1 for corrupted catalog
- * @param indexCount total number of indexes in the catalog, -1 for corrupted catalog
- * @param sizeOnDiskInBytes total size of the catalog on disk in bytes
- * @param entityCollectionStatistics statistics for each entity collection in the catalog, empty array for corrupted catalog
+ * **Data Availability**
  *
+ * When `unusable` is true (catalog is corrupted), most fields will contain placeholder or null values:
+ * - `catalogState` will be null
+ * - `catalogVersion`, `totalRecords`, `indexCount` will be -1
+ * - `entityCollectionStatistics` will be an empty array
+ * - Only `catalogId`, `catalogName`, `readOnly`, and `sizeOnDiskInBytes` remain valid
+ *
+ * **Usage Context**
+ *
+ * This record is returned by:
+ * - {@link CatalogContract#getStatistics()} to get statistics for a single catalog
+ * - {@link EvitaManagementContract#getCatalogStatistics()} to get statistics for all catalogs in the instance
+ *
+ * **Thread-Safety**
+ *
+ * This record is immutable and thread-safe. Statistics represent a snapshot at the time of retrieval and may
+ * become stale as the catalog is modified.
+ *
+ * @param catalogId                  unique identifier of the catalog, null only for corrupted catalogs where ID cannot be determined
+ * @param catalogName                name of the catalog, always present even for corrupted catalogs
+ * @param unusable                   true if the catalog is corrupted and cannot be loaded (state is {@link CatalogState#CORRUPTED})
+ * @param readOnly                   true if the catalog is in read-only mode and cannot accept mutations
+ * @param catalogState               current operational state of the catalog, null only when unusable is true
+ * @param catalogVersion             current version number of the catalog, incremented with each mutation, -1 for corrupted catalogs
+ * @param totalRecords               total number of entity records across all collections in the catalog, -1 for corrupted catalogs
+ * @param indexCount                 total number of indexes (attribute, reference, hierarchy) across all collections, -1 for corrupted catalogs
+ * @param sizeOnDiskInBytes          total disk space consumed by all catalog data files in bytes
+ * @param entityCollectionStatistics per-collection statistics for each entity type in the catalog, empty array for
+ *                                   corrupted catalogs
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record CatalogStatistics(
@@ -64,7 +85,9 @@ public record CatalogStatistics(
 		if (o == null || getClass() != o.getClass()) return false;
 
 		CatalogStatistics that = (CatalogStatistics) o;
-		return this.indexCount == that.indexCount && this.unusable == that.unusable && this.totalRecords == that.totalRecords && this.catalogVersion == that.catalogVersion && this.sizeOnDiskInBytes == that.sizeOnDiskInBytes && this.catalogName.equals(that.catalogName) && this.catalogState == that.catalogState && Arrays.equals(this.entityCollectionStatistics, that.entityCollectionStatistics);
+		return this.indexCount == that.indexCount && this.unusable == that.unusable && this.totalRecords == that.totalRecords && this.catalogVersion == that.catalogVersion && this.sizeOnDiskInBytes == that.sizeOnDiskInBytes && this.catalogName.equals(
+			that.catalogName) && this.catalogState == that.catalogState && Arrays.equals(
+			this.entityCollectionStatistics, that.entityCollectionStatistics);
 	}
 
 	@Override
@@ -96,12 +119,23 @@ public record CatalogStatistics(
 	}
 
 	/**
-	 * Aggregates basic data about the entity collection.
+	 * Provides statistical information for a single entity collection within a catalog. Each entity collection
+	 * represents a distinct entity type (analogous to a table in relational databases or a document type in NoSQL).
 	 *
-	 * @param entityType name of the entity collection
-	 * @param totalRecords total number of records in the entity collection
-	 * @param indexCount total number of indexes in the entity collection
-	 * @param sizeOnDiskInBytes total size of the entity collection on disk in bytes
+	 * **Usage Context**
+	 *
+	 * These statistics are embedded within {@link CatalogStatistics#entityCollectionStatistics()} to provide
+	 * per-collection breakdowns of catalog metrics.
+	 *
+	 * **Thread-Safety**
+	 *
+	 * This record is immutable and thread-safe. Values represent a snapshot at the time of retrieval.
+	 *
+	 * @param entityType        unique name of the entity collection, corresponds to {@link EntityCollectionContract#getEntityType()}
+	 * @param totalRecords      total number of entity records stored in this collection
+	 * @param indexCount        total number of indexes created for this collection (includes attribute indexes, reference indexes,
+	 *                          hierarchy indexes, and other specialized indexes)
+	 * @param sizeOnDiskInBytes total disk space consumed by this collection's data files in bytes
 	 */
 	public record EntityCollectionStatistics(
 		@Nonnull String entityType,

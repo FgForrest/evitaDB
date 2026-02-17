@@ -77,7 +77,7 @@ public final class LongNumberRange extends NumberRange<Long> {
 		final int delimiter = string.indexOf(INTERVAL_JOIN, 1);
 		Assert.isTrue(
 			delimiter > -1,
-			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to dates!")
+			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to values!")
 		);
 		final Long from = delimiter == 1 ? null : parseLong(string.substring(1, delimiter));
 		final Long to = delimiter == string.length() - 2 ? null : parseLong(string.substring(delimiter + 1, string.length() - 1));

@@ -32,7 +32,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.math.BigDecimal;
-import java.util.Arrays;
 
 /**
  * Default implementation of {@link HistogramContract}
@@ -50,10 +49,10 @@ public class Histogram implements HistogramContract {
 		Assert.isTrue(!ArrayUtils.isEmpty(buckets), "Buckets may never be empty!");
 		Assert.isTrue(buckets[buckets.length - 1].threshold().compareTo(max) <= 0, "Last bucket must have threshold lower than max!");
 		Bucket lastBucket = null;
-		for (Bucket bucket : buckets) {
+		for (final Bucket bucket : buckets) {
 			Assert.isTrue(
 				lastBucket == null || lastBucket.threshold().compareTo(bucket.threshold()) < 0,
-				"Buckets must have monotonic row of thresholds!"
+				"Buckets must have a monotonic row of thresholds!"
 			);
 			lastBucket = bucket;
 		}
@@ -82,7 +81,11 @@ public class Histogram implements HistogramContract {
 
 	@Override
 	public int getOverallCount() {
-		return Arrays.stream(this.buckets).mapToInt(Bucket::occurrences).sum();
+		int sum = 0;
+		for (final Bucket bucket : this.buckets) {
+			sum += bucket.occurrences();
+		}
+		return sum;
 	}
 
 	@Override

@@ -58,26 +58,27 @@ public interface ExpressionEvaluationContext {
 	ExpressionEvaluationContext withThis(@Nullable Object thisObject);
 
 	/**
-	 * Returns stream of variable names available.
+	 * Returns the names of all variables available in this evaluation context.
 	 *
-	 * @return stream of variable names available
+	 * @return stream of available variable names
 	 */
 	@Nonnull
 	Stream<String> getVariableNames();
 
 	/**
-	 * Returns variable value by its name.
+	 * Returns the value of a variable identified by its name.
 	 *
-	 * @param variableName variable name
-	 * @return variable value or empty if variable with given name does not exist
+	 * @param variableName the name of the variable to look up
+	 * @return the variable value, or empty if no variable with the given name exists in this context
 	 */
 	@Nonnull
 	Optional<Object> getVariable(@Nonnull String variableName) throws VariableNotDefinedException;
 
 	/**
-	 * Returns the random number generator.
+	 * Returns the random number generator used by expression operators that require randomness
+	 * (e.g. the `random()` function in expressions).
 	 *
-	 * @return the random number generator
+	 * @return the random number generator for this evaluation context
 	 */
 	@Nonnull
 	Random getRandom();

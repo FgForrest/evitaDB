@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,263 +24,481 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
-import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.InvalidClassifierFormatException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
+import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_NAME;
+import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_TYPE;
+import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.createExistingReferenceSchema;
+import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.createExistingReflectedReferenceSchema;
 import static java.util.Optional.of;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This test verifies {@link CreateReferenceSchemaMutation} class.
+ * Tests for {@link CreateReflectedReferenceSchemaMutation} verifying creation of reflected reference schemas,
+ * combination with removal mutations, and entity schema mutation.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateReflectedReferenceSchemaMutationTest {
+@DisplayName("CreateReflectedReferenceSchemaMutation")
+class CreateReflectedReferenceSchemaMutationTest {
 
-	static final String REFERENCE_NAME = "categories";
-	static final String REFERENCE_TYPE = "category";
-	static final String GROUP_TYPE = "group";
-	static final String REFERENCE_ATTRIBUTE_PRIORITY = "priority";
-	static final String REFERENCE_ATTRIBUTE_QUANTITY = "quantity";
-	static final String REFERENCE_ATTRIBUTE_COMPOUND = "priority";
+	private static final String REFLECTED_REFERENCE_NAME = "originalRef";
 
-	@Nonnull
-	static ReferenceSchemaContract createExistingReferenceSchema() {
-		return createExistingReferenceSchema(true);
-	}
+	@Nested
+	@DisplayName("Combine with other mutations")
+	class CombineWith {
 
-	@Nonnull
-	static ReferenceSchemaContract createExistingReferenceSchema(boolean indexed) {
-		return ReferenceSchema._internalBuild(
-			REFERENCE_NAME,
-			REFERENCE_TYPE,
-			"oldDescription",
-			"oldDeprecationNotice",
-			false,
-			Cardinality.ZERO_OR_MORE,
-			GROUP_TYPE,
-			false,
-			indexed ? new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) } : ScopedReferenceIndexType.EMPTY,
-			indexed ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE,
-			Map.of(
-				REFERENCE_ATTRIBUTE_PRIORITY,
-				AttributeSchema._internalBuild(
-					REFERENCE_ATTRIBUTE_PRIORITY,
-					"oldDescription",
-					"oldDeprecationNotice",
-					new ScopedAttributeUniquenessType[]{
-						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+		@Test
+		@DisplayName("should decompose into individual mutations when remove+create reflected reference")
+		void shouldDecomposeIntoIndividualMutationsWhenRemoveAndCreate() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"newDescription", "newDeprecationNotice",
+					Cardinality.EXACTLY_ONE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					false,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(createExistingReflectedReferenceSchema()));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			assertNull(result.origin());
+			assertNotNull(result.current());
+			assertTrue(result.current().length > 0);
+		}
+
+		@Test
+		@DisplayName("should not generate indexed mutation when indexed scopes are unchanged")
+		void shouldNotGenerateIndexedMutationWhenIndexedScopesAreUnchanged() {
+			// Create a mutation with DIFFERENT description but the SAME indexed/faceted scopes
+			// as the existing reflected reference
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"newDescription", "reflectedDeprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					// same indexed scopes as the existing reflected reference
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING
+						)
 					},
-					Scope.NO_SCOPE,
-					Scope.NO_SCOPE,
-					false,
-					false,
-					false,
-					Integer.class,
-					null,
-					2
-				),
-				REFERENCE_ATTRIBUTE_QUANTITY,
-				AttributeSchema._internalBuild(
-					REFERENCE_ATTRIBUTE_QUANTITY,
-					"oldDescription",
-					"oldDeprecationNotice",
-					new ScopedAttributeUniquenessType[]{
-						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
-					},
-					Scope.NO_SCOPE,
-					Scope.NO_SCOPE,
-					false,
-					false,
-					false,
-					Integer.class,
-					null,
-					2
-				)
-			),
-			Map.of(
-				REFERENCE_ATTRIBUTE_COMPOUND,
-				SortableAttributeCompoundSchema._internalBuild(
-					REFERENCE_ATTRIBUTE_COMPOUND,
-					"oldDescription",
-					"oldDeprecationNotice",
-					new Scope[] { Scope.LIVE },
-					List.of(
-						new AttributeElement(REFERENCE_ATTRIBUTE_PRIORITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
-						new AttributeElement(REFERENCE_ATTRIBUTE_QUANTITY, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-					)
-				)
-			)
-		);
-	}
+					// same faceted scopes as the existing reflected reference
+					new Scope[]{Scope.LIVE},
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			final ReflectedReferenceSchema existingReflected = createExistingReflectedReferenceSchema();
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(existingReflected));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
 
-	@Test
-	void shouldThrowExceptionWhenInvalidNameIsProvided() {
-		assertThrows(
-			InvalidClassifierFormatException.class,
-			() -> new CreateReferenceSchemaMutation(
-				"primaryKey", "description", "deprecationNotice",
-				Cardinality.ZERO_OR_ONE, REFERENCE_TYPE, false,
-				null, false,
-				false, false
-			)
-		);
-	}
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
 
-	@Test
-	void shouldBeReplacedWithIndividualMutationsWhenReferenceWasRemovedAndCreatedWithDifferentSettings() {
-		CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
-			REFERENCE_NAME,
-			"description", "deprecationNotice",
-			Cardinality.EXACTLY_ONE, "brand", false,
-			null, false,
-			false, false
-		);
-		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		Mockito.when(entitySchema.getReference(REFERENCE_NAME))
-			.thenReturn(
-				of(createExistingReferenceSchema())
+			// Result must not be null - the combineWith should produce mutations for changed properties
+			assertNotNull(
+				result,
+				"combineWith should return non-null result for remove+create with different properties"
 			);
-		RemoveReferenceSchemaMutation removeMutation = new RemoveReferenceSchemaMutation(REFERENCE_NAME);
-		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation);
-		assertNotNull(result);
-		assertFalse(result.discarded());
-		assertEquals(10, result.current().length);
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyReferenceSchemaDescriptionMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyReferenceSchemaDeprecationNoticeMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyReferenceSchemaCardinalityMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyReferenceSchemaRelatedEntityMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyReferenceSchemaRelatedEntityGroupMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetReferenceSchemaIndexedMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof SetReferenceSchemaFacetedMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyReferenceAttributeSchemaMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation));
+			assertNotNull(result.current());
+			// Since description is different, there should be a description mutation
+			assertTrue(
+				Arrays.stream(result.current())
+					.anyMatch(m -> m instanceof ModifyReferenceSchemaDescriptionMutation),
+				"Should generate description mutation since description differs"
+			);
+			// Since indexed and faceted scopes are the same, there should be NO
+			// SetReferenceSchemaIndexedMutation or SetReferenceSchemaFacetedMutation
+			assertFalse(
+				Arrays.stream(result.current())
+					.anyMatch(m -> m instanceof SetReferenceSchemaIndexedMutation),
+				"Should not generate SetReferenceSchemaIndexedMutation when indexed scopes are unchanged"
+			);
+			assertFalse(
+				Arrays.stream(result.current())
+					.anyMatch(m -> m instanceof SetReferenceSchemaFacetedMutation),
+				"Should not generate SetReferenceSchemaFacetedMutation when faceted scopes are unchanged"
+			);
+		}
+
+		@Test
+		@DisplayName("should not combine when removal targets different reference")
+		void shouldNotCombineWhenRemovalTargetsDifferentReference() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation("differentName");
+
+			assertNull(
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class),
+					Mockito.mock(EntitySchemaContract.class),
+					removeMutation
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should return null when existing is a regular reference (not reflected)")
+		void shouldReturnNullWhenExistingIsRegularReference() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null,
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(createExistingReferenceSchema()));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("should return null for unrelated mutation type")
+		void shouldReturnNullForUnrelatedMutation() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+			final LocalEntitySchemaMutation unrelatedMutation =
+				new ModifyReferenceSchemaDescriptionMutation(REFERENCE_NAME, "notice");
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class),
+					Mockito.mock(EntitySchemaContract.class),
+					unrelatedMutation
+				);
+
+			assertNull(result);
+		}
 	}
 
-	@Test
-	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentReferenceata() {
-		CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
-			REFERENCE_NAME,
-			"oldDescription",
-			"oldDeprecationNotice",
-			Cardinality.ZERO_OR_MORE,
-			REFERENCE_TYPE,
-			false,
-			GROUP_TYPE,
-			false,
-			true,
-			true
-		);
-		RemoveReferenceSchemaMutation removeMutation = new RemoveReferenceSchemaMutation("differentName");
-		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), removeMutation));
+	@Nested
+	@DisplayName("Mutate reference schema")
+	class MutateReferenceSchema {
+
+		@Test
+		@DisplayName("should create new reflected reference schema")
+		void shouldCreateReflectedReference() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"description",
+					"deprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					true,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					new String[]{"excludedAttr"}
+				);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, referenceSchema);
+			final ReflectedReferenceSchemaContract reflected =
+				(ReflectedReferenceSchemaContract) referenceSchema;
+			assertEquals(REFERENCE_NAME, reflected.getName());
+			assertEquals("description", reflected.getDescription());
+			assertEquals("deprecationNotice", reflected.getDeprecationNotice());
+			assertEquals(Cardinality.ZERO_OR_MORE, reflected.getCardinality());
+			assertEquals(REFERENCE_TYPE, reflected.getReferencedEntityType());
+			assertEquals(REFLECTED_REFERENCE_NAME, reflected.getReflectedReferenceName());
+			assertEquals(
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				reflected.getAttributesInheritanceBehavior()
+			);
+		}
+
+		@Test
+		@DisplayName("should create reflected reference with inherited properties when nulls are passed")
+		void shouldCreateReflectedReferenceWithInheritedProperties() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					null,
+					null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, referenceSchema);
+			final ReflectedReferenceSchemaContract reflected =
+				(ReflectedReferenceSchemaContract) referenceSchema;
+			assertTrue(reflected.isDescriptionInherited());
+			assertTrue(reflected.isDeprecatedInherited());
+			assertTrue(reflected.isCardinalityInherited());
+		}
+
+		@Test
+		@DisplayName("should reject invalid classifier name")
+		void shouldThrowExceptionWhenInvalidNameIsProvided() {
+			assertThrows(
+				InvalidClassifierFormatException.class,
+				() -> new CreateReflectedReferenceSchemaMutation(
+					"primaryKey",
+					"desc", null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				)
+			);
+		}
 	}
 
-	@Test
-	void shouldCreateReference() {
-		CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
-			REFERENCE_NAME,
-			"description",
-			"deprecationNotice",
-			Cardinality.ZERO_OR_MORE,
-			REFERENCE_TYPE,
-			false,
-			GROUP_TYPE,
-			false,
-			true,
-			true
-		);
-		final ReferenceSchemaContract referenceSchema = mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
-		assertNotNull(referenceSchema);
-		assertEquals(REFERENCE_NAME, referenceSchema.getName());
-		assertEquals("description", referenceSchema.getDescription());
-		assertEquals("deprecationNotice", referenceSchema.getDeprecationNotice());
-		assertEquals(Cardinality.ZERO_OR_MORE, referenceSchema.getCardinality());
-		assertEquals(REFERENCE_TYPE, referenceSchema.getReferencedEntityType());
-		assertEquals(GROUP_TYPE, referenceSchema.getReferencedGroupType());
-		assertFalse(referenceSchema.isReferencedEntityTypeManaged());
-		assertFalse(referenceSchema.isReferencedGroupTypeManaged());
-		assertTrue(referenceSchema.isIndexed());
-		assertTrue(referenceSchema.isFaceted());
+	@Nested
+	@DisplayName("Mutate entity schema")
+	class MutateEntitySchema {
+
+		@Test
+		@DisplayName("should add reflected reference to entity schema")
+		void shouldCreateReflectedReferenceInEntity() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"description",
+					"deprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					false,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.version()).thenReturn(1);
+			final CatalogSchemaContract catalogSchema =
+				Mockito.mock(CatalogSchemaContract.class);
+
+			final EntitySchemaContract newEntitySchema =
+				mutation.mutate(catalogSchema, entitySchema);
+
+			assertNotNull(newEntitySchema);
+			assertEquals(2, newEntitySchema.version());
+			final ReferenceSchemaContract referenceSchema =
+				newEntitySchema.getReference(REFERENCE_NAME).orElseThrow();
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, referenceSchema);
+		}
+
+		@Test
+		@DisplayName("should throw when reflected reference already exists with different settings")
+		void shouldThrowExceptionWhenMutatingEntitySchemaWithExistingReference() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"differentDescription",
+					null,
+					Cardinality.EXACTLY_ONE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					true,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> {
+					final EntitySchemaContract entitySchema =
+						Mockito.mock(EntitySchemaContract.class);
+					Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+						.thenReturn(of(createExistingReflectedReferenceSchema()));
+					mutation.mutate(
+						Mockito.mock(CatalogSchemaContract.class), entitySchema
+					);
+				}
+			);
+		}
 	}
 
-	@Test
-	void shouldCreateReferenceInEntity() {
-		CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
-			REFERENCE_NAME,
-			"description",
-			"deprecationNotice",
-			Cardinality.ZERO_OR_MORE,
-			REFERENCE_TYPE,
-			false,
-			GROUP_TYPE,
-			false,
-			true,
-			true
-		);
-		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		Mockito.when(entitySchema.version()).thenReturn(1);
-		final EntitySchemaContract newEntitySchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema);
-		assertNotNull(newEntitySchema);
-		assertEquals(2, newEntitySchema.version());
-		final ReferenceSchemaContract referenceSchema = newEntitySchema.getReference(REFERENCE_NAME).orElseThrow();
-		assertNotNull(referenceSchema);
-		assertEquals(REFERENCE_NAME, referenceSchema.getName());
-		assertEquals("description", referenceSchema.getDescription());
-		assertEquals("deprecationNotice", referenceSchema.getDeprecationNotice());
-		assertEquals(Cardinality.ZERO_OR_MORE, referenceSchema.getCardinality());
-		assertEquals(REFERENCE_TYPE, referenceSchema.getReferencedEntityType());
-		assertEquals(GROUP_TYPE, referenceSchema.getReferencedGroupType());
-		assertFalse(referenceSchema.isReferencedEntityTypeManaged());
-		assertFalse(referenceSchema.isReferencedGroupTypeManaged());
-		assertTrue(referenceSchema.isIndexed());
-		assertTrue(referenceSchema.isFaceted());
-	}
+	@Nested
+	@DisplayName("Contract methods")
+	class Metadata {
 
-	@Test
-	void shouldThrowExceptionWhenMutatingEntitySchemaWithExistingReference() {
-		CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
-			REFERENCE_NAME,
-			"oldDescription",
-			"oldDeprecationNotice",
-			Cardinality.ZERO_OR_MORE,
-			REFERENCE_TYPE,
-			false,
-			GROUP_TYPE,
-			false,
-			true,
-			true
-		);
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> {
-				final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-				Mockito.when(entitySchema.getReference(REFERENCE_NAME))
-					.thenReturn(of(createExistingReferenceSchema()));
-				mutation.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema);
-			}
-		);
-	}
+		@Test
+		@DisplayName("should return UPSERT operation")
+		void shouldReturnUpsertOperation() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
 
+			assertEquals(Operation.UPSERT, mutation.operation());
+		}
+
+		@Test
+		@DisplayName("should return collection conflict key")
+		void shouldReturnCollectionConflictKey() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+			final List<ConflictKey> keys = new ConflictGenerationContext().withEntityType(
+				"testEntity", null,
+				ctx -> mutation.collectConflictKeys(ctx, Set.of()).toList()
+			);
+
+			assertEquals(1, keys.size());
+			assertInstanceOf(CollectionConflictKey.class, keys.get(0));
+		}
+
+		@Test
+		@DisplayName("should produce readable toString output")
+		void shouldProduceReadableToString() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"test description", null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+
+			final String result = mutation.toString();
+
+			assertTrue(result.contains("reflected reference"));
+			assertTrue(result.contains(REFERENCE_NAME));
+			assertTrue(result.contains(REFERENCE_TYPE));
+			assertTrue(result.contains(REFLECTED_REFERENCE_NAME));
+		}
+
+		@Test
+		@DisplayName("should report isFaceted based on facetedInScopes")
+		void shouldReportIsFacetedCorrectly() {
+			final CreateReflectedReferenceSchemaMutation facetedMutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					null, null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					true,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+			final CreateReflectedReferenceSchemaMutation notFacetedMutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					null, null,
+					null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					false,
+					AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+					null
+				);
+
+			assertTrue(facetedMutation.isFaceted());
+			assertFalse(notFacetedMutation.isFaceted());
+		}
+	}
 }

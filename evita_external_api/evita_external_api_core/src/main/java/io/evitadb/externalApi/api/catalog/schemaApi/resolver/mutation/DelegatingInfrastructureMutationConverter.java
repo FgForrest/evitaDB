@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.api.resolver.mutation.DelegatingMutationConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationConverter;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;

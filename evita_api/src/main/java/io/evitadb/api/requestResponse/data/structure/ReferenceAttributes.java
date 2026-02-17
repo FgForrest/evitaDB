@@ -37,7 +37,12 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 
 /**
- * Extension of {@link Attributes} for reference attributes.
+ * Extension of {@link Attributes} that holds attributes associated with
+ * a specific entity reference rather than the entity itself. When resolving
+ * an attribute schema, the reference schema is consulted first; if no match
+ * is found, the lookup falls back to the inherited `attributeTypes` map.
+ *
+ * Like its parent, instances of this class are immutable once constructed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -48,6 +53,16 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 	 */
 	final ReferenceSchemaContract referenceSchema;
 
+	/**
+	 * Creates reference attributes from a collection of attribute values.
+	 * This constructor is intended for internal use by the evitaDB engine
+	 * when loading reference attributes from persistent storage.
+	 *
+	 * @param entitySchema   schema of the entity owning the reference
+	 * @param referenceSchema schema of the reference these attributes belong to
+	 * @param attributeValues collection of attribute values to store
+	 * @param attributeTypes  map of attribute names to their schema contracts
+	 */
 	public ReferenceAttributes(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -58,6 +73,17 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 		this.referenceSchema = referenceSchema;
 	}
 
+	/**
+	 * Creates reference attributes from a pre-indexed map of attribute values.
+	 * This constructor is intended for internal use by the evitaDB engine
+	 * when loading reference attributes from persistent storage with
+	 * attribute values already indexed by their keys.
+	 *
+	 * @param entitySchema   schema of the entity owning the reference
+	 * @param referenceSchema schema of the reference these attributes belong to
+	 * @param attributeValues map of attribute keys to their values
+	 * @param attributeTypes  map of attribute names to their schema contracts
+	 */
 	public ReferenceAttributes(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -68,6 +94,14 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 		this.referenceSchema = referenceSchema;
 	}
 
+	/**
+	 * Resolves the attribute schema for the given attribute name using
+	 * a two-stage lookup: first checks the reference schema, then falls
+	 * back to the `attributeTypes` map inherited from the parent class.
+	 *
+	 * @param attributeName name of the attribute to look up
+	 * @return the attribute schema if found, empty optional otherwise
+	 */
 	@Nonnull
 	@Override
 	public Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
@@ -75,6 +109,14 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 		                           .or(() -> ofNullable(this.attributeTypes.get(attributeName)));
 	}
 
+	/**
+	 * Creates an {@link AttributeNotFoundException} that includes both
+	 * the reference schema and entity schema context, allowing callers
+	 * to understand which reference on which entity was missing the attribute.
+	 *
+	 * @param attributeName name of the attribute that was not found
+	 * @return exception describing the missing attribute in reference context
+	 */
 	@Nonnull
 	@Override
 	protected AttributeNotFoundException createAttributeNotFoundException(@Nonnull String attributeName) {

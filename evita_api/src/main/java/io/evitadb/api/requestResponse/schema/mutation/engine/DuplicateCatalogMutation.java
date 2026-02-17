@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
+import io.evitadb.dataType.ClassifierType;
+import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -64,10 +66,11 @@ public class DuplicateCatalogMutation implements TopLevelCatalogSchemaMutation<V
 	/**
 	 * Creates a new mutation that will duplicate the specified catalog with a new name.
 	 *
-	 * @param catalogName name of the source catalog to duplicate
+	 * @param catalogName    name of the source catalog to duplicate
 	 * @param newCatalogName name of the new catalog to create with duplicated contents
 	 */
 	public DuplicateCatalogMutation(@Nonnull String catalogName, @Nonnull String newCatalogName) {
+		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, newCatalogName);
 		this.catalogName = catalogName;
 		this.newCatalogName = newCatalogName;
 	}
@@ -84,15 +87,18 @@ public class DuplicateCatalogMutation implements TopLevelCatalogSchemaMutation<V
 			throw new InvalidMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
 		} else {
 			final CatalogState catalogState = evita.getCatalogState(this.catalogName).orElse(null);
-			if (!(catalogState == CatalogState.ALIVE || catalogState == CatalogState.WARMING_UP)) {
-				throw new InvalidMutationException("Catalog `" + this.catalogName + "` is not in a valid state for this operation! Current state: " + catalogState);
+			if (catalogState == null || !catalogState.isActive()) {
+				throw new InvalidMutationException(
+					"Catalog `" + this.catalogName + "` is not in a valid state for this operation!" +
+						" Current state: " + catalogState
+				);
 			}
 		}
 
 		if (evita.getCatalogNames().contains(this.newCatalogName)) {
 			throw new InvalidMutationException("Catalog `" + this.newCatalogName + "` already exists!");
 		}
-		// check the names in all naming conventions are unique in the entity schema
+		// check the names in all naming conventions are unique among catalogs
 		CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName);
 	}
 

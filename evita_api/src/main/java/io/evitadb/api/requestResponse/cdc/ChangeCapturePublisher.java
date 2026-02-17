@@ -30,24 +30,27 @@ import java.util.concurrent.Flow.Subscriber;
  * {@link Publisher} for {@link ChangeCapture} instances. Publisher should support multiple concurrent subscribers. The
  * captures should be multicasted to all subscribers that are able to receive more captures.
  *
- * <h3>Published captures</h3>
- * The publisher is not expected to have any buffer of captures, therefore, if a client doesn't request more captures right
- * away in the {@link Subscriber#onNext(Object)} callback, it may not receive all captures in a consumed sequence of captures
- * (there may be holes).
+ * ### Published captures
+ * The publisher is not expected to have any buffer of captures, therefore,
+ * if a client doesn't request more captures right away in the
+ * {@link Subscriber#onNext(Object)} callback, it may not receive all captures
+ * in a consumed sequence of captures (there may be holes).
  *
- * <h3>Subscriber lifecycle</h3>
+ * ### Subscriber lifecycle
  * Subscribers may stop requesting captures at any time, and start requesting them again later without publisher closing
  * the subscriber. The publisher may even not have any subscribers at all, but it must still remain open for any future
- * subscribers to come. The publisher must be manually closed by the {@link #close()} method to stop accepting subscribers
- * and sending new captures.
+ * subscribers to come. The publisher must be manually closed by the {@link #close()} method to stop accepting
+ * subscribers and sending new captures.
  *
+ * @param <C> the type of change capture events published by this publisher
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface ChangeCapturePublisher<C extends ChangeCapture>
 	extends Publisher<C>, AutoCloseable {
 
 	/**
-	 * When the publisher is closed, no new subscribers can be subscribed and no new captures can be sent to the subscribers.
+	 * When the publisher is closed, no new subscribers can be subscribed
+	 * and no new captures can be sent to the subscribers.
 	 */
 	@Override
 	void close();

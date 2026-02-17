@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,16 +23,19 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 /**
@@ -57,23 +60,29 @@ import java.util.function.BiConsumer;
 @RequiredArgsConstructor
 public class OffHeapMemoryOutputStream extends OutputStream {
 	/**
+	 * Checksum instance for computing integrity verification value for all data written to this stream.
+	 * The checksum is incrementally updated as data is written and can be retrieved via {@link #getChecksum()}.
+	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#computeCRC32C()}.
+	 */
+	private final Checksum checksum;
+	/**
 	 * The region index of the OffHeapMemoryOutputStream in {@link CatalogOffHeapMemoryManager} memory block.
 	 */
 	@Getter private int regionIndex;
 	/**
 	 * Private ByteBuffer variable used for storing data in off-heap memory.
 	 */
-	private ByteBuffer buffer;
+	@Nullable private ByteBuffer buffer;
 	/**
 	 * Represents a finalizer function that takes an Integer and an OffHeapMemoryOutputStream
 	 * as parameters and performs some action when the output stream is closed.
 	 */
-	private BiConsumer<Integer, OffHeapMemoryOutputStream> finalizer;
+	@Nullable private BiConsumer<Integer, OffHeapMemoryOutputStream> finalizer;
 	/**
 	 * Represents an OffHeapMemoryInputStream associated with this OffHeapMemoryOutputStream.
 	 * It is created when the getInputStream() method is called for the first time.
 	 */
-	private OffHeapMemoryInputStream inputStream;
+	@Nullable private OffHeapMemoryInputStream inputStream;
 	/**
 	 * Represents the position in the buffer where the next byte will be read.
 	 */
@@ -94,11 +103,27 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	 * @param buf        The ByteBuffer to be used as the buffer for the output stream. Must not be null.
 	 * @param finalizer  The Runnable to be executed when the output stream is closed. Must not be null.
 	 */
-	public void init(int index, @Nonnull ByteBuffer buf, @Nonnull BiConsumer<Integer, OffHeapMemoryOutputStream> finalizer) {
+	public void init(
+		int index,
+		@Nonnull ByteBuffer buf,
+		@Nonnull BiConsumer<Integer, OffHeapMemoryOutputStream> finalizer
+	) {
 		this.regionIndex = index;
 		this.buffer = buf;
-    	this.finalizer = finalizer;
+		this.finalizer = finalizer;
+		this.checksum.reset();
+		this.readPosition = 0;
+		this.writePosition = 0;
 		this.mode = Mode.WRITE;
+	}
+
+	/**
+	 * Retrieves the checksum value of the underlying buffer or data stream.
+	 *
+	 * @return The checksum value as a long.
+	 */
+	public long getChecksum() {
+		return this.checksum.getValue();
 	}
 
 	/**
@@ -109,23 +134,23 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	 * @param newMode The new mode to switch to. Must not be null.
 	 * @throws IllegalArgumentException If the new mode is invalid.
 	 */
-	private void switchMode(@Nonnull Mode newMode) {
+	private void switchMode(@Nonnull Mode newMode, @Nonnull ByteBuffer byteBuffer) {
 		switch (this.mode) {
 			case READ:
 				Assert.isPremiseValid(
 					newMode == Mode.WRITE,
 					"Cannot switch from READ to WRITE mode!"
 				);
-				this.readPosition = this.buffer.position();
-				this.buffer.position(this.writePosition);
+				this.readPosition = byteBuffer.position();
+				byteBuffer.position(this.writePosition);
 				break;
 			case WRITE:
 				Assert.isPremiseValid(
 					newMode == Mode.READ,
 					"Cannot switch from WRITE to READ mode!"
 				);
-				this.writePosition = this.buffer.position();
-				this.buffer.position(this.readPosition);
+				this.writePosition = byteBuffer.position();
+				byteBuffer.position(this.readPosition);
 				break;
 		}
 		this.mode = newMode;
@@ -140,14 +165,15 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	@Nonnull
 	public OffHeapMemoryInputStream getInputStream() {
 		if (this.inputStream == null) {
+			final ByteBuffer byteBuffer = Objects.requireNonNull(this.buffer);
 			this.inputStream = new OffHeapMemoryInputStream(
-				this.buffer,
+				byteBuffer,
 				this::getMode,
 				this::getWritePosition,
 				this::switchMode,
 				() -> this.inputStream = null
 			);
-			switchMode(Mode.READ);
+			switchMode(Mode.READ, byteBuffer);
 		}
 		return this.inputStream;
 	}
@@ -161,32 +187,42 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	@Nonnull
 	public ByteBuffer getByteBuffer() {
 		if (this.inputStream == null) {
+			final ByteBuffer byteBuffer = Objects.requireNonNull(this.buffer);
 			this.inputStream = new OffHeapMemoryInputStream(
-				this.buffer,
+				byteBuffer,
 				this::getMode,
 				this::getWritePosition,
 				this::switchMode,
 				() -> this.inputStream = null
 			);
-			switchMode(Mode.READ);
+			switchMode(Mode.READ, byteBuffer);
 		}
-		return this.inputStream.getBuffer();
+		return Objects.requireNonNull(this.inputStream.getBuffer());
 	}
 
 	@Override
 	public void write(int b) throws IOException {
+		final ByteBuffer byteBuffer = Objects.requireNonNull(this.buffer);
 		if (this.mode == Mode.READ) {
-			switchMode(Mode.WRITE);
+			switchMode(Mode.WRITE, byteBuffer);
 		}
-		this.buffer.put((byte) b);
+		final byte theByte = (byte) b;
+		// write to buffer first - may throw BufferOverflowException
+		byteBuffer.put(theByte);
+		// update checksum only after successful write
+		this.checksum.update(theByte);
 	}
 
 	@Override
 	public void write(@Nonnull byte[] bytes, int off, int len) throws IOException {
+		final ByteBuffer byteBuffer = Objects.requireNonNull(this.buffer);
 		if (this.mode == Mode.READ) {
-			switchMode(Mode.WRITE);
+			switchMode(Mode.WRITE, byteBuffer);
 		}
-		this.buffer.put(bytes, off, len);
+		// write to buffer first - may throw BufferOverflowException
+		byteBuffer.put(bytes, off, len);
+		// update checksum only after successful write
+		this.checksum.update(bytes, off, len);
 	}
 
 	/**
@@ -195,7 +231,7 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	 * @return The length of the peak data written to the output stream.
 	 */
 	public long getPeakDataWrittenLength() {
-		return this.mode == Mode.WRITE ? this.buffer.position() : this.writePosition;
+		return this.mode == Mode.WRITE ? Objects.requireNonNull(this.buffer).position() : this.writePosition;
 	}
 
 	/**
@@ -207,16 +243,17 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	public void dumpToChannel(
 		@Nonnull FileChannel fileChannel
 	) throws IOException {
+		final ByteBuffer byteBuffer = Objects.requireNonNull(this.buffer);
 		if (this.mode == Mode.READ) {
-			switchMode(Mode.WRITE);
+			switchMode(Mode.WRITE, byteBuffer);
 		}
 		// reset position to first byte before dumping data
-		this.buffer.flip();
+		byteBuffer.flip();
 		// write all data in a cycle
-		while(this.buffer.hasRemaining()) {
-			final int written = fileChannel.write(this.buffer);
+		while(byteBuffer.hasRemaining()) {
+			final int written = fileChannel.write(byteBuffer);
 			Assert.isPremiseValid(
-				written == this.buffer.limit(),
+				written == byteBuffer.limit(),
 				"Failed to dump data to the file!"
 			);
 		}

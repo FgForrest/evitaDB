@@ -55,14 +55,25 @@ public final class OffHeapWithFileBackupReference implements LogRecordReference,
 	 */
 	@Getter private final int contentLength;
 	/**
+	 * The checksum of the data (correctly set both for data in buffer and data in file).
+	 */
+	@Getter private final long checksum;
+	/**
 	 * The onClose action to be executed when the reference is closed.
 	 */
 	@Nonnull private final Runnable onClose;
 
-	private OffHeapWithFileBackupReference(@Nullable Path filePath, @Nullable ByteBuffer buffer, int contentLength, @Nonnull Runnable onClose) {
+	private OffHeapWithFileBackupReference(
+		@Nullable Path filePath,
+		@Nullable ByteBuffer buffer,
+		int contentLength,
+		long checksum,
+		@Nonnull Runnable onClose
+	) {
 		this.filePath = filePath;
 		this.buffer = buffer;
 		this.contentLength = contentLength;
+		this.checksum = checksum;
 		this.onClose = onClose;
 	}
 
@@ -74,8 +85,15 @@ public final class OffHeapWithFileBackupReference implements LogRecordReference,
 	 * @return An OffHeapWithFileBackupReference object.
 	 */
 	@Nonnull
-	public static OffHeapWithFileBackupReference withFilePath(@Nonnull Path filePath, int contentLength, @Nonnull Runnable onClose) {
-		return new OffHeapWithFileBackupReference(Objects.requireNonNull(filePath), null, contentLength, onClose);
+	public static OffHeapWithFileBackupReference withFilePath(
+		@Nonnull Path filePath,
+		int contentLength,
+		long cumulativeChecksum,
+		@Nonnull Runnable onClose
+	) {
+		return new OffHeapWithFileBackupReference(
+			Objects.requireNonNull(filePath), null, contentLength, cumulativeChecksum, onClose
+		);
 	}
 
 	/**
@@ -86,8 +104,15 @@ public final class OffHeapWithFileBackupReference implements LogRecordReference,
 	 * @return An OffHeapWithFileBackupReference object.
 	 */
 	@Nonnull
-	public static OffHeapWithFileBackupReference withByteBuffer(@Nonnull ByteBuffer buffer, int bufferPeak, @Nonnull Runnable onClose) {
-		return new OffHeapWithFileBackupReference(null, Objects.requireNonNull(buffer), bufferPeak, onClose);
+	public static OffHeapWithFileBackupReference withByteBuffer(
+		@Nonnull ByteBuffer buffer,
+		int bufferPeak,
+		long cumulativeChecksum,
+		@Nonnull Runnable onClose
+	) {
+		return new OffHeapWithFileBackupReference(
+			null, Objects.requireNonNull(buffer), bufferPeak, cumulativeChecksum, onClose
+		);
 	}
 
 	/**

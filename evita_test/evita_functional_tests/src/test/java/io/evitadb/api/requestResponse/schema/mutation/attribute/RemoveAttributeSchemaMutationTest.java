@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -47,12 +48,14 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("RemoveAttributeSchemaMutation")
 class RemoveAttributeSchemaMutationTest {
 
 	@Test
+	@DisplayName("Should remove previous global attribute create mutation with same name")
 	void shouldRemovePreviousGlobalAttributeCreateMutationWithSameName() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
-		CreateGlobalAttributeSchemaMutation previousMutation = new CreateGlobalAttributeSchemaMutation(
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final CreateGlobalAttributeSchemaMutation previousMutation = new CreateGlobalAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, GlobalAttributeUniquenessType.NOT_UNIQUE,
 			false, false, false, false, false,
@@ -68,9 +71,10 @@ class RemoveAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave mutation intact when removal mutation targets different global attribute")
 	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentGlobalAttribute() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
-		CreateGlobalAttributeSchemaMutation previousMutation = new CreateGlobalAttributeSchemaMutation(
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final CreateGlobalAttributeSchemaMutation previousMutation = new CreateGlobalAttributeSchemaMutation(
 			"differentName", "description", "deprecationNotice",
 			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, GlobalAttributeUniquenessType.NOT_UNIQUE,
 			false, false, false, false, false,
@@ -85,9 +89,10 @@ class RemoveAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should remove previous create mutation with same name")
 	void shouldRemovePreviousCreateMutationWithSameName() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
-		CreateAttributeSchemaMutation previousMutation = new CreateAttributeSchemaMutation(
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final CreateAttributeSchemaMutation previousMutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
 			AttributeUniquenessType.NOT_UNIQUE, false, false, false, false, false,
 			String.class, null, 2
@@ -102,9 +107,10 @@ class RemoveAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should leave mutation intact when removal mutation targets different attribute")
 	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentAttribute() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
-		CreateAttributeSchemaMutation previousMutation = new CreateAttributeSchemaMutation(
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final CreateAttributeSchemaMutation previousMutation = new CreateAttributeSchemaMutation(
 			"differentName", "description", "deprecationNotice",
 			AttributeUniquenessType.NOT_UNIQUE, false, false, false, false, false,
 			String.class, null, 0
@@ -119,8 +125,9 @@ class RemoveAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should remove global attribute")
 	void shouldRemoveGlobalAttribute() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final GlobalAttributeSchemaContract attributeSchema = mutation.mutate(
 			Mockito.mock(CatalogSchemaContract.class),
 			createExistingGlobalAttributeSchema(),
@@ -130,8 +137,9 @@ class RemoveAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should remove entity attribute")
 	void shouldRemoveEntityAttribute() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final EntityAttributeSchemaContract attributeSchema = mutation.mutate(
 			Mockito.mock(CatalogSchemaContract.class),
 			createExistingEntityAttributeSchema(),
@@ -141,8 +149,9 @@ class RemoveAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should remove attribute in catalog")
 	void shouldRemoveAttributeInCatalog() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(catalogSchema.getAttribute(ATTRIBUTE_NAME))
 			.thenReturn(of(createExistingGlobalAttributeSchema()));
@@ -156,37 +165,43 @@ class RemoveAttributeSchemaMutationTest {
 	}
 
 	@Test
+	@DisplayName("Should remove attribute in entity")
 	void shouldRemoveAttributeInEntity() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME))
 			.thenReturn(of(createExistingEntityAttributeSchema()));
 		Mockito.when(entitySchema.version()).thenReturn(1);
-		final EntitySchemaContract newEntitySchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema);
+		final EntitySchemaContract newEntitySchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), entitySchema);
 		assertNotNull(newEntitySchema);
 		assertEquals(2, newEntitySchema.version());
 		assertFalse(newEntitySchema.getAttribute(ATTRIBUTE_NAME).isPresent());
 	}
 
 	@Test
+	@DisplayName("Should remove attribute in reference")
 	void shouldRemoveAttributeInReference() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
 		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME))
 			.thenReturn(of(createExistingAttributeSchema()));
-		final ReferenceSchemaContract newReferenceSchema = mutation.mutate(Mockito.mock(EntitySchemaContract.class), referenceSchema);
+		final ReferenceSchemaContract newReferenceSchema = mutation.mutate(
+			Mockito.mock(EntitySchemaContract.class), referenceSchema);
 		assertNotNull(newReferenceSchema);
 		assertFalse(newReferenceSchema.getAttribute(ATTRIBUTE_NAME).isPresent());
 	}
 
 	@Test
+	@DisplayName("Should throw exception when mutating entity schema with non-existing attribute")
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithNonExistingAttribute() {
-		RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
+		final RemoveAttributeSchemaMutation mutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.version()).thenReturn(1);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME))
 			.thenReturn(empty());
-		final EntitySchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), entitySchema);
+		final EntitySchemaContract mutatedSchema = mutation.mutate(
+			Mockito.mock(CatalogSchemaContract.class), entitySchema);
 		assertEquals(1, mutatedSchema.version());
 	}
 

@@ -34,10 +34,38 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
- * This interface marks all implementations that alter the {@link AttributeSchemaContract()} either in
- * {@link CatalogSchemaContract}, {@link EntitySchemaContract} or {@link ReferenceSchemaContract}.
- * The implementations can either modify the entire owner schema or partially only a single
- * {@link AttributeSchemaContract} of it.
+ * Marker interface for all schema mutations that alter {@link AttributeSchemaContract} definitions across the
+ * evitaDB schema hierarchy.
+ *
+ * Attributes can appear in three distinct schema contexts, and this interface unifies mutation operations across all
+ * of them:
+ *
+ * - **Global attributes** in {@link CatalogSchemaContract#getAttributes()} — shared across all entity types
+ * - **Entity attributes** in {@link EntitySchemaContract#getAttributes()} — specific to one entity type
+ * - **Reference attributes** in {@link ReferenceSchemaContract#getAttributes()} — associated with entity references
+ *
+ * **Mutation Scope**
+ *
+ * Implementations may modify entire schemas (e.g., creating or removing an attribute) or partially mutate
+ * a single attribute (e.g., changing its description, type, or indexing configuration).
+ *
+ * **Key Implementations**
+ *
+ * Three specialized sub-interfaces provide context-specific behavior:
+ *
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.attribute.GlobalAttributeSchemaMutation} — operates on
+ * catalog-level global attributes
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.attribute.EntityAttributeSchemaMutation} — operates on
+ * entity-level attributes
+ * - {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation} — operates on
+ * reference-level attributes
+ *
+ * Concrete mutations include `CreateAttributeSchemaMutation`, `ModifyAttributeSchemaTypeMutation`,
+ * `SetAttributeSchemaFilterableMutation`, and `RemoveAttributeSchemaMutation`.
+ *
+ * **Thread-Safety**
+ *
+ * All implementations are immutable and thread-safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -46,20 +74,36 @@ import javax.annotation.concurrent.ThreadSafe;
 public interface AttributeSchemaMutation extends SchemaMutation {
 
 	/**
-	 * Returns the name of the attribute.
+	 * Returns the name of the attribute schema targeted by this mutation.
+	 *
+	 * @return the attribute name, never `null`
 	 */
 	@Nonnull
 	String getName();
 
 	/**
-	 * Method applies the mutation operation on the attribute schema in the input and returns modified version
-	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
-	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
+	 * Applies the mutation operation on the attribute schema and returns the modified version. This method implements
+	 * create, update, and remove operations using `null` as a sentinel value:
 	 *
-	 * @param catalogSchema owner catalog schema that contains shared global {@link CatalogSchemaContract#getAttributes()}
-	 * @param attributeSchema current version of the schema as an input to mutate
+	 * - **Create**: `null` input → non-`null` output (new schema created)
+	 * - **Modify**: non-`null` input → non-`null` output (existing schema modified)
+	 * - **Remove**: non-`null` input → `null` output (schema deleted)
+	 *
+	 * The `catalogSchema` parameter provides access to shared global attributes, which may be referenced or inherited
+	 * by entity or reference schemas. The `schemaType` parameter enables type-safe casting to the specific attribute
+	 * schema subtype ({@link io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract},
+	 * {@link io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract}, or
+	 * {@link AttributeSchemaContract}).
+	 *
+	 * @param catalogSchema   owner catalog schema containing shared global attributes, may be `null` for
+	 *                        entity-scoped or reference-scoped mutations
+	 * @param attributeSchema current version of the attribute schema to mutate, may be `null` for create operations
+	 * @param schemaType      expected runtime type of the attribute schema, used for type-safe casting
+	 * @param <S>             attribute schema subtype (entity, global, or base attribute schema contract)
+	 * @return the mutated attribute schema, or `null` if the mutation removes the schema
 	 */
 	@Nullable
-	<S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType);
+	<S extends AttributeSchemaContract> S mutate(
+		@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType);
 
 }

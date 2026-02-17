@@ -29,16 +29,34 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when a reference cannot be uniquely identified because multiple references exist
- * and no specific reference name or identifier was provided to distinguish between them.
- * This typically occurs when trying to access a reference on an entity that has multiple references
- * of the same type without specifying which one is intended.
+ * Thrown when attempting to retrieve or manipulate a reference without providing sufficient information
+ * to uniquely identify which reference is intended, in cases where the reference schema allows multiple
+ * references of the same type.
+ *
+ * This exception occurs when working with references that have {@link Cardinality#ZERO_OR_MORE} or
+ * {@link Cardinality#ONE_OR_MORE} cardinality. In these cases, an entity can have multiple references
+ * with the same reference name but different referenced entity IDs. Operations that don't specify the
+ * referenced entity ID cannot determine which specific reference to operate on.
+ *
+ * **When this is thrown:**
+ * - Calling proxy interface methods that retrieve or set references without providing referenced entity ID
+ * - Using reference mutation methods on multi-cardinality references without specifying which one
+ * - Thrown by `GetReferenceMethodClassifier` and `SetReferenceMethodClassifier` during proxy method dispatch
+ *
+ * **Resolution:**
+ * - Provide the referenced entity ID to disambiguate which reference you want
+ * - Use methods that accept both reference name and referenced entity ID
+ * - Iterate over all references with the same name if you need to process them all
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class AmbiguousReferenceException extends InvalidMutationException {
 	@Serial private static final long serialVersionUID = -8644814260214013001L;
 
+	/**
+	 * Creates exception indicating that a reference lookup requires the referenced entity ID due to
+	 * the reference's cardinality allowing multiple instances.
+	 */
 	public AmbiguousReferenceException(@Nonnull String referenceName, @Nonnull Cardinality cardinality) {
 		super(
 			"Cannot resolve reference `" + referenceName + "` without a referenced entity id - reference cardinality is " +

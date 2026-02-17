@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,8 +25,6 @@ package io.evitadb.store.traffic;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
-import io.evitadb.api.LabelIntrospector;
-import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.exception.IndexNotReady;
@@ -45,6 +43,8 @@ import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.api.traffic.LabelIntrospector;
+import io.evitadb.api.traffic.TrafficRecordingReader;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
@@ -54,6 +54,7 @@ import io.evitadb.spi.store.catalog.trafficRecorder.RandomAccessFileSessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.SessionSink;
 import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
@@ -651,7 +652,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					this.diskBuffer.getDiskBufferFileSize(),
 					filePosition
 				),
-				byteBuffer
+				byteBuffer,
+				Checksum.NO_OP,
+				null
 			);
 			return StorageRecord.read(
 				input,

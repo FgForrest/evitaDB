@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,9 +71,23 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 */
 	@Getter private final String catalogName;
 	/**
-	 * The configuration options for the key-value storage.
+	 * Size of the memory buffer used for serialization operations, in bytes.
+	 * This buffer size determines the size of buffers held by cached {@link ObservableOutput} instances.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
-	@Getter private final StorageOptions options;
+	private final int outputBufferSize;
+	/**
+	 * Timeout in seconds for acquiring locks on file handles during output stream operations.
+	 * If a lock cannot be acquired within this timeout, an exception is thrown.
+	 * Sourced from {@link StorageOptions#lockTimeoutSeconds()}, typically defaults to 5 seconds.
+	 */
+	private final int lockTimeoutSeconds;
+	/**
+	 * Timeout in seconds for waiting on processes to release file handles during cleanup operations.
+	 * Used when disposing of cached outputs to ensure graceful resource release.
+	 * Sourced from {@link StorageOptions#waitOnCloseSeconds()}, typically defaults to 5 seconds.
+	 */
+	private final int waitOnCloseSeconds;
 	/**
 	 * Contains reference to the asynchronous task executor that clears the cached file pointers after some
 	 * time of inactivity.
@@ -91,13 +105,30 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 * Method allowing to access {@link StorageOptions} internal settings so that we can pass only {@link ObservableOutputKeeper}
 	 * in the {@link WriteOnlyFileHandle} class.
 	 */
-	public long getLockTimeoutSeconds() {
-		return this.options.lockTimeoutSeconds();
+	public int getLockTimeoutSeconds() {
+		return this.lockTimeoutSeconds;
 	}
 
-	public ObservableOutputKeeper(@Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
+	/**
+	 * This method is meant to be used in tests only to create default instance of {@link ObservableOutputKeeper}.
+	 *
+	 * @param scheduler the scheduler to use for delayed tasks
+	 */
+	@Nonnull
+	public static ObservableOutputKeeper _internalBuild(@Nonnull Scheduler scheduler) {
+		return new ObservableOutputKeeper(2_097_152, 5, 5, scheduler);
+	}
+
+	public ObservableOutputKeeper(
+		int outputBufferSize,
+		int lockTimeoutSeconds,
+		int waitOnCloseSeconds,
+		@Nonnull Scheduler scheduler
+	) {
 		this.catalogName = null;
-		this.options = options;
+		this.outputBufferSize = outputBufferSize;
+		this.lockTimeoutSeconds = lockTimeoutSeconds;
+		this.waitOnCloseSeconds = waitOnCloseSeconds;
 		this.cutTask = new DelayedAsyncTask(
 			null, "Write buffer releaser",
 			scheduler,
@@ -106,9 +137,17 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		);
 	}
 
-	public ObservableOutputKeeper(@Nonnull String catalogName, @Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
+	public ObservableOutputKeeper(
+		@Nonnull String catalogName,
+		int outputBufferSize,
+		int lockTimeoutSeconds,
+		int waitOnCloseSeconds,
+		@Nonnull Scheduler scheduler
+	) {
 		this.catalogName = catalogName;
-		this.options = options;
+		this.outputBufferSize = outputBufferSize;
+		this.lockTimeoutSeconds = lockTimeoutSeconds;
+		this.waitOnCloseSeconds = waitOnCloseSeconds;
 		this.cutTask = new DelayedAsyncTask(
 			catalogName, "Write buffer releaser",
 			scheduler,
@@ -203,25 +242,25 @@ public class ObservableOutputKeeper implements AutoCloseable {
 				}
 			} while (
 				!this.cachedOutputToFiles.isEmpty() &&
-					System.currentTimeMillis() - start < this.options.waitOnCloseSeconds() * 1000L
+					System.currentTimeMillis() - start < this.waitOnCloseSeconds * 1000L
 			);
 
 			// emit event
 			if (this.catalogName == null) {
 				new ObservableOutputChangeEvent(
 					this.cachedOutputToFiles.size(),
-					(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+					(long) this.cachedOutputToFiles.size() * this.outputBufferSize
 				).commit();
 			} else {
 				new ObservableOutputChangeEvent(
 					this.catalogName,
 					this.cachedOutputToFiles.size(),
-					(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+					(long) this.cachedOutputToFiles.size() * this.outputBufferSize
 				).commit();
 			}
 		} catch (RuntimeException ex) {
 			log.error("Failed to close all cached outputs in {} seconds, {} outputs left",
-				this.options.waitOnCloseSeconds(),
+				this.waitOnCloseSeconds,
 				this.cachedOutputToFiles.size(),
 				ex
 			);
@@ -230,7 +269,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			if (!this.cachedOutputToFiles.isEmpty()) {
 				log.error(
 					"Failed to close all cached outputs in {} seconds, {} outputs left",
-					this.options.waitOnCloseSeconds(),
+					this.waitOnCloseSeconds,
 					this.cachedOutputToFiles.size()
 				);
 				this.cachedOutputToFiles.clear();
@@ -278,13 +317,13 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		if (this.catalogName == null) {
 			new ObservableOutputChangeEvent(
 				this.cachedOutputToFiles.size(),
-				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+				(long) this.cachedOutputToFiles.size() * this.outputBufferSize
 			).commit();
 		} else {
 			new ObservableOutputChangeEvent(
 				this.catalogName,
 				this.cachedOutputToFiles.size(),
-				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+				(long) this.cachedOutputToFiles.size() * this.outputBufferSize
 			).commit();
 		}
 

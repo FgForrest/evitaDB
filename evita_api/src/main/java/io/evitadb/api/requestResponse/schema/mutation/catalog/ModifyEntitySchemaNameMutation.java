@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
@@ -57,8 +56,6 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for renaming an existing {@link EntitySchemaContract}. The mutation is used internally
  * in {@link CatalogContract#replace(CatalogSchemaContract, CatalogContract)} method.
- * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * if the mutation is placed twice in the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -75,7 +72,9 @@ public class ModifyEntitySchemaNameMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
 				.getEntitySchema(this.name)
@@ -93,12 +92,14 @@ public class ModifyEntitySchemaNameMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema
+	) {
 		Assert.notNull(
 			entitySchema,
 			() -> new InvalidSchemaMutationException("Entity schema `" + this.name + "` doesn't exist!")
 		);
-		if (this.newName.equals(catalogSchema.getName())) {
+		if (this.newName.equals(entitySchema.getName())) {
 			// nothing has changed - we can return existing schema
 			return entitySchema;
 		} else {
@@ -124,6 +125,7 @@ public class ModifyEntitySchemaNameMutation
 			);
 		}
 	}
+
 	@Nonnull
 	@Override
 	public Operation operation() {
@@ -145,6 +147,7 @@ public class ModifyEntitySchemaNameMutation
 		return Stream.of(new CollectionConflictKey(this.name), new CollectionConflictKey(this.newName));
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "Modify entity `" + this.name + "` schema: " +

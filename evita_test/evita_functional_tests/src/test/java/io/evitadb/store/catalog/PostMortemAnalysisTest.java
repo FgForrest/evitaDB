@@ -34,7 +34,7 @@ import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
@@ -51,6 +51,7 @@ import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
@@ -88,9 +89,7 @@ import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getCatal
 @Slf4j
 @Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog file remnants.")
 public class PostMortemAnalysisTest implements EvitaTestSupport {
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
-		TEST_CATALOG,
-		StorageOptions.builder().build(),
+	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(
 		Mockito.mock(Scheduler.class)
 	);
 
@@ -98,16 +97,21 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 	void analyzeBootFile() {
 		final String catalogName = "decodoma_sk";
 		final Path basePath = Path.of("/www/oss/evitaDB/data/");
-		final StorageOptions storageOptions = StorageOptions.builder()
-			.storageDirectory(basePath)
-			.computeCRC32(true)
-			.build();
+		final StorageSettings storageOptions = new StorageSettings(
+			StorageOptions.builder()
+				.storageDirectory(basePath)
+				.computeCRC32(true)
+				.build(),
+			TransactionOptions.builder()
+				.build()
+		);
 
 		getCatalogBootstrapRecordStream(
 			catalogName,
 			storageOptions
 		).forEach(it -> {
-			System.out.println(it.catalogFileIndex() + "/" + it.catalogVersion() + ": " + it.timestamp() + " (" + it.fileLocation() + ")");
+			System.out.println(
+				it.catalogFileIndex() + "/" + it.catalogVersion() + ": " + it.timestamp() + " (" + it.fileLocation() + ")");
 		});
 	}
 
@@ -116,8 +120,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 		final String catalogName = "decodoma_cz";
 		final Path basePath = Path.of("/www/oss/evitaDB/data/");
 		final Path catalogFilePath = basePath.resolve(catalogName);
-		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
-		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
+
 		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
 			@Override
 			protected Kryo create() {
@@ -125,21 +128,27 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 			}
 		};
 
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.builder().storageDirectory(basePath).build(),
+			TransactionOptions.builder().build()
+		);
 		try (
 			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 				1,
-				catalogName, index -> CatalogPersistenceService.getWalFileName(catalogName, index),
+				catalogName,
+				new LogFileRecordReference(index -> CatalogPersistenceService.getWalFileName(catalogName, index)),
 				catalogFilePath, catalogKryoPool,
-				storageOptions, transactionOptions,
-				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
-				0
+				storageSettings,
+				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build())
 			)
 		) {
 			final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
 			wal.getCommittedMutationStream(-1)
 				.forEach(mutation -> {
-					if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
-						System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
+					if (mutation instanceof TransactionMutation txMut && !Objects.equals(
+						lastTransactionId.get(), txMut.getTransactionId())) {
+						System.out.println(
+							"\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
 						lastTransactionId.set(txMut.getTransactionId());
 					}
 					System.out.println("  " + mutation);
@@ -155,7 +164,13 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 		final Path basePath = Path.of("/www/oss/evitaDB/data/");
 		final Path catalogFilePath = basePath.resolve(catalogName);
 		final OffsetIndexRecordTypeRegistry recordRegistry = new OffsetIndexRecordTypeRegistry();
-		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.builder()
+				.storageDirectory(basePath)
+				.build(),
+			TransactionOptions.builder()
+				.build()
+		);
 		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
 		final AtomicReference<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderRef = new AtomicReference<>();
 		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
@@ -167,21 +182,30 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		getCatalogBootstrapRecordStream(
 			catalogName,
-			storageOptions
+			storageSettings
 		).forEach(it -> {
-			System.out.print(it.catalogFileIndex() + "/" + it.catalogVersion() + ": " + it.timestamp() + " (" + it.fileLocation() + ")");
+			System.out.print(
+				it.catalogFileIndex() + "/" + it.catalogVersion() + ": " + it.timestamp() + " (" + it.fileLocation() + ")");
 			try {
 				final OffsetIndex indexRead = new OffsetIndex(
 					it.catalogVersion(),
 					catalogFilePath.resolve(getCatalogDataStoreFileName(catalogName, it.catalogFileIndex())),
 					it.fileLocation(),
-					storageOptions,
+					storageSettings.outputBufferSize(),
+					storageSettings.maxOpenedReadHandlesOrDefault(),
+					storageSettings.lockTimeoutSeconds(),
+					storageSettings.waitOnCloseSeconds(),
+					storageSettings,
+					storageSettings,
 					recordRegistry,
 					new WriteOnlyFileHandle(
 						catalogName,
 						FileType.CATALOG,
 						catalogName,
-						storageOptions,
+						storageSettings.outputBufferSize(),
+						storageSettings.syncWrites(),
+						storageSettings,
+						storageSettings,
 						catalogFilePath,
 						this.observableOutputKeeper
 					),
@@ -197,7 +221,9 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 				if (walRef == null) {
 					System.out.println(" -> OK, size " + indexRead.getEntries().size());
 				} else {
-					System.out.println(" -> OK " + walRef.fileIndex() + "/" + walRef.fileLocation() + ", size " + indexRead.getEntries().size());
+					System.out.println(
+						" -> OK " + walRef.fileIndex() + "/" + walRef.fileLocation() + ", size " + indexRead.getEntries()
+							.size());
 				}
 			} catch (Exception e) {
 				System.out.println(" -> ERROR: " + e.getMessage());
@@ -208,8 +234,9 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 		try (
 			final CatalogWriteAheadLog wal = createWalIfAnyWalFilePresent(
 				catalogHeader.version(), catalogName,
-				index -> CatalogPersistenceService.getWalFileName(catalogName, index),
-				storageOptions, transactionOptions, new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
+				new LogFileRecordReference(index -> CatalogPersistenceService.getWalFileName(catalogName, index)),
+				storageSettings,
+				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
 				position -> System.out.println("Trim attempted: " + position),
 				() -> firstActiveCatalogVersion -> System.out.println("Purge attempted: " + firstActiveCatalogVersion),
 				catalogFilePath, catalogKryoPool
@@ -219,8 +246,10 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 				final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
 				wal.getCommittedMutationStream(catalogHeader.version())
 					.forEach(mutation -> {
-						if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
-							System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
+						if (mutation instanceof TransactionMutation txMut && !Objects.equals(
+							lastTransactionId.get(), txMut.getTransactionId())) {
+							System.out.println(
+								"\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
 							lastTransactionId.set(txMut.getTransactionId());
 						}
 						System.out.println("  " + mutation);
@@ -241,7 +270,10 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 			Evita evita = new Evita(
 				new EvitaConfiguration(
 					"postMortemAnalysisTest",
-					ServerOptions.builder().readOnly(true).closeSessionsAfterSecondsOfInactivity(Integer.MAX_VALUE).build(),
+					ServerOptions.builder()
+						.readOnly(true)
+						.closeSessionsAfterSecondsOfInactivity(Integer.MAX_VALUE)
+						.build(),
 					StorageOptions.builder().storageDirectory(basePath).compress(true).build(),
 					TransactionOptions.builder().build(),
 					CacheOptions.builder().build(),
@@ -257,13 +289,13 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 					long total = 0;
 					for (String entityType : session.getAllEntityTypes()) {
 						total += session.queryEntityReference(
-							query(
-								collection(entityType),
-								require(
-									page(1, 0)
+								query(
+									collection(entityType),
+									require(
+										page(1, 0)
+									)
 								)
 							)
-						)
 							.getRecordPage()
 							.getTotalRecordCount();
 					}
@@ -296,23 +328,26 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 								processedCount += response.getRecordPage().getData().size();
 								if (System.currentTimeMillis() - lastPrint > 1000) {
 									final PaginatedList<SealedEntity> recordPage = (PaginatedList<SealedEntity>) response.getRecordPage();
-									log.info("Processing entity type {}: {}/{} ({}%)",
+									log.info(
+										"Processing entity type {}: {}/{} ({}%)",
 										entityType,
 										entityProcessedCount,
 										recordPage.getTotalRecordCount(),
-										(int)(((double)processedCount / (double)totalCount) * 100D)
+										(int) (((double) processedCount / (double) totalCount) * 100D)
 									);
 									lastPrint = System.currentTimeMillis();
 								}
 								pageNumber++;
 							} catch (Exception e) {
-								System.err.println("Error querying entity type " + entityType + " on page " + pageNumber + ": " + e.getMessage());
+								System.err.println(
+									"Error querying entity type " + entityType + " on page " + pageNumber + ": " + e.getMessage());
 								break;
 							}
 						} while (response.getRecordPage().hasNext());
 					}
 
-					log.info("Reading done - processed {}/{} entities.",
+					log.info(
+						"Reading done - processed {}/{} entities.",
 						processedCount,
 						totalCount
 					);
@@ -324,33 +359,35 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 	@Test
 	void shouldVerifyCrc32() throws FileNotFoundException {
-		final StorageOptions storageOptions = StorageOptions.builder()
-			.storageDirectory(Path.of("/www/oss/evitaDB-temporary/data"))
-			.fileSizeCompactionThresholdBytes(1_073_741_824L)
-			.minimalActiveRecordShare(0.7d)
-			.compress(true)
-			.build();
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.builder()
+				.storageDirectory(Path.of("/www/oss/evitaDB-temporary/data"))
+				.fileSizeCompactionThresholdBytes(1_073_741_824L)
+				.minimalActiveRecordShare(0.7d)
+				.compress(true)
+				.build(),
+			TransactionOptions.builder()
+				.build()
+		);
 		final String catalogName = "decodoma_cz";
-		final Path fileToCheck = storageOptions.storageDirectory().resolve(catalogName).resolve("decodoma_cz_0.catalog");
+		final Path fileToCheck = storageSettings.storageDirectory().resolve(catalogName).resolve(
+			"decodoma_cz_0.catalog"
+		);
 		try (
 			final ObservableInput<RandomAccessFileInputStream> observableInput = new ObservableInput<>(
 				new RandomAccessFileInputStream(
 					new RandomAccessFile(fileToCheck.toFile(), "r")
-				)
+				),
+				storageSettings.createChecksum(),
+				storageSettings.createDecompressor().orElse(null)
 			)
 		) {
-			if (storageOptions.compress()) {
-				observableInput.compress();
-			}
-			if (storageOptions.computeCRC32C()) {
-				observableInput.computeCRC32();
-			}
 			final FileOffsetIndexStatistics statistics = new FileOffsetIndexStatistics(0, 0L);
 			OffsetIndexSerializationService.verify(
 				observableInput,
 				fileToCheck.toFile().length(),
 				statistics,
-				storageOptions
+				storageSettings.createChecksum()
 			);
 			log.info(
 				"File `{}` CRC32C checksum is valid - total records: {}, size: {}B",

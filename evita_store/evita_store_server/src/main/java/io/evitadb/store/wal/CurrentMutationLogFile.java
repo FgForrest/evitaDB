@@ -24,7 +24,7 @@
 package io.evitadb.store.wal;
 
 
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.exception.CatalogWriteAheadLastTransactionMismatchException;
 import io.evitadb.store.kryo.ObservableOutput;
@@ -73,6 +73,11 @@ class CurrentMutationLogFile implements Closeable {
 	 */
 	private long currentWalFileSize;
 	/**
+	 * Cumulative CRC32C checksum computed over all bytes written to the WAL file from the beginning up to the current
+	 * position.
+	 */
+	private long cumulativeChecksum;
+	/**
 	 * Field indicates whether the WAL file is closed.
 	 */
 	private boolean closed = false;
@@ -86,6 +91,19 @@ class CurrentMutationLogFile implements Closeable {
 		@Nonnull ObservableOutput<ByteArrayOutputStream> output,
 		long size
 	) {
+		this(walFileIndex, firstCatalogVersion, lastCatalogVersion, walFilePath, walFileChannel, output, size, 0L);
+	}
+
+	public CurrentMutationLogFile(
+		int walFileIndex,
+		long firstCatalogVersion,
+		long lastCatalogVersion,
+		@Nonnull Path walFilePath,
+		@Nonnull FileChannel walFileChannel,
+		@Nonnull ObservableOutput<ByteArrayOutputStream> output,
+		long size,
+		long initialCumulativeChecksum
+	) {
 		this.walFileIndex = walFileIndex;
 		this.firstVersionOfCurrentWalFile.set(firstCatalogVersion);
 		this.lastWrittenVersion.set(lastCatalogVersion);
@@ -93,6 +111,7 @@ class CurrentMutationLogFile implements Closeable {
 		this.walFileChannel = walFileChannel;
 		this.output = output;
 		this.currentWalFileSize = size;
+		this.cumulativeChecksum = initialCumulativeChecksum;
 	}
 
 	/**
@@ -176,11 +195,13 @@ class CurrentMutationLogFile implements Closeable {
 	 *
 	 * @param catalogVersion the updated catalog version
 	 * @param writtenLength  the length of the written record
+	 * @param cumulativeChecksum the updated cumulative checksum after writing
 	 */
-	public void updateLastWrittenVersion(long catalogVersion, int writtenLength) {
+	public void updateLastWrittenVersion(long catalogVersion, int writtenLength, long cumulativeChecksum) {
 		checkNextVersionMatch(catalogVersion);
 		this.lastWrittenVersion.set(catalogVersion);
 		this.currentWalFileSize += writtenLength;
+		this.cumulativeChecksum = cumulativeChecksum;
 	}
 
 	/**
@@ -202,6 +223,17 @@ class CurrentMutationLogFile implements Closeable {
 				"Invalid catalog version to write to the WAL file!"
 			)
 		);
+	}
+
+	/**
+	 * Returns the current value of the cumulative CRC32C checksum.
+	 * This represents the checksum of all bytes written to the WAL file from the beginning
+	 * up to the current position.
+	 *
+	 * @return the current cumulative checksum value
+	 */
+	public long getCumulativeChecksum() {
+		return this.cumulativeChecksum;
 	}
 
 	/**

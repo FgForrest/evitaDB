@@ -27,7 +27,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;

@@ -79,7 +79,7 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 	int lastEntityCollectionPrimaryKey,
 	double activeRecordShare
 ) implements StoragePart {
-	@Serial private static final long serialVersionUID = 4115945765677481853L;
+	@Serial private static final long serialVersionUID = 7238461925034817563L;
 
 	public CatalogHeader(@Nonnull UUID catalogId, @Nonnull String catalogName) {
 		this(

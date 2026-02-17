@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,15 +25,16 @@ package io.evitadb.store.traffic;
 
 
 import com.esotericsoftware.kryo.Kryo;
-import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.api.traffic.TrafficRecordingReader;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder.StreamDirection;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionFileLocation;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
@@ -99,7 +100,7 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 		long position = 0L;
 
 		inputStream.seek(position);
-		this.input = new ObservableInput<>(inputStream);
+		this.input = new ObservableInput<>(inputStream, Checksum.NO_OP, null);
 
 		final byte[] descriptorByteBufferArray = new byte[DiskRingBuffer.LEAD_DESCRIPTOR_BYTE_SIZE];
 		final ByteBuffer descriptorByteBuffer = ByteBuffer.allocate(DiskRingBuffer.LEAD_DESCRIPTOR_BYTE_SIZE);

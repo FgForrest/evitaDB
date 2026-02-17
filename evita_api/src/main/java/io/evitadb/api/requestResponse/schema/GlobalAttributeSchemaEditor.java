@@ -174,7 +174,7 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	}
 
 	/**
-	 * Makes attribute values not unique globaly among other attributes in all scopes. This method resets all unique
+	 * Makes attribute values not unique globally among other attributes in all scopes. This method resets all unique
 	 * constraints on the attribute, no matter whether they are global or locale specific. This means there might be
 	 * duplicate values for this type of attribute.
 	 *

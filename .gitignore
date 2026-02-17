@@ -108,3 +108,8 @@ fabric.properties
 /evita_test/evita_functional_tests/data/evita/product-6_0.collection
 /evita_test/evita_functional_tests/data/evitaDB.boot
 /evita_test/evita_functional_tests/data/evitaDB_0.wal
+/.claude/agent-memory/bug-hunter-tdd/MEMORY.md
+/.claude/agent-memory/code-simplifier/MEMORY.md
+/.claude/agent-memory/javadoc-writer/MEMORY.md
+/.claude/agent-memory/javadoc-writer/reference-exceptions.md
+/.claude/agent-memory/test-architect/MEMORY.md

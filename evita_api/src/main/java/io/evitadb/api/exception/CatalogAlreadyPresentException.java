@@ -31,16 +31,47 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when client code tries to create a new catalog with same name as existing catalog. This is
- * not allowed and client must choose different name.
+ * Thrown when attempting to create a new catalog with a name that conflicts with an existing catalog,
+ * either as an exact match or when converted to a specific naming convention.
+ *
+ * evitaDB catalog names must be unique both as canonical names and across all naming conventions
+ * (camelCase, snake_case, UPPER_CASE, etc.). This exception is thrown when attempting to create a catalog
+ * whose name would be indistinguishable from an existing catalog in at least one naming convention. The
+ * exception has two variants: one for simple name collisions and one that specifies which naming convention
+ * caused the conflict.
+ *
+ * **When this is thrown:**
+ * - When calling `defineCatalog()` with a name that already exists
+ * - When renaming a catalog to a name that would conflict with another catalog
+ * - During catalog schema evolution when name changes create conflicts
+ * - Thrown by `CatalogSchema` and `ModifyCatalogSchemaNameMutationOperator`
+ *
+ * **Example conflict:**
+ * - Existing catalog: `my-store`
+ * - New catalog: `myStore`
+ * - Both produce `myStore` in camelCase convention → conflict
+ *
+ * **Resolution:**
+ * - Choose a different catalog name that doesn't conflict in any naming convention
+ * - Delete or rename the existing catalog if it's no longer needed
+ * - Check existing catalog names using `getCatalogNames()` before creating new catalogs
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class CatalogAlreadyPresentException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -4492948359569503645L;
+	/**
+	 * The name of the catalog that was attempted to be created.
+	 */
 	@Getter private final String catalogName;
+	/**
+	 * The name of the existing catalog that conflicts.
+	 */
 	@Getter private final String existingCatalogName;
 
+	/**
+	 * Creates exception for a simple name collision between catalogs.
+	 */
 	public CatalogAlreadyPresentException(@Nonnull String catalogName, @Nonnull String existingCatalogName) {
 		super(
 			"Catalog with name `" + catalogName + "` already exists! " +
@@ -50,6 +81,10 @@ public class CatalogAlreadyPresentException extends EvitaInvalidUsageException {
 		this.existingCatalogName = existingCatalogName;
 	}
 
+	/**
+	 * Creates exception for a naming convention collision, specifying which convention and resulting name
+	 * caused the conflict.
+	 */
 	public CatalogAlreadyPresentException(
 		@Nonnull String catalogName,
 		@Nonnull String existingCatalogName,

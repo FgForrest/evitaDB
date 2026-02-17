@@ -1,0 +1,87 @@
+# PR validation pipeline: build + test + AI code review
+
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [dev]
+    paths:
+      - evita*/**/*.java
+      - evita*/**/pom.xml
+      - pom.xml
+      - .github/**
+
+concurrency:
+  group: pr-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      - name: Build with Maven
+        run: |
+          mvn -T 1C -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+          jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
+
+      - name: Upload test results
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: success() || failure()
+        with:
+          name: test-results
+          path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+
+      - name: Publish Test Report
+        uses: ./.github/actions/publish-test-report
+        if: success() || failure()
+
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: anthropics/claude-code-action@b433f16b30d54063fd3bab6b12f46f3da00e41b6 # v1.0.47
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are reviewing a pull request for evitaDB, a specialized NoSQL
+            in-memory database for e-commerce written in Java.
+
+            First, read the file `.claude/agents/pr-reviewer.md` in the repository
+            root. That file contains your complete review persona, instructions,
+            and checklist. Follow every instruction in that file precisely.
+
+            The PR branch is already checked out in the current working directory.
+            The repository also contains a `CLAUDE.md` file with the project's
+            coding standards — use it as your reference for style compliance.
+
+            Use `gh pr diff ${{ github.event.pull_request.number }}` to examine
+            the changes. Use inline comments for file-specific feedback and a
+            single summary comment on the PR for overall assessment.
+
+          claude_args: |
+            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"

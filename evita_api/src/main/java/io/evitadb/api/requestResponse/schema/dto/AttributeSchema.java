@@ -60,18 +60,9 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 @EqualsAndHashCode
-public sealed class AttributeSchema implements AttributeSchemaContract permits EntityAttributeSchema, GlobalAttributeSchema {
+public sealed class AttributeSchema implements AttributeSchemaContract
+	permits EntityAttributeSchema, GlobalAttributeSchema {
 	@Serial private static final long serialVersionUID = -4825670975814791474L;
-	/**
-	 * Human readable name of the attribute as defined by the schema author. See
-	 * {@link io.evitadb.api.requestResponse.schema.NamedSchemaContract#getName()}.
-	 */
-	@Getter @Nonnull protected final String name;
-	/**
-	 * Precomputed name variants for multiple {@link NamingConvention naming conventions}. These are generated
-	 * from {@link #name} and used wherever a specific convention (e.g. camelCase, snake_case) is required.
-	 */
-	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
 	/**
 	 * Default value used when the entity is created without explicitly providing this attribute. See
 	 * {@link AttributeSchemaContract#getDefaultValue()} for behavior details and its relation to
@@ -90,10 +81,32 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 */
 	@Getter @Nullable protected final String description;
 	/**
+	 * Set of scopes where the attribute is filterable. Filterable attributes consume index space and their type must
+	 * implement {@link Comparable}. See {@link AttributeSchemaContract#getFilterableInScopes()} and
+	 * {@link AttributeSchemaContract#isFilterableInScope(Scope)}.
+	 */
+	@Getter protected final Set<Scope> filterableInScopes;
+	/**
+	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
+	 * Values are scaled by 10^indexedDecimalPlaces and stored as integers, therefore the scaled value must fit into
+	 * {@link Integer} range. See {@link AttributeSchemaContract#getIndexedDecimalPlaces()}.
+	 */
+	@Getter protected final int indexedDecimalPlaces;
+	/**
 	 * Flag specifying that the attribute is tied to a particular {@link java.util.Locale}. Localized attributes must
 	 * always be used together with a locale. See {@link AttributeSchemaContract#isLocalized()}.
 	 */
 	@Getter protected final boolean localized;
+	/**
+	 * Human readable name of the attribute as defined by the schema author. See
+	 * {@link io.evitadb.api.requestResponse.schema.NamedSchemaContract#getName()}.
+	 */
+	@Getter @Nonnull protected final String name;
+	/**
+	 * Precomputed name variants for multiple {@link NamingConvention naming conventions}. These are generated
+	 * from {@link #name} and used wherever a specific convention (e.g. camelCase, snake_case) is required.
+	 */
+	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
 	/**
 	 * Flag specifying that the attribute value may be missing on entities. If false, upserts must provide a value.
 	 * For localized attributes, presence is enforced only for locales the entity is localized to. See
@@ -101,24 +114,16 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 */
 	@Getter protected final boolean nullable;
 	/**
+	 * Non-array variant of {@link #type}. If {@link #type} is an array, this holds its component type; otherwise it
+	 * equals {@link #type}. See {@link AttributeSchemaContract#getPlainType()}.
+	 */
+	@Getter @Nonnull protected final Class<? extends Serializable> plainType;
+	/**
 	 * Flag marking this attribute as representative. Representative attributes help identify entities or
 	 * disambiguate duplicated references and may be used by developer tools. See
 	 * {@link AttributeSchemaContract#isRepresentative()}.
 	 */
 	@Getter protected final boolean representative;
-	/**
-	 * Mapping of {@link Scope} to the attribute uniqueness semantics in that scope. See
-	 * {@link AttributeSchemaContract#getUniquenessTypeInScopes()} and uniqueness helpers
-	 * such as {@link AttributeSchemaContract#isUniqueInScope(Scope)} and
-	 * {@link AttributeSchemaContract#isUniqueWithinLocaleInScope(Scope)}.
-	 */
-	@Getter protected final Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes;
-	/**
-	 * Set of scopes where the attribute is filterable. Filterable attributes consume index space and their type must
-	 * implement {@link Comparable}. See {@link AttributeSchemaContract#getFilterableInScopes()} and
-	 * {@link AttributeSchemaContract#isFilterableInScope(Scope)}.
-	 */
-	@Getter protected final Set<Scope> filterableInScopes;
 	/**
 	 * Set of scopes where the attribute is sortable. Sortable attributes consume index space and their type must
 	 * implement {@link Comparable}. See {@link AttributeSchemaContract#getSortableInScopes()} and
@@ -131,16 +136,12 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 */
 	@Getter @Nonnull protected final Class<? extends Serializable> type;
 	/**
-	 * Non-array variant of {@link #type}. If {@link #type} is an array, this holds its component type; otherwise it
-	 * equals {@link #type}. See {@link AttributeSchemaContract#getPlainType()}.
+	 * Mapping of {@link Scope} to the attribute uniqueness semantics in that scope. See
+	 * {@link AttributeSchemaContract#getUniquenessTypeInScopes()} and uniqueness helpers
+	 * such as {@link AttributeSchemaContract#isUniqueInScope(Scope)} and
+	 * {@link AttributeSchemaContract#isUniqueWithinLocaleInScope(Scope)}.
 	 */
-	@Getter @Nonnull protected final Class<? extends Serializable> plainType;
-	/**
-	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
-	 * Values are scaled by 10^indexedDecimalPlaces and stored as integers, therefore the scaled value must fit into
-	 * {@link Integer} range. See {@link AttributeSchemaContract#getIndexedDecimalPlaces()}.
-	 */
-	@Getter protected final int indexedDecimalPlaces;
+	@Getter protected final Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes;
 
 	/**
 	 * Converts an array of ScopedAttributeUniquenessType objects into an EnumMap linking Scope to AttributeUniquenessType.
@@ -150,7 +151,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 * @return An EnumMap where each Scope is associated with its corresponding AttributeUniquenessType.
 	 */
 	@Nonnull
-	public static EnumMap<Scope, AttributeUniquenessType> toUniquenessEnumMap(@Nullable ScopedAttributeUniquenessType[] uniqueInScopes) {
+	public static EnumMap<Scope, AttributeUniquenessType> toUniquenessEnumMap(
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes
+	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = new EnumMap<>(Scope.class);
 		if (uniqueInScopes != null) {
 			for (ScopedAttributeUniquenessType uniqueInScope : uniqueInScopes) {
@@ -389,19 +392,25 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		this.deprecationNotice = deprecationNotice;
 		if (uniquenessTypeInScopes == null || uniquenessTypeInScopes.isEmpty()) {
 			final EnumMap<Scope, AttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
-			this.uniquenessTypeInScopes = Collections.unmodifiableMap(theMap);
 			theMap.put(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE);
+			this.uniquenessTypeInScopes = Collections.unmodifiableMap(theMap);
 		} else {
 			this.uniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(uniquenessTypeInScopes);
 		}
-		this.filterableInScopes = CollectionUtils.toUnmodifiableSet(filterableInScopes == null ? EnumSet.noneOf(Scope.class) : filterableInScopes);
-		this.sortableInScopes = CollectionUtils.toUnmodifiableSet(sortableInScopes == null ? EnumSet.noneOf(Scope.class) : sortableInScopes);
+		this.filterableInScopes = CollectionUtils.toUnmodifiableSet(
+			filterableInScopes == null ? EnumSet.noneOf(Scope.class) : filterableInScopes
+		);
+		this.sortableInScopes = CollectionUtils.toUnmodifiableSet(
+			sortableInScopes == null ? EnumSet.noneOf(Scope.class) : sortableInScopes
+		);
 		this.localized = localized;
 		this.nullable = nullable;
 		this.representative = representative;
 		this.type = EvitaDataTypes.toWrappedForm(type);
 		//noinspection unchecked
-		this.plainType = (Class<? extends Serializable>) (this.type.isArray() ? this.type.getComponentType() : this.type);
+		this.plainType = (Class<? extends Serializable>) (
+			this.type.isArray() ? this.type.getComponentType() : this.type
+		);
 		this.defaultValue = EvitaDataTypes.toTargetType(defaultValue, this.plainType);
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 	}
@@ -426,7 +435,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 
 	@Override
 	public boolean isUniqueWithinLocale() {
-		return this.uniquenessTypeInScopes.get(Scope.DEFAULT_SCOPE) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+		return this.uniquenessTypeInScopes.get(Scope.DEFAULT_SCOPE) ==
+			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
 	}
 
 	@Override
@@ -502,9 +512,11 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	public String toString() {
 		return "AttributeSchema{" +
 			"name='" + this.name + '\'' + (this.deprecationNotice == null ? "" : " (deprecated)") +
-			", unique=(" + (this.uniquenessTypeInScopes.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue().name())) + ")" +
-			", filterable=" + (this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + this.filterableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
-			", sortable=" + (this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + this.sortableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
+			", unique=(" + join(this.uniquenessTypeInScopes) + ")" +
+			", filterable=" +
+			(this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.filterableInScopes) + ")") +
+			", sortable=" +
+			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +
@@ -512,5 +524,32 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
 			", defaultValue=" + this.defaultValue +
 			'}';
+	}
+
+	/**
+	 * Joins the entries of the provided map into a single, comma-separated string.
+	 * Each map entry is formatted as "key: value", where the key is a {@code Scope}
+	 * and the value is an {@code AttributeUniquenessType}.
+	 *
+	 * @param scopes A non-null map linking {@code Scope} instances to {@code AttributeUniquenessType} values.
+	 *               Each map entry will contribute "key: value" to the resulting string.
+	 * @return A non-null, comma-separated string representing the entries of the map.
+	 */
+	@Nonnull
+	protected static String join(@Nonnull Map<Scope, ? extends Enum> scopes) {
+		return scopes.entrySet().stream()
+			.map(it -> it.getKey() + ": " + it.getValue().name())
+			.collect(Collectors.joining(", "));
+	}
+
+	/**
+	 * Joins the names of the provided {@code Scope} instances into a single comma-separated string.
+	 *
+	 * @param scopes A non-null set of {@code Scope} instances to be joined. Each {@code Scope}'s name will be used in the output string.
+	 * @return A non-null, comma-separated string containing the names of the provided {@code Scope} instances.
+	 */
+	@Nonnull
+	protected static String join(@Nonnull Set<Scope> scopes) {
+		return scopes.stream().map(Enum::name).collect(Collectors.joining(", "));
 	}
 }

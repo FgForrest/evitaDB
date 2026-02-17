@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,6 +46,8 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.exception.EvitaInternalError;
 import lombok.SneakyThrows;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -60,86 +62,209 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Tests for {@link ConstraintProcessor}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukas Hornych, FG Forrest a.s. (c) 2022
  */
+@DisplayName("ConstraintProcessor")
 class ConstraintProcessorTest {
 
-	@Test
-	void shouldCorrectlyProcessConstraints() {
-		final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(Set.of(And.class, AttributeStartsWith.class, HierarchyWithin.class));
-		assertEquals(
-			List.of(
-				createAndDescriptor(),
-				createAttributeStartsWithDescriptor(),
-				createHierarchyWithinDescriptor(),
-				createHierarchyWithinSelfDescriptor()
-			),
-			descriptors.stream().sorted(Comparator.comparing(ConstraintDescriptor::fullName)).toList()
-		);
+	@Nested
+	@DisplayName("Processing constraints")
+	class ProcessingConstraintsTest {
 
-		final List<ConstraintDescriptor> descriptors2 = new ConstraintProcessor().process(Set.of(ConstraintWithConstructorAndFactoryMethod.class))
-			.stream()
-			.sorted(Comparator.comparing(ConstraintDescriptor::fullName))
-			.toList();
-		assertEquals(
-			List.of(
-				createConstraintWithConstructorAndFactoryMethodDescriptor1(),
-				createConstraintWithConstructorAndFactoryMethodDescriptor2()
-			),
-			descriptors2
-		);
-		assertEquals(
-			new ConstraintWithConstructorAndFactoryMethod(1L),
-			descriptors2.get(0).creator().instantiateConstraint(new Object[]{1L}, "")
-		);
-		assertEquals(
-			ConstraintWithConstructorAndFactoryMethod.def(),
-			descriptors2.get(1).creator().instantiateConstraint(new Object[]{}, "")
-		);
+		@Test
+		@DisplayName("should correctly process well-defined constraints")
+		void shouldCorrectlyProcessConstraints() {
+			final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(
+				Set.of(And.class, AttributeStartsWith.class, HierarchyWithin.class)
+			);
+			assertEquals(
+				List.of(
+					createAndDescriptor(),
+					createAttributeStartsWithDescriptor(),
+					createHierarchyWithinDescriptor(),
+					createHierarchyWithinSelfDescriptor()
+				),
+				descriptors.stream()
+					.sorted(Comparator.comparing(ConstraintDescriptor::fullName))
+					.toList()
+			);
+
+			final List<ConstraintDescriptor> descriptors2 = new ConstraintProcessor().process(
+				Set.of(ConstraintWithConstructorAndFactoryMethod.class)
+			)
+				.stream()
+				.sorted(Comparator.comparing(ConstraintDescriptor::fullName))
+				.toList();
+			assertEquals(
+				List.of(
+					createConstraintWithConstructorAndFactoryMethodDescriptor1(),
+					createConstraintWithConstructorAndFactoryMethodDescriptor2()
+				),
+				descriptors2
+			);
+			assertEquals(
+				new ConstraintWithConstructorAndFactoryMethod(1L),
+				descriptors2.get(0).creator().instantiateConstraint(new Object[]{1L}, "")
+			);
+			assertEquals(
+				ConstraintWithConstructorAndFactoryMethod.def(),
+				descriptors2.get(1).creator().instantiateConstraint(new Object[]{}, "")
+			);
+		}
 	}
 
-	@Test
-	void shouldCorrectlyProcessSimilarConstraints() {
-		final Set<ConstraintDescriptor> descriptors1 = new ConstraintProcessor().process(Set.of(
-			ConstraintAWithoutSuffix.class,
-			ConstraintBWithSuffix.class
-		));
-		assertEquals(2, descriptors1.size());
+	@Nested
+	@DisplayName("Similar constraints")
+	class SimilarConstraintsTest {
 
-		final Set<ConstraintDescriptor> descriptors2 = new ConstraintProcessor().process(Set.of(
-			ConstraintWithSameConditionWithoutClassifier.class,
-			ConstraintWithSameConditionWithClassifier.class
-		));
-		assertEquals(2, descriptors2.size());
+		@Test
+		@DisplayName("should correctly process similar constraints with different names")
+		void shouldCorrectlyProcessSimilarConstraintsWithDifferentNames() {
+			final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(Set.of(
+				ConstraintAWithoutSuffix.class,
+				ConstraintBWithSuffix.class
+			));
+			assertEquals(2, descriptors.size());
+		}
 
-		final Set<ConstraintDescriptor> descriptors5 = new ConstraintProcessor().process(Set.of(
-			ConstraintWithSameConditionWithAndWithoutClassifier.class
-		));
-		assertEquals(2, descriptors5.size());
+		@Test
+		@DisplayName("should correctly process similar constraints with and without classifiers")
+		void shouldCorrectlyProcessSimilarConstraintsWithAndWithoutClassifiers() {
+			final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(Set.of(
+				ConstraintWithSameConditionWithoutClassifier.class,
+				ConstraintWithSameConditionWithClassifier.class
+			));
+			assertEquals(2, descriptors.size());
+		}
 
-		final Set<ConstraintDescriptor> descriptors3 = new ConstraintProcessor().process(Set.of(
-			ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA.class,
-			ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB.class
-		));
-		assertEquals(3, descriptors3.size());
+		@Test
+		@DisplayName("should correctly process constraint with both classified and unclassified creators")
+		void shouldCorrectlyProcessConstraintWithBothCreators() {
+			final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(Set.of(
+				ConstraintWithSameConditionWithAndWithoutClassifier.class
+			));
+			assertEquals(2, descriptors.size());
+		}
 
-		final Set<ConstraintDescriptor> descriptors4 = new ConstraintProcessor().process(Set.of(
-			ConstraintWithMultipleAdditionalChildren.class
-		));
-		assertEquals(1, descriptors4.size());
+		@Test
+		@DisplayName("should correctly process constraints with different full names or classifiers")
+		void shouldCorrectlyProcessConstraintsWithDifferentFullNamesOrClassifiers() {
+			final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(Set.of(
+				ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA.class,
+				ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB.class
+			));
+			assertEquals(3, descriptors.size());
+		}
+
+		@Test
+		@DisplayName("should correctly process constraint with multiple additional children")
+		void shouldCorrectlyProcessConstraintWithMultipleAdditionalChildren() {
+			final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(Set.of(
+				ConstraintWithMultipleAdditionalChildren.class
+			));
+			assertEquals(1, descriptors.size());
+		}
 	}
 
-	@Test
-	void shouldNotProcessIncorrectlyDefinedConstraint() {
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(UnannotatedConstraint.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithoutCreator.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithoutType.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithoutPropertyType.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithDuplicateCreators.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithMultipleImplicitClassifiers.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(SimilarConstraintA.class, SimilarConstraintB.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(SimilarConstraintWithSuffixedCreatorsA.class, SimilarConstraintWithSuffixedCreatorsB.class)));
-		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithMultipleSameAdditionalChildren.class)));
+	@Nested
+	@DisplayName("Validation errors")
+	class ValidationErrorsTest {
+
+		@Test
+		@DisplayName("should reject unannotated constraint")
+		void shouldNotProcessUnannotatedConstraint() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(Set.of(UnannotatedConstraint.class))
+			);
+		}
+
+		@Test
+		@DisplayName("should reject constraint without creator")
+		void shouldNotProcessConstraintWithoutCreator() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(Set.of(ConstraintWithoutCreator.class))
+			);
+		}
+
+		@Test
+		@DisplayName("should reject constraint without type")
+		void shouldNotProcessConstraintWithoutType() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(Set.of(ConstraintWithoutType.class))
+			);
+		}
+
+		@Test
+		@DisplayName("should reject constraint without property type")
+		void shouldNotProcessConstraintWithoutPropertyType() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(
+					Set.of(ConstraintWithoutPropertyType.class)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject constraint with duplicate creators")
+		void shouldNotProcessConstraintWithDuplicateCreators() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(
+					Set.of(ConstraintWithDuplicateCreators.class)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject constraint with multiple implicit classifiers")
+		void shouldNotProcessConstraintWithMultipleImplicitClassifiers() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(
+					Set.of(ConstraintWithMultipleImplicitClassifiers.class)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject truly duplicate similar constraints")
+		void shouldNotProcessDuplicateSimilarConstraints() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(
+					Set.of(SimilarConstraintA.class, SimilarConstraintB.class)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject similar constraints with identical suffixed creators")
+		void shouldNotProcessSimilarConstraintsWithSuffixedCreators() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(
+					Set.of(
+						SimilarConstraintWithSuffixedCreatorsA.class,
+						SimilarConstraintWithSuffixedCreatorsB.class
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject constraint with multiple same additional children")
+		void shouldNotProcessConstraintWithMultipleSameAdditionalChildren() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> new ConstraintProcessor().process(
+					Set.of(ConstraintWithMultipleSameAdditionalChildren.class)
+				)
+			);
+		}
 	}
 
 	@Nonnull
@@ -261,7 +386,10 @@ class ConstraintProcessorTest {
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			new ConstraintCreator(
-				HierarchyWithin.class.getConstructor(String.class, FilterConstraint.class, HierarchySpecificationFilterConstraint[].class),
+				HierarchyWithin.class.getConstructor(
+					String.class, FilterConstraint.class,
+					HierarchySpecificationFilterConstraint[].class
+				),
 				List.of(
 					new ClassifierParameterDescriptor("referenceName"),
 					new ValueParameterDescriptor(
@@ -297,7 +425,10 @@ class ConstraintProcessorTest {
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			new ConstraintCreator(
-				HierarchyWithin.class.getConstructor(FilterConstraint.class, HierarchySpecificationFilterConstraint[].class),
+				HierarchyWithin.class.getConstructor(
+					FilterConstraint.class,
+					HierarchySpecificationFilterConstraint[].class
+				),
 				List.of(
 					new ValueParameterDescriptor(
 						"ofParent",
@@ -455,7 +586,8 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithConstructorAndFactoryMethod extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithConstructorAndFactoryMethod
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator
 		public ConstraintWithConstructorAndFactoryMethod(@Nonnull Long value) {
@@ -518,7 +650,8 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class SimilarConstraintWithSuffixedCreatorsA extends AbstractAttributeFilterConstraintLeaf {
+	private static class SimilarConstraintWithSuffixedCreatorsA
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator(implicitClassifier = "primaryKey", suffix = "other")
 		public SimilarConstraintWithSuffixedCreatorsA() {
@@ -537,7 +670,8 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class SimilarConstraintWithSuffixedCreatorsB extends AbstractAttributeFilterConstraintLeaf {
+	private static class SimilarConstraintWithSuffixedCreatorsB
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator(implicitClassifier = "primaryKey", suffix = "other")
 		public SimilarConstraintWithSuffixedCreatorsB() {
@@ -556,7 +690,8 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithSameConditionWithoutClassifier extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithSameConditionWithoutClassifier
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator
 		public ConstraintWithSameConditionWithoutClassifier() {
@@ -575,7 +710,8 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithSameConditionWithClassifier extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithSameConditionWithClassifier
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator(implicitClassifier = "primaryKey")
 		public ConstraintWithSameConditionWithClassifier() {
@@ -594,15 +730,17 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithSameConditionWithAndWithoutClassifier extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithSameConditionWithAndWithoutClassifier
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator()
 		public ConstraintWithSameConditionWithAndWithoutClassifier() {
 		}
 
-
 		@Creator
-		public ConstraintWithSameConditionWithAndWithoutClassifier(@Nonnull @Classifier String key) {
+		public ConstraintWithSameConditionWithAndWithoutClassifier(
+			@Nonnull @Classifier String key
+		) {
 		}
 
 		@Nonnull
@@ -618,7 +756,8 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator(suffix = "other")
 		public ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA() {
@@ -637,14 +776,17 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator
 		public ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB() {
 		}
 
 		@Creator(suffix = "other")
-		public ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB(@Nonnull @Classifier String classifier) {
+		public ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB(
+			@Nonnull @Classifier String classifier
+		) {
 		}
 
 		@Nonnull
@@ -660,7 +802,8 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithDuplicateCreators extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithDuplicateCreators
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator(suffix = "other")
 		public ConstraintWithDuplicateCreators() {
@@ -721,7 +864,8 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithMultipleImplicitClassifiers extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithMultipleImplicitClassifiers
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator(silentImplicitClassifier = true, implicitClassifier = "primaryKey")
 		public ConstraintWithMultipleImplicitClassifiers() {
@@ -740,11 +884,14 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithMultipleAdditionalChildren extends AbstractAttributeFilterConstraintContainer {
+	private static class ConstraintWithMultipleAdditionalChildren
+		extends AbstractAttributeFilterConstraintContainer {
 
 		@Creator
-		public ConstraintWithMultipleAdditionalChildren(@Nonnull OrderBy orderBy,
-		                                                @Nonnull Require require) {
+		public ConstraintWithMultipleAdditionalChildren(
+			@Nonnull OrderBy orderBy,
+			@Nonnull Require require
+		) {
 		}
 	}
 
@@ -753,11 +900,14 @@ class ConstraintProcessorTest {
 		shortDescription = "This is a constraint.",
 		userDocsLink = "/link"
 	)
-	private static class ConstraintWithMultipleSameAdditionalChildren extends AbstractAttributeFilterConstraintLeaf {
+	private static class ConstraintWithMultipleSameAdditionalChildren
+		extends AbstractAttributeFilterConstraintLeaf {
 
 		@Creator
-		public ConstraintWithMultipleSameAdditionalChildren(@Nonnull Require require,
-		                                                    @Nonnull Require require2) {
+		public ConstraintWithMultipleSameAdditionalChildren(
+			@Nonnull Require require,
+			@Nonnull Require require2
+		) {
 		}
 
 		@Nonnull
@@ -768,7 +918,10 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	private abstract static class AbstractAttributeFilterConstraintLeaf extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, AttributeConstraint<FilterConstraint> {
+	private abstract static class AbstractAttributeFilterConstraintLeaf
+		extends ConstraintLeaf<FilterConstraint>
+		implements FilterConstraint, AttributeConstraint<FilterConstraint> {
+
 		protected AbstractAttributeFilterConstraintLeaf(Serializable... arguments) {
 			super(arguments);
 		}
@@ -790,7 +943,9 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	private abstract static class AbstractAttributeFilterConstraintContainer extends ConstraintContainer<FilterConstraint> implements FilterConstraint, AttributeConstraint<FilterConstraint> {
+	private abstract static class AbstractAttributeFilterConstraintContainer
+		extends ConstraintContainer<FilterConstraint>
+		implements FilterConstraint, AttributeConstraint<FilterConstraint> {
 
 		@Nonnull
 		@Override
@@ -803,18 +958,21 @@ class ConstraintProcessorTest {
 			visitor.visit(this);
 		}
 
-	    @Nonnull
-	    @Override
-	    public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-	        //noinspection ReturnOfNull,DataFlowIssue
-	        return null;
-			}
+		@Nonnull
+		@Override
+		public FilterConstraint getCopyWithNewChildren(
+			@Nonnull FilterConstraint[] children,
+			@Nonnull Constraint<?>[] additionalChildren
+		) {
+			//noinspection ReturnOfNull,DataFlowIssue
+			return null;
+		}
 
-	    @Nonnull
-	    @Override
-	    public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-	        //noinspection ReturnOfNull,DataFlowIssue
-	        return null;
+		@Nonnull
+		@Override
+		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
+			return null;
 		}
 	}
 }

@@ -29,13 +29,47 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * This exception is thrown when the transaction size exceeds the allowed limit.
+ * Exception thrown when a single transaction attempts to modify more data than the configured size limit
+ * allows. Large transactions consume excessive memory, increase lock contention, and can destabilize the
+ * database by creating long-lived memory allocations.
+ *
+ * **Size limits are measured by:**
+ *
+ * - Number of modified entities
+ * - Total mutation count across all entities
+ * - Memory footprint of accumulated changes before commit
+ * - Size of the transaction's WAL (Write-Ahead Log) entry
+ *
+ * The maximum transaction size is controlled by server configuration. When this exception occurs, the
+ * transaction is rolled back automatically. Clients should split large transactions into smaller batches:
+ *
+ * ```java
+ * // Instead of:
+ * session.upsertEntity(entity1);
+ * session.upsertEntity(entity2);
+ * // ... thousands of entities ...
+ * session.commit();
+ *
+ * // Do:
+ * for (List<Entity> batch : batches) {
+ *     for (Entity e : batch) {
+ *         session.upsertEntity(e);
+ *     }
+ *     session.commit(); // Commit each batch separately
+ * }
+ * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class TransactionTooBigException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 6870692024926622358L;
 
+	/**
+	 * Creates a new exception with separate private and public messages.
+	 *
+	 * @param privateMessage detailed message for server-side logging including size metrics
+	 * @param publicMessage sanitized message suitable for client consumption
+	 */
 	public TransactionTooBigException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage, publicMessage);
 	}

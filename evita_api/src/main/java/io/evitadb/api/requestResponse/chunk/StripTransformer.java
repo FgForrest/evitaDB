@@ -48,15 +48,18 @@ public class StripTransformer implements ChunkTransformer {
 	@Nonnull
 	@Override
 	public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
+		final int size = referenceContracts.size();
+		// reset to offset 0 when requested strip exceeds available records
+		final int effectiveOffset = this.strip.getOffset() >= size ? 0 : this.strip.getOffset();
 		return new StripList<>(
-			this.strip.getOffset(),
+			effectiveOffset,
 			this.strip.getLimit(),
-			referenceContracts.size(),
+			size,
 			referenceContracts.isEmpty() ?
 				referenceContracts :
 				referenceContracts.subList(
-					Math.min(this.strip.getOffset(), referenceContracts.size() - 1),
-					Math.min(this.strip.getOffset() + this.strip.getLimit(), referenceContracts.size())
+					effectiveOffset,
+					Math.min(effectiveOffset + this.strip.getLimit(), size)
 				)
 		);
 	}
