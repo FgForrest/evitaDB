@@ -43,7 +43,7 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class ConjunctionOperator implements ExpressionNode {
+public class ConjunctionOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = 8865132783193638404L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;

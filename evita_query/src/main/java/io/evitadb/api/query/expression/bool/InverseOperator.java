@@ -45,7 +45,7 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class InverseOperator implements ExpressionNode {
+public class InverseOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = 4825500310430824808L;
 	private final ExpressionNode operator;
 	@EqualsAndHashCode.Exclude

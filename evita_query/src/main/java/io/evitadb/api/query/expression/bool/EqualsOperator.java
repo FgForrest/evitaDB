@@ -46,7 +46,7 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class EqualsOperator implements ExpressionNode {
+public class EqualsOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = -1594479195657082056L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;

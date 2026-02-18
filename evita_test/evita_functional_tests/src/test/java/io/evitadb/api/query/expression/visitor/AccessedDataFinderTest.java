@@ -45,7 +45,8 @@ public class AccessedDataFinderTest {
 	@ParameterizedTest
 	@MethodSource("expressions")
 	void shouldResolveAssessedDataPaths(List<List<String>> expectedPaths, String expression) {
-		assertEvaluatedPaths(expectedPaths, expression);
+		final ExpressionNode root = ExpressionFactory.parse(expression);
+		assertEquals(expectedPaths, AccessedDataFinder.findAccessedPaths(root));
 	}
 
 	@Nonnull
@@ -91,13 +92,5 @@ public class AccessedDataFinderTest {
 				"$entity.references['brand']?.*[$.attributes['tag']] ?*? $entity.attributes['fallbackTag'] ?? 'none']"
 			)
 		);
-	}
-
-	private static void assertEvaluatedPaths(
-		@Nonnull List<List<String>> expectedPaths,
-		@Nonnull String expression
-	) {
-		final ExpressionNode root = ExpressionFactory.parse(expression);
-		assertEquals(expectedPaths, AccessedDataFinder.findAccessedPaths(root));
 	}
 }

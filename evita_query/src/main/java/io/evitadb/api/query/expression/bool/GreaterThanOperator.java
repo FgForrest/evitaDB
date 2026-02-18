@@ -51,7 +51,7 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class GreaterThanOperator implements ExpressionNode {
+public class GreaterThanOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = 7186979194287883119L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;

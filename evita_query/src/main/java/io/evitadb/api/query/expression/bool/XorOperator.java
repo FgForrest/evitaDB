@@ -43,7 +43,7 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class XorOperator implements ExpressionNode {
+public class XorOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = -5124789469194418098L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
