@@ -42,6 +42,9 @@ import java.io.Serializable;
  */
 public class MapEntryPropertyAccessor implements ObjectPropertyAccessor {
 
+	public static final String KEY_PROPERTY = "key";
+	public static final String VALUE_PROPERTY = "value";
+
 	@Nonnull
 	@Override
 	public Class<? extends Serializable>[] getSupportedTypes() {
@@ -63,8 +66,8 @@ public class MapEntryPropertyAccessor implements ObjectPropertyAccessor {
 		}
 
 		return switch (propertyIdentifier) {
-			case "key" -> entry.key();
-			case "value" -> entry.value();
+			case KEY_PROPERTY -> entry.key();
+			case VALUE_PROPERTY -> entry.value();
 			default ->
 				throw new ExpressionEvaluationException(
 					"Property `" + propertyIdentifier + "` does not exist on Map.Entry.",
