@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference.InheritableBoolean;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import lombok.Data;
 
 /**

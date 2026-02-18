@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;

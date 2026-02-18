@@ -31,6 +31,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryUtils;
@@ -39,6 +40,7 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityPrimaryKeyExact;
@@ -319,13 +321,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		if (entityFilterBy != null) {
 			final List<FilterConstraint> entityConstraints = FinderVisitor.findConstraints(
 				entityFilterBy,
-				it -> it instanceof EntityHaving || it instanceof EntityPrimaryKeyInSet || it instanceof EntityLocaleEquals,
-				EntityHaving.class::isInstance
+				it -> it instanceof EntityHaving ||
+					it instanceof GroupHaving ||
+					it instanceof EntityPrimaryKeyInSet ||
+					it instanceof EntityLocaleEquals,
+				SeparateEntityScopeContainer.class::isInstance
 			);
 			unwrappedEntityFilterBy = filterBy(
 				entityConstraints
 					.stream()
-					.flatMap(it -> it instanceof EntityHaving eh ? Arrays.stream(eh.getChildren()) : Stream.of(it))
+					.flatMap(
+						it -> it instanceof ConstraintContainer<?> cc
+							? Arrays.stream(cc.getChildren())
+							: Stream.of(it)
+					)
+					.map(FilterConstraint.class::cast)
 					.toArray(FilterConstraint[]::new)
 			);
 		} else {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,34 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.wal.schema.attribute;
+package io.evitadb.store.query.serializer.filter;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.GroupHaving;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Serializer for {@link SetAttributeSchemaUniqueMutation}.
+ * This {@link Serializer} implementation reads/writes {@link GroupHaving} from/to binary format.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Deprecated(since = "2024.11", forRemoval = true)
-public class SetAttributeSchemaUniqueMutationSerializer_2024_11 extends Serializer<SetAttributeSchemaUniqueMutation> {
+@RequiredArgsConstructor
+public class GroupHavingSerializer extends Serializer<GroupHaving> {
 
 	@Override
-	public void write(Kryo kryo, Output output, SetAttributeSchemaUniqueMutation object) {
-		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
+	public void write(Kryo kryo, Output output, GroupHaving object) {
+		kryo.writeClassAndObject(output, object.getChildren()[0]);
 	}
 
 	@Override
-	public SetAttributeSchemaUniqueMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaUniqueMutation> type) {
-		return new SetAttributeSchemaUniqueMutation(
-			input.readString(),
-			kryo.readObject(input, AttributeUniquenessType.class)
-		);
+	public GroupHaving read(Kryo kryo, Input input, Class<? extends GroupHaving> type) {
+		return new GroupHaving((FilterConstraint) kryo.readClassAndObject(input));
 	}
 
 }

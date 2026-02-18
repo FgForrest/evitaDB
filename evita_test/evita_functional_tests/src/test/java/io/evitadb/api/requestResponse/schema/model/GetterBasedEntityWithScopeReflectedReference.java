@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.schema.model;
 import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference.InheritableBoolean;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 /**

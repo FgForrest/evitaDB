@@ -184,7 +184,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with
-	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING} type allowing to filter by
+	 * {@link ReferenceIndexType#FOR_FILTERING} type allowing to filter by
 	 * {@link ReferenceHaving} filtering constraints. This is the minimal indexing level that allows filtering by
 	 * reference existence and reference attributes.
 	 *
@@ -204,7 +204,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with
-	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING} type allowing to filter by
+	 * {@link ReferenceIndexType#FOR_FILTERING} type allowing to filter by
 	 * {@link ReferenceHaving} filtering constraints. This is the minimal indexing level that allows filtering by
 	 * reference existence and reference attributes.
 	 *
@@ -220,7 +220,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with
-	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
 	 * This creates basic index for {@link ReferenceHaving} constraint interpretation, and also partitioning
 	 * indexes for the main entity type, which may greatly speed up the query execution when the reference is part
 	 * of the query filtering.
@@ -245,7 +245,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with
-	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
 	 * This creates basic index for {@link ReferenceHaving} constraint interpretation, and also partitioning
 	 * indexes for the main entity type, which may greatly speed up the query execution when the reference is part
 	 * of the query filtering.

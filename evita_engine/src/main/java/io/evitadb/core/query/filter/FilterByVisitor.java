@@ -79,6 +79,7 @@ import io.evitadb.core.query.filter.translator.price.PriceInCurrencyTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceInPriceListsTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceValidInTranslator;
 import io.evitadb.core.query.filter.translator.reference.EntityHavingTranslator;
+import io.evitadb.core.query.filter.translator.reference.GroupHavingTranslator;
 import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
@@ -181,6 +182,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(AttributeContains.class, new AttributeContainsTranslator());
 		TRANSLATORS.put(EntityLocaleEquals.class, new EntityLocaleEqualsTranslator());
 		TRANSLATORS.put(EntityHaving.class, new EntityHavingTranslator());
+		TRANSLATORS.put(GroupHaving.class, new GroupHavingTranslator());
 		TRANSLATORS.put(ReferenceHaving.class, new ReferenceHavingTranslator());
 		TRANSLATORS.put(PriceInCurrency.class, new PriceInCurrencyTranslator());
 		TRANSLATORS.put(PriceValidIn.class, new PriceValidInTranslator());

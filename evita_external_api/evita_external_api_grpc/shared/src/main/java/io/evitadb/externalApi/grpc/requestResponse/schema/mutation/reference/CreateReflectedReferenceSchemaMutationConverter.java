@@ -25,7 +25,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.StringValue;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;

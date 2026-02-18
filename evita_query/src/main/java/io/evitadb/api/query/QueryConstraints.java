@@ -1678,6 +1678,14 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * TODO JNO
+	 */
+	@Nullable
+	static GroupHaving groupHaving(@Nullable FilterConstraint filterConstraint) {
+		return filterConstraint == null ? null : new GroupHaving(filterConstraint);
+	}
+
+	/**
 	 * This `inRange` is query that compares value of the attribute with name passed in first argument with the date
 	 * and time passed in the second argument. First argument must be {@link String}, second argument must be
 	 * {@link OffsetDateTime} type. If second argument is not passed - current date and time (now) is used.
