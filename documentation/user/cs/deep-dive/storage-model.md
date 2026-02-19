@@ -5,6 +5,9 @@ date: '5.4.2024'
 author: Ing. Jan Novotný
 commit: '8764472ef49849948721983bb4c491b3a3446d31'
 ---
+
+TODO JNO: přeložit
+
 ## Základní typy souborů a vazby mezi nimi
 
 evitaDB ukládá data do souborů na disku do datového adresáře specifikovaného v konfiguraci. První úroveň datového adresáře obsahuje adresáře pro jednotlivé katalogy. Adresář katalogu obsahuje všechny soubory potřebné pro práci s katalogem (katalog nepotřebuje žádnou další informaci vně svého adresáře). Adresář vždy obsahuje:
