@@ -44,7 +44,7 @@ public class AccessedDataFinderTest {
 
 	@ParameterizedTest
 	@MethodSource("expressions")
-	void shouldResolveAssessedDataPaths(List<List<String>> expectedPaths, String expression) {
+	void shouldResolveAssessedDataPaths(List<List<PathItem>> expectedPaths, String expression) {
 		final ExpressionNode root = ExpressionFactory.parse(expression);
 		assertEquals(expectedPaths, AccessedDataFinder.findAccessedPaths(root));
 	}
@@ -61,33 +61,33 @@ public class AccessedDataFinderTest {
 				"$pageNumber < 2"
 			),
 			Arguments.of(
-				List.of(List.of("$entity", "attributes")),
+				List.of(List.of(new VariablePathItem("entity"), new IdentifierPathItem("attributes"))),
 				"$entity.attributes"
 			),
 			Arguments.of(
-				List.of(List.of("$entity", "references", "attributes")),
+				List.of(List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new IdentifierPathItem("attributes"))),
 				"$entity.references.attributes"
 			),
 			Arguments.of(
-				List.of(List.of("$entity", "references", "brand", "attributes", "order")),
+				List.of(List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new ElementPathItem("brand"), new IdentifierPathItem("attributes"), new ElementPathItem("order"))),
 				"$entity.references['brand'].attributes['order']"
 			),
 			Arguments.of(
-				List.of(List.of("$entity", "references", "categories", "attributes", "tag")),
+				List.of(List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new ElementPathItem("categories"), new IdentifierPathItem("attributes"), new ElementPathItem("tag"))),
 				"$entity.references['categories'].*[$.attributes['tag']]"
 			),
 			Arguments.of(
 				List.of(
-					List.of("$entity", "references", "brand", "attributes", "tag"),
-					List.of("$entity", "references", "brand", "attributes", "fallbackTag"),
-					List.of("$entity", "references", "brand", "referencedEntity")
+					List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new ElementPathItem("brand"), new IdentifierPathItem("attributes"), new ElementPathItem("tag")),
+					List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new ElementPathItem("brand"), new IdentifierPathItem("attributes"), new ElementPathItem("fallbackTag")),
+					List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new ElementPathItem("brand"), new IdentifierPathItem("referencedEntity"))
 				),
 				"true || $entity.references['brand'].*[$.attributes['tag'] ?? $.attributes['fallbackTag'] ?? $.referencedEntity]"
 			),
 			Arguments.of(
 				List.of(
-					List.of("$entity", "references", "brand", "attributes", "tag"),
-					List.of("$entity", "attributes", "fallbackTag")
+					List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new ElementPathItem("brand"), new IdentifierPathItem("attributes"), new ElementPathItem("tag")),
+					List.of(new VariablePathItem("entity"), new IdentifierPathItem("attributes"), new ElementPathItem("fallbackTag"))
 				),
 				"$entity.references['brand']?.*[$.attributes['tag']] ?*? $entity.attributes['fallbackTag'] ?? 'none']"
 			)

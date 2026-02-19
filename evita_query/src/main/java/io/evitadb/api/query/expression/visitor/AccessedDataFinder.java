@@ -69,8 +69,8 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AccessedDataFinder implements ExpressionNodeVisitor {
 
-	@Nonnull private final List<List<String>> accessedPaths = new LinkedList<>();
-	@Nullable private List<String> currentPath = null;
+	@Nonnull private final List<List<PathItem>> accessedPaths = new LinkedList<>();
+	@Nullable private List<PathItem> currentPath = null;
 
 	/**
 	 * Analyzes the given expression node and determines all accessed paths within the expression tree.
@@ -78,11 +78,11 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 	 * to remove redundancy and overlap.
 	 *
 	 * @param expressionNode the root node of the expression tree to analyze. Must not be null.
-	 * @return a list of lists of strings, where each sub-list represents a unique accessed path within
-	 *         the expression tree. The paths are compacted to eliminate redundant entries.
+	 * @return a list of typed path item lists, where each sub-list represents a unique accessed path
+	 *         within the expression tree. The paths are compacted to eliminate redundant entries.
 	 */
 	@Nonnull
-	public static List<List<String>> findAccessedPaths(@Nonnull ExpressionNode expressionNode) {
+	public static List<List<PathItem>> findAccessedPaths(@Nonnull ExpressionNode expressionNode) {
 		final AccessedDataFinder finder = new AccessedDataFinder();
 		expressionNode.accept(finder);
 		return compactPaths(finder.accessedPaths);
@@ -105,7 +105,7 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 
 			if (children.length > 1) {
 				// save the current path to revert to after visiting children
-				final List<String> parentPath = this.currentPath;
+				final List<PathItem> parentPath = this.currentPath;
 
 				// traverse children and generate possible multiple paths
 				for (ExpressionNode child : children) {
@@ -114,7 +114,7 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 						child.accept(this);
 					} else {
 						// link the child paths to the parent path
-						final LinkedList<String> childPath = new LinkedList<>(parentPath);
+						final LinkedList<PathItem> childPath = new LinkedList<>(parentPath);
 						this.currentPath = childPath;
 						child.accept(this);
 						this.accessedPaths.add(childPath);
@@ -132,7 +132,7 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 	private void visit(@Nonnull ObjectAccessOperator objectAccessOperator) {
 		final boolean hasParentPath = this.currentPath != null;
 
-		final List<String> path;
+		final List<PathItem> path;
 		if (hasParentPath) {
 			// continue the current path from the parent
 			path = this.currentPath;
@@ -151,7 +151,7 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 		ObjectAccessStep step = objectAccessOperator.getAccessChain();
 		do {
 			if (step instanceof PropertyAccessStep propertyAccessStep) {
-				path.add(propertyAccessStep.getPropertyIdentifier());
+				path.add(new IdentifierPathItem(propertyAccessStep.getPropertyIdentifier()));
 			} else if (step instanceof ElementAccessStep elementAccessStep) {
 				elementAccessStep.getElementIdentifierOperand().accept(this);
 			} else if (step instanceof SpreadAccessStep spreadAccessStep) {
@@ -172,33 +172,35 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 
 	private void visit(@Nonnull ConstantOperand constantOperand) {
 		if (this.currentPath != null) {
-			this.currentPath.add(constantOperand.getValue().toString());
+			this.currentPath.add(new ElementPathItem(constantOperand.getValue().toString()));
 		}
 	}
 
 	private void visit(@Nonnull VariableOperand variableOperand) {
 		if (this.currentPath != null && !variableOperand.isThis()) {
-			this.currentPath.add(variableOperand.toString());
+			// note: the variable name cannot be null if it doesn't reference `this`
+			//noinspection DataFlowIssue
+			this.currentPath.add(new VariablePathItem(variableOperand.getVariableName()));
 		}
 	}
 
 	@Nonnull
-	private static List<List<String>> compactPaths(@Nonnull List<List<String>> paths) {
-		final List<List<String>> sortedPaths = new LinkedList<>(paths)
+	private static List<List<PathItem>> compactPaths(@Nonnull List<List<PathItem>> paths) {
+		final List<List<PathItem>> sortedPaths = new LinkedList<>(paths)
 			.stream()
-			.sorted(Comparator.<List<String>>comparingInt(List::size).reversed())
+			.sorted(Comparator.<List<PathItem>>comparingInt(List::size).reversed())
 			.toList();
 
-		final List<List<String>> compactedPaths = new LinkedList<>();
-		for (List<String> path : sortedPaths) {
+		final List<List<PathItem>> compactedPaths = new LinkedList<>();
+		for (List<PathItem> path : sortedPaths) {
 			boolean exists = false;
-			path: for (final List<String> existingCompactedPath : compactedPaths) {
+			path: for (final List<PathItem> existingCompactedPath : compactedPaths) {
 				if (path.equals(existingCompactedPath)) {
 					exists = true;
 					break;
 				}
 				for (int i = existingCompactedPath.size() - 1; i >= 1; i--) {
-					final List<String> slicedExistingCompactedPath = existingCompactedPath.subList(0, i);
+					final List<PathItem> slicedExistingCompactedPath = existingCompactedPath.subList(0, i);
 					if (path.equals(slicedExistingCompactedPath)) {
 						exists = true;
 						break path;
