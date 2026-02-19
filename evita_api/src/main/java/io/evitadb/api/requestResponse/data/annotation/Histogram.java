@@ -52,7 +52,7 @@ public @interface Histogram {
 	 * Condition predicate that determines whether a referenced entity
 	 * contributes to the histogram. Defaults to disabled (empty predicate).
 	 */
-	Predicate condition() default @Predicate;
+	Expression condition() default @Expression;
 
 	/**
 	 * Value expression that computes the histogram bucket value for each

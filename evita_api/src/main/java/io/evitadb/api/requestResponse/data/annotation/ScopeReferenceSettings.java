@@ -56,7 +56,7 @@ public @interface ScopeReferenceSettings {
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#isFacetedInScope(Scope)}.
 	 */
-	Predicate faceted() default @Predicate;
+	Expression faceted() default @Expression;
 
 	/**
 	 * Configures histogram computation for reference of this name

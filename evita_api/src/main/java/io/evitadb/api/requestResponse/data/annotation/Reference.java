@@ -128,7 +128,7 @@ public @interface Reference {
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#isFaceted()}.
 	 */
-	Predicate faceted() default @Predicate;
+	Expression faceted() default @Expression;
 
 	/**
 	 * Configures histogram computation for reference of this name.

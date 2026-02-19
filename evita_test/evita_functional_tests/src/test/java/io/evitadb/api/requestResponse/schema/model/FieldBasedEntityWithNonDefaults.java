@@ -123,7 +123,7 @@ public class FieldBasedEntityWithNonDefaults {
 		groupEntityManaged = false,
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
-		faceted = @Predicate("true"),
+		faceted = @Expression("true"),
 		indexed = ReferenceIndexType.FOR_FILTERING
 	)
 	private Brand[] licensingBrands;
