@@ -138,6 +138,8 @@ public class ObservabilityManager {
 				setJavaErrorConsumer.invoke(null, (Consumer<String>) ObservabilityManager::javaErrorEvent);
 				final Method setEvitaErrorConsumer = errorMonitorClass.getDeclaredMethod("setEvitaErrorConsumer", Consumer.class);
 				setEvitaErrorConsumer.invoke(null, (Consumer<String>) ObservabilityManager::evitaErrorEvent);
+				final Method setClientErrorConsumer = errorMonitorClass.getDeclaredMethod("setClientErrorConsumer", Consumer.class);
+				setClientErrorConsumer.invoke(null, (Consumer<String>) ObservabilityManager::clientErrorEvent);
 			} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException |
 			         InvocationTargetException e) {
 				// do nothing, the errors won't be monitored
@@ -184,6 +186,13 @@ public class ObservabilityManager {
 	public static void evitaErrorEvent(@Nonnull String simpleName) {
 		MetricHandler.EVITA_ERRORS_TOTAL.labelValues(simpleName).inc();
 		EVITA_ERRORS.incrementAndGet();
+	}
+
+	/**
+	 * Method increments the counter of client errors in the Prometheus metrics.
+	 */
+	public static void clientErrorEvent(@Nonnull String simpleName) {
+		MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(simpleName).inc();;
 	}
 
 	public ObservabilityManager(
