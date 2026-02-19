@@ -26,6 +26,8 @@ package io.evitadb.externalApi.http;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.SessionProtocol;
+import com.linecorp.armeria.common.metric.MeterIdPrefix;
+import com.linecorp.armeria.common.metric.MoreMeterBinders;
 import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.server.ClientAddressSource;
 import com.linecorp.armeria.server.HttpService;
@@ -36,6 +38,10 @@ import com.linecorp.armeria.server.encoding.DecodingService;
 import com.linecorp.armeria.server.encoding.EncodingService;
 import com.linecorp.armeria.server.logging.AccessLogWriter;
 import com.linecorp.armeria.server.logging.LoggingService;
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.Scheduler;
@@ -504,6 +510,18 @@ public class ExternalApiServer implements AutoCloseable {
 		// and having different worker groups for I/O and service processing only slows down the server
 		// due to context switching between threads and branch misses
 		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
+
+		// Create a shared meter registry backed by the default PrometheusRegistry
+		// (the same registry scraped by PrometheusScrapeHandler)
+		final PrometheusMeterRegistry meterRegistry = new PrometheusMeterRegistry(
+			PrometheusConfig.DEFAULT, PrometheusRegistry.defaultRegistry, Clock.SYSTEM
+		);
+
+		// Bind EventLoop metrics to the shared registry
+		MoreMeterBinders
+			.eventLoopMetrics(workerGroup, new MeterIdPrefix("armeria.netty.worker"))
+			.bindTo(meterRegistry);
+
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), false)
 			// this may be changed in future versions to a limited set
@@ -540,6 +558,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.workerGroup(workerGroup, true)
+			.meterRegistry(meterRegistry)
 			.unloggedExceptionsReportInterval(Duration.ofMillis(10));
 
 		if (apiOptions.accessLog()) {
@@ -664,6 +683,10 @@ public class ExternalApiServer implements AutoCloseable {
 			);
 			// customize TLS settings
 			setupTls(serverBuilder, apiOptions.certificate().generateAndUseSelfSigned(), certificatePath, evita.getServiceExecutor());
+			// Bind certificate metrics (expiry, validity) to the shared registry
+			MoreMeterBinders
+				.certificateMetrics(new File(certificatePath.certificate()), new MeterIdPrefix("armeria.server.certificate"))
+				.bindTo(meterRegistry);
 		}
 
 		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,

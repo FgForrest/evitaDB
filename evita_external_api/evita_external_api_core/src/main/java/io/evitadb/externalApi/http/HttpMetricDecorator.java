@@ -30,14 +30,12 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.stream.ClosedStreamException;
 import com.linecorp.armeria.common.websocket.WebSocket;
-import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.RequestTimeoutException;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.SimpleDecoratingHttpService;
 import io.evitadb.externalApi.event.RequestEvent;
 import io.evitadb.externalApi.event.RequestEvent.Result;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -90,10 +88,19 @@ public class HttpMetricDecorator extends SimpleDecoratingHttpService implements 
 					}
 				}
 				// publish the event
+				final String serviceName = requestLog.serviceName();
 				new RequestEvent(
 					this.apiCode,
 					result,
-					httpStatus.code()
+					httpStatus.code(),
+					serviceName != null ? serviceName : "",
+					requestLog.name(),
+					requestLog.sessionProtocol().toString(),
+					requestLog.totalDurationNanos(),
+					requestLog.requestDurationNanos(),
+					requestLog.responseDurationNanos(),
+					requestLog.requestLength(),
+					requestLog.responseLength()
 				).commit();
 			});
 		return this.unwrap().serve(ctx, req);
