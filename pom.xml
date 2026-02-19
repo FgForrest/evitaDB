@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023-2025
+  ~   Copyright (c) 2023-2026
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -143,6 +143,7 @@
 		<!-- we should keep this in sync with armeria -->
 		<netty.version>4.2.9.Final</netty.version>
 		<prometheus.version>1.4.3</prometheus.version>
+		<micrometer.version>1.15.2</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
 		<okhttp.version>5.3.2</okhttp.version>
@@ -264,6 +265,11 @@
 				<groupId>com.linecorp.armeria</groupId>
 				<artifactId>armeria</artifactId>
 				<version>${armeria.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.micrometer</groupId>
+				<artifactId>micrometer-registry-prometheus</artifactId>
+				<version>${micrometer.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>com.google.guava</groupId>

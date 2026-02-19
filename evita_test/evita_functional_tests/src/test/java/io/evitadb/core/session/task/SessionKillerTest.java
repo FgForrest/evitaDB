@@ -51,11 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the correct functionality of the {@link SessionKiller} class.
@@ -104,43 +100,44 @@ class SessionKillerTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should kill session after interval of inactivity")
 		void shouldKillSessionAfterIntervalOfInactivity() throws InterruptedException {
-			evita.defineCatalog("test");
-			final EvitaSessionContract session = evita.createReadOnlySession("test");
+			SessionKillerTest.this.evita.defineCatalog("test");
+			final EvitaSessionContract session = SessionKillerTest.this.evita.createReadOnlySession("test");
 			Thread.sleep(2000);
-			sessionKiller.run();
+			SessionKillerTest.this.sessionKiller.run();
 			assertFalse(session.isActive());
 		}
 
 		@Test
 		@DisplayName("should not kill session when there are ongoing invocations")
 		void shouldNotKillSessionWhenThereAreInvocations() {
-			evita.defineCatalog("test");
-			final EvitaSessionContract session = evita.createReadOnlySession("test");
+			SessionKillerTest.this.evita.defineCatalog("test");
+			final EvitaSessionContract session = SessionKillerTest.this.evita.createReadOnlySession("test");
 			final long start = System.currentTimeMillis();
 			while (System.currentTimeMillis() - start < 2000) {
 				assertNotNull(session.getCatalogName());
 				Thread.onSpinWait();
 			}
-			sessionKiller.run();
+			SessionKillerTest.this.sessionKiller.run();
 			assertTrue(session.isActive());
 		}
 
 		@Test
 		@DisplayName("should not kill any session when no sessions are active")
 		void shouldNotKillAnySessionWhenNoSessionsAreActive() {
-			evita.defineCatalog("test");
-			assertDoesNotThrow(() -> sessionKiller.run());
+			SessionKillerTest.this.evita.defineCatalog("test");
+			assertDoesNotThrow(() -> SessionKillerTest.this.sessionKiller.run());
 		}
 
 		@Test
 		@DisplayName("should kill only inactive sessions when multiple sessions exist")
-		void shouldKillOnlyInactiveSessionsWhenMultipleSessionsExist()
-			throws InterruptedException {
-			evita.defineCatalog("test");
+		void shouldKillOnlyInactiveSessionsWhenMultipleSessionsExist() {
+			SessionKillerTest.this.evita.defineCatalog("test");
+			SessionKillerTest.this.evita.makeCatalogAlive("test");
+
 			final EvitaSessionContract inactiveSession =
-				evita.createReadOnlySession("test");
+				SessionKillerTest.this.evita.createReadOnlySession("test");
 			final EvitaSessionContract activeSession =
-				evita.createReadOnlySession("test");
+				SessionKillerTest.this.evita.createReadOnlySession("test");
 
 			// keep activeSession alive while letting inactiveSession expire
 			final long start = System.currentTimeMillis();
@@ -149,7 +146,7 @@ class SessionKillerTest implements EvitaTestSupport {
 				Thread.onSpinWait();
 			}
 
-			sessionKiller.run();
+			SessionKillerTest.this.sessionKiller.run();
 
 			assertFalse(inactiveSession.isActive());
 			assertTrue(activeSession.isActive());
@@ -161,9 +158,9 @@ class SessionKillerTest implements EvitaTestSupport {
 			throws InterruptedException {
 			final AtomicBoolean finishMethodCall = new AtomicBoolean(false);
 			try {
-				evita.defineCatalog("test");
+				SessionKillerTest.this.evita.defineCatalog("test");
 				final EvitaSessionContract session =
-					evita.createReadOnlySession("test");
+					SessionKillerTest.this.evita.createReadOnlySession("test");
 				final Runnable asyncCall = () -> {
 					final Query query = Mockito.mock(Query.class);
 					Mockito.when(query.normalizeQuery()).thenAnswer(invocation -> {
@@ -184,7 +181,7 @@ class SessionKillerTest implements EvitaTestSupport {
 					CompletableFuture.runAsync(asyncCall);
 				Thread.sleep(2000);
 
-				sessionKiller.run();
+				SessionKillerTest.this.sessionKiller.run();
 
 				finishMethodCall.set(true);
 				future.join();
@@ -193,7 +190,7 @@ class SessionKillerTest implements EvitaTestSupport {
 
 				Thread.sleep(2000);
 
-				sessionKiller.run();
+				SessionKillerTest.this.sessionKiller.run();
 				assertFalse(session.isActive());
 			} finally {
 				finishMethodCall.set(true);
@@ -219,9 +216,9 @@ class SessionKillerTest implements EvitaTestSupport {
 			final CountDownLatch methodStarted = new CountDownLatch(1);
 			final CountDownLatch readyToComplete = new CountDownLatch(1);
 			try {
-				evita.defineCatalog("test");
+				SessionKillerTest.this.evita.defineCatalog("test");
 				final EvitaSessionContract session =
-					evita.createReadOnlySession("test");
+					SessionKillerTest.this.evita.createReadOnlySession("test");
 
 				// Verify the session implements the internal contract
 				assertInstanceOf(
@@ -299,7 +296,7 @@ class SessionKillerTest implements EvitaTestSupport {
 
 				// Run SessionKiller — it should NOT kill the session because
 				// lastCall was just updated
-				sessionKiller.run();
+				SessionKillerTest.this.sessionKiller.run();
 				try {
 					assertTrue(
 						session.isActive(),
@@ -331,18 +328,18 @@ class SessionKillerTest implements EvitaTestSupport {
 		@DisplayName("should allow close to be called multiple times")
 		void shouldAllowCloseToBeCalledMultipleTimes() {
 			assertDoesNotThrow(() -> {
-				sessionKiller.close();
-				sessionKiller.close();
+				SessionKillerTest.this.sessionKiller.close();
+				SessionKillerTest.this.sessionKiller.close();
 			});
 		}
 
 		@Test
 		@DisplayName("should still allow direct run after close")
 		void shouldStillAllowDirectRunAfterClose() {
-			evita.defineCatalog("test");
-			sessionKiller.close();
+			SessionKillerTest.this.evita.defineCatalog("test");
+			SessionKillerTest.this.sessionKiller.close();
 			// direct run() should still work even after close() stops scheduling
-			assertDoesNotThrow(() -> sessionKiller.run());
+			assertDoesNotThrow(() -> SessionKillerTest.this.sessionKiller.run());
 		}
 	}
 }
