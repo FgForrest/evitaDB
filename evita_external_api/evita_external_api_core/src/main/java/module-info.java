@@ -89,5 +89,8 @@ module evita.external.api.core {
 	requires io.netty.handler;
 	requires io.netty.common;
 	requires jdk.jfr;
+	requires micrometer.core;
+	requires micrometer.registry.prometheus;
+	requires io.prometheus.metrics.model;
 	requires org.reactivestreams;
 }
