@@ -43,8 +43,9 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMut
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.executor.CancellableRunnable;
 import io.evitadb.core.executor.DelayedAsyncTask;
-import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.HeaderOptions;
@@ -60,6 +61,7 @@ import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
+import io.evitadb.externalApi.http.CancellationSupport;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.utils.IOUtils;
@@ -138,17 +140,17 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	public static void executeWithClientContext(
 		@Nonnull Runnable lambda,
-		@Nonnull ObservableExecutorServiceWithHardDeadline executor,
+		@Nonnull ObservableExecutorServiceWithCancellationSupport executor,
 		@Nonnull StreamObserver<?> responseObserver,
 		@Nonnull ExternalApiTracingContext<Metadata> context
 	) {
 		// Retrieve the deadline from the context
-		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
+		final ServiceRequestContext ctx = ServiceRequestContext.current();
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
 		final Runnable theMethod =
-			() -> executor.execute(
-				executor.createTask(
+			() -> {
+				final CancellableRunnable task = executor.createTask(
 					methodName,
 					() -> {
 						try {
@@ -157,10 +159,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							// Delegate exception handling to GlobalExceptionHandlerInterceptor
 							GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
 						}
-					},
-					requestTimeoutMillis
-				)
-			);
+					}
+				);
+				CancellationSupport.wireCancellation(ctx, task);
+				executor.execute(task);
+			};
 
 		context
 			.executeWithinBlock(

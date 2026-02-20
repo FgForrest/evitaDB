@@ -773,7 +773,11 @@ public class EvitaClient implements EvitaContract {
 			.newBuilder()
 			.setMutation(DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation))
 			.build();
-		final Duration streamingTimeout = this.streamingTimeout;
+
+		final Duration streamingTimeout = Duration.of(
+			this.configuration.streamingTimeout(),
+			this.configuration.streamingTimeoutUnit().toChronoUnit()
+		);
 
 		//noinspection unchecked
 		return Objects.requireNonNull(

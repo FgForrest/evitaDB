@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,7 +91,6 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -262,10 +261,6 @@ public final class Catalog
 	 * Reference to the shared transactional executor service that provides carrier threads for transaction processing.
 	 */
 	private final ObservableExecutorService transactionalExecutor;
-	/**
-	 * Wrapping executor service that is used to flush changes to the persistent storage that cannot time out.
-	 */
-	private final ObservableExecutorService flushExecutor;
 	/**
 	 * Reference to the shared executor service that provides carrier threads for transaction processing.
 	 */
@@ -558,7 +553,6 @@ public final class Catalog
 		this.catalogIndex.attachToCatalog(null, this);
 		this.archiveCatalogIndex = null;
 		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
-		this.flushExecutor = new SystemObservableExecutorService("flush", this.transactionalExecutor);
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
 		this.transactionManager = new TransactionManager(
@@ -659,7 +653,6 @@ public final class Catalog
 			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 
 		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
-		this.flushExecutor = new SystemObservableExecutorService("flush", this.transactionalExecutor);
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = catalogSchema.version();
 		this.transactionManager = new TransactionManager(
@@ -722,7 +715,6 @@ public final class Catalog
 		this.evitaConfiguration = previousCatalogVersion.evitaConfiguration;
 		this.scheduler = previousCatalogVersion.scheduler;
 		this.transactionalExecutor = previousCatalogVersion.transactionalExecutor;
-		this.flushExecutor = previousCatalogVersion.flushExecutor;
 		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
 		this.transactionManager = previousCatalogVersion.transactionManager;
 
@@ -1658,7 +1650,8 @@ public final class Catalog
 					this.lastPersistedSchemaVersion = getInternalSchema().version();
 				}
 				return null;
-			}
+			},
+			Functions.noOpConsumer()
 		);
 	}
 
@@ -1972,7 +1965,7 @@ public final class Catalog
 		if (transaction == null) {
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(this.flushExecutor);
+			flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
 			flushFuture.join();
 		}
 		return newSchema;
@@ -2022,7 +2015,7 @@ public final class Catalog
 		if (transaction == null) {
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(this.flushExecutor);
+			flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
 			flushFuture.join();
 		}
 		return result;
@@ -2166,7 +2159,7 @@ public final class Catalog
 			// store catalog with a new file pointer
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(this.flushExecutor);
+			flushFuture.execute(ProgressingFuture.unrejectableExecutor(this.transactionalExecutor));
 			flushFuture.join();
 		} else {
 			// update managed reference entity types and groups that target renamed entity

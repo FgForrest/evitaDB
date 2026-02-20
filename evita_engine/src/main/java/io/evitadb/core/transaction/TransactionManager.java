@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContex
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
@@ -57,7 +58,6 @@ import io.evitadb.core.cdc.ChangeCatalogObserverContract;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.conflict.AttributeDeltaResolver;
 import io.evitadb.core.transaction.conflict.CommutativeConflictResolver;
 import io.evitadb.core.transaction.conflict.ConflictRingBuffer;
@@ -90,6 +90,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
@@ -134,7 +135,7 @@ public class TransactionManager implements Closeable {
 	/**
 	 * The executor used for handling transactional tasks.
 	 */
-	private final SystemObservableExecutorService transactionalExecutor;
+	private final ObservableExecutorService transactionalExecutor;
 	/**
 	 * The maximum time in milliseconds the system will wait for a writing transaction to be accepted.
 	 */
@@ -321,7 +322,7 @@ public class TransactionManager implements Closeable {
 		this.conflictPolicy = this.configuration.transaction().conflictPolicy();
 		this.granularConflictPolicy = this.conflictPolicy.stream().anyMatch(ConflictPolicy::isGranular);
 		this.requestExecutor = requestExecutor;
-		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
+		this.transactionalExecutor = transactionalExecutor;
 		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.transactionAcceptanceTimeout = this.configuration.transaction().waitForTransactionAcceptanceInMillis();
@@ -1269,6 +1270,7 @@ public class TransactionManager implements Closeable {
 	@Nonnull
 	private SubmissionPublisher<ConflictResolutionAndWalAppendingTransactionTask> createTransactionalPublisher() {
 		final int maxBufferCapacity = this.configuration.server().transactionThreadPool().queueSize();
+		final Executor unrejectableExecutor = ProgressingFuture.unrejectableExecutor(this.transactionalExecutor);
 
 		final SubmissionPublisher<ConflictResolutionAndWalAppendingTransactionTask> txPublisher = new SubmissionPublisher<>(
 			this.transactionalExecutor, maxBufferCapacity

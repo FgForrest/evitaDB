@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -102,19 +102,11 @@ public interface TracingContext {
 		@Nonnull CapturedContext context,
 		@Nonnull Supplier<T> runnable
 	) {
-		MDC.put(MDC_TRACE_ID_PROPERTY, context.traceId());
-		MDC.put(MDC_CLIENT_ID_PROPERTY, context.clientId());
-		MDC.put(MDC_CLIENT_IP_ADDRESS, context.clientIpAddress());
-		MDC.put(MDC_CLIENT_URI, context.clientUri());
-		CLIENT_LABELS.set(context.clientLabels());
+		setContext(context);
 		try {
 			return runnable.get();
 		} finally {
-			MDC.remove(MDC_TRACE_ID_PROPERTY);
-			MDC.remove(MDC_CLIENT_ID_PROPERTY);
-			MDC.remove(MDC_CLIENT_IP_ADDRESS);
-			MDC.remove(MDC_CLIENT_URI);
-			CLIENT_LABELS.remove();
+			clearContext();
 		}
 	}
 
@@ -126,13 +118,41 @@ public interface TracingContext {
 	 */
 	@Nonnull
 	static CapturedContext captureContext() {
-		return new CapturedContext(
-			MDC.get(MDC_TRACE_ID_PROPERTY),
-			MDC.get(MDC_CLIENT_ID_PROPERTY),
-			MDC.get(MDC_CLIENT_IP_ADDRESS),
-			MDC.get(MDC_CLIENT_URI),
-			CLIENT_LABELS.get()
-		);
+		final String traceId = MDC.get(MDC_TRACE_ID_PROPERTY);
+		final String clientId = MDC.get(MDC_CLIENT_ID_PROPERTY);
+		final String clientIpAddress = MDC.get(MDC_CLIENT_IP_ADDRESS);
+		final String clientUri = MDC.get(MDC_CLIENT_URI);
+		final Label[] clientLabels = CLIENT_LABELS.get();
+		if (traceId == null && clientId == null && clientIpAddress == null && clientUri == null && clientLabels == null) {
+			return CapturedContext.EMPTY;
+		}
+		return new CapturedContext(traceId, clientId, clientIpAddress, clientUri, clientLabels);
+	}
+
+	/**
+	 * Sets the captured tracing context into MDC and thread-local storage on the current thread.
+	 * This is the inverse of {@link #clearContext()}.
+	 *
+	 * @param ctx the captured context to restore
+	 */
+	static void setContext(@Nonnull CapturedContext ctx) {
+		MDC.put(MDC_TRACE_ID_PROPERTY, ctx.traceId());
+		MDC.put(MDC_CLIENT_ID_PROPERTY, ctx.clientId());
+		MDC.put(MDC_CLIENT_IP_ADDRESS, ctx.clientIpAddress());
+		MDC.put(MDC_CLIENT_URI, ctx.clientUri());
+		CLIENT_LABELS.set(ctx.clientLabels());
+	}
+
+	/**
+	 * Clears all tracing context from MDC and thread-local storage on the current thread.
+	 * This is the inverse of {@link #setContext(CapturedContext)}.
+	 */
+	static void clearContext() {
+		MDC.remove(MDC_TRACE_ID_PROPERTY);
+		MDC.remove(MDC_CLIENT_ID_PROPERTY);
+		MDC.remove(MDC_CLIENT_IP_ADDRESS);
+		MDC.remove(MDC_CLIENT_URI);
+		CLIENT_LABELS.remove();
 	}
 
 	/**
@@ -430,6 +450,24 @@ public interface TracingContext {
 		@Nullable String clientUri,
 		@Nullable Label[] clientLabels
 	) {
+		/**
+		 * Sentinel instance representing an empty context (all fields null).
+		 * Used to avoid allocating a new record when no tracing context is active.
+		 */
+		public static final CapturedContext EMPTY = new CapturedContext(
+			null, null, null, null, null
+		);
+
+		/**
+		 * Returns true if all context fields are null — i.e., no tracing context was active when captured.
+		 */
+		public boolean isEmpty() {
+			return this.traceId == null &&
+				this.clientId == null &&
+				this.clientIpAddress == null &&
+				this.clientUri == null &&
+				this.clientLabels == null;
+		}
 	}
 
 }

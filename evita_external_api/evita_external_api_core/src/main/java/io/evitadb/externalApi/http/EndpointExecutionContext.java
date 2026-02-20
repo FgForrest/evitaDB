@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,13 +42,33 @@ import java.util.function.Supplier;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class EndpointExecutionContext implements AutoCloseable {
 	@Nonnull private final HttpRequest httpRequest;
 	@Nonnull private final Evita evita;
+	@Nonnull private final ServiceRequestContext serviceRequestContext;
 
 	@Nonnull private final List<Exception> exceptions = new LinkedList<>();
 	@Nonnull private final List<Consumer<EndpointExecutionContext>> closeCallbacks = new LinkedList<>();
+
+	protected EndpointExecutionContext(
+		@Nonnull HttpRequest httpRequest,
+		@Nonnull Evita evita,
+		@Nonnull ServiceRequestContext serviceRequestContext
+	) {
+		this.httpRequest = httpRequest;
+		this.evita = evita;
+		this.serviceRequestContext = serviceRequestContext;
+	}
+
+	/**
+	 * Returns the {@link ServiceRequestContext} associated with the current endpoint execution.
+	 *
+	 * @return the {@link ServiceRequestContext} instance that encapsulates information about the current service request.
+	 */
+	@Nonnull
+	public ServiceRequestContext serviceRequestContext() {
+		return this.serviceRequestContext;
+	}
 
 	/**
 	 * Underlying HTTP request
@@ -122,7 +142,7 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 	 */
 	@Nonnull
 	public <T> CompletableFuture<T> executeAsyncInRequestThreadPool(@Nonnull Supplier<T> supplier) {
-		return CompletableFuture.supplyAsync(supplier, this.evita.getRequestExecutor());
+		return executeWithCancellationSupport(supplier, this.evita.getRequestExecutor());
 	}
 
 	/**
@@ -133,6 +153,18 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 	 */
 	@Nonnull
 	public <T> CompletableFuture<T> executeAsyncInTransactionThreadPool(@Nonnull Supplier<T> supplier) {
-		return CompletableFuture.supplyAsync(supplier, this.evita.getTransactionExecutor());
+		return executeWithCancellationSupport(supplier, this.evita.getTransactionExecutor());
+	}
+
+	/**
+	 * Executes supplier lambda in the given executor with cancellation support wired to Armeria's
+	 * request lifecycle.
+	 */
+	@Nonnull
+	private <T> CompletableFuture<T> executeWithCancellationSupport(
+		@Nonnull Supplier<T> supplier,
+		@Nonnull ObservableExecutorServiceWithCancellationSupport executor
+	) {
+		return CancellationSupport.submitWithCancellation(this.serviceRequestContext, executor, supplier);
 	}
 }

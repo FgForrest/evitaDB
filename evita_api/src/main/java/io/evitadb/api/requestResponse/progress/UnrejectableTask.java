@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,29 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
-
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-
-import javax.annotation.Nonnull;
+package io.evitadb.api.requestResponse.progress;
 
 /**
- * List of possible keys (for possible values) for GraphQL query execution context.
+ * Marker interface for tasks that must not be rejected by the executor's queue limit check.
+ * System-critical operations (catalog loading, flush, transactional pipeline, engine mutations)
+ * implement this interface so they bypass the bounded queue rejection in
+ * {@link io.evitadb.api.requestResponse.progress.ProgressingFuture} and the underlying executor.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Getter
-@RequiredArgsConstructor
-public enum GraphQLContextKey {
-
-    EVITA_SESSION("evitaSession"),
-    OPERATION_TRACING_BLOCK("operationTracingBlock"),
-    METRIC_EXECUTED_EVENT("metricExecutedEvent"),
-    TRAFFIC_SOURCE_QUERY_RECORDING_ID("trafficSourceQueryRecordingId"),
-    TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS("trafficSourceQueryRecordingExceptions"),
-    SERVICE_REQUEST_CONTEXT("serviceRequestContext");
-
-    @Nonnull
-    private final String key;
+public interface UnrejectableTask {
 }

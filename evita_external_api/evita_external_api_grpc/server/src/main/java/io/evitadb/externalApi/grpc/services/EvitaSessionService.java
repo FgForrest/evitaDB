@@ -68,8 +68,9 @@ import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.core.executor.CancellableRunnable;
 import io.evitadb.core.executor.DelayedAsyncTask;
-import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
@@ -98,6 +99,7 @@ import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerI
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
+import io.evitadb.externalApi.http.CancellationSupport;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.function.QuadriConsumer;
@@ -182,36 +184,35 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	static void executeWithClientContext(
 		@Nonnull Consumer<EvitaInternalSessionContract> lambda,
-		@Nonnull ObservableExecutorServiceWithHardDeadline executor,
+		@Nonnull ObservableExecutorServiceWithCancellationSupport executor,
 		@Nonnull StreamObserver<?> responseObserver,
 		@Nonnull ExternalApiTracingContext<Metadata> context
 	) {
 		// Retrieve the deadline from the context
-		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
+		final ServiceRequestContext ctx = ServiceRequestContext.current();
 		final Metadata metadata = METADATA.get();
 		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
 		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
 		final Context grpcContext = Context.current();
-		executor.execute(
-			executor.createTask(
-				methodName,
-				() -> {
-					try {
-						grpcContext.run(
-							() -> context.executeWithinBlock(
-								methodName,
-								metadata,
-								() -> lambda.accept(session)
-							)
-						);
-					} catch (RuntimeException exception) {
-						// Delegate exception handling to GlobalExceptionHandlerInterceptor
-						GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
-					}
-				},
-				requestTimeoutMillis
-			)
+		final CancellableRunnable task = executor.createTask(
+			methodName,
+			() -> {
+				try {
+					grpcContext.run(
+						() -> context.executeWithinBlock(
+							methodName,
+							metadata,
+							() -> lambda.accept(session)
+						)
+					);
+				} catch (RuntimeException exception) {
+					// Delegate exception handling to GlobalExceptionHandlerInterceptor
+					GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+				}
+			}
 		);
+		CancellationSupport.wireCancellation(ctx, task);
+		executor.execute(task);
 	}
 
 	/**

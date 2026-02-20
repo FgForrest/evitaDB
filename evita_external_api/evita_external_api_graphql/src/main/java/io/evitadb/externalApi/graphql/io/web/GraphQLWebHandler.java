@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -152,10 +152,11 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 
 	@Nonnull
 	@Override
-	protected GraphQLEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
+	protected GraphQLEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext) {
 		return new GraphQLEndpointExecutionContext(
 			httpRequest,
 			this.evita,
+			serviceRequestContext,
 			new ExecutedEvent(this.instanceType)
 		);
 	}
@@ -164,14 +165,16 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 	@Nonnull
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLEndpointExecutionContext executionContext) {
 		return parseRequestBody(executionContext, GraphQLRequest.class)
-			.thenApply(graphQLRequest -> {
+			.thenCompose(graphQLRequest -> {
 				executionContext.requestExecutedEvent().finishInputDeserialization();
-				final GraphQLResponse<?> graphQLResponse = this.tracingContext.executeWithinBlock(
-					"GraphQL",
-					executionContext.httpRequest(),
-					() -> executeRequest(executionContext, graphQLRequest)
-				);
-				return new SuccessEndpointResponse(graphQLResponse);
+				return executionContext.executeAsyncInRequestThreadPool(() -> {
+					final GraphQLResponse<?> graphQLResponse = this.tracingContext.executeWithinBlock(
+						"GraphQL",
+						executionContext.httpRequest(),
+						() -> executeRequest(executionContext, graphQLRequest)
+					);
+					return new SuccessEndpointResponse(graphQLResponse);
+				});
 			});
 	}
 
