@@ -6,7 +6,7 @@
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/ReadinessEvent.java</SourceClass> Readiness probe</dt>
   <dd>Event that is fired when a readiness probe is either executed by client or invoked on the server side.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/RequestEvent.java</SourceClass> Request</dt>
-  <dd>Event that is fired when a readiness probe is either executed by client or invoked on the server side.</dd>
+  <dd>Event that is fired when a request is completed, tracking success/error counts, timing and payload sizes.</dd>
 </dl>
 
 #### API / GraphQL / Instance / Schema

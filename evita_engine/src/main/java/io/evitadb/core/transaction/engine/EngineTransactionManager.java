@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.*;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -38,7 +39,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.ExpandedEngineState;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.executor.ObservableExecutorService;
-import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.engine.operators.*;
 import io.evitadb.function.Functions;
 import io.evitadb.store.spi.EnginePersistenceService;
@@ -189,7 +189,7 @@ public class EngineTransactionManager implements Closeable {
 
 		this.evita = evita;
 		this.changeObserver = changeObserver;
-		this.engineExecutor = new SystemObservableExecutorService("engineExecutor", executor);
+		this.engineExecutor = executor;
 		this.enginePersistenceService = enginePersistenceService;
 		this.engineMutationWaitIntervalInMillis = this.evita.getConfiguration().server().transactionTimeoutInMilliseconds();
 		final ExpandedEngineState engineState = this.evita.getEngineState();
@@ -420,7 +420,7 @@ public class EngineTransactionManager implements Closeable {
 				),
 				onProgressExecution,
 				onProgressCompletion,
-				this.engineExecutor
+				ProgressingFuture.unrejectableExecutor(this.engineExecutor)
 			);
 		}
 	}

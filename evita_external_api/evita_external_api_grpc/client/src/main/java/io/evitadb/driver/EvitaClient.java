@@ -749,7 +749,7 @@ public class EvitaClient implements EvitaContract {
 
 		final Duration streamingTimeout = Duration.of(
 			this.configuration.streamingTimeout(),
-			this.configuration.timeoutUnit().toChronoUnit()
+			this.configuration.streamingTimeoutUnit().toChronoUnit()
 		);
 
 		//noinspection unchecked

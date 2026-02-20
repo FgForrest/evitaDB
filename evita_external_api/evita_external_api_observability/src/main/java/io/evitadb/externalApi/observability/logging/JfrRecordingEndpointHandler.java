@@ -26,6 +26,7 @@ package io.evitadb.externalApi.observability.logging;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -64,8 +65,8 @@ public abstract class JfrRecordingEndpointHandler extends EndpointHandler<JfrRec
 
 	@Nonnull
 	@Override
-	protected JfrRecordingEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
-		return new JfrRecordingEndpointExecutionContext(httpRequest, this.evita);
+	protected JfrRecordingEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext) {
+		return new JfrRecordingEndpointExecutionContext(httpRequest, this.evita, serviceRequestContext);
 	}
 
 	@Nonnull

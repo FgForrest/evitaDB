@@ -99,9 +99,9 @@ public class MetricHandler {
 		.help("Total number of internal evitaDB errors")
 		.register();
 	public static final Counter CLIENT_ERRORS_TOTAL = Counter.builder()
-		.name("io_client_errors_total")
+		.name("io_evitadb_client_errors_total")
 		.labelNames("error_type")
-		.help("Total number of internal evitaDB errors")
+		.help("Total number of client errors (EvitaInvalidUsageException)")
 		.register();
 	public static final Gauge HEALTH_PROBLEMS = Gauge.builder()
 		.name("io_evitadb_probe_health_problem")

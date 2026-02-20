@@ -78,8 +78,12 @@ public record GraphQLRequest(@Nonnull String query,
             executionInputBuilder.extensions(extensions());
         }
 
-        executionInputBuilder.graphQLContext(builder ->
-            builder.of(GraphQLContextKey.METRIC_EXECUTED_EVENT, executionContext.requestExecutedEvent()));
+        executionInputBuilder.graphQLContext(
+            builder -> {
+                builder.of(GraphQLContextKey.METRIC_EXECUTED_EVENT, executionContext.requestExecutedEvent());
+                builder.of(GraphQLContextKey.SERVICE_REQUEST_CONTEXT, executionContext.serviceRequestContext());
+            }
+        );
 
         return executionInputBuilder.build();
     }

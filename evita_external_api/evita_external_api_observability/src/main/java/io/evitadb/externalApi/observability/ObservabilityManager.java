@@ -192,7 +192,7 @@ public class ObservabilityManager {
 	 * Method increments the counter of client errors in the Prometheus metrics.
 	 */
 	public static void clientErrorEvent(@Nonnull String simpleName) {
-		MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(simpleName).inc();;
+		MetricHandler.CLIENT_ERRORS_TOTAL.labelValues(simpleName).inc();
 	}
 
 	public ObservabilityManager(

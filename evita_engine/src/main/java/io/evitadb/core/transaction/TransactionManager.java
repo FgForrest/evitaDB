@@ -46,10 +46,10 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.ChangeCatalogObserverContract;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.TransactionTask;
@@ -83,6 +83,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
@@ -126,7 +127,7 @@ public class TransactionManager implements Closeable {
 	/**
 	 * The executor used for handling transactional tasks.
 	 */
-	private final SystemObservableExecutorService transactionalExecutor;
+	private final ObservableExecutorService transactionalExecutor;
 	/**
 	 * Lambda function that is called when a new catalog version is available.
 	 */
@@ -294,7 +295,7 @@ public class TransactionManager implements Closeable {
 		this.evita = evita;
 		this.configuration = evita.getConfiguration();
 		this.requestExecutor = requestExecutor;
-		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
+		this.transactionalExecutor = transactionalExecutor;
 		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		final ChangeDataCaptureOptions cdcOptions = this.configuration.server().changeDataCapture();
@@ -955,18 +956,19 @@ public class TransactionManager implements Closeable {
 	@Nonnull
 	private SubmissionPublisher<ConflictResolutionTransactionTask> createTransactionalPublisher() {
 		final int maxBufferCapacity = this.configuration.server().transactionThreadPool().queueSize();
+		final Executor unrejectableExecutor = ProgressingFuture.unrejectableExecutor(this.transactionalExecutor);
 
 		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(
-			this.transactionalExecutor, maxBufferCapacity
+			unrejectableExecutor, maxBufferCapacity
 		);
 		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(
-			this.transactionalExecutor, maxBufferCapacity, this,
+			unrejectableExecutor, maxBufferCapacity, this,
 			// do nothing on error
 			(transactionTask, throwable) -> {
 			}
 		);
 		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(
-			this.transactionalExecutor, maxBufferCapacity, this,
+			unrejectableExecutor, maxBufferCapacity, this,
 			this::retryTransactionProcessing
 		);
 		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(

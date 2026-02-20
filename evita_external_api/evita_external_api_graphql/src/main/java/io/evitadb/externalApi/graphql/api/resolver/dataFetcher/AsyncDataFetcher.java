@@ -23,14 +23,18 @@
 
 package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 
+import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.core.Evita;
-import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.executor.CancellableRunnable;
+import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
+import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
+import io.evitadb.externalApi.http.CancellationSupport;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -51,7 +55,7 @@ public class AsyncDataFetcher implements DataFetcher<Object> {
 	 * Underlying data fetcher with actual fetching logic.
 	 */
 	@Nonnull private final DataFetcher<?> delegate;
-	@Nonnull private final ObservableExecutorService executorService;
+	@Nonnull private final ObservableExecutorServiceWithCancellationSupport executorService;
 
 	/**
 	 * Tracing context provider. We need to pass the current tracing context to the async data fetcher.
@@ -78,30 +82,47 @@ public class AsyncDataFetcher implements DataFetcher<Object> {
 	public Object get(DataFetchingEnvironment environment) throws Exception {
 		if (!this.enabled) {
 			// no executor, no async call
-			log.debug("No executor for processing data fetcher `" + getClass().getName() + "`, processing synchronously.");
+			log.debug(
+				"No executor for processing data fetcher `" + getClass().getName() + "`, processing synchronously.");
 			return this.delegate.get(environment);
 		}
 
 		// We need to manually pass the context, because the completable future will be detached from this call.
 		final TracingContextReference<?> parentContextReference = this.tracingContext.getCurrentContext();
-		return CompletableFuture.supplyAsync(
-			() -> this.tracingContext.executeWithinBlockWithParentContext(
-				parentContextReference,
-				this.tracingBlockDescription,
-				() -> {
-					try {
-						return this.delegate.get(environment);
-					} catch (Exception e) {
-						if (e instanceof RuntimeException re) {
-							throw re;
-						} else {
-							throw new GraphQLInternalError("Unexpected exception occurred during data fetching.", e);
-						}
-					}
+		final ServiceRequestContext ctx = environment.getGraphQlContext().get(GraphQLContextKey.SERVICE_REQUEST_CONTEXT);
+
+		final CompletableFuture<Object> result = new CompletableFuture<>();
+		final CancellableRunnable task = this.executorService.createTask(
+			this.tracingBlockDescription,
+			() -> {
+				try {
+					result.complete(
+						this.tracingContext.executeWithinBlockWithParentContext(
+							parentContextReference,
+							this.tracingBlockDescription,
+							() -> {
+								try {
+									return this.delegate.get(environment);
+								} catch (Exception e) {
+									if (e instanceof RuntimeException re) {
+										throw re;
+									} else {
+										throw new GraphQLInternalError(
+											"Unexpected exception occurred during data fetching.", e
+										);
+									}
+								}
+							}
+						)
+					);
+				} catch (Throwable t) {
+					result.completeExceptionally(t);
 				}
-			),
-			this.executorService
+			}
 		);
+		CancellationSupport.wireCancellation(ctx, task, result);
+		this.executorService.execute(task);
+		return result;
 	}
 
 	@Nonnull
@@ -111,18 +132,20 @@ public class AsyncDataFetcher implements DataFetcher<Object> {
 		} else if (WriteDataFetcher.class.isAssignableFrom(this.delegate.getClass())) {
 			return "GraphQL mutation write";
 		} else {
-			throw new GraphQLInternalError("Unsupported GraphQL root fetcher type on `" + this.delegate.getClass() + "`.");
+			throw new GraphQLInternalError(
+				"Unsupported GraphQL root fetcher type on `" + this.delegate.getClass() + "`.");
 		}
 	}
 
 	@Nonnull
-	private ObservableExecutorService resolveExecutor(@Nonnull Evita evita) {
+	private ObservableExecutorServiceWithCancellationSupport resolveExecutor(@Nonnull Evita evita) {
 		if (ReadDataFetcher.class.isAssignableFrom(this.delegate.getClass())) {
 			return evita.getRequestExecutor();
 		} else if (WriteDataFetcher.class.isAssignableFrom(this.delegate.getClass())) {
 			return evita.getTransactionExecutor();
 		} else {
-			throw new GraphQLInternalError("Unsupported GraphQL async fetcher type on `" + this.delegate.getClass() + "`.");
+			throw new GraphQLInternalError(
+				"Unsupported GraphQL async fetcher type on `" + this.delegate.getClass() + "`.");
 		}
 	}
 }
