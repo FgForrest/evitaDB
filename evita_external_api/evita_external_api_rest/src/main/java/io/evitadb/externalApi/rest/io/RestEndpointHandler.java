@@ -89,7 +89,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext>
 
 	@Nonnull
 	@Override
-	protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
+	protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext) {
 		final RestInstanceType instanceType;
 		if (this.restHandlingContext instanceof SystemRestHandlingContext) {
 			instanceType = RestInstanceType.SYSTEM;
@@ -104,6 +104,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext>
 		return new RestEndpointExecutionContext(
 			httpRequest,
 			this.restHandlingContext.getEvita(),
+			serviceRequestContext,
 			new ExecutedEvent(
 				instanceType,
 				modifiesData() ? OperationType.MUTATION : OperationType.QUERY,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		return parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class)
-			.thenApply(requestData -> {
+			.thenCompose(requestData -> {
 				requestExecutedEvent.finishInputDeserialization();
 
 				final List<LocalCatalogSchemaMutation> schemaMutations = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
@@ -87,14 +87,16 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 					return convertedSchemaMutations;
 				});
 
-				final CatalogSchemaContract updatedCatalogSchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					executionContext.session().updateAndFetchCatalogSchema(schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)));
-				requestExecutedEvent.finishOperationExecution();
+				return executionContext.executeAsyncInTransactionThreadPool(() -> {
+					final CatalogSchemaContract updatedCatalogSchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+						executionContext.session().updateAndFetchCatalogSchema(schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)));
+					requestExecutedEvent.finishOperationExecution();
 
-				final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalogSchema);
-				requestExecutedEvent.finishResultSerialization();
+					final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalogSchema);
+					requestExecutedEvent.finishResultSerialization();
 
-				return new SuccessEndpointResponse(result);
+					return new SuccessEndpointResponse(result);
+				});
 			});
 	}
 

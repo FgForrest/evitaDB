@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,51 +25,55 @@ package io.evitadb.core.executor;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.requestResponse.progress.UnrejectableTask;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import jdk.jfr.Event;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
-
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 
-import static java.util.Optional.ofNullable;
-
 /**
- * This class implementation of {@link ExecutorService} that allows to process asynchronous tasks in a safe and limited
- * manner. It is based on the Java ForkJoinPool and provides additional features like task timeout and task queue
- * monitoring.
+ * An {@link ExecutorService} implementation built on top of {@link ForkJoinPool} that adds task lifecycle
+ * observability, bounded queue depth, interrupt-based cancellation, and tracing context propagation.
+ *
+ * Two instances are created per evitaDB server — one for incoming API requests (higher priority) and one for
+ * transaction processing (lower priority). Both are configured via {@link ThreadPoolOptions}.
+ *
+ * Key design points:
+ *
+ * - **Bounded queue**: before any task is dispatched to the underlying pool, an internal atomic counter is
+ *   incremented and compared against `{@link ThreadPoolOptions#queueSize()}`. If the limit is exceeded,
+ *   a {@link RejectedExecutionException} is thrown immediately and {@link #rejectedTaskCount} is bumped.
+ *   The counter is decremented when the task finishes (or is cancelled) via the `onCompletion` callback.
+ * - **Cancellable tasks**: every submitted {@link Runnable}/{@link Callable} is wrapped in
+ *   {@link ObservableRunnable}/{@link ObservableCallable} which record the executing thread so that
+ *   {@link CancellableTask#cancel()} can call {@link Thread#interrupt()} on it. The interrupt flag is
+ *   cleared in the `finally` block so it cannot leak to the next task picked up by the same
+ *   {@link ForkJoinPool} worker thread.
+ * - **Tracing context propagation**: the MDC and thread-local tracing state present on the submitting thread
+ *   is captured at construction time via {@link TracingContext#captureContext()} and restored on the worker
+ *   thread for the duration of the task, enabling correlated logging across thread boundaries.
+ * - **JFR statistics**: {@link #emitPoolStatistics} publishes a JFR event carrying incremental steal counts
+ *   and other pool metrics. It is called periodically by {@link io.evitadb.core.Evita} via
+ *   {@code FlightRecorder.addPeriodicEvent}.
+ * - **Test mode**: when {@code immediateExecutorService} is {@code true} (test environments), an
+ *   {@link ImmediateExecutorService} is used instead of {@link ForkJoinPool} so that tasks run
+ *   synchronously on the calling thread, eliminating concurrency in unit tests.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ObservableThreadExecutor implements ObservableExecutorServiceWithHardDeadline {
-	private static final int BUFFER_CAPACITY = 512;
-	/**
-	 * Buffer used for purging finished tasks.
-	 */
-	private final ArrayList<WeakReference<ObservableTask>> buffer = new ArrayList<>(BUFFER_CAPACITY);
-	/**
-	 * Lock synchronizing access to the buffer and purge operation.
-	 */
-	private final ReentrantLock bufferLock = new ReentrantLock();
-	/**
-	 * Name used in log messages and events.
-	 */
-	private final String name;
+public class ObservableThreadExecutor implements ObservableExecutorServiceWithCancellationSupport {
 	/**
 	 * Java based fork join pool that does the heavy lifting.
 	 */
@@ -77,38 +81,59 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	/**
 	 * Counter monitoring the number of tasks submitted to the executor service.
 	 */
-	private final AtomicLong submittedTaskCount = new AtomicLong();
+	private final LongAdder submittedTaskCount = new LongAdder();
 	/**
 	 * Counter monitoring the number of tasks rejected by the executor service.
 	 */
-	private final AtomicLong rejectedTaskCount = new AtomicLong();
+	private final LongAdder rejectedTaskCount = new LongAdder();
 	/**
 	 * Rejection handler that is invoked when the executor service rejects a task.
 	 */
 	private final EvitaRejectingExecutorHandler rejectedExecutionHandler;
 	/**
-	 * Timeout in milliseconds after which tasks are considered timed out and are removed from the queue.
+	 * Atomic counter tracking the number of tasks currently in the queue (submitted but not yet finished).
+	 * Incremented before dispatch and decremented via the `onCompletion` callback once a task completes
+	 * or is cancelled. Used to enforce {@link #queueLimit}.
 	 */
-	private final long timeoutInMilliseconds;
+	private final AtomicInteger queueSize = new AtomicInteger();
 	/**
-	 * Queue that holds the tasks that are currently being executed or waiting to be executed. It could also contain
-	 * already finished tasks that are subject to be removed.
+	 * Maximum number of tasks that may be simultaneously queued (in-flight + waiting). Sourced from
+	 * {@link ThreadPoolOptions#queueSize()}. When {@link #queueSize} exceeds this value, new task
+	 * submissions are rejected with a {@link RejectedExecutionException}.
+	 * Note that the effective capacity is {@code queueLimit + 1}: the check is `{@code > queueLimit}`,
+	 * so a task at exactly {@code queueLimit} is still accepted.
 	 */
-	private final ArrayBlockingQueue<WeakReference<ObservableTask>> queue;
+	private final int queueLimit;
+	/**
+	 * Cached method reference for decrementing queue size, avoiding per-task lambda allocation.
+	 */
+	private final Runnable queueSizeDecrementer = this.queueSize::decrementAndGet;
 	/**
 	 * Last observed steal count of the request executor.
 	 */
 	private long executorSteals;
 
+	/**
+	 * Creates a new executor configured according to the supplied options.
+	 *
+	 * In production mode a {@link ForkJoinPool} is created in async mode (LIFO work-stealing) with parallelism
+	 * capped at `min(options.minThreadCount(), availableProcessors)`. Worker threads are daemon threads named
+	 * `Evita-{@code name}-N` with the configured priority.
+	 *
+	 * @param name                   logical name of this executor, used in thread names, log messages, and JFR events
+	 * @param options                pool sizing and priority settings; see {@link ThreadPoolOptions}
+	 * @param immediateExecutorService when {@code true}, an {@link ImmediateExecutorService} is used instead of
+	 *                               {@link ForkJoinPool} — intended for test environments where synchronous
+	 *                               execution avoids concurrency-related flakiness
+	 */
 	public ObservableThreadExecutor(
 		@Nonnull String name,
 		@Nonnull ThreadPoolOptions options,
-		@Nonnull Scheduler scheduler,
-		long timeoutInMilliseconds,
 		boolean immediateExecutorService
 	) {
-		this.name = name;
 		final int processorsCount = Runtime.getRuntime().availableProcessors();
+		this.rejectedExecutionHandler = new EvitaRejectingExecutorHandler(name, this.rejectedTaskCount::increment);
+		this.queueLimit = options.queueSize();
 		this.executorService = immediateExecutorService ?
 			// in test environment we use a simplified executor that runs tasks immediately (synchronously)
 			new ImmediateExecutorService() :
@@ -125,108 +150,67 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 				60,
 				TimeUnit.SECONDS
 			);
-		this.rejectedExecutionHandler = new EvitaRejectingExecutorHandler(name, this.rejectedTaskCount::incrementAndGet);
-		this.timeoutInMilliseconds = timeoutInMilliseconds;
-		// create queue with double the size of the configured queue size to have some breathing room
-		this.queue = new ArrayBlockingQueue<>(options.queueSize() << 1);
-		if (timeoutInMilliseconds > -1 && timeoutInMilliseconds < 100L) {
-			throw new EvitaInvalidUsageException(
-				"The timeout must be at least 100 milliseconds."
-			);
-		} else if (timeoutInMilliseconds > 0) {
-			scheduler.schedule(
-				this::cancelTimedOutTasks,
-				timeoutInMilliseconds,
-				TimeUnit.MILLISECONDS
-			);
-		}
-	}
-
-	@Override
-	public long getDefaultTimeoutInMilliseconds() {
-		return this.timeoutInMilliseconds;
 	}
 
 	@Override
 	@Nonnull
-	public Runnable createTask(@Nonnull String name, @Nonnull Runnable lambda) {
-		return new ObservableRunnable(name, lambda, this.timeoutInMilliseconds);
+	public CancellableRunnable createTask(@Nonnull String name, @Nonnull Runnable lambda) {
+		return new ObservableRunnable(name, lambda, this.queueSizeDecrementer);
 	}
 
 	@Override
 	@Nonnull
-	public Runnable createTask(@Nonnull Runnable lambda) {
-		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-		return new ObservableRunnable(
-			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
-			lambda, this.timeoutInMilliseconds
-		);
+	public CancellableRunnable createTask(@Nonnull Runnable lambda) {
+		return new ObservableRunnable(lambda, this.queueSizeDecrementer);
 	}
 
 	@Override
 	@Nonnull
-	public Runnable createTask(@Nonnull String name, @Nonnull Runnable lambda, long timeoutInMilliseconds) {
-		return new ObservableRunnable(name, lambda, timeoutInMilliseconds);
+	public <V> CancellableCallable<V> createTask(@Nonnull String name, @Nonnull Callable<V> lambda) {
+		return new ObservableCallable<>(name, lambda, this.queueSizeDecrementer);
 	}
 
 	@Override
 	@Nonnull
-	public Runnable createTask(@Nonnull Runnable lambda, long timeoutInMilliseconds) {
-		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-		return new ObservableRunnable(
-			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
-			lambda, timeoutInMilliseconds
-		);
-	}
-
-	@Override
-	@Nonnull
-	public <V> Callable<V> createTask(@Nonnull String name, @Nonnull Callable<V> lambda) {
-		return new ObservableCallable<>(name, lambda, this.timeoutInMilliseconds);
-	}
-
-	@Override
-	@Nonnull
-	public <V> Callable<V> createTask(@Nonnull Callable<V> lambda) {
-		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-		return new ObservableCallable<>(
-			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
-			lambda, this.timeoutInMilliseconds
-		);
-	}
-
-	@Override
-	@Nonnull
-	public <V> Callable<V> createTask(@Nonnull String name, @Nonnull Callable<V> lambda, long timeoutInMilliseconds) {
-		return new ObservableCallable<>(name, lambda, timeoutInMilliseconds);
-	}
-
-	@Override
-	@Nonnull
-	public <V> Callable<V> createTask(@Nonnull Callable<V> lambda, long timeoutInMilliseconds) {
-		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-		return new ObservableCallable<>(
-			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
-			lambda, timeoutInMilliseconds
-		);
+	public <V> CancellableCallable<V> createTask(@Nonnull Callable<V> lambda) {
+		return new ObservableCallable<>(lambda, this.queueSizeDecrementer);
 	}
 
 	@Override
 	public long getSubmittedTaskCount() {
-		return this.submittedTaskCount.get();
+		return this.submittedTaskCount.sum();
 	}
 
 	@Override
 	public long getRejectedTaskCount() {
-		return this.rejectedTaskCount.get();
+		return this.rejectedTaskCount.sum();
 	}
 
+	/**
+	 * Submits a task for fire-and-forget execution.
+	 *
+	 * Unlike the {@link #submit} variants, this method catches the initial {@link RejectedExecutionException}
+	 * from the queue-limit check and delegates to the {@link EvitaRejectingExecutorHandler}, which logs the event,
+	 * fires a JFR event, and then re-throws a {@link RejectedExecutionException}. Callers must therefore still
+	 * be prepared for the exception.
+	 *
+	 * @param command the task to execute; will be wrapped in an {@link ObservableRunnable} unless already one
+	 * @throws RejectedExecutionException if the queue limit is exceeded or the pool has been shut down
+	 *         (thrown by {@link EvitaRejectingExecutorHandler#rejectedExecution()})
+	 */
 	@Override
 	public void execute(@Nonnull Runnable command) {
+		ObservableRunnable wrapped = null;
 		try {
-			this.executorService.execute(registerTask(command, this.timeoutInMilliseconds));
-			this.submittedTaskCount.incrementAndGet();
+			wrapped = wrapToCancellableTask(command);
+			this.executorService.execute(wrapped);
+			this.submittedTaskCount.increment();
 		} catch (RejectedExecutionException e) {
+			if (wrapped != null) {
+				// Pool rejected the task after queueSize was already incremented;
+				// the onCompletion callback will never fire, so balance manually.
+				this.queueSize.decrementAndGet();
+			}
 			this.rejectedExecutionHandler.rejectedExecution();
 		}
 	}
@@ -252,61 +236,100 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		return this.executorService.isTerminated();
 	}
 
-	/*
-	 * PRIVATE METHODS
-	 */
-
 	@Override
 	public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
 		return this.executorService.awaitTermination(timeout, unit);
 	}
 
+	/**
+	 * Wraps the callable in an {@link ObservableCallable}, enforces the queue limit, and delegates to the
+	 * underlying pool. Increments {@link #submittedTaskCount} on success.
+	 *
+	 * @throws RejectedExecutionException if the queue limit is exceeded or the pool has been shut down
+	 */
 	@Nonnull
 	@Override
 	public <T> Future<T> submit(@Nonnull Callable<T> task) {
+		ObservableCallable<T> wrapped = null;
 		try {
-			final Future<T> result = this.executorService.submit(registerTask(task, this.timeoutInMilliseconds));
-			this.submittedTaskCount.incrementAndGet();
+			wrapped = wrapToCancellableTask(task);
+			final Future<T> result = this.executorService.submit(wrapped);
+			this.submittedTaskCount.increment();
 			return result;
 		} catch (RejectedExecutionException e) {
+			if (wrapped != null) {
+				this.queueSize.decrementAndGet();
+			}
 			this.rejectedExecutionHandler.rejectedExecution();
 			throw e;
 		}
 	}
 
+	/**
+	 * Wraps the runnable in an {@link ObservableRunnable}, enforces the queue limit, and delegates to the
+	 * underlying pool. The supplied {@code result} value is returned by the {@link Future} on completion.
+	 *
+	 * @throws RejectedExecutionException if the queue limit is exceeded or the pool has been shut down
+	 */
 	@Nonnull
 	@Override
 	public <T> Future<T> submit(@Nonnull Runnable task, T result) {
+		ObservableRunnable wrapped = null;
 		try {
-			final Future<T> forkJoinTask = this.executorService.submit(registerTask(task, this.timeoutInMilliseconds), result);
-			this.submittedTaskCount.incrementAndGet();
+			wrapped = wrapToCancellableTask(task);
+			final Future<T> forkJoinTask = this.executorService.submit(wrapped, result);
+			this.submittedTaskCount.increment();
 			return forkJoinTask;
 		} catch (RejectedExecutionException e) {
+			if (wrapped != null) {
+				this.queueSize.decrementAndGet();
+			}
 			this.rejectedExecutionHandler.rejectedExecution();
 			throw e;
 		}
 	}
 
+	/**
+	 * Wraps the runnable in an {@link ObservableRunnable}, enforces the queue limit, and delegates to the
+	 * underlying pool. The returned {@link Future} completes with {@code null} when the task finishes.
+	 *
+	 * @throws RejectedExecutionException if the queue limit is exceeded or the pool has been shut down
+	 */
 	@Nonnull
 	@Override
 	public Future<?> submit(@Nonnull Runnable task) {
+		ObservableRunnable wrapped = null;
 		try {
-			final Future<?> forkJoinTask = this.executorService.submit(registerTask(task, this.timeoutInMilliseconds));
-			this.submittedTaskCount.incrementAndGet();
+			wrapped = wrapToCancellableTask(task);
+			final Future<?> forkJoinTask = this.executorService.submit(wrapped);
+			this.submittedTaskCount.increment();
 			return forkJoinTask;
 		} catch (RejectedExecutionException e) {
+			if (wrapped != null) {
+				this.queueSize.decrementAndGet();
+			}
 			this.rejectedExecutionHandler.rejectedExecution();
 			throw e;
 		}
 	}
 
+	/**
+	 * Wraps all callables, enforces per-task queue limits, submits them all, and blocks until every task
+	 * has completed (or the calling thread is interrupted).
+	 *
+	 * If the calling thread is interrupted while waiting, the interrupt flag is restored and a
+	 * {@link RejectedExecutionException} is thrown so callers do not silently swallow interruptions.
+	 *
+	 * @throws RejectedExecutionException if any task exceeds the queue limit, the pool is shut down,
+	 *         or the calling thread is interrupted while blocking
+	 */
 	@Nonnull
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks) {
 		try {
-			final List<Callable<T>> tasksToSubmit = tasks.stream().map(it -> this.registerTask(it, this.timeoutInMilliseconds)).toList();
+			final List<ObservableCallable<T>> tasksToSubmit = tasks.stream().map(this::wrapToCancellableTask).toList();
 			final List<Future<T>> futures = this.executorService.invokeAll(tasksToSubmit);
-			this.submittedTaskCount.addAndGet(futures.size());
+			this.submittedTaskCount.add(futures.size());
 			return futures;
 		} catch (RejectedExecutionException e) {
 			this.rejectedExecutionHandler.rejectedExecution();
@@ -317,45 +340,45 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		}
 	}
 
+	/**
+	 * Wraps all callables, enforces per-task queue limits, submits them all, and blocks until every task
+	 * has completed or the timeout elapses. Tasks that did not complete within the timeout are cancelled.
+	 *
+	 * @throws InterruptedException       if the calling thread is interrupted while waiting
+	 * @throws RejectedExecutionException if any task exceeds the queue limit or the pool is shut down
+	 */
 	@Nonnull
 	@Override
-	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) {
+	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
 		try {
-			final long theTimeout = Math.min(this.timeoutInMilliseconds, unit.toMillis(timeout));
-			final List<Callable<T>> tasksToSubmit = tasks.stream().map(it -> this.registerTask(it, theTimeout)).toList();
-			final List<Future<T>> futures = this.executorService.invokeAll(tasksToSubmit);
-			this.submittedTaskCount.addAndGet(futures.size());
+			final List<ObservableCallable<T>> tasksToSubmit = tasks.stream().map(this::wrapToCancellableTask).toList();
+			final List<Future<T>> futures = this.executorService.invokeAll(tasksToSubmit, timeout, unit);
+			this.submittedTaskCount.add(futures.size());
 			return futures;
 		} catch (RejectedExecutionException e) {
 			this.rejectedExecutionHandler.rejectedExecution();
 			throw e;
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new RejectedExecutionException("Thread was interrupted while waiting for tasks to complete.", e);
 		}
 	}
 
+	/**
+	 * Wraps all callables, enforces per-task queue limits, and returns the result of the first task that
+	 * succeeds. All other tasks are cancelled once one succeeds.
+	 *
+	 * Note: only 1 is added to {@link #submittedTaskCount} regardless of how many tasks are provided, because
+	 * from the caller's perspective a single logical operation has been submitted.
+	 *
+	 * @throws InterruptedException       if the calling thread is interrupted while waiting
+	 * @throws ExecutionException         if every task failed with an exception
+	 * @throws RejectedExecutionException if the queue limit is exceeded or the pool is shut down
+	 */
 	@Nonnull
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
 		try {
-			final List<Callable<T>> tasksToSubmit = tasks.stream().map(it -> this.registerTask(it, this.timeoutInMilliseconds)).toList();
+			final List<ObservableCallable<T>> tasksToSubmit = tasks.stream().map(this::wrapToCancellableTask).toList();
 			final T result = this.executorService.invokeAny(tasksToSubmit);
-			this.submittedTaskCount.incrementAndGet();
-			return result;
-		} catch (RejectedExecutionException e) {
-			this.rejectedExecutionHandler.rejectedExecution();
-			throw e;
-		}
-	}
-
-	@Override
-	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException {
-		try {
-			final long theTimeout = Math.min(this.timeoutInMilliseconds, unit.toMillis(timeout));
-			final List<Callable<T>> tasksToSubmit = tasks.stream().map(it -> this.registerTask(it, theTimeout)).toList();
-			final T result = this.executorService.invokeAny(tasksToSubmit);
-			this.submittedTaskCount.incrementAndGet();
+			this.submittedTaskCount.increment();
 			return result;
 		} catch (RejectedExecutionException e) {
 			this.rejectedExecutionHandler.rejectedExecution();
@@ -364,7 +387,41 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	}
 
 	/**
-	 * Emits statistics of the ForkJoinPool associated with the request executor.
+	 * Wraps all callables, enforces per-task queue limits, and returns the result of the first task that
+	 * succeeds within the given timeout. All remaining tasks are cancelled once one succeeds or the
+	 * timeout expires.
+	 *
+	 * @throws InterruptedException       if the calling thread is interrupted while waiting
+	 * @throws ExecutionException         if every task failed with an exception
+	 * @throws TimeoutException           if no task succeeds within the given timeout
+	 * @throws RejectedExecutionException if the queue limit is exceeded or the pool is shut down
+	 */
+	@Override
+	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+		try {
+			final List<ObservableCallable<T>> tasksToSubmit = tasks.stream().map(this::wrapToCancellableTask).toList();
+			final T result = this.executorService.invokeAny(tasksToSubmit, timeout, unit);
+			this.submittedTaskCount.increment();
+			return result;
+		} catch (RejectedExecutionException e) {
+			this.rejectedExecutionHandler.rejectedExecution();
+			throw e;
+		}
+	}
+
+	/**
+	 * Publishes a JFR event with current {@link ForkJoinPool} statistics, called periodically by
+	 * {@link io.evitadb.core.Evita} via {@code FlightRecorder.addPeriodicEvent}.
+	 *
+	 * The steal count reported in the event is **incremental** — it reflects only the steals that occurred
+	 * since the last call, not a cumulative total. This makes the metric suitable for rate-based dashboards.
+	 * The raw pool reference is passed to the factory so it can also read other live metrics such as queued
+	 * task count and active thread count.
+	 *
+	 * When the underlying executor is an {@link ImmediateExecutorService} (test mode), this method is a no-op.
+	 *
+	 * @param eventFactory a function that receives the live {@link ForkJoinPool} and the incremental steal
+	 *                     count and returns a ready-to-commit JFR {@link Event}
 	 */
 	public void emitPoolStatistics(@Nonnull BiFunction<ForkJoinPool, Long, Event> eventFactory) {
 		if (this.executorService instanceof ForkJoinPool fjp) {
@@ -378,218 +435,143 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	}
 
 	/**
-	 * Register a task with a particular timeout.
+	 * Enforces the queue limit and, if the runnable is not already an {@link ObservableRunnable}, wraps it
+	 * in one (capturing the current tracing context and wiring the {@link #queueSizeDecrementer} callback).
 	 *
-	 * @param runnable              the task to run
-	 * @param timeoutInMilliseconds the timeout in milliseconds
-	 * @return wrapped runnable into an observable task
+	 * The queue-size increment is performed with a compare-and-reject pattern: if the counter already exceeds
+	 * {@link #queueLimit} the increment is rolled back immediately and a {@link RejectedExecutionException}
+	 * is thrown before the task ever reaches the pool.
+	 *
+	 * @param runnable the task to run; if it is already an {@link ObservableRunnable} it is returned as-is
+	 *                 to avoid double-wrapping and double-decrement of the queue counter
+	 * @return the observable wrapper, ready to be submitted to the underlying pool
+	 * @throws RejectedExecutionException if the number of in-flight tasks exceeds {@link #queueLimit}
 	 */
 	@Nonnull
-	private Runnable registerTask(@Nonnull Runnable runnable, long timeoutInMilliseconds) {
-		return addTaskToQueue(runnable instanceof ObservableRunnable or ? or : new ObservableRunnable(runnable, timeoutInMilliseconds));
-	}
-
-	/**
-	 * Register a task with a particular timeout.
-	 *
-	 * @param callable              the task to run
-	 * @param timeoutInMilliseconds the timeout in milliseconds
-	 * @param <V>                   the type of the result
-	 * @return wrapped callable into an observable task
-	 */
-	@Nonnull
-	private <V> Callable<V> registerTask(@Nonnull Callable<V> callable, long timeoutInMilliseconds) {
-		return addTaskToQueue(callable instanceof ObservableCallable<V> oc ? oc : new ObservableCallable<>(callable, timeoutInMilliseconds));
-	}
-
-	/**
-	 * Wraps the task into an observable task and adds it to the queue. Returns the same type as the input argument
-	 * to allow for fluent chaining.
-	 *
-	 * @param task the task to add
-	 * @param <T>  the type of the task
-	 * @return the task that was added and wrapped
-	 */
-	@Nonnull
-	private <T extends ObservableTask> T addTaskToQueue(@Nonnull T task) {
-		if (task.canTimeOut()) {
-			final WeakReference<ObservableTask> taskRef = new WeakReference<>(task);
-			try {
-				// add the task to the queue
-				this.queue.add(taskRef);
-			} catch (IllegalStateException e) {
-				// this means the queue is full, so we need to remove some tasks
-				this.cancelTimedOutTasks();
-				// and try adding the task again
-				try {
-					this.queue.add(taskRef);
-				} catch (IllegalStateException exceptionAgain) {
-					// and this should never happen since queue was cleared of finished and timed out tasks and its size
-					// is double the configured size
-					this.rejectedExecutionHandler.rejectedExecution();
-					throw exceptionAgain;
-				}
+	private ObservableRunnable wrapToCancellableTask(@Nonnull Runnable runnable) {
+		if (this.queueSize.getAndIncrement() > this.queueLimit) {
+			final boolean unrejectable = runnable instanceof UnrejectableTask ||
+				(runnable instanceof ObservableRunnable or && or.isUnrejectable());
+			if (!unrejectable) {
+				this.queueSize.decrementAndGet();
+				throw new RejectedExecutionException("Task queue limit exceeded. Task rejected.");
 			}
 		}
-		return task;
+		return runnable instanceof ObservableRunnable or
+			? or
+			: new ObservableRunnable(runnable, this.queueSizeDecrementer);
 	}
 
 	/**
-	 * Iterates over all tasks in {@link #queue} in a batch manner and cancels those that are timed out. Tasks that are
-	 * still waiting or running and not timed out are added to the tail of the queue again.
+	 * Enforces the queue limit and, if the callable is not already an {@link ObservableCallable}, wraps it
+	 * in one (capturing the current tracing context and wiring the {@link #queueSizeDecrementer} callback).
+	 *
+	 * @param callable the task to run; if it is already an {@link ObservableCallable} it is returned as-is
+	 *                 to avoid double-wrapping and double-decrement of the queue counter
+	 * @param <V>      the type of the result produced by the callable
+	 * @return the observable wrapper, ready to be submitted to the underlying pool
+	 * @throws RejectedExecutionException if the number of in-flight tasks exceeds {@link #queueLimit}
 	 */
-	private void cancelTimedOutTasks() {
-		int timedOutTasks = 0;
-		if (this.bufferLock.tryLock()) {
-			try {
-				// go through the entire queue, but only once
-				final int queueSize = this.queue.size();
-				for (int i = 0; i < queueSize; ) {
-					// initialize threshold for entire batch only once
-					final long threshold = System.currentTimeMillis() - this.timeoutInMilliseconds;
-					// effectively withdraw first block of tasks from the queue
-					i += this.queue.drainTo(this.buffer, BUFFER_CAPACITY);
-					// now go through all of them
-					final Iterator<WeakReference<ObservableTask>> it = this.buffer.iterator();
-					while (it.hasNext()) {
-						final WeakReference<ObservableTask> taskRef = it.next();
-						final ObservableTask task = taskRef.get();
-						if (task == null) {
-							// if task is already garbage collected, remove it from the queue
-							it.remove();
-						} else if (task.isFinished()) {
-							// if task is finished, remove it from the queue
-							it.remove();
-						} else {
-							// if task is running / waiting longer than the threshold, cancel it and remove it from the queue
-							if (task.isTimedOut(threshold)) {
-								timedOutTasks++;
-								log.info("Cancelling timed out task: {}", task);
-								task.cancel();
-								it.remove();
-							} else {
-								// if task is not finished and not timed out, leave it in the buffer
-							}
-						}
-					}
-					// add the remaining tasks back to the queue in an effective way
-					for (WeakReference<ObservableTask> task : this.buffer) {
-						try {
-							this.queue.add(task);
-						} catch (IllegalStateException e) {
-							// queue is full, cancel the task
-							ofNullable(task.get())
-								.ifPresent(ObservableTask::cancel);
-						}
-					}
-					// clear the buffer for the next iteration
-					this.buffer.clear();
-				}
-			} finally {
-				this.bufferLock.unlock();
-			}
-		} else {
-			// someone else is currently purging the queue
-			// we need to wait until he's done and then the queue should have enough free room
-			while (this.bufferLock.isLocked()) {
-				Thread.onSpinWait();
+	@Nonnull
+	private <V> ObservableCallable<V> wrapToCancellableTask(@Nonnull Callable<V> callable) {
+		if (this.queueSize.getAndIncrement() > this.queueLimit) {
+			final boolean unrejectable = callable instanceof UnrejectableTask ||
+				(callable instanceof ObservableCallable<V> oc && oc.isUnrejectable());
+			if (!unrejectable) {
+				this.queueSize.decrementAndGet();
+				throw new RejectedExecutionException("Task queue limit exceeded. Task rejected.");
 			}
 		}
-		// emit aggregate event
-		new BackgroundTaskTimedOutEvent(this.name, timedOutTasks).commit();
+		return callable instanceof ObservableCallable<V> or
+			? or
+			: new ObservableCallable<>(callable, this.queueSizeDecrementer);
 	}
 
 	/**
-	 * Interface that allows to check if a task is finished and if it is timed out.
-	 * It also allows to cancel the task.
+	 * Wrapper around a {@link Runnable} that implements the {@link CancellableRunnable} interface.
+	 *
+	 * Responsibilities:
+	 *
+	 * - Captures the caller's MDC / tracing context at construction time and restores it on the worker thread
+	 *   for the duration of {@link #run()}, enabling correlated log entries across thread boundaries.
+	 * - Tracks the executing thread via a volatile field so that {@link #cancel()} can interrupt it at any time.
+	 * - Exposes a {@link CompletableFuture} that is completed (normally, exceptionally, or via cancellation)
+	 *   when the task finishes, allowing callers to chain dependent actions.
+	 * - Decrements the outer executor's queue-size counter exactly once when the task either completes or is
+	 *   cancelled, guarded by {@link #completionFired}.
+	 *
+	 * Cancellation contract: calling {@link #cancel()} before {@link #run()} causes the run to return
+	 * immediately without invoking the delegate. Calling {@link #cancel()} during {@link #run()} interrupts
+	 * the worker thread; the task still clears the interrupt flag in its {@code finally} block so it does
+	 * not leak into the next task on the same {@link ForkJoinPool} worker.
 	 */
-	private interface ObservableTask {
-
+	static class ObservableRunnable implements CancellableRunnable {
 		/**
-		 * Check if the task is finished.
-		 *
-		 * @return true if the task is finished, false otherwise
-		 */
-		boolean isFinished();
-
-		/**
-		 * Check if the task is timed out.
-		 *
-		 * @param now the current time in milliseconds
-		 * @return true if the task is timed out, false otherwise
-		 */
-		boolean isTimedOut(long now);
-
-		/**
-		 * Determines whether the task has the capability to time out.
-		 *
-		 * @return true if the task can time out, false otherwise
-		 */
-		boolean canTimeOut();
-
-		/**
-		 * Cancels the task.
-		 */
-		void cancel();
-
-	}
-
-	/**
-	 * Wrapper around a {@link Runnable} that implements the {@link ObservableTask} interface.
-	 */
-	static class ObservableRunnable implements Runnable, ObservableTask {
-		/**
-		 * Name / description of the task.
+		 * Human-readable description of the task; {@code null} when the unnamed constructor was used,
+		 * in which case {@link #toString()} delegates to the delegate's {@code toString()}.
 		 */
 		private final String name;
 		/**
-		 * Delegate runnable that is being wrapped.
+		 * The actual work to execute. Never invoked directly by the outer executor — always invoked
+		 * via {@link #run()} which adds tracing, lifecycle tracking, and interrupt cleanup around it.
 		 */
 		private final Runnable delegate;
 		/**
-		 * Time when the task is considered timed out.
-		 */
-		private final long timedOutAt;
-		/**
-		 * Context object that is set when the task is running.
+		 * Snapshot of the submitting thread's MDC and thread-local tracing state, captured eagerly at
+		 * construction time. Restored onto the worker thread in {@link #run()} so that log entries emitted
+		 * by the delegate carry the same trace/client IDs as the original request.
+		 * May be {@link TracingContext.CapturedContext#EMPTY} when no tracing context was active.
 		 */
 		private final TracingContext.CapturedContext capturedContext = TracingContext.captureContext();
 		/**
-		 * Future that is completed when the task is finished.
+		 * Completes when the task finishes: normally via {@link CompletableFuture#complete(Object)},
+		 * exceptionally via {@link CompletableFuture#completeExceptionally(Throwable)}, or by cancellation
+		 * via {@link CompletableFuture#cancel(boolean)}. Exposed to callers through {@link #completionStage()}.
 		 */
 		private final CompletableFuture<Void> future = new CompletableFuture<>();
+		/**
+		 * Callback invoked exactly once when the task finishes (normally, exceptionally, or via cancellation).
+		 * In production this is {@link ObservableThreadExecutor#queueSizeDecrementer}, which decrements the
+		 * outer queue counter. Protected against double-invocation by {@link #completionFired}.
+		 */
+		private final Runnable onCompletion;
+		/**
+		 * Guard ensuring the onCompletion callback fires at most once, preventing
+		 * double-decrement of queueSize when a task is cancelled.
+		 */
+		private final AtomicBoolean completionFired = new AtomicBoolean(false);
+		/**
+		 * Reference to the thread currently executing this task. Used for interrupt-based cancellation.
+		 * Volatile ensures visibility between the worker thread and any cancelling thread.
+		 */
+		@Nullable private volatile Thread executingThread;
 
-		public ObservableRunnable(@Nonnull Runnable delegate, long timeoutInMilliseconds) {
-			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-			// pick first name that doesn't contain Observable in the class name
-			String name = "Unknown";
-			for (StackTraceElement element : stackTrace) {
-				if (element.getClassName().contains("io.evitadb") && !element.getClassName().contains("Observable")) {
-					name = element.toString();
-					break;
-				}
-			}
-			this.name = name;
+		/**
+		 * Creates an unnamed observable wrapper around the given delegate.
+		 * The task description will fall back to {@link Object#toString()} of the delegate.
+		 *
+		 * @param delegate     the actual work to execute
+		 * @param onCompletion callback fired exactly once when the task finishes or is cancelled;
+		 *                     typically {@link ObservableThreadExecutor#queueSizeDecrementer}
+		 */
+		public ObservableRunnable(@Nonnull Runnable delegate, @Nonnull Runnable onCompletion) {
+			this.name = null;
 			this.delegate = delegate;
-			long calculatedTimeout;
-			try {
-				calculatedTimeout = Math.addExact(System.currentTimeMillis(), timeoutInMilliseconds);
-			} catch (ArithmeticException e) {
-				calculatedTimeout = Long.MAX_VALUE;
-			}
-			this.timedOutAt = calculatedTimeout;
+			this.onCompletion = onCompletion;
 		}
 
-		public ObservableRunnable(@Nonnull String name, @Nonnull Runnable delegate, long timeoutInMilliseconds) {
+		/**
+		 * Creates a named observable wrapper around the given delegate.
+		 *
+		 * @param name         human-readable task identifier, returned by {@link #toString()} and useful in logs
+		 * @param delegate     the actual work to execute
+		 * @param onCompletion callback fired exactly once when the task finishes or is cancelled;
+		 *                     typically {@link ObservableThreadExecutor#queueSizeDecrementer}
+		 */
+		public ObservableRunnable(@Nonnull String name, @Nonnull Runnable delegate, @Nonnull Runnable onCompletion) {
 			this.name = name;
 			this.delegate = delegate;
-			long calculatedTimeout;
-			try {
-				calculatedTimeout = Math.addExact(System.currentTimeMillis(), timeoutInMilliseconds);
-			} catch (ArithmeticException e) {
-				calculatedTimeout = Long.MAX_VALUE;
-			}
-			this.timedOutAt = calculatedTimeout;
+			this.onCompletion = onCompletion;
 		}
 
 		@Override
@@ -597,104 +579,186 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 			return this.future.isDone();
 		}
 
-		@Override
-		public boolean isTimedOut(long now) {
-			return this.timedOutAt < now;
+		/**
+		 * Returns whether the delegate implements {@link UnrejectableTask}, meaning this task
+		 * should bypass queue limit rejection.
+		 */
+		public boolean isUnrejectable() {
+			return this.delegate instanceof UnrejectableTask;
 		}
 
-		@Override
-		public boolean canTimeOut() {
-			return this.timedOutAt < Long.MAX_VALUE;
-		}
-
+		/**
+		 * Cancels this task.
+		 *
+		 * If the task has not started yet, the next call to {@link #run()} will return immediately without
+		 * executing the delegate. If the task is currently executing, the worker thread is interrupted.
+		 * In both cases {@link #onCompletion} is fired (at most once) and the internal future is
+		 * transitioned to the cancelled state.
+		 *
+		 * This method is safe to call from any thread and is idempotent.
+		 */
 		@Override
 		public void cancel() {
 			this.future.cancel(true);
+			fireCompletion();
+			final Thread t = this.executingThread;
+			if (t != null) {
+				t.interrupt();
+			}
+			new BackgroundTaskTimedOutEvent(
+				this.name == null ? "Unknown" : this.name, 1
+			).commit();
 		}
 
+		@Nonnull
+		@Override
+		public CompletableFuture<Void> completionStage() {
+			return this.future;
+		}
+
+		/**
+		 * Executes the delegate on the calling (worker) thread.
+		 *
+		 * Execution sequence:
+		 *
+		 * 1. Records the current thread in {@link #executingThread} so that a concurrent {@link #cancel()}
+		 *    call can interrupt it.
+		 * 2. Returns immediately if the future was already cancelled.
+		 * 3. Restores the captured tracing context (MDC + thread-local) if one was present at construction time.
+		 * 4. Invokes the delegate. On success the future is completed normally; on exception the future is
+		 *    completed exceptionally, the error is logged, and the exception is rethrown wrapped in
+		 *    {@link ObservableExecutionException}.
+		 * 5. Clears the tracing context in a {@code finally} block.
+		 * 6. Fires {@link #onCompletion} exactly once (via {@link #completionFired}) and clears
+		 *    {@link #executingThread}.
+		 * 7. Clears the thread-interrupt flag if the task was cancelled, preventing it from leaking to the
+		 *    next task the {@link ForkJoinPool} worker picks up.
+		 *
+		 * @throws ObservableExecutionException wrapping any exception thrown by the delegate
+		 */
 		@Override
 		public void run() {
-			TracingContext.executeWithClientContext(
-				this.capturedContext,
-				() -> {
-					try {
-						this.delegate.run();
-						this.future.complete(null);
-						return null;
-					} catch (Exception e) {
-						MDC.clear();
-						this.future.completeExceptionally(e);
-						ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
-						throw new ObservableExecutionException(e);
+			this.executingThread = Thread.currentThread();
+			try {
+				if (this.future.isCancelled()) {
+					return;
+				}
+				final boolean hasContext = !this.capturedContext.isEmpty();
+				if (hasContext) {
+					TracingContext.setContext(this.capturedContext);
+				}
+				try {
+					this.delegate.run();
+					this.future.complete(null);
+				} catch (Exception e) {
+					this.future.completeExceptionally(e);
+					ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
+					throw new ObservableExecutionException(e);
+				} finally {
+					if (hasContext) {
+						TracingContext.clearContext();
 					}
 				}
-			);
+			} finally {
+				fireCompletion();
+				this.executingThread = null;
+				// clear interrupt flag to prevent leaking to ForkJoinPool's next task
+				if (this.future.isCancelled()) {
+					Thread.interrupted();
+				}
+			}
+		}
+
+		private void fireCompletion() {
+			if (this.completionFired.compareAndSet(false, true)) {
+				this.onCompletion.run();
+			}
 		}
 
 		@Override
 		public String toString() {
-			return this.name;
+			return this.name == null ? this.delegate.toString() : this.name;
 		}
 	}
 
 	/**
-	 * Wrapper around a {@link Callable} that implements the {@link ObservableTask} interface.
+	 * Wrapper around a {@link Callable} that implements the {@link CancellableCallable} interface.
+	 *
+	 * Mirrors {@link ObservableRunnable} in design and cancellation contract; see that class for a full
+	 * description of responsibilities. The key difference is that {@link #call()} propagates the return
+	 * value of the delegate through the {@link CompletableFuture}, and checked exceptions thrown by the
+	 * delegate are re-thrown as-is (or re-wrapped in an {@link ObservableExecutionException} if they are
+	 * not already {@link RuntimeException}s).
 	 *
 	 * @param <V> the type of the result
 	 */
-	static class ObservableCallable<V> implements Callable<V>, ObservableTask {
+	static class ObservableCallable<V> implements CancellableCallable<V> {
 		/**
-		 * Name / description of the task.
+		 * Human-readable description of the task; {@code null} when the unnamed constructor was used,
+		 * in which case {@link #toString()} delegates to the delegate's {@code toString()}.
 		 */
 		private final String name;
 		/**
-		 * Delegate callable that is being wrapped.
+		 * The actual work to execute. Never invoked directly by the outer executor — always invoked
+		 * via {@link #call()} which adds tracing, lifecycle tracking, and interrupt cleanup around it.
 		 */
 		private final Callable<V> delegate;
 		/**
-		 * Time when the task is considered timed out.
-		 */
-		private final long timedOutAt;
-		/**
-		 * Context object that is set when the task is running.
+		 * Snapshot of the submitting thread's MDC and thread-local tracing state, captured eagerly at
+		 * construction time. Restored onto the worker thread in {@link #call()} so that log entries emitted
+		 * by the delegate carry the same trace/client IDs as the original request.
+		 * May be {@link TracingContext.CapturedContext#EMPTY} when no tracing context was active.
 		 */
 		private final TracingContext.CapturedContext capturedContext = TracingContext.captureContext();
 		/**
-		 * Future that is completed when the task is finished.
+		 * Completes when the task finishes: normally via {@link CompletableFuture#complete(Object)},
+		 * exceptionally via {@link CompletableFuture#completeExceptionally(Throwable)}, or by cancellation
+		 * via {@link CompletableFuture#cancel(boolean)}. Exposed to callers through {@link #completionStage()}.
 		 */
 		private final CompletableFuture<V> future = new CompletableFuture<>();
+		/**
+		 * Callback invoked exactly once when the task finishes (normally, exceptionally, or via cancellation).
+		 * In production this is {@link ObservableThreadExecutor#queueSizeDecrementer}, which decrements the
+		 * outer queue counter. Protected against double-invocation by {@link #completionFired}.
+		 */
+		private final Runnable onCompletion;
+		/**
+		 * Guard ensuring the onCompletion callback fires at most once, preventing
+		 * double-decrement of queueSize when a task is cancelled.
+		 */
+		private final AtomicBoolean completionFired = new AtomicBoolean(false);
+		/**
+		 * Reference to the thread currently executing this task. Used for interrupt-based cancellation.
+		 * Volatile ensures visibility between the worker thread and any cancelling thread.
+		 */
+		@Nullable private volatile Thread executingThread;
 
-		public ObservableCallable(@Nonnull Callable<V> delegate, long timeoutInMilliseconds) {
-			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-			// pick first name that doesn't contain Observable in the class name
-			String name = "Unknown";
-			for (StackTraceElement element : stackTrace) {
-				if (element.getClassName().contains("io.evitadb") && !element.getClassName().contains("Observable")) {
-					name = element.toString();
-					break;
-				}
-			}
-			this.name = name;
+		/**
+		 * Creates an unnamed observable wrapper around the given delegate.
+		 * The task description will fall back to {@link Object#toString()} of the delegate.
+		 *
+		 * @param delegate     the actual work to execute
+		 * @param onCompletion callback fired exactly once when the task finishes or is cancelled;
+		 *                     typically {@link ObservableThreadExecutor#queueSizeDecrementer}
+		 */
+		public ObservableCallable(@Nonnull Callable<V> delegate, @Nonnull Runnable onCompletion) {
+			this.name = null;
 			this.delegate = delegate;
-			long calculatedTimeout;
-			try {
-				calculatedTimeout = Math.addExact(System.currentTimeMillis(), timeoutInMilliseconds);
-			} catch (ArithmeticException e) {
-				calculatedTimeout = Long.MAX_VALUE;
-			}
-			this.timedOutAt = calculatedTimeout;
+			this.onCompletion = onCompletion;
 		}
 
-		public ObservableCallable(@Nonnull String name, @Nonnull Callable<V> delegate, long timeoutInMilliseconds) {
+		/**
+		 * Creates a named observable wrapper around the given delegate.
+		 *
+		 * @param name         human-readable task identifier, returned by {@link #toString()} and useful in logs
+		 * @param delegate     the actual work to execute
+		 * @param onCompletion callback fired exactly once when the task finishes or is cancelled;
+		 *                     typically {@link ObservableThreadExecutor#queueSizeDecrementer}
+		 */
+		public ObservableCallable(@Nonnull String name, @Nonnull Callable<V> delegate, @Nonnull Runnable onCompletion) {
 			this.name = name;
 			this.delegate = delegate;
-			long calculatedTimeout;
-			try {
-				calculatedTimeout = Math.addExact(System.currentTimeMillis(), timeoutInMilliseconds);
-			} catch (ArithmeticException e) {
-				calculatedTimeout = Long.MAX_VALUE;
-			}
-			this.timedOutAt = calculatedTimeout;
+			this.onCompletion = onCompletion;
 		}
 
 		@Override
@@ -702,53 +766,116 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 			return this.future.isDone();
 		}
 
-		@Override
-		public boolean isTimedOut(long now) {
-			return this.timedOutAt < now;
+		/**
+		 * Returns whether the delegate implements {@link UnrejectableTask}, meaning this task
+		 * should bypass queue limit rejection.
+		 */
+		public boolean isUnrejectable() {
+			return this.delegate instanceof UnrejectableTask;
 		}
 
-		@Override
-		public boolean canTimeOut() {
-			return this.timedOutAt < Long.MAX_VALUE;
-		}
-
+		/**
+		 * Cancels this task.
+		 *
+		 * If the task has not started yet, the next call to {@link #call()} will return {@code null} immediately
+		 * without executing the delegate. If the task is currently executing, the worker thread is interrupted.
+		 * In both cases {@link #onCompletion} is fired (at most once) and the internal future is
+		 * transitioned to the cancelled state.
+		 *
+		 * This method is safe to call from any thread and is idempotent.
+		 */
 		@Override
 		public void cancel() {
 			this.future.cancel(true);
+			fireCompletion();
+			final Thread t = this.executingThread;
+			if (t != null) {
+				t.interrupt();
+			}
+			new BackgroundTaskTimedOutEvent(
+				this.name == null ? "Unknown" : this.name, 1
+			).commit();
 		}
 
+		@Nonnull
+		@Override
+		public CompletableFuture<V> completionStage() {
+			return this.future;
+		}
+
+		/**
+		 * Executes the delegate on the calling (worker) thread and returns its result.
+		 *
+		 * Execution sequence mirrors {@link ObservableRunnable#run()} — see that method for a step-by-step
+		 * description. The differences specific to this callable variant are:
+		 *
+		 * - Returns {@code null} if the task was already cancelled before execution started.
+		 * - Returns the delegate's result on success.
+		 * - Re-throws {@link RuntimeException}s from the delegate directly; checked exceptions are wrapped in
+		 *   {@link ObservableExecutionException} for propagation through the {@link ForkJoinPool}, then
+		 *   unwrapped again in the outer {@code catch} block so the original checked exception is visible to
+		 *   callers.
+		 *
+		 * @return the result of the delegate, or {@code null} if the task was cancelled before execution
+		 * @throws Exception any exception thrown by the delegate
+		 */
+		@Nullable
 		@Override
 		public V call() throws Exception {
+			this.executingThread = Thread.currentThread();
 			try {
-				return TracingContext.executeWithClientContext(
-					this.capturedContext,
-					() -> {
-						try {
-							final V result = this.delegate.call();
-							this.future.complete(result);
-							return result;
-						} catch (Exception e) {
-							MDC.clear();
-							this.future.completeExceptionally(e);
-							ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
-							throw e instanceof RuntimeException re ?
-								re : new ObservableExecutionException(e);
-						}
+				if (this.future.isCancelled()) {
+					return null;
+				}
+				final boolean hasContext = !this.capturedContext.isEmpty();
+				if (hasContext) {
+					TracingContext.setContext(this.capturedContext);
+				}
+				try {
+					final V result = this.delegate.call();
+					this.future.complete(result);
+					return result;
+				} catch (Exception e) {
+					this.future.completeExceptionally(e);
+					ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
+					throw e instanceof RuntimeException re ?
+						re : new ObservableExecutionException(e);
+				} finally {
+					if (hasContext) {
+						TracingContext.clearContext();
 					}
-				);
+				}
 			} catch (ObservableExecutionException e) {
 				throw e.getDelegate();
+			} finally {
+				fireCompletion();
+				this.executingThread = null;
+				// clear interrupt flag to prevent leaking to ForkJoinPool's next task
+				if (this.future.isCancelled()) {
+					Thread.interrupted();
+				}
+			}
+		}
+
+		private void fireCompletion() {
+			if (this.completionFired.compareAndSet(false, true)) {
+				this.onCompletion.run();
 			}
 		}
 
 		@Override
 		public String toString() {
-			return this.name;
+			return this.name == null ? this.delegate.toString() : this.name;
 		}
 	}
 
 	/**
-	 * Custom type of the thread with a name, priority and exception logging handler.
+	 * Custom {@link ForkJoinWorkerThread} that configures each worker thread with a deterministic name,
+	 * a configurable priority, daemon status, and a {@link LoggingUncaughtExceptionHandler}.
+	 *
+	 * Thread names follow the pattern {@code Evita-{name}-{N}} where {@code name} is the logical pool name
+	 * (e.g. "request" or "transaction") and {@code N} is a monotonically increasing integer from
+	 * {@link #THREAD_COUNTER}. Daemon status ensures the threads do not prevent JVM shutdown.
 	 */
 	private static class EvitaWorkerThread extends ForkJoinWorkerThread {
 		/**
@@ -756,6 +883,11 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		 */
 		private static final AtomicInteger THREAD_COUNTER = new AtomicInteger();
 
+		/**
+		 * @param pool     the owning {@link ForkJoinPool}
+		 * @param name     logical pool name embedded in the thread name
+		 * @param priority {@link Thread} priority in the range 1–10
+		 */
 		protected EvitaWorkerThread(@Nonnull ForkJoinPool pool, @Nonnull String name, int priority) {
 			super(pool);
 			setDaemon(true);
@@ -766,9 +898,13 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	}
 
 	/**
-	 * Custom rejection handler that logs the rejection and increments the counter.
+	 * {@link UncaughtExceptionHandler} that logs uncaught exceptions at ERROR level.
+	 *
+	 * A single shared instance ({@link #INSTANCE}) is installed on every {@link EvitaWorkerThread}
+	 * and on the {@link ForkJoinPool} itself.
 	 */
 	private static class LoggingUncaughtExceptionHandler implements UncaughtExceptionHandler {
+		/** Singleton instance shared across all worker threads and the pool. */
 		public static final LoggingUncaughtExceptionHandler INSTANCE = new LoggingUncaughtExceptionHandler();
 
 		@Override
@@ -778,17 +914,24 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	}
 
 	/**
-	 * A runtime exception that wraps another throwable. This exception is typically used to rethrow
-	 * a checked exception as an unchecked exception in scenarios where observables or asynchronous
-	 * processing are involved.
+	 * Internal transport exception used to smuggle a checked exception through the unchecked
+	 * {@link Runnable#run()} / {@link ForkJoinPool} boundary inside {@link ObservableRunnable#run()}.
 	 *
-	 * Instances of this exception effectively act as wrappers for underlying cause exceptions,
-	 * enabling propagation of those exceptions through APIs that do not declare checked exceptions.
+	 * In {@link ObservableRunnable#run()} any exception from the delegate is caught, logged, and then
+	 * re-thrown as an {@link ObservableExecutionException} so it can propagate through the
+	 * {@link ForkJoinPool}. In {@link ObservableCallable#call()} the outer {@code catch} block unwraps
+	 * it back to the original checked exception so that callers see the original type.
+	 *
+	 * This class is intentionally private — it must never escape the containing executor.
 	 */
 	private static class ObservableExecutionException extends RuntimeException {
 		@Serial private static final long serialVersionUID = -7044403627268312520L;
+		/** The original checked exception being transported. */
 		@Getter private final Exception delegate;
 
+		/**
+		 * @param cause the checked exception to wrap and transport
+		 */
 		public ObservableExecutionException(@Nonnull Exception cause) {
 			super(cause);
 			this.delegate = cause;

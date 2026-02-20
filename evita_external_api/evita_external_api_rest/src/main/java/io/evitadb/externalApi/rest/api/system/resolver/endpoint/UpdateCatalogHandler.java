@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,32 +66,34 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
 		return parseRequestBody(executionContext, UpdateCatalogRequestDto.class)
-			.thenApply(requestBody -> {
+			.thenCompose(requestBody -> {
 				requestExecutedEvent.finishInputDeserialization();
 
-				final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					this.restHandlingContext.getEvita().getCatalogInstance(catalogName));
-				if (catalog.isEmpty()) {
+				return executionContext.executeAsyncInTransactionThreadPool(() -> {
+					final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
+					final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+						this.restHandlingContext.getEvita().getCatalogInstance(catalogName));
+					if (catalog.isEmpty()) {
+						requestExecutedEvent.finishOperationExecution();
+						requestExecutedEvent.finishResultSerialization();
+						return new NotFoundEndpointResponse();
+					};
+
+					final CatalogContract updatedCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
+						final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
+						switchCatalogToAliveState(catalog.get(), requestBody);
+
+						final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
+						return this.restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
+							.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
+					});
 					requestExecutedEvent.finishOperationExecution();
+
+					final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalog);
 					requestExecutedEvent.finishResultSerialization();
-					return new NotFoundEndpointResponse();
-				};
 
-				final CatalogContract updatedCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
-					final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
-					switchCatalogToAliveState(catalog.get(), requestBody);
-
-					final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
-					return this.restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
-						.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
+					return new SuccessEndpointResponse(result);
 				});
-				requestExecutedEvent.finishOperationExecution();
-
-				final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalog);
-				requestExecutedEvent.finishResultSerialization();
-
-				return new SuccessEndpointResponse(result);
 			});
 	}
 

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.io;
 
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
@@ -49,9 +50,10 @@ public class GraphQLEndpointExecutionContext extends EndpointExecutionContext {
 	public GraphQLEndpointExecutionContext(
 		@Nonnull HttpRequest httpRequest,
 		@Nonnull Evita evita,
+		@Nonnull ServiceRequestContext serviceRequestContext,
 		@Nonnull ExecutedEvent requestExecutedEvent
 	) {
-		super(httpRequest, evita);
+		super(httpRequest, evita, serviceRequestContext);
 		this.requestExecutedEvent = requestExecutedEvent;
 	}
 

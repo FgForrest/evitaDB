@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.io;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.common.HttpResponseWriter;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
@@ -74,8 +75,8 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointE
 
     @Nonnull
     @Override
-    protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
-        return new GraphQLSchemaEndpointExecutionContext(httpRequest, this.evita);
+    protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext) {
+        return new GraphQLSchemaEndpointExecutionContext(httpRequest, this.evita, serviceRequestContext);
     }
 
     @Override

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,29 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
-
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+package io.evitadb.core.executor;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.CompletionStage;
 
 /**
- * List of possible keys (for possible values) for GraphQL query execution context.
+ * Interface for tasks that can be cancelled with thread interruption. Designed to wire
+ * Armeria request cancellation to executor tasks, so that when a client disconnects or
+ * a request times out, the in-flight task is interrupted and stops executing.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @param <V> the type of the result produced by this task
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Getter
-@RequiredArgsConstructor
-public enum GraphQLContextKey {
+public interface CancellableTask<V> {
 
-    EVITA_SESSION("evitaSession"),
-    OPERATION_TRACING_BLOCK("operationTracingBlock"),
-    METRIC_EXECUTED_EVENT("metricExecutedEvent"),
-    TRAFFIC_SOURCE_QUERY_RECORDING_ID("trafficSourceQueryRecordingId"),
-    TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS("trafficSourceQueryRecordingExceptions"),
-    SERVICE_REQUEST_CONTEXT("serviceRequestContext");
+	/**
+	 * Cancels the task, interrupting the executing thread if the task is currently running.
+	 */
+	void cancel();
 
-    @Nonnull
-    private final String key;
+	/**
+	 * Returns true if the task has finished execution (completed, failed, or was cancelled).
+	 */
+	boolean isFinished();
+
+	/**
+	 * Returns the {@link CompletionStage} that completes when the task finishes.
+	 */
+	@Nonnull
+	CompletionStage<V> completionStage();
+
 }

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
@@ -55,9 +56,10 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 	public RestEndpointExecutionContext(
 		@Nonnull HttpRequest httpRequest,
 		@Nonnull Evita evita,
+		@Nonnull ServiceRequestContext serviceRequestContext,
 		@Nonnull ExecutedEvent requestExecutedEvent
 	) {
-		super(httpRequest, evita);
+		super(httpRequest, evita, serviceRequestContext);
 		this.requestExecutedEvent = requestExecutedEvent;
 	}
 

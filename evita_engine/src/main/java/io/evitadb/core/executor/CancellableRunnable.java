@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,29 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog;
-
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-
-import javax.annotation.Nonnull;
+package io.evitadb.core.executor;
 
 /**
- * List of possible keys (for possible values) for GraphQL query execution context.
+ * Compound interface for tasks that are both {@link Runnable} (can be submitted to an executor)
+ * and {@link CancellableTask} (can be cancelled with thread interruption and observed for completion).
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@Getter
-@RequiredArgsConstructor
-public enum GraphQLContextKey {
-
-    EVITA_SESSION("evitaSession"),
-    OPERATION_TRACING_BLOCK("operationTracingBlock"),
-    METRIC_EXECUTED_EVENT("metricExecutedEvent"),
-    TRAFFIC_SOURCE_QUERY_RECORDING_ID("trafficSourceQueryRecordingId"),
-    TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS("trafficSourceQueryRecordingExceptions"),
-    SERVICE_REQUEST_CONTEXT("serviceRequestContext");
-
-    @Nonnull
-    private final String key;
+public interface CancellableRunnable extends Runnable, CancellableTask<Void> {
 }

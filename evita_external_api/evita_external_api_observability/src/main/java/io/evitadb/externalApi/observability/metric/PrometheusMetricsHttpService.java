@@ -29,11 +29,13 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.http.CancellationSupport;
 import io.prometheus.metrics.exporter.common.PrometheusScrapeHandler;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * This service provides Prometheus metrics in text format. The service mimics original PrometheusServlet behavior.
@@ -52,20 +54,21 @@ public class PrometheusMetricsHttpService implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
-		return HttpResponse.of(
-			this.evita.executeAsyncInRequestThreadPool(
-				() -> {
-					try (final ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-						final ArmeriaPrometheusHttpExchangeAdapter exchange = new ArmeriaPrometheusHttpExchangeAdapter(ctx, req, outputStream);
-						// return metrics for scrape
-						this.prometheusScrapeHandler.handleRequest(exchange);
-						return HttpResponse.of(exchange.headersBuilder().build(), HttpData.copyOf(outputStream.toByteArray()));
-					} catch (IOException e) {
-						return HttpResponse.ofFailure(e);
-					}
+		final CompletableFuture<HttpResponse> result = CancellationSupport.submitWithCancellation(
+			ctx,
+			this.evita.getRequestExecutor(),
+			() -> {
+				try (final ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+					final ArmeriaPrometheusHttpExchangeAdapter exchange =
+						new ArmeriaPrometheusHttpExchangeAdapter(ctx, req, outputStream);
+					this.prometheusScrapeHandler.handleRequest(exchange);
+					return HttpResponse.of(exchange.headersBuilder().build(), HttpData.copyOf(outputStream.toByteArray()));
+				} catch (IOException e) {
+					return HttpResponse.ofFailure(e);
 				}
-			)
+			}
 		);
+		return HttpResponse.of(result);
 	}
 
 }
