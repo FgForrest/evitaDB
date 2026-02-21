@@ -218,6 +218,20 @@ on the client side:
         <p>The maximum number of change capture events that can be buffered for each subscriber.
         If this limit is reached, an error is reported to the subscriber.</p>
     </dd>
+    <dt>threadPool</dt>
+    <dd>
+        <p>**Default: `ThreadPoolOptions.clientThreadPoolBuilder().build()`**</p>
+        <p>Defines limits for the client-side thread pool used for asynchronous operations such as session handling
+        and background tasks. The thread pool is configured using
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/configuration/ThreadPoolOptions.java</SourceClass>
+        with the following properties:</p>
+        <ul>
+            <li>`minThreadCount` (default: `0`) - minimum number of threads kept alive in the pool</li>
+            <li>`maxThreadCount` (default: `availableProcessors * 4`, at least `4`) - maximum number of threads</li>
+            <li>`threadPriority` (default: `5`) - thread priority (1-10)</li>
+            <li>`queueSize` (default: `100`) - maximum number of tasks waiting in the queue</li>
+        </ul>
+    </dd>
 </dl>
 
 <Note type="warning">

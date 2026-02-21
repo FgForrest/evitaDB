@@ -669,6 +669,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 				this.executingThread = null;
 				// clear interrupt flag to prevent leaking to ForkJoinPool's next task
 				if (this.future.isCancelled()) {
+					//noinspection ResultOfMethodCallIgnored
 					Thread.interrupted();
 				}
 			}
@@ -857,6 +858,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 				this.executingThread = null;
 				// clear interrupt flag to prevent leaking to ForkJoinPool's next task
 				if (this.future.isCancelled()) {
+					//noinspection ResultOfMethodCallIgnored
 					Thread.interrupted();
 				}
 			}

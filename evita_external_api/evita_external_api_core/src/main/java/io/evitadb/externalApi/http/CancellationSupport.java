@@ -40,6 +40,33 @@ import java.util.function.Supplier;
  * callback. This utility hooks that callback to cancel the associated executor task, interrupting
  * the worker thread so that existing {@code InterruptionTransformer} checkpoints can stop the query.
  *
+ * ## Two submission modes
+ *
+ * This class provides two submission methods that differ in how the supplied work relates to
+ * the returned result future and, consequently, how cancellation is wired:
+ *
+ * **{@link #submitWithCancellation} — synchronous supplier (`Supplier<T>`)**
+ *
+ * The supplier runs entirely inside the executor task. When the task body finishes,
+ * the result future is already completed (either with a value or an exception).
+ * Therefore task completion and result completion are tightly coupled, and it is safe
+ * to use the task's {@code completionStage} as a fallback to cancel the result future
+ * when the task finishes but the result is still pending (which can only happen when
+ * the task was cancelled before it had a chance to run).
+ *
+ * **{@link #submitAsyncWithCancellation} — async supplier (`Supplier<CompletableFuture<T>>`)**
+ *
+ * The supplier performs synchronous setup (tracing context, query parsing, etc.)
+ * inside the executor task and then returns a {@link CompletableFuture} representing
+ * work that continues asynchronously (e.g., {@code GraphQL.executeAsync()}). The executor
+ * task body finishes as soon as the supplier returns — **before** the inner future
+ * completes. Task completion and result completion are therefore **decoupled**: the task
+ * completing normally while the result is still pending is the expected happy path, not
+ * an error. Wiring the task's {@code completionStage} to cancel the result would falsely
+ * abort in-progress async operations. Instead, request cancellation is wired independently
+ * to both the task (to interrupt setup work) and the result future (to propagate
+ * cancellation to the caller).
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public final class CancellationSupport {
@@ -102,14 +129,35 @@ public final class CancellationSupport {
 	}
 
 	/**
-	 * Creates a task from the given supplier, wires Armeria cancellation, ensures the result future
-	 * is completed on cancellation, and submits the task for execution.
+	 * Submits a **synchronous** supplier for execution in the given thread pool with Armeria
+	 * request cancellation support.
+	 *
+	 * The supplier runs entirely inside the executor task — when the task body finishes,
+	 * the result future is guaranteed to be completed (with a value or exception). This tight
+	 * coupling between task lifecycle and result lifecycle allows us to use the task's
+	 * {@code completionStage} as a safety net: if the task completes but the result is still
+	 * pending (which only happens when the task was cancelled before it started running),
+	 * the result future is cancelled as well.
+	 *
+	 * ### Cancellation behavior
+	 *
+	 * - **Request cancelled before task starts**: task is cancelled, result future is cancelled
+	 *   via the {@code completionStage} fallback.
+	 * - **Request cancelled while task runs**: task is cancelled (worker thread interrupted),
+	 *   supplier throws, result future completes exceptionally.
+	 * - **Normal completion**: supplier returns a value, result future completes with it.
+	 *
+	 * Use {@link #submitAsyncWithCancellation} instead when the supplier returns a
+	 * {@link CompletableFuture} and you want to release the thread pool thread immediately
+	 * after the async work is kicked off.
 	 *
 	 * @param ctx      the Armeria service request context
 	 * @param executor the executor to create and submit the task on
-	 * @param supplier the supplier to execute asynchronously
+	 * @param supplier the supplier whose return value becomes the result; runs synchronously
+	 *                 inside the executor task
 	 * @param <T>      the type of the result
-	 * @return a future that completes with the supplier's result, or is cancelled if the task is cancelled
+	 * @return a future that completes with the supplier's result, or is cancelled if the task
+	 *         is cancelled before it runs
 	 */
 	@Nonnull
 	public static <T> CompletableFuture<T> submitWithCancellation(
@@ -126,6 +174,77 @@ public final class CancellationSupport {
 			}
 		});
 		wireCancellation(ctx, task, result);
+		executor.execute(task);
+		return result;
+	}
+
+	/**
+	 * Submits an **asynchronous** supplier for execution in the given thread pool with Armeria
+	 * request cancellation support.
+	 *
+	 * Unlike {@link #submitWithCancellation}, the supplier here returns a {@link CompletableFuture}
+	 * rather than a direct value. The executor task only runs the supplier's synchronous setup
+	 * phase (e.g., tracing context initialization, query parsing) and then returns immediately,
+	 * releasing the thread pool thread. The actual work continues asynchronously — the result
+	 * future completes when the inner future returned by the supplier completes.
+	 *
+	 * Because of this, the executor task's lifecycle is **decoupled** from the result future's
+	 * lifecycle: the task finishes (and its {@code completionStage} fires) while the result is
+	 * still legitimately pending. This is the normal happy path. We therefore must **not** wire
+	 * the task's {@code completionStage} to cancel the result (as {@link #submitWithCancellation}
+	 * does), because that would falsely abort in-flight async operations.
+	 *
+	 * ### Cancellation behavior
+	 *
+	 * - **Request cancelled before task starts**: task is cancelled, request cancellation callback
+	 *   completes the result future exceptionally.
+	 * - **Request cancelled during synchronous setup**: task is cancelled (worker thread interrupted),
+	 *   supplier throws, result future completes exceptionally.
+	 * - **Request cancelled during async execution**: request cancellation callback completes
+	 *   the result future exceptionally (the inner future may continue but its result is ignored).
+	 * - **Normal completion**: inner future completes, result future completes with its value.
+	 *
+	 * @param ctx           the Armeria service request context
+	 * @param executor      the executor to create and submit the task on
+	 * @param asyncSupplier the supplier that performs synchronous setup and returns an async future;
+	 *                      its synchronous part runs in the executor task, the returned future
+	 *                      completes independently
+	 * @param <T>           the type of the result
+	 * @return a future that completes when the inner async future completes, or exceptionally
+	 *         if the request is cancelled at any stage
+	 */
+	@Nonnull
+	public static <T> CompletableFuture<T> submitAsyncWithCancellation(
+		@Nonnull ServiceRequestContext ctx,
+		@Nonnull ObservableExecutorServiceWithCancellationSupport executor,
+		@Nonnull Supplier<CompletableFuture<T>> asyncSupplier
+	) {
+		final CompletableFuture<T> result = new CompletableFuture<>();
+		final CancellableRunnable task = executor.createTask(() -> {
+			try {
+				asyncSupplier.get().whenComplete((value, error) -> {
+					if (error != null) {
+						result.completeExceptionally(error);
+					} else {
+						result.complete(value);
+					}
+				});
+			} catch (Throwable t) {
+				result.completeExceptionally(t);
+			}
+		});
+		// Wire request cancellation to cancel the executor task (interrupt worker thread).
+		// Unlike submitWithCancellation, we must NOT use wireCancellation(ctx, task, result)
+		// because the task body only starts async work — the task's completionStage fires
+		// before the async operation finishes, which would falsely cancel the result future.
+		wireCancellation(ctx, task);
+		// Wire request cancellation directly to the result future, so it completes
+		// even if the task was cancelled before the async supplier ran
+		ctx.whenRequestCancelling().thenAccept(cause -> {
+			if (!result.isDone()) {
+				result.completeExceptionally(cause);
+			}
+		});
 		executor.execute(task);
 		return result;
 	}

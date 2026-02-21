@@ -36,6 +36,7 @@ import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
@@ -128,10 +129,12 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -157,6 +160,10 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public class EvitaClient implements EvitaContract {
 	static final Pattern ERROR_MESSAGE_PATTERN = Pattern.compile("(\\w+:\\w+:\\w+): (.*)");
+	/**
+	 * Counter for naming threads created by the client executor.
+	 */
+	private static final AtomicInteger CLIENT_THREAD_COUNTER = new AtomicInteger();
 	/**
 	 * Client call timeout.
 	 */
@@ -402,7 +409,23 @@ public class EvitaClient implements EvitaContract {
 			uriScheme = "http";
 		}
 
-		this.executor = Executors.newCachedThreadPool();
+		final ThreadPoolOptions threadPoolOptions = configuration.threadPool();
+		this.executor = new ThreadPoolExecutor(
+			threadPoolOptions.minThreadCount(),
+			threadPoolOptions.maxThreadCount(),
+			60L, TimeUnit.SECONDS,
+			new LinkedBlockingQueue<>(threadPoolOptions.queueSize()),
+			r -> {
+				final Thread thread = new Thread(r, "evita-client-" + CLIENT_THREAD_COUNTER.incrementAndGet());
+				thread.setDaemon(true);
+				if (thread.getPriority() != threadPoolOptions.threadPriority()) {
+					thread.setPriority(threadPoolOptions.threadPriority());
+				}
+				return thread;
+			},
+			// Use CallerRunsPolicy to apply backpressure on the calling thread when the queue is full.
+			new ThreadPoolExecutor.CallerRunsPolicy()
+		);
 		this.clientFactory = clientFactoryBuilder.build();
 
 		SemVer clientVersion;

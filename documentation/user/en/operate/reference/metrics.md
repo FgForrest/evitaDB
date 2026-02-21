@@ -4,8 +4,6 @@
   <h4>Labels used in metrics</h4>
   <dl>
     <dt>api</dt>
-    <dd><strong>API type</strong>: The identification of the API being probed.</dd>
-    <dt>api</dt>
     <dd><strong>API type</strong>: The identification of the API being called.</dd>
     <dt>area</dt>
     <dd><strong>Area</strong>: Area for which events are published.</dd>

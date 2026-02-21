@@ -149,7 +149,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		this.evita = evita;
 		this.externalApiServer = externalApiServer;
 		this.management = evita.management();
-		this.context = ExternalApiTracingContextProvider.getContext(headers);
+		this.context = ExternalApiTracingContextProvider.getContext(Metadata.class, headers);
 	}
 
 	/**
