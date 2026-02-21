@@ -422,7 +422,9 @@ public class EvitaClient implements EvitaContract {
 					thread.setPriority(threadPoolOptions.threadPriority());
 				}
 				return thread;
-			}
+			},
+			// Use CallerRunsPolicy to apply backpressure on the calling thread when the queue is full.
+			new ThreadPoolExecutor.CallerRunsPolicy()
 		);
 		this.clientFactory = clientFactoryBuilder.build();
 
