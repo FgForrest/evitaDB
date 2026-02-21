@@ -57,6 +57,22 @@ public class DefaultTracingBlockReference implements TracingBlockReference {
 	}
 
 	/**
+	 * No-op implementation that does nothing. Safe to call from any thread.
+	 */
+	@Override
+	public void detachScope() {
+		// noop
+	}
+
+	/**
+	 * No-op implementation that does nothing. Safe to call from any thread.
+	 */
+	@Override
+	public void end() {
+		// noop
+	}
+
+	/**
 	 * No-op implementation that does nothing. Safe to call multiple times.
 	 */
 	@Override

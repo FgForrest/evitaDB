@@ -30,6 +30,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
@@ -75,5 +76,15 @@ public class DefaultExternalApiTracingContext implements ExternalApiTracingConte
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda) {
 		return lambda.get();
+	}
+
+	@Nonnull
+	@Override
+	public <T> CompletableFuture<T> executeWithinBlockAsync(
+		@Nonnull String protocolName,
+		@Nonnull Object context,
+		@Nonnull Supplier<CompletableFuture<T>> asyncLambda
+	) {
+		return asyncLambda.get();
 	}
 }

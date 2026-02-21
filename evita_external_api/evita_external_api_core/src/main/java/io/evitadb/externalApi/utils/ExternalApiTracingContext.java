@@ -29,7 +29,9 @@ import io.evitadb.externalApi.configuration.HeaderOptions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -122,6 +124,35 @@ public interface ExternalApiTracingContext<C> {
 	 */
 	@Nullable
 	<T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda);
+
+	/**
+	 * Async variant of {@link #executeWithinBlock(String, Object, Supplier)}. Opens the tracing
+	 * scope and client context, calls the async supplier (which returns a `CompletableFuture`),
+	 * closes the scope immediately on the calling thread, then ends the span when the future
+	 * completes. This allows fully non-blocking execution while maintaining correct tracing
+	 * lifecycle — the scope is opened and closed on the same thread, while the span duration
+	 * covers the entire async operation.
+	 *
+	 * @param protocolName the protocol name for tracing (e.g. "GraphQL")
+	 * @param context      the request context (e.g. HttpRequest or gRPC Metadata)
+	 * @param asyncLambda  supplier that starts async work and returns a CompletableFuture
+	 * @param <T>          the result type of the async operation
+	 * @return a future that completes when the async work finishes, with tracing properly ended
+	 */
+	@Nonnull
+	default <T> CompletableFuture<T> executeWithinBlockAsync(
+		@Nonnull String protocolName,
+		@Nonnull C context,
+		@Nonnull Supplier<CompletableFuture<T>> asyncLambda
+	) {
+		// Default implementation: delegate to synchronous executeWithinBlock.
+		// The scope/span will be shorter than the async operation but still correct for
+		// implementations without tracing (noop) or where async-aware behavior is not critical.
+		return Objects.requireNonNull(
+			executeWithinBlock(protocolName, context, asyncLambda),
+			"executeWithinBlock must return a non-null CompletableFuture for async execution"
+		);
+	}
 
 	/**
 	 * Converts client-sent ID to internal client ID.

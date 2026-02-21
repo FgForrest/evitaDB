@@ -157,6 +157,25 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 	}
 
 	/**
+	 * Async variant of {@link #executeAsyncInRequestThreadPool(Supplier)} for suppliers that
+	 * return a {@link CompletableFuture}. The supplier's synchronous setup runs in the request
+	 * thread pool, but once it returns a future, the thread is released immediately. The
+	 * returned future completes when the inner async operation finishes.
+	 *
+	 * @param asyncSupplier supplier that performs synchronous setup and returns an async future
+	 * @return future that completes when the inner async future completes
+	 * @param <T> type of the result
+	 */
+	@Nonnull
+	public <T> CompletableFuture<T> executeAsyncSupplierInRequestThreadPool(
+		@Nonnull Supplier<CompletableFuture<T>> asyncSupplier
+	) {
+		return CancellationSupport.submitAsyncWithCancellation(
+			this.serviceRequestContext, this.evita.getRequestExecutor(), asyncSupplier
+		);
+	}
+
+	/**
 	 * Executes supplier lambda in the given executor with cancellation support wired to Armeria's
 	 * request lifecycle.
 	 */

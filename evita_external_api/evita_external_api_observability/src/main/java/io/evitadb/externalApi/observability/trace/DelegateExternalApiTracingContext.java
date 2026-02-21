@@ -34,6 +34,7 @@ import io.grpc.Metadata;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
@@ -69,7 +70,7 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		} else if (context instanceof Metadata metadata) {
 			this.grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable, attributes);
 		} else {
-			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
+			throw new EvitaInvalidUsageException("Invalid object type sent as an External API tracing context!");
 		}
 	}
 
@@ -85,7 +86,7 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		} else if (context instanceof Metadata metadata) {
 			return this.grpcApiTracingContext.executeWithinBlock(protocolName, metadata, lambda, attributes);
 		} else {
-			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
+			throw new EvitaInvalidUsageException("Invalid object type sent as an External API tracing context!");
 		}
 	}
 
@@ -101,7 +102,7 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		} else if (context instanceof Metadata metadata) {
 			this.grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable, attributes);
 		} else {
-			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
+			throw new EvitaInvalidUsageException("Invalid object type sent as an External API tracing context!");
 		}
 	}
 
@@ -117,7 +118,7 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		} else if (context instanceof Metadata metadata) {
 			return this.grpcApiTracingContext.executeWithinBlock(protocolName, metadata, lambda, attributes);
 		} else {
-			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
+			throw new EvitaInvalidUsageException("Invalid object type sent as an External API tracing context!");
 		}
 	}
 
@@ -128,7 +129,7 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		} else if (context instanceof Metadata metadata) {
 			this.grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable);
 		} else {
-			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
+			throw new EvitaInvalidUsageException("Invalid object type sent as an External API tracing context!");
 		}
 	}
 
@@ -140,7 +141,39 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		} else if (context instanceof Metadata metadata) {
 			return this.grpcApiTracingContext.executeWithinBlock(protocolName, metadata, lambda);
 		} else {
-			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
+			throw new EvitaInvalidUsageException("Invalid object type sent as an External API tracing context!");
+		}
+	}
+
+	/**
+	 * Delegates async execution to the appropriate tracing context
+	 * based on the type of the passed context object. For
+	 * {@link HttpRequest} delegates to {@link JsonApiTracingContext},
+	 * for gRPC {@link Metadata} delegates to
+	 * {@link GrpcTracingContext}.
+	 *
+	 * @param protocolName the protocol name for tracing
+	 * @param context      the request context
+	 *                     (HttpRequest or Metadata)
+	 * @param asyncLambda  supplier that starts async work
+	 * @param <T>          the result type
+	 * @return the future from the delegate context
+	 * @throws EvitaInvalidUsageException if context type is not
+	 *                                    recognized
+	 */
+	@Nonnull
+	@Override
+	public <T> CompletableFuture<T> executeWithinBlockAsync(
+		@Nonnull String protocolName,
+		@Nonnull Object context,
+		@Nonnull Supplier<CompletableFuture<T>> asyncLambda
+	) {
+		if (context instanceof HttpRequest httpRequest) {
+			return this.jsonApiTracingContext.executeWithinBlockAsync(protocolName, httpRequest, asyncLambda);
+		} else if (context instanceof Metadata metadata) {
+			return this.grpcApiTracingContext.executeWithinBlockAsync(protocolName, metadata, asyncLambda);
+		} else {
+			throw new EvitaInvalidUsageException("Invalid object type sent as an External API tracing context!");
 		}
 	}
 }
