@@ -432,6 +432,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			try {
 				downloadFuture.get(timeout.timeout(), timeout.timeoutUnit());
 			} catch (TimeoutException e) {
+				downloadFuture.cancel(true);
 				throw new EvitaClientTimedOutException(timeout.timeout(), timeout.timeoutUnit());
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
