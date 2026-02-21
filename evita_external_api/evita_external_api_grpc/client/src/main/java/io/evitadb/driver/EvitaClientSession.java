@@ -98,6 +98,7 @@ import io.evitadb.api.task.Task;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.driver.cdc.ClientChangeCatalogCaptureProcessor;
+import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -376,9 +377,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.callTimeout.add(timeout);
 
 		final EvitaClientConfiguration configuration = evita.getConfiguration();
+		final ClientTimeoutOptions timeouts = configuration.timeouts();
 		this.streamingTimeout = Duration.of(
-			configuration.streamingTimeout(),
-			configuration.streamingTimeoutUnit().toChronoUnit()
+			timeouts.streamingTimeout(),
+			timeouts.streamingTimeoutUnit().toChronoUnit()
 		);
 	}
 
