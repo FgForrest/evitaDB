@@ -36,6 +36,8 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
+import io.evitadb.driver.config.ClientTlsOptions;
+import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
@@ -808,16 +810,24 @@ public class EvitaParameterResolver
 						return new EvitaClient(
 							EvitaClientConfiguration
 								.builder()
-								.certificateFolderPath(
-									Path.of(evitaServer.getEvita()
-									                   .getConfiguration()
-									                   .storage()
-									                   .storageDirectory() + "-client")
-								)
 								.host(grpcConfig.getHost()[0].hostAddress())
 								.port(grpcConfig.getHost()[0].port())
 								.systemApiPort(systemConfig.getHost()[0].port())
-								.timeout(10, TimeUnit.MINUTES)
+								.tls(
+									ClientTlsOptions.builder()
+										.certificateFolderPath(
+											Path.of(evitaServer.getEvita()
+											                   .getConfiguration()
+											                   .storage()
+											                   .storageDirectory() + "-client")
+										)
+										.build()
+								)
+								.timeouts(
+									ClientTimeoutOptions.builder()
+										.timeout(10, TimeUnit.MINUTES)
+										.build()
+								)
 								.build()
 						);
 					}

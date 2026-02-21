@@ -71,6 +71,9 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMuta
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
 import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
+import io.evitadb.driver.config.ClientConnectionOptions;
+import io.evitadb.driver.config.ClientTimeoutOptions;
+import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -345,9 +348,10 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
 	) {
 		this.configuration = configuration;
+		final ClientTimeoutOptions clientTimeouts = this.configuration.timeouts();
 		this.streamingTimeout = Duration.of(
-			this.configuration.streamingTimeout(),
-			this.configuration.streamingTimeoutUnit().toChronoUnit()
+			clientTimeouts.streamingTimeout(),
+			clientTimeouts.streamingTimeoutUnit().toChronoUnit()
 		);
 		this.onSessionCreationCallback = onSessionCreationCallback == null
 			? Functions.noOpConsumer()
@@ -378,30 +382,35 @@ public class EvitaClient implements EvitaContract {
 			.workerGroup(workerGroup, true)
 			.idleTimeoutMillis(
 				TimeUnit.MILLISECONDS.convert(
-					configuration.timeout(),
-					configuration.timeoutUnit()
+					clientTimeouts.timeout(),
+					clientTimeouts.timeoutUnit()
 				)
 			)
 			.pingIntervalMillis(1000);
 
 		final String uriScheme;
-		if (configuration.tlsEnabled()) {
+		final ClientTlsOptions tlsOptions = configuration.tls();
+		final ClientConnectionOptions connectionOptions = configuration.connection();
+		if (tlsOptions.tlsEnabled()) {
 			uriScheme = "https";
 
 			final Builder certificateBuilder = new Builder()
 				.useGeneratedCertificate(
-					configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
-				.usingTrustedServerCertificate(configuration.trustCertificate())
-				.trustStorePassword(configuration.trustStorePassword())
-				.mtls(configuration.mtlsEnabled())
-				.clientCertificateFilePath(configuration.certificateFileName())
-				.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
-				.clientPrivateKeyPassword(configuration.certificateKeyPassword());
-			if (configuration.certificateFolderPath() != null) {
-				certificateBuilder.certificateClientFolderPath(configuration.certificateFolderPath());
+					tlsOptions.useGeneratedCertificate(),
+					connectionOptions.host(),
+					connectionOptions.systemApiPort()
+				)
+				.usingTrustedServerCertificate(tlsOptions.trustCertificate())
+				.trustStorePassword(tlsOptions.trustStorePassword())
+				.mtls(tlsOptions.mtlsEnabled())
+				.clientCertificateFilePath(tlsOptions.certificateFileName())
+				.clientPrivateKeyFilePath(tlsOptions.certificateKeyFileName())
+				.clientPrivateKeyPassword(tlsOptions.certificateKeyPassword());
+			if (tlsOptions.certificateFolderPath() != null) {
+				certificateBuilder.certificateClientFolderPath(tlsOptions.certificateFolderPath());
 			}
-			if (configuration.serverCertificatePath() != null) {
-				certificateBuilder.serverCertificateFilePath(configuration.serverCertificatePath());
+			if (tlsOptions.serverCertificatePath() != null) {
+				certificateBuilder.serverCertificateFilePath(tlsOptions.serverCertificatePath());
 			}
 			final ClientCertificateManager clientCertificateManager = certificateBuilder.build();
 
@@ -459,10 +468,10 @@ public class EvitaClient implements EvitaContract {
 		}
 
 		final GrpcClientBuilder grpcClientBuilder = GrpcClients
-			.builder(uriScheme + "://" + configuration.host() + ":" + configuration.port() + "/")
+			.builder(uriScheme + "://" + connectionOptions.host() + ":" + connectionOptions.port() + "/")
 			.factory(this.clientFactory)
 			.serializationFormat(GrpcSerializationFormats.PROTO)
-			.intercept(new ClientSessionInterceptor(configuration.clientId(), clientVersion));
+			.intercept(new ClientSessionInterceptor(connectionOptions.clientId(), clientVersion));
 
 		if (configuration.retry()) {
 			grpcClientBuilder.decorator(
@@ -492,7 +501,7 @@ public class EvitaClient implements EvitaContract {
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
 		this.timeout = ThreadLocal.withInitial(() -> {
 			final LinkedList<Timeout> timeouts = new LinkedList<>();
-			timeouts.add(new Timeout(configuration.timeout(), configuration.timeoutUnit()));
+			timeouts.add(new Timeout(clientTimeouts.timeout(), clientTimeouts.timeoutUnit()));
 			return timeouts;
 		});
 		this.management = new EvitaClientManagement(this, this.grpcClientBuilder);
@@ -829,9 +838,10 @@ public class EvitaClient implements EvitaContract {
 			.setMutation(DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation))
 			.build();
 
+		final ClientTimeoutOptions clientTimeouts = this.configuration.timeouts();
 		final Duration streamingTimeout = Duration.of(
-			this.configuration.streamingTimeout(),
-			this.configuration.streamingTimeoutUnit().toChronoUnit()
+			clientTimeouts.streamingTimeout(),
+			clientTimeouts.streamingTimeoutUnit().toChronoUnit()
 		);
 
 		//noinspection unchecked
@@ -1179,9 +1189,10 @@ public class EvitaClient implements EvitaContract {
 			Thread.currentThread().interrupt();
 			throw new EvitaClientServerCallException("Server call interrupted.", e);
 		} catch (TimeoutException e) {
+			final ClientTimeoutOptions clientTimeouts = this.configuration.timeouts();
 			throw new EvitaClientTimedOutException(
-				this.configuration.streamingTimeout(),
-				this.configuration.streamingTimeoutUnit()
+				clientTimeouts.streamingTimeout(),
+				clientTimeouts.streamingTimeoutUnit()
 			);
 		}
 	}
