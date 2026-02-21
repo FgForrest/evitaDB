@@ -91,7 +91,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 	@Nonnull
 	private final ObjectMapper objectMapper;
 	@Nonnull
-	private final ExternalApiTracingContext<Object> tracingContext;
+	private final ExternalApiTracingContext<HttpRequest> tracingContext;
 	@Nonnull
 	private final GraphQLInstanceType instanceType;
 	@Nonnull
@@ -106,7 +106,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 	) {
 		this.evita = evita;
 		this.objectMapper = objectMapper;
-		this.tracingContext = ExternalApiTracingContextProvider.getContext(headers);
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(HttpRequest.class, headers);
 		this.instanceType = instanceType;
 		this.graphQL = graphQL;
 	}

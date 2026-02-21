@@ -42,6 +42,12 @@ import java.util.function.Supplier;
 public class DefaultExternalApiTracingContext implements ExternalApiTracingContext<Object> {
 	public final static DefaultExternalApiTracingContext INSTANCE = new DefaultExternalApiTracingContext();
 
+	@Nonnull
+	@Override
+	public Class<Object> contextType() {
+		return Object.class;
+	}
+
 	@Override
 	public void configureHeaders(@Nonnull HeaderOptions headerOptions) {
 		// do nothing

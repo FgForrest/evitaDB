@@ -44,6 +44,15 @@ import java.util.regex.Pattern;
  * @see TracingContext
  */
 public interface ExternalApiTracingContext<C> {
+
+	/**
+	 * Returns the class of the context object this implementation handles.
+	 * Used by the provider to select the correct implementation for a given protocol.
+	 *
+	 * @return the context class (e.g. `HttpRequest.class` for JSON APIs, `Metadata.class` for gRPC)
+	 */
+	@Nonnull
+	Class<C> contextType();
 	/**
 	 * Format of the client ID used by the server.
 	 */

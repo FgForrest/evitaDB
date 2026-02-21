@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
@@ -45,7 +46,7 @@ public class RestHandlingContext {
 
 	@Nonnull @Getter protected final Evita evita;
 	@Nonnull @Getter protected final ObjectMapper objectMapper;
-	@Nonnull @Getter protected final ExternalApiTracingContext<Object> tracingContext;
+	@Nonnull @Getter protected final ExternalApiTracingContext<HttpRequest> tracingContext;
 
 	@Nonnull @Getter private final OpenAPI openApi;
 	@Nonnull @Getter private final Map<String, Class<? extends Enum<?>>> enumMapping;
@@ -64,7 +65,7 @@ public class RestHandlingContext {
 	) {
 		this.objectMapper = objectMapper;
 		this.evita = evita;
-		this.tracingContext = ExternalApiTracingContextProvider.getContext(headers);
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(HttpRequest.class, headers);
 		this.openApi = openApi;
 		this.enumMapping = enumMapping;
 		this.endpointOperation = endpointOperation;

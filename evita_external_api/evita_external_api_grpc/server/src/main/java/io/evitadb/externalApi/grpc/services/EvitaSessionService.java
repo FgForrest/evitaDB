@@ -606,7 +606,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public EvitaSessionService(@Nonnull Evita evita, @Nonnull HeaderOptions headers) {
 		this.evita = evita;
 		this.trackSourceQueries = evita.getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled();
-		this.tracingContext = ExternalApiTracingContextProvider.getContext(headers);
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(Metadata.class, headers);
 	}
 
 	/**

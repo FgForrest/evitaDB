@@ -164,7 +164,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		@Nonnull HeaderOptions headers
 	) {
 		this.evita = evita;
-		this.context = ExternalApiTracingContextProvider.getContext(headers);
+		this.context = ExternalApiTracingContextProvider.getContext(Metadata.class, headers);
 	}
 
 	/**

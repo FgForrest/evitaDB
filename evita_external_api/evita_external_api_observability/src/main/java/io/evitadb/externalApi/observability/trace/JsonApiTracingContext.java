@@ -29,6 +29,7 @@ import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
@@ -86,10 +87,25 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	 */
 	private final TracingContext tracingContext;
 
-	public JsonApiTracingContext(
-		@Nonnull TracingContext tracingContext
-	) {
+	/**
+	 * No-arg constructor required by {@link java.util.ServiceLoader}.
+	 * Loads the {@link TracingContext} via {@link TracingContextProvider}.
+	 */
+	public JsonApiTracingContext() {
+		this.tracingContext = TracingContextProvider.getContext();
+	}
+
+	/**
+	 * Constructor accepting an explicit {@link TracingContext} — useful for testing.
+	 */
+	JsonApiTracingContext(@Nonnull TracingContext tracingContext) {
 		this.tracingContext = tracingContext;
+	}
+
+	@Nonnull
+	@Override
+	public Class<HttpRequest> contextType() {
+		return HttpRequest.class;
 	}
 
 	@Override
@@ -196,8 +212,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		@Nonnull HttpRequest context,
 		@Nonnull Supplier<T> lambda
 	) {
-		final ClientMetadata metadata =
-			extractClientMetadata(context.headers());
+		final ClientMetadata metadata = extractClientMetadata(context.headers());
 
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			return TracingContext.executeWithClientContext(
@@ -221,18 +236,13 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	}
 
 	/**
-	 * Async variant of
-	 * {@link #executeWithinBlock(String, HttpRequest, Supplier)}.
-	 * Opens the tracing scope and client context, calls the async
-	 * supplier (which returns a `CompletableFuture`), detaches the
-	 * scope immediately on the calling thread, then ends the span
-	 * when the future completes.
+	 * Async variant of {@link #executeWithinBlock(String, HttpRequest, Supplier)}. Opens the tracing scope
+	 * and client context, calls the async supplier (which returns a `CompletableFuture`), detaches the scope
+	 * immediately on the calling thread, then ends the span when the future completes.
 	 *
-	 * @param protocolName the protocol name for tracing
-	 *                     (e.g. "GraphQL")
+	 * @param protocolName the protocol name for tracing (e.g. "GraphQL")
 	 * @param context      the HTTP request containing tracing headers
-	 * @param asyncLambda  supplier that starts async work and returns
-	 *                     a future
+	 * @param asyncLambda  supplier that starts async work and returns a future
 	 * @param <T>          the result type of the async operation
 	 * @return a future that completes with tracing properly ended
 	 */
@@ -243,8 +253,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		@Nonnull HttpRequest context,
 		@Nonnull Supplier<CompletableFuture<T>> asyncLambda
 	) {
-		final ClientMetadata metadata =
-			extractClientMetadata(context.headers());
+		final ClientMetadata metadata = extractClientMetadata(context.headers());
 
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
 			// no tracing -- executeWithClientContext sets/clears MDC synchronously
@@ -271,8 +280,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 						// Call async supplier -- starts async work, returns future
 						future = Objects.requireNonNull(
 							asyncLambda.get(),
-							"asyncLambda must return a"
-								+ " non-null CompletableFuture"
+							"asyncLambda must return a non-null CompletableFuture"
 						);
 					} catch (Throwable t) {
 						// sync error during setup -- full cleanup
@@ -304,15 +312,11 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	}
 
 	/**
-	 * Client metadata extracted from HTTP request headers for
-	 * tracing and MDC.
+	 * Client metadata extracted from HTTP request headers for tracing and MDC.
 	 *
-	 * @param clientIpAddress the client IP from X-Forwarded-For
-	 *                        header
-	 * @param clientUri       the client URI from configured
-	 *                        forwarded-uri headers
-	 * @param labels          client-provided labels from configured
-	 *                        forwarded-for headers
+	 * @param clientIpAddress the client IP from X-Forwarded-For header
+	 * @param clientUri       the client URI from configured forwarded-uri headers
+	 * @param labels          client-provided labels from configured forwarded-for headers
 	 */
 	private record ClientMetadata(
 		@Nullable String clientIpAddress,
@@ -321,16 +325,14 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	) {}
 
 	/**
-	 * Extracts client metadata (IP address, URI, and labels) from
-	 * the given request headers using the configured header options.
+	 * Extracts client metadata (IP address, URI, and labels) from the given request headers using
+	 * the configured header options.
 	 *
 	 * @param headers the request headers to extract metadata from
 	 * @return the extracted client metadata
 	 */
 	@Nonnull
-	private ClientMetadata extractClientMetadata(
-		@Nonnull RequestHeaders headers
-	) {
+	private ClientMetadata extractClientMetadata(@Nonnull RequestHeaders headers) {
 		final String clientIpAddress = headers.get(HttpHeaderNames.X_FORWARDED_FOR);
 		final String clientUri = this.headerOptions.forwardedUri()
 			.stream()
@@ -354,16 +356,13 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			})
 			.filter(Objects::nonNull)
 			.toArray(Label[]::new);
-		return new ClientMetadata(
-			clientIpAddress, clientUri, labels
-		);
+		return new ClientMetadata(clientIpAddress, clientUri, labels);
 	}
 
 	/**
-	 * Method for extracting information from the context received
-	 * via OpenTelemetry's Context Propagation mechanism. Besides the
-	 * extracted traceId, the clientId is also extracted and injected
-	 * into the received context.
+	 * Method for extracting information from the context received via OpenTelemetry's Context Propagation
+	 * mechanism. Besides the extracted traceId, the clientId is also extracted and injected into the
+	 * received context.
 	 */
 	@Nonnull
 	private Context extractContextFromHeaders(@Nonnull String protocolName, @Nonnull HttpRequest exchange) {

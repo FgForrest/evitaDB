@@ -36,75 +36,52 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link DefaultExternalApiTracingContext} verifying
- * that the NOOP implementation directly invokes the provided
- * lambdas without tracing overhead.
+ * Tests for {@link DefaultExternalApiTracingContext} verifying that the NOOP implementation directly invokes
+ * the provided lambdas without tracing overhead.
  *
  * @author evitaDB
  */
-@DisplayName(
-	"DefaultExternalApiTracingContext - NOOP passthrough"
-)
+@DisplayName("DefaultExternalApiTracingContext - NOOP passthrough")
 class DefaultExternalApiTracingContextTest {
 
 	@Test
-	@DisplayName(
-		"returns async lambda result directly"
-	)
-	void shouldReturnAsyncLambdaResultDirectly()
-		throws ExecutionException, InterruptedException {
+	@DisplayName("returns Object.class as context type")
+	void shouldReturnObjectClassAsContextType() {
+		assertEquals(Object.class, DefaultExternalApiTracingContext.INSTANCE.contextType());
+	}
 
-		final DefaultExternalApiTracingContext ctx =
-			DefaultExternalApiTracingContext.INSTANCE;
+	@Test
+	@DisplayName("returns async lambda result directly")
+	void shouldReturnAsyncLambdaResultDirectly() throws ExecutionException, InterruptedException {
+		final DefaultExternalApiTracingContext ctx = DefaultExternalApiTracingContext.INSTANCE;
 		final Object context = new Object();
 
-		final CompletableFuture<String> result =
-			ctx.executeWithinBlockAsync(
-				"test",
-				context,
-				() -> CompletableFuture
-					.completedFuture("result")
-			);
+		final CompletableFuture<String> result = ctx.executeWithinBlockAsync(
+			"test", context, () -> CompletableFuture.completedFuture("result")
+		);
 
 		assertEquals("result", result.get());
 	}
 
 	@Test
-	@DisplayName(
-		"runs runnable variant"
-	)
+	@DisplayName("runs runnable variant")
 	void shouldRunRunnableVariant() {
-		final DefaultExternalApiTracingContext ctx =
-			DefaultExternalApiTracingContext.INSTANCE;
+		final DefaultExternalApiTracingContext ctx = DefaultExternalApiTracingContext.INSTANCE;
 		final Object context = new Object();
 		final AtomicBoolean called = new AtomicBoolean(false);
 
-		ctx.executeWithinBlock(
-			"test",
-			context,
-			() -> called.set(true)
-		);
+		ctx.executeWithinBlock("test", context, () -> called.set(true));
 
-		assertTrue(
-			called.get(),
-			"Runnable should have been called"
-		);
+		assertTrue(called.get(), "Runnable should have been called");
 	}
 
 	@Test
-	@DisplayName(
-		"returns supplier variant result"
-	)
+	@DisplayName("returns supplier variant result")
 	void shouldReturnSupplierVariant() {
-		final DefaultExternalApiTracingContext ctx =
-			DefaultExternalApiTracingContext.INSTANCE;
+		final DefaultExternalApiTracingContext ctx = DefaultExternalApiTracingContext.INSTANCE;
 		final Object context = new Object();
 
-		final String value = ctx.executeWithinBlock(
-			"test",
-			context,
-			() -> "value"
-		);
+		final String value = ctx.executeWithinBlock("test", context, () -> "value");
 
 		assertEquals("value", value);
 	}
@@ -113,77 +90,42 @@ class DefaultExternalApiTracingContextTest {
 	@DisplayName("convertClientId")
 	class ConvertClientId {
 
-		private final DefaultExternalApiTracingContext ctx =
-			DefaultExternalApiTracingContext.INSTANCE;
+		private final DefaultExternalApiTracingContext ctx = DefaultExternalApiTracingContext.INSTANCE;
 
 		@Test
-		@DisplayName(
-			"formats with valid client ID"
-		)
+		@DisplayName("formats with valid client ID")
 		void shouldFormatWithValidClientId() {
-			assertEquals(
-				"GraphQL|my-client.1",
-				ctx.convertClientId("GraphQL", "my-client.1")
-			);
+			assertEquals("GraphQL|my-client.1", ctx.convertClientId("GraphQL", "my-client.1"));
 		}
 
 		@Test
-		@DisplayName(
-			"uses default when client ID is null"
-		)
+		@DisplayName("uses default when client ID is null")
 		void shouldUseDefaultWhenClientIdIsNull() {
-			assertEquals(
-				"REST|unknown",
-				ctx.convertClientId("REST", null)
-			);
+			assertEquals("REST|unknown", ctx.convertClientId("REST", null));
 		}
 
 		@Test
-		@DisplayName(
-			"sanitizes special characters"
-		)
+		@DisplayName("sanitizes special characters")
 		void shouldSanitizeSpecialCharacters() {
-			assertEquals(
-				"gRPC|client-name-1-2",
-				ctx.convertClientId(
-					"gRPC", "client@name#1!2"
-				)
-			);
+			assertEquals("gRPC|client-name-1-2", ctx.convertClientId("gRPC", "client@name#1!2"));
 		}
 
 		@Test
-		@DisplayName(
-			"sanitizes spaces"
-		)
+		@DisplayName("sanitizes spaces")
 		void shouldSanitizeSpaces() {
-			assertEquals(
-				"REST|my-client",
-				ctx.convertClientId("REST", "my client")
-			);
+			assertEquals("REST|my-client", ctx.convertClientId("REST", "my client"));
 		}
 
 		@Test
-		@DisplayName(
-			"handles empty client ID"
-		)
+		@DisplayName("handles empty client ID")
 		void shouldHandleEmptyClientId() {
-			assertEquals(
-				"REST|",
-				ctx.convertClientId("REST", "")
-			);
+			assertEquals("REST|", ctx.convertClientId("REST", ""));
 		}
 
 		@Test
-		@DisplayName(
-			"preserves allowed characters"
-		)
+		@DisplayName("preserves allowed characters")
 		void shouldPreserveAllowedCharacters() {
-			assertEquals(
-				"REST|abc-XYZ_123.test",
-				ctx.convertClientId(
-					"REST", "abc-XYZ_123.test"
-				)
-			);
+			assertEquals("REST|abc-XYZ_123.test", ctx.convertClientId("REST", "abc-XYZ_123.test"));
 		}
 	}
 
@@ -192,37 +134,24 @@ class DefaultExternalApiTracingContextTest {
 	class ExecuteWithinBlockAsyncDefault {
 
 		@Test
-		@DisplayName(
-			"propagates exceptional future"
-		)
+		@DisplayName("propagates exceptional future")
 		void shouldPropagateExceptionalFuture() {
-			final DefaultExternalApiTracingContext ctx =
-				DefaultExternalApiTracingContext.INSTANCE;
+			final DefaultExternalApiTracingContext ctx = DefaultExternalApiTracingContext.INSTANCE;
 			final Object context = new Object();
-			final RuntimeException cause =
-				new RuntimeException("async fail");
+			final RuntimeException cause = new RuntimeException("async fail");
 
-			final CompletableFuture<String> failed =
-				new CompletableFuture<>();
+			final CompletableFuture<String> failed = new CompletableFuture<>();
 			failed.completeExceptionally(cause);
 
-			final CompletableFuture<String> result =
-				ctx.executeWithinBlockAsync(
-					"test", context, () -> failed
-				);
-
-			assertTrue(
-				result.isCompletedExceptionally(),
-				"Result should be exceptionally completed"
+			final CompletableFuture<String> result = ctx.executeWithinBlockAsync(
+				"test", context, () -> failed
 			);
+
+			assertTrue(result.isCompletedExceptionally(), "Result should be exceptionally completed");
 			try {
 				result.get();
 			} catch (ExecutionException ex) {
-				assertSame(
-					cause,
-					ex.getCause(),
-					"Should propagate original cause"
-				);
+				assertSame(cause, ex.getCause(), "Should propagate original cause");
 			} catch (InterruptedException ex) {
 				Thread.currentThread().interrupt();
 			}

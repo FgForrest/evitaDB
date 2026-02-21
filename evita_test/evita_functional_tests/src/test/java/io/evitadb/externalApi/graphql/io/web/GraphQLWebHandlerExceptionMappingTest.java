@@ -62,16 +62,13 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for the {@code mapToGraphQLException} method in
- * {@link GraphQLWebHandler}. Uses reflection to access the
- * private method and verifies correct exception mapping for
- * timeouts, user errors, internal errors, and passthrough.
+ * Tests for the {@code mapToGraphQLException} method in {@link GraphQLWebHandler}. Uses reflection to access
+ * the private method and verifies correct exception mapping for timeouts, user errors, internal errors, and
+ * passthrough.
  *
  * @author evitaDB
  */
-@DisplayName(
-	"GraphQLWebHandler - exception mapping"
-)
+@DisplayName("GraphQLWebHandler - exception mapping")
 class GraphQLWebHandlerExceptionMappingTest {
 
 	private GraphQLWebHandler handler;
@@ -80,34 +77,21 @@ class GraphQLWebHandlerExceptionMappingTest {
 	void setUp() {
 		final Evita evita = mock(Evita.class);
 		final ObjectMapper objectMapper = new ObjectMapper();
-		final AtomicReference<GraphQL> graphQL =
-			new AtomicReference<>(mock(GraphQL.class));
-		final HeaderOptions headers =
-			HeaderOptions.builder().build();
+		final AtomicReference<GraphQL> graphQL = new AtomicReference<>(mock(GraphQL.class));
+		final HeaderOptions headers = HeaderOptions.builder().build();
 
-		// ExternalApiTracingContextProvider uses ServiceLoader;
-		// mock it to return a noop context
+		// ExternalApiTracingContextProvider uses ServiceLoader; mock it to return a noop context
 		try (
-			MockedStatic<ExternalApiTracingContextProvider>
-				provider = mockStatic(
-				ExternalApiTracingContextProvider.class
-			)
+			MockedStatic<ExternalApiTracingContextProvider> provider =
+				mockStatic(ExternalApiTracingContextProvider.class)
 		) {
 			@SuppressWarnings("unchecked")
-			final ExternalApiTracingContext<Object>
-				noopContext = mock(ExternalApiTracingContext.class);
+			final ExternalApiTracingContext<Object> noopContext = mock(ExternalApiTracingContext.class);
 			provider.when(
-				() -> ExternalApiTracingContextProvider
-					.getContext(any())
+				() -> ExternalApiTracingContextProvider.getContext(any(), any())
 			).thenReturn(noopContext);
 
-			this.handler = new GraphQLWebHandler(
-				evita,
-				headers,
-				objectMapper,
-				GraphQLInstanceType.DATA,
-				graphQL
-			);
+			this.handler = new GraphQLWebHandler(evita, headers, objectMapper, GraphQLInstanceType.DATA, graphQL);
 		}
 	}
 
@@ -116,22 +100,12 @@ class GraphQLWebHandlerExceptionMappingTest {
 	class TimeoutExceptionMapping {
 
 		@Test
-		@DisplayName(
-			"maps TimeoutException to 504 Gateway Timeout"
-		)
-		void shouldMapTimeoutToGatewayTimeout()
-			throws Exception {
+		@DisplayName("maps TimeoutException to 504 Gateway Timeout")
+		void shouldMapTimeoutToGatewayTimeout() throws Exception {
+			final RuntimeException result = invokeMapToGraphQLException(new TimeoutException("timed out"));
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(
-					new TimeoutException("timed out")
-				);
-
-			assertInstanceOf(
-				HttpExchangeException.class, result
-			);
-			final HttpExchangeException httpEx =
-				(HttpExchangeException) result;
+			assertInstanceOf(HttpExchangeException.class, result);
+			final HttpExchangeException httpEx = (HttpExchangeException) result;
 			assertEquals(504, httpEx.getStatusCode());
 		}
 	}
@@ -141,46 +115,25 @@ class GraphQLWebHandlerExceptionMappingTest {
 	class CompletionExceptionUnwrapping {
 
 		@Test
-		@DisplayName(
-			"unwraps CompletionException around Timeout"
-		)
-		void shouldUnwrapCompletionException()
-			throws Exception {
+		@DisplayName("unwraps CompletionException around Timeout")
+		void shouldUnwrapCompletionException() throws Exception {
+			final CompletionException wrapped = new CompletionException(new TimeoutException("wrapped timeout"));
 
-			final CompletionException wrapped =
-				new CompletionException(
-					new TimeoutException("wrapped timeout")
-				);
+			final RuntimeException result = invokeMapToGraphQLException(wrapped);
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(wrapped);
-
-			assertInstanceOf(
-				HttpExchangeException.class, result
-			);
-			final HttpExchangeException httpEx =
-				(HttpExchangeException) result;
+			assertInstanceOf(HttpExchangeException.class, result);
+			final HttpExchangeException httpEx = (HttpExchangeException) result;
 			assertEquals(504, httpEx.getStatusCode());
 		}
 
 		@Test
-		@DisplayName(
-			"unwraps CompletionException for user errors"
-		)
-		void shouldUnwrapCompletionExceptionForUserErrors()
-			throws Exception {
+		@DisplayName("unwraps CompletionException for user errors")
+		void shouldUnwrapCompletionExceptionForUserErrors() throws Exception {
+			final CompletionException wrapped = new CompletionException(new CoercingSerializeException("bad"));
 
-			final CompletionException wrapped =
-				new CompletionException(
-					new CoercingSerializeException("bad")
-				);
+			final RuntimeException result = invokeMapToGraphQLException(wrapped);
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(wrapped);
-
-			assertInstanceOf(
-				GraphQLInvalidUsageException.class, result
-			);
+			assertInstanceOf(GraphQLInvalidUsageException.class, result);
 		}
 	}
 
@@ -189,110 +142,59 @@ class GraphQLWebHandlerExceptionMappingTest {
 	class UserErrorMapping {
 
 		@Test
-		@DisplayName(
-			"maps CoercingSerializeException to usage error"
-		)
-		void shouldMapCoercingSerializeException()
-			throws Exception {
+		@DisplayName("maps CoercingSerializeException to usage error")
+		void shouldMapCoercingSerializeException() throws Exception {
+			final RuntimeException result = invokeMapToGraphQLException(new CoercingSerializeException("bad ser"));
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(
-					new CoercingSerializeException("bad ser")
-				);
-
-			assertInstanceOf(
-				GraphQLInvalidUsageException.class, result
-			);
+			assertInstanceOf(GraphQLInvalidUsageException.class, result);
 		}
 
 		@Test
-		@DisplayName(
-			"maps CoercingParseValueException to usage error"
-		)
-		void shouldMapCoercingParseValueException()
-			throws Exception {
+		@DisplayName("maps CoercingParseValueException to usage error")
+		void shouldMapCoercingParseValueException() throws Exception {
+			final RuntimeException result = invokeMapToGraphQLException(new CoercingParseValueException("bad parse"));
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(
-					new CoercingParseValueException("bad parse")
-				);
-
-			assertInstanceOf(
-				GraphQLInvalidUsageException.class, result
-			);
+			assertInstanceOf(GraphQLInvalidUsageException.class, result);
 		}
 
 		@Test
-		@DisplayName(
-			"maps NonNullableValueCoercedAsNull to usage"
-		)
-		void shouldMapNonNullableValueCoercedAsNull()
-			throws Exception {
-
+		@DisplayName("maps NonNullableValueCoercedAsNull to usage")
+		void shouldMapNonNullableValueCoercedAsNull() throws Exception {
 			// requires a GraphQLType argument
-			final GraphQLScalarType dummyType =
-				GraphQLScalarType.newScalar()
-					.name("Dummy")
-					.coercing(mock(
-						graphql.schema.Coercing.class
-					))
-					.build();
+			final GraphQLScalarType dummyType = GraphQLScalarType.newScalar()
+				.name("Dummy")
+				.coercing(mock(graphql.schema.Coercing.class))
+				.build();
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(
-					new NonNullableValueCoercedAsNullException(
-						dummyType
-					)
-				);
-
-			assertInstanceOf(
-				GraphQLInvalidUsageException.class, result
+			final RuntimeException result = invokeMapToGraphQLException(
+				new NonNullableValueCoercedAsNullException(dummyType)
 			);
+
+			assertInstanceOf(GraphQLInvalidUsageException.class, result);
 		}
 
 		@Test
-		@DisplayName(
-			"maps InputMapDefinesTooManyFields to usage"
-		)
-		void shouldMapInputMapDefinesTooManyFields()
-			throws Exception {
-
+		@DisplayName("maps InputMapDefinesTooManyFields to usage")
+		void shouldMapInputMapDefinesTooManyFields() throws Exception {
 			// requires (GraphQLType, String) constructor
-			final GraphQLScalarType dummyType =
-				GraphQLScalarType.newScalar()
-					.name("Dummy")
-					.coercing(mock(
-						graphql.schema.Coercing.class
-					))
-					.build();
+			final GraphQLScalarType dummyType = GraphQLScalarType.newScalar()
+				.name("Dummy")
+				.coercing(mock(graphql.schema.Coercing.class))
+				.build();
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(
-					new InputMapDefinesTooManyFieldsException(
-						dummyType, "too many"
-					)
-				);
-
-			assertInstanceOf(
-				GraphQLInvalidUsageException.class, result
+			final RuntimeException result = invokeMapToGraphQLException(
+				new InputMapDefinesTooManyFieldsException(dummyType, "too many")
 			);
+
+			assertInstanceOf(GraphQLInvalidUsageException.class, result);
 		}
 
 		@Test
-		@DisplayName(
-			"maps UnknownOperationException to usage"
-		)
-		void shouldMapUnknownOperationException()
-			throws Exception {
+		@DisplayName("maps UnknownOperationException to usage")
+		void shouldMapUnknownOperationException() throws Exception {
+			final RuntimeException result = invokeMapToGraphQLException(new UnknownOperationException("unknown op"));
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(
-					new UnknownOperationException("unknown op")
-				);
-
-			assertInstanceOf(
-				GraphQLInvalidUsageException.class, result
-			);
+			assertInstanceOf(GraphQLInvalidUsageException.class, result);
 		}
 	}
 
@@ -301,24 +203,16 @@ class GraphQLWebHandlerExceptionMappingTest {
 	class SubclassHandling {
 
 		@Test
-		@DisplayName(
-			"maps subclass of user error to invalid usage"
-		)
-		void shouldMapSubclassOfUserErrorToInvalidUsage()
-			throws Exception {
-
+		@DisplayName("maps subclass of user error to invalid usage")
+		void shouldMapSubclassOfUserErrorToInvalidUsage() throws Exception {
 			// anonymous subclass of CoercingSerializeException
-			final CoercingSerializeException subclass =
-				new CoercingSerializeException("sub") {};
+			final CoercingSerializeException subclass = new CoercingSerializeException("sub") {};
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(subclass);
+			final RuntimeException result = invokeMapToGraphQLException(subclass);
 
 			assertInstanceOf(
-				GraphQLInvalidUsageException.class,
-				result,
-				"Subclass of a user error exception should"
-					+ " map to GraphQLInvalidUsageException"
+				GraphQLInvalidUsageException.class, result,
+				"Subclass of a user error exception should map to GraphQLInvalidUsageException"
 			);
 		}
 	}
@@ -328,20 +222,11 @@ class GraphQLWebHandlerExceptionMappingTest {
 	class GenericGraphQLErrorMapping {
 
 		@Test
-		@DisplayName(
-			"maps GraphQLException to internal error"
-		)
-		void shouldMapGraphQLExceptionToInternalError()
-			throws Exception {
+		@DisplayName("maps GraphQLException to internal error")
+		void shouldMapGraphQLExceptionToInternalError() throws Exception {
+			final RuntimeException result = invokeMapToGraphQLException(new GraphQLException("generic gql error"));
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(
-					new GraphQLException("generic gql error")
-				);
-
-			assertInstanceOf(
-				GraphQLInternalError.class, result
-			);
+			assertInstanceOf(GraphQLInternalError.class, result);
 		}
 	}
 
@@ -350,58 +235,38 @@ class GraphQLWebHandlerExceptionMappingTest {
 	class RuntimeExceptionPassthrough {
 
 		@Test
-		@DisplayName(
-			"passes through RuntimeException as-is"
-		)
-		void shouldPassthroughRuntimeException()
-			throws Exception {
+		@DisplayName("passes through RuntimeException as-is")
+		void shouldPassthroughRuntimeException() throws Exception {
+			final IllegalArgumentException original = new IllegalArgumentException("bad arg");
 
-			final IllegalArgumentException original =
-				new IllegalArgumentException("bad arg");
-
-			final RuntimeException result =
-				invokeMapToGraphQLException(original);
+			final RuntimeException result = invokeMapToGraphQLException(original);
 
 			assertSame(original, result);
 		}
 
 		@Test
-		@DisplayName(
-			"wraps checked exception in CompletionException"
-		)
+		@DisplayName("wraps checked exception in CompletionException")
 		void shouldWrapCheckedException() throws Exception {
-			final IOException checked =
-				new IOException("io error");
+			final IOException checked = new IOException("io error");
 
-			final RuntimeException result =
-				invokeMapToGraphQLException(checked);
+			final RuntimeException result = invokeMapToGraphQLException(checked);
 
-			assertInstanceOf(
-				CompletionException.class, result
-			);
+			assertInstanceOf(CompletionException.class, result);
 			assertSame(checked, result.getCause());
 		}
 	}
 
 	/**
-	 * Invokes the private {@code mapToGraphQLException}
-	 * method on the handler via reflection.
+	 * Invokes the private {@code mapToGraphQLException} method on the handler via reflection.
 	 *
 	 * @param cause the throwable to map
 	 * @return the mapped RuntimeException
 	 * @throws Exception if reflection fails
 	 */
 	@Nonnull
-	private RuntimeException invokeMapToGraphQLException(
-		@Nonnull Throwable cause
-	) throws Exception {
-		final Method method =
-			GraphQLWebHandler.class.getDeclaredMethod(
-				"mapToGraphQLException", Throwable.class
-			);
+	private RuntimeException invokeMapToGraphQLException(@Nonnull Throwable cause) throws Exception {
+		final Method method = GraphQLWebHandler.class.getDeclaredMethod("mapToGraphQLException", Throwable.class);
 		method.setAccessible(true);
-		return (RuntimeException) method.invoke(
-			this.handler, cause
-		);
+		return (RuntimeException) method.invoke(this.handler, cause);
 	}
 }
