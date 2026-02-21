@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@SuppressWarnings("ResultOfMethodCallIgnored")
 class ObservableThreadExecutorCancellationTest {
 
 	// ---- Bug 2: dangling result future on pre-start cancellation ----
@@ -325,7 +326,6 @@ class ObservableThreadExecutorCancellationTest {
 		);
 		try {
 			final CountDownLatch blockTasks = new CountDownLatch(1);
-			final CountDownLatch allTasksStartedOrQueued = new CountDownLatch(1);
 
 			// Submit queueLimit + 1 tasks (the check is "> queueLimit", so queueLimit+1 tasks are accepted)
 			final List<CancellableRunnable> tasks = new ArrayList<>();
@@ -666,7 +666,7 @@ class ObservableThreadExecutorCancellationTest {
 	private record UnrejectableTestRunnable(@javax.annotation.Nonnull Runnable delegate) implements Runnable, UnrejectableTask {
 		@Override
 		public void run() {
-			delegate.run();
+			this.delegate.run();
 		}
 	}
 }
