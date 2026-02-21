@@ -61,29 +61,3 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-
-      - uses: anthropics/claude-code-action@edd85d61533cbba7b57ed0ca4af1750b1fdfd3c4 # v1.0.55
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          show_full_output: true
-          prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-
-            You are reviewing a pull request for evitaDB, a specialized NoSQL
-            in-memory database for e-commerce written in Java.
-
-            First, read the file `.claude/agents/pr-reviewer.md` in the repository
-            root. That file contains your complete review persona, instructions,
-            and checklist. Follow every instruction in that file precisely.
-
-            The PR branch is already checked out in the current working directory.
-            The repository also contains a `CLAUDE.md` file with the project's
-            coding standards — use it as your reference for style compliance.
-
-            Use `gh pr diff ${{ github.event.pull_request.number }}` to examine
-            the changes. Use inline comments for file-specific feedback and a
-            single summary comment on the PR for overall assessment.
-
-          claude_args: |
-            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
