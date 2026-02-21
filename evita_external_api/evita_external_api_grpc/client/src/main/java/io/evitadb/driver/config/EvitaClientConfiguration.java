@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.driver.config;
 
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
@@ -72,6 +73,8 @@ import java.util.concurrent.TimeUnit;
  * @param retry                     Whether the client will retry the call in case of timeout or other network related problems.
  * @param changeCaptureQueueSize    The maximum number of change capture events that can be buffered for each subscriber.
  *                                  If this limit is reached, an error is reported to the subscriber.
+ * @param threadPool                Defines limits for the client-side thread pool used for asynchronous operations
+ *                                  such as session handling and background tasks.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaClientConfiguration(
@@ -97,7 +100,8 @@ public record EvitaClientConfiguration(
 	@Nullable Object openTelemetryInstance,
 	boolean retry,
 	int trackedTaskLimit,
-	int changeCaptureQueueSize
+	int changeCaptureQueueSize,
+	@Nonnull ThreadPoolOptions threadPool
 ) {
 	private static final int DEFAULT_PORT = 5555;
 
@@ -148,6 +152,7 @@ public record EvitaClientConfiguration(
 		private int trackedTaskLimit = 100;
 		private boolean retry = false;
 		private int changeCaptureQueueSize = Flow.defaultBufferSize();
+		private ThreadPoolOptions threadPool = ThreadPoolOptions.clientThreadPoolBuilder().build();
 
 		Builder() {
 			try {
@@ -306,6 +311,12 @@ public record EvitaClientConfiguration(
  	}
 
 		@Nonnull
+		public EvitaClientConfiguration.Builder threadPool(@Nonnull ThreadPoolOptions threadPool) {
+			this.threadPool = threadPool;
+			return this;
+		}
+
+		@Nonnull
 		public EvitaClientConfiguration.Builder retry(boolean retry) {
 			this.retry = retry;
 			return this;
@@ -335,7 +346,8 @@ public record EvitaClientConfiguration(
 				this.openTelemetryInstance,
 				this.retry,
 				this.trackedTaskLimit,
-				this.changeCaptureQueueSize
+				this.changeCaptureQueueSize,
+				this.threadPool
 			);
 		}
 

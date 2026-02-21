@@ -331,7 +331,7 @@ public class EngineTransactionManager implements Closeable {
 				.stream()
 				.map(it -> it.onCompletion().toCompletableFuture())
 				.toArray(CompletableFuture[]::new)
-		);
+		).join();
 		// close the engine executor
 		IOUtils.closeQuietly(
 			this.changeObserver::close,

@@ -2208,13 +2208,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
 		((ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver).setOnCancelHandler(
-			() -> {
-				try {
-					subscriptionFuture.get().cancel();
-				} catch (Exception e) {
-					log.debug("Failed to remove progress listener on cancel", e);
+			// cancel handler runs on the event loop thread — must not block
+			() -> subscriptionFuture.whenComplete((subscription, ex) -> {
+				if (subscription != null) {
+					subscription.cancel();
 				}
-			}
+			})
 		);
 
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
