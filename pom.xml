@@ -182,7 +182,7 @@
 			<dependency>
 				<groupId>net.openhft</groupId>
 				<artifactId>zero-allocation-hashing</artifactId>
-				<version>0.16</version>
+				<version>2026.0</version>
 			</dependency>
 			<dependency>
 				<groupId>one.edee.oss</groupId>
