@@ -509,7 +509,22 @@ public class ExternalApiServer implements AutoCloseable {
 		// we share worker group both for I/O and service processing, all computations are done in separate executors
 		// and having different worker groups for I/O and service processing only slows down the server
 		// due to context switching between threads and branch misses
-		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
+		final EventLoopGroup workerGroup;
+
+		// in tests we don't want to wait for graceful shutdown, so we set it to 0,
+		// but in production we want to wait a bit to let all requests finish properly
+		if (DevelopmentConstants.isTestRun()) {
+			workerGroup = EventLoopGroups
+				.builder()
+				.numThreads(apiOptions.workerGroupThreadsAsInt())
+				.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0))
+				.build();
+		} else {
+			workerGroup = EventLoopGroups
+				.builder()
+				.numThreads(apiOptions.workerGroupThreadsAsInt())
+				.build();
+		}
 
 		// Create a shared meter registry backed by the default PrometheusRegistry
 		// (the same registry scraped by PrometheusScrapeHandler)

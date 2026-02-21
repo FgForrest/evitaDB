@@ -34,9 +34,9 @@ import com.linecorp.armeria.client.retry.RetryRule;
 import com.linecorp.armeria.client.retry.RetryingClient;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
@@ -45,6 +45,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
@@ -53,6 +54,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
@@ -108,6 +110,7 @@ import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import io.netty.channel.EventLoopGroup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -346,13 +349,33 @@ public class EvitaClient implements EvitaContract {
 			this.configuration.streamingTimeout(),
 			this.configuration.streamingTimeoutUnit().toChronoUnit()
 		);
-		this.onSessionCreationCallback = onSessionCreationCallback == null ?
-			Functions.noOpConsumer() : onSessionCreationCallback;
-		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
-			Functions.noOpConsumer() : onSessionTerminationCallback;
+		this.onSessionCreationCallback = onSessionCreationCallback == null
+			? Functions.noOpConsumer()
+			: onSessionCreationCallback;
+		this.onSessionTerminationCallback = onSessionTerminationCallback == null
+			? Functions.noOpConsumer()
+			: onSessionTerminationCallback;
+
+		// in tests we don't want to wait for graceful shutdown, so we set it to 0,
+		// but in production we want to wait a bit to let all requests finish properly
+		final EventLoopGroup workerGroup;
+		if (DevelopmentConstants.isTestRun()) {
+			workerGroup = EventLoopGroups
+				.builder()
+				.numThreads(Runtime.getRuntime().availableProcessors())
+				/* TOBEDONE - UNCOMMENT THIS WHEN https://github.com/line/armeria/issues/6632 is closed */
+				//.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0))
+				.build();
+		} else {
+			workerGroup = EventLoopGroups
+				.builder()
+				.numThreads(Runtime.getRuntime().availableProcessors())
+				.build();
+		}
+
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory
 			.builder()
-	        .workerGroup(Runtime.getRuntime().availableProcessors())
+			.workerGroup(workerGroup, true)
 			.idleTimeoutMillis(
 				TimeUnit.MILLISECONDS.convert(
 					configuration.timeout(),
@@ -444,12 +467,14 @@ public class EvitaClient implements EvitaContract {
 		if (configuration.retry()) {
 			grpcClientBuilder.decorator(
 				RetryingClient.builder(
-					RetryRule.of(
-						RetryRule.builder().onTimeoutException().thenBackoff(),
-						RetryRule.builder().onStatus(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT, HttpStatus.UNKNOWN).thenBackoff(),
-						RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
+						RetryRule.of(
+							RetryRule.builder().onTimeoutException().thenBackoff(),
+							RetryRule.builder()
+								.onStatus(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT, HttpStatus.UNKNOWN)
+								.thenBackoff(),
+							RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
+						)
 					)
-				)
 					.useRetryAfter(true)
 					.newDecorator()
 			);
