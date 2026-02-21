@@ -43,7 +43,7 @@ jobs:
         mvn -T 1C -B package -P documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
     - name: Upload test results    # upload XML with unit test results for debugging
-      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       if: success() || failure()
       with:
         name: test-results
