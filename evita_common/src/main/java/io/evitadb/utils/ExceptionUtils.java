@@ -58,6 +58,29 @@ public class ExceptionUtils {
 	}
 
 	/**
+	 * Checks if the provided throwable or any of its causes matches the specified exception type.
+	 * The method traverses the causal chain, handling circular references safely.
+	 *
+	 * @param throwable the throwable to evaluate, must not be null
+	 * @param exceptionType the class of the exception type to check for, must not be null
+	 * @return true if the specified exception type is found in the causal chain, false otherwise
+	 */
+	public static boolean causeChainContains(
+		@Nonnull Throwable throwable,
+		@Nonnull Class<? extends Throwable> exceptionType
+	) {
+		final Set<Throwable> visited = new HashSet<>();
+		Throwable current = throwable;
+		while (current != null && visited.add(current)) {
+			if (exceptionType.isInstance(current)) {
+				return true;
+			}
+			current = current.getCause();
+		}
+		return false;
+	}
+
+	/**
 	 * Executes the given supplier and unwraps any {@link CompletionException} that is thrown,
 	 * rethrowing its cause if the cause is a {@link RuntimeException}. If the cause is not
 	 * a RuntimeException, the original CompletionException is rethrown.
