@@ -15,9 +15,9 @@ This chapter describes the Java driver for evitaDB and doesn't make sense for ot
 in the details of the Java driver implementation, please change your preferred language in the upper right corner.
 </LS>
 <LS to="j">
-Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb?lang=java).
-Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset?lang=java).
-The same applies to [query API](../../use/api/query-data?lang=java) and [write API](../../use/api/write-data?lang=java).
+Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb.md?lang=java).
+Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset.md?lang=java).
+The same applies to [query API](../../use/api/query-data.md?lang=java) and [write API](../../use/api/write-data.md?lang=java).
 So none of these topics will be covered here.
 
 ## Java remote client
@@ -47,7 +47,7 @@ a pool of gRPC connections to handle parallel communication with the server.
 
 <Note type="info">
 The client instance is created regardless of whether the server is available. In order to verify that the server can be
-reached you need to call some method on it. The usual scenario would be [opening a new session](../../get-started/create-first-database?lang=java#open-session-to-catalog-and-insert-your-first-entity) to existing <Term location="/documentation/user/en/index.md">catalog</Term>.
+reached you need to call some method on it. The usual scenario would be [opening a new session](../../get-started/create-first-database.md?lang=java#open-session-to-catalog-and-insert-your-first-entity) to existing <Term location="/documentation/user/en/index.md">catalog</Term>.
 </Note>
 
 <Note type="warning">

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.driver.config.ClientTlsOptions;
+import io.evitadb.driver.config.ClientTimeoutOptions;
+import io.evitadb.driver.config.ClientConnectionOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture ;
