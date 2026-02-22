@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: '6bff47e566d31ba841d90f906ee68c2ca121b03f'
-translated: true
+translated: 'true'
 ---
 <LS to="j">
 
@@ -49,16 +49,16 @@ Očekává se, že model bude anotován následujícími anotacemi:
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PrimaryKey.java</SourceClass></dt>
     <dd>
         Anotaci lze umístit na [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
-        pole / getter metodu / komponentu recordu a označuje [primární klíč](../../use/schema.md#generování-primárního-klíče) entity.
+        pole / getter metodu / komponentu recordu a označuje [primární klíč](../schema.md#generování-primárního-klíče) entity.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass></dt>
     <dd>
-        Anotaci lze umístit na pole / getter metodu / komponentu recordu a označuje [atribut](../../use/schema.md#attribute) entity.
+        Anotaci lze umístit na pole / getter metodu / komponentu recordu a označuje [atribut](../schema.md#atributy) entity.
         Výchozí hodnoty v případě rozhraní lze poskytnout pomocí výchozí implementace metody (viz příklad níže).
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/SortableAttributeCompound.java</SourceClass></dt>
     <dd>
-        Anotaci lze umístit na třídu / record a označuje [sloučený atribut pro řazení](../../use/schema.md#složené-atributy-pro-řazení) entity,
+        Anotaci lze umístit na třídu / record a označuje [sloučený atribut pro řazení](../schema.md#složené-atributy-pro-řazení) entity,
         který agreguje více atributů třídy do jednoho řaditelného celku, ke kterému není možné přistupovat přímo, ale lze jej použít v dotazu
         pro řazení.
     </dd>
@@ -69,7 +69,7 @@ Očekává se, že model bude anotován následujícími anotacemi:
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass></dt>
     <dd>
         Anotaci lze umístit na pole / getter metodu / komponentu recordu a označuje
-        [asociovaná data](../../use/schema.md#přidružená-data) entity.
+        [asociovaná data](../schema.md#přidružená-data) entity.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass></dt>
     <dd>
@@ -82,25 +82,25 @@ Očekává se, že model bude anotován následujícími anotacemi:
         Anotaci lze umístit na pole / getter metodu / komponentu recordu kolekce / pole typu
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>,
         které poskytuje přístup ke všem cenám entity. Použití této anotace v modelové třídě entity povolí
-        [ceny](../../use/schema.md#ceny) ve schématu entity.
+        [ceny](../schema.md#ceny) ve schématu entity.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSale.java</SourceClass></dt>
     <dd>
         Anotaci lze umístit na pole / getter metodu / komponentu recordu typu
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>,
         které poskytuje přístup k prodejní ceně entity. Použití této anotace v modelové třídě entity povolí
-        [ceny](../../use/schema.md#ceny) ve schématu entity.
+        [ceny](../schema.md#ceny) ve schématu entity.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass></dt>
     <dd>
         Anotaci lze umístit na pole / getter metodu / komponentu recordu a označuje entitu jako
-        [referenci](../../use/schema.md#reference) na jinou entitu. Může odkazovat na jinou modelovou třídu (rozhraní/třída/record),
+        [referenci](../schema.md#reference) na jinou entitu. Může odkazovat na jinou modelovou třídu (rozhraní/třída/record),
         která obsahuje vlastnosti pro anotace `@ReferencedEntity` a `@ReferencedEntityGroup` a atributy vztahu.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReflectedReference.java</SourceClass></dt>
     <dd>
         <p>Anotaci lze umístit na pole / getter metodu / komponentu recordu a označuje entitu jako 
-        [reflektovanou referenci](../../use/schema.md#reference) na jinou entitu. Může odkazovat na jinou modelovou třídu (rozhraní/třída/record),
+        [reflektovanou referenci](../schema.md#reference) na jinou entitu. Může odkazovat na jinou modelovou třídu (rozhraní/třída/record),
         která obsahuje vlastnosti pro anotace `@ReferencedEntity` a `@ReferencedEntityGroup` a atributy vztahu.</p>
         <p>Původní reference nemusí být ve schématu ještě definována, ale musí být definována před potvrzením transakce
         nebo uzavřením session (ve fázi warm-up).</p>
@@ -130,7 +130,7 @@ si ukážeme příklad návrhu rozhraní produktové entity.
 
 <Note type="info">
 
-Smlouvu pro definici schématu můžete také použít v [dotazovacím API](./query-data.md) jako očekávaný typ výsledku
+Smlouvu pro definici schématu můžete také použít v [dotazovacím API](query-data.md) jako očekávaný typ výsledku
 a evitaDB automaticky vygeneruje vhodnou proxy třídu, která mapuje obecnou podkladovou datovou strukturu
 na smlouvu dle vaší představy. Více informací k tomuto tématu naleznete
 v kapitole [Java konektor](../connectors/java.md#vlastní-kontrakty).

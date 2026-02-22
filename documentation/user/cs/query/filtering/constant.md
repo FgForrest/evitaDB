@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
 ---
 ## Primární klíč entity v množině
 
@@ -99,10 +99,10 @@ ve [speciálním blogovém příspěvku](https://evitadb.io/blog/15-soft-delete)
 
 Ve výchozím nastavení se všechny dotazy chovají, jako by v části filtru byla přítomna podmínka `scope(LIVE)`, pokud
 si scope neurčíte sami. To znamená, že žádná entita z archivního scope nebude vrácena. Pokud má entita
-referenci na entitu v archivním scope, podmínka [`referenceHaving`](../filtering/references.md#reference-having)
+referenci na entitu v archivním scope, podmínka [`referenceHaving`](references.md#reference-having)
 nebude splněna, pokud jsou dotazovány pouze entity ve scope `LIVE`. Pokud změníte scope na `scope(ARCHIVE)`, získáte
 pouze entity z archivního scope. Můžete také kombinovat entity z obou scopů zadáním
-`scope(LIVE, ARCHIVE)`, a v takovém případě může [`referenceHaving`](../filtering/references.md#reference-having)
+`scope(LIVE, ARCHIVE)`, a v takovém případě může [`referenceHaving`](references.md#reference-having)
 zahrnovat entity z různých scopů, než je ten, který je dotazován.
 
 <Note type="warning">
@@ -118,12 +118,12 @@ stejnou hodnotu unikátního atributu. Pokud přesunete entitu z jednoho scope d
 cílového scope se zkontrolují a pokud entita poruší unikátní omezení, přesun je odmítnut.
 
 Pokud dotazujete entity v obou scopech pomocí filtru [inScope](behavioral.md#v-rozsahu) a použijete filtrační
-omezení, které přesně odpovídá unikátnímu atributu ([attribute equals](../filtering/comparable.md#atribut-rovná-se),
-[attribute in set](../filtering/comparable.md#atribut-v-množině), [attribute is](../filtering/comparable.md#atribut-existuje)),
+omezení, které přesně odpovídá unikátnímu atributu ([attribute equals](comparable.md#atribut-rovná-se),
+[attribute in set](comparable.md#atribut-v-množině), [attribute is](comparable.md#atribut-existuje)),
 evitaDB upřednostní entitu z prvního scope uvedeného v podmínce `scope` před entitami ve scopech uvedených
 později v této podmínce `scope`. To znamená, že pokud dotazujete jednu entitu podle hodnoty jejího unikátního atributu
 (například `URL`) a hledáte entitu v obou scopech, vždy získáte entitu z prvního scope, který ve svém dotazu určíte.
-Toto chování se neuplatňuje, pokud je použito pouze částečné shody (například [attribute starts with](../filtering/string.md#atribut-začíná-na),
+Toto chování se neuplatňuje, pokud je použito pouze částečné shody (například [attribute starts with](string.md#atribut-začíná-na),
 atd.).
 
 </Note>

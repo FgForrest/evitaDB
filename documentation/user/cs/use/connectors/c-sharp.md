@@ -54,7 +54,7 @@ je thread-safe a v aplikaci se očekává použití pouze jedné instance.
 
 <Note type="info">
 Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je možné se serverem komunikovat,
-je potřeba na něm zavolat nějakou metodu. Typickým scénářem je [otevření nové session](#open-session-to-catalog)
+je potřeba na něm zavolat nějakou metodu. Typickým scénářem je otevření nové session
 do existujícího <Term location="/documentation/user/en/index.md">katalogu</Term>.
 </Note>
 

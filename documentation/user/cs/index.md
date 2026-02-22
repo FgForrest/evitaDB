@@ -4,7 +4,7 @@ date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
 ---
 evitaDB pomáhá vývojářům vytvářet rychlé aplikace produktových katalogů, které jsou srdcem každého e-commerce webu.
 Katalogy pracují s hierarchickými strukturami, fasetovým vyhledáváním, vyhledáváním podle ceny, rozsahem, lokalizací a fulltextem.

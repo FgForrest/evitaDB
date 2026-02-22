@@ -8,7 +8,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
-translated: true
+translated: 'true'
 ---
 Na e-commerce stránkách lze najít mnoho typů menu. Počínaje různými typy mega menu...
 

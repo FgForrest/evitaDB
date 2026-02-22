@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: af4674ef54ec8fefb74b62622c04e5a275889f79
-translated: true
+translated: 'true'
 ---
 <LS to="e,j,c,r">
 
@@ -896,7 +896,7 @@ načíst neindexované ceny entity, které nemohou (a nemají) být použity k f
 U entit, které mají vnitřní zpracování záznamů `LOWEST_PRICE` nebo `SUM`, je vrácena vlastnost `multiplePricesForSaleAvailable`,
 která označuje, zda je k dispozici více _unikátních_ cen k prodeji (seskupených podle `innerRecordId`).
 Je důležité poznamenat, že nevrací pouze počet všech cen k prodeji.
-Místo toho používá omezení [`priceType`](../requirements/price.md#typ-ceny) k určení jedinečnosti každé
+Místo toho používá omezení [`priceType`](price.md#typ-ceny) k určení jedinečnosti každé
 cenové hodnoty. To znamená, že i když jsou například 3 ceny k prodeji, ale všechny mají stejnou hodnotu, tato vlastnost
 vrátí `false`. To je užitečné zejména pro
 UI, aby bylo možné určit, zda zobrazit cenové rozpětí nebo jen jednu cenu, aniž by bylo nutné načítat všechny ceny k prodeji.
@@ -1110,11 +1110,11 @@ chtít znát (a zobrazit) ceny k prodeji pro každou variantu (nebo nějaké roz
 to vždy vrátí maximálně jednu skutečnou cenu k prodeji. Pro vnitřní zpracování záznamů `SUM` to vrátí ceny k prodeji
 pro každý `innerRecordId` stejně jako pro `FIRST_OCCURRENCE`, ale použití je omezené.
 
-Vrácený seznam cen je seřazen podle hodnoty ceny od nejnižší po nejvyšší v závislosti na použití omezení [`priceType`](../requirements/price.md#typ-ceny).
+Vrácený seznam cen je seřazen podle hodnoty ceny od nejnižší po nejvyšší v závislosti na použití omezení [`priceType`](price.md#typ-ceny).
 
 Existuje také jednodušší pole `multiplePricesForSaleAvailable`, které vrací boolean určující, zda je
 k dispozici více _unikátních_ cen k prodeji. Je důležité poznamenat, že nevrací pouze počet `allPricesForSale`.
-Místo toho používá omezení [`priceType`](../requirements/price.md#typ-ceny) k určení jedinečnosti každé
+Místo toho používá omezení [`priceType`](price.md#typ-ceny) k určení jedinečnosti každé
 cenové hodnoty. To znamená, že i když jsou například 3 ceny k prodeji, ale všechny mají stejnou hodnotu, toto pole
 vrátí `false` (na rozdíl od `allPricesForSale`, které by vrátilo všechny ceny). To je užitečné zejména pro
 UI, aby bylo možné určit, zda zobrazit cenové rozpětí nebo jen jednu cenu, aniž by bylo nutné načítat všechny ceny k prodeji.
@@ -1295,7 +1295,7 @@ referenceContent(
         <p>
         nepovinný argument, pokud je nastaven na `EXISTING`, vrací pouze existující reference na spravované entity;
         výchozí chování je nastaveno na `ANY`, což vrací všechny reference nastavené na entitě, bez ohledu na to,
-        zda ukazují na existující nebo neexistující entity (podrobnosti viz kapitola [chování spravovaných referencí](../requirements/reference.md#managed-references-behaviour))
+        zda ukazují na existující nebo neexistující entity (podrobnosti viz kapitola [chování spravovaných referencí](reference.md#managed-references-behaviour))
         </p>
     </dd>
     <dt>argument:string*</dt>

@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
 ---
 Bez podpory segmentace by klient musel spouštět více dotazů a výsledky slučovat na straně klienta, přičemž každý další dotaz by vylučoval výsledky předchozího. To je nejen neefektivní, ale také náchylné k chybám. Díky segmentaci mohou vývojáři jednoduše definovat pravidla pro řazení různých segmentů, omezit velikost každého segmentu a nechat těžkou práci na serveru.
 

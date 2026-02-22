@@ -15,9 +15,9 @@ This chapter describes the Java driver for evitaDB and doesn't make sense for ot
 in the details of the Java driver implementation, please change your preferred language in the upper right corner.
 </LS>
 <LS to="j">
-Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb?lang=java).
-Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset?lang=java).
-The same applies to [query API](../../use/api/query-data?lang=java) and [write API](../../use/api/write-data?lang=java).
+Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb.md?lang=java).
+Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset.md?lang=java).
+The same applies to [query API](../../use/api/query-data.md?lang=java) and [write API](../../use/api/write-data.md?lang=java).
 So none of these topics will be covered here.
 
 ## Java remote client

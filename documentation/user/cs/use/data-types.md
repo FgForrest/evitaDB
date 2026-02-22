@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
 ---
 Tento dokument uvádí všechny datové typy podporované evitaDB, které lze použít v [atributech](data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) nebo [asociovaných datech](data-model.md#přidružená-data) pro ukládání informací relevantních pro klienta.
 

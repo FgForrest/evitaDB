@@ -5,7 +5,7 @@ date: '4.2.2024'
 author: Ing. Jan Novotný
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
 ---
 Očekáváme, že entity, které jsou dosažitelné přes URL, budou mít atribut typu [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), který obsahuje buď úplnou absolutní URL, nebo relativní. Rozhodnutí, zda použít absolutní nebo relativní URL, má své důsledky a mělo by být dobře promyšleno. Ukládání absolutních URL do databáze obvykle není dobrý nápad, protože to ztěžuje použití stejného záznamu v různých prostředích (produkce/testování/vývoj), která mají různá doménová jména. Obecně doporučujeme ukládat do databáze relativní URL bez protokolu a domény a úplné absolutní URL sestavovat až v aplikaci.
 

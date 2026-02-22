@@ -5,7 +5,7 @@ date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
 ---
 Docker image je založen na RedHat JDK / Linux (viz <SourceClass>docker/Dockerfile</SourceClass>) základním
 image (rodina Fedora) a je publikován na [Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general).
@@ -94,7 +94,7 @@ API `system` listening on               http://your-server:5555/system/
             instruuje Docker, aby použil přímo síťový stack hostitelského systému, tímto způsobem se evitaDB chová,
             jako by běžela přímo na síti hostitele. Pokud je port nastavený v konfiguraci evitaDB již na systému obsazen,
             Evita se nedokáže nastavit příslušné webové API (viz další kapitola pro přemapování portů nebo
-            [konfigurace evitaDB](../operate/configure.md) pro specifikaci otevřených portů).
+            [konfigurace evitaDB](configure.md) pro specifikaci otevřených portů).
             </Td>
         </Tr>
     </Tbody>
@@ -185,7 +185,7 @@ Každá složka bude obsahovat jeden nebo více souborů představujících obsa
 </NoteTitle>
 
 Více informací o struktuře složek a obsahu souborů je popsáno v kapitole
-[zálohování a obnova](../operate/backup-restore.md).
+[zálohování a obnova](backup-restore.md).
 
 </Note>
 
@@ -306,7 +306,7 @@ uvidíte zde také konfiguraci portů.
 
 ### Kontrola stavů API
 
-Pro kontrolu stavu všech povolených API použijte příkaz `curl` a naši [readiness probe](./observe.md#readiness-probe).
+Pro kontrolu stavu všech povolených API použijte příkaz `curl` a naši [readiness probe](observe.md#readiness-probe).
 Tato sonda ověřuje, že API jsou připravena obsluhovat požadavky prostřednictvím interních HTTP volání a vrací jejich stav v jedné odpovědi.
 
 Stavy GraphQL a REST API můžete také zkontrolovat ručně pomocí příkazu `curl`.

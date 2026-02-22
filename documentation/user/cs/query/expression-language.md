@@ -1,6 +1,6 @@
 ---
 commit: c382cf89a086e9b35e810e2c3651673c0f862dc3
-translated: true
+translated: 'true'
 ---
 # Výrazový jazyk (EvitaEL)
 
@@ -40,7 +40,7 @@ Identifikátory proměnných musí začínat malým písmenem a mohou obsahovat 
 přímo ve výrazu.
 
 Samotný symbol `$` (bez identifikátoru) odkazuje na `this` v aktuálním kontextu. Obvykle se používá pro odkaz
-na položku kolekce uvnitř [rozšiřovacího výrazu](#spread-operator).
+na položku kolekce uvnitř [rozšiřovacího výrazu](#rozšiřovací-operátor-expr).
 
 ## Aritmetické operátory
 

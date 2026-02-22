@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
 ---
 Ačkoli je mnohem lepší pracovat se schématem a daty, která odpovídají vašemu vlastnímu e-commerce případu použití, věříme, že mnoho z vás bude chtít otestovat Query API bez zbytečné práce. Proto jsme pro vás připravili ukázkové schéma virtuálního e-shopu s daty pro více než tisíc produktů, se kterými si můžete ihned pohrát.
 
@@ -219,7 +219,7 @@ Pokud potřebujete více tipů k dotazování na data, zkuste [kapitolu o Query 
 
 ## Připojení k GraphQL API
 
-Otevřete svého [GraphQL klienta](../use/connectors/graphql.md#doporučená-ide) dle výběru a zadejte
+Otevřete svého [GraphQL klienta](../use/connectors/graphql.md#doporučená-vývojová-prostředí-ide) dle výběru a zadejte
 URL API katalogových dat našeho demo katalogu `https://demo.evitadb.io:5555/gql/evita`.
 
 Poté můžete na tuto adresu posílat GraphQL požadavky a vyzkoušet libovolné GraphQL dotazy popsané v

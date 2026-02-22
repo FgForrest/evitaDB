@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: '6904cac47f914640a021d8e49bed3c2f040085c9'
-translated: true
+translated: 'true'
 ---
 **Práce ve vývoji**
 
@@ -505,7 +505,7 @@ v [Logback](https://logback.qos.ch/index.html) lze použít vzory `%X{traceId}` 
 
 Kromě výše zmíněných nástrojů pro observabilitu nabízí evitaDB také možnost zaznamenávat veškerý příchozí provoz
 do serveru. Tato funkce je užitečná pro ladění a vývoj, protože umožňuje přehrát zaznamenaný provoz a detailně analyzovat chování serveru.
-Funkce záznamu provozu je ve výchozím stavu vypnuta a musí být povolena v [konfiguraci serveru](../operate/configure.md#konfigurace-záznamu-provozu).
+Funkce záznamu provozu je ve výchozím stavu vypnuta a musí být povolena v [konfiguraci serveru](configure.md#konfigurace-záznamu-provozu).
 
 Tato nastavení jsou doporučena pro lokální vývoj:
 
