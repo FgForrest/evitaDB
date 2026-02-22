@@ -1,18 +1,18 @@
 ---
 title: Java
-perex: Java API je nativní rozhraní pro komunikaci s evitaDB. Umožňuje spouštět evitaDB jako embedded databázi nebo se připojit k vzdálenému databázovému serveru. Je navrženo tak, aby sdílelo společná rozhraní pro oba scénáře, což vám umožňuje přepínat mezi embedded a vzdálenou variantou bez nutnosti měnit váš kód. To je obzvláště užitečné během vývoje nebo jednotkového testování, kdy můžete použít embedded databázi a v produkci přejít na vzdálenou databázi.
+perex: Java API je nativní rozhraní pro komunikaci s evitaDB. Umožňuje spouštět evitaDB jako embedded databázi nebo se připojit k vzdálenému databázovému serveru. Je navrženo tak, aby sdílelo společná rozhraní pro oba scénáře, což vám umožňuje přepínat mezi embedded a vzdáleným režimem bez nutnosti měnit váš kód. To je obzvláště užitečné během vývoje nebo jednotkového testování, kdy můžete používat embedded databázi a v produkci přejít na vzdálenou databázi.
 date: '26.10.2023'
 author: Ing. Jan Novotný
 preferredLang: java
-commit: '34e6bf899876c734713d62724bb156acace02d98'
+commit: cbb24856cca1d8c0ee870ee47ea05cc39d4e5798
 ---
 <LS to="e,c,g,r">
 Tato kapitola popisuje Java driver pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají detaily implementace Java driveru, změňte prosím preferovaný jazyk v pravém horním rohu.
 </LS>
 <LS to="j">
-Spuštění evitaDB v embedded režimu je detailně popsáno v kapitole [Spuštění evitaDB](../../../en/get-started/run-evitadb.md?lang=java).
-Připojení k vzdálené instanci databáze je popsáno v kapitole [Připojení k vzdálené databázi](../../../en/get-started/query-our-dataset.md?lang=java).
-Totéž platí pro [query API](../../../en/use/api/query-data.md?lang=java) a [write API](../../../en/use/api/write-data.md?lang=java).
+Spuštění evitaDB v embedded režimu je detailně popsáno v kapitole [Spuštění evitaDB](../../get-started/run-evitadb.md?lang=java).
+Připojení k vzdálené instanci databáze je popsáno v kapitole [Připojení k vzdálené databázi](../../get-started/query-our-dataset.md?lang=java).
+Totéž platí pro [query API](../api/query-data.md?lang=java) a [write API](../api/write-data.md?lang=java).
 Žádné z těchto témat zde tedy nebudou pokryta.
 
 ## Java remote klient
@@ -36,12 +36,12 @@ implementation 'io.evitadb:evita_java_driver:2025.8.0'
 </CodeTabsBlock>
 </CodeTabs>
 
-Java remote klient je postaven na [gRPC API](./grpc.md). <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
+Java remote klient je postaven na [gRPC API](grpc.md). <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 je thread-safe a očekává se, že v aplikaci bude použita pouze jediná instance. Klient interně spravuje
 pool gRPC spojení pro zpracování paralelní komunikace se serverem.
 
 <Note type="info">
-Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je server dosažitelný, je třeba na něm zavolat nějakou metodu. Obvyklým scénářem je [otevření nové session](../../../en/get-started/create-first-database.md?lang=java#open-session-to-catalog-and-insert-your-first-entity) do existujícího <Term location="/documentation/user/en/index.md">katalogu</Term>.
+Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je server dosažitelný, je třeba na něm zavolat nějakou metodu. Obvyklým scénářem je [otevření nové session](../../get-started/create-first-database.md?lang=java#otevřete-relaci-ke-katalogu-a-vložte-svou-první-entitu) do existujícího <Term location="/documentation/user/en/index.md">katalogu</Term>.
 </Note>
 
 <Note type="warning">
@@ -101,7 +101,7 @@ Nastavení spojení se konfiguruje přes
         <p>**Výchozí: `gRPC client at hostname`**</p>
         <p>
           Tato vlastnost umožňuje rozlišit požadavky tohoto konkrétního klienta od požadavků ostatních klientů.
-          Tato informace může být využita v logování nebo při [troubleshootingu](../../use/api/troubleshoot.md).
+          Tato informace může být využita v logování nebo při [troubleshootingu](../api/troubleshoot.md).
         </p>
     </dd>
     <dt>host</dt>
@@ -315,7 +315,7 @@ je nutné použít parametr `--add-modules`
 
 ### Definice schématu
 
-Definice schématu se provádí anotováním doménového objektu anotacemi z balíčku <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation</SourceClass> a je detailně popsána v [kapitole o schema API](../../use/api/schema-api.md#deklarativní-definice-schématu).
+Definice schématu se provádí anotováním doménového objektu anotacemi z balíčku <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation</SourceClass> a je detailně popsána v [kapitole o schema API](../api/schema-api.md#deklarativní-definice-schématu).
 
 ### Načítání entit
 
@@ -330,12 +330,12 @@ Entita ve formě vlastního kontraktu může být načtena z databáze pomocí d
 
 <Note type="info">
 
-Příklad pracuje se stejnou definicí produktu jako [příklad v kapitole o schema API](../../use/api/schema-api.md#deklarativní-definice-schématu)
+Příklad pracuje se stejnou definicí produktu jako [příklad v kapitole o schema API](../api/schema-api.md#deklarativní-definice-schématu)
 <SourceClass>/documentation/user/en/use/api/example/declarative-model-example.java</SourceClass>.
 
 </Note>
 
-Načítání entit pouze pro čtení je detailně popsáno v [kapitole o read API](../../use/api/query-data.md#vlastní-kontrakty).
+Načítání entit pouze pro čtení je detailně popsáno v [kapitole o read API](../api/query-data.md#vlastní-kontrakty).
 
 ### Zápis entit
 
@@ -348,7 +348,7 @@ Entita ve formě vlastního kontraktu může být zapsána do databáze pomocí 
 
 </SourceCodeTabs>
 
-Zápis dat pomocí vlastních kontraktů je detailně popsán v [kapitole o write API](../../use/api/write-data.md#vlastní-kontrakty).
+Zápis dat pomocí vlastních kontraktů je detailně popsán v [kapitole o write API](../api/write-data.md#vlastní-kontrakty).
 
 ### Doporučení pro modelování dat
 
@@ -370,7 +370,7 @@ Definujete rozhraní nebo třídu s finálními poli, která jsou inicializován
 
 </SourceCodeTabs>
 
-Jak vidíte, rozhraní vypadá přesně jako [příklad v kapitole o Schema API](../../use/api/schema-api.md#deklarativní-definice-schématu)
+Jak vidíte, rozhraní vypadá přesně jako [příklad v kapitole o Schema API](../api/schema-api.md#deklarativní-definice-schématu)
 s jediným rozdílem, že tato verze rozšiřuje rozhraní <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedInstance.java</SourceClass>.
 Deklarace signalizuje, že `<READ_INTERFACE>` je rozhraní `Product` a `<WRITE_INTERFACE>` je rozhraní `ProductEditor`.
 
