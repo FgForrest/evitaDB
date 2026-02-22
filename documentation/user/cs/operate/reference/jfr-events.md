@@ -1,5 +1,6 @@
 ---
 commit: '0197da1799074ccf582750c7096c21cec0705568'
+translated: true
 ---
 ### Události Java Flight Recorder (JFR)
 

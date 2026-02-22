@@ -4,6 +4,7 @@ perex: Transakce jsou základní součástí databázového systému. Zajišťuj
 date: '16.5.2025'
 author: Jan Novotný
 commit: c16b18f3b2b3adb0dbb4706690390fde6e39a39a
+translated: true
 ---
 Čtenáři, kteří jsou obeznámeni s úrovněmi izolace databází, si možná vzpomenou, že evitaDB podporuje pouze [snapshot isolation](https://en.wikipedia.org/wiki/Snapshot_isolation), takže mohou přeskočit tuto úvodní kapitolu, která popisuje kontext vztahující se k této úrovni izolace.
 

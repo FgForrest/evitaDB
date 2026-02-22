@@ -5,6 +5,7 @@ date: '26.10.2023'
 author: Ing. Jan Novotný
 preferredLang: java
 commit: d5041ba065f96f215dbdd0cf6ffb0cf5c9f3a88b
+translated: true
 ---
 <Tento kapitola popisuje Java driver pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají detaily implementace Java driveru, změňte prosím preferovaný jazyk v pravém horním rohu.>
 

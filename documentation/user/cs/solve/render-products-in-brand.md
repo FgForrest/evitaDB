@@ -3,6 +3,7 @@ title: Vykreslit odkazovanou značku
 date: '17.1.2023'
 author: Ing. Jan Novotný
 commit: '8e239567a3b73b840d3738ce797b5fa26dcd4585'
+translated: true
 ---
 **Práce na článku probíhají**
 

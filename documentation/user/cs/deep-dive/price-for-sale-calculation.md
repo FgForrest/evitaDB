@@ -5,6 +5,7 @@ perex: Tato kapitola podrobně popisuje algoritmus výpočtu prodejní ceny, př
 author: Ing. Jan Novotný
 proofreading: needed
 commit: '3ba6b0125c098b31c0b47f60be780ef4f90fd5f1'
+translated: true
 ---
 <UsedTerms>
     <h4>Použité pojmy v tomto dokumentu</h4>

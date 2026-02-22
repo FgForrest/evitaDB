@@ -1,5 +1,6 @@
 ---
 commit: c382cf89a086e9b35e810e2c3651673c0f862dc3
+translated: true
 ---
 # Výrazový jazyk (EvitaEL)
 

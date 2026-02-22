@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: java
 commit: faa71a48109132baded6fea7c9852354a01ab9e0
+translated: true
 ---
 <LS to="j">
 Engine API je přístupné z hlavního rozhraní <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass>. Řídicí metody obvykle existují ve dvou variantách – jedna je asynchronní, vrací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/progress/Progress.java</SourceClass>, a druhá je synchronní blokující varianta. Asynchronní metody mají ve svém názvu příponu `WithProgress`.

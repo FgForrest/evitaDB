@@ -5,6 +5,7 @@ date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: true
 ---
 Docker image je založen na RedHat JDK / Linux (viz <SourceClass>docker/Dockerfile</SourceClass>) základním
 image (rodina Fedora) a je publikován na [Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general).

@@ -5,6 +5,7 @@ date: '26.7.2023'
 author: Ing. Tomáš Pozler
 preferredLang: java
 commit: '339a72a997423f553b529a6219130bed4f47582e'
+translated: true
 ---
 <LS to="e,g,r">
 Tato kapitola popisuje gRPC protokol pro evitaDB a týká se pouze ovladačů pro Javu nebo C#. Pokud vás zajímají

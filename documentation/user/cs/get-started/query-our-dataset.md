@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: true
 ---
 Ačkoli je mnohem lepší pracovat se schématem a daty, která odpovídají vašemu vlastnímu e-commerce případu použití, věříme, že mnoho z vás bude chtít otestovat Query API bez zbytečné práce. Proto jsme pro vás připravili ukázkové schéma virtuálního e-shopu s daty pro více než tisíc produktů, se kterými si můžete ihned pohrát.
 

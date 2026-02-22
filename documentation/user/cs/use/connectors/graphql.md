@@ -5,6 +5,7 @@ date: '21.3.2023'
 author: Lukáš Hornych
 preferredLang: graphql
 commit: d8486a0e6853c4657c60a4fa9cb28f5179b91fb5
+translated: true
 ---
 <LS to="e,j,c,r">
 Tato kapitola popisuje GraphQL protokol pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají

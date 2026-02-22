@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: '6bff47e566d31ba841d90f906ee68c2ca121b03f'
+translated: true
 ---
 <LS to="j">
 

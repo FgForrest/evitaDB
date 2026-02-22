@@ -5,6 +5,7 @@ date: '14.7.2024'
 author: Ing. Jan Novotný
 proofreading: done
 commit: '550d04a927cac92ff1a2e14d5aaa23b87f101618'
+translated: true
 ---
 Server evitaDB je konfigurován ve formátu YAML a jeho výchozí nastavení je nejlépe popsáno následujícím ukázkovým kódem:
 

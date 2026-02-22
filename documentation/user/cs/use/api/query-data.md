@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: true
 ---
 [Dotaz v evitaDB](../../query/basics.md) je reprezentován jako strom vnořených "omezení" rozdělených do čtyř <LS to="g">_logických_</LS> částí:
 

@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: ad421e827459646612395d321e5ebb1ad5b6bbe2
+translated: true
 ---
 <UsedTerms>
     <h4>Použité pojmy v tomto dokumentu</h4>

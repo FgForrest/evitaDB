@@ -1,5 +1,6 @@
 ---
 commit: '6f067f6807adc51959f1921abade4fe252f5721e'
+translated: true
 ---
 ### Metriky
 

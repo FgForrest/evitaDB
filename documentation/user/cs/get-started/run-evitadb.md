@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: '726d58606ce657f9de645077ee4cd695b39f73e0'
+translated: true
 ---
 evitaDB je [Java aplikace](https://openjdk.org/), kterou můžete spustit jako
 [vestavěnou databázi](../use/connectors/java.md) v jakékoli Java aplikaci nebo jako

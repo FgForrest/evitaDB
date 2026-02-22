@@ -5,6 +5,7 @@ date: '10.11.2023'
 author: Ing. Tomáš Pozler
 preferredLang: cs
 commit: '326bb602a2e94395b5ee6e1cb294421d3b671143'
+translated: true
 ---
 <LS to="e,j,g,r">
 Tato kapitola popisuje C# driver pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají detaily implementace v C#, změňte si prosím preferovaný jazyk v pravém horním rohu.
