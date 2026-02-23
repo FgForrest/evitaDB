@@ -141,12 +141,14 @@ public class RequestEvent extends AbstractExternalApiEvent {
 	 * Enum representing the result of a request.
 	 *
 	 * - {@code SUCCESS}: Indicates that the request returned success response.
-	 * - {@code ERROR}: Indicates that the request returned error response - either server error or client error.
+	 * - {@code CLIENT_ERROR}: Indicates that the request returned error response - client error.
+	 * - {@code ERROR}: Indicates that the request returned error response - server error.
 	 * - {@code TIMED_OUT}: Indicates that the request has timed out on the server side.
 	 * - {@code CANCELLED}: Indicates that the request has been cancelled by the client.
 	 */
 	public enum Result {
 		SUCCESS,
+		CLIENT_ERROR,
 		ERROR,
 		TIMED_OUT,
 		CANCELLED

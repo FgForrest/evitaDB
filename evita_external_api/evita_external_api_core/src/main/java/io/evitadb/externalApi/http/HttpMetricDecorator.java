@@ -79,8 +79,10 @@ public class HttpMetricDecorator extends SimpleDecoratingHttpService implements 
 				} else {
 					if (httpStatus.code() == HttpStatus.REQUEST_TIMEOUT.code()) {
 						result = Result.TIMED_OUT;
-					} else if (httpStatus.isSuccess()) {
+					} else if (httpStatus.isSuccess() || httpStatus.isRedirection() || httpStatus.isInformational()) {
 						result = Result.SUCCESS;
+					} else if (httpStatus.isClientError()) {
+						result = Result.CLIENT_ERROR;
 					} else {
 						result = Result.ERROR;
 					}
