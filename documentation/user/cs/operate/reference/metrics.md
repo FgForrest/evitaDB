@@ -1,5 +1,5 @@
 ---
-commit: '6f067f6807adc51959f1921abade4fe252f5721e'
+commit: '2f4204ff384d4aa606a3c12aab4d54c4425244ad'
 ---
 ### Metriky
 
@@ -7,9 +7,9 @@ commit: '6f067f6807adc51959f1921abade4fe252f5721e'
   <h4>Popisky používané v metrikách</h4>
   <dl>
     <dt>api</dt>
-    <dd><strong>Typ API</strong>: Identifikace API, které je testováno.</dd>
+    <dd><strong>Typ API</strong>: Identifikace volaného API.</dd>
     <dt>area</dt>
-    <dd><strong>Oblast</strong>: Oblast, pro kterou jsou publikovány události.</dd>
+    <dd><strong>Oblast</strong>: Oblast, pro kterou jsou události publikovány.</dd>
     <dt>buildType</dt>
     <dd><strong>Typ sestavení</strong>: Typ sestavení instance: NEW nebo REFRESH</dd>
     <dt>catalogName</dt>
@@ -17,13 +17,13 @@ commit: '6f067f6807adc51959f1921abade4fe252f5721e'
     <dt>entityType</dt>
     <dd><strong>Typ entity</strong>: Název souvisejícího typu entity (kolekce).</dd>
     <dt>fileType</dt>
-    <dd><strong>Typ souboru</strong>: Typ souboru, který byl zapsán. Jedna z možností: CATALOG, ENTITY_COLLECTION, WAL nebo BOOTSTRAP</dd>
+    <dd><strong>Typ souboru</strong>: Typ souboru, který byl vyprázdněn. Jedno z: CATALOG, ENTITY_COLLECTION, WAL nebo BOOTSTRAP</dd>
     <dt>graphQLInstanceType</dt>
-    <dd><strong>Typ instance GraphQL</strong>: Doména GraphQL API použitého v souvislosti s touto událostí/metrikou: SYSTEM, SCHEMA nebo DATA</dd>
+    <dd><strong>Typ GraphQL instance</strong>: Doména GraphQL API použitá v souvislosti s touto událostí/metrikou: SYSTEM, SCHEMA nebo DATA</dd>
     <dt>graphQLOperationType</dt>
-    <dd><strong>Typ operace GraphQL</strong>: Typ operace specifikované v GQL požadavku: QUERY, MUTATION nebo SUBSCRIPTION.</dd>
+    <dd><strong>Typ GraphQL operace</strong>: Typ operace specifikované v GQL požadavku: QUERY, MUTATION nebo SUBSCRIPTION.</dd>
     <dt>grpcResponseStatus</dt>
-    <dd><strong>Stav odpovědi gRPC</strong>: Stav odpovědi gRPC (OK, ERROR, CANCELED).</dd>
+    <dd><strong>Stav gRPC odpovědi</strong>: Stav gRPC odpovědi (OK, ERROR, CANCELED).</dd>
     <dt>httpMethod</dt>
     <dd><strong>HTTP metoda</strong>: HTTP metoda požadavku.</dd>
     <dt>httpStatusCode</dt>
@@ -31,56 +31,71 @@ commit: '6f067f6807adc51959f1921abade4fe252f5721e'
     <dt>initiator</dt>
     <dd><strong>Iniciátor volání</strong>: Iniciátor gRPC volání (klient nebo server).</dd>
     <dt>instanceId</dt>
-    <dd><strong>ID instance serveru</strong>: Unikátní název serveru převzatý z konfiguračního souboru.</dd>
+    <dd><strong>ID serverové instance</strong>: Unikátní název serveru převzatý z konfiguračního souboru.</dd>
+    <dt>methodName</dt>
+    <dd><strong>Název metody</strong>: Endpoint nebo název metody z RequestLog.</dd>
     <dt>name</dt>
-    <dd><strong>Logický název souboru</strong>: Logický název souboru, který byl zapsán. Přesněji identifikuje soubor.</dd>
+    <dd><strong>Logický název souboru</strong>: Logický název souboru, který byl vyprázdněn. Přesněji identifikuje soubor.</dd>
     <dt>operationId</dt>
-    <dd><strong>ID operace</strong>: ID provedené operace.</dd>
+    <dd><strong>ID operace</strong>: ID operace, která byla provedena.</dd>
     <dt>operationName</dt>
-    <dd><strong>Operace GraphQL</strong>: Název operace specifikované v GQL požadavku.</dd>
+    <dd><strong>GraphQL operace</strong>: Název operace specifikované v GQL požadavku.</dd>
     <dt>prefetched</dt>
-    <dd><strong>Přednačtený vs. nepřednačtený dotaz</strong>: Zda dotaz využil přednačítací plán. Přednačítací plán optimisticky načte dotazované entity předem a provádí operace přímo na nich (bez přístupu k indexům).</dd>
+    <dd><strong>Přednačtený vs. nepřednačtený dotaz</strong>: Zda dotaz využil prefetch plán. Prefetch plán optimisticky načte dotazované entity předem a provede operaci přímo nad nimi (bez přístupu k indexům).</dd>
     <dt>probeResult</dt>
-    <dd><strong>Výsledek sondy</strong>: Výsledek readiness sondy (ok, timeout, error).</dd>
+    <dd><strong>Výsledek probe</strong>: Výsledek readiness probe (ok, timeout, error).</dd>
     <dt>procedureName</dt>
-    <dd><strong>Název procedury</strong>: Název volané gRPC procedury (název metody).</dd>
+    <dd><strong>Název procedury</strong>: Název gRPC procedury, která byla volána (název metody).</dd>
     <dt>prospective</dt>
     <dd><strong>Perspektiva (klient/server)</strong>: Určuje, zda událost reprezentuje pohled serveru nebo klienta na readiness.
-Klientský pohled je doba vnímaná z pohledu HTTP klienta ovlivněná timeouty, serverový pohled je skutečná doba trvání sondy.</dd>
+Klientský pohled je doba z pohledu HTTP klienta ovlivněná timeouty, serverový pohled je skutečná
+doba trvání probe.</dd>
     <dt>recordType</dt>
     <dd><strong>Typ záznamu</strong>: Typ záznamů, které se změnily v OffsetIndex.</dd>
     <dt>requestResult</dt>
-    <dd><strong>Výsledek požadavku</strong>: Zjednodušený výsledek požadavku (success, error, cancelled).</dd>
+    <dd><strong>Výsledek požadavku</strong>: Zjednodušený výsledek požadavku (SUCCESS, ERROR, TIMED_OUT, CANCELLED).</dd>
     <dt>resolution</dt>
-    <dd><strong>Výsledek transakce</strong>: Výsledek transakce (commit nebo rollback).</dd>
+    <dd><strong>Rozuzlení transakce</strong>: Výsledek transakce (commit nebo rollback).</dd>
     <dt>responseStatus</dt>
     <dd><strong>Stav odpovědi</strong>: Stav odpovědi: OK nebo ERROR.</dd>
     <dt>restInstanceType</dt>
-    <dd><strong>Typ instance REST</strong>: Doména REST API použitého v souvislosti s touto událostí/metrikou: SYSTEM nebo CATALOG</dd>
+    <dd><strong>Typ REST instance</strong>: Doména REST API použitá v souvislosti s touto událostí/metrikou: SYSTEM nebo CATALOG</dd>
     <dt>restOperationType</dt>
-    <dd><strong>Typ operace REST</strong>: Typ provedené operace. Jedna z možností: QUERY, MUTATION.</dd>
+    <dd><strong>Typ REST operace</strong>: Typ provedené operace. Jedno z: QUERY, MUTATION.</dd>
     <dt>serverVersion</dt>
     <dd><strong>Verze serveru</strong>: Přesná verze serveru evitaDB.</dd>
     <dt>serviceName</dt>
-    <dd><strong>Název služby</strong>: Název volané gRPC služby (název Java třídy).</dd>
+    <dd><strong>Název služby</strong>: Název gRPC služby, která byla volána (název Java třídy).</dd>
+    <dt>sessionProtocol</dt>
+    <dd><strong>Protokol relace</strong>: Protokol relace (H1C, H1, H2C, H2, atd.).</dd>
     <dt>stage</dt>
     <dd><strong>Fáze transakce</strong>: Název fáze, na kterou transakce čeká.</dd>
     <dt>taskName</dt>
     <dd><strong>Název úlohy</strong>: Název background úlohy.</dd>
   </dl>
 </UsedTerms>
-
 #### API
 
 <dl>
   <dt><code>io_evitadb_external_api_readiness_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Doba trvání readiness sondy<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
+  <dd>Doba trvání readiness probe<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
   <dt><code>io_evitadb_external_api_readiness_total</code> (COUNTER)</dt>
-  <dd>Celkový počet vyvolání readiness sondy<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
+  <dd>Celkový počet spuštění readiness probe<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd>Celková doba trvání požadavku<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_request_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Doba příjmu požadavku</strong>: Čas potřebný k přijetí celého těla požadavku v milisekundách.<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_request_length_bytes</code> (HISTOGRAM)</dt>
+  <dd><strong>Délka požadavku</strong>: Délka obsahu požadavku v bajtech.<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_response_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Doba odeslání odpovědi</strong>: Čas potřebný k odeslání odpovědi v milisekundách.<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_response_length_bytes</code> (HISTOGRAM)</dt>
+  <dd><strong>Délka odpovědi</strong>: Délka obsahu odpovědi v bajtech.<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
   <dt><code>io_evitadb_external_api_request_total</code> (COUNTER)</dt>
-  <dd>Celkový počet požadavků<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>requestResult</Term><br/></dd>
+  <dd>Celkový počet požadavků<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_total_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Celková doba trvání</strong>: End-to-end doba trvání požadavku v milisekundách.<br/><br/><strong>Popisky:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
 </dl>
-
 #### API / GraphQL / Instance / Schéma
 
 <dl>

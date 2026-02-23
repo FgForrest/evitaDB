@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -196,7 +196,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid>
       getSessionIdList();
   /**
    * <pre>
@@ -221,7 +221,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
       getSessionIdOrBuilderList();
   /**
    * <pre>
@@ -294,7 +294,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>
       getLabelsList();
   /**
    * <pre>
@@ -319,7 +319,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
       getLabelsOrBuilderList();
   /**
    * <pre>

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import com.linecorp.armeria.common.HttpResponseWriter;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.ExecutionInput;
-import graphql.ExecutionResult;
 import graphql.GraphQL;
 import graphql.GraphQLException;
 import graphql.execution.InputMapDefinesTooManyFieldsException;
@@ -87,23 +86,12 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 @Slf4j
 public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionContext> {
 
-	/**
-	 * Set of GraphQL exceptions that are caused by invalid user input and thus shouldn't return server error.
-	 */
-	private static final Set<Class<? extends GraphQLException>> GRAPHQL_USER_ERRORS = Set.of(
-		CoercingSerializeException.class,
-		CoercingParseValueException.class,
-		NonNullableValueCoercedAsNullException.class,
-		InputMapDefinesTooManyFieldsException.class,
-		UnknownOperationException.class
-	);
-
 	@Nonnull
 	private final Evita evita;
 	@Nonnull
 	private final ObjectMapper objectMapper;
 	@Nonnull
-	private final ExternalApiTracingContext<Object> tracingContext;
+	private final ExternalApiTracingContext<HttpRequest> tracingContext;
 	@Nonnull
 	private final GraphQLInstanceType instanceType;
 	@Nonnull
@@ -118,7 +106,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 	) {
 		this.evita = evita;
 		this.objectMapper = objectMapper;
-		this.tracingContext = ExternalApiTracingContextProvider.getContext(headers);
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(HttpRequest.class, headers);
 		this.instanceType = instanceType;
 		this.graphQL = graphQL;
 	}
@@ -152,10 +140,11 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 
 	@Nonnull
 	@Override
-	protected GraphQLEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
+	protected GraphQLEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext) {
 		return new GraphQLEndpointExecutionContext(
 			httpRequest,
 			this.evita,
+			serviceRequestContext,
 			new ExecutedEvent(this.instanceType)
 		);
 	}
@@ -164,14 +153,18 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 	@Nonnull
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLEndpointExecutionContext executionContext) {
 		return parseRequestBody(executionContext, GraphQLRequest.class)
-			.thenApply(graphQLRequest -> {
+			.thenCompose(graphQLRequest -> {
 				executionContext.requestExecutedEvent().finishInputDeserialization();
-				final GraphQLResponse<?> graphQLResponse = this.tracingContext.executeWithinBlock(
-					"GraphQL",
-					executionContext.httpRequest(),
-					() -> executeRequest(executionContext, graphQLRequest)
+				// run setup (tracing context, GraphQL parsing) in the request thread pool,
+				// then chain the async GraphQL execution without blocking a thread on .join()
+				return executionContext.<EndpointResponse>executeAsyncSupplierInRequestThreadPool(() ->
+					this.tracingContext.executeWithinBlockAsync(
+						"GraphQL",
+						executionContext.httpRequest(),
+						() -> executeRequestAsync(executionContext, graphQLRequest)
+							.thenApply(response -> (EndpointResponse) new SuccessEndpointResponse(response))
+					)
 				);
-				return new SuccessEndpointResponse(graphQLResponse);
 			});
 	}
 
@@ -246,47 +239,71 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 		);
 	}
 
+	/**
+	 * Starts GraphQL execution asynchronously and returns a future that completes with the
+	 * response. Unlike the previous synchronous version, this does not block on `.join()`.
+	 */
 	@Nonnull
-	private GraphQLResponse<?> executeRequest(@Nonnull GraphQLEndpointExecutionContext executionContext,
-	                                          @Nonnull GraphQLRequest graphQLRequest) {
-		try {
-			final ExecutionInput executionInput = graphQLRequest.toExecutionInput(executionContext);
-			final ExecutionResult result = this.graphQL.get()
-				.executeAsync(executionInput)
-				.join();
+	private CompletableFuture<GraphQLResponse<?>> executeRequestAsync(
+		@Nonnull GraphQLEndpointExecutionContext executionContext,
+		@Nonnull GraphQLRequest graphQLRequest
+	) {
+		final ExecutionInput executionInput = graphQLRequest.toExecutionInput(executionContext);
+		return this.graphQL.get()
+			.executeAsync(executionInput)
+			.handle((result, error) -> {
+				// close potential tracing block (created by OperationTracingInstrumentation)
+				final TracingBlockReference blockReference =
+					executionInput.getGraphQLContext().get(GraphQLContextKey.OPERATION_TRACING_BLOCK);
+				if (blockReference != null) {
+					if (error != null) {
+						blockReference.setError(error);
+					}
+					blockReference.close();
+				}
 
-			// trying to close potential tracing block (created by OperationTracingInstrumentation) in the original thread
-			final TracingBlockReference blockReference = executionInput.getGraphQLContext().get(GraphQLContextKey.OPERATION_TRACING_BLOCK);
-			if (blockReference != null) {
-				blockReference.close();
-			}
+				if (error != null) {
+					throw mapToGraphQLException(error);
+				}
+				return GraphQLResponse.fromExecutionResult(result);
+			});
+	}
 
-			return GraphQLResponse.fromExecutionResult(result);
-		} catch (CompletionException e) {
-			final Throwable cause = e.getCause();
-			if (cause instanceof TimeoutException) {
-				throw new HttpExchangeException(HttpStatus.GATEWAY_TIMEOUT.code(), "Could not complete GraphQL request. Process timed out.");
-			} else if (GRAPHQL_USER_ERRORS.contains(cause.getClass())) {
-				throw new GraphQLInvalidUsageException("Invalid GraphQL API request: " + cause.getMessage());
-			} else if (cause instanceof GraphQLException graphQLException) {
-				throw new GraphQLInternalError(
-					"Internal GraphQL API error: " + graphQLException.getMessage(),
-					"Internal GraphQL API error.",
-					graphQLException
-				);
-			} else if (cause instanceof RuntimeException) {
-				// borrowed from graphql.GraphQL.execute(graphql.ExecutionInput)
-				throw (RuntimeException) cause;
-			} else {
-				throw e;
-			}
-		} catch (RuntimeException e) {
-			// if there is something weird going on, at least wrap it into our own exception
-			throw new GraphQLInternalError(
-				"Internal GraphQL API error: " + e.getMessage(),
-				"Internal GraphQL API error.",
-				e
+	/**
+	 * Maps a throwable from async GraphQL execution to an appropriate RuntimeException.
+	 */
+	@Nonnull
+	private RuntimeException mapToGraphQLException(@Nonnull Throwable cause) {
+		// unwrap CompletionException to get the real cause
+		if (cause instanceof CompletionException ce && ce.getCause() != null) {
+			cause = ce.getCause();
+		}
+		if (cause instanceof TimeoutException) {
+			return new HttpExchangeException(
+				HttpStatus.GATEWAY_TIMEOUT.code(),
+				"Could not complete GraphQL request. Process timed out."
 			);
+		} else if (
+			cause instanceof CoercingSerializeException
+				|| cause instanceof CoercingParseValueException
+				|| cause instanceof NonNullableValueCoercedAsNullException
+				|| cause instanceof InputMapDefinesTooManyFieldsException
+				|| cause instanceof UnknownOperationException
+		) {
+			return new GraphQLInvalidUsageException(
+				"Invalid GraphQL API request: "
+					+ cause.getMessage()
+			);
+		} else if (cause instanceof GraphQLException graphQLException) {
+			return new GraphQLInternalError(
+				"Internal GraphQL API error: " + graphQLException.getMessage(),
+				"Internal GraphQL API error.",
+				graphQLException
+			);
+		} else if (cause instanceof RuntimeException re) {
+			return re;
+		} else {
+			return new CompletionException(cause);
 		}
 	}
 

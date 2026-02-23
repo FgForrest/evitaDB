@@ -41,9 +41,9 @@ import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -97,7 +97,14 @@ public class ClientTaskTracker implements Closeable {
 
 	public ClientTaskTracker(@Nonnull EvitaManagementContract evitaManagement, int clientTaskLimit, int refreshIntervalMillis) {
 		this.evitaManagement = evitaManagement;
-		this.scheduler = Executors.newSingleThreadScheduledExecutor();
+		this.scheduler = new ScheduledThreadPoolExecutor(
+			1,
+			r -> {
+				final Thread thread = new Thread(r, "evita-client-task-tracker");
+				thread.setDaemon(true);
+				return thread;
+			}
+		);
 		this.tasks = new ArrayBlockingQueue<>(clientTaskLimit);
 		this.refreshIntervalMillis = refreshIntervalMillis;
 	}

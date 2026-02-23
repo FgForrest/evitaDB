@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.exception;
 
+import com.linecorp.armeria.common.stream.ClosedStreamException;
 import graphql.GraphQLContext;
 import graphql.execution.DataFetcherExceptionHandler;
 import graphql.execution.DataFetcherExceptionHandlerParameters;
@@ -32,18 +33,22 @@ import io.evitadb.exception.EvitaError;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
+import io.evitadb.utils.ExceptionUtils;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.Nonnull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 /**
  * Handles all exceptions occurred during query executions. Internal errors of GraphQL are logged and exceptions
- * from external libraries are treated like internal errors.
+ * from external libraries are treated like internal errors. Client-initiated cancellations (e.g., HTTP/2
+ * RST_STREAM CANCEL) are logged at DEBUG level and not treated as server errors.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -53,6 +58,29 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 	@Override
 	public CompletableFuture<DataFetcherExceptionHandlerResult> handleException(DataFetcherExceptionHandlerParameters handlerParameters) {
 		final Throwable exception = unwrap(handlerParameters.getException());
+
+		// client disconnected or cancelled the request — not a server error
+		if (isClientCancellation(exception)) {
+			log.debug("Client cancelled GraphQL request: {}", exception.getMessage());
+
+			final GraphQLContext graphQlContext = handlerParameters.getDataFetchingEnvironment().getGraphQlContext();
+
+			final ExecutedEvent requestExecutedEvent = graphQlContext.get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+			if (requestExecutedEvent != null) {
+				requestExecutedEvent.provideResponseStatus(ResponseStatus.CANCELLED);
+			}
+
+			final EvitaGraphQLError error = new EvitaGraphQLError(
+				"Client cancelled the request.",
+				handlerParameters.getSourceLocation(),
+				handlerParameters.getPath().toList(),
+				Map.of("errorCode", "CLIENT_CANCELLED")
+			);
+
+			return CompletableFuture.completedFuture(DataFetcherExceptionHandlerResult.newResult()
+				.error(error)
+				.build());
+		}
 
 		final EvitaError evitaError;
 		// wrap any exception occurred inside some external code which was not handled before
@@ -122,5 +150,17 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 			return exception.getCause();
 		}
 		return exception;
+	}
+
+	/**
+	 * Checks whether the given exception represents a client-initiated cancellation
+	 * (e.g., HTTP/2 RST_STREAM CANCEL or CompletableFuture cancellation).
+	 *
+	 * @param exception the exception to check
+	 * @return true if the exception indicates client cancellation
+	 */
+	private static boolean isClientCancellation(@Nonnull Throwable exception) {
+		return ExceptionUtils.causeChainContains(exception, ClosedStreamException.class)
+			|| ExceptionUtils.causeChainContains(exception, CancellationException.class);
 	}
 }

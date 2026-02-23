@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.observability.agent;
 
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.observability.ObservabilityManager;
 import lombok.Setter;
 
@@ -38,6 +40,7 @@ import java.util.function.Consumer;
 public class ErrorMonitor {
 	@Setter private static Consumer<String> javaErrorConsumer;
 	@Setter private static Consumer<String> evitaErrorConsumer;
+	@Setter private static Consumer<String> clientErrorConsumer;
 
 	/**
 	 * Method is called by the ErrorMonitoringAgent advice when a Java error is detected.
@@ -50,12 +53,22 @@ public class ErrorMonitor {
 	}
 
 	/**
-	 * Method is called by the ErrorMonitoringAgent advice when an Evita error is detected.
+	 * Method is called by the ErrorMonitoringAgent advice when an Evita {@link EvitaInternalError} is detected.
 	 * @param errorType the type of the error
 	 */
 	public static void registerEvitaError(@Nonnull String errorType) {
 		if (evitaErrorConsumer != null) {
 			evitaErrorConsumer.accept(errorType);
+		}
+	}
+
+	/**
+	 * Method is called by the ErrorMonitoringAgent advice when an {@link EvitaInvalidUsageException} is detected.
+	 * @param errorType the type of the error
+	 */
+	public static void registerClientError(@Nonnull String errorType) {
+		if (clientErrorConsumer != null) {
+			clientErrorConsumer.accept(errorType);
 		}
 	}
 

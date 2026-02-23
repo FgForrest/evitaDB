@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponseWriter;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.core.Evita;
@@ -74,8 +75,8 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointE
 
     @Nonnull
     @Override
-    protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
-        return new GraphQLSchemaEndpointExecutionContext(httpRequest, this.evita);
+    protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext) {
+        return new GraphQLSchemaEndpointExecutionContext(httpRequest, this.evita, serviceRequestContext);
     }
 
     @Override

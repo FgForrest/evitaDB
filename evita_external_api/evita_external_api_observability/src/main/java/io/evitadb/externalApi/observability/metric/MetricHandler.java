@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -97,6 +97,11 @@ public class MetricHandler {
 		.name("io_evitadb_errors_total")
 		.labelNames("error_type")
 		.help("Total number of internal evitaDB errors")
+		.register();
+	public static final Counter CLIENT_ERRORS_TOTAL = Counter.builder()
+		.name("io_evitadb_client_errors_total")
+		.labelNames("error_type")
+		.help("Total number of client errors (EvitaInvalidUsageException)")
 		.register();
 	public static final Gauge HEALTH_PROBLEMS = Gauge.builder()
 		.name("io_evitadb_probe_health_problem")

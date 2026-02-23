@@ -15,9 +15,9 @@ This chapter describes the Java driver for evitaDB and doesn't make sense for ot
 in the details of the Java driver implementation, please change your preferred language in the upper right corner.
 </LS>
 <LS to="j">
-Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb?lang=java).
-Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset?lang=java).
-The same applies to [query API](../../use/api/query-data?lang=java) and [write API](../../use/api/write-data?lang=java).
+Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb.md?lang=java).
+Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset.md?lang=java).
+The same applies to [query API](../../use/api/query-data.md?lang=java) and [write API](../../use/api/write-data.md?lang=java).
 So none of these topics will be covered here.
 
 ## Java remote client
@@ -47,7 +47,7 @@ a pool of gRPC connections to handle parallel communication with the server.
 
 <Note type="info">
 The client instance is created regardless of whether the server is available. In order to verify that the server can be
-reached you need to call some method on it. The usual scenario would be [opening a new session](../../get-started/create-first-database?lang=java#open-session-to-catalog-and-insert-your-first-entity) to existing <Term location="/documentation/user/en/index.md">catalog</Term>.
+reached you need to call some method on it. The usual scenario would be [opening a new session](../../get-started/create-first-database.md?lang=java#open-session-to-catalog-and-insert-your-first-entity) to existing <Term location="/documentation/user/en/index.md">catalog</Term>.
 </Note>
 
 <Note type="warning">
@@ -57,11 +57,10 @@ keeps a pool of opened resources and should be terminated by a `close()` method 
 
 ### Configuration
 
-The minimal configuration of the client is done by providing the server address and port. The following example shows
-how to create a client instance that connects to the server running on `localhost` on port `5555`:
+The minimal configuration requires only the server host and port:
 
 ```java
-var evita = new EvitaClient(
+final EvitaClient evita = new EvitaClient(
 	EvitaClientConfiguration.builder()
 		.host("localhost")
 		.port(5555)
@@ -69,9 +68,39 @@ var evita = new EvitaClient(
 );
 ```
 
-But there are more options that can be configured. Following table describes all available options that can be set in
-<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>
-on the client side:
+A more advanced example with TLS and timeout configuration uses flat connection settings combined with grouped TLS and
+timeout options:
+
+```java
+final EvitaClient evita = new EvitaClient(
+	EvitaClientConfiguration.builder()
+		.host("server.example.com")
+		.port(5555)
+		.tls(
+			ClientTlsOptions.builder()
+				.useGeneratedCertificate(false)
+				.serverCertificatePath(Path.of("/certs/server.crt"))
+				.build()
+		)
+		.timeouts(
+			ClientTimeoutOptions.builder()
+				.timeout(10, TimeUnit.SECONDS)
+				.streamingTimeout(30, TimeUnit.MINUTES)
+				.build()
+		)
+		.retry(true)
+		.build()
+);
+```
+
+The full configuration is available in
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>.
+The following sections describe all available options organized by configuration group.
+
+#### Connection options
+
+Connection settings are configured via
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/ClientConnectionOptions.java</SourceClass>:
 
 <dl>
     <dt>clientId</dt>
@@ -101,6 +130,27 @@ on the client side:
         a trusted certificate and mTLS is disabled, or the server / client's private/public key pair is distributed
         "manually" with the client.</p>
     </dd>
+</dl>
+
+#### TLS options
+
+TLS and certificate settings are configured via
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/ClientTlsOptions.java</SourceClass>:
+
+<dl>
+    <dt>tlsEnabled</dt>
+    <dd>
+        <p>**Default: `true`**</p>
+        <p>When set to `true`, the client will use TLS encryption for communication with the server. When set to `false`,
+        the client will use HTTP/2 without TLS encryption. Corresponding setting must be set on the server side.</p>
+    </dd>
+    <dt>mtlsEnabled</dt>
+    <dd>
+        <p>**Default: `false`**</p>
+        <p>When set to `true`, the client and server will use mutual TLS authentication. The client must correctly
+        identify itself using a public/private key pair that is known and trusted by the server in order to establish
+        a connection. See [TLS Configuration and Principles](../../operate/tls.md).</p>
+    </dd>
     <dt>useGeneratedCertificate</dt>
     <dd>
         <p>**Default: `true`**</p>
@@ -115,19 +165,6 @@ on the client side:
         is automatically added to the local trust store. If set to `false` and an untrusted (self-signed) certificate is
         provided, it will not be trusted by the client and the connection to the server will fail. Using `true` for this
         setting in production is generally not recommended.</p>
-    </dd>
-    <dt>tlsEnabled</dt>
-    <dd>
-        <p>**Default: `true`**</p>
-        <p>When set to `true`, the client will use TLS encryption for communication with the server. When set to `false`,
-        the client will use HTTP/2 without TLS encryption. Corresponding setting must be set on the server side.</p>
-    </dd>
-    <dt>mtlsEnabled</dt>
-    <dd>
-        <p>**Default: `false`**</p>
-        <p>When set to `true`, the client and server will use mutual TLS authentication. The client must correctly
-        identify itself using a public/private key pair that is known and trusted by the server in order to establish
-        a connection. See [TLS Configuration and Principles](../../operate/tls.md).</p>
     </dd>
     <dt>serverCertificatePath</dt>
     <dd>
@@ -167,13 +204,20 @@ on the client side:
         <p>The password for a trust store used to store server certificates. It is used when `trustCertificate` is set
         to `true`.</p>
     </dd>
-    <dt>reflectionLookupBehaviour</dt>
-    <dd>
-        <p>**Default: `CACHE`**</p>
-        <p>The behaviour of <SourceClass>evita_common/src/main/java/io/evitadb/utils/ReflectionLookup.java</SourceClass>
-        class analyzing classes for reflective information. Controls whether the once analyzed reflection information
-        should be cached or freshly (and costly) retrieved each time asked.</p>
-    </dd>
+</dl>
+
+<Note type="warning">
+If `mTLS` is enabled on the server side and `useGeneratedCertificate` is set to `false`, you must provide your
+manually generated certificate in settings `certificateFileName` and `certificateKeyFileName`, otherwise the verification
+process will fail and the connection will not be established.
+</Note>
+
+#### Timeout options
+
+Timeout settings are configured via
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/ClientTimeoutOptions.java</SourceClass>:
+
+<dl>
     <dt>timeout</dt>
     <dd>
         <p>**Default: `5`**</p>
@@ -188,13 +232,42 @@ on the client side:
     <dt>streamingTimeout</dt>
     <dd>
         <p>**Default: `3600`**</p>
-        <p>Number of `streamingTimeoutUnit` client should wait for server to send next streamed message to the client
+        <p>Number of `streamingTimeoutUnit` time units the client should wait for server to send next streamed message
         before it cancels the stream.</p>
     </dd>
     <dt>streamingTimeoutUnit</dt>
     <dd>
         <p>**Default: `TimeUnit.SECONDS`**</p>
         <p>Time unit for `streamingTimeout` property.</p>
+    </dd>
+</dl>
+
+#### Other options
+
+The following options are configured directly on
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>:
+
+<dl>
+    <dt>threadPool</dt>
+    <dd>
+        <p>**Default: `ThreadPoolOptions.clientThreadPoolBuilder().build()`**</p>
+        <p>Defines limits for the client-side thread pool used for asynchronous operations such as session handling
+        and background tasks. The thread pool is configured using
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/configuration/ThreadPoolOptions.java</SourceClass>
+        with the following properties:</p>
+        <ul>
+            <li>`minThreadCount` (default: `0`) - minimum number of threads kept alive in the pool</li>
+            <li>`maxThreadCount` (default: `availableProcessors * 4`, at least `4`) - maximum number of threads</li>
+            <li>`threadPriority` (default: `5`) - thread priority (1-10)</li>
+            <li>`queueSize` (default: `100`) - maximum number of tasks waiting in the queue</li>
+        </ul>
+    </dd>
+    <dt>reflectionLookupBehaviour</dt>
+    <dd>
+        <p>**Default: `CACHE`**</p>
+        <p>The behaviour of <SourceClass>evita_common/src/main/java/io/evitadb/utils/ReflectionLookup.java</SourceClass>
+        class analyzing classes for reflective information. Controls whether the once analyzed reflection information
+        should be cached or freshly (and costly) retrieved each time asked.</p>
     </dd>
     <dt>openTelemetryInstance</dt>
     <dd>
@@ -219,12 +292,6 @@ on the client side:
         If this limit is reached, an error is reported to the subscriber.</p>
     </dd>
 </dl>
-
-<Note type="warning">
-If `mTLS` is enabled on the server side and `useGeneratedCertificate` is set to `false`, you must provide your
-manually generated certificate in settings `certificateFileName` and `certificateKeyFileName`, otherwise the verification
-process will fail and the connection will not be established.
-</Note>
 
 ### Schema caching
 

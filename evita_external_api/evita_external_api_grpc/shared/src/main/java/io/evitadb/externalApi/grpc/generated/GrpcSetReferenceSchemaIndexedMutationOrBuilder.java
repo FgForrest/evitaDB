@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -166,7 +166,7 @@ public interface GrpcSetReferenceSchemaIndexedMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType>
       getScopedIndexTypesList();
   /**
    * <pre>
@@ -197,7 +197,7 @@ public interface GrpcSetReferenceSchemaIndexedMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
       getScopedIndexTypesOrBuilderList();
   /**
    * <pre>

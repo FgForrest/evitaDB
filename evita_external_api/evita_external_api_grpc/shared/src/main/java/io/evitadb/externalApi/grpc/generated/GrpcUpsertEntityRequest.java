@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       require_ = s;
@@ -156,7 +156,7 @@ private static final long serialVersionUID = 0L;
       getRequireBytes() {
     java.lang.Object ref = require_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       require_ = b;
@@ -188,7 +188,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
       getPositionalQueryParamsOrBuilderList() {
     return positionalQueryParams_;
   }
@@ -233,7 +233,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpsertEntityRequest_NamedQueryParamsEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpsertEntityRequest_NamedQueryParamsEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -742,7 +742,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
             positionalQueryParamsBuilder_ = null;
             positionalQueryParams_ = other.positionalQueryParams_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            positionalQueryParamsBuilder_ = 
+            positionalQueryParamsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getPositionalQueryParamsFieldBuilder() : null;
           } else {
@@ -974,7 +974,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder>
         getEntityMutationFieldBuilder() {
       if (entityMutationBuilder_ == null) {
         entityMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1020,7 +1020,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
         getRequireBytes() {
       java.lang.Object ref = require_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         require_ = b;
@@ -1334,7 +1334,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
          getPositionalQueryParamsOrBuilderList() {
       if (positionalQueryParamsBuilder_ != null) {
         return positionalQueryParamsBuilder_.getMessageOrBuilderList();
@@ -1372,12 +1372,12 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder>
          getPositionalQueryParamsBuilderList() {
       return getPositionalQueryParamsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
         getPositionalQueryParamsFieldBuilder() {
       if (positionalQueryParamsBuilder_ == null) {
         positionalQueryParamsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
