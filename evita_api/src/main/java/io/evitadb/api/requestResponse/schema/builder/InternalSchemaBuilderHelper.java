@@ -43,7 +43,9 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
@@ -523,6 +525,48 @@ public interface InternalSchemaBuilderHelper {
 			addMutations(
 				catalogSchema, entitySchema, mutations,
 				new SetReferenceSchemaIndexedMutation(referenceName, scopedIndexTypes)
+			)
+		);
+	}
+
+	/**
+	 * Shared logic for indexing a reference with specific {@link ReferenceIndexedComponents} in a given scope.
+	 * Used by both {@link ReferenceSchemaBuilder} and {@link ReflectedReferenceSchemaBuilder}
+	 * to implement {@code indexedWithComponentsInScope}.
+	 *
+	 * @param catalogSchema              the catalog schema
+	 * @param entitySchema               the entity schema
+	 * @param mutations                  the mutation list to append to
+	 * @param currentDirty               the current mutation impact
+	 * @param referenceName              the name of the reference
+	 * @param referenceIndexTypeInScopes the current reference index types per scope
+	 * @param scope                      the scope to apply the indexed components in
+	 * @param components                 the indexed components to set
+	 * @return the updated mutation impact
+	 */
+	default MutationImpact indexedWithComponentsInScope(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull List<LocalEntitySchemaMutation> mutations,
+		@Nonnull MutationImpact currentDirty,
+		@Nonnull String referenceName,
+		@Nonnull Map<Scope, ReferenceIndexType> referenceIndexTypeInScopes,
+		@Nonnull Scope scope,
+		@Nonnull ReferenceIndexedComponents... components
+	) {
+		return updateMutationImpact(
+			currentDirty,
+			addMutations(
+				catalogSchema, entitySchema, mutations,
+				new SetReferenceSchemaIndexedMutation(
+					referenceName,
+					referenceIndexTypeInScopes.entrySet().stream()
+						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new),
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(scope, components)
+					}
+				)
 			)
 		);
 	}

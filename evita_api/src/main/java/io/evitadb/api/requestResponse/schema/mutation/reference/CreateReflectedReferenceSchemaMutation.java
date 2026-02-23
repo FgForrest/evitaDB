@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
@@ -74,7 +75,7 @@ import java.util.stream.Stream;
 public class CreateReflectedReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -3833868605223655352L;
+	@Serial private static final long serialVersionUID = 8762548294001376251L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -82,6 +83,7 @@ public class CreateReflectedReferenceSchemaMutation
 	@Getter @Nonnull private final String referencedEntityType;
 	@Getter @Nonnull private final String reflectedReferenceName;
 	@Getter @Nullable private final ScopedReferenceIndexType[] indexedInScopes;
+	@Getter @Nullable private final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
 	@Getter @Nullable private final Scope[] facetedInScopes;
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributeInheritanceBehavior;
 	@Getter @Nonnull private final String[] attributeInheritanceFilter;
@@ -128,6 +130,8 @@ public class CreateReflectedReferenceSchemaMutation
 			name, description, deprecationNotice, cardinality, referencedEntityType, reflectedReferenceName,
 			// by default reflected reference is indexed in the same scope as the entity
 			null,
+			// by default indexed components are inherited
+			null,
 			// by default reflected reference is not faceted unless explicitly set
 			faceted == null ? null : faceted ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
 			attributeInheritanceBehavior, attributeInheritanceFilter
@@ -147,6 +151,7 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nullable Scope[] facetedInScopes,
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
@@ -160,6 +165,7 @@ public class CreateReflectedReferenceSchemaMutation
 		this.referencedEntityType = referencedEntityType;
 		this.reflectedReferenceName = reflectedReferenceName;
 		this.indexedInScopes = indexedInScopes;
+		this.indexedComponentsInScopes = indexedComponentsInScopes;
 		this.facetedInScopes = facetedInScopes;
 		this.attributeInheritanceBehavior = attributeInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ?
@@ -222,6 +228,32 @@ public class CreateReflectedReferenceSchemaMutation
 								),
 								makeMutationIfDifferent(
 									createdVersion, existingVersion,
+									ref -> ref.isIndexedComponentsInherited()
+										? null
+										: ref.getIndexedComponentsInScopes(),
+									newValue -> new SetReferenceSchemaIndexedMutation(
+										this.name,
+										createdVersion.isIndexedInherited()
+											? null
+											: createdVersion.getReferenceIndexTypeInScopes()
+												.entrySet()
+												.stream()
+												.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+												.toArray(ScopedReferenceIndexType[]::new),
+										createdVersion.getIndexedComponentsInScopes()
+											.entrySet()
+											.stream()
+											.map(
+												it -> new ScopedReferenceIndexedComponents(
+													it.getKey(),
+													it.getValue().toArray(ReferenceIndexedComponents[]::new)
+												)
+											)
+											.toArray(ScopedReferenceIndexedComponents[]::new)
+									)
+								),
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
 									ref -> ref.isFacetedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isFacetedInScope).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaFacetedMutation(this.name, newValue)
 								)
@@ -259,6 +291,7 @@ public class CreateReflectedReferenceSchemaMutation
 			this.referencedEntityType, this.reflectedReferenceName,
 			this.cardinality,
 			this.indexedInScopes,
+			this.indexedComponentsInScopes,
 			this.facetedInScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
@@ -302,6 +335,12 @@ public class CreateReflectedReferenceSchemaMutation
 		} else {
 			indexedDescription = "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")";
 		}
+		final String componentsDescription;
+		if (this.indexedComponentsInScopes == null) {
+			componentsDescription = "";
+		} else {
+			componentsDescription = ", indexedComponents=" + Arrays.toString(this.indexedComponentsInScopes);
+		}
 		final String facetedDescription;
 		if (this.facetedInScopes == null) {
 			facetedDescription = "(inherited)";
@@ -318,6 +357,7 @@ public class CreateReflectedReferenceSchemaMutation
 			", entityType='" + this.referencedEntityType + '\'' +
 			", reflectedReferenceName='" + this.reflectedReferenceName + '\'' +
 			", indexed=" + indexedDescription +
+			componentsDescription +
 			", faceted=" + facetedDescription +
 			", attributesInherited=" + this.attributeInheritanceBehavior +
 			", attributesExcludedFromInheritance=" +

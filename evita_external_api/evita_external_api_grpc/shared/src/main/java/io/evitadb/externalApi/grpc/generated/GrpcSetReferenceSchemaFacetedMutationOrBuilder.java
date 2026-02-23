@@ -65,7 +65,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
    *
    * <code>bool faceted = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=264
+   *     See GrpcReferenceSchemaMutations.proto;l=272
    * @return The faceted.
    */
   @java.lang.Deprecated boolean getFaceted();

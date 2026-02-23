@@ -31,37 +31,24 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSche
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
- * Serializer for {@link SetReferenceSchemaIndexedMutation}.
+ * Backward-compatible read-only serializer for {@link SetReferenceSchemaIndexedMutation}
+ * that reads the format without the `indexedComponentsInScopes` field.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetReferenceSchemaIndexedMutationSerializer extends Serializer<SetReferenceSchemaIndexedMutation> implements MutationSerializationFunctions {
+@Deprecated(since = "2026.2", forRemoval = true)
+public class SetReferenceSchemaIndexedMutationSerializer_2026_2 extends Serializer<SetReferenceSchemaIndexedMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, SetReferenceSchemaIndexedMutation mutation) {
-		output.writeString(mutation.getName());
-
-		if (mutation.getIndexedInScopes() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopedReferenceIndexTypeArray(kryo, output, mutation.getIndexedInScopes());
-		}
-
-		if (mutation.getIndexedComponentsInScopes() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopedReferenceIndexedComponentsArray(kryo, output, mutation.getIndexedComponentsInScopes());
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used for writing.");
 	}
 
 	@Override
 	public SetReferenceSchemaIndexedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaIndexedMutation> type) {
 		return new SetReferenceSchemaIndexedMutation(
 			input.readString(),
-			input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null,
-			input.readBoolean() ? readScopedReferenceIndexedComponentsArray(kryo, input) : null
+			input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null
 		);
 	}
 }

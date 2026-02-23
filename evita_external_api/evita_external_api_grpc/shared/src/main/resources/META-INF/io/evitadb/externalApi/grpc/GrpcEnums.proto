@@ -800,6 +800,17 @@ enum GrpcReferenceIndexType {
 
 }
 
+// Enum represents the reference components that should be indexed for a reference.
+enum GrpcReferenceIndexedComponents {
+
+  // The referenced entity itself is indexed.
+  REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY = 0;
+
+  // The referenced group entity is indexed.
+  REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY = 1;
+
+}
+
 // Enum represents time flow direction for time-based filtering.
 enum GrpcTimeFlow {
 

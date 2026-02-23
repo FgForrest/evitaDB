@@ -26,15 +26,27 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
@@ -43,6 +55,8 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -56,6 +70,58 @@ public abstract class SchemaJsonSerializer {
 
 	@Nonnull
 	protected final ObjectJsonSerializer objectJsonSerializer;
+
+	/**
+	 * Creates and populates an {@link ObjectNode} with the common properties shared by all
+	 * {@link NamedSchemaWithDeprecationContract} implementations: name, name variants, description,
+	 * and deprecation notice. Callers can add type-specific fields to the returned node.
+	 *
+	 * @param schema the named schema with deprecation to serialize
+	 * @return a pre-populated {@link ObjectNode} with the common schema properties
+	 */
+	@Nonnull
+	protected ObjectNode serializeNamedSchemaBase(@Nonnull NamedSchemaWithDeprecationContract schema) {
+		final ObjectNode node = this.objectJsonSerializer.objectNode();
+		node.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(schema.getName()));
+		node.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(schema.getNameVariants()));
+		node.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), schema.getDescription() != null ? this.objectJsonSerializer.serializeObject(schema.getDescription()) : null);
+		node.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), schema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(schema.getDeprecationNotice()) : null);
+		return node;
+	}
+
+	/**
+	 * Serializes an {@link AttributeSchemaContract} into a JSON object node with all common attribute properties.
+	 * Handles subtype-specific fields via {@code instanceof} checks for {@link GlobalAttributeSchemaContract}
+	 * (global uniqueness type) and {@link EntityAttributeSchemaContract} (representative flag).
+	 *
+	 * @param attributeSchema the attribute schema to serialize
+	 * @return an {@link ObjectNode} containing all serialized attribute schema properties
+	 */
+	@Nonnull
+	protected ObjectNode serializeAttributeSchema(@Nonnull AttributeSchemaContract attributeSchema) {
+		final ObjectNode attributeSchemaNode = serializeNamedSchemaBase(attributeSchema);
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), serializeUniquenessType(attributeSchema::getUniquenessType));
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
+			attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
+		}
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterableInScope));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isNullable()));
+		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
+			attributeSchemaNode.put(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), entityAttributeSchema.isRepresentative());
+		}
+		attributeSchemaNode.put(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()));
+		attributeSchemaNode.set(
+			AttributeSchemaDescriptor.DEFAULT_VALUE.name(),
+			Optional.ofNullable(attributeSchema.getDefaultValue())
+				.map(this.objectJsonSerializer::serializeObject)
+				.orElse(null)
+		);
+		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
+
+		return attributeSchemaNode;
+	}
 
 	/**
 	 * Serializes a map of naming conventions and associated name variants into a JSON object node.
@@ -111,6 +177,30 @@ public abstract class SchemaJsonSerializer {
 			})
 			.forEach(referenceIndexesArray::add);
 		return referenceIndexesArray;
+	}
+
+	/**
+	 * Serializes the indexed components within the given {@link ReferenceSchemaContract} into a JSON array structure.
+	 * Each entry in the resulting array represents a scoped set of indexed components described by its scope
+	 * and an array of {@link ReferenceIndexedComponents} values.
+	 *
+	 * @param referenceSchema the reference schema containing the indexed components to be serialized
+	 * @return an {@link ArrayNode} representing the serialized indexed components
+	 */
+	@Nonnull
+	protected ArrayNode serializeReferenceIndexedComponents(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final ArrayNode indexedComponentsArray = this.objectJsonSerializer.arrayNode();
+		final Map<Scope, Set<ReferenceIndexedComponents>> components = referenceSchema.getIndexedComponentsInScopes();
+		for (Map.Entry<Scope, Set<ReferenceIndexedComponents>> entry : components.entrySet()) {
+			final ObjectNode componentNode = this.objectJsonSerializer.objectNode();
+			componentNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
+			componentNode.set(
+				ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+				this.objectJsonSerializer.serializeArray(entry.getValue().toArray(ReferenceIndexedComponents[]::new))
+			);
+			indexedComponentsArray.add(componentNode);
+		}
+		return indexedComponentsArray;
 	}
 
 	/**

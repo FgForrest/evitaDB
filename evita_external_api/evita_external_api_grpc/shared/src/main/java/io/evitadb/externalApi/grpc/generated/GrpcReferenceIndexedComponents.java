@@ -29,48 +29,48 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Enum represents time flow direction for time-based filtering.
+ * Enum represents the reference components that should be indexed for a reference.
  * </pre>
  *
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcTimeFlow}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcReferenceIndexedComponents}
  */
-public enum GrpcTimeFlow
+public enum GrpcReferenceIndexedComponents
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
-   * Time flows forward - from past to future.
+   * The referenced entity itself is indexed.
    * </pre>
    *
-   * <code>AFTER = 0;</code>
+   * <code>REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY = 0;</code>
    */
-  AFTER(0),
+  REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY(0),
   /**
    * <pre>
-   * Time flows backward - from future to past.
+   * The referenced group entity is indexed.
    * </pre>
    *
-   * <code>BEFORE = 1;</code>
+   * <code>REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY = 1;</code>
    */
-  BEFORE(1),
+  REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY(1),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
-   * Time flows forward - from past to future.
+   * The referenced entity itself is indexed.
    * </pre>
    *
-   * <code>AFTER = 0;</code>
+   * <code>REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY = 0;</code>
    */
-  public static final int AFTER_VALUE = 0;
+  public static final int REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY_VALUE = 0;
   /**
    * <pre>
-   * Time flows backward - from future to past.
+   * The referenced group entity is indexed.
    * </pre>
    *
-   * <code>BEFORE = 1;</code>
+   * <code>REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY = 1;</code>
    */
-  public static final int BEFORE_VALUE = 1;
+  public static final int REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY_VALUE = 1;
 
 
   public final int getNumber() {
@@ -87,7 +87,7 @@ public enum GrpcTimeFlow
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcTimeFlow valueOf(int value) {
+  public static GrpcReferenceIndexedComponents valueOf(int value) {
     return forNumber(value);
   }
 
@@ -95,23 +95,23 @@ public enum GrpcTimeFlow
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcTimeFlow forNumber(int value) {
+  public static GrpcReferenceIndexedComponents forNumber(int value) {
     switch (value) {
-      case 0: return AFTER;
-      case 1: return BEFORE;
+      case 0: return REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY;
+      case 1: return REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY;
       default: return null;
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcTimeFlow>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcReferenceIndexedComponents>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcTimeFlow> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcTimeFlow>() {
-          public GrpcTimeFlow findValueByNumber(int number) {
-            return GrpcTimeFlow.forNumber(number);
+      GrpcReferenceIndexedComponents> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcReferenceIndexedComponents>() {
+          public GrpcReferenceIndexedComponents findValueByNumber(int number) {
+            return GrpcReferenceIndexedComponents.forNumber(number);
           }
         };
 
@@ -129,12 +129,12 @@ public enum GrpcTimeFlow
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(38);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(37);
   }
 
-  private static final GrpcTimeFlow[] VALUES = values();
+  private static final GrpcReferenceIndexedComponents[] VALUES = values();
 
-  public static GrpcTimeFlow valueOf(
+  public static GrpcReferenceIndexedComponents valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -148,10 +148,10 @@ public enum GrpcTimeFlow
 
   private final int value;
 
-  private GrpcTimeFlow(int value) {
+  private GrpcReferenceIndexedComponents(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcTimeFlow)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcReferenceIndexedComponents)
 }
 

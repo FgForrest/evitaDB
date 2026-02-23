@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
@@ -73,9 +74,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 	public static CatalogSchemaContract getCatalogSchemaFromTestData(@Nonnull Evita evita) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
-			session -> {
-				return session.getCatalogSchema();
-			}
+			EvitaSessionContract::getCatalogSchema
 		);
 	}
 
@@ -335,6 +334,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
 			.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexTypeDto(referenceSchema))
+			.e(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), createReferenceIndexedComponentsDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
@@ -391,8 +391,31 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 		return Arrays.stream(Scope.values())
 			.filter(referenceSchema::isIndexedInScope)
 			.map(scope -> map()
-				.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), scope.name())
+				.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 				.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), referenceSchema.getReferenceIndexType(scope).name())
+				.build())
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the reference indexed components DTOs based on the
+	 * provided {@link ReferenceSchemaContract}. Each map entry contains a scope and an array
+	 * of indexed component names.
+	 *
+	 * @param referenceSchema the reference schema contract containing details about indexed components
+	 * @return a list of maps, where each map represents a scoped set of indexed components
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createReferenceIndexedComponentsDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return referenceSchema.getIndexedComponentsInScopes()
+			.entrySet()
+			.stream()
+			.map(entry -> map()
+				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+				.e(
+					ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+					entry.getValue().stream().map(ReferenceIndexedComponents::name).toList()
+				)
 				.build())
 			.toList();
 	}

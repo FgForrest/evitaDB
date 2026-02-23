@@ -39,6 +39,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.TypeDescriptor;
 import io.evitadb.externalApi.api.model.UnionDescriptor;
@@ -46,10 +47,12 @@ import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.*;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.MutationTypeDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -82,6 +85,12 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContext> {
 
 	protected static final RegistryKey<Class<? extends Mutation>> MUTATION_INTERFACE_TYPE_RESOLVER_REGISTRY_KEY = new RegistryKey<>();
+
+	private static final NameVariantDataFetcher CAMEL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.CAMEL_CASE);
+	private static final NameVariantDataFetcher PASCAL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.PASCAL_CASE);
+	private static final NameVariantDataFetcher SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.SNAKE_CASE);
+	private static final NameVariantDataFetcher UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE);
+	private static final NameVariantDataFetcher KEBAB_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.KEBAB_CASE);
 
 	@Nonnull protected final PropertyDataTypeDescriptorToGraphQLTypeTransformer propertyDataTypeBuilderTransformer;
 	@Nonnull protected final EndpointDescriptorToGraphQLFieldTransformer staticEndpointBuilderTransformer;
@@ -175,6 +184,46 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		registerScalarValue(scalarBuilder, ComplexDataObject.class);
 
 		return scalarBuilder.build();
+	}
+
+	/**
+	 * Builds GraphQL object type for name variants and registers
+	 * the corresponding data fetchers for each naming convention.
+	 */
+	@Nonnull
+	protected static GraphQLObjectType buildNameVariantsObject(
+		@Nonnull GraphQLSchemaBuildingContext buildingContext,
+		@Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer
+	) {
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.CAMEL_CASE,
+			CAMEL_CASE_VARIANT_DATA_FETCHER
+		);
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.PASCAL_CASE,
+			PASCAL_CASE_VARIANT_DATA_FETCHER
+		);
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.SNAKE_CASE,
+			SNAKE_CASE_VARIANT_DATA_FETCHER
+		);
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.UPPER_SNAKE_CASE,
+			UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER
+		);
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.KEBAB_CASE,
+			KEBAB_CASE_VARIANT_DATA_FETCHER
+		);
+
+		return NameVariantsDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.build();
 	}
 
 	private static void registerScalarValue(@Nonnull GraphQLEnumType.Builder scalarBuilder,

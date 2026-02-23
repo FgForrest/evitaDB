@@ -531,6 +531,97 @@ class ReflectedReferenceSchemaBuilderTest {
 	}
 
 	@Nested
+	@DisplayName("Indexed components")
+	class IndexedComponentsTests {
+
+		@Test
+		@DisplayName("should set indexed components on reflected reference")
+		void shouldSetIndexedComponents() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isIndexedComponentsInherited()),
+				() -> assertEquals(
+					2,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should inherit indexed components by default")
+		void shouldInheritIndexedComponentsByDefault() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> {}
+			);
+
+			assertTrue(ref.isIndexedComponentsInherited());
+		}
+
+		@Test
+		@DisplayName("should set inherited after explicit components")
+		void shouldSetInheritedAfterExplicitComponents() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.withIndexedComponentsInherited()
+			);
+
+			assertTrue(ref.isIndexedComponentsInherited());
+		}
+
+		@Test
+		@DisplayName("should override inherited with explicit components")
+		void shouldOverrideInheritedWithExplicit() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.withIndexedComponentsInherited()
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertFalse(ref.isIndexedComponentsInherited()),
+				() -> assertEquals(
+					1,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("Faceting operations")
 	class FacetingOperations {
 

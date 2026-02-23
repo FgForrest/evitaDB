@@ -130,7 +130,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @Slf4j
 public class EvitaParameterResolver
-	implements ParameterResolver, BeforeAllCallback, AfterAllCallback, AfterEachCallback, EvitaTestSupport {
+	implements ParameterResolver,
+	BeforeAllCallback, AfterAllCallback,
+	AfterEachCallback,
+	EvitaTestSupport
+{
 	/**
 	 * Root directory for temporary evitaDB storage used by tests.
 	 */
@@ -639,7 +643,7 @@ public class EvitaParameterResolver
 	}
 
 	@Override
-	public void beforeAll(ExtensionContext context) {
+	public void beforeAll(@Nonnull ExtensionContext context) {
 		// index data set bootstrap methods
 		final Map<String, DataSetInfo> dataSets = getDataSetIndex(context);
 		final Class<?> testClass = context.getRequiredTestClass();
@@ -647,13 +651,21 @@ public class EvitaParameterResolver
 	}
 
 	@Override
-	public void afterAll(ExtensionContext context) {
+	public void afterAll(@Nonnull ExtensionContext context) {
+		final PortManager portManager = getPortManager();
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		for (Entry<String, DataSetInfo> entry : dataSetIndex.entrySet()) {
 			final DataSetInfo dataSetInfo = entry.getValue();
-			dataSetInfo.destroyIfPredicateMatches(
-				entry.getKey(), dataSetInfo, getPortManager(), context
-			);
+			try {
+				dataSetInfo.destroyIfPredicateMatches(
+					entry.getKey(), dataSetInfo, portManager, context
+				);
+			} catch (Exception ex) {
+				log.error(
+					"Failed to destroy dataset `{}` after test class `{}`! Exception: {}",
+					entry.getKey(), context.getRequiredTestMethod().getName(), ex.getMessage(), ex
+				);
+			}
 		}
 	}
 
@@ -672,15 +684,23 @@ public class EvitaParameterResolver
 			}
 		});
 
+		final PortManager portManager = getPortManager();
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<String, DataSetInfo> entry = it.next();
 			final DataSetInfo dataSetInfo = entry.getValue();
-			if (dataSetInfo.destroyIfPredicateMatches(entry.getKey(), dataSetInfo, getPortManager(), context)) {
-				if (entry.getKey().startsWith(EVITA_ANONYMOUS_EVITA)) {
-					it.remove();
+			try {
+				if (dataSetInfo.destroyIfPredicateMatches(entry.getKey(), dataSetInfo, portManager, context)) {
+					if (entry.getKey().startsWith(EVITA_ANONYMOUS_EVITA)) {
+						it.remove();
+					}
 				}
+			} catch (Exception ex) {
+				log.error(
+					"Failed to destroy dataset `{}` after test `{}`! Exception: {}",
+					entry.getKey(), context.getRequiredTestMethod().getName(), ex.getMessage(), ex
+				);
 			}
 		}
 	}
@@ -1017,23 +1037,21 @@ public class EvitaParameterResolver
 						() -> {
 							final String randomFolderName = Long.toHexString(RANDOM.nextLong());
 							final Evita evita = createEvita(dataSetInfo.catalogName(), randomFolderName);
-							final EvitaServer evitaServer;
-							if (ArrayUtils.isEmpty(dataSetInfo.webApi())) {
-								evitaServer = null;
-							} else {
-								final ApiOptions apiOptions = createApiOptions(
-									dataSetToUse, evita, getPortManager(), dataSetInfo.webApi()
-								);
-								evitaServer = openWebApi(evita, apiOptions);
-							}
-							// call method that initializes the dataset
-							final Object testClassInstance = extensionContext.getRequiredTestInstance();
-							final Object methodResult;
-							final CatalogInitMethod catalogInitMethod = dataSetInfo.initMethod();
-							if (catalogInitMethod == null) {
-								methodResult = null;
-							} else {
-								try {
+							EvitaServer evitaServer = null;
+							try {
+								if (!ArrayUtils.isEmpty(dataSetInfo.webApi())) {
+									final ApiOptions apiOptions = createApiOptions(
+										dataSetToUse, evita, getPortManager(), dataSetInfo.webApi()
+									);
+									evitaServer = openWebApi(evita, apiOptions);
+								}
+								// call method that initializes the dataset
+								final Object testClassInstance = extensionContext.getRequiredTestInstance();
+								final Object methodResult;
+								final CatalogInitMethod catalogInitMethod = dataSetInfo.initMethod();
+								if (catalogInitMethod == null) {
+									methodResult = null;
+								} else {
 									final Method initMethod = catalogInitMethod.method();
 									final LinkedHashMap<String, Object> argumentDictionary = createLinkedHashMap(
 										property(DATA_NAME_EVITA, evita),
@@ -1075,38 +1093,40 @@ public class EvitaParameterResolver
 											}
 										);
 									}
-								} catch (Exception e) {
-									// close the server instance and free ports
-									ofNullable(evitaServer)
-										.ifPresent(
-											it -> getPortManager().releasePortsOnCompletion(dataSetToUse, it.stop()));
-
-									// close evita and clear data
-									evita.close();
-
-									throw new ParameterResolutionException(
-										"Failed to set up data set " + dataSetToUse, e);
 								}
-							}
 
-							final DataCarrier dataCarrier;
-							if (methodResult != null) {
-								dataCarrier = methodResult instanceof DataCarrier dc ? dc : new DataCarrier(
-									methodResult);
-							} else {
-								dataCarrier = null;
-							}
+								final DataCarrier dataCarrier;
+								if (methodResult != null) {
+									dataCarrier = methodResult instanceof DataCarrier dc ? dc : new DataCarrier(
+										methodResult);
+								} else {
+									dataCarrier = null;
+								}
 
-							if (dataSetInfo.readOnly()) {
-								evita.setReadOnly();
-							}
+								if (dataSetInfo.readOnly()) {
+									evita.setReadOnly();
+								}
 
-							return new DataSetState(
-								extensionContext.getRequiredTestInstance(),
-								extensionContext.getRequiredTestMethod(),
-								evita, evitaServer, dataCarrier,
-								dataStateTearDownFct
-							);
+								return new DataSetState(
+									extensionContext.getRequiredTestInstance(),
+									extensionContext.getRequiredTestMethod(),
+									evita, evitaServer, dataCarrier,
+									dataStateTearDownFct
+								);
+							} catch (Exception e) {
+								// close the server instance and free ports
+								ofNullable(evitaServer)
+									.ifPresentOrElse(
+										it -> getPortManager().releasePortsOnCompletion(dataSetToUse, it.stop()),
+										() -> getPortManager().releasePorts(dataSetToUse)
+									);
+
+								// close evita and clear data
+								evita.close();
+
+								throw new ParameterResolutionException(
+									"Failed to set up data set " + dataSetToUse, e);
+							}
 						}
 					);
 

@@ -947,4 +947,64 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder getScopedIndexTypesOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> 
+      getScopedIndexedComponentsList();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents getScopedIndexedComponents(int index);
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;</code>
+   */
+  int getScopedIndexedComponentsCount();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+      getScopedIndexedComponentsOrBuilderList();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder getScopedIndexedComponentsOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Contains true if the indexed components property settings of the reflected reference is
+   * inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool indexedComponentsInherited = 30;</code>
+   * @return The indexedComponentsInherited.
+   */
+  boolean getIndexedComponentsInherited();
 }

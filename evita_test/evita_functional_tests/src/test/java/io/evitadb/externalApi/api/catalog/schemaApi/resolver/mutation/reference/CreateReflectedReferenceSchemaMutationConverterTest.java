@@ -73,6 +73,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			"tag",
 			"tags",
 			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
+			null,
 			new Scope[] { Scope.LIVE },
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 			new String[] { "order" }
@@ -90,7 +91,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
 					list().i(
 						map()
-							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
 					)
 				)
@@ -115,7 +116,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
 					list().i(
 						map()
-							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
 					)
 				)
@@ -138,6 +139,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			null,
 			"tag",
 			"tags",
+			null,
 			null,
 			null,
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
@@ -211,6 +213,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			"tag",
 			"tags",
 			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) },
+			null,
 			new Scope[] { Scope.LIVE },
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 			new String[] { "order" }

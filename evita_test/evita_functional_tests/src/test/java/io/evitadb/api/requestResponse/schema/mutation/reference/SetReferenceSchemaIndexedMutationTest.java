@@ -33,16 +33,25 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.ConsistencyChecks;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_NAME;
@@ -251,6 +260,118 @@ class SetReferenceSchemaIndexedMutationTest {
 			assertNotNull(mutatedSchema);
 			assertInstanceOf(ReflectedReferenceSchemaContract.class, mutatedSchema);
 		}
+
+		@Test
+		@DisplayName("should throw when schema has filterable attribute in non-indexed scope")
+		void shouldThrowWhenSchemaHasFilterableAttributeInNonIndexedScope() {
+			// Create a reference schema that is NOT indexed but has a filterable
+			// attribute (intentionally invalid state created via _internalBuild)
+			final ReferenceSchemaContract referenceWithFilterable =
+				ReferenceSchema._internalBuild(
+					REFERENCE_NAME,
+					"description", "deprecationNotice",
+					"category", false,
+					Cardinality.ZERO_OR_MORE,
+					null, false,
+					ScopedReferenceIndexType.EMPTY,
+					Scope.NO_SCOPE,
+					Map.of(
+						"filterableAttr",
+						AttributeSchema._internalBuild(
+							"filterableAttr",
+							null, null,
+							new ScopedAttributeUniquenessType[]{
+								new ScopedAttributeUniquenessType(
+									Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE
+								)
+							},
+							new Scope[]{Scope.LIVE},
+							Scope.NO_SCOPE,
+							false, false, false,
+							Integer.class, null, 0
+						)
+					),
+					Collections.emptyMap()
+				);
+			// Mutate with different indexed scopes to trigger verification
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING
+						)
+					}
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getName()).thenReturn("product");
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> mutation.mutate(
+					entitySchema, referenceWithFilterable, ConsistencyChecks.APPLY
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains("non-indexed"),
+				"Exception message should contain 'non-indexed'"
+			);
+			assertTrue(
+				exception.getMessage().contains("filterableAttr"),
+				"Exception message should contain the attribute name"
+			);
+		}
+
+		@Test
+		@DisplayName("should not throw when consistency checks are skipped")
+		void shouldNotThrowWhenConsistencyChecksSkipped() {
+			// Same invalid-state setup: non-indexed with filterable attribute
+			final ReferenceSchemaContract referenceWithFilterable =
+				ReferenceSchema._internalBuild(
+					REFERENCE_NAME,
+					"description", "deprecationNotice",
+					"category", false,
+					Cardinality.ZERO_OR_MORE,
+					null, false,
+					ScopedReferenceIndexType.EMPTY,
+					Scope.NO_SCOPE,
+					Map.of(
+						"filterableAttr",
+						AttributeSchema._internalBuild(
+							"filterableAttr",
+							null, null,
+							new ScopedAttributeUniquenessType[]{
+								new ScopedAttributeUniquenessType(
+									Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE
+								)
+							},
+							new Scope[]{Scope.LIVE},
+							Scope.NO_SCOPE,
+							false, false, false,
+							Integer.class, null, 0
+						)
+					),
+					Collections.emptyMap()
+				);
+			// Same mutation but with SKIP — should NOT throw
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING
+						)
+					}
+				);
+
+			final ReferenceSchemaContract result = mutation.mutate(
+				Mockito.mock(EntitySchemaContract.class),
+				referenceWithFilterable,
+				ConsistencyChecks.SKIP
+			);
+
+			assertNotNull(result);
+		}
 	}
 
 	@Nested
@@ -293,6 +414,289 @@ class SetReferenceSchemaIndexedMutationTest {
 					Mockito.mock(EntitySchemaContract.class)
 				)
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Indexed components")
+	class IndexedComponents {
+
+		@Test
+		@DisplayName("should mutate reference schema with indexed components")
+		void shouldMutateWithIndexedComponents() {
+			final ScopedReferenceIndexedComponents[] components = new ScopedReferenceIndexedComponents[]{
+				new ScopedReferenceIndexedComponents(
+					Scope.DEFAULT_SCOPE,
+					new ReferenceIndexedComponents[]{
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					}
+				)
+			};
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					},
+					components
+				);
+
+			final ReferenceSchemaContract mutatedSchema =
+				mutation.mutate(
+					Mockito.mock(EntitySchemaContract.class),
+					createExistingReferenceSchema()
+				);
+
+			assertNotNull(mutatedSchema);
+			final Set<ReferenceIndexedComponents> result = mutatedSchema.getIndexedComponents(Scope.DEFAULT_SCOPE);
+			assertEquals(2, result.size());
+			assertTrue(result.contains(ReferenceIndexedComponents.REFERENCED_ENTITY));
+			assertTrue(result.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+		}
+
+		@Test
+		@DisplayName("should default to REFERENCED_ENTITY when no components specified in constructor")
+		void shouldDefaultToReferencedEntityWhenNoComponents() {
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, Scope.DEFAULT_SCOPES);
+
+			assertNull(mutation.getIndexedComponentsInScopes());
+
+			final ReferenceSchemaContract mutatedSchema =
+				mutation.mutate(
+					Mockito.mock(EntitySchemaContract.class),
+					createExistingReferenceSchema(false)
+				);
+
+			assertNotNull(mutatedSchema);
+			// should default to REFERENCED_ENTITY
+			final Set<ReferenceIndexedComponents> result = mutatedSchema.getIndexedComponents(Scope.DEFAULT_SCOPE);
+			assertFalse(result.isEmpty());
+			assertTrue(result.contains(ReferenceIndexedComponents.REFERENCED_ENTITY));
+		}
+
+		@Test
+		@DisplayName("should handle reflected reference schema with indexed components")
+		void shouldHandleReflectedReferenceSchemaWithComponents() {
+			final ReflectedReferenceSchema reflectedSchema = createExistingReflectedReferenceSchema();
+			final ScopedReferenceIndexedComponents[] components = new ScopedReferenceIndexedComponents[]{
+				new ScopedReferenceIndexedComponents(
+					Scope.DEFAULT_SCOPE,
+					new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY}
+				)
+			};
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					},
+					components
+				);
+
+			final ReferenceSchemaContract mutatedSchema =
+				mutation.mutate(
+					Mockito.mock(EntitySchemaContract.class), reflectedSchema
+				);
+
+			assertNotNull(mutatedSchema);
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, mutatedSchema);
+			final ReflectedReferenceSchemaContract reflected =
+				(ReflectedReferenceSchemaContract) mutatedSchema;
+			assertFalse(reflected.isIndexedComponentsInherited());
+		}
+
+		@Test
+		@DisplayName("should merge components across different scopes when combining")
+		void shouldMergeComponentsAcrossScopesWhenCombining() {
+			// Mutation1: LIVE scope with ENTITY and GROUP components
+			final SetReferenceSchemaIndexedMutation existingMutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					}
+				);
+			// Mutation2: ARCHIVED scope with ENTITY component only
+			final SetReferenceSchemaIndexedMutation newMutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+					},
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.ARCHIVED,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY
+							}
+						)
+					}
+				);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				newMutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class),
+					Mockito.mock(EntitySchemaContract.class),
+					existingMutation
+				);
+
+			assertNotNull(result);
+			assertNotNull(result.current());
+			final SetReferenceSchemaIndexedMutation combined =
+				(SetReferenceSchemaIndexedMutation) result.current()[0];
+
+			// both scopes' components must be present after combining
+			assertNotNull(combined.getIndexedComponentsInScopes());
+			assertEquals(2, combined.getIndexedComponentsInScopes().length);
+
+			// verify LIVE components preserved from existing mutation
+			final ScopedReferenceIndexedComponents[] components =
+				combined.getIndexedComponentsInScopes();
+			boolean foundLive = false;
+			boolean foundArchived = false;
+			for (final ScopedReferenceIndexedComponents component : components) {
+				if (component.scope() == Scope.LIVE) {
+					foundLive = true;
+					assertArrayEquals(
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						},
+						component.indexedComponents()
+					);
+				} else if (component.scope() == Scope.ARCHIVED) {
+					foundArchived = true;
+					assertArrayEquals(
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY
+						},
+						component.indexedComponents()
+					);
+				}
+			}
+			assertTrue(foundLive, "LIVE scope components should be present");
+			assertTrue(foundArchived, "ARCHIVED scope components should be present");
+		}
+
+		@Test
+		@DisplayName("should override components in same scope when combining")
+		void shouldOverrideComponentsInSameScopeWhenCombining() {
+			// Mutation1: LIVE with ENTITY only
+			final SetReferenceSchemaIndexedMutation existingMutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY
+							}
+						)
+					}
+				);
+			// Mutation2: LIVE with ENTITY and GROUP (overrides)
+			final SetReferenceSchemaIndexedMutation newMutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					}
+				);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				newMutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class),
+					Mockito.mock(EntitySchemaContract.class),
+					existingMutation
+				);
+
+			assertNotNull(result);
+			assertNotNull(result.current());
+			final SetReferenceSchemaIndexedMutation combined =
+				(SetReferenceSchemaIndexedMutation) result.current()[0];
+
+			// LIVE scope should have both components from the newer mutation
+			assertNotNull(combined.getIndexedComponentsInScopes());
+			assertEquals(1, combined.getIndexedComponentsInScopes().length);
+			assertEquals(Scope.LIVE, combined.getIndexedComponentsInScopes()[0].scope());
+			assertArrayEquals(
+				new ReferenceIndexedComponents[]{
+					ReferenceIndexedComponents.REFERENCED_ENTITY,
+					ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+				},
+				combined.getIndexedComponentsInScopes()[0].indexedComponents()
+			);
+		}
+
+		@Test
+		@DisplayName("should switch to inherited components when new mutation has null components")
+		void shouldSwitchToInheritedComponentsWhenNewMutationHasNull() {
+			// Mutation1: has explicit components for LIVE scope
+			final ScopedReferenceIndexedComponents[] existingComponents =
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				};
+			final SetReferenceSchemaIndexedMutation existingMutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					existingComponents
+				);
+			// Mutation2: has null components (inherited) — should override explicit with inherited
+			final SetReferenceSchemaIndexedMutation newMutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					null
+				);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				newMutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class),
+					Mockito.mock(EntitySchemaContract.class),
+					existingMutation
+				);
+
+			assertNotNull(result);
+			assertNotNull(result.current());
+			final SetReferenceSchemaIndexedMutation combined =
+				(SetReferenceSchemaIndexedMutation) result.current()[0];
+
+			// null components in the newer mutation means "switch to inherited" — overrides explicit
+			assertNull(combined.getIndexedComponentsInScopes());
 		}
 	}
 

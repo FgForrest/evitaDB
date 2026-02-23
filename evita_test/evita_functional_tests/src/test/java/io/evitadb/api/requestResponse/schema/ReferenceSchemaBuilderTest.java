@@ -377,6 +377,112 @@ class ReferenceSchemaBuilderTest {
 	}
 
 	@Nested
+	@DisplayName("Indexed components")
+	class IndexedComponentsTests {
+
+		@Test
+		@DisplayName("should set indexed components in default scope")
+		void shouldSetIndexedComponentsInDefaultScope() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertEquals(
+					2,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should set indexed components with only REFERENCED_GROUP_ENTITY")
+		void shouldSetOnlyGroupEntityComponent() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertEquals(
+					1,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				),
+				() -> assertFalse(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should produce SetReferenceSchemaIndexedMutation with components")
+		void shouldProduceMutationWithComponents() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.indexedInScope(Scope.LIVE)
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			final boolean hasIndexedMutationWithComponents = mutations.stream()
+				.filter(SetReferenceSchemaIndexedMutation.class::isInstance)
+				.map(SetReferenceSchemaIndexedMutation.class::cast)
+				.anyMatch(m -> m.getIndexedComponentsInScopes() != null);
+
+			assertTrue(
+				hasIndexedMutationWithComponents,
+				"Should contain indexed mutation with components"
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("Faceting operations")
 	class FacetingOperations {
 

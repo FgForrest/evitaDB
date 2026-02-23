@@ -46,83 +46,25 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
 
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
-
-import java.util.Set;
-
-import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readIndexedComponentsMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopedReferenceIndexTypeArray;
-import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeIndexedComponentsMap;
-import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
-import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopedReferenceIndexTypeArray;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
+ * Backward-compatible read-only serializer for {@link ReferenceSchema} that reads the format
+ * without the `indexedComponentsInScopes` field.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor
-public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
+public class ReferenceSchemaSerializer_2026_2 extends Serializer<ReferenceSchema> {
 	private static final Function<String, EntitySchemaContract> IMPOSSIBLE_EXCEPTION_PRODUCER = s -> {
 		throw new GenericEvitaInternalError("Sanity check!");
 	};
 
 	@Override
 	public void write(Kryo kryo, Output output, ReferenceSchema referenceSchema) {
-		output.writeString(referenceSchema.getName());
-		output.writeVarInt(referenceSchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : referenceSchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-		output.writeString(referenceSchema.getReferencedEntityType());
-		output.writeBoolean(referenceSchema.isReferencedEntityTypeManaged());
-
-		final Map<NamingConvention, String> entityTypeNameVariants = referenceSchema.isReferencedEntityTypeManaged() ?
-			Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(IMPOSSIBLE_EXCEPTION_PRODUCER);
-		output.writeVarInt(entityTypeNameVariants.size(), true);
-		for (Entry<NamingConvention, String> entry : entityTypeNameVariants.entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-		kryo.writeObject(output, referenceSchema.getCardinality());
-		output.writeString(referenceSchema.getReferencedGroupType());
-		output.writeBoolean(referenceSchema.isReferencedGroupTypeManaged());
-
-		final Map<NamingConvention, String> groupTypeNameVariants = referenceSchema.isReferencedGroupTypeManaged() ?
-			Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(IMPOSSIBLE_EXCEPTION_PRODUCER);
-		output.writeVarInt(groupTypeNameVariants.size(), true);
-		for (Entry<NamingConvention, String> entry : groupTypeNameVariants.entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-
-		writeScopedReferenceIndexTypeArray(kryo, output, referenceSchema.getReferenceIndexTypeInScopes());
-		writeIndexedComponentsMap(kryo, output, referenceSchema.getIndexedComponentsInScopes());
-		writeScopeSet(kryo, output, referenceSchema.getFacetedInScopes());
-
-		kryo.writeObject(output, referenceSchema.getAttributes());
-
-		if (referenceSchema.getDescription() != null) {
-			output.writeBoolean(true);
-			output.writeString(referenceSchema.getDescription());
-		} else {
-			output.writeBoolean(false);
-		}
-		if (referenceSchema.getDeprecationNotice() != null) {
-			output.writeBoolean(true);
-			output.writeString(referenceSchema.getDeprecationNotice());
-		} else {
-			output.writeBoolean(false);
-		}
-
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = referenceSchema.getSortableAttributeCompounds();
-		output.writeVarInt(sortableAttributeCompounds.size(), true);
-		for (SortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
-			kryo.writeObject(output, sortableAttributeCompound);
-		}
-
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used for writing.");
 	}
 
 	@Override
@@ -158,7 +100,6 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			);
 		}
 		final Map<Scope, ReferenceIndexType> indexedInScopes = readScopedReferenceIndexTypeArray(kryo, input);
-		final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes = readIndexedComponentsMap(kryo, input);
 		final EnumSet<Scope> facetedInScopes = readScopeSet(kryo, input);
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
@@ -181,7 +122,6 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
 			indexedInScopes,
-			indexedComponentsInScopes,
 			facetedInScopes,
 			attributes, sortableAttributeCompounds
 		);

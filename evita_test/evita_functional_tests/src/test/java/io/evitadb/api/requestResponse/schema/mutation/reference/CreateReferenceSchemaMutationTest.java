@@ -24,27 +24,28 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import org.junit.jupiter.api.DisplayName;
@@ -60,14 +61,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Optional.of;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link CreateReferenceSchemaMutation} verifying creation of reference schemas,
@@ -237,43 +231,43 @@ class CreateReferenceSchemaMutationTest {
 
 			assertNotNull(result);
 			assertFalse(result.discarded());
-			assertEquals(10, result.current().length);
+			assertEquals(11, result.current().length);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaDescriptionMutation)
+					.anyMatch(ModifyReferenceSchemaDescriptionMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaDeprecationNoticeMutation)
+					.anyMatch(ModifyReferenceSchemaDeprecationNoticeMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaCardinalityMutation)
+					.anyMatch(ModifyReferenceSchemaCardinalityMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaRelatedEntityMutation)
+					.anyMatch(ModifyReferenceSchemaRelatedEntityMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaRelatedEntityGroupMutation)
+					.anyMatch(ModifyReferenceSchemaRelatedEntityGroupMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof SetReferenceSchemaIndexedMutation)
+					.anyMatch(SetReferenceSchemaIndexedMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof SetReferenceSchemaFacetedMutation)
+					.anyMatch(SetReferenceSchemaFacetedMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceAttributeSchemaMutation)
+					.anyMatch(ModifyReferenceAttributeSchemaMutation.class::isInstance)
 			);
 			assertTrue(
 				Arrays.stream(result.current())
 					.anyMatch(
-						m -> m instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation
+						ModifyReferenceSortableAttributeCompoundSchemaMutation.class::isInstance
 					)
 			);
 		}
@@ -387,6 +381,46 @@ class CreateReferenceSchemaMutationTest {
 			assertFalse(referenceSchema.isReferencedGroupTypeManaged());
 			assertTrue(referenceSchema.isIndexed());
 			assertTrue(referenceSchema.isFaceted());
+		}
+
+		@Test
+		@DisplayName("should create reference with explicit indexed components")
+		void shouldCreateReferenceWithExplicitIndexedComponents() {
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description", "deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE, false,
+				GROUP_TYPE, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				},
+				new Scope[]{Scope.LIVE}
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			final Set<ReferenceIndexedComponents> components =
+				referenceSchema.getIndexedComponents(Scope.LIVE);
+			assertEquals(2, components.size());
+			assertTrue(components.contains(ReferenceIndexedComponents.REFERENCED_ENTITY));
+			assertTrue(components.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+
+			final Map<Scope, Set<ReferenceIndexedComponents>> allComponents =
+				referenceSchema.getIndexedComponentsInScopes();
+			assertEquals(1, allComponents.size());
+			assertNotNull(allComponents.get(Scope.LIVE));
 		}
 
 		@Test

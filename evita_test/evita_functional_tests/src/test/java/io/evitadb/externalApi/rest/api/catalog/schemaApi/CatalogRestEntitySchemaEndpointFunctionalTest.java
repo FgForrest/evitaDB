@@ -111,7 +111,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
                 {
                     "mutations": []
                 }
-				""")
+                """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion))
@@ -732,6 +732,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							ReferenceSchemaDescriptor.INDEXED.name(),
 							createReferenceIndexTypeDto(getEntitySchemaFromTestData(evita, ENTITY_EMPTY).getReference("mySpecialTags").orElseThrow())
 						)
+						.e(
+							ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(),
+							createReferenceIndexedComponentsDto(getEntitySchemaFromTestData(evita, ENTITY_EMPTY).getReference("mySpecialTags").orElseThrow())
+						)
 						.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
@@ -814,7 +818,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 
-	private int getEntitySchemaVersion(@Nonnull RestTester tester, @Nonnull String entityType) {
+	private static int getEntitySchemaVersion(@Nonnull RestTester tester, @Nonnull String entityType) {
 		return tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + entityType + "/schema")
 			.httpMethod(Request.METHOD_GET)

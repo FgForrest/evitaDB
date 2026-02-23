@@ -28,7 +28,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -104,6 +106,54 @@ public interface MutationSerializationFunctions {
 			);
 		}
 		return scopedReferenceIndexTypes;
+	}
+
+	/**
+	 * Serializes an array of ScopedReferenceIndexedComponents objects to the given Kryo output.
+	 *
+	 * @param kryo                            the Kryo instance to use for serialization
+	 * @param output                          the Output instance to write to
+	 * @param scopedReferenceIndexedComponents the array of ScopedReferenceIndexedComponents objects to serialize
+	 */
+	default void writeScopedReferenceIndexedComponentsArray(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull ScopedReferenceIndexedComponents[] scopedReferenceIndexedComponents
+	) {
+		output.writeVarInt(scopedReferenceIndexedComponents.length, true);
+		for (ScopedReferenceIndexedComponents entry : scopedReferenceIndexedComponents) {
+			kryo.writeObject(output, entry.scope());
+			output.writeVarInt(entry.indexedComponents().length, true);
+			for (ReferenceIndexedComponents component : entry.indexedComponents()) {
+				kryo.writeObject(output, component);
+			}
+		}
+	}
+
+	/**
+	 * Reads an array of ScopedReferenceIndexedComponents objects from the given Kryo input.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the array of ScopedReferenceIndexedComponents objects that were read from the input
+	 */
+	@Nonnull
+	default ScopedReferenceIndexedComponents[] readScopedReferenceIndexedComponentsArray(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input
+	) {
+		final int size = input.readVarInt(true);
+		final ScopedReferenceIndexedComponents[] result = new ScopedReferenceIndexedComponents[size];
+		for (int i = 0; i < size; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final int componentCount = input.readVarInt(true);
+			final ReferenceIndexedComponents[] components = new ReferenceIndexedComponents[componentCount];
+			for (int j = 0; j < componentCount; j++) {
+				components[j] = kryo.readObject(input, ReferenceIndexedComponents.class);
+			}
+			result[i] = new ScopedReferenceIndexedComponents(scope, components);
+		}
+		return result;
 	}
 
 }

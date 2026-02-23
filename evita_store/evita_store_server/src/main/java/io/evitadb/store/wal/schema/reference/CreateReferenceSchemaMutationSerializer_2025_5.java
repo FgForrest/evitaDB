@@ -77,6 +77,7 @@ public class CreateReferenceSchemaMutationSerializer_2025_5 extends Serializer<C
 					scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
 				)
 				.toArray(ScopedReferenceIndexType[]::new),
+			null,
 			facetedInScopes
 		);
 	}

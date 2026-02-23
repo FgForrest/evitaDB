@@ -30,6 +30,8 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 
+import static io.evitadb.dataType.Scope.DEFAULT_SCOPE;
+
 /**
  * The ScopedReferenceIndexType class encapsulates the relationship between a reference's
  * index type and the scope in which this indexing characteristic is enforced.
@@ -51,6 +53,14 @@ public record ScopedReferenceIndexType(
 	 * Reusable empty array constant to avoid repeated zero-length array allocations.
 	 */
 	public static final ScopedReferenceIndexType[] EMPTY = new ScopedReferenceIndexType[0];
+	/**
+	 * Default index type for references when no explicit configuration is provided.
+	 * By default, references are indexed for filtering in the default scope to maintain backward compatibility with
+	 * existing schemas.
+	 */
+	public static final ScopedReferenceIndexType[] DEFAULT = new ScopedReferenceIndexType[] {
+		new ScopedReferenceIndexType(DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+	};
 
 	/**
 	 * Compact constructor that validates neither `scope` nor `indexType` is null.

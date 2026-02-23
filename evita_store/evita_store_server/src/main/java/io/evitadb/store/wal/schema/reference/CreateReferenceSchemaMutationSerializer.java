@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
@@ -52,6 +53,9 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		output.writeBoolean(mutation.isReferencedGroupTypeManaged());
 		writeScopedReferenceIndexTypeArray(kryo, output, mutation.getIndexedInScopes());
 		writeScopeArray(kryo, output, mutation.getFacetedInScopes());
+		// write indexed components with null-check
+		output.writeBoolean(true);
+		writeScopedReferenceIndexedComponentsArray(kryo, output, mutation.getIndexedComponentsInScopes());
 	}
 
 	@Override
@@ -67,6 +71,9 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 
 		final ScopedReferenceIndexType[] indexedInScopes = readScopedReferenceIndexTypeArray(kryo, input);
 		final Scope[] facetedInScopes = readScopeArray(kryo, input);
+		// read indexed components with null-check
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes =
+			input.readBoolean() ? readScopedReferenceIndexedComponentsArray(kryo, input) : null;
 
 		return new CreateReferenceSchemaMutation(
 			name,
@@ -78,6 +85,7 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 			referencedGroupType,
 			referencedGroupTypeManaged,
 			indexedInScopes,
+			indexedComponentsInScopes,
 			facetedInScopes
 		);
 	}

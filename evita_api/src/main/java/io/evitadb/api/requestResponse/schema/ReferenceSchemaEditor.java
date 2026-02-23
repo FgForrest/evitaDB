@@ -109,6 +109,31 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	T indexedInScope(@Nullable Scope... inScope);
 
 	/**
+	 * Configures which components of this reference are indexed in the {@link Scope#DEFAULT_SCOPE}.
+	 * Components determine which parts of the reference relationship (entity, group entity, or both)
+	 * are maintained in the index for querying.
+	 *
+	 * @param components one or more indexed components to configure
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T indexedWithComponents(@Nonnull ReferenceIndexedComponents... components) {
+		return indexedWithComponentsInScope(Scope.DEFAULT_SCOPE, components);
+	}
+
+	/**
+	 * Configures which components of this reference are indexed in the given scope.
+	 * Components determine which parts of the reference relationship (entity, group entity, or both)
+	 * are maintained in the index for querying in the specified scope.
+	 *
+	 * @param scope      the scope where the indexed components should be applied
+	 * @param components one or more indexed components to configure
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T indexedWithComponentsInScope(@Nonnull Scope scope, @Nonnull ReferenceIndexedComponents... components);
+
+	/**
 	 * Makes reference as non-faceted in all scopes. This means reference information will be available on entity when
 	 * loaded but cannot be used in filtering.
 	 *
@@ -273,6 +298,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * Mutation allows Evita to perform surgical updates on the latest version of the {@link EntitySchemaContract}
 	 * object that is in the database at the time update request arrives.
 	 */
+	@SuppressWarnings("InterfaceWithOnlyOneDirectInheritor")
 	interface ReferenceSchemaBuilder extends ReferenceSchemaEditor<ReferenceSchemaBuilder> {
 
 		/**

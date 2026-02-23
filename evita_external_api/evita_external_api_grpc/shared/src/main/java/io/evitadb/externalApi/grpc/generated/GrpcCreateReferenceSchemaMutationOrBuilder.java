@@ -477,4 +477,58 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder getScopedIndexTypesOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> 
+      getScopedIndexedComponentsList();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents getScopedIndexedComponents(int index);
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  int getScopedIndexedComponentsCount();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+      getScopedIndexedComponentsOrBuilderList();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder getScopedIndexedComponentsOrBuilder(
+      int index);
 }

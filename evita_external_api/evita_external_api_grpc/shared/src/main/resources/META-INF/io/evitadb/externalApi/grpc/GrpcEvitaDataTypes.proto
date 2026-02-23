@@ -473,3 +473,12 @@ message GrpcScopedReferenceIndexType {
   // The type of index that should be created and maintained for the reference.
   GrpcReferenceIndexType indexType = 2;
 }
+
+// Message representing scoped reference indexed components that specify which parts of
+// a reference relationship are indexed per scope.
+message GrpcScopedReferenceIndexedComponents {
+  // The scope in which the indexed components configuration applies.
+  GrpcEntityScope scope = 1;
+  // The reference components that should be indexed in the given scope.
+  repeated GrpcReferenceIndexedComponents indexedComponents = 2;
+}

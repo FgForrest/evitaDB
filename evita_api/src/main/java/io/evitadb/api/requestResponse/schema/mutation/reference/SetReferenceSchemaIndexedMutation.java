@@ -27,10 +27,11 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
@@ -51,6 +52,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -68,164 +70,9 @@ import java.util.stream.Collectors;
 public class SetReferenceSchemaIndexedMutation
 	extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -5386807849414938326L;
+	@Serial private static final long serialVersionUID = -6023178895674039357L;
 	@Getter @Nullable private final ScopedReferenceIndexType[] indexedInScopes;
-
-	/**
-	 * Creates mutation that controls the indexed flag of the reference schema using a simple
-	 * boolean (applied to the default scope). Null means inherited from the reflected reference.
-	 */
-	public SetReferenceSchemaIndexedMutation(
-		@Nonnull String name,
-		@Nullable Boolean indexed
-	) {
-		this(
-			name,
-			indexed == null ? null : (indexed ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-		);
-	}
-
-	/**
-	 * Creates mutation that controls indexed flag per scope. Each specified scope gets
-	 * {@link ReferenceIndexType#FOR_FILTERING}. Null means inherited from the reflected reference.
-	 */
-	public SetReferenceSchemaIndexedMutation(
-		@Nonnull String name,
-		@Nullable Scope[] indexedInScopes
-	) {
-		super(name);
-		this.indexedInScopes = indexedInScopes == null ?
-			null :
-			Arrays.stream(indexedInScopes)
-				.map(scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING))
-				.toArray(ScopedReferenceIndexType[]::new);
-	}
-
-	/**
-	 * Creates mutation that controls indexed flag with detailed per-scope index type configuration.
-	 * Null means inherited from the reflected reference.
-	 */
-	@SerializableCreator
-	public SetReferenceSchemaIndexedMutation(
-		@Nonnull String name,
-		@Nullable ScopedReferenceIndexType[] indexedInScopes
-	) {
-		super(name);
-		this.indexedInScopes = indexedInScopes;
-	}
-
-	/**
-	 * Returns the indexed flag for the default scope, or null when the value is inherited.
-	 */
-	@Nullable
-	public Boolean getIndexed() {
-		if (this.indexedInScopes == null) {
-			return null;
-		} else {
-			return Arrays.stream(this.indexedInScopes)
-				.anyMatch(it -> it.scope() == Scope.DEFAULT_SCOPE && it.indexType() != ReferenceIndexType.NONE);
-		}
-	}
-
-	@Nullable
-	@Override
-	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
-		@Nonnull CatalogSchemaContract currentCatalogSchema,
-		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull LocalEntitySchemaMutation existingMutation
-	) {
-		if (existingMutation instanceof SetReferenceSchemaIndexedMutation theExistingMutation
-			&& this.name.equals(theExistingMutation.getName())) {
-			if (this.indexedInScopes == null) {
-				// null (inherited) takes precedence as the latest mutation
-				return new MutationCombinationResult<>(null, this);
-			} else if (theExistingMutation.indexedInScopes == null) {
-				// existing was inherited, but new mutation overrides with explicit scopes
-				return new MutationCombinationResult<>(null, this);
-			} else {
-				final Map<Scope, ReferenceIndexType> existingIndexedScopes =
-					Arrays.stream(theExistingMutation.indexedInScopes)
-						.collect(
-							() -> new EnumMap<>(Scope.class),
-							(map, scopedIndexType) -> map.put(scopedIndexType.scope(), scopedIndexType.indexType()),
-							EnumMap::putAll
-						);
-				for (ScopedReferenceIndexType indexedInScope : this.indexedInScopes) {
-					existingIndexedScopes.put(indexedInScope.scope(), indexedInScope.indexType());
-				}
-
-				final SetReferenceSchemaIndexedMutation combinedMutation = new SetReferenceSchemaIndexedMutation(
-					this.name,
-					existingIndexedScopes
-						.entrySet()
-						.stream()
-						.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
-						.toArray(ScopedReferenceIndexType[]::new)
-				);
-				return new MutationCombinationResult<>(null, combinedMutation);
-			}
-		} else {
-			return null;
-		}
-	}
-
-	@Nonnull
-	@Override
-	public ReferenceSchemaContract mutate(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull ConsistencyChecks consistencyChecks
-	) {
-		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final EnumMap<Scope, ReferenceIndexType> indexedScopes = this.indexedInScopes == null ?
-			new EnumMap<>(Scope.class) :
-			Arrays.stream(this.indexedInScopes)
-				.collect(
-					() -> new EnumMap<>(Scope.class),
-					(map, scopedIndexType) -> map.put(scopedIndexType.scope(), scopedIndexType.indexType()),
-					EnumMap::putAll
-				);
-		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-			if ((reflectedReferenceSchema.isIndexedInherited() && this.indexedInScopes == null) ||
-				(!reflectedReferenceSchema.isIndexedInherited() && reflectedReferenceSchema.getIndexedInScopes().equals(indexedScopes))) {
-				return reflectedReferenceSchema;
-			} else {
-				return reflectedReferenceSchema.withIndexed(this.indexedInScopes);
-			}
-		} else {
-			if (indexedScopes.equals(referenceSchema.getReferenceIndexTypeInScopes())) {
-				// schema is already indexed
-				return referenceSchema;
-			} else {
-				if (consistencyChecks == ConsistencyChecks.APPLY) {
-					verifyAttributeIndexRequirements(entitySchema, referenceSchema);
-				}
-
-				// Convert EnumMap<Scope, ReferenceIndexType> to ScopedReferenceIndexType[]
-				final ScopedReferenceIndexType[] scopedIndexTypes = indexedScopes.entrySet().stream()
-					.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
-					.toArray(ScopedReferenceIndexType[]::new);
-
-				return ReferenceSchema._internalBuild(
-					this.name,
-					referenceSchema.getNameVariants(),
-					referenceSchema.getDescription(),
-					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
-					referenceSchema.getReferencedGroupType(),
-					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-					referenceSchema.isReferencedGroupTypeManaged(),
-					scopedIndexTypes,
-					Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).toArray(Scope[]::new),
-					referenceSchema.getAttributes(),
-					referenceSchema.getSortableAttributeCompounds()
-				);
-			}
-		}
-	}
+	@Getter @Nullable private final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
 
 	/**
 	 * Verifies that making the reference non-indexed does not conflict with any filterable, unique,
@@ -262,6 +109,237 @@ public class SetReferenceSchemaIndexedMutation
 		}
 	}
 
+	/**
+	 * Creates mutation that controls the indexed flag of the reference schema using a simple
+	 * boolean (applied to the default scope). Null means inherited from the reflected reference.
+	 */
+	public SetReferenceSchemaIndexedMutation(
+		@Nonnull String name,
+		@Nullable Boolean indexed
+	) {
+		this(
+			name,
+			indexed == null ? null : (indexed ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+		);
+	}
+
+	/**
+	 * Creates mutation that controls indexed flag per scope. Each specified scope gets
+	 * {@link ReferenceIndexType#FOR_FILTERING}. Null means inherited from the reflected reference.
+	 */
+	public SetReferenceSchemaIndexedMutation(
+		@Nonnull String name,
+		@Nullable Scope[] indexedInScopes
+	) {
+		this(
+			name,
+			indexedInScopes == null
+				? null
+				: Arrays.stream(indexedInScopes)
+					.map(scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING))
+					.toArray(ScopedReferenceIndexType[]::new),
+			null
+		);
+	}
+
+	/**
+	 * Creates mutation that controls indexed flag with detailed per-scope index type configuration.
+	 * Null means inherited from the reflected reference.
+	 */
+	public SetReferenceSchemaIndexedMutation(
+		@Nonnull String name,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes
+	) {
+		this(name, indexedInScopes, null);
+	}
+
+	/**
+	 * Creates mutation that controls indexed flag with detailed per-scope index type configuration
+	 * and also specifies which reference components are indexed per scope.
+	 * Null means inherited from the reflected reference.
+	 */
+	@SerializableCreator
+	public SetReferenceSchemaIndexedMutation(
+		@Nonnull String name,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes
+	) {
+		super(name);
+		// Deliberately preserve null — for reflected references, null signals that indexed scopes
+		// are inherited from the reflected reference (see ReflectedReferenceSchemaBuilder).
+		// This is distinct from EMPTY which means "explicitly not indexed in any scope".
+		// Downstream code (getIndexed, combineWith, toString, mutate) relies on the null vs EMPTY
+		// distinction to differentiate inherited from explicitly-empty.
+		this.indexedInScopes = indexedInScopes;
+		if (indexedComponentsInScopes != null) {
+			this.indexedComponentsInScopes = indexedComponentsInScopes;
+		} else if (indexedInScopes == null) {
+			// Both scopes and components are inherited — use EMPTY to signal "no explicit override"
+			// rather than null, because components inheritance is always tied to scopes inheritance
+			this.indexedComponentsInScopes = ScopedReferenceIndexedComponents.EMPTY;
+		} else {
+			// Deliberately preserve null — for reflected references, null signals that indexed
+			// components are inherited from the reflected reference
+			// (see ReflectedReferenceSchemaBuilder#withIndexedComponentsInherited).
+			// For non-reflected references, null is resolved to default components at mutation
+			// application time in the mutate() method, so the semantics are preserved for both cases.
+			this.indexedComponentsInScopes = null;
+		}
+	}
+
+	/**
+	 * Returns the indexed flag for the default scope, or null when the value is inherited.
+	 */
+	@Nullable
+	public Boolean getIndexed() {
+		// null indexedInScopes means scopes are inherited from the reflected reference
+		if (this.indexedInScopes == null) {
+			return null;
+		} else {
+			return Arrays.stream(this.indexedInScopes)
+				.anyMatch(it -> it.scope() == Scope.DEFAULT_SCOPE && it.indexType() != ReferenceIndexType.NONE);
+		}
+	}
+
+	@Nullable
+	@Override
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
+		if (existingMutation instanceof SetReferenceSchemaIndexedMutation theExistingMutation
+			&& this.name.equals(theExistingMutation.getName())) {
+			// null indexedInScopes = inherited from reflected reference;
+			// when either mutation uses inheritance, no scope merging is needed
+			if (this.indexedInScopes == null) {
+				// the latest mutation says "inherit" — this overrides any prior explicit scopes
+				return new MutationCombinationResult<>(null, this);
+			} else if (theExistingMutation.indexedInScopes == null) {
+				// existing was inherited, but this mutation overrides with explicit scopes
+				return new MutationCombinationResult<>(null, this);
+			} else {
+				final Map<Scope, ReferenceIndexType> existingIndexedScopes =
+					Arrays.stream(theExistingMutation.indexedInScopes)
+						.collect(
+							() -> new EnumMap<>(Scope.class),
+							(map, scopedIndexType) -> map.put(scopedIndexType.scope(), scopedIndexType.indexType()),
+							EnumMap::putAll
+						);
+				for (ScopedReferenceIndexType indexedInScope : this.indexedInScopes) {
+					existingIndexedScopes.put(indexedInScope.scope(), indexedInScope.indexType());
+				}
+
+				// merge indexed components across both mutations: newer mutation takes precedence
+				// null means "inherited" — if the newer mutation sets null, the result is inherited
+				final ScopedReferenceIndexedComponents[] mergedComponents;
+				if (this.indexedComponentsInScopes == null) {
+					mergedComponents = null;
+				} else {
+					final EnumMap<Scope, ReferenceIndexedComponents[]> componentMap = new EnumMap<>(Scope.class);
+					if (theExistingMutation.indexedComponentsInScopes != null) {
+						for (final ScopedReferenceIndexedComponents existing : theExistingMutation.indexedComponentsInScopes) {
+							componentMap.put(existing.scope(), existing.indexedComponents());
+						}
+					}
+					for (final ScopedReferenceIndexedComponents current : this.indexedComponentsInScopes) {
+						componentMap.put(current.scope(), current.indexedComponents());
+					}
+					mergedComponents = componentMap.entrySet()
+						.stream()
+						.map(entry -> new ScopedReferenceIndexedComponents(entry.getKey(), entry.getValue()))
+						.toArray(ScopedReferenceIndexedComponents[]::new);
+				}
+
+				final SetReferenceSchemaIndexedMutation combinedMutation = new SetReferenceSchemaIndexedMutation(
+					this.name,
+					existingIndexedScopes
+						.entrySet()
+						.stream()
+						.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new),
+					mergedComponents
+				);
+				return new MutationCombinationResult<>(null, combinedMutation);
+			}
+		} else {
+			return null;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
+		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		// null indexedInScopes = inherited — produces an empty map (actual scopes resolved elsewhere)
+		final EnumMap<Scope, ReferenceIndexType> indexedScopes = this.indexedInScopes == null ?
+			new EnumMap<>(Scope.class) :
+			Arrays.stream(this.indexedInScopes)
+				.collect(
+					() -> new EnumMap<>(Scope.class),
+					(map, scopedIndexType) -> map.put(scopedIndexType.scope(), scopedIndexType.indexType()),
+					EnumMap::putAll
+				);
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			ReflectedReferenceSchema result = reflectedReferenceSchema;
+			if (hasIndexedScopesChanged(reflectedReferenceSchema, indexedScopes)) {
+				result = (ReflectedReferenceSchema) result.withIndexed(this.indexedInScopes);
+			}
+			if (hasIndexedComponentsChanged(reflectedReferenceSchema)) {
+				result = (ReflectedReferenceSchema) result.withIndexedComponents(this.indexedComponentsInScopes);
+			}
+			return result;
+		} else {
+			final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponents = this.indexedComponentsInScopes != null
+				?
+				ReferenceSchema.toIndexedComponentsEnumMap(this.indexedComponentsInScopes)
+				:
+					ReferenceSchema.defaultIndexedComponents(indexedScopes);
+
+			if (indexedScopes.equals(referenceSchema.getReferenceIndexTypeInScopes()) &&
+				indexedComponents.equals(referenceSchema.getIndexedComponentsInScopes())) {
+				// schema is already indexed with same components
+				return referenceSchema;
+			} else {
+				if (consistencyChecks == ConsistencyChecks.APPLY) {
+					verifyAttributeIndexRequirements(entitySchema, referenceSchema);
+				}
+
+				// Convert EnumMap<Scope, ReferenceIndexType> to ScopedReferenceIndexType[]
+				final ScopedReferenceIndexType[] scopedIndexTypes = indexedScopes.entrySet().stream()
+					.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
+					.toArray(ScopedReferenceIndexType[]::new);
+
+				return ReferenceSchema._internalBuild(
+					this.name,
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged()
+						? Collections.emptyMap()
+						: referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged()
+						? Collections.emptyMap()
+						: referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					scopedIndexTypes,
+					this.indexedComponentsInScopes,
+					Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).toArray(Scope[]::new),
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
+				);
+			}
+		}
+	}
+
 	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(
@@ -277,7 +355,8 @@ public class SetReferenceSchemaIndexedMutation
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = mutate(entitySchema, theSchema, ConsistencyChecks.SKIP);
+			final ReferenceSchemaContract updatedReferenceSchema = mutate(
+				entitySchema, theSchema, ConsistencyChecks.SKIP);
 			return replaceReferenceSchema(
 				entitySchema, theSchema, updatedReferenceSchema
 			);
@@ -286,6 +365,7 @@ public class SetReferenceSchemaIndexedMutation
 
 	@Override
 	public String toString() {
+		// null = inherited from reflected reference, EMPTY = explicitly not indexed
 		final String indexedDescription;
 		if (this.indexedInScopes == null) {
 			indexedDescription = "(inherited)";
@@ -298,7 +378,66 @@ public class SetReferenceSchemaIndexedMutation
 					.collect(Collectors.joining(", ")) +
 				")";
 		}
+		final String componentsDescription;
+		if (this.indexedComponentsInScopes == null) {
+			componentsDescription = "";
+		} else if (ArrayUtils.isEmpty(this.indexedComponentsInScopes)) {
+			componentsDescription = ", components=(none)";
+		} else {
+			componentsDescription = ", components=(" +
+				Arrays.stream(this.indexedComponentsInScopes)
+					.map(it -> it.scope().name() + ": " + Arrays.toString(it.indexedComponents()))
+					.collect(Collectors.joining(", ")) +
+				")";
+		}
 		return "Set entity reference `" + this.name + "` schema: " +
-			"indexed=" + indexedDescription;
+			"indexed=" + indexedDescription + componentsDescription;
+	}
+
+	/**
+	 * Checks whether the indexed scopes setting has changed
+	 * for a reflected reference schema. Compares the current
+	 * inheritance/explicit state with this mutation's target.
+	 *
+	 * @param schema           the current reflected reference schema
+	 * @param newIndexedScopes the new indexed scopes map
+	 * @return true if the indexed scopes setting has changed
+	 */
+	private boolean hasIndexedScopesChanged(
+		@Nonnull ReflectedReferenceSchema schema,
+		@Nonnull Map<Scope, ReferenceIndexType> newIndexedScopes
+	) {
+		if (schema.isIndexedInherited()) {
+			// was inherited — changed only if new value is explicit
+			return this.indexedInScopes != null;
+		}
+		// was explicit — changed if switching to inherited or scopes differ
+		return this.indexedInScopes == null || !schema.getReferenceIndexTypeInScopes().equals(newIndexedScopes);
+	}
+
+	/**
+	 * Checks whether the indexed components setting has changed
+	 * for a reflected reference schema. Compares the current
+	 * inheritance/explicit state with this mutation's target.
+	 *
+	 * @param schema the current reflected reference schema
+	 * @return true if the indexed components setting has changed
+	 */
+	private boolean hasIndexedComponentsChanged(
+		@Nonnull ReflectedReferenceSchema schema
+	) {
+		if (this.indexedComponentsInScopes == null) {
+			// switching to inherited — changed only if was explicit
+			return !schema.isIndexedComponentsInherited();
+		}
+		if (schema.isIndexedComponentsInherited()) {
+			// was inherited, now explicit — always changed
+			return true;
+		}
+		// both explicit — compare actual component maps
+		final Map<Scope, Set<ReferenceIndexedComponents>> newComponents = ReferenceSchema.toIndexedComponentsEnumMap(
+			this.indexedComponentsInScopes
+		);
+		return !schema.getIndexedComponentsInScopes().equals(newComponents);
 	}
 }

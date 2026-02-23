@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
@@ -32,6 +33,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
@@ -74,6 +76,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			"tagGroup",
 			true,
 			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
+			null,
 			new Scope[] {Scope.LIVE}
 		);
 
@@ -91,7 +94,7 @@ class CreateReferenceSchemaMutationConverterTest {
 					CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
 					list().i(
 						map()
-							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
 					)
 				)
@@ -115,7 +118,7 @@ class CreateReferenceSchemaMutationConverterTest {
 					CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
 					list().i(
 						map()
-							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
 					)
 				)
@@ -137,6 +140,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			true,
 			null,
 			false,
+			null,
 			null,
 			null
 		);
@@ -197,6 +201,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			"tagGroup",
 			true,
 			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) },
+			null,
 			new Scope[] {Scope.LIVE}
 		);
 
@@ -221,6 +226,17 @@ class CreateReferenceSchemaMutationConverterTest {
 							map()
 								.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 								.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING.name())
+						)
+					)
+					.e(
+						CreateReferenceSchemaMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES.name(),
+						list().i(
+							map()
+								.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+								.e(
+									ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+									array().i(ReferenceIndexedComponents.REFERENCED_ENTITY.name())
+								)
 						)
 					)
 					.e(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), array()
