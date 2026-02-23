@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.api.observability.annotation.HistogramSettings;
+import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestInstanceType;
 import io.evitadb.utils.Assert;
@@ -103,7 +104,7 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 	 * Response status of the request.
 	 */
 	@Label("Response status")
-	@Description("The status of the response: OK or ERROR.")
+	@Description("The status of the response: OK, ERROR, or CANCELLED.")
 	@ExportMetricLabel
 	@Nonnull
 	String responseStatus = ResponseStatus.OK.name();
@@ -295,10 +296,4 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 		QUERY, MUTATION
 	}
 
-	/**
-	 * Response status of REST request
-	 */
-	public enum ResponseStatus {
-		OK, ERROR
-	}
 }

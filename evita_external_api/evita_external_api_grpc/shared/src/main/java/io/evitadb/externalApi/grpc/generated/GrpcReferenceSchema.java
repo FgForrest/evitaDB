@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1429,7 +1429,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder>
       getScopedIndexedComponentsOrBuilderList() {
     return scopedIndexedComponents_;
   }
@@ -2670,7 +2670,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
             scopedIndexedComponentsBuilder_ = null;
             scopedIndexedComponents_ = other.scopedIndexedComponents_;
             bitField0_ = (bitField0_ & ~0x10000000);
-            scopedIndexedComponentsBuilder_ = 
+            scopedIndexedComponentsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getScopedIndexedComponentsFieldBuilder() : null;
           } else {
@@ -7286,7 +7286,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder>
          getScopedIndexedComponentsOrBuilderList() {
       if (scopedIndexedComponentsBuilder_ != null) {
         return scopedIndexedComponentsBuilder_.getMessageOrBuilderList();
@@ -7327,12 +7327,12 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder>
          getScopedIndexedComponentsBuilderList() {
       return getScopedIndexedComponentsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder>
         getScopedIndexedComponentsFieldBuilder() {
       if (scopedIndexedComponentsBuilder_ == null) {
         scopedIndexedComponentsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

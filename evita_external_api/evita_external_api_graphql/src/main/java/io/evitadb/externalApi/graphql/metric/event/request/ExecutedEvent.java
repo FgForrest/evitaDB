@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.api.observability.annotation.HistogramSettings;
+import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLInstanceType;
 import io.evitadb.utils.Assert;
@@ -386,10 +387,4 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 		return this;
 	}
 
-	/**
-	 * Response status of GraphQL request
-	 */
-	public enum ResponseStatus {
-		OK, ERROR, CANCELLED
-	}
 }

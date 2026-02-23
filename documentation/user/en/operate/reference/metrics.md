@@ -20,7 +20,7 @@
     <dt>graphQLOperationType</dt>
     <dd><strong>GraphQL operation type</strong>: The type of operation specified in the GQL request: QUERY, MUTATION, or SUBSCRIPTION.</dd>
     <dt>grpcResponseStatus</dt>
-    <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, CANCELED).</dd>
+    <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, or CANCELLED).</dd>
     <dt>httpMethod</dt>
     <dd><strong>HTTP method</strong>: The HTTP method of the request.</dd>
     <dt>httpStatusCode</dt>
@@ -54,7 +54,7 @@ duration of the probe.</dd>
     <dt>resolution</dt>
     <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
     <dt>responseStatus</dt>
-    <dd><strong>Response status</strong>: The status of the response: OK or ERROR.</dd>
+    <dd><strong>Response status</strong>: The status of the response: OK, ERROR, or CANCELLED.</dd>
     <dt>restInstanceType</dt>
     <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
     <dt>restOperationType</dt>

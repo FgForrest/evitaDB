@@ -30,9 +30,9 @@ import graphql.execution.DataFetcherExceptionHandlerParameters;
 import graphql.execution.DataFetcherExceptionHandlerResult;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.exception.EvitaError;
+import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.utils.ExceptionUtils;
 import lombok.extern.slf4j.Slf4j;
 
