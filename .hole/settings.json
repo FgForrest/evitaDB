@@ -1,0 +1,22 @@
+{
+  "dependencies": [
+	"openjdk-17-jdk-headless",
+	"maven"
+  ],
+  "files": {
+	"include": {
+	  "~/.m2/repository": "/home/agent/.m2/repository",
+	  "~/.m2/agent-settings.xml": "/home/agent/.m2/settings.xml",
+	  "~/.m2/agent-toolchains.xml": "/home/agent/.m2/toolchains.xml"
+	}
+  },
+  "network": {
+	"domainWhitelist": [
+	  "apache.org"
+	]
+  },
+  "container": {
+	"memoryLimit": "8g",
+	"memorySwapLimit": "12g"
+  }
+}

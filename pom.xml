@@ -499,7 +499,7 @@
 				<version>3.5.4</version>
 				<configuration>
 					<forkCount>1</forkCount>
-					<reuseForks>true</reuseForks>
+					<reuseForks>false</reuseForks>
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
