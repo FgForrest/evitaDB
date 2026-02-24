@@ -49,7 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.ListBuilder.list;
@@ -92,7 +92,16 @@ public class ExpressionWithEntityDataTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow();
+				final SealedEntity product = session.getEntity(
+					PRODUCT,
+					1,
+					dataInLocalesAll(),
+					attributeContentAll(),
+					referenceContentWithAttributes(CATEGORIES, attributeContentAll()),
+					referenceContentWithAttributes(BRAND, attributeContentAll(), entityFetch()),
+					referenceContent(STOCK)
+				)
+					.orElseThrow();
 
 				assertEquals(
 					"SX87Y800BE",
@@ -193,6 +202,17 @@ public class ExpressionWithEntityDataTest {
 					List.of(BigDecimal.valueOf(-16L), BigDecimal.valueOf(-17L)),
 					evaluate("$entity.references['categories'].*[-$.attributes['categoryPriority']]", product)
 				);
+				assertEquals(
+					1,
+					evaluate("$entity.references['brand'].referencedEntity.primaryKey", product)
+				);
+				assertThrows(
+					ExpressionEvaluationException.class,
+					() -> evaluate("$entity.references['stock'].referencedEntity.attributes['distributor']", product)
+				);
+				assertNull(
+					evaluate("$entity.references['stock'].referencedEntity?.attributes['distributor']", product)
+				);
 			}
 		);
 	}
@@ -243,7 +263,7 @@ public class ExpressionWithEntityDataTest {
 					.withReferenceTo(
 						STOCK,
 						STOCK,
-						Cardinality.ZERO_OR_MORE,
+						Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs.faceted()
 					)
 					/* finally apply schema changes */
@@ -301,6 +321,12 @@ public class ExpressionWithEntityDataTest {
 				}
 			);
 		}
+		newProduct.setReference(
+			STOCK,
+			STOCK,
+			Cardinality.ZERO_OR_ONE,
+			10000
+		);
 
 		return newProduct;
 	}

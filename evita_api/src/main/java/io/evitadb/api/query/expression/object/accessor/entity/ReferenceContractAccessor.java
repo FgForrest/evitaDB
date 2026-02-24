@@ -84,14 +84,8 @@ public class ReferenceContractAccessor implements ObjectPropertyAccessor {
 			case REFERENCED_PRIMARY_KEY_PROPERTY -> referenceContract.getReferencedPrimaryKey();
 			case ATTRIBUTES_PROPERTY -> new ReferenceAttributesEvaluationDto(referenceContract, false);
 			case LOCALIZED_ATTRIBUTES_PROPERTY -> new ReferenceAttributesEvaluationDto(referenceContract, true);
-			case REFERENCED_ENTITY_PROPERTY -> throw new ExpressionEvaluationException(
-				"Accessing referenced entity on ReferenceContract is not supported.",
-				"Accessing referenced entity on reference is not supported."
-			);
-			case GROUP_ENTITY_PROPERTY -> throw new ExpressionEvaluationException(
-				"Accessing group entity on ReferenceContract is not supported.",
-				"Accessing group entity on reference is not supported."
-			);
+			case REFERENCED_ENTITY_PROPERTY -> referenceContract.getReferencedEntity().orElse(null);
+			case GROUP_ENTITY_PROPERTY -> referenceContract.getGroupEntity().orElse(null);
 			default ->
 				throw new ExpressionEvaluationException(
 					"Property `" + propertyIdentifier + "` does not exist on ReferenceContract.",

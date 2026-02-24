@@ -133,7 +133,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	/**
 	 * Builder accumulating reference mutations on top of base entity state.
 	 */
-	@Delegate(types = ReferencesContract.class, excludes = ReferenceAvailabilityChecker.class)
+	@Delegate(types = ReferencesContract.class, excludes = {ReferenceAvailabilityChecker.class, WithEntitySchema.class})
 	private final ExistingReferencesBuilder referencesBuilder;
 	/**
 	 * Pending scope mutation, if any, applied when materializing the builder to a mutation.

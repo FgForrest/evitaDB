@@ -58,6 +58,7 @@ import java.io.Serializable;
  */
 public class EntityContractAccessor implements ObjectPropertyAccessor {
 
+	public static final String PRIMARY_KEY_PROPERTY = "primaryKey";
 	public static final String ATTRIBUTES_PROPERTY = "attributes";
 	public static final String LOCALIZED_ATTRIBUTES_PROPERTY = "localizedAttributes";
 	public static final String ASSOCIATED_DATA_PROPERTY = "associatedData";
@@ -82,6 +83,7 @@ public class EntityContractAccessor implements ObjectPropertyAccessor {
 		}
 
 		return switch (propertyIdentifier) {
+			case PRIMARY_KEY_PROPERTY -> entity.getPrimaryKey();
 			case ATTRIBUTES_PROPERTY -> new EntityAttributesEvaluationDto(entity, false);
 			case LOCALIZED_ATTRIBUTES_PROPERTY -> new EntityAttributesEvaluationDto(entity, true);
 			case ASSOCIATED_DATA_PROPERTY -> new EntityAssociatedDataEvaluationDto(entity, false);

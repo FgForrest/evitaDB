@@ -884,7 +884,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this.pricesBuilder;
 	}
 
-	@Delegate(types = ReferencesContract.class)
+	@Delegate(types = ReferencesContract.class, excludes = WithEntitySchema.class)
 	@Nonnull
 	private InitialReferencesBuilder getReferencesBuilder() {
 		if (this.referencesBuilder == null) {

@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.WithEntitySchema;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -227,7 +228,7 @@ public class Entity implements SealedEntity {
 	 *
 	 * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
 	 */
-	@Delegate(types = ReferencesContract.class, excludes = Versioned.class)
+	@Delegate(types = ReferencesContract.class, excludes = {Versioned.class, WithEntitySchema.class})
 	@Nonnull final References references;
 
 	/**
