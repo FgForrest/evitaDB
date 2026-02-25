@@ -92,18 +92,6 @@
 					<artifactId>jackson-datatype-jsr310</artifactId>
 				</exclusion>
 
-				<!-- HAProxy protocol (only if you don't use HAProxy) -->
-				<exclusion>
-					<groupId>io.netty</groupId>
-					<artifactId>netty-codec-haproxy</artifactId>
-				</exclusion>
-
-				<!-- HTTP/SOCKS proxy support (only if you don't use proxies) -->
-				<exclusion>
-					<groupId>io.netty</groupId>
-					<artifactId>netty-handler-proxy</artifactId>
-				</exclusion>
-
 				<!-- Brotli compression (not used by gRPC) -->
 				<exclusion>
 					<groupId>com.aayushatharva.brotli4j</groupId>
