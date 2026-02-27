@@ -5,7 +5,7 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 ## Code Style
 
 - **Indentation**: Use tabs for indentation
-- **Line Length**: Limit lines to 100 characters
+- **Line Length**: Limit lines to 120 characters
 - **Java modules**: Use Java modules to organize code
 - **JavaDoc**: Use Markdown syntax for formatting in JavaDoc - never use HTML tags
 - **Data structures**: Prefer immutable classes / records for data structures
