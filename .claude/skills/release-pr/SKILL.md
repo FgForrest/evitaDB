@@ -1,6 +1,7 @@
 ---
 name: release-pr
 description: Prepare or update a release PR from dev to master with auto-generated release notes
+allowed-tools: Read, Bash(git *), Bash(grep *), Bash(./tools/list-issues.sh *), Bash(./tools/list-commits.sh *), Bash(gh pr list --repo FgForrest/evitaDB *), Bash(gh pr create --repo FgForrest/evitaDB *), Bash(gh pr edit *), Bash(gh api --method POST /repos/FgForrest/evitaDB/pulls/*)
 ---
 
 # Release PR
