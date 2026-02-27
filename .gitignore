@@ -88,6 +88,7 @@ fabric.properties
 .vscode/*
 
 ### Claude settings
+/.claude/agent-memory/
 /.claude/settings.local.json
 
 ### Data
@@ -97,19 +98,4 @@ fabric.properties
 /evita_server/logs
 /evita_test/evita_functional_tests/evita-server-certificates/*
 /evita_test/evita_functional_tests/export/*
-/evita_test/evita_functional_tests/data/evita/brand-1_0.collection
-/evita_test/evita_functional_tests/data/evita/brand-4_0.collection
-/evita_test/evita_functional_tests/data/evita/category-2_0.collection
-/evita_test/evita_functional_tests/data/evita/category-5_0.collection
-/evita_test/evita_functional_tests/data/evita/evita.boot
-/evita_test/evita_functional_tests/data/evita/evita_0.catalog
-/evita_test/evita_functional_tests/data/evita/evita_0.wal
-/evita_test/evita_functional_tests/data/evita/product-3_0.collection
-/evita_test/evita_functional_tests/data/evita/product-6_0.collection
-/evita_test/evita_functional_tests/data/evitaDB.boot
-/evita_test/evita_functional_tests/data/evitaDB_0.wal
-/.claude/agent-memory/bug-hunter-tdd/MEMORY.md
-/.claude/agent-memory/code-simplifier/MEMORY.md
-/.claude/agent-memory/javadoc-writer/MEMORY.md
-/.claude/agent-memory/javadoc-writer/reference-exceptions.md
-/.claude/agent-memory/test-architect/MEMORY.md
+/evita_test/evita_functional_tests/data/*
