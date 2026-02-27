@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
       getLevelInfosOrBuilderList() {
     return levelInfos_;
   }
@@ -442,7 +442,7 @@ private static final long serialVersionUID = 0L;
             levelInfosBuilder_ = null;
             levelInfos_ = other.levelInfos_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            levelInfosBuilder_ = 
+            levelInfosBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLevelInfosFieldBuilder() : null;
           } else {
@@ -761,7 +761,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
          getLevelInfosOrBuilderList() {
       if (levelInfosBuilder_ != null) {
         return levelInfosBuilder_.getMessageOrBuilderList();
@@ -799,12 +799,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder>
          getLevelInfosBuilderList() {
       return getLevelInfosFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
         getLevelInfosFieldBuilder() {
       if (levelInfosBuilder_ == null) {
         levelInfosBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

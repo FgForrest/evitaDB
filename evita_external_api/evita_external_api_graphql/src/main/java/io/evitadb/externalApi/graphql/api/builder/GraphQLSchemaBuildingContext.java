@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -172,12 +172,28 @@ public class GraphQLSchemaBuildingContext {
 	    this.registryBuilder.typeResolver(unionType, typeResolver);
     }
 
+	/**
+	 * Register new GraphQL data fetcher to schema.
+	 */
+	public void registerDataFetcher(
+		@Nonnull String objectName,
+		@Nonnull String fieldName,
+		@Nonnull DataFetcher<?> dataFetcher
+	) {
+		this.registryBuilder.dataFetcher(
+			coordinates(objectName, fieldName),
+			dataFetcher
+		);
+	}
+
     /**
      * Register new GraphQL data fetcher to schema.
      */
-    public void registerDataFetcher(@Nonnull String objectName,
-                                    @Nonnull PropertyDescriptor fieldDescriptor,
-                                    @Nonnull DataFetcher<?> dataFetcher) {
+    public void registerDataFetcher(
+	    @Nonnull String objectName,
+	    @Nonnull PropertyDescriptor fieldDescriptor,
+	    @Nonnull DataFetcher<?> dataFetcher
+    ) {
 	    this.registryBuilder.dataFetcher(
             coordinates(objectName, fieldDescriptor.name()),
             dataFetcher
@@ -187,9 +203,11 @@ public class GraphQLSchemaBuildingContext {
     /**
      * Register new GraphQL data fetcher to schema.
      */
-    public void registerDataFetcher(@Nonnull ObjectDescriptor objectDescriptor,
-                                    @Nonnull PropertyDescriptor fieldDescriptor,
-                                    @Nonnull DataFetcher<?> dataFetcher) {
+    public void registerDataFetcher(
+	    @Nonnull ObjectDescriptor objectDescriptor,
+	    @Nonnull PropertyDescriptor fieldDescriptor,
+	    @Nonnull DataFetcher<?> dataFetcher
+    ) {
 	    this.registryBuilder.dataFetcher(
             coordinates(objectDescriptor.name(), fieldDescriptor.name()),
             dataFetcher
@@ -255,10 +273,12 @@ public class GraphQLSchemaBuildingContext {
      * @param objectBuilder builder of GraphQL object to which the field will be added
      * @param fieldDescriptor field to add
      */
-    public void registerFieldToObject(@Nonnull String objectName,
-                                      @Nonnull GraphQLObjectType.Builder objectBuilder,
-                                      @Nonnull BuiltFieldDescriptor fieldDescriptor) {
-        objectBuilder.field(fieldDescriptor.definition());
+    public void registerFieldToObject(
+	    @Nonnull String objectName,
+	    @Nonnull GraphQLObjectType.Builder objectBuilder,
+	    @Nonnull BuiltFieldDescriptor fieldDescriptor
+    ) {
+	    objectBuilder.field(fieldDescriptor.definition());
         if (fieldDescriptor.dataFetcher() != null) {
 	        this.registryBuilder.dataFetcher(
                 coordinates(objectName, fieldDescriptor.definition().getName()),
@@ -274,9 +294,11 @@ public class GraphQLSchemaBuildingContext {
      * @param objectBuilder builder of GraphQL object to which the field will be added
      * @param fieldDescriptor field to add
      */
-    public void registerFieldToObject(@Nonnull ObjectDescriptor objectDescriptor,
-                                      @Nonnull GraphQLObjectType.Builder objectBuilder,
-                                      @Nonnull BuiltFieldDescriptor fieldDescriptor) {
+    public void registerFieldToObject(
+	    @Nonnull ObjectDescriptor objectDescriptor,
+	    @Nonnull GraphQLObjectType.Builder objectBuilder,
+	    @Nonnull BuiltFieldDescriptor fieldDescriptor
+    ) {
         objectBuilder.field(fieldDescriptor.definition());
         if (fieldDescriptor.dataFetcher() != null) {
 	        this.registryBuilder.dataFetcher(

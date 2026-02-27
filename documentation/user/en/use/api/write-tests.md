@@ -44,14 +44,14 @@ artifact into your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_test_support</artifactId>
-    <version>2025.7.0</version>
+    <version>2025.8.0</version>
     <scope>test</scope>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_test_support:2025.7.0'
+implementation 'io.evitadb:evita_test_support:2025.8.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -212,7 +212,7 @@ exactly match the named values provided in a data carrier of the initialization 
 
 The data set support allows to run multiple isolated evitaDB instances at the same time - completely isolated one from
 each other. This fact allows you to run your integration tests in parallel. You can read more about this technique in
-our blog post [about blazing fast integration tests](/blog/04-blazing-fast-integration-tests).
+our blog post [about blazing fast integration tests](../../../../blog/en/04-blazing-fast-integration-tests.md).
 
 Each dataset is stored in a directory with randomized name in the OS temporary folder. When the dataset opens a web API,
 the opened ports are consulted with <SourceClass>evita_test_support/src/main/java/io/evitadb/test/PortManager.java</SourceClass>.

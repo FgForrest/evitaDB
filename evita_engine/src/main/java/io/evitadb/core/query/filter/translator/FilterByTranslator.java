@@ -24,10 +24,10 @@
 package io.evitadb.core.query.filter.translator;
 
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.utils.ArrayUtils;
 
@@ -49,7 +49,7 @@ public class FilterByTranslator implements FilteringConstraintTranslator<FilterB
 		} else {
 			return FutureNotFormula.postProcess(
 				collectedFormulas,
-				FormulaFactory::and,
+				EnclosingContainerRelation.CONJUNCTION,
 				filterByVisitor::getSuperSetFormula
 			);
 		}

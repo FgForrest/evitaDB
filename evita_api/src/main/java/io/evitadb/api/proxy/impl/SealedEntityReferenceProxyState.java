@@ -63,7 +63,7 @@ import static java.util.Optional.ofNullable;
 public class SealedEntityReferenceProxyState
 	extends AbstractEntityProxyState
 	implements SealedEntityReferenceProxy {
-	@Serial private static final long serialVersionUID = 586508293856395550L;
+	@Serial private static final long serialVersionUID = 729164827539401783L;
 	/**
 	 * Supplier of the wrapped entity primary key that might be assigned later when {@link SealedEntityProxy} is persisted.
 	 */
@@ -122,10 +122,10 @@ public class SealedEntityReferenceProxyState
 	}
 
 	@Nonnull
-	public ReferenceBuilder getReferenceBuilderWithMutations(@Nonnull Collection<LocalMutation<?,?>> mutations) {
+	public ReferenceBuilder getReferenceBuilderWithMutations(@Nonnull Collection<LocalMutation<?, ?>> mutations) {
 		Assert.isPremiseValid(this.referenceBuilder == null, "Entity builder already created!");
-		if (this.reference instanceof ReferenceBuilder) {
-			Assert.isPremiseValid(this.referenceBuilder == null, "Entity builder already created!");
+		if (this.reference instanceof ReferenceBuilder theBuilder) {
+			this.referenceBuilder = theBuilder;
 		} else {
 			this.referenceBuilder = new ExistingReferenceBuilder(
 				this.reference, getEntitySchema(), mutations, this.attributeTypes

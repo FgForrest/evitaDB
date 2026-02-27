@@ -20,7 +20,7 @@ to filter products by price.
 
 In most scenarios, your query for entities with prices will look like this:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Listing products with valid EUR price](/documentation/user/en/query/filtering/examples/price/price.evitaql)
 
@@ -142,7 +142,7 @@ The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query
 can be used to limit the result set to entities that have a price in the specified currency. Except for the [standard
 use-case](#typical-usage-of-price-constraints) you can also create query with this constraint only:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Listing products with any price in EUR currency](/documentation/user/en/query/filtering/examples/price/price-in-currency.evitaql)
 
@@ -204,7 +204,7 @@ and flat for now (but this may change in the future).
 Except for the [standard use-case](#typical-usage-of-price-constraints) you can also create query with this constraint
 only:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Listing products with any ani VIP price lists](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.evitaql)
 
@@ -262,7 +262,7 @@ To demonstrate the effect of validity constraints, let's create a query that lis
 Electronics* category and tries to access prices in their *Christmas Price List*, with a fallback to the *Basic Price
 List*, using a spring holiday date and time as the reference point for the price validity check:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Listing products with Christmas prices in May](/documentation/user/en/query/filtering/examples/price/price-valid-in.evitaql)
 
@@ -270,7 +270,7 @@ List*, using a spring holiday date and time as the reference point for the price
 
 Now let's update the query to use a date and time in December:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Listing products with Christmas prices in December](/documentation/user/en/query/filtering/examples/price/price-valid-in-correct.evitaql)
 
@@ -390,7 +390,7 @@ the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.m
 To demonstrate the price range constraint, let's create a query that lists products in the *E-readers* category and
 filters only those between `€150` and `€170.5`:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Listing E-readers with price between `€150` and `€170.5`](/documentation/user/en/query/filtering/examples/price/price-between.evitaql)
 

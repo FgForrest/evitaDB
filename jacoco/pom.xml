@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2025.8-SNAPSHOT</version>
+		<version>2026.1-SNAPSHOT</version>
 	</parent>
 	<dependencies>
 		<dependency>
@@ -59,12 +59,6 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_store_common</artifactId>
-			<version>${project.parent.version}</version>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_store_key_value</artifactId>
 			<version>${project.parent.version}</version>
 			<scope>runtime</scope>
@@ -78,6 +72,24 @@
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_store_server</artifactId>
+			<version>${project.parent.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_traffic_engine</artifactId>
+			<version>${project.parent.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_export_fs</artifactId>
+			<version>${project.parent.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_export_s3</artifactId>
 			<version>${project.parent.version}</version>
 			<scope>runtime</scope>
 		</dependency>
@@ -120,12 +132,6 @@
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_server</artifactId>
-			<version>${project.parent.version}</version>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_java_driver</artifactId>
 			<version>${project.parent.version}</version>
 			<scope>runtime</scope>
 		</dependency>

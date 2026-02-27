@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
@@ -35,8 +35,8 @@ import io.evitadb.core.metric.event.transaction.TransactionResolution;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
-import io.evitadb.store.spi.OffHeapWithFileBackupReference;
-import io.evitadb.store.spi.exception.CatalogWriteAheadLastTransactionMismatchException;
+import io.evitadb.spi.store.catalog.exception.CatalogWriteAheadLastTransactionMismatchException;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -287,7 +287,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 		long walSizeInBytes,
 		int catalogSchemaVersionDelta,
 		@Nonnull Set<ConflictKey> conflictKeys,
-		@Nonnull OffHeapWithFileBackupReference walReference,
+		@Nonnull LogRecordReference walReference,
 		@Nonnull CommitProgressRecord commitProgress,
 		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
@@ -300,7 +300,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			long walSizeInBytes,
 			int catalogSchemaVersionDelta,
 			@Nonnull Set<ConflictKey> conflictKeys,
-			@Nonnull OffHeapWithFileBackupReference walReference,
+			@Nonnull LogRecordReference walReference,
 			@Nonnull CommitProgressRecord commitProgress
 		) {
 			this(

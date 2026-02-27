@@ -23,6 +23,7 @@
 
 package io.evitadb.dataType.iterator;
 
+import javax.annotation.Nonnull;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
 
@@ -32,37 +33,36 @@ import java.util.PrimitiveIterator.OfInt;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 public class ConstantIntIterator implements OfInt {
-	private static final int END_OF_STREAM = -1;
 	private final int[] constant;
-	private int index = -1;
-	private int nextNumberToReturn = END_OF_STREAM;
+	private int index = 0;
 
-	public ConstantIntIterator(int[] constant) {
+	/**
+	 * Creates a new iterator over the given array of ints. The array is stored
+	 * by reference and must not be modified during iteration.
+	 *
+	 * @param constant the array of ints to iterate over
+	 */
+	public ConstantIntIterator(@Nonnull int[] constant) {
 		this.constant = constant;
-		if (this.constant.length > 0) {
-			this.nextNumberToReturn = this.constant[++this.index];
-		}
 	}
 
+	/**
+	 * Returns the next int element in the iteration.
+	 */
 	@Override
 	public int nextInt() {
-		if (this.nextNumberToReturn == END_OF_STREAM) {
+		if (this.index >= this.constant.length) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
-		final int numberToReturn = this.nextNumberToReturn;
-		final int nextIndex = this.index + 1;
-		if (nextIndex < this.constant.length) {
-			this.nextNumberToReturn = this.constant[++this.index];
-		} else {
-			this.index++;
-			this.nextNumberToReturn = END_OF_STREAM;
-		}
-		return numberToReturn;
+		return this.constant[this.index++];
 	}
 
+	/**
+	 * Returns true if there are more elements to iterate over.
+	 */
 	@Override
 	public boolean hasNext() {
-		return this.nextNumberToReturn != END_OF_STREAM;
+		return this.index < this.constant.length;
 	}
 
 }

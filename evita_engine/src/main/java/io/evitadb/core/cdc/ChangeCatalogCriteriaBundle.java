@@ -99,4 +99,11 @@ public record ChangeCatalogCriteriaBundle(
 	public int hashCode() {
 		return Arrays.hashCode(this.criteria);
 	}
+
+	@Nonnull
+	@Override
+	public String toString() {
+		return Arrays.toString(this.criteria);
+	}
+
 }

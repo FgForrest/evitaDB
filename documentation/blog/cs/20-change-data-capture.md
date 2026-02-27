@@ -5,8 +5,9 @@ perex: |
   Umožňuje replikaci dat s nízkou latencí, event-driven workflow a udržuje služby synchronizované bez náročných dávkových úloh. Pokud vás zajímá, jak je CDC implementováno v evitaDB a jak zajišťujeme jeho spolehlivost, pokračujte ve čtení.
 date: '1.11.2025'
 author: 'Jan Novotný, Lukáš Hornych'
-motive: assets/images/20-change-data-capture.png
+motive: ../en/assets/images/20-change-data-capture.png
 proofreading: 'done'
+commit: 360483b86834e15a0dde1d2f96642315ee4c7a5f
 ---
 
 Change Data Capture (CDC) je v podstatě filtrovaný stream logických operací čtených z Write-Ahead Logu (WAL) databáze. Když zapíšete změny do databáze, tyto změny jsou nejprve zapsány do WAL, než jsou aplikovány na skutečný sdílený stav databáze a její datové soubory. To zajišťuje, že v případě pádu nebo selhání může databáze stále aplikovat všechny transakce, které byly potvrzeny jako trvalé.

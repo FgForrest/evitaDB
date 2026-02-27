@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,18 +34,18 @@ public interface FacetGroupStatisticsHeaderDescriptor {
 
 	PropertyDescriptor FILTER_GROUP_BY = PropertyDescriptor.builder()
 		.name("filterGroupBy")
-		// TOBEDONE JNO: proper docs for filterGroupBy
 		.description("""
-			Filters returned facet groups by defined constraints.
+			Optional filter constraint that restricts the entire facet group whose facets
+			are displayed and calculated in the summary to those that belong to the facet
+			group matching the filter constraint.
 			""")
-		// type is expected to be a  `filterGroupBy` container
+		// type is expected to be a `filterGroupBy` container
 		.build();
 	PropertyDescriptor ORDER_GROUP_BY = PropertyDescriptor.builder()
 		.name("orderGroupBy")
-		// TOBEDONE JNO: proper docs for orderGroupBy
 		.description("""
-			Sorts returned facet groups by defined constraints.
+			Optional order constraint that specifies the order of the facet groups.
 			""")
-		// type is expected to be a `orderGroupBy` container
+		// type is expected to be an `orderGroupBy` container
 		.build();
 }

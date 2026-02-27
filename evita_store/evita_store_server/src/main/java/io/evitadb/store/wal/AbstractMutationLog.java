@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,9 +34,9 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTooBigException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
@@ -46,11 +46,11 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.spi.OffHeapWithFileBackupReference;
-import io.evitadb.store.spi.model.reference.LogFileRecordReference;
-import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.store.wal.supplier.ReverseMutationSupplier;
 import io.evitadb.store.wal.supplier.TransactionLocations;
@@ -95,7 +95,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import java.util.zip.CRC32C;
 
-import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;

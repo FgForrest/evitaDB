@@ -45,7 +45,6 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Internal implementation of {@link GlobalAttributeSchemaContract}.
@@ -70,7 +69,9 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	 * @return An EnumMap where each Scope is associated with its corresponding AttributeUniquenessType.
 	 */
 	@Nonnull
-	public static EnumMap<Scope, GlobalAttributeUniquenessType> toGlobalUniquenessEnumMap(@Nullable ScopedGlobalAttributeUniquenessType[] uniqueInScopes) {
+	public static EnumMap<Scope, GlobalAttributeUniquenessType> toGlobalUniquenessEnumMap(
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueInScopes
+	) {
 		final EnumMap<Scope, GlobalAttributeUniquenessType> theUniquenessType = new EnumMap<>(Scope.class);
 		if (uniqueInScopes != null) {
 			for (ScopedGlobalAttributeUniquenessType uniqueInScope : uniqueInScopes) {
@@ -131,7 +132,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable T defaultValue
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
-		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType = toGlobalUniquenessEnumMap(uniqueGlobally);
+		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
+			toGlobalUniquenessEnumMap(uniqueGlobally);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterable);
 		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortable);
 		return new GlobalAttributeSchema(
@@ -170,7 +172,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		int indexedDecimalPlaces
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
-		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType = toGlobalUniquenessEnumMap(uniqueGlobally);
+		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
+			toGlobalUniquenessEnumMap(uniqueGlobally);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterable);
 		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortable);
 		return new GlobalAttributeSchema(
@@ -281,7 +284,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		int indexedDecimalPlaces
 	) {
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(unique);
-		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType = toGlobalUniquenessEnumMap(uniqueGlobally);
+		final EnumMap<Scope, GlobalAttributeUniquenessType> theGlobalUniquenessType =
+			toGlobalUniquenessEnumMap(uniqueGlobally);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterable);
 		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortable);
 		return new GlobalAttributeSchema(
@@ -321,8 +325,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		);
 		if (globalUniquenessTypeInScopes == null || globalUniquenessTypeInScopes.isEmpty()) {
 			final EnumMap<Scope, GlobalAttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
-			this.globalUniquenessTypeInScopes = Collections.unmodifiableMap(theMap);
 			theMap.put(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE);
+			this.globalUniquenessTypeInScopes = Collections.unmodifiableMap(theMap);
 		} else {
 			this.globalUniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(globalUniquenessTypeInScopes);
 		}
@@ -347,9 +351,15 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 				} else if (globalAttributeUniquenessType != null) {
 					// global attribute setting has always precedence
 					switch (globalAttributeUniquenessType) {
-						case UNIQUE_WITHIN_CATALOG ->  theMap.put(scope, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION);
-						case UNIQUE_WITHIN_CATALOG_LOCALE -> theMap.put(scope, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE);
-						case NOT_UNIQUE -> theMap.put(scope, AttributeUniquenessType.NOT_UNIQUE);
+						case UNIQUE_WITHIN_CATALOG -> theMap.put(
+							scope, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+						);
+						case UNIQUE_WITHIN_CATALOG_LOCALE -> theMap.put(
+							scope, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
+						);
+						case NOT_UNIQUE -> theMap.put(
+							scope, AttributeUniquenessType.NOT_UNIQUE
+						);
 					}
 				}
 			}
@@ -379,29 +389,34 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 
 	@Override
 	public boolean isUniqueGloballyInScope(@Nonnull Scope scope) {
-		final GlobalAttributeUniquenessType globalAttributeUniquenessType = this.globalUniquenessTypeInScopes.get(scope);
+		final GlobalAttributeUniquenessType globalAttributeUniquenessType =
+			this.globalUniquenessTypeInScopes.get(scope);
 		return globalAttributeUniquenessType != null && globalAttributeUniquenessType != GlobalAttributeUniquenessType.NOT_UNIQUE;
 	}
 
 	@Override
 	public boolean isUniqueGloballyWithinLocaleInScope(@Nonnull Scope scope) {
-		return this.globalUniquenessTypeInScopes.get(scope) == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
+		return this.globalUniquenessTypeInScopes.get(scope) ==
+			GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
 	}
 
 	@Nonnull
 	@Override
 	public GlobalAttributeUniquenessType getGlobalUniquenessType(@Nonnull Scope scope) {
-		return Optional.ofNullable(this.globalUniquenessTypeInScopes.get(scope)).orElse(GlobalAttributeUniquenessType.NOT_UNIQUE);
+		return Optional.ofNullable(this.globalUniquenessTypeInScopes.get(scope))
+			.orElse(GlobalAttributeUniquenessType.NOT_UNIQUE);
 	}
 
 	@Override
 	public String toString() {
 		return "GlobalAttributeSchema{" +
 			"name='" + this.name + '\'' + (this.deprecationNotice == null ? "" : " (deprecated)") +
-			", unique=(" + (this.uniquenessTypeInScopes.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue().name())) + ")" +
-			", uniqueGlobally=(" + (this.globalUniquenessTypeInScopes.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue().name())) + ")" +
-			", filterable=" + (this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + this.filterableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
-			", sortable=" + (this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + this.sortableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
+			", unique=(" + join(this.uniquenessTypeInScopes) + ")" +
+			", uniqueGlobally=(" + join(this.globalUniquenessTypeInScopes) + ")" +
+			", filterable=" +
+			(this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.filterableInScopes) + ")") +
+			", sortable=" +
+			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

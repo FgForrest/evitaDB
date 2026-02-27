@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.math.BigDecimal;
-import java.util.Arrays;
 
 /**
  * Default implementation of {@link HistogramContract}
@@ -50,10 +49,10 @@ public class Histogram implements HistogramContract {
 		Assert.isTrue(!ArrayUtils.isEmpty(buckets), "Buckets may never be empty!");
 		Assert.isTrue(buckets[buckets.length - 1].threshold().compareTo(max) <= 0, "Last bucket must have threshold lower than max!");
 		Bucket lastBucket = null;
-		for (Bucket bucket : buckets) {
+		for (final Bucket bucket : buckets) {
 			Assert.isTrue(
 				lastBucket == null || lastBucket.threshold().compareTo(bucket.threshold()) < 0,
-				"Buckets must have monotonic row of thresholds!"
+				"Buckets must have a monotonic row of thresholds!"
 			);
 			lastBucket = bucket;
 		}
@@ -82,26 +81,15 @@ public class Histogram implements HistogramContract {
 
 	@Override
 	public int getOverallCount() {
-		return Arrays.stream(this.buckets).mapToInt(Bucket::occurrences).sum();
+		int sum = 0;
+		for (final Bucket bucket : this.buckets) {
+			sum += bucket.occurrences();
+		}
+		return sum;
 	}
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder();
-		for (int i = 0; i < this.buckets.length; i++) {
-			final Bucket bucket = this.buckets[i];
-			final boolean hasNext = i + 1 < this.buckets.length;
-			sb.append("[")
-				.append(bucket.threshold())
-				.append(" - ")
-				.append(hasNext ? this.buckets[i + 1].threshold() : this.max)
-				.append("]: ")
-				.append(bucket.occurrences());
-			if (hasNext) {
-				sb.append(", ");
-			}
-		}
-		return sb.toString();
+		return asString();
 	}
-
 }

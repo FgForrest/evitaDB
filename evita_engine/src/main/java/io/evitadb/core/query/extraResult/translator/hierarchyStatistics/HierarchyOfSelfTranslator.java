@@ -31,7 +31,7 @@ import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.EntityCollection;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;

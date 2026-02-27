@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	/**
 	 * Specialized reference sets accessible by reference content instance name.
 	 */
-	private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
+	@Nullable private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
 
 	/**
 	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
@@ -149,7 +149,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 			attributePredicate, associatedDataValuePredicate,
 			referencePredicate, pricePredicate,
 			alignedNow,
-			ioFetchCount, ioFetchedBytes
+			ioFetchCount, ioFetchedBytes,
+			entity.namedReferenceSets
 		);
 	}
 
@@ -188,7 +189,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		this.ioFetchedBytes = ioFetchedBytes;
 	}
 
-	private ServerEntityDecorator(
+	public ServerEntityDecorator(
 		@Nonnull ServerEntityDecorator delegate,
 		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
@@ -199,16 +200,16 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		@Nonnull PriceContractSerializablePredicate pricePredicate,
 		@Nonnull OffsetDateTime alignedNow,
 		int ioFetchCount,
-		int ioFetchedBytes
+		int ioFetchedBytes,
+		@Nullable Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets
 	) {
 		super(
-			delegate, parentEntity,
-			localePredicate, hierarchyPredicate, attributePredicate, associatedDataPredicate,
-			referencePredicate, pricePredicate,
-			alignedNow
+			delegate, parentEntity, localePredicate, hierarchyPredicate, attributePredicate, associatedDataPredicate,
+			referencePredicate, pricePredicate, alignedNow
 		);
 		this.ioFetchCount = ioFetchCount;
 		this.ioFetchedBytes = ioFetchedBytes;
+		this.namedReferenceSets = namedReferenceSets;
 	}
 
 	@Override
@@ -369,8 +370,9 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							.map(ReferenceContract::getReferencedEntity)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
+							.filter(ServerEntityDecorator.class::isInstance)
 							.map(ServerEntityDecorator.class::cast)
-							.mapToInt(ServerEntityDecorator::getIoFetchedBytes)
+							.mapToInt(ServerEntityDecorator::getIoFetchCount)
 							.sum()
 						:
 						0
@@ -388,7 +390,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						getParentEntity()
 							.filter(ServerEntityDecorator.class::isInstance)
 							.map(ServerEntityDecorator.class::cast)
-							.map(ServerEntityDecorator::getIoFetchCount)
+							.map(ServerEntityDecorator::getIoFetchedBytes)
 							.orElse(0)
 						:
 						0
@@ -399,6 +401,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							.map(ReferenceContract::getReferencedEntity)
 							.filter(Optional::isPresent)
 							.map(Optional::get)
+							.filter(ServerEntityDecorator.class::isInstance)
 							.map(ServerEntityDecorator.class::cast)
 							.mapToInt(ServerEntityDecorator::getIoFetchedBytes)
 							.sum()

@@ -33,27 +33,72 @@ import java.io.Serial;
 import static java.util.Optional.ofNullable;
 
 /**
- * Exception is thrown when there is attempt to filter by a non-existing reference.
+ * Exception thrown when a client attempts to access, query, or manipulate a reference that does
+ * not exist, either at the schema level or at the entity instance level.
+ *
+ * This exception can be raised in three distinct scenarios:
+ *
+ * **1. Unknown entity context**: Attempting to resolve a reference by name when the entity type
+ * is not known. Without entity type information, evitaDB cannot determine which entity schema
+ * to consult for reference definitions.
+ *
+ * **2. Reference not in schema**: The reference name is valid syntactically but does not exist
+ * in the entity schema. This typically occurs when:
+ * - A query references a non-existent reference name
+ * - Client code tries to access a reference that was never defined in the schema
+ * - A typo in the reference name
+ *
+ * **3. Reference instance not found on entity**: The reference schema exists, but the specific
+ * reference instance (identified by referenced entity ID) is not present on the given entity.
+ * This is a data-level, not schema-level, absence.
+ *
+ * This exception is commonly raised during query filtering
+ * (e.g., `referenceHaving('brand', ...)`), entity manipulation
+ * (e.g., `getReference('category', 123)`), and query translation when reference names are
+ * resolved against the schema.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ReferenceNotFoundException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -8969284548331815445L;
 
+	/**
+	 * Constructs an exception indicating that a reference cannot be located because the entity
+	 * type context is unknown.
+	 *
+	 * @param referenceName the name of the reference that cannot be resolved
+	 */
 	public ReferenceNotFoundException(@Nonnull String referenceName) {
 		super("Reference with name `" + referenceName + "` cannot be located when entity type is not known.");
 	}
 
+	/**
+	 * Constructs an exception indicating that a reference with the given name does not exist in
+	 * the entity schema.
+	 *
+	 * @param referenceName the name of the reference that is not present in the schema
+	 * @param entitySchema  the entity schema that does not contain the reference definition
+	 */
 	public ReferenceNotFoundException(@Nonnull String referenceName, @Nonnull EntitySchemaContract entitySchema) {
-		super("Reference with name `" + referenceName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");
+		super(
+			"Reference with name `" + referenceName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");
 	}
 
-	public ReferenceNotFoundException(@Nonnull String referenceName, int referencedEntityId, @Nonnull EntityContract entity) {
+	/**
+	 * Constructs an exception indicating that a specific reference instance is not present on
+	 * an entity, even though the reference schema exists.
+	 *
+	 * @param referenceName      the name of the reference schema
+	 * @param referencedEntityId the primary key of the referenced entity that was not found
+	 * @param entity             the entity instance on which the reference is missing
+	 */
+	public ReferenceNotFoundException(
+		@Nonnull String referenceName, int referencedEntityId, @Nonnull EntityContract entity) {
 		super("Reference with name `" + referenceName + "` to entity with id `" + referencedEntityId + "` " +
-			"is not present in the entity `" + entity.getType() + "` with " +
-			ofNullable(entity.getPrimaryKey())
-				.map(it -> "primary key `" + entity.getPrimaryKey() + "`")
-				.orElse("not yet assigned primary key") + "."
+			      "is not present in the entity `" + entity.getType() + "` with " +
+			      ofNullable(entity.getPrimaryKey())
+				      .map(it -> "primary key `" + entity.getPrimaryKey() + "`")
+				      .orElse("not yet assigned primary key") + "."
 		);
 	}
 

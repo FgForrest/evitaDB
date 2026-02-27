@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -43,7 +42,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
 import java.util.Objects;
-import java.util.Optional;
+
 
 /**
  * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#getDeprecationNotice()}
@@ -60,9 +59,12 @@ import java.util.Optional;
 public class ModifyReferenceSchemaDeprecationNoticeMutation
 	extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = 4496317134851290790L;
+	@Serial private static final long serialVersionUID = -6208711984616865654L;
 	@Nullable @Getter private final String deprecationNotice;
 
+	/**
+	 * Creates mutation that will set the deprecation notice of the reference schema with the given name.
+	 */
 	public ModifyReferenceSchemaDeprecationNoticeMutation(@Nonnull String name, @Nullable String deprecationNotice) {
 		super(name);
 		this.deprecationNotice = deprecationNotice;
@@ -75,7 +77,8 @@ public class ModifyReferenceSchemaDeprecationNoticeMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReferenceSchemaDeprecationNoticeMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyReferenceSchemaDeprecationNoticeMutation theExistingMutation
+			&& this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -84,7 +87,11 @@ public class ModifyReferenceSchemaDeprecationNoticeMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 			if (reflectedReferenceSchema.isReflectedReferenceAvailable() && Objects.equals(reflectedReferenceSchema.getDeprecationNotice(), this.deprecationNotice)) {
@@ -115,23 +122,6 @@ public class ModifyReferenceSchemaDeprecationNoticeMutation
 					referenceSchema.getSortableAttributeCompounds()
 				);
 			}
-		}
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
-		if (existingReferenceSchema.isEmpty()) {
-			// ups, the associated data is missing
-			throw new InvalidSchemaMutationException(
-				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			);
-		} else {
-			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = Objects.requireNonNull(mutate(entitySchema, theSchema));
-			return replaceReferenceSchema(entitySchema, theSchema, updatedReferenceSchema);
 		}
 	}
 

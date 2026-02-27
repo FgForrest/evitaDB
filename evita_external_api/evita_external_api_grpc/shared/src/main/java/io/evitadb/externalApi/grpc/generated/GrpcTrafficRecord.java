@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1679,7 +1679,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getSessionIdFieldBuilder() {
       if (sessionIdBuilder_ == null) {
         sessionIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2003,7 +2003,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getCreatedFieldBuilder() {
       if (createdBuilder_ == null) {
         createdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2292,7 +2292,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getFinishedWithErrorFieldBuilder() {
       if (finishedWithErrorBuilder_ == null) {
         finishedWithErrorBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2429,7 +2429,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainerOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainerOrBuilder>
         getMutationFieldBuilder() {
       if (mutationBuilder_ == null) {
         if (!(bodyCase_ == 101)) {
@@ -2571,7 +2571,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainerOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainerOrBuilder>
         getQueryFieldBuilder() {
       if (queryBuilder_ == null) {
         if (!(bodyCase_ == 102)) {
@@ -2713,7 +2713,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainerOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainerOrBuilder>
         getEnrichmentFieldBuilder() {
       if (enrichmentBuilder_ == null) {
         if (!(bodyCase_ == 103)) {
@@ -2855,7 +2855,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainerOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainerOrBuilder>
         getFetchFieldBuilder() {
       if (fetchBuilder_ == null) {
         if (!(bodyCase_ == 104)) {
@@ -2997,7 +2997,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainerOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainerOrBuilder>
         getSessionCloseFieldBuilder() {
       if (sessionCloseBuilder_ == null) {
         if (!(bodyCase_ == 105)) {
@@ -3139,7 +3139,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainerOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainerOrBuilder>
         getSessionStartFieldBuilder() {
       if (sessionStartBuilder_ == null) {
         if (!(bodyCase_ == 106)) {
@@ -3281,7 +3281,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainerOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainerOrBuilder>
         getSourceQueryFieldBuilder() {
       if (sourceQueryBuilder_ == null) {
         if (!(bodyCase_ == 107)) {
@@ -3423,7 +3423,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainerOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainerOrBuilder>
         getSourceQueryStatisticsFieldBuilder() {
       if (sourceQueryStatisticsBuilder_ == null) {
         if (!(bodyCase_ == 108)) {

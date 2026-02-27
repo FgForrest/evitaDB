@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -141,6 +141,21 @@ private static final long serialVersionUID = 0L;
     return mutationCount_;
   }
 
+  public static final int TRAFFICRECORDSMISSEDOUT_FIELD_NUMBER = 6;
+  private int trafficRecordsMissedOut_ = 0;
+  /**
+   * <pre>
+   * The number of traffic records that were missed due to buffer overflow.
+   * </pre>
+   *
+   * <code>int32 trafficRecordsMissedOut = 6;</code>
+   * @return The trafficRecordsMissedOut.
+   */
+  @java.lang.Override
+  public int getTrafficRecordsMissedOut() {
+    return trafficRecordsMissedOut_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -169,6 +184,9 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCount_ != 0) {
       output.writeInt32(5, mutationCount_);
+    }
+    if (trafficRecordsMissedOut_ != 0) {
+      output.writeInt32(6, trafficRecordsMissedOut_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -199,6 +217,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(5, mutationCount_);
     }
+    if (trafficRecordsMissedOut_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(6, trafficRecordsMissedOut_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -224,6 +246,8 @@ private static final long serialVersionUID = 0L;
         != other.getEntityFetchCount()) return false;
     if (getMutationCount()
         != other.getMutationCount()) return false;
+    if (getTrafficRecordsMissedOut()
+        != other.getTrafficRecordsMissedOut()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -246,6 +270,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getEntityFetchCount();
     hash = (37 * hash) + MUTATIONCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getMutationCount();
+    hash = (37 * hash) + TRAFFICRECORDSMISSEDOUT_FIELD_NUMBER;
+    hash = (53 * hash) + getTrafficRecordsMissedOut();
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -386,6 +412,7 @@ private static final long serialVersionUID = 0L;
       queryCount_ = 0;
       entityFetchCount_ = 0;
       mutationCount_ = 0;
+      trafficRecordsMissedOut_ = 0;
       return this;
     }
 
@@ -433,6 +460,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000010) != 0)) {
         result.mutationCount_ = mutationCount_;
+      }
+      if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.trafficRecordsMissedOut_ = trafficRecordsMissedOut_;
       }
     }
 
@@ -495,6 +525,9 @@ private static final long serialVersionUID = 0L;
       if (other.getMutationCount() != 0) {
         setMutationCount(other.getMutationCount());
       }
+      if (other.getTrafficRecordsMissedOut() != 0) {
+        setTrafficRecordsMissedOut(other.getTrafficRecordsMissedOut());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -546,6 +579,11 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000010;
               break;
             } // case 40
+            case 48: {
+              trafficRecordsMissedOut_ = input.readInt32();
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 48
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -779,6 +817,50 @@ private static final long serialVersionUID = 0L;
     public Builder clearMutationCount() {
       bitField0_ = (bitField0_ & ~0x00000010);
       mutationCount_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private int trafficRecordsMissedOut_ ;
+    /**
+     * <pre>
+     * The number of traffic records that were missed due to buffer overflow.
+     * </pre>
+     *
+     * <code>int32 trafficRecordsMissedOut = 6;</code>
+     * @return The trafficRecordsMissedOut.
+     */
+    @java.lang.Override
+    public int getTrafficRecordsMissedOut() {
+      return trafficRecordsMissedOut_;
+    }
+    /**
+     * <pre>
+     * The number of traffic records that were missed due to buffer overflow.
+     * </pre>
+     *
+     * <code>int32 trafficRecordsMissedOut = 6;</code>
+     * @param value The trafficRecordsMissedOut to set.
+     * @return This builder for chaining.
+     */
+    public Builder setTrafficRecordsMissedOut(int value) {
+
+      trafficRecordsMissedOut_ = value;
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The number of traffic records that were missed due to buffer overflow.
+     * </pre>
+     *
+     * <code>int32 trafficRecordsMissedOut = 6;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearTrafficRecordsMissedOut() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      trafficRecordsMissedOut_ = 0;
       onChanged();
       return this;
     }

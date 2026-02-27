@@ -23,9 +23,8 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
-
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -36,12 +35,20 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@EqualsAndHashCode(callSuper = true)
 public class ServerModifyCatalogSchemaMutation extends ModifyCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -7092436218734140016L;
-	@Getter @Delegate private final ModifyCatalogSchemaMutation delegate;
+	@Nonnull @Getter private final ModifyCatalogSchemaMutation delegate;
 	@Getter private final long catalogVersion;
 	@Getter private final int schemaVersion;
 
+	/**
+	 * Creates a new server-side mutation wrapper around an existing modify catalog schema mutation.
+	 *
+	 * @param catalogVersion version of the catalog at the time of mutation
+	 * @param schemaVersion  version of the schema at the time of mutation
+	 * @param delegate       the original modify catalog schema mutation to wrap
+	 */
 	public ServerModifyCatalogSchemaMutation(
 		long catalogVersion,
 		int schemaVersion,

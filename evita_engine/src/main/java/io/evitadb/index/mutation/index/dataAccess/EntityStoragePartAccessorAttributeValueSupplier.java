@@ -28,8 +28,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
-import io.evitadb.store.entity.model.entity.AttributesStoragePart;
-import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;

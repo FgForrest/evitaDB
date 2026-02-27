@@ -41,7 +41,7 @@ public final class ByteNumberRange extends NumberRange<Byte> {
 	@Serial private static final long serialVersionUID = -7031165388993390172L;
 
 	/**
-	 * Method creates new LongRange instance.
+	 * Method creates new ByteRange instance.
 	 */
 	@Nonnull
 	public static ByteNumberRange between(@Nonnull Byte from, @Nonnull Byte to) {
@@ -49,7 +49,7 @@ public final class ByteNumberRange extends NumberRange<Byte> {
 	}
 
 	/**
-	 * Method creates new LongRange instance when only lower range bound is available.
+	 * Method creates new ByteRange instance when only lower range bound is available.
 	 */
 	@Nonnull
 	public static ByteNumberRange from(@Nonnull Byte from) {
@@ -57,7 +57,7 @@ public final class ByteNumberRange extends NumberRange<Byte> {
 	}
 
 	/**
-	 * Method creates new LongRange instance when only upper range bound is available.
+	 * Method creates new ByteRange instance when only upper range bound is available.
 	 */
 	@Nonnull
 	public static ByteNumberRange to(@Nonnull Byte to) {
@@ -66,7 +66,7 @@ public final class ByteNumberRange extends NumberRange<Byte> {
 
 	/**
 	 * Parses string to {@link NumberRange} or throws an exception. String must conform to the format produced
-	 * by {@link NumberRange#toString()} method. Parsed Number range always uses {@link Long} for numbers.
+	 * by {@link NumberRange#toString()} method. Parsed Number range always uses {@link Byte} for numbers.
 	 */
 	@Nonnull
 	public static ByteNumberRange fromString(@Nonnull String string) throws DataTypeParseException {
@@ -77,7 +77,7 @@ public final class ByteNumberRange extends NumberRange<Byte> {
 		final int delimiter = string.indexOf(INTERVAL_JOIN, 1);
 		Assert.isTrue(
 			delimiter > -1,
-			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to dates!")
+			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to values!")
 		);
 		final Byte from = delimiter == 1 ? null : parseByte(string.substring(1, delimiter));
 		final Byte to = delimiter == string.length() - 2 ? null : parseByte(string.substring(delimiter + 1, string.length() - 1));

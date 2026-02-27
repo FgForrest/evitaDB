@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@
  */
 
 package io.evitadb.api.requestResponse.trafficRecording;
-
 
 import io.evitadb.dataType.EvitaDataTypes;
 
@@ -47,7 +46,7 @@ public record Label(
 	public static final Label[] EMPTY_LABELS = new Label[0];
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (!(o instanceof Label label)) return false;
 
 		return this.name.equals(label.name) && Objects.equals(this.value, label.value);

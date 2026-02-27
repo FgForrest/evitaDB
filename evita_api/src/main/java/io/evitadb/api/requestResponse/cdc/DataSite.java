@@ -30,6 +30,7 @@ import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 
 /**
  * Record describing the location and form of the CDC event in the evitaDB that should be captured.
@@ -48,20 +49,26 @@ public record DataSite(
 	@Nullable ContainerType[] containerType,
 	@Nullable String[] containerName
 ) implements CaptureSite<DataSite> {
+	@Nonnull
 	public static final DataSite ALL = new DataSite(null, null, null, null, null);
 
 	public DataSite {
 		if (operation != null) {
-			java.util.Arrays.sort(operation);
+			Arrays.sort(operation);
 		}
 		if (containerType != null) {
-			java.util.Arrays.sort(containerType);
+			Arrays.sort(containerType);
 		}
 		if (containerName != null) {
-			java.util.Arrays.sort(containerName);
+			Arrays.sort(containerName);
 		}
 	}
 
+	/**
+	 * Compares this data site with another data site for ordering. Comparison is performed field by field:
+	 * entityType, entityPrimaryKey, operation, containerType, containerName. Null values are ordered before
+	 * non-null values.
+	 */
 	@Override
 	public int compareTo(@Nonnull DataSite other) {
 		if (this == other) return 0;
@@ -160,9 +167,9 @@ public record DataSite(
 		}
 
 		/**
-		 * Sets the classifier name.
+		 * Sets the container name.
 		 *
-		 * @param containerName the classifier name
+		 * @param containerName the container name
 		 * @return this builder
 		 */
 		@Nonnull
@@ -187,6 +194,39 @@ public record DataSite(
 			);
 		}
 
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof DataSite that)) return false;
+
+		return java.util.Objects.equals(this.entityType, that.entityType) &&
+			java.util.Objects.equals(this.entityPrimaryKey, that.entityPrimaryKey) &&
+			Arrays.equals(this.operation, that.operation) &&
+			Arrays.equals(this.containerType, that.containerType) &&
+			Arrays.equals(this.containerName, that.containerName);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = java.util.Objects.hashCode(this.entityType);
+		result = 31 * result + java.util.Objects.hashCode(this.entityPrimaryKey);
+		result = 31 * result + Arrays.hashCode(this.operation);
+		result = 31 * result + Arrays.hashCode(this.containerType);
+		result = 31 * result + Arrays.hashCode(this.containerName);
+		return result;
+	}
+
+	@Nonnull
+	@Override
+	public String toString() {
+		return "DataSite{" +
+			"entityType='" + this.entityType + '\'' +
+			", entityPrimaryKey=" + this.entityPrimaryKey +
+			", operation=" + Arrays.toString(this.operation) +
+			", containerType=" + Arrays.toString(this.containerType) +
+			", containerName=" + Arrays.toString(this.containerName) +
+			'}';
 	}
 
 }

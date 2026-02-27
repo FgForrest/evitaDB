@@ -53,7 +53,7 @@ import java.util.stream.Stream;
  * Mutation is responsible for adding one or more currencies to a {@link EntitySchemaContract#getCurrencies()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * or negative mutation {@link DisallowCurrencyInEntitySchemaMutation} if those mutation are present in the mutation pipeline
+ * or negative mutation {@link DisallowCurrencyInEntitySchemaMutation} if those mutations are present in the mutation pipeline
  * multiple times.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -63,7 +63,7 @@ import java.util.stream.Stream;
 @EqualsAndHashCode
 public class AllowCurrencyInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 5300752272825069167L;
-	@Getter private final Currency[] currencies;
+	@Getter @Nonnull private final Currency[] currencies;
 
 	public AllowCurrencyInEntitySchemaMutation(@Nonnull Currency... currencies) {
 		this.currencies = currencies;
@@ -98,8 +98,18 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableLocalEntit
 				.toArray(Currency[]::new);
 
 			return new MutationCombinationResult<>(
-				currenciesToRemove.isEmpty() ? null : (currenciesToRemove.size() == ((DisallowCurrencyInEntitySchemaMutation) existingMutation).getCurrencies().size() ? existingMutation : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove)),
-				currenciesToAdd.length == this.currencies.length ? this : (currenciesToAdd.length == 0 ? null : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd))
+				currenciesToRemove.isEmpty() ?
+					null :
+					(currenciesToRemove.size() == disallowCurrencyInEntitySchema.getCurrencies().size() ?
+						existingMutation :
+						new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove)
+					),
+				currenciesToAdd.length == this.currencies.length ?
+					this :
+					(currenciesToAdd.length == 0 ?
+						null :
+						new AllowCurrencyInEntitySchemaMutation(currenciesToAdd)
+					)
 			);
 		} else {
 			return null;

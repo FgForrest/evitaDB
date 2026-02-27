@@ -1,0 +1,63 @@
+# PR validation pipeline: build + test + AI code review
+
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [dev]
+    paths:
+      - evita*/**/*.java
+      - evita*/**/pom.xml
+      - pom.xml
+      - .github/**
+
+concurrency:
+  group: pr-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      - name: Build with Maven
+        run: |
+          mvn -T 1C -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+          jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
+
+      - name: Upload test results
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: success() || failure()
+        with:
+          name: test-results
+          path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+
+      - name: Publish Test Report
+        uses: ./.github/actions/publish-test-report
+        if: success() || failure()
+
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false

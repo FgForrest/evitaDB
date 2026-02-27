@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,4 +80,14 @@ public interface GrpcTrafficSessionCloseContainerOrBuilder extends
    * @return The mutationCount.
    */
   int getMutationCount();
+
+  /**
+   * <pre>
+   * The number of traffic records that were missed due to buffer overflow.
+   * </pre>
+   *
+   * <code>int32 trafficRecordsMissedOut = 6;</code>
+   * @return The trafficRecordsMissedOut.
+   */
+  int getTrafficRecordsMissedOut();
 }

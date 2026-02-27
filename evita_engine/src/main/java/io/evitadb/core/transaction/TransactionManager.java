@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,21 +43,20 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContex
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ServerModifyCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
-import io.evitadb.core.Transaction;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.ChangeCatalogObserverContract;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.conflict.AttributeDeltaResolver;
 import io.evitadb.core.transaction.conflict.CommutativeConflictResolver;
 import io.evitadb.core.transaction.conflict.ConflictRingBuffer;
@@ -75,8 +74,8 @@ import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.store.spi.IsolatedWalPersistenceService;
-import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
@@ -90,6 +89,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
@@ -134,7 +134,7 @@ public class TransactionManager implements Closeable {
 	/**
 	 * The executor used for handling transactional tasks.
 	 */
-	private final SystemObservableExecutorService transactionalExecutor;
+	private final ObservableExecutorService transactionalExecutor;
 	/**
 	 * The maximum time in milliseconds the system will wait for a writing transaction to be accepted.
 	 */
@@ -321,7 +321,7 @@ public class TransactionManager implements Closeable {
 		this.conflictPolicy = this.configuration.transaction().conflictPolicy();
 		this.granularConflictPolicy = this.conflictPolicy.stream().anyMatch(ConflictPolicy::isGranular);
 		this.requestExecutor = requestExecutor;
-		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
+		this.transactionalExecutor = transactionalExecutor;
 		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.transactionAcceptanceTimeout = this.configuration.transaction().waitForTransactionAcceptanceInMillis();
@@ -372,7 +372,7 @@ public class TransactionManager implements Closeable {
 	 * @return the catalog instance after processing the write-ahead log
 	 */
 	@Nonnull
-	public Catalog processEntireWriteAheadLog(
+	public Optional<ProcessResult> processEntireWriteAheadLog(
 		long nextCatalogVersion,
 		@Nonnull LongConsumer progressCallback
 	) {
@@ -382,9 +382,7 @@ public class TransactionManager implements Closeable {
 			false,
 			true, // we should obtain lock here easily, since this is called only on catalog instantiation
 			progressCallback
-		)
-			.map(ProcessResult::catalog)
-			.orElseGet(this.lastFinalizedCatalog::get);
+		);
 	}
 
 	/**
@@ -893,7 +891,7 @@ public class TransactionManager implements Closeable {
 	public long appendWalAndDiscard(
 		@Nonnull OffsetDateTime commitTimestamp,
 		@Nonnull TransactionMutation transactionMutation,
-		@Nonnull OffHeapWithFileBackupReference walReference
+		@Nonnull LogRecordReference walReference
 	) {
 		try {
 			// calculate the rest of the timeout
@@ -1075,7 +1073,7 @@ public class TransactionManager implements Closeable {
 
 				Assert.isPremiseValid(lastTransaction != null, "Transaction must not be null!");
 				final ProcessResult processResult = new ProcessResult(
-					lastTransaction.getTransactionId(),
+					lastTransactionMutation,
 					atomicMutationCount,
 					localMutationCount,
 					newCatalog,
@@ -1269,12 +1267,13 @@ public class TransactionManager implements Closeable {
 	@Nonnull
 	private SubmissionPublisher<ConflictResolutionAndWalAppendingTransactionTask> createTransactionalPublisher() {
 		final int maxBufferCapacity = this.configuration.server().transactionThreadPool().queueSize();
+		final Executor unrejectableExecutor = ProgressingFuture.unrejectableExecutor(this.transactionalExecutor);
 
 		final SubmissionPublisher<ConflictResolutionAndWalAppendingTransactionTask> txPublisher = new SubmissionPublisher<>(
-			this.transactionalExecutor, maxBufferCapacity
+			unrejectableExecutor, maxBufferCapacity
 		);
 		final ConflictResolutionAndWalAppendingTransactionStage stage1 = new ConflictResolutionAndWalAppendingTransactionStage(
-			this.transactionalExecutor, maxBufferCapacity, this,
+			unrejectableExecutor, maxBufferCapacity, this,
 			// do nothing on error
 			(transactionTask, throwable) -> {
 			}
@@ -1378,14 +1377,14 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Result of the {@link #processTransactions(long, long, boolean, boolean, LongConsumer)} method.
 	 *
-	 * @param lastTransactionId                  the ID of the last processed transaction
+	 * @param lastTransaction                    the last processed transaction
 	 * @param processedAtomicMutations           the number of processed atomic mutations
 	 * @param processedLocalMutations            the number of processed local mutations
 	 * @param catalog                            the catalog after the processing
 	 * @param commitTimesOfProcessedTransactions commit times of all processed transactions
 	 */
 	public record ProcessResult(
-		@Nonnull UUID lastTransactionId,
+		@Nonnull TransactionMutation lastTransaction,
 		int processedAtomicMutations,
 		int processedLocalMutations,
 		@Nonnull Catalog catalog,

@@ -24,9 +24,9 @@
 package io.evitadb.store.engine;
 
 import com.esotericsoftware.kryo.Kryo;
-import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
+import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.engine.serializer.EngineStateSerializer;
-import io.evitadb.store.spi.model.EngineState;
+import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.utils.Assert;
 
 import java.util.function.Consumer;

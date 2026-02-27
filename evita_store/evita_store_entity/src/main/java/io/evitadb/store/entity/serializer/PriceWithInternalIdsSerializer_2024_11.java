@@ -32,8 +32,8 @@ import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
-import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
 import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;

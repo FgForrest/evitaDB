@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -105,4 +105,31 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
    * @return The responseType.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType getResponseType();
+
+  /**
+   * <pre>
+   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+   * @return Whether the heartBeat field is set.
+   */
+  boolean hasHeartBeat();
+  /**
+   * <pre>
+   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+   * @return The heartBeat.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHeartBeat getHeartBeat();
+  /**
+   * <pre>
+   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder getHeartBeatOrBuilder();
 }

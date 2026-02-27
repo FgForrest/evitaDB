@@ -24,7 +24,7 @@
 package io.evitadb.index.bPlusTree;
 
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -45,13 +45,13 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.ArrayUtils.*;
-import static java.util.Optional.ofNullable;
 
 /**
  * Represents a B+ Tree data structure specifically designed for integer keys and generic values.
@@ -68,7 +68,8 @@ public class TransactionalIntBPlusTree<V> implements
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
-	private static final int DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil((float) DEFAULT_INTERNAL_NODE_BLOCK_SIZE / 2.0) - 1);
+	private static final int DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(
+		(float) DEFAULT_INTERNAL_NODE_BLOCK_SIZE / 2.0) - 1);
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Maximum number of keys = values per leaf node. Use odd number. The number of keys in internal nodes is one less.
@@ -244,17 +245,25 @@ public class TransactionalIntBPlusTree<V> implements
 	 * @param minInternalNodeBlockSize the minimum number of values required in an internal node.
 	 * @param isRoot                   a boolean indicating if the current node being verified is the root of the tree.
 	 */
-	private static void verifyMinimalCountOfValuesInNodes(@Nonnull BPlusTreeNode<?> node, int minValueBlockSize, int minInternalNodeBlockSize, boolean isRoot) {
+	private static void verifyMinimalCountOfValuesInNodes(
+		@Nonnull BPlusTreeNode<?> node, int minValueBlockSize, int minInternalNodeBlockSize, boolean isRoot) {
 		if (node instanceof BPlusInternalTreeNode internalNode && !isRoot) {
 			if (internalNode.size() < minInternalNodeBlockSize) {
-				throw new IllegalStateException("Internal node " + internalNode + " has less than " + minInternalNodeBlockSize + " values (" + node.size() + ")!");
+				throw new IllegalStateException(
+					"Internal node " + internalNode + " has less than " + minInternalNodeBlockSize +
+						" values (" + node.size() + ")!"
+				);
 			}
 			for (int i = 0; i < internalNode.size(); i++) {
-				verifyMinimalCountOfValuesInNodes(internalNode.getChildren()[i], minValueBlockSize, minInternalNodeBlockSize, false);
+				verifyMinimalCountOfValuesInNodes(
+					internalNode.getChildren()[i], minValueBlockSize, minInternalNodeBlockSize, false
+				);
 			}
 		} else {
 			if (node.size() < minValueBlockSize && !isRoot) {
-				throw new IllegalStateException("Leaf node " + node + " has less than " + minValueBlockSize + " values (" + node.size() + ")!");
+				throw new IllegalStateException(
+					"Leaf node " + node + " has less than " + minValueBlockSize + " values (" + node.size() + ")!"
+				);
 			}
 		}
 	}
@@ -283,7 +292,9 @@ public class TransactionalIntBPlusTree<V> implements
 		}
 
 		if (actualSize != size) {
-			throw new IllegalStateException("Forward iterator returned " + actualSize + " keys, but the tree has " + size + " elements!");
+			throw new IllegalStateException(
+				"Forward iterator returned " + actualSize + " keys, but the tree has " + size + " elements!"
+			);
 		}
 	}
 
@@ -310,7 +321,9 @@ public class TransactionalIntBPlusTree<V> implements
 		}
 
 		if (actualSize != size) {
-			throw new IllegalStateException("Reverse iterator returned " + actualSize + " keys, but the tree has " + size + " elements!");
+			throw new IllegalStateException(
+				"Reverse iterator returned " + actualSize + " keys, but the tree has " + size + " elements!"
+			);
 		}
 	}
 
@@ -327,27 +340,13 @@ public class TransactionalIntBPlusTree<V> implements
 		int key,
 		@Nonnull List<CursorLevel> path
 	) {
-		final NodeWithIndex child = currentNode.search(key);
-		path.add(new CursorLevel(currentNode.getChildren(), child.index(), currentNode.getPeek()));
+		final int childIndex = currentNode.searchIndex(key);
+		final BPlusTreeNode<?>[] children = currentNode.getChildren();
+		path.add(new CursorLevel(children, childIndex, currentNode.getPeek()));
 		// if the child is an internal node, continue traversing down the tree
-		if (child.node() instanceof BPlusInternalTreeNode childInternalNode) {
+		if (children[childIndex] instanceof BPlusInternalTreeNode childInternalNode) {
 			addCursorLevels(childInternalNode, key, path);
 		}
-	}
-
-	/**
-	 * Constructor to initialize the B+ Tree with default block sizes.
-	 *
-	 * @param valueType the type of the values stored in the tree
-	 */
-	public TransactionalIntBPlusTree(@Nonnull Class<V> valueType) {
-		this(
-			DEFAULT_VALUE_BLOCK_SIZE,
-			DEFAULT_MIN_VALUE_BLOCK_SIZE,
-			DEFAULT_INTERNAL_NODE_BLOCK_SIZE,
-			DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE,
-			valueType
-		);
 	}
 
 	/**
@@ -366,7 +365,9 @@ public class TransactionalIntBPlusTree<V> implements
 			DEFAULT_INTERNAL_NODE_BLOCK_SIZE,
 			DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE,
 			valueType,
-			transactionalLayerWrapper
+			transactionalLayerWrapper,
+			new BPlusLeafTreeNode<>(DEFAULT_VALUE_BLOCK_SIZE, valueType, transactionalLayerWrapper, true),
+			0
 		);
 	}
 
@@ -381,26 +382,6 @@ public class TransactionalIntBPlusTree<V> implements
 			valueBlockSize, valueBlockSize / 2,
 			valueBlockSize, valueBlockSize / 2,
 			valueType
-		);
-	}
-
-	/**
-	 * Constructor to initialize the B+ Tree.
-	 *
-	 * @param valueBlockSize            maximum number of values in a leaf node
-	 * @param valueType                 the type of the values stored in the tree
-	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
-	 */
-	public TransactionalIntBPlusTree(
-		int valueBlockSize,
-		@Nonnull Class<V> valueType,
-		@Nonnull Function<Object, V> transactionalLayerWrapper
-	) {
-		this(
-			valueBlockSize, valueBlockSize / 2,
-			valueBlockSize, valueBlockSize / 2,
-			valueType,
-			transactionalLayerWrapper
 		);
 	}
 
@@ -434,38 +415,6 @@ public class TransactionalIntBPlusTree<V> implements
 		);
 	}
 
-	/**
-	 * Constructor to initialize the B+ Tree.
-	 *
-	 * @param valueBlockSize            maximum number of values in a leaf node
-	 * @param minValueBlockSize         minimum number of values in a leaf node
-	 *                                  (controls branching factor for leaf nodes)
-	 * @param internalNodeBlockSize     maximum number of keys in an internal node
-	 * @param minInternalNodeBlockSize  minimum number of keys in an internal node
-	 *                                  (controls branching factor for internal nodes)
-	 * @param valueType                 the type of the values stored in the tree
-	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
-	 */
-	public TransactionalIntBPlusTree(
-		int valueBlockSize,
-		int minValueBlockSize,
-		int internalNodeBlockSize,
-		int minInternalNodeBlockSize,
-		@Nonnull Class<V> valueType,
-		@Nonnull Function<Object, V> transactionalLayerWrapper
-	) {
-		this(
-			valueBlockSize,
-			minValueBlockSize,
-			internalNodeBlockSize,
-			minInternalNodeBlockSize,
-			valueType,
-			transactionalLayerWrapper,
-			new BPlusLeafTreeNode<>(valueBlockSize, valueType, transactionalLayerWrapper, true),
-			0
-		);
-	}
-
 	private TransactionalIntBPlusTree(
 		int valueBlockSize,
 		int minValueBlockSize,
@@ -478,12 +427,21 @@ public class TransactionalIntBPlusTree<V> implements
 	) {
 		Assert.isPremiseValid(valueBlockSize >= 3, "Block size must be at least 3.");
 		Assert.isPremiseValid(minValueBlockSize >= 1, "Minimum block size must be at least 1.");
-		Assert.isPremiseValid(minValueBlockSize <= Math.ceil((float) valueBlockSize / 2.0) - 1, "Minimum block size must be less than half of the block size, otherwise the tree nodes might be immediately full after merges.");
+		Assert.isPremiseValid(
+			minValueBlockSize <= Math.ceil((float) valueBlockSize / 2.0) - 1,
+			"Minimum block size must be less than half of the block size, otherwise the tree nodes might be immediately full after merges."
+		);
 		Assert.isPremiseValid(internalNodeBlockSize >= 3, "Internal node block size must be at least 3.");
 		Assert.isPremiseValid(internalNodeBlockSize % 2 == 1, "Internal node block size must be an odd number.");
 		Assert.isPremiseValid(minInternalNodeBlockSize >= 1, "Minimum internal node block size must be at least 1.");
-		Assert.isPremiseValid(minInternalNodeBlockSize <= Math.ceil((float) internalNodeBlockSize / 2.0) - 1, "Minimum internal node block size must be less than half of the internal node block size, otherwise the tree nodes might be immediately full after merges.");
-		Assert.isPremiseValid(transactionalLayerWrapper != null || !TransactionalLayerProducer.class.isAssignableFrom(valueType), "Value type cannot implement TransactionalLayerProducer if no transactional layer wrapper is provided.");
+		Assert.isPremiseValid(
+			minInternalNodeBlockSize <= Math.ceil((float) internalNodeBlockSize / 2.0) - 1,
+			"Minimum internal node block size must be less than half of the internal node block size, otherwise the tree nodes might be immediately full after merges."
+		);
+		Assert.isPremiseValid(
+			transactionalLayerWrapper != null || !TransactionalLayerProducer.class.isAssignableFrom(valueType),
+			"Value type cannot implement TransactionalLayerProducer if no transactional layer wrapper is provided."
+		);
 		this.valueBlockSize = valueBlockSize;
 		this.minValueBlockSize = minValueBlockSize;
 		this.internalNodeBlockSize = internalNodeBlockSize;
@@ -501,7 +459,7 @@ public class TransactionalIntBPlusTree<V> implements
 	 */
 	@Nonnull
 	public BPlusTreeNode<?> getRoot() {
-		return this.root.get();
+		return Objects.requireNonNull(this.root.get());
 	}
 
 	/**
@@ -513,9 +471,10 @@ public class TransactionalIntBPlusTree<V> implements
 	 */
 	public void setRoot(@Nonnull BPlusTreeNode<?> newRoot) {
 		// remove changes of the previous root - it gets replaced
-		final BPlusTreeNode<?> currentRoot = this.root.get();
-		ofNullable(Transaction.getTransactionalMemoryLayerIfExists(currentRoot))
-			.ifPresent(layer -> currentRoot.removeLayer());
+		final BPlusTreeNode<?> currentRoot = getRoot();
+		if (Transaction.getTransactionalMemoryLayerIfExists(currentRoot) != null) {
+			currentRoot.removeLayer();
+		}
 		// set new root
 		this.root.set(newRoot);
 	}
@@ -531,7 +490,7 @@ public class TransactionalIntBPlusTree<V> implements
 		final Cursor<V> cursor = createCursor(key);
 		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 		if (leaf.insert(key, value)) {
-			this.size.set(this.size.get() + 1);
+			this.size.set(size() + 1);
 		}
 
 		// Split the leaf node if it exceeds the block size
@@ -553,25 +512,23 @@ public class TransactionalIntBPlusTree<V> implements
 		final Cursor<V> cursor = createCursor(key);
 		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 
-		leaf.getValueWithIndex(key)
-			.ifPresentOrElse(
-				// update the value on specified index
-				result -> {
-					leaf.decoupleTransactionalArrays();
-					leaf.getValues()[result.index()] = updater.apply(result.value());
-				},
-				// insert the new value
-				() -> {
-					if (leaf.insert(key, updater.apply(null))) {
-						this.size.set(this.size.get() + 1);
-					}
+		final int existingIndex = leaf.getValueIndex(key);
+		if (existingIndex >= 0) {
+			// update the value on specified index
+			leaf.decoupleTransactionalArrays();
+			final V[] values = leaf.getValues();
+			values[existingIndex] = updater.apply(values[existingIndex]);
+		} else {
+			// insert the new value
+			if (leaf.insert(key, updater.apply(null))) {
+				this.size.set(size() + 1);
+			}
 
-					// Split the leaf node if it exceeds the block size
-					if (leaf.isFull()) {
-						splitLeafNode(leaf, cursor);
-					}
-				}
-			);
+			// Split the leaf node if it exceeds the block size
+			if (leaf.isFull()) {
+				splitLeafNode(leaf, cursor);
+			}
+		}
 	}
 
 	/**
@@ -588,7 +545,7 @@ public class TransactionalIntBPlusTree<V> implements
 
 		final boolean headRemoved = leaf.size() > 1 && key == leaf.getKeys()[0];
 		if (leaf.delete(key)) {
-			this.size.set(this.size.get() - 1);
+			this.size.set(size() - 1);
 		}
 
 		// if the head of the leaf has been removed, we need to update parent keys accordingly
@@ -618,7 +575,7 @@ public class TransactionalIntBPlusTree<V> implements
 	 * @return the size of the tree, represented as the number of elements it contains
 	 */
 	public int size() {
-		return this.size.get();
+		return Objects.requireNonNull(this.size.get());
 	}
 
 	/**
@@ -692,7 +649,8 @@ public class TransactionalIntBPlusTree<V> implements
 
 	@Nonnull
 	@Override
-	public TransactionalIntBPlusTree<V> createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public TransactionalIntBPlusTree<V> createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final BPlusTreeNode<?> theRoot = transactionalLayer.getStateCopyWithCommittedChanges(this.root).orElseThrow();
 		if (theRoot instanceof BPlusLeafTreeNode<?> leafNode) {
 			//noinspection unchecked
@@ -767,7 +725,8 @@ public class TransactionalIntBPlusTree<V> implements
 						final N previousNode = previousNodeCursor.currentNode();
 						if (previousNode.keyCount() > this.minValueBlockSize) {
 							// steal half of the surplus data from the left sibling
-							node.stealFromLeft(Math.max(1, (previousNode.keyCount() - this.minValueBlockSize) / 2), previousNode);
+							node.stealFromLeft(
+								Math.max(1, (previousNode.keyCount() - this.minValueBlockSize) / 2), previousNode);
 							// update parent keys
 							updateParentKeys(cursorWithLevel);
 							return;
@@ -781,7 +740,8 @@ public class TransactionalIntBPlusTree<V> implements
 						final N nextNode = nextNodeCursor.currentNode();
 						if (nextNode.keyCount() > this.minValueBlockSize) {
 							// steal half of the surplus data from the right sibling
-							node.stealFromRight(Math.max(1, (nextNode.keyCount() - this.minValueBlockSize) / 2), nextNode);
+							node.stealFromRight(
+								Math.max(1, (nextNode.keyCount() - this.minValueBlockSize) / 2), nextNode);
 							// update parent keys of the next node - we've stolen its first key
 							updateParentKeys(nextNodeCursor);
 							// update parent keys, but only if node was empty - which means first key was added
@@ -799,7 +759,8 @@ public class TransactionalIntBPlusTree<V> implements
 							// merge nodes
 							node.mergeWithLeft(previousNode);
 							// remove the removed child from the parent
-							parent.removeChildOnIndex(previousNodeCursor.currentNodeIndex(), previousNodeCursor.currentNodeIndex());
+							parent.removeChildOnIndex(
+								previousNodeCursor.currentNodeIndex(), previousNodeCursor.currentNodeIndex());
 							// update parent keys, previous node has been removed
 							updateParentKeys(previousNodeCursor.withReplacedCurrentNode(node));
 							// consolidate the parent node
@@ -816,7 +777,8 @@ public class TransactionalIntBPlusTree<V> implements
 							// merge nodes
 							node.mergeWithRight(nextNode);
 							// remove the removed child from the parent
-							parent.removeChildOnIndex(nextNodeCursor.currentNodeIndex() - 1, nextNodeCursor.currentNodeIndex());
+							parent.removeChildOnIndex(
+								nextNodeCursor.currentNodeIndex() - 1, nextNodeCursor.currentNodeIndex());
 							// update parent keys, next node has been removed
 							updateParentKeys(cursorWithLevel.withReplacedCurrentNode(node));
 							// consolidate the parent node
@@ -827,13 +789,15 @@ public class TransactionalIntBPlusTree<V> implements
 					final BPlusTreeNode<?> theRoot = this.getRoot();
 					if (node.size() == 1 && node instanceof BPlusInternalTreeNode internalTreeNode) {
 						final BPlusTreeNode<?> firstChild = internalTreeNode.getChildren()[0];
-						ofNullable(Transaction.getTransactionalMemoryLayerIfExists(theRoot))
-							.ifPresent(layer -> theRoot.removeLayer());
+						if (Transaction.getTransactionalMemoryLayerIfExists(theRoot) != null) {
+							theRoot.removeLayer();
+						}
 						// replace the root with the only child
 						this.root.set(firstChild);
 					} else if (node.size() == 0 && node instanceof BPlusInternalTreeNode) {
-						ofNullable(Transaction.getTransactionalMemoryLayerIfExists(theRoot))
-							.ifPresent(layer -> theRoot.removeLayer());
+						if (Transaction.getTransactionalMemoryLayerIfExists(theRoot) != null) {
+							theRoot.removeLayer();
+						}
 						// the root is empty, create a new empty leaf node
 						this.root.set(
 							new BPlusLeafTreeNode<>(
@@ -864,8 +828,7 @@ public class TransactionalIntBPlusTree<V> implements
 	private Cursor<V> createCursor(int key) {
 		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
 		final BPlusTreeNode<?> theRoot = this.getRoot();
-		final BPlusTreeNode<?>[] rootSiblings = (BPlusTreeNode<?>[]) Array.newInstance(theRoot.getClass(), 1);
-		rootSiblings[0] = theRoot;
+		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
 		path.add(new CursorLevel(rootSiblings, 0, 0));
 		// if the root is internal node, add the levels to the path until the leaf node is reached
 		if (theRoot instanceof BPlusInternalTreeNode rootInternalNode) {
@@ -914,8 +877,9 @@ public class TransactionalIntBPlusTree<V> implements
 		);
 
 		// remove changes of the previous root - it gets replaced
-		ofNullable(Transaction.getTransactionalMemoryLayerIfExists(leaf))
-			.ifPresent(layer -> leaf.removeLayer());
+		if (Transaction.getTransactionalMemoryLayerIfExists(leaf) != null) {
+			leaf.removeLayer();
+		}
 
 		// if the root splits, create a new root
 		if (leaf == this.getRoot()) {
@@ -1008,8 +972,9 @@ public class TransactionalIntBPlusTree<V> implements
 		);
 
 		// remove changes of the previous root - it gets replaced
-		ofNullable(Transaction.getTransactionalMemoryLayerIfExists(internal))
-			.ifPresent(layer -> internal.removeLayer());
+		if (Transaction.getTransactionalMemoryLayerIfExists(internal) != null) {
+			internal.removeLayer();
+		}
 
 		// if the root splits, create a new root
 		if (internal == this.getRoot()) {
@@ -1033,7 +998,8 @@ public class TransactionalIntBPlusTree<V> implements
 	}
 
 	/**
-	 * B+ Tree Node class to represent internal node.
+	 * B+ Tree Node interface representing a node in the B+ tree structure. Implemented by both internal nodes
+	 * (which hold keys and child pointers) and leaf nodes (which hold keys and values).
 	 */
 	interface BPlusTreeNode<N extends BPlusTreeNode<N>>
 		extends
@@ -1132,7 +1098,8 @@ public class TransactionalIntBPlusTree<V> implements
 	}
 
 	/**
-	 * B+ Tree Node class to represent internal node.
+	 * Internal node implementation of the B+ tree that holds keys and child node pointers. Internal nodes serve
+	 * as routing nodes — they do not store values directly but guide searches to the appropriate leaf nodes.
 	 */
 	static class BPlusInternalTreeNode implements BPlusTreeNode<BPlusInternalTreeNode> {
 		@Serial private static final long serialVersionUID = -7649742437563558158L;
@@ -1158,6 +1125,16 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		private int peek;
 
+		/**
+		 * Creates a new internal node with a single key separating two child nodes. This constructor is used
+		 * when creating a new root after a split operation.
+		 *
+		 * @param blockSize          the maximum number of keys this node can hold
+		 * @param key                the initial key separating the two child nodes
+		 * @param leftLeaf           the left child node
+		 * @param rightLeaf          the right child node
+		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 */
 		public BPlusInternalTreeNode(
 			int blockSize,
 			int key,
@@ -1174,6 +1151,18 @@ public class TransactionalIntBPlusTree<V> implements
 			this.transactionalLayer = transactionalLayer;
 		}
 
+		/**
+		 * Creates a new internal node by copying a range of keys and children from existing arrays. This constructor
+		 * is used during node split operations.
+		 *
+		 * @param originKeys         the source array of keys to copy from
+		 * @param originChildren     the source array of child nodes to copy from
+		 * @param keyStart           the start index (inclusive) in the origin keys array
+		 * @param keyEnd             the end index (exclusive) in the origin keys array
+		 * @param childrenStart      the start index (inclusive) in the origin children array
+		 * @param childrenEnd        the end index (exclusive) in the origin children array
+		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 */
 		public BPlusInternalTreeNode(
 			@Nonnull int[] originKeys,
 			@Nonnull BPlusTreeNode<?>[] originChildren,
@@ -1207,7 +1196,9 @@ public class TransactionalIntBPlusTree<V> implements
 		@Nonnull
 		@Override
 		public int[] getKeys() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -1217,7 +1208,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public int getPeek() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.peek;
 			} else {
@@ -1227,7 +1220,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -1262,7 +1257,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public int keyCount() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return Math.max(this.peek, 0);
 			} else {
@@ -1272,7 +1269,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public boolean isFull() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.peek == this.children.length - 1;
 			} else {
@@ -1285,7 +1284,9 @@ public class TransactionalIntBPlusTree<V> implements
 			final int[] theKeys;
 			final BPlusTreeNode<?>[] theChildren;
 			final int thePeek;
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				theKeys = this.keys;
 				theChildren = this.children;
@@ -1313,18 +1314,26 @@ public class TransactionalIntBPlusTree<V> implements
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusInternalTreeNode previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				// we preserve all the current node children
 				System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
 				// then move the children from the previous node
-				System.arraycopy(previousNode.getChildren(), previousNode.size() - numberOfTailValues, this.children, 0, numberOfTailValues);
+				System.arraycopy(
+					previousNode.getChildren(), previousNode.size() - numberOfTailValues, this.children, 0,
+					numberOfTailValues
+				);
 				// we need to preserve all the current node keys
 				System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek);
 				// our original first child newly produces its own key
 				this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues].getLeftBoundaryKey();
 				// and now we can copy the keys from the previous node - but except the first one
-				System.arraycopy(previousNode.getKeys(), previousNode.keyCount() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
+				System.arraycopy(
+					previousNode.getKeys(), previousNode.keyCount() - numberOfTailValues + 1, this.keys, 0,
+					numberOfTailValues - 1
+				);
 				// and update the peek indexes
 				this.peek += numberOfTailValues;
 				previousNode.setPeek(previousNode.getPeek() - numberOfTailValues);
@@ -1334,13 +1343,19 @@ public class TransactionalIntBPlusTree<V> implements
 				// we preserve all the current node children
 				System.arraycopy(layer.children, 0, layer.children, numberOfTailValues, layer.peek + 1);
 				// then move the children from the previous node
-				System.arraycopy(previousNode.getChildrenForUpdate(), previousNode.size() - numberOfTailValues, layer.children, 0, numberOfTailValues);
+				System.arraycopy(
+					previousNode.getChildrenForUpdate(), previousNode.size() - numberOfTailValues, layer.children, 0,
+					numberOfTailValues
+				);
 				// we need to preserve all the current node keys
 				System.arraycopy(layer.keys, 0, layer.keys, numberOfTailValues, layer.peek);
 				// our original first child newly produces its own key
 				layer.keys[numberOfTailValues - 1] = layer.children[numberOfTailValues].getLeftBoundaryKey();
 				// and now we can copy the keys from the previous node - but except the first one
-				System.arraycopy(previousNode.getKeysForUpdate(), previousNode.keyCount() - numberOfTailValues + 1, layer.keys, 0, numberOfTailValues - 1);
+				System.arraycopy(
+					previousNode.getKeysForUpdate(), previousNode.keyCount() - numberOfTailValues + 1, layer.keys, 0,
+					numberOfTailValues - 1
+				);
 				// and update the peek indexes
 				layer.peek += numberOfTailValues;
 				previousNode.setPeek(previousNode.getPeek() - numberOfTailValues);
@@ -1351,12 +1366,15 @@ public class TransactionalIntBPlusTree<V> implements
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusInternalTreeNode nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				// we move all the children
 				final BPlusTreeNode<?>[] nextNodeChildren = nextNode.getChildren();
 				System.arraycopy(nextNodeChildren, 0, this.children, this.peek + 1, numberOfHeadValues);
-				System.arraycopy(nextNodeChildren, numberOfHeadValues, nextNodeChildren, 0, nextNode.size() - numberOfHeadValues);
+				System.arraycopy(
+					nextNodeChildren, numberOfHeadValues, nextNodeChildren, 0, nextNode.size() - numberOfHeadValues);
 
 				// set the key for the first child of the next node
 				this.keys[this.peek] = this.children[this.peek + 1].getLeftBoundaryKey();
@@ -1365,7 +1383,8 @@ public class TransactionalIntBPlusTree<V> implements
 				final int[] nextNodeKeys = nextNode.getKeys();
 				System.arraycopy(nextNodeKeys, 0, this.keys, this.peek + 1, numberOfHeadValues - 1);
 				// we need to shift the keys in the next node
-				System.arraycopy(nextNodeKeys, numberOfHeadValues, nextNodeKeys, 0, nextNodeKeys.length - numberOfHeadValues);
+				System.arraycopy(
+					nextNodeKeys, numberOfHeadValues, nextNodeKeys, 0, nextNodeKeys.length - numberOfHeadValues);
 
 				// and update the peek indexes
 				this.peek += numberOfHeadValues;
@@ -1377,7 +1396,10 @@ public class TransactionalIntBPlusTree<V> implements
 				// we move all the children
 				final BPlusTreeNode<?>[] nextNodeChildrenForUpdate = nextNode.getChildrenForUpdate();
 				System.arraycopy(nextNodeChildrenForUpdate, 0, layer.children, layer.peek + 1, numberOfHeadValues);
-				System.arraycopy(nextNodeChildrenForUpdate, numberOfHeadValues, nextNodeChildrenForUpdate, 0, nextNode.size() - numberOfHeadValues);
+				System.arraycopy(
+					nextNodeChildrenForUpdate, numberOfHeadValues, nextNodeChildrenForUpdate, 0,
+					nextNode.size() - numberOfHeadValues
+				);
 
 				// set the key for the first child of the next node
 				layer.keys[layer.peek] = layer.children[layer.peek + 1].getLeftBoundaryKey();
@@ -1386,7 +1408,10 @@ public class TransactionalIntBPlusTree<V> implements
 				final int[] nextNodeKeysForUpdate = nextNode.getKeysForUpdate();
 				System.arraycopy(nextNodeKeysForUpdate, 0, layer.keys, layer.peek + 1, numberOfHeadValues - 1);
 				// we need to shift the keys in the next node
-				System.arraycopy(nextNodeKeysForUpdate, numberOfHeadValues, nextNodeKeysForUpdate, 0, nextNodeKeysForUpdate.length - numberOfHeadValues);
+				System.arraycopy(
+					nextNodeKeysForUpdate, numberOfHeadValues, nextNodeKeysForUpdate, 0,
+					nextNodeKeysForUpdate.length - numberOfHeadValues
+				);
 
 				// and update the peek indexes
 				layer.peek += numberOfHeadValues;
@@ -1398,7 +1423,9 @@ public class TransactionalIntBPlusTree<V> implements
 		public void mergeWithLeft(@Nonnull BPlusInternalTreeNode previousNode) {
 			final int mergePeek = previousNode.getPeek();
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
 				this.keys[mergePeek] = this.children[0].getLeftBoundaryKey();
@@ -1425,7 +1452,9 @@ public class TransactionalIntBPlusTree<V> implements
 		public void mergeWithRight(@Nonnull BPlusInternalTreeNode nextNode) {
 			final int mergePeek = nextNode.getPeek();
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
 				final int offset;
@@ -1458,7 +1487,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public int getLeftBoundaryKey() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.children[0].getLeftBoundaryKey();
 			} else {
@@ -1474,7 +1505,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		@Nonnull
 		public int[] getKeysForUpdate() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -1497,7 +1530,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		@Nonnull
 		public BPlusTreeNode<?>[] getChildren() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.children;
 			} else {
@@ -1515,7 +1550,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		@Nonnull
 		public BPlusTreeNode<?>[] getChildrenForUpdate() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				return this.children;
 			} else {
@@ -1552,10 +1589,13 @@ public class TransactionalIntBPlusTree<V> implements
 				"Internal node must not be full to accommodate two leaf nodes after their split!"
 			);
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				// the peek relates to children, which are one more than keys, that's why we don't use peek + 1, but mere peek
-				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek);
+				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+					key, this.keys, 0, this.peek);
 				Assert.isPremiseValid(
 					original == this.children[insertionPosition.position()],
 					"Original node must be the child of the internal node!"
@@ -1573,7 +1613,8 @@ public class TransactionalIntBPlusTree<V> implements
 				decoupleTransactionalArrays();
 
 				// the peek relates to children, which are one more than keys, that's why we don't use peek + 1, but mere peek
-				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, layer.keys, 0, layer.peek);
+				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+					key, layer.keys, 0, layer.peek);
 				Assert.isPremiseValid(
 					original == layer.children[insertionPosition.position()],
 					"Original node must be the child of the internal node!"
@@ -1591,6 +1632,30 @@ public class TransactionalIntBPlusTree<V> implements
 		}
 
 		/**
+		 * Searches for the child index that should contain the given key.
+		 * This method avoids allocating a NodeWithIndex record.
+		 *
+		 * @param key the integer key to search for within the B+ Tree.
+		 * @return the index of the child that should contain the specified key.
+		 */
+		public int searchIndex(int key) {
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
+			if (layer == null) {
+				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+					key, this.keys, 0, this.peek);
+				return insertionPosition.alreadyPresent() ?
+					insertionPosition.position() + 1 : insertionPosition.position();
+			} else {
+				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+					key, layer.keys, 0, layer.peek);
+				return insertionPosition.alreadyPresent() ?
+					insertionPosition.position() + 1 : insertionPosition.position();
+			}
+		}
+
+		/**
 		 * Searches for the BPlusTreeNode that should contain the given key.
 		 *
 		 * @param key the integer key to search for within the B+ Tree.
@@ -1598,18 +1663,8 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		@Nonnull
 		public NodeWithIndex search(int key) {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
-			if (layer == null) {
-				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek);
-				final int thePosition = insertionPosition.alreadyPresent() ?
-					insertionPosition.position() + 1 : insertionPosition.position();
-				return new NodeWithIndex(this.children[thePosition], thePosition);
-			} else {
-				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, layer.keys, 0, layer.peek);
-				final int thePosition = insertionPosition.alreadyPresent() ?
-					insertionPosition.position() + 1 : insertionPosition.position();
-				return new NodeWithIndex(layer.children[thePosition], thePosition);
-			}
+			final int thePosition = searchIndex(key);
+			return new NodeWithIndex(getChildren()[thePosition], thePosition);
 		}
 
 		/**
@@ -1624,7 +1679,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 *                   It must be within the bounds of the current number of children (peek).
 		 */
 		public void removeChildOnIndex(int keyIndex, int childIndex) {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				removeIntFromSameArrayOnIndex(this.keys, keyIndex);
 				this.keys[this.peek - 1] = 0;
@@ -1638,8 +1695,9 @@ public class TransactionalIntBPlusTree<V> implements
 				layer.keys[layer.peek - 1] = 0;
 
 				// the removed children may have had its own transactional layer, which needs to be removed
-				ofNullable(Transaction.getTransactionalMemoryLayerIfExists(layer.children[childIndex]))
-					.ifPresent(it -> layer.children[childIndex].removeLayer());
+				if (Transaction.getTransactionalMemoryLayerIfExists(layer.children[childIndex]) != null) {
+					layer.children[childIndex].removeLayer();
+				}
 
 				removeRecordFromSameArrayOnIndex(layer.children, childIndex);
 				layer.children[layer.peek] = null;
@@ -1662,7 +1720,9 @@ public class TransactionalIntBPlusTree<V> implements
 				"Leftmost child node does not have a key in the parent node!"
 			);
 
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.children[index] == node,
@@ -1756,7 +1816,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 * the transactional layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusInternalTreeNode layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusInternalTreeNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
@@ -1774,7 +1836,8 @@ public class TransactionalIntBPlusTree<V> implements
 	}
 
 	/**
-	 * B+ Tree Node class to represent leaf node with associated values.
+	 * Leaf node implementation of the B+ tree that stores key-value pairs. Leaf nodes hold all actual data
+	 * in the tree and are the terminal nodes in the B+ tree structure.
 	 */
 	static class BPlusLeafTreeNode<V> implements BPlusTreeNode<BPlusLeafTreeNode<V>> {
 		@Serial private static final long serialVersionUID = 5744347408875846161L;
@@ -1804,6 +1867,14 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		private int peek;
 
+		/**
+		 * Creates a new empty leaf node with the specified block size.
+		 *
+		 * @param blockSize                the maximum number of key-value pairs this leaf node can hold
+		 * @param valueType                the class of the values stored in this node
+		 * @param transactionalLayerWrapper optional function to wrap values into a transactional layer
+		 * @param transactionalLayer       whether this node participates in the transactional memory layer
+		 */
 		public BPlusLeafTreeNode(
 			int blockSize,
 			@Nonnull Class<V> valueType,
@@ -1818,6 +1889,18 @@ public class TransactionalIntBPlusTree<V> implements
 			this.transactionalLayer = transactionalLayer;
 		}
 
+		/**
+		 * Creates a new leaf node by copying a range of keys and values from origin arrays into the target arrays.
+		 * This constructor is used during node split operations.
+		 *
+		 * @param originKeys         the source array of keys to copy from
+		 * @param originValues       the source array of values to copy from
+		 * @param keys               the target array for keys (may be the same as originKeys)
+		 * @param values             the target array for values (may be the same as originValues)
+		 * @param start              the start index (inclusive) in the origin arrays
+		 * @param end                the end index (exclusive) in the origin arrays
+		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 */
 		public BPlusLeafTreeNode(
 			@Nonnull int[] originKeys,
 			@Nonnull V[] originValues,
@@ -1858,7 +1941,9 @@ public class TransactionalIntBPlusTree<V> implements
 		@Nonnull
 		@Override
 		public int[] getKeys() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -1867,7 +1952,9 @@ public class TransactionalIntBPlusTree<V> implements
 		}
 
 		public int getPeek() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.peek;
 			} else {
@@ -1877,7 +1964,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public void setPeek(int peek) {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -1902,7 +1991,8 @@ public class TransactionalIntBPlusTree<V> implements
 					//noinspection ArrayEquality
 					if (layer.values == this.values) {
 						//noinspection unchecked
-						layer.values = (V[]) Array.newInstance(this.values.getClass().getComponentType(), this.values.length);
+						layer.values = (V[]) Array.newInstance(
+							this.values.getClass().getComponentType(), this.values.length);
 						System.arraycopy(this.values, 0, layer.values, 0, originPeek + 1);
 					} else {
 						Arrays.fill(layer.values, peek + 1, originPeek + 1, null);
@@ -1913,7 +2003,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public int keyCount() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.peek + 1;
 			} else {
@@ -1923,7 +2015,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public boolean isFull() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.peek == this.values.length - 1;
 			} else {
@@ -1938,7 +2032,9 @@ public class TransactionalIntBPlusTree<V> implements
 			final V[] theValues;
 			final int thePeek;
 
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				theKeys = this.keys;
 				theValues = this.values;
@@ -1960,12 +2056,18 @@ public class TransactionalIntBPlusTree<V> implements
 		@Override
 		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode<V> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, numberOfTailValues, this.peek + 1);
-				System.arraycopy(previousNode.getKeys(), previousNode.size() - numberOfTailValues, this.keys, 0, numberOfTailValues);
-				System.arraycopy(previousNode.getValues(), previousNode.size() - numberOfTailValues, this.values, 0, numberOfTailValues);
+				System.arraycopy(
+					previousNode.getKeys(), previousNode.size() - numberOfTailValues, this.keys, 0, numberOfTailValues);
+				System.arraycopy(
+					previousNode.getValues(), previousNode.size() - numberOfTailValues, this.values, 0,
+					numberOfTailValues
+				);
 				this.peek += numberOfTailValues;
 				previousNode.setPeek(previousNode.getPeek() - numberOfTailValues);
 			} else {
@@ -1975,8 +2077,14 @@ public class TransactionalIntBPlusTree<V> implements
 
 				System.arraycopy(layer.keys, 0, layer.keys, numberOfTailValues, layer.peek + 1);
 				System.arraycopy(layer.values, 0, layer.values, numberOfTailValues, layer.peek + 1);
-				System.arraycopy(previousNode.getKeys(), previousNode.size() - numberOfTailValues, layer.keys, 0, numberOfTailValues);
-				System.arraycopy(previousNode.getValues(), previousNode.size() - numberOfTailValues, layer.values, 0, numberOfTailValues);
+				System.arraycopy(
+					previousNode.getKeys(), previousNode.size() - numberOfTailValues, layer.keys, 0,
+					numberOfTailValues
+				);
+				System.arraycopy(
+					previousNode.getValues(), previousNode.size() - numberOfTailValues, layer.values, 0,
+					numberOfTailValues
+				);
 				layer.peek += numberOfTailValues;
 				previousNode.setPeek(previousNode.getPeek() - numberOfTailValues);
 			}
@@ -1986,12 +2094,20 @@ public class TransactionalIntBPlusTree<V> implements
 		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode<V> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues);
 				System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, numberOfHeadValues);
-				System.arraycopy(nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0, nextNode.size() - numberOfHeadValues);
-				System.arraycopy(nextNode.getValues(), numberOfHeadValues, nextNode.getValues(), 0, nextNode.size() - numberOfHeadValues);
+				System.arraycopy(
+					nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0,
+					nextNode.size() - numberOfHeadValues
+				);
+				System.arraycopy(
+					nextNode.getValues(), numberOfHeadValues, nextNode.getValues(), 0,
+					nextNode.size() - numberOfHeadValues
+				);
 				nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
 				this.peek += numberOfHeadValues;
 			} else {
@@ -2001,8 +2117,14 @@ public class TransactionalIntBPlusTree<V> implements
 
 				System.arraycopy(nextNode.getKeysForUpdate(), 0, layer.keys, layer.peek + 1, numberOfHeadValues);
 				System.arraycopy(nextNode.getValuesForUpdate(), 0, layer.values, layer.peek + 1, numberOfHeadValues);
-				System.arraycopy(nextNode.getKeysForUpdate(), numberOfHeadValues, nextNode.getKeysForUpdate(), 0, nextNode.size() - numberOfHeadValues);
-				System.arraycopy(nextNode.getValuesForUpdate(), numberOfHeadValues, nextNode.getValuesForUpdate(), 0, nextNode.size() - numberOfHeadValues);
+				System.arraycopy(
+					nextNode.getKeysForUpdate(), numberOfHeadValues, nextNode.getKeysForUpdate(), 0,
+					nextNode.size() - numberOfHeadValues
+				);
+				System.arraycopy(
+					nextNode.getValuesForUpdate(), numberOfHeadValues, nextNode.getValuesForUpdate(), 0,
+					nextNode.size() - numberOfHeadValues
+				);
 				nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
 				layer.peek += numberOfHeadValues;
 			}
@@ -2011,7 +2133,9 @@ public class TransactionalIntBPlusTree<V> implements
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode<V> previousNode) {
 			final int mergePeek = previousNode.getPeek();
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
 				System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
@@ -2036,7 +2160,9 @@ public class TransactionalIntBPlusTree<V> implements
 		@Override
 		public void mergeWithRight(@Nonnull BPlusLeafTreeNode<V> nextNode) {
 			final int mergePeek = nextNode.getPeek();
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
 				System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
@@ -2056,7 +2182,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public int getLeftBoundaryKey() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.keys[0];
 			} else {
@@ -2072,7 +2200,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		@Nonnull
 		public int[] getKeysForUpdate() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				return this.keys;
 			} else {
@@ -2095,7 +2225,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		@Nonnull
 		public V[] getValues() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				return this.values;
 			} else {
@@ -2111,7 +2243,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		@Nonnull
 		public V[] getValuesForUpdate() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				return this.values;
 			} else {
@@ -2121,7 +2255,8 @@ public class TransactionalIntBPlusTree<V> implements
 				//noinspection ArrayEquality
 				if (layer.values == this.values) {
 					//noinspection unchecked
-					layer.values = (V[]) Array.newInstance(this.values.getClass().getComponentType(), this.values.length);
+					layer.values = (V[]) Array.newInstance(
+						this.values.getClass().getComponentType(), this.values.length);
 					System.arraycopy(this.values, 0, layer.values, 0, this.values.length);
 				}
 				return layer.values;
@@ -2143,7 +2278,9 @@ public class TransactionalIntBPlusTree<V> implements
 			final V[] theValues;
 			final int thePeek;
 
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				theKeys = this.keys;
 				theValues = this.values;
@@ -2154,40 +2291,37 @@ public class TransactionalIntBPlusTree<V> implements
 				thePeek = layer.peek;
 			}
 
-			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, theKeys, 0, thePeek + 1);
+			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+				key, theKeys, 0, thePeek + 1);
 			return insertionPosition.alreadyPresent() ?
 				Optional.of(theValues[insertionPosition.position()]) : Optional.empty();
 		}
 
 		/**
-		 * Searches for a value in the node's key-value pairs by the specified key.
-		 * If the key is found, returns an Optional containing the associated value;
-		 * otherwise returns an empty Optional.
+		 * Searches for the index of a value in the node's key-value pairs by the specified key.
+		 * Returns the index of the key if found, or -1 if the key is not present.
 		 *
 		 * @param key the key to search for in the leaf node
-		 * @return an Optional containing the value associated with the specified key if found;
-		 * otherwise, an empty Optional
+		 * @return the index of the key in the keys/values arrays if found; -1 otherwise
 		 */
-		@Nonnull
-		public Optional<ValueWithIndex<V>> getValueWithIndex(int key) {
+		public int getValueIndex(int key) {
 			final int[] theKeys;
-			final V[] theValues;
 			final int thePeek;
 
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
 			if (layer == null) {
 				theKeys = this.keys;
-				theValues = this.values;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
-				theValues = layer.values;
 				thePeek = layer.peek;
 			}
 
-			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, theKeys, 0, thePeek + 1);
-			return insertionPosition.alreadyPresent() ?
-				Optional.of(new ValueWithIndex<>(insertionPosition.position(), theValues[insertionPosition.position()])) : Optional.empty();
+			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+				key, theKeys, 0, thePeek + 1);
+			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
 		}
 
 		@Override
@@ -2246,7 +2380,8 @@ public class TransactionalIntBPlusTree<V> implements
 					);
 					if (newValues == null && value != theValues[i]) {
 						//noinspection unchecked
-						newValues = (V[]) Array.newInstance(this.values.getClass().getComponentType(), theValues.length);
+						newValues = (V[]) Array.newInstance(
+							this.values.getClass().getComponentType(), theValues.length);
 						System.arraycopy(theValues, 0, newValues, 0, i);
 					}
 					if (newValues != null) {
@@ -2281,10 +2416,11 @@ public class TransactionalIntBPlusTree<V> implements
 		 *
 		 * @param key the key of the entry to be removed from the leaf node
 		 * @return true if the key was found and removed, false otherwise
-		 * @throws GenericEvitaInternalError if the key is not found in the node
 		 */
 		public boolean delete(int key) {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
 
@@ -2325,14 +2461,17 @@ public class TransactionalIntBPlusTree<V> implements
 		 * @return true if new key was inserted, otherwise false
 		 */
 		private boolean insert(int key, @Nonnull V value) {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.peek < this.keys.length - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 
-				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek + 1);
+				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+					key, this.keys, 0, this.peek + 1);
 				if (insertionPosition.alreadyPresent()) {
 					this.keys[insertionPosition.position()] = key;
 					this.values[insertionPosition.position()] = value;
@@ -2350,7 +2489,8 @@ public class TransactionalIntBPlusTree<V> implements
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 
-				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, layer.keys, 0, layer.peek + 1);
+				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+					key, layer.keys, 0, layer.peek + 1);
 				if (insertionPosition.alreadyPresent()) {
 					layer.keys[insertionPosition.position()] = key;
 					layer.values[insertionPosition.position()] = value;
@@ -2369,7 +2509,9 @@ public class TransactionalIntBPlusTree<V> implements
 		 * the transactional layer before modifying.
 		 */
 		private void decoupleTransactionalArrays() {
-			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ? Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) :
+				null;
 			if (layer != null) {
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
@@ -2379,7 +2521,8 @@ public class TransactionalIntBPlusTree<V> implements
 				//noinspection ArrayEquality
 				if (layer.values == this.values) {
 					//noinspection unchecked
-					layer.values = (V[]) Array.newInstance(this.values.getClass().getComponentType(), this.values.length);
+					layer.values = (V[]) Array.newInstance(
+						this.values.getClass().getComponentType(), this.values.length);
 					System.arraycopy(this.values, 0, layer.values, 0, this.peek + 1);
 				}
 			}
@@ -2406,6 +2549,12 @@ public class TransactionalIntBPlusTree<V> implements
 		@Nonnull BPlusTreeNode<?> currentNodeOfGenericType
 	) {
 
+		/**
+		 * Creates a cursor at the given level using the current node from the path.
+		 *
+		 * @param path  the path representing the sequence of nodes traversed to reach the current node
+		 * @param level the current level in the tree where the cursor is positioned
+		 */
 		public CursorWithLevel(@Nonnull List<CursorLevel> path, int level) {
 			this(path, level, path.get(level).currentNode());
 		}
@@ -2659,20 +2808,6 @@ public class TransactionalIntBPlusTree<V> implements
 	}
 
 	/**
-	 * Represents a value along with its associated index. This class is a record that holds an integer index
-	 * and a non-nullable value.
-	 *
-	 * @param <V>   the type of the value
-	 * @param index the index associated with the value
-	 * @param value the non-null value associated with the index
-	 */
-	private record ValueWithIndex<V>(
-		int index,
-		@Nonnull V value
-	) {
-	}
-
-	/**
 	 * Iterator that traverses the B+ Tree from left to right.
 	 */
 	private static class ForwardKeyIterator implements OfInt {
@@ -2697,12 +2832,18 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		private boolean hasNext;
 
+		/**
+		 * Initializes the forward key iterator starting from the leftmost position of the cursor.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
 		public ForwardKeyIterator(@Nonnull Cursor<?> cursor) {
-			this.path = new BPlusTreeNode[cursor.path().size()][];
+			final List<CursorLevel> cursorPath = cursor.path();
+			this.path = new BPlusTreeNode[cursorPath.size()][];
 			this.pathIndex = new int[this.path.length];
 			this.pathPeeks = new int[this.path.length];
-			for (int i = 0; i < cursor.path().size(); i++) {
-				final CursorLevel cursorLevel = cursor.path().get(i);
+			for (int i = 0; i < cursorPath.size(); i++) {
+				final CursorLevel cursorLevel = cursorPath.get(i);
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 				this.pathPeeks[i] = cursorLevel.peek();
@@ -2734,7 +2875,8 @@ public class TransactionalIntBPlusTree<V> implements
 						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
 						// all levels below, will point to the first child of the new cursor level
 						for (int i = level + 1; i <= this.path.length - 1; i++) {
-							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+							Assert.isPremiseValid(
+								currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
 							this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
 							this.pathIndex[i] = 0;
 							this.pathPeeks[i] = currentNode.getPeek();
@@ -2781,11 +2923,17 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		private boolean hasNext;
 
+		/**
+		 * Initializes the reverse key iterator starting from the rightmost position of the cursor.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
 		public ReverseKeyIterator(@Nonnull Cursor<?> cursor) {
-			this.path = new BPlusTreeNode[cursor.path().size()][];
+			final List<CursorLevel> cursorPath = cursor.path();
+			this.path = new BPlusTreeNode[cursorPath.size()][];
 			this.pathIndex = new int[this.path.length];
-			for (int i = 0; i < cursor.path().size(); i++) {
-				final CursorLevel cursorLevel = cursor.path().get(i);
+			for (int i = 0; i < cursorPath.size(); i++) {
+				final CursorLevel cursorLevel = cursorPath.get(i);
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 			}
@@ -2815,7 +2963,10 @@ public class TransactionalIntBPlusTree<V> implements
 						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
 						// all levels below, will point to the first child of the new cursor level
 						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
-							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+							Assert.isPremiseValid(
+								currentNode instanceof BPlusInternalTreeNode,
+								"Internal node expected!"
+							);
 							this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
 							this.pathIndex[i] = currentNode.getPeek();
 							currentNode = this.path[i][this.pathIndex[i]];
@@ -2865,12 +3016,18 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		private boolean hasNext;
 
+		/**
+		 * Initializes the forward value iterator starting from the leftmost position of the cursor.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
 		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor) {
-			this.path = new BPlusTreeNode[cursor.path().size()][];
+			final List<CursorLevel> cursorPath = cursor.path();
+			this.path = new BPlusTreeNode[cursorPath.size()][];
 			this.pathIndex = new int[this.path.length];
 			this.pathPeeks = new int[this.path.length];
-			for (int i = 0; i < cursor.path().size(); i++) {
-				final CursorLevel cursorLevel = cursor.path().get(i);
+			for (int i = 0; i < cursorPath.size(); i++) {
+				final CursorLevel cursorLevel = cursorPath.get(i);
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 				this.pathPeeks[i] = cursorLevel.peek();
@@ -2879,17 +3036,27 @@ public class TransactionalIntBPlusTree<V> implements
 			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
 		}
 
+		/**
+		 * Initializes the forward value iterator starting from the specified key or the first key greater than it.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 * @param key    the key to start the iteration from
+		 */
 		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor, int key) {
-			this.path = new BPlusTreeNode[cursor.path().size()][];
+			final List<CursorLevel> cursorPath = cursor.path();
+			this.path = new BPlusTreeNode[cursorPath.size()][];
 			this.pathIndex = new int[this.path.length];
 			this.pathPeeks = new int[this.path.length];
-			for (int i = 0; i < cursor.path().size(); i++) {
-				final CursorLevel cursorLevel = cursor.path().get(i);
+			for (int i = 0; i < cursorPath.size(); i++) {
+				final CursorLevel cursorLevel = cursorPath.get(i);
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 				this.pathPeeks[i] = cursorLevel.peek();
 			}
-			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, cursor.leafNode().getKeys(), 0, cursor.leafNode().size());
+			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+				key, cursor.leafNode()
+					.getKeys(), 0, cursor.leafNode().size()
+			);
 			this.currentValueIndex = insertionPosition.position();
 			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= insertionPosition.position();
 		}
@@ -2923,7 +3090,10 @@ public class TransactionalIntBPlusTree<V> implements
 						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
 						// all levels below, will point to the first child of the new cursor level
 						for (int i = level + 1; i <= this.path.length - 1; i++) {
-							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+							Assert.isPremiseValid(
+								currentNode instanceof BPlusInternalTreeNode,
+								"Internal node expected!"
+							);
 							this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
 							this.pathIndex[i] = 0;
 							this.pathPeeks[i] = currentNode.getPeek();
@@ -2965,11 +3135,17 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		private boolean hasNext;
 
+		/**
+		 * Initializes the reverse value iterator starting from the rightmost position of the cursor.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
 		public ReverseTreeValueIterator(@Nonnull Cursor<V> cursor) {
-			this.path = new BPlusTreeNode[cursor.path().size()][];
+			final List<CursorLevel> cursorPath = cursor.path();
+			this.path = new BPlusTreeNode[cursorPath.size()][];
 			this.pathIndex = new int[this.path.length];
-			for (int i = 0; i < cursor.path().size(); i++) {
-				final CursorLevel cursorLevel = cursor.path().get(i);
+			for (int i = 0; i < cursorPath.size(); i++) {
+				final CursorLevel cursorLevel = cursorPath.get(i);
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 			}
@@ -3007,7 +3183,10 @@ public class TransactionalIntBPlusTree<V> implements
 						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
 						// all levels below, will point to the first child of the new cursor level
 						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
-							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+							Assert.isPremiseValid(
+								currentNode instanceof BPlusInternalTreeNode,
+								"Internal node expected!"
+							);
 							this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
 							this.pathIndex[i] = currentNode.getPeek();
 							currentNode = this.path[i][this.pathIndex[i]];

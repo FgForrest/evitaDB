@@ -30,13 +30,12 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
-import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -54,13 +53,12 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Mutation is a holder for a set of {@link LocalCatalogSchemaMutation} that affect a internal contents of the catalog
- * schema itself.
+ * Mutation is a holder for a set of {@link LocalCatalogSchemaMutation} that affect the internal contents of the
+ * catalog schema itself.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -73,6 +71,13 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Nullable @Getter private final UUID sessionId;
 	@Nonnull @Getter private final LocalCatalogSchemaMutation[] schemaMutations;
 
+	/**
+	 * Creates a new mutation that holds a set of local catalog schema mutations to be applied.
+	 *
+	 * @param catalogName     name of the catalog to modify
+	 * @param sessionId       identifier of the session that created this mutation
+	 * @param schemaMutations set of local catalog schema mutations to apply
+	 */
 	public ModifyCatalogSchemaMutation(
 		@Nonnull String catalogName,
 		@Nullable UUID sessionId,
@@ -96,7 +101,7 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		return CommitVersions.class;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		Assert.isTrue(
@@ -108,7 +113,10 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		);
 		ModifyEntitySchemaMutation[] aggregatedMutations = null;
 		for (LocalCatalogSchemaMutation schemaMutation : this.schemaMutations) {
-			alteredSchema = Objects.requireNonNull(schemaMutation.mutate(alteredSchema.updatedCatalogSchema(), catalogSchema));
+			alteredSchema = Objects.requireNonNull(
+				schemaMutation.mutate(alteredSchema.updatedCatalogSchema(), catalogSchema),
+				"Sub-mutation `" + schemaMutation + "` returned null result!"
+			);
 			if (alteredSchema.entitySchemaMutations() != null) {
 				aggregatedMutations = aggregatedMutations == null ?
 					alteredSchema.entitySchemaMutations() :
@@ -124,34 +132,16 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		return Operation.UPSERT;
 	}
 
-	@Override
 	@Nonnull
+	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
-		final Stream<ChangeCatalogCapture> catalogMutation = TopLevelCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
-
-		final MutationPredicateContext context = predicate.getContext();
-		if (context.getDirection() == StreamDirection.FORWARD) {
-			return Stream.concat(
-				catalogMutation,
-				Arrays.stream(this.schemaMutations)
-				      .filter(predicate)
-				      .flatMap(m -> m.toChangeCatalogCapture(predicate, content))
-			);
-		} else {
-			final AtomicInteger index = new AtomicInteger(this.schemaMutations.length);
-			return Stream.concat(
-				Stream.generate(() -> null)
-				      .takeWhile(x -> index.get() > 0)
-				      .map(x -> this.schemaMutations[index.decrementAndGet()])
-				      .filter(predicate)
-				      .flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
-				catalogMutation
-			);
-
-		}
+		return CatalogSchemaMutation.concatWithChildMutations(
+			TopLevelCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content),
+			this.schemaMutations, predicate, content
+		);
 	}
 
 	@Nonnull
@@ -167,7 +157,7 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	public String toString() {
 		return "Modify catalog `" + this.catalogName + "` schema:\n" +
 			Arrays.stream(this.schemaMutations)
-			      .map(Object::toString)
-			      .collect(Collectors.joining(",\n"));
+				.map(Object::toString)
+				.collect(Collectors.joining(",\n"));
 	}
 }

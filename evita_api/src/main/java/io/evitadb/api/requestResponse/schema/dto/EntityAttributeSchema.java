@@ -40,7 +40,6 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Internal implementation of {@link EntityAttributeSchemaContract}.
@@ -52,7 +51,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	@Serial private static final long serialVersionUID = 8168305590483159082L;
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
+	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
@@ -74,7 +73,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
+	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
@@ -108,7 +107,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
+	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
@@ -145,7 +144,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
+	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
@@ -178,7 +177,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
+	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
@@ -212,7 +211,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
+	 * This method is for internal purposes only. It could be used for reconstruction of EntityAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
@@ -276,9 +275,11 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	public String toString() {
 		return "EntityAttributeSchema{" +
 			"name='" + this.name + '\'' + (this.deprecationNotice == null ? "" : " (deprecated)") +
-			", unique=(" + (this.uniquenessTypeInScopes.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue().name())) + ")" +
-			", filterable=" + (this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + this.filterableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
-			", sortable=" + (this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + this.sortableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
+			", unique=(" + join(this.uniquenessTypeInScopes) + ")" +
+			", filterable=" +
+			(this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.filterableInScopes) + ")") +
+			", sortable=" +
+			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

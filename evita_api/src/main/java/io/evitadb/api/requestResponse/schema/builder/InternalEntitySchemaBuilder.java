@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,23 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
-import io.evitadb.api.requestResponse.schema.*;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
@@ -42,7 +58,17 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssoc
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.UseGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.entity.*;
+import io.evitadb.api.requestResponse.schema.mutation.entity.AllowCurrencyInEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.AllowEvolutionModeInEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowEvolutionModeInEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDeprecationNoticeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
@@ -61,7 +87,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Currency;
+import java.util.EnumSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -453,23 +490,32 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public EntitySchemaBuilder withReferenceTo(
-		@Nonnull String name,
+		@Nonnull String referenceName,
 		@Nonnull String externalEntityType,
 		@Nonnull Cardinality cardinality,
 		@Nullable Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> whichIs
 	) {
 		final EntitySchemaContract currentSchema = toInstance();
-		final ReferenceSchemaContract existingReference = currentSchema.getReference(name).orElse(null);
+		final ReferenceSchemaContract existingReference = currentSchema.getReference(referenceName).orElse(null);
+
+		Assert.isTrue(
+			!(existingReference instanceof ReflectedReferenceSchemaContract),
+			() -> new InvalidSchemaMutationException(
+				"Reference `" + referenceName + "` is already created as reflected reference, " +
+					"you need first to remove it to create a standard reference of such name."
+			)
+		);
+
 		final ReferenceSchemaBuilder referenceBuilder = new ReferenceSchemaBuilder(
 			this.catalogSchemaAccessor.get(),
 			this.baseSchema,
 			existingReference,
-			name,
+			referenceName,
 			externalEntityType,
 			false,
 			cardinality,
 			this.mutations,
-			this.baseSchema.getReference(name).isEmpty()
+			this.baseSchema.getReference(referenceName).isEmpty()
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
 
@@ -491,23 +537,32 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public EntitySchemaBuilder withReferenceToEntity(
-		@Nonnull String name,
+		@Nonnull String referenceName,
 		@Nonnull String entityType,
 		@Nonnull Cardinality cardinality,
 		@Nullable Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> whichIs
 	) {
 		final EntitySchemaContract currentSchema = toInstance();
-		final ReferenceSchemaContract existingReference = currentSchema.getReference(name).orElse(null);
+		final ReferenceSchemaContract existingReference = currentSchema.getReference(referenceName).orElse(null);
+
+		Assert.isTrue(
+			!(existingReference instanceof ReflectedReferenceSchemaContract),
+			() -> new InvalidSchemaMutationException(
+				"Reference `" + referenceName + "` is already created as reflected reference, " +
+					"you need first to remove it to create a standard reference of such name."
+			)
+		);
+
 		final ReferenceSchemaBuilder referenceSchemaBuilder = new ReferenceSchemaBuilder(
 			this.catalogSchemaAccessor.get(),
 			this.baseSchema,
 			existingReference,
-			name,
+			referenceName,
 			entityType,
 			true,
 			cardinality,
 			this.mutations,
-			this.baseSchema.getReference(name)
+			this.baseSchema.getReference(referenceName)
 				.map(ReflectedReferenceSchemaContract.class::isInstance)
 				.orElse(true)
 		);
@@ -559,7 +614,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
 
-		final ReflectedReferenceSchemaBuilder.ReferenceSchemaBuilderResult result = referenceSchemaBuilder.toResult();
+		final ReferenceSchemaBuilderResult result = referenceSchemaBuilder.toResult();
 		redefineReferenceType(
 			existingReference,
 			result.schema(),
@@ -641,10 +696,10 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 				);
 			});
 		final Optional<EntityAttributeSchemaContract> existingAttribute = getAttribute(attributeName);
-		final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder attributeSchemaBuilder =
+		final EntityAttributeSchemaBuilder attributeSchemaBuilder =
 			existingAttribute
 				.map(it -> {
-					final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder builder = new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(this.baseSchema, it);
+					final EntityAttributeSchemaBuilder builder = new EntityAttributeSchemaBuilder(this.baseSchema, it);
 					isTrue(
 						ofType.equals(it.getType()),
 						() -> new AttributeAlreadyPresentInEntitySchemaException(
@@ -653,7 +708,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					);
 					return builder;
 				})
-				.orElseGet(() -> new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(this.baseSchema, attributeName, ofType));
+				.orElseGet(() -> new EntityAttributeSchemaBuilder(this.baseSchema, attributeName, ofType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
 		final EntityAttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
@@ -741,32 +796,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(schemaBuilder));
 		final SortableAttributeCompoundSchemaContract compoundSchema = schemaBuilder.toInstance();
-		isTrue(
-			compoundSchema.getAttributeElements().size() > 1,
-			() -> new SortableAttributeCompoundSchemaException(
-				"Sortable attribute compound requires more than one attribute element!",
-				compoundSchema
-			)
-		);
-		isTrue(
-			compoundSchema.getAttributeElements().size() ==
-				compoundSchema.getAttributeElements()
-					.stream()
-					.map(AttributeElement::attributeName)
-					.distinct()
-					.count(),
-			() -> new SortableAttributeCompoundSchemaException(
-				"Attribute names of elements in sortable attribute compound must be unique!",
-				compoundSchema
-			)
-		);
-		checkSortableTraits(name, compoundSchema, this.getAttributes());
-
-		// check the names in all naming conventions are unique in the catalog schema
-		checkNamesAreUniqueInAllNamingConventions(
-			this.getAttributes().values(),
-			this.getSortableAttributeCompounds().values(),
-			compoundSchema
+		validateSortableAttributeCompound(
+			name, compoundSchema, this.getAttributes(),
+			this.getSortableAttributeCompounds().values()
 		);
 
 		this.updatedSchemaDirty = updateMutationImpact(
@@ -837,7 +869,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	public EntitySchemaContract toInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
-			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// if the dirty flag is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = 0;
@@ -852,7 +884,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 				final EntitySchemaMutation mutation = this.mutations.get(i);
 				currentSchema = mutation.mutate(this.catalogSchemaAccessor.get(), currentSchema);
 				if (currentSchema == null) {
-					throw new GenericEvitaInternalError("Catalog schema unexpectedly removed from inside!");
+					throw new GenericEvitaInternalError("Entity schema unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;

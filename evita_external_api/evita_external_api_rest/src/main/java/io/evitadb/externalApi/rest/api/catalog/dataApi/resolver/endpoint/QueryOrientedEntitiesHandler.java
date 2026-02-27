@@ -35,7 +35,7 @@ import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;

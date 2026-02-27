@@ -35,7 +35,7 @@ import java.util.stream.StreamSupport;
 /**
  * Data transfer object used to carry business data to the upper layers. Contains chunk of data with additional
  * methods allowing to consult total items count, next, previous records and so on.
- * <p>
+ *
  * This transfer object could be used to carry any Java object from maps, arrays to complex POJO objects as long
  * as they are {@link Serializable}.
  *
@@ -56,6 +56,8 @@ public sealed interface DataChunk<T extends Serializable> extends Iterable<T>, S
 
 	/**
 	 * Returns stream of the data.
+	 *
+	 * @return sequential stream over the elements in this data chunk
 	 */
 	default Stream<T> stream() {
 		return StreamSupport.stream(spliterator(), false);
@@ -63,36 +65,50 @@ public sealed interface DataChunk<T extends Serializable> extends Iterable<T>, S
 
 	/**
 	 * Returns total number of records that are possible to fetch by paginating entire result stream.
+	 *
+	 * @return total count of all records across all pages
 	 */
 	int getTotalRecordCount();
 
 	/**
 	 * Returns true if current page is the first page in the result set.
+	 *
+	 * @return true if this is the first page
 	 */
 	boolean isFirst();
 
 	/**
 	 * Returns true if current page is the last page in the result set.
+	 *
+	 * @return true if this is the last page
 	 */
 	boolean isLast();
 
 	/**
 	 * Returns true if there is previous page available.
+	 *
+	 * @return true if a previous page exists
 	 */
 	boolean hasPrevious();
 
 	/**
 	 * Returns true if there is next page available.
+	 *
+	 * @return true if a next page exists
 	 */
 	boolean hasNext();
 
 	/**
 	 * Returns true if there is only single page available (i.e. total record count < record count on one page).
+	 *
+	 * @return true if all data fits on a single page
 	 */
 	boolean isSinglePage();
 
 	/**
 	 * Returns true if there are no data available.
+	 *
+	 * @return true if this chunk contains no elements
 	 */
 	boolean isEmpty();
 

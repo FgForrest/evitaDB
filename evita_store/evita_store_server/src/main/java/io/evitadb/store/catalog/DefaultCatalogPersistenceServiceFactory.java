@@ -28,12 +28,12 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.file.ExportFileService;
+import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 import io.evitadb.store.catalog.task.RestoreTask;
-import io.evitadb.store.exception.InvalidStoragePathException;
-import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
-import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
+import io.evitadb.store.exception.DirectoryNotEmptyException;
+import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
@@ -56,10 +56,10 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull ExportFileService exportFileService
+		@Nonnull ExportService exportService
 		) {
 		return new DefaultCatalogPersistenceService(
-			catalogName, storageOptions, transactionOptions, scheduler, exportFileService
+			catalogName, storageOptions, transactionOptions, scheduler, exportService
 		);
 	}
 
@@ -71,10 +71,10 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull ExportFileService exportFileService
+		@Nonnull ExportService exportService
 	) {
 		return new DefaultCatalogPersistenceService(
-			catalogInstance, catalogName, storageOptions, transactionOptions, scheduler, exportFileService
+			catalogInstance, catalogName, storageOptions, transactionOptions, scheduler, exportService
 		);
 	}
 

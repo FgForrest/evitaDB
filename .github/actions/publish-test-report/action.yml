@@ -1,0 +1,21 @@
+# Composite action that publishes JUnit test results as a GitHub check run.
+# Used by all workflows that execute tests to avoid duplicating configuration.
+
+name: 'Publish Test Report'
+description: 'Publishes JUnit test results as a GitHub check run'
+inputs:
+  report_paths:
+    description: 'Glob pattern for test report XML files'
+    default: '**/TEST-*.xml'
+runs:
+  using: 'composite'
+  steps:
+    - name: Publish Test Report
+      uses: mikepenz/action-junit-report@a294a61c909bd8a4b563024a2faa28897fd53ebc # v6.1.0
+      with:
+        report_paths: ${{ inputs.report_paths }}
+        require_tests: true
+        fail_on_failure: true
+        summary: true
+        job_summary: true
+        annotate_notice: false

@@ -165,7 +165,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	@Override
 	public String toString() {
 		return "Set attribute `" + this.name + "` schema: " +
-			", uniqueGlobally=(" + (Arrays.stream(this.uniqueGloballyInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")";
+			"uniqueGlobally=(" + join(this.uniqueGloballyInScopes) + ")";
 	}
 
 }

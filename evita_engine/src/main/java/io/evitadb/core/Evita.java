@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,11 +42,13 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
+import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -60,33 +62,42 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.cdc.EngineStatisticsPublisher;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
-import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
 import io.evitadb.core.executor.ObservableThreadExecutor;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
 import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.task.SessionKiller;
+import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.core.session.EvitaSession;
+import io.evitadb.core.session.SessionRegistry;
+import io.evitadb.core.session.SuspendOperation;
+import io.evitadb.core.session.SuspensionInformation;
+import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.store.spi.EnginePersistenceService;
-import io.evitadb.store.spi.EnginePersistenceServiceFactory;
-import io.evitadb.store.spi.model.EngineState;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
+import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -204,6 +215,10 @@ public final class Evita implements EvitaContract {
 	 */
 	private final EvitaManagement management;
 	/**
+	 * Contains reference to the proxy factory that is used to create proxies for the entities.
+	 */
+	@Getter private final ProxyFactory proxyFactory;
+	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/
 	private final TracingContext tracingContext;
@@ -309,15 +324,11 @@ public final class Evita implements EvitaContract {
 			new Scheduler(configuration.server().serviceThreadPool());
 		this.requestExecutor = new ObservableThreadExecutor(
 			"request", configuration.server().requestThreadPool(),
-			this.serviceExecutor,
-			configuration.server().queryTimeoutInMilliseconds(),
 			configuration.server().directExecutor()
 		);
 		this.transactionExecutor = new ObservableThreadExecutor(
 			"transaction",
 			configuration.server().transactionThreadPool(),
-			this.serviceExecutor,
-			configuration.server().transactionTimeoutInMilliseconds(),
 			// transaction handling must always run in a separate thread pool, even in tests
 			// because it uses thread local variables for transaction management
 			false
@@ -336,14 +347,16 @@ public final class Evita implements EvitaContract {
 			EnginePersistenceServiceFactory.class
 		);
 
-		final EnginePersistenceService enginePersistenceService = svcLoader
+		//noinspection unchecked
+		final EnginePersistenceService<LogRecordReference> enginePersistenceService = svcLoader
 			.findFirst()
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		this.management = new EvitaManagement(this);
+		this.proxyFactory = ProxyFactory.createInstance(this.reflectionLookup);
 
-		final EngineState engineState = enginePersistenceService.getEngineState();
+		final EngineState<LogRecordReference> engineState = enginePersistenceService.getEngineState();
 		final HashMap<String, CatalogContract> catalogs = CollectionUtils.createHashMap(
 			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length
 		);
@@ -454,8 +467,9 @@ public final class Evita implements EvitaContract {
 	public void scheduleInitialCatalogLoading() {
 		final ProgressingFuture<Catalog>[] progressingFutures = this.initialLoadCatalogFutures.get();
 		if (progressingFutures != null) {
+			final Executor unrejectableExecutor = ProgressingFuture.unrejectableExecutor(this.engineTransactionManager.getExecutor());
 			for (ProgressingFuture<Catalog> loadCatalogFuture : progressingFutures) {
-				loadCatalogFuture.execute(this.engineTransactionManager.getExecutor());
+				loadCatalogFuture.execute(unrejectableExecutor);
 			}
 		}
 	}
@@ -479,11 +493,11 @@ public final class Evita implements EvitaContract {
 	 * for managing and executing request-level operations with hard deadlines
 	 * within the Evita instance.
 	 *
-	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline}
+	 * @return An instance of {@link ObservableExecutorServiceWithCancellationSupport}
 	 * that handles request execution with hard deadlines for tasks.
 	 */
 	@Nonnull
-	public ObservableExecutorServiceWithHardDeadline getRequestExecutor() {
+	public ObservableExecutorServiceWithCancellationSupport getRequestExecutor() {
 		return this.requestExecutor;
 	}
 
@@ -491,11 +505,11 @@ public final class Evita implements EvitaContract {
 	 * Provides access to the transaction executor service, which is responsible for managing
 	 * and executing transactional operations within the Evita instance.
 	 *
-	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline} that handles
+	 * @return An instance of {@link ObservableExecutorServiceWithCancellationSupport} that handles
 	 * transaction execution with hard deadlines for tasks.
 	 */
 	@Nonnull
-	public ObservableExecutorServiceWithHardDeadline getTransactionExecutor() {
+	public ObservableExecutorServiceWithCancellationSupport getTransactionExecutor() {
 		return this.transactionExecutor;
 	}
 
@@ -1028,8 +1042,9 @@ public final class Evita implements EvitaContract {
 			catalogSchema,
 			this.cacheSupervisor,
 			this,
-			this.reflectionLookup,
-			this.management.exportFileService(),
+			this.proxyFactory,
+			this.management.exportService(),
+			this.management.fileManagementService(),
 			this::replaceCatalogReference,
 			this.tracingContext
 		);
@@ -1049,8 +1064,9 @@ public final class Evita implements EvitaContract {
 			readOnly,
 			this.cacheSupervisor,
 			this,
-			this.reflectionLookup,
-			this.management.exportFileService(),
+			this.proxyFactory,
+			this.management.exportService(),
+			this.management.fileManagementService(),
 			this::replaceCatalogReference,
 			(cn, catalog) -> {
 				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
@@ -1175,7 +1191,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Verifies this instance is still active.
 	 */
-	void assertActive() {
+	public void assertActive() {
 		if (!this.active.get()) {
 			throw new InstanceTerminatedException("instance");
 		}
@@ -1184,7 +1200,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Verifies this instance is still active and not in read-only mode.
 	 */
-	void assertActiveAndWritable() {
+	public void assertActiveAndWritable() {
 		assertActive();
 		if (this.readOnly) {
 			throw ReadOnlyException.engineReadOnly();
@@ -1458,9 +1474,10 @@ public final class Evita implements EvitaContract {
 				this.engineState.set(null);
 				this.engineTransactionManager.close();
 				return null;
-			}
+			},
+			Functions.noOpConsumer()
 		);
-		closedFuture.execute(executor);
+		closedFuture.execute(ProgressingFuture.unrejectableExecutor(executor));
 		return closedFuture;
 	}
 

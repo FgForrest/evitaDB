@@ -45,32 +45,98 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Global management service that allows to execute various management tasks on the Evita instance and retrieve
- * global evitaDB information. These operations might require special permissions for execution and are not used
- * daily and therefore are segregated into special management class.
+ * Provides administrative and monitoring operations for the evitaDB instance that are separate from day-to-day data
+ * access operations. This contract segregates privileged management functions that require special permissions or
+ * are used infrequently for operational tasks like backup/restore, monitoring, and file management.
+ *
+ * **Purpose**
+ *
+ * This interface centralizes:
+ * - Catalog backup and restore operations (point-in-time and full backups)
+ * - Asynchronous task tracking and management (jobs, background operations)
+ * - File management for downloadable artifacts (backups, exports)
+ * - System health and configuration inspection
+ * - Global catalog statistics retrieval
+ *
+ * **Design Rationale**
+ *
+ * Management operations are separated from {@link EvitaContract} because they:
+ * - May require elevated permissions or access control
+ * - Are used primarily by administrators, not application code
+ * - Operate at the instance level rather than catalog level
+ * - Have different performance characteristics (long-running, resource-intensive)
+ *
+ * **Access Pattern**
+ *
+ * Obtain an instance via {@link EvitaContract#management()}:
+ * ```
+ * EvitaManagementContract management = evita.management();
+ * CatalogStatistics[] stats = management.getCatalogStatistics();
+ * ```
+ *
+ * **Thread-Safety**
+ *
+ * All methods in this interface are thread-safe and can be called concurrently from multiple threads.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface EvitaManagementContract {
 
 	/**
-	 * Returns complete listing of all catalogs known to the Evita instance along with their states and basic statistics.
+	 * Retrieves comprehensive statistics for all catalogs in the evitaDB instance, regardless of their state.
+	 * This method provides a global view of the instance's data, including active, inactive, and corrupted catalogs.
+	 *
+	 * **Use Cases**
+	 *
+	 * - Monitoring dashboards displaying instance health and capacity
+	 * - Administrative tools listing all available catalogs
+	 * - Capacity planning by analyzing disk usage and entity counts
+	 * - Health checks identifying corrupted or problematic catalogs
+	 *
+	 * **Performance Characteristics**
+	 *
+	 * This method aggregates data from all catalogs, which may be expensive for instances with many catalogs.
+	 * Results are computed on-demand and not cached.
+	 *
+	 * @return array of statistics for each catalog, ordered by catalog name; never null but may be empty
+	 *         if no catalogs exist
 	 */
 	@Nonnull
 	CatalogStatistics[] getCatalogStatistics();
 
 	/**
-	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Creates a point-in-time backup of the specified catalog as a ZIP archive. This method supports backing up
+	 * the catalog at its current state or at any historical moment for which temporal data is still available.
 	 *
-	 * @param catalogName  the name of the catalog to backup
-	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
-	 *                     the dataset as it was at that moment
-	 * @param catalogVersion precise catalog version to create backup for, or null to create backup for the latest version,
-	 *                       when set not null, the pastMoment parameter is ignored
-	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
-	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
-	 * @return jobId of the backup process
-	 * @throws TemporalDataNotAvailableException when the past data is not available
+	 * **Backup Types**
+	 *
+	 * - **Current backup** (`pastMoment` and `catalogVersion` both null): Captures the latest committed state
+	 * - **Point-in-time backup** (`pastMoment` specified): Reconstructs catalog state at a specific moment in history
+	 * - **Version-specific backup** (`catalogVersion` specified): Captures exact catalog version (overrides `pastMoment`)
+	 *
+	 * **WAL Inclusion**
+	 *
+	 * When `includingWAL` is true, the backup includes the Write-Ahead Log, enabling the restored catalog to:
+	 * - Replay recent mutations not yet materialized in snapshots
+	 * - Synchronize with replicas that have progressed beyond the backup point
+	 * - Recover to the exact transaction state at backup time
+	 *
+	 * **Asynchronous Execution**
+	 *
+	 * This method initiates a background task and returns immediately with a future that completes when the backup
+	 * file is ready for download. Track progress via {@link #getTaskStatus(UUID)}.
+	 *
+	 * **Temporal Data Retention**
+	 *
+	 * Historical backups are only possible while temporal data (WAL entries, version snapshots) remains available.
+	 * Data purging policies may limit how far back you can create point-in-time backups.
+	 *
+	 * @param catalogName    name of the catalog to backup
+	 * @param pastMoment     timestamp for point-in-time backup, or null for current state
+	 * @param catalogVersion specific catalog version to backup, or null for latest; when specified, `pastMoment` is ignored
+	 * @param includingWAL   true to include Write-Ahead Log in the backup for precise recovery
+	 * @return future that completes with {@link FileForFetch} descriptor when backup is ready for download
+	 * @throws TemporalDataNotAvailableException when requested historical data has been purged or never existed
 	 */
 	@Nonnull
 	CompletableFuture<FileForFetch> backupCatalog(
@@ -81,14 +147,39 @@ public interface EvitaManagementContract {
 	) throws TemporalDataNotAvailableException;
 
 	/**
-	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
-	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
-	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
-	 * create even point-in-time backups from it.
+	 * Creates a comprehensive full backup of the specified catalog, capturing all persistent storage artifacts
+	 * including historical data, Write-Ahead Logs, and version snapshots. Unlike {@link #backupCatalog}, which
+	 * creates a minimal point-in-time snapshot, a full backup preserves the complete catalog history.
 	 *
-	 * @param catalogName  the name of the catalog to backup
+	 * **Full Backup Contents**
 	 *
-	 * @return jobId of the backup process
+	 * - All entity collection data files
+	 * - Complete Write-Ahead Log (WAL) history
+	 * - Catalog header and metadata files
+	 * - Version snapshots and temporal data
+	 * - Index structures and materialized views
+	 *
+	 * **Use Cases**
+	 *
+	 * - Disaster recovery requiring complete history reconstruction
+	 * - Catalog migration to a different evitaDB instance
+	 * - Archival storage of entire catalog including temporal capabilities
+	 * - Creating a source catalog for future point-in-time backups
+	 *
+	 * **Restore Capabilities**
+	 *
+	 * Catalogs restored from full backups retain:
+	 * - Ability to query historical states (if temporal data is included)
+	 * - Ability to create point-in-time backups from any version
+	 * - Complete WAL for synchronization or analysis
+	 *
+	 * **Performance Characteristics**
+	 *
+	 * Full backups are significantly larger and slower than point-in-time backups. They capture the entire on-disk
+	 * footprint of the catalog, which may include extensive temporal history.
+	 *
+	 * @param catalogName name of the catalog to backup
+	 * @return future that completes with {@link FileForFetch} descriptor when full backup is ready for download
 	 */
 	@Nonnull
 	CompletableFuture<FileForFetch> fullBackupCatalog(
@@ -128,14 +219,31 @@ public interface EvitaManagementContract {
 	) throws FileForFetchNotFoundException;
 
 	/**
-	 * Returns list of jobs that are currently running or have been finished recently in paginated fashion.
+	 * Retrieves paginated list of background task statuses for monitoring long-running operations. Tasks represent
+	 * asynchronous operations like catalog backups, restores, migrations, and other resource-intensive activities.
 	 *
-	 * @param page     page number (1-based)
-	 * @param pageSize number of items per page
-	 * @param taskType allows limiting result statuses to those of a particular type
-	 * @param states allows limiting result statuses to those of a particular simplified state
+	 * **Filtering Options**
 	 *
-	 * @return list of jobs
+	 * - `taskType`: Limits results to specific task types (e.g., "backup", "restore", "duplication")
+	 * - `states`: Filters by execution state (QUEUED, RUNNING, FINISHED, FAILED)
+	 *
+	 * **Task Lifecycle**
+	 *
+	 * Tasks progress through states: QUEUED → RUNNING → FINISHED/FAILED. Completed tasks remain queryable
+	 * for a retention period before being purged from history.
+	 *
+	 * **Use Cases**
+	 *
+	 * - Monitoring dashboards displaying active and recent operations
+	 * - Polling for completion of initiated tasks
+	 * - Auditing completed operations
+	 * - Troubleshooting failed tasks
+	 *
+	 * @param page     page number, 1-based
+	 * @param pageSize number of task statuses per page
+	 * @param taskType optional array of task type identifiers to filter by, or null for all types
+	 * @param states   simplified states to include in results; empty array means all states
+	 * @return paginated list of task statuses matching filters, ordered by start time descending (most recent first)
 	 */
 	@Nonnull
 	PaginatedList<TaskStatus<?, ?>> listTaskStatuses(
@@ -214,17 +322,42 @@ public interface EvitaManagementContract {
 	void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException;
 
 	/**
-	 * Retrieves the current system status of the EvitaDB server.
+	 * Retrieves comprehensive system-level status information for the evitaDB instance, including health indicators,
+	 * resource utilization, uptime, and version information.
 	 *
-	 * @return the system status of the EvitaDB server
+	 * **Use Cases**
+	 *
+	 * - Health check endpoints for load balancers and monitoring systems
+	 * - Operational dashboards displaying instance vitals
+	 * - Diagnostic information collection for troubleshooting
+	 *
+	 * **Thread-Safety**
+	 *
+	 * This method computes current status on-demand and is thread-safe. Results represent a snapshot and may
+	 * become stale immediately.
+	 *
+	 * @return current system status including health, uptime, version, and resource metrics
 	 */
 	@Nonnull
 	SystemStatus getSystemStatus();
 
 	/**
-	 * Retrieves the current configuration of the EvitaDB server in String format with evaluated value expressions.
+	 * Retrieves the effective runtime configuration of the evitaDB instance as a formatted string. All configuration
+	 * value expressions (environment variables, system properties) are evaluated and replaced with their actual values.
 	 *
-	 * @return the configuration of the EvitaDB server
+	 * **Use Cases**
+	 *
+	 * - Verifying active configuration in production environments
+	 * - Debugging configuration issues by inspecting resolved values
+	 * - Auditing security settings and resource limits
+	 * - Documenting actual runtime parameters
+	 *
+	 * **Security Considerations**
+	 *
+	 * Returned configuration may contain sensitive information (credentials, API keys, connection strings).
+	 * Access to this method should be restricted to authorized administrators.
+	 *
+	 * @return formatted configuration string with all placeholders resolved to actual values
 	 */
 	@Nonnull
 	String getConfiguration();

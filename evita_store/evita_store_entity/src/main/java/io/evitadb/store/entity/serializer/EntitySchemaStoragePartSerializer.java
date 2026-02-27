@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link EntitySchemaStoragePart} from/to binary format.

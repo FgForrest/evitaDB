@@ -24,11 +24,11 @@
 package io.evitadb.core.query.filter.translator.behavioral;
 
 import io.evitadb.api.query.filter.UserFilter;
+import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 
@@ -58,7 +58,7 @@ public class UserFilterTranslator implements FilteringConstraintTranslator<UserF
 		return new UserFilterFormula(
 			FutureNotFormula.postProcess(
 				transformedFormulas,
-				FormulaFactory::and,
+				EnclosingContainerRelation.CONJUNCTION,
 				filterByVisitor::getSuperSetFormula
 			)
 		);

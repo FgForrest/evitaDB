@@ -33,7 +33,7 @@ import java.util.Comparator;
 import java.util.Locale;
 
 /**
- * This comparator compares two string with respect to a national characters.
+ * This comparator compares two strings with respect to national characters.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

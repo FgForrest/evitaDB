@@ -40,7 +40,7 @@ import graphql.language.Document;
 import graphql.validation.ValidationError;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
-import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import lombok.RequiredArgsConstructor;

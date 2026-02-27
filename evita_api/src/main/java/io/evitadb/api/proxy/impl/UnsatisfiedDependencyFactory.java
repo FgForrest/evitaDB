@@ -45,8 +45,22 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class UnsatisfiedDependencyFactory implements ProxyFactory {
+	/**
+	 * Singleton instance of this factory.
+	 */
+	@Nonnull
 	public static final UnsatisfiedDependencyFactory INSTANCE = new UnsatisfiedDependencyFactory();
-	private static UnsatisfiedDependencyException UNSATISFIED_DEPENDENCY_EXCEPTION;
+	/**
+	 * Private message template for the {@link UnsatisfiedDependencyException}.
+	 */
+	private static final String PRIVATE_MESSAGE =
+		"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
+			"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.";
+	/**
+	 * Public message template for the {@link UnsatisfiedDependencyException}.
+	 */
+	private static final String PUBLIC_MESSAGE =
+		"Required dependency is not available in evitaDB engine, contact developers of the application.";
 
 	@Nonnull
 	@Override
@@ -55,14 +69,7 @@ public class UnsatisfiedDependencyFactory implements ProxyFactory {
 		@Nonnull EntityContract entity,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 	) throws EntityClassInvalidException {
-		if (UNSATISFIED_DEPENDENCY_EXCEPTION == null) {
-			UNSATISFIED_DEPENDENCY_EXCEPTION = new UnsatisfiedDependencyException(
-				"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
-					"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
-				"Required dependency is not available in evitaDB engine, contact developers of the application."
-			);
-		}
-		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
+		throw new UnsatisfiedDependencyException(PRIVATE_MESSAGE, PUBLIC_MESSAGE);
 	}
 
 }

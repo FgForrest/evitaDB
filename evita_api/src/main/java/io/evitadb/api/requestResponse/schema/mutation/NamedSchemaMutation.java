@@ -26,15 +26,69 @@ package io.evitadb.api.requestResponse.schema.mutation;
 import javax.annotation.Nonnull;
 
 /**
- * This type of mutation provides information about the name of the container that it is targeting.
+ * Marker interface for schema mutations that target a named schema container.
+ *
+ * This interface enables the mutation framework to route schema changes to the correct container within a schema
+ * hierarchy. A "container" is any named schema element that can be independently mutated, such as:
+ *
+ * - **Entity schemas** — identified by entity type name (e.g., `"Product"`, `"Category"`)
+ * - **Attribute schemas** — identified by attribute name (e.g., `"code"`, `"name"`)
+ * - **Associated data schemas** — identified by associated data name (e.g., `"description"`, `"images"`)
+ * - **Reference schemas** — identified by reference name (e.g., `"category"`, `"brand"`)
+ * - **Sortable attribute compounds** — identified by compound name (e.g., `"priority"`, `"categoryAndPrice"`)
+ *
+ * **Purpose and Usage**
+ *
+ * Implementations of this interface expose the target container name via {@link #containerName()}, which the mutation
+ * processing pipeline uses to:
+ *
+ * - **Validate mutations** — ensure mutations target existing schema elements
+ * - **Route mutations** — dispatch mutations to the correct schema component
+ * - **Detect conflicts** — identify concurrent mutations targeting the same container
+ * - **Generate error messages** — provide clear diagnostics when mutations fail
+ *
+ * **Implementation Pattern**
+ *
+ * Most schema mutation abstract base classes implement this interface and delegate `containerName()` to the
+ * mutation's primary identifier field:
+ *
+ * - `AbstractAttributeSchemaMutation` → returns `name` (the attribute name)
+ * - `AbstractAssociatedDataSchemaMutation` → returns `name` (the associated data name)
+ * - `AbstractReferenceDataSchemaMutation` → returns `name` (the reference name)
+ * - `AbstractSortableAttributeCompoundSchemaMutation` → returns `name` (the compound name)
+ * - `CreateEntitySchemaMutation` / `ModifyEntitySchemaMutation` → returns entity type name
+ *
+ * **Example Usage**
+ *
+ * When processing a mutation pipeline, the engine can filter mutations by container:
+ *
+ * ```java
+ * mutations.stream()
+ * .filter(m -> m instanceof NamedSchemaMutation)
+ * .map(m -> (NamedSchemaMutation) m)
+ * .filter(m -> m.containerName().equals("Product"))
+ * .forEach(this::applyMutation);
+ * ```
+ *
+ * **Thread-Safety**
+ *
+ * All implementations are immutable and thread-safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface NamedSchemaMutation extends SchemaMutation {
 
 	/**
-	 * Returns the name of the container that this mutation is targeting.
-	 * @return the name of the container that this mutation is targeting
+	 * Returns the name of the schema container targeted by this mutation. The container name corresponds to the
+	 * natural identifier of the schema element being mutated:
+	 *
+	 * - For attribute mutations: the attribute name (e.g., `"code"`, `"name"`)
+	 * - For associated data mutations: the associated data name (e.g., `"description"`)
+	 * - For reference mutations: the reference name (e.g., `"category"`)
+	 * - For sortable compound mutations: the compound name (e.g., `"priority"`)
+	 * - For entity mutations: the entity type name (e.g., `"Product"`)
+	 *
+	 * @return the container name, never `null`
 	 */
 	@Nonnull
 	String containerName();

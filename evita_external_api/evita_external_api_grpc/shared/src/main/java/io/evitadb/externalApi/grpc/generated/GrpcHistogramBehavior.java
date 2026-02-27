@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ public enum GrpcHistogramBehavior
   /**
    * <pre>
    * Histogram always contains the number of buckets you asked for. This is the default behaviour.
+   * Bucket boundaries are positioned at equal intervals across the value range.
    * </pre>
    *
    * <code>STANDARD = 0;</code>
@@ -50,17 +51,39 @@ public enum GrpcHistogramBehavior
    * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce and
    * there would be big gaps (empty buckets) between buckets. This leads to more compact histograms, which provide
    * better user experience.
+   * Bucket boundaries are positioned at equal intervals across the value range.
    * </pre>
    *
    * <code>OPTIMIZED = 1;</code>
    */
   OPTIMIZED(1),
+  /**
+   * <pre>
+   * Histogram always contains the number of buckets you asked for.
+   * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
+   * approximately equal portion of total records.
+   * </pre>
+   *
+   * <code>EQUALIZED = 2;</code>
+   */
+  EQUALIZED(2),
+  /**
+   * <pre>
+   * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce.
+   * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
+   * approximately equal portion of total records.
+   * </pre>
+   *
+   * <code>EQUALIZED_OPTIMIZED = 3;</code>
+   */
+  EQUALIZED_OPTIMIZED(3),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
    * Histogram always contains the number of buckets you asked for. This is the default behaviour.
+   * Bucket boundaries are positioned at equal intervals across the value range.
    * </pre>
    *
    * <code>STANDARD = 0;</code>
@@ -71,11 +94,32 @@ public enum GrpcHistogramBehavior
    * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce and
    * there would be big gaps (empty buckets) between buckets. This leads to more compact histograms, which provide
    * better user experience.
+   * Bucket boundaries are positioned at equal intervals across the value range.
    * </pre>
    *
    * <code>OPTIMIZED = 1;</code>
    */
   public static final int OPTIMIZED_VALUE = 1;
+  /**
+   * <pre>
+   * Histogram always contains the number of buckets you asked for.
+   * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
+   * approximately equal portion of total records.
+   * </pre>
+   *
+   * <code>EQUALIZED = 2;</code>
+   */
+  public static final int EQUALIZED_VALUE = 2;
+  /**
+   * <pre>
+   * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce.
+   * Bucket boundaries are positioned based on cumulative frequency distribution, so each bucket covers
+   * approximately equal portion of total records.
+   * </pre>
+   *
+   * <code>EQUALIZED_OPTIMIZED = 3;</code>
+   */
+  public static final int EQUALIZED_OPTIMIZED_VALUE = 3;
 
 
   public final int getNumber() {
@@ -104,6 +148,8 @@ public enum GrpcHistogramBehavior
     switch (value) {
       case 0: return STANDARD;
       case 1: return OPTIMIZED;
+      case 2: return EQUALIZED;
+      case 3: return EQUALIZED_OPTIMIZED;
       default: return null;
     }
   }

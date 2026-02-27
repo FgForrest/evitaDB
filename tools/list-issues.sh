@@ -23,11 +23,15 @@
 #   limitations under the License.
 #
 
-# Usage: ./script.sh "v1.0.0"
+# Usage: ./script.sh "2026.1" "2025.8.15"
 MILESTONE="$1"
+BASE_VERSION="$2"
 
 if [ -z "$MILESTONE" ]; then
-  echo "Usage: $0 \"milestone title\""
+  echo "Usage: $0 \"milestone title\" [\"base version\"]"
+  echo "  milestone title  - GitHub milestone to list issues for (e.g. \"2026.1\")"
+  echo "  base version     - previous release version to compare dependencies against (e.g. \"2025.8.15\")"
+  echo "                     If omitted, derives release branch from milestone (e.g. release_2026-1)"
   exit 1
 fi
 
@@ -111,8 +115,7 @@ fi
 # Dependencies upgrades
 # ========================
 # Extract all properties ending with .version from current and previous pom.xml,
-# where previous pom.xml is taken from the latest release branch derived from the
-# latest semantic tag vYYYY.MAJOR.MINOR in the current branch.
+# where previous pom.xml is taken from the release branch derived from the milestone argument.
 
 # Helper: extract k=v lines for *.version from pom content passed on stdin
 _extract_version_props() {
@@ -129,27 +132,27 @@ else
   current_props=""
 fi
 
-# Find latest semantic tag in current branch and map to release branch
-last_tag=""
-release_branch=""
-# fetch tags quietly (ignore errors if any)
-(git fetch --tags -q >/dev/null 2>&1) || true
-# list tags reachable from HEAD and pick the latest matching vYYYY.M.M
-last_tag=$(git tag --merged 2>/dev/null | grep -E '^v[0-9]{4}\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
-
-if [ -n "$last_tag" ]; then
-  major=$(echo "$last_tag" | sed -E 's/^v([0-9]{4})\..*/\1/')
-  minor=$(echo "$last_tag" | sed -E 's/^v[0-9]{4}\.([0-9]+)\..*/\1/')
-  release_branch="release_${major}-${minor}"
-fi
-
+# Resolve the git ref for the previous release pom.xml.
+# If a base version is provided (e.g. "2025.8.15"), use the tag "v2025.8.15".
+# Otherwise, fall back to deriving a release branch from the milestone (e.g. "2025.7" -> "release_2025-7").
 previous_props=""
-if [ -n "$release_branch" ]; then
-  # Try to fetch remote release branch pom.xml
-  (git fetch origin "$release_branch":"refs/remotes/origin/$release_branch" -q >/dev/null 2>&1) || true
-  previous_pom_content=$(git show "origin/$release_branch:pom.xml" 2>/dev/null || git show "$release_branch:pom.xml" 2>/dev/null || echo "")
-  if [ -n "$previous_pom_content" ]; then
+if [ -n "$BASE_VERSION" ]; then
+  base_tag="v$BASE_VERSION"
+  previous_pom_content=$(git show "$base_tag:pom.xml" 2>/dev/null || echo "")
+  if [ -z "$previous_pom_content" ]; then
+    echo "Warning: Could not read pom.xml from tag '$base_tag'. Skipping dependency comparison." >&2
+  else
     previous_props=$(printf "%s" "$previous_pom_content" | _extract_version_props)
+  fi
+else
+  release_branch="release_${MILESTONE//./-}"
+  if [ -n "$release_branch" ]; then
+    # Try to fetch remote release branch pom.xml
+    (git fetch origin "$release_branch":"refs/remotes/origin/$release_branch" -q >/dev/null 2>&1) || true
+    previous_pom_content=$(git show "origin/$release_branch:pom.xml" 2>/dev/null || git show "$release_branch:pom.xml" 2>/dev/null || echo "")
+    if [ -n "$previous_pom_content" ]; then
+      previous_props=$(printf "%s" "$previous_pom_content" | _extract_version_props)
+    fi
   fi
 fi
 

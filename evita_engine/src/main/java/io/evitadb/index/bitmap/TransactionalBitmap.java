@@ -23,7 +23,7 @@
 
 package io.evitadb.index.bitmap;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -37,10 +37,9 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * This class envelopes simple primitive int bitmap and makes it transactional. This means, that the bitmap can be updated
@@ -118,7 +117,9 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			final boolean added = this.roaringBitmap.checkedAdd(recordId);
-			this.memoizedCardinality = added ? -1 : this.memoizedCardinality;
+			//noinspection UnnecessaryLocalVariable
+			final int newCardinality = added ? -1 : this.memoizedCardinality;
+			this.memoizedCardinality = newCardinality;
 			return added;
 		} else {
 			return layer.addRecordId(recordId);
@@ -145,7 +146,9 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 			this.roaringBitmap.add(recordIds.getArray());
 			this.memoizedCardinality = -1;
 		} else {
-			for (Integer recordId : recordIds) {
+			final OfInt it = recordIds.iterator();
+			while (it.hasNext()) {
+				final int recordId = it.nextInt();
 				layer.addRecordId(recordId);
 			}
 		}
@@ -156,7 +159,9 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			final boolean removed = this.roaringBitmap.checkedRemove(recordId);
-			this.memoizedCardinality = removed ? -1 : this.memoizedCardinality;
+			//noinspection UnnecessaryLocalVariable
+			final int newCardinality = removed ? -1 : this.memoizedCardinality;
+			this.memoizedCardinality = newCardinality;
 			return removed;
 		} else {
 			return layer.removeRecordId(recordId);
@@ -185,13 +190,17 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 			if (recordIds instanceof RoaringBitmapBackedBitmap) {
 				this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());
 			} else {
-				for (Integer recordId : recordIds) {
+				final OfInt it = recordIds.iterator();
+				while (it.hasNext()) {
+					final int recordId = it.nextInt();
 					this.roaringBitmap.remove(recordId);
 				}
 			}
 			this.memoizedCardinality = -1;
 		} else {
-			for (Integer recordId : recordIds) {
+			final OfInt it = recordIds.iterator();
+			while (it.hasNext()) {
+				final int recordId = it.nextInt();
 				layer.removeRecordId(recordId);
 			}
 		}
@@ -275,7 +284,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 	@Override
 	public OfInt iterator() {
 		final RoaringBitmap theBitmap = getTheCurrentBitmap();
-		return theBitmap.stream().iterator();
+		return new RoaringBitmapBackedBitmap.RoaringIntIteratorAdapter(theBitmap.getIntIterator());
 	}
 
 	@Override
@@ -303,7 +312,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.roaringBitmap);
+		return this.roaringBitmap.hashCode();
 	}
 
 	@Override

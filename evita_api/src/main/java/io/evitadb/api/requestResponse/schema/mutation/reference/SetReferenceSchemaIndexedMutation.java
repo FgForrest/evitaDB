@@ -70,8 +70,12 @@ public class SetReferenceSchemaIndexedMutation
 	extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -5386807849414938326L;
-	@Getter private final ScopedReferenceIndexType[] indexedInScopes;
+	@Getter @Nullable private final ScopedReferenceIndexType[] indexedInScopes;
 
+	/**
+	 * Creates mutation that controls the indexed flag of the reference schema using a simple
+	 * boolean (applied to the default scope). Null means inherited from the reflected reference.
+	 */
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
 		@Nullable Boolean indexed
@@ -82,6 +86,10 @@ public class SetReferenceSchemaIndexedMutation
 		);
 	}
 
+	/**
+	 * Creates mutation that controls indexed flag per scope. Each specified scope gets
+	 * {@link ReferenceIndexType#FOR_FILTERING}. Null means inherited from the reflected reference.
+	 */
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
 		@Nullable Scope[] indexedInScopes
@@ -94,6 +102,10 @@ public class SetReferenceSchemaIndexedMutation
 				.toArray(ScopedReferenceIndexType[]::new);
 	}
 
+	/**
+	 * Creates mutation that controls indexed flag with detailed per-scope index type configuration.
+	 * Null means inherited from the reflected reference.
+	 */
 	@SerializableCreator
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
@@ -103,6 +115,9 @@ public class SetReferenceSchemaIndexedMutation
 		this.indexedInScopes = indexedInScopes;
 	}
 
+	/**
+	 * Returns the indexed flag for the default scope, or null when the value is inherited.
+	 */
 	@Nullable
 	public Boolean getIndexed() {
 		if (this.indexedInScopes == null) {
@@ -120,13 +135,16 @@ public class SetReferenceSchemaIndexedMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof SetReferenceSchemaIndexedMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
-			if (theExistingMutation.indexedInScopes == null && this.indexedInScopes == null) {
-				// both mutations are not indexed, so we can skip the combination
+		if (existingMutation instanceof SetReferenceSchemaIndexedMutation theExistingMutation
+			&& this.name.equals(theExistingMutation.getName())) {
+			if (this.indexedInScopes == null) {
+				// null (inherited) takes precedence as the latest mutation
+				return new MutationCombinationResult<>(null, this);
+			} else if (theExistingMutation.indexedInScopes == null) {
+				// existing was inherited, but new mutation overrides with explicit scopes
 				return new MutationCombinationResult<>(null, this);
 			} else {
-				final Map<Scope, ReferenceIndexType> existingIndexedScopes = theExistingMutation.indexedInScopes == null ?
-					CollectionUtils.createHashMap(Scope.values().length) :
+				final Map<Scope, ReferenceIndexType> existingIndexedScopes =
 					Arrays.stream(theExistingMutation.indexedInScopes)
 						.collect(
 							() -> new EnumMap<>(Scope.class),
@@ -137,7 +155,7 @@ public class SetReferenceSchemaIndexedMutation
 					existingIndexedScopes.put(indexedInScope.scope(), indexedInScope.indexType());
 				}
 
-				SetReferenceSchemaIndexedMutation combinedMutation = new SetReferenceSchemaIndexedMutation(
+				final SetReferenceSchemaIndexedMutation combinedMutation = new SetReferenceSchemaIndexedMutation(
 					this.name,
 					existingIndexedScopes
 						.entrySet()
@@ -154,7 +172,11 @@ public class SetReferenceSchemaIndexedMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+	public ReferenceSchemaContract mutate(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ConsistencyChecks consistencyChecks
+	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		final EnumMap<Scope, ReferenceIndexType> indexedScopes = this.indexedInScopes == null ?
 			new EnumMap<>(Scope.class) :
@@ -180,7 +202,7 @@ public class SetReferenceSchemaIndexedMutation
 					verifyAttributeIndexRequirements(entitySchema, referenceSchema);
 				}
 
-				// Convert EnumSet<Scope> to ScopedReferenceIndexType[] for the new API
+				// Convert EnumMap<Scope, ReferenceIndexType> to ScopedReferenceIndexType[]
 				final ScopedReferenceIndexType[] scopedIndexTypes = indexedScopes.entrySet().stream()
 					.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
 					.toArray(ScopedReferenceIndexType[]::new);
@@ -206,13 +228,19 @@ public class SetReferenceSchemaIndexedMutation
 		}
 	}
 
+	/**
+	 * Verifies that making the reference non-indexed does not conflict with any filterable, unique,
+	 * or sortable attributes that require an indexed reference to function.
+	 */
 	private static void verifyAttributeIndexRequirements(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		for (Scope scope : Scope.values()) {
 			for (AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
-				if (attributeSchema.isFilterableInScope(scope) || attributeSchema.isUniqueInScope(scope) || attributeSchema.isSortableInScope(scope)) {
+				if (attributeSchema.isFilterableInScope(scope) ||
+					attributeSchema.isUniqueInScope(scope) ||
+					attributeSchema.isSortableInScope(scope)) {
 					final String type;
 					if (attributeSchema.isFilterableInScope(scope)) {
 						type = "filterable";
@@ -237,11 +265,14 @@ public class SetReferenceSchemaIndexedMutation
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
-			// ups, the reference schema is missing
+			// the reference is missing
 			throw new InvalidSchemaMutationException(
 				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
@@ -256,7 +287,19 @@ public class SetReferenceSchemaIndexedMutation
 
 	@Override
 	public String toString() {
+		final String indexedDescription;
+		if (this.indexedInScopes == null) {
+			indexedDescription = "(inherited)";
+		} else if (ArrayUtils.isEmpty(this.indexedInScopes)) {
+			indexedDescription = "(not indexed)";
+		} else {
+			indexedDescription = "(" +
+				Arrays.stream(this.indexedInScopes)
+					.map(it -> it.scope().name() + ": " + it.indexType().name())
+					.collect(Collectors.joining(", ")) +
+				")";
+		}
 		return "Set entity reference `" + this.name + "` schema: " +
-			"indexed=" + (this.indexedInScopes == null ? "(inherited)" : (ArrayUtils.isEmpty(this.indexedInScopes) ? "(not indexed)" : "(" + Arrays.stream(this.indexedInScopes).map(it -> it.scope().name() + ": " + it.indexType().name()).collect(Collectors.joining(", ")) + ")"));
+			"indexed=" + indexedDescription;
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		for (CacheableBucket bucket : buckets) {
 			output.writeVarInt(bucket.occurrences(), true);
 			kryo.writeObject(output, bucket.threshold());
+			kryo.writeObject(output, bucket.relativeFrequency());
 		}
 	}
 
@@ -69,7 +70,8 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		for(int i = 0; i < bucketCount; i++) {
 			final int occurrences = input.readVarInt(true);
 			final BigDecimal threshold = kryo.readObject(input, BigDecimal.class);
-			buckets[i] = new CacheableBucket(threshold, occurrences);
+			final BigDecimal relativeFrequency = kryo.readObject(input, BigDecimal.class);
+			buckets[i] = new CacheableBucket(threshold, occurrences, relativeFrequency);
 		}
 
 		return new FlattenedHistogramComputer(

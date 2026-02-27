@@ -30,7 +30,7 @@ import java.util.NoSuchElementException;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
-import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerFor;
+import static io.evitadb.core.transaction.Transaction.suppressTransactionalMemoryLayerFor;
 
 /**
  * This iterator is used only from {@link TransactionalComplexObjArray} to iterate over dynamic content of the array.

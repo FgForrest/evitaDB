@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.EntityCollection;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -231,13 +231,13 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 									.toArray(Formula[]::new)
 							);
 						} else {
+							if (nestedResult.globalIndex() == null) {
+								return EmptyFormula.INSTANCE;
+							}
 							return filterByVisitor.computeOnlyOnce(
-								processingScope.getIndexes(),
+								List.of(nestedResult.globalIndex()),
 								filterConstraint,
 								() -> {
-									if (nestedResult.globalIndex() == null) {
-										return EmptyFormula.INSTANCE;
-									}
 									final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
 										nestedResult.globalIndex(),
 										nestedResult.filter(),

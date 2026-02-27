@@ -30,7 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
-import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;

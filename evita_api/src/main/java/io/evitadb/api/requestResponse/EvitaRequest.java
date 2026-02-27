@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -51,12 +52,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
@@ -67,10 +65,13 @@ import static java.util.Optional.ofNullable;
 /**
  * Evita request serves as simple DTO that streamlines and caches access to the input {@link Query}.
  *
- * {@link EvitaRequest} is internal class (Evita accepts simple {@link Query} object -
- * see {@link EvitaSessionContract#query(Query, Class)}) that envelopes the input query. Evita request
- * can be used to implement methods that extract crucial information from the input query and cache those extracted
- * information to avoid paying parsing costs twice in single request.
+ * {@link EvitaRequest} is internal class (Evita accepts simple
+ * {@link Query} object -
+ * see {@link EvitaSessionContract#query(Query, Class)}) that
+ * envelopes the input query. Evita request can be used to implement
+ * methods that extract crucial information from the input query and
+ * cache those extracted information to avoid paying parsing costs
+ * twice in single request.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @see EvitaSessionContract#query(Query, Class)
@@ -134,7 +135,33 @@ public class EvitaRequest {
 	@Nullable private Function<String, ChunkTransformer> referenceChunkTransformer;
 
 	/**
-	 * Parses the requirement context from the passed {@link ReferenceContent} and {@link AttributeContent}.
+	 * Converts a {@link Spacing} constraint into an array of
+	 * {@link ConditionalGap} instances. Returns {@link #EMPTY_GAPS}
+	 * when the spacing is null or contains no gaps.
+	 *
+	 * @param spacing the spacing constraint, or null if absent
+	 * @return array of conditional gaps derived from the spacing
+	 */
+	@Nonnull
+	private static ConditionalGap[] convertSpacingToGaps(@Nullable Spacing spacing) {
+		if (spacing == null) {
+			return EMPTY_GAPS;
+		}
+		final SpacingGap[] gaps = spacing.getGaps();
+		if (gaps.length == 0) {
+			return EMPTY_GAPS;
+		}
+		final ConditionalGap[] result = new ConditionalGap[gaps.length];
+		for (int i = 0; i < gaps.length; i++) {
+			final SpacingGap gap = gaps[i];
+			result[i] = new ConditionalGap(gap.getSize(), gap.getOnPage());
+		}
+		return result;
+	}
+
+	/**
+	 * Parses the requirement context from the passed
+	 * {@link ReferenceContent} and {@link AttributeContent}.
 	 */
 	@Nonnull
 	private static RequirementContext getRequirementContext(
@@ -153,22 +180,31 @@ public class EvitaRequest {
 					if (chunking instanceof Page page) {
 						return new PageTransformer(
 							page,
-							page.getSpacing()
-								.stream()
-								.flatMap(it -> Arrays.stream(it.getGaps()))
-								.map(it -> new ConditionalGap(it.getSize(), it.getOnPage()))
-								.toArray(ConditionalGap[]::new)
+							convertSpacingToGaps(page.getSpacing().orElse(null))
 						);
 					} else if (chunking instanceof Strip strip) {
 						return new StripTransformer(strip);
 					} else {
-						throw new EvitaInvalidUsageException("Unsupported chunking type: " + chunking.getClass().getSimpleName());
+						throw new EvitaInvalidUsageException(
+							"Unsupported chunking type: " +
+								chunking.getClass().getSimpleName()
+						);
 					}
 				})
 				.orElse(NoTransformer.INSTANCE)
 		);
 	}
 
+	/**
+	 * Primary constructor that creates a new evita request from
+	 * the given query, current time, expected result type, and
+	 * optional entity type derived from the expected type.
+	 *
+	 * @param query                    the input query
+	 * @param alignedNow               the current aligned time
+	 * @param expectedType             the expected result type
+	 * @param entityTypeByExpectedType optional entity type name
+	 */
 	public EvitaRequest(
 		@Nonnull Query query,
 		@Nonnull OffsetDateTime alignedNow,
@@ -176,14 +212,27 @@ public class EvitaRequest {
 		@Nullable String entityTypeByExpectedType
 	) {
 		final Collection header = query.getCollection();
-		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(entityTypeByExpectedType);
+		this.entityType = ofNullable(header)
+			.map(Collection::getEntityType)
+			.orElse(entityTypeByExpectedType);
 		this.query = query;
 		this.alignedNow = alignedNow;
 		this.implicitLocale = null;
 		this.expectedType = expectedType;
 	}
 
-	public EvitaRequest(@Nonnull EvitaRequest evitaRequest, @Nonnull Locale implicitLocale) {
+	/**
+	 * Copy constructor that creates a new request from an existing
+	 * one with an additional implicit locale. All memoized values
+	 * are preserved from the original request.
+	 *
+	 * @param evitaRequest   the original request to copy from
+	 * @param implicitLocale the implicit locale to set
+	 */
+	public EvitaRequest(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull Locale implicitLocale
+	) {
 		this.entityType = evitaRequest.entityType;
 		this.query = evitaRequest.query;
 		this.labels = evitaRequest.labels;
@@ -234,6 +283,18 @@ public class EvitaRequest {
 		this.scopesAsArray = evitaRequest.scopesAsArray;
 	}
 
+	/**
+	 * Derived copy constructor that creates a new request from an
+	 * existing one with a different entity type, optional filter/order
+	 * constraints, and entity fetch requirements. Memoized values
+	 * that depend on the changed parts are reset.
+	 *
+	 * @param evitaRequest the original request to derive from
+	 * @param entityType   the new entity type (may be null)
+	 * @param filterBy     optional filter constraints override
+	 * @param orderBy      optional order constraints override
+	 * @param requirements the entity fetch requirements
+	 */
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable String entityType,
@@ -250,7 +311,8 @@ public class EvitaRequest {
 					null :
 					ConstraintCloneVisitor.clone(
 						evitaRequest.query.getHead(),
-						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? null : constraint
+						(constraintCloneVisitor, constraint) ->
+							constraint instanceof Collection ? null : constraint
 					),
 				filterBy == null ? evitaRequest.query.getFilterBy() : filterBy,
 				orderBy == null ? evitaRequest.query.getOrderBy() : orderBy,
@@ -261,7 +323,9 @@ public class EvitaRequest {
 					null :
 					ConstraintCloneVisitor.clone(
 						evitaRequest.query.getHead(),
-						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? collection(entityType) : constraint
+						(constraintCloneVisitor, constraint) ->
+							constraint instanceof Collection ?
+								collection(entityType) : constraint
 					),
 				filterBy == null ? evitaRequest.query.getFilterBy() : filterBy,
 				orderBy == null ? evitaRequest.query.getOrderBy() : orderBy,
@@ -280,7 +344,14 @@ public class EvitaRequest {
 			this.localeExamined = evitaRequest.localeExamined;
 			this.locale = evitaRequest.locale;
 		}
-		if (Arrays.stream(requirements.getRequirements()).anyMatch(DataInLocales.class::isInstance)) {
+		boolean hasDataInLocales = false;
+		for (final EntityContentRequire req : requirements.getRequirements()) {
+			if (req instanceof DataInLocales) {
+				hasDataInLocales = true;
+				break;
+			}
+		}
+		if (hasDataInLocales) {
 			this.requiredLocales = null;
 			this.requiredLocaleSet = null;
 		} else {
@@ -293,43 +364,58 @@ public class EvitaRequest {
 			.orElse(evitaRequest.queryPriceMode);
 		if (filterBy != null) {
 			// prefer valid in from the current filter
-			final List<OffsetDateTime> validitySpan = QueryUtils.findConstraints(filterBy, PriceValidIn.class)
-				.stream()
-				.map(it -> it.getTheMoment(this::getAlignedNow))
-				.distinct()
-				.toList();
-			Assert.isTrue(
-				validitySpan.size() <= 1,
-				"Query can not contain more than one price validity constraints!"
-			);
-			if (validitySpan.isEmpty()) {
+			final List<PriceValidIn> priceValidInConstraints =
+				QueryUtils.findConstraints(filterBy, PriceValidIn.class);
+			OffsetDateTime foundValidIn = null;
+			boolean foundAnyValidIn = false;
+			for (final PriceValidIn pvi : priceValidInConstraints) {
+				final OffsetDateTime moment = pvi.getTheMoment(this::getAlignedNow);
+				if (!foundAnyValidIn) {
+					foundValidIn = moment;
+					foundAnyValidIn = true;
+				} else {
+					Assert.isTrue(
+						Objects.equals(foundValidIn, moment),
+						"Query can not contain more than one price validity constraints!"
+					);
+				}
+			}
+			if (!foundAnyValidIn) {
 				this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
 				this.priceValidInTime = evitaRequest.priceValidInTime;
 			} else {
 				this.priceValidInTimeSet = true;
-				this.priceValidInTime = validitySpan.get(0);
+				this.priceValidInTime = foundValidIn;
 			}
 
 			// prefer currencies from the current filter
-			final List<Currency> currenciesFound = QueryUtils.findConstraints(filterBy, PriceInCurrency.class)
-				.stream()
-				.map(PriceInCurrency::getCurrency)
-				.distinct()
-				.toList();
-			Assert.isTrue(
-				currenciesFound.size() <= 1,
-				"Query can not contain more than one currency filtering constraints!"
-			);
-			if (currenciesFound.isEmpty()) {
+			final List<PriceInCurrency> currencyConstraints =
+				QueryUtils.findConstraints(filterBy, PriceInCurrency.class);
+			Currency foundCurrency = null;
+			boolean foundAnyCurrency = false;
+			for (final PriceInCurrency pic : currencyConstraints) {
+				final Currency curr = pic.getCurrency();
+				if (!foundAnyCurrency) {
+					foundCurrency = curr;
+					foundAnyCurrency = true;
+				} else {
+					Assert.isTrue(
+						Objects.equals(foundCurrency, curr),
+						"Query can not contain more than one currency filtering constraints!"
+					);
+				}
+			}
+			if (!foundAnyCurrency) {
 				this.currencySet = evitaRequest.currencySet;
 				this.currency = evitaRequest.currency;
 			} else {
-				this.currency = currenciesFound.get(0);
+				this.currency = foundCurrency;
 				this.currencySet = true;
 			}
 
 			// prefer price lists from the current filter
-			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findConstraints(filterBy, PriceInPriceLists.class);
+			final List<PriceInPriceLists> priceInPriceLists =
+				QueryUtils.findConstraints(filterBy, PriceInPriceLists.class);
 			Assert.isTrue(
 				priceInPriceLists.size() <= 1,
 				"Query can not contain more than one price in price lists filter constraints!"
@@ -338,10 +424,7 @@ public class EvitaRequest {
 				this.priceLists = evitaRequest.priceLists;
 				this.requiresPriceLists = evitaRequest.requiresPriceLists;
 			} else {
-				final Optional<PriceInPriceLists> pricesInPriceList = Optional.of(priceInPriceLists.get(0));
-				this.priceLists = pricesInPriceList
-					.map(PriceInPriceLists::getPriceLists)
-					.orElse(new String[0]);
+				this.priceLists = priceInPriceLists.get(0).getPriceLists();
 				this.requiresPriceLists = true;
 			}
 		} else {
@@ -392,6 +475,20 @@ public class EvitaRequest {
 		}
 	}
 
+	/**
+	 * Derived copy constructor that creates a new request from an
+	 * existing one with a different entity type, optional
+	 * filter/order constraints, locale, and scopes. Most memoized
+	 * values are reset except those explicitly copied from the
+	 * original request.
+	 *
+	 * @param evitaRequest the original request to derive from
+	 * @param entityType   the new entity type
+	 * @param filterBy     optional filter constraints override
+	 * @param orderBy      optional order constraints override
+	 * @param locale       optional locale override
+	 * @param scopes       optional scopes override
+	 */
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull String entityType,
@@ -409,7 +506,9 @@ public class EvitaRequest {
 				null :
 				ConstraintCloneVisitor.clone(
 					evitaRequest.query.getHead(),
-					(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? collection(entityType) : constraint
+					(constraintCloneVisitor, constraint) ->
+						constraint instanceof Collection ?
+							collection(entityType) : constraint
 				),
 			filterBy,
 			orderBy,
@@ -457,6 +556,7 @@ public class EvitaRequest {
 		this.facetGroupNegation = null;
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = null;
+		this.queryTelemetryRequested = evitaRequest.queryTelemetryRequested;
 		this.scopes = scopes;
 		this.scopesAsArray = this.scopes == null ?
 			null : this.scopes.toArray(Scope[]::new);
@@ -470,7 +570,8 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns type of the entity this query targets. Allows to choose proper {@link EntityCollectionContract}.
+	 * Returns type of the entity this query targets. Allows to choose
+	 * proper {@link EntityCollectionContract}.
 	 */
 	@Nullable
 	public String getEntityType() {
@@ -505,8 +606,8 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns implicit locale that might be derived from the globally unique attribute if the entity is matched
-	 * particularly by it.
+	 * Returns implicit locale that might be derived from the globally
+	 * unique attribute if the entity is matched particularly by it.
 	 */
 	@Nullable
 	public Locale getImplicitLocale() {
@@ -514,8 +615,9 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns locale of the entity that is being requested. If locale is not explicitly set in the query it falls back
-	 * to {@link #getImplicitLocale()}.
+	 * Returns locale of the entity that is being requested. If locale
+	 * is not explicitly set in the query it falls back to
+	 * {@link #getImplicitLocale()}.
 	 */
 	@Nullable
 	public Locale getRequiredOrImplicitLocale() {
@@ -523,14 +625,19 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns set of locales if requirement {@link DataInLocales} is present in the query. If not it falls back to
+	 * Returns set of locales if requirement {@link DataInLocales} is
+	 * present in the query. If not it falls back to
 	 * {@link EntityLocaleEquals} (check {@link DataInLocales} docs).
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Accessor method caches the found result so that consecutive
+	 * calls of this method are pretty fast.
 	 */
 	@Nullable
 	public Set<Locale> getRequiredLocales() {
 		if (this.requiredLocales == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(
+				this.query, EntityFetch.class,
+				SeparateEntityContentRequireContainer.class
+			);
 			if (entityFetch == null) {
 				this.requiredLocales = true;
 				final Locale theLocale = getLocale();
@@ -538,13 +645,20 @@ public class EvitaRequest {
 					this.requiredLocaleSet = Set.of(theLocale);
 				}
 			} else {
-				final DataInLocales dataRequirement = QueryUtils.findConstraint(
-					entityFetch, DataInLocales.class, SeparateEntityContentRequireContainer.class
-				);
+				final DataInLocales dataRequirement =
+					QueryUtils.findConstraint(
+						entityFetch, DataInLocales.class,
+						SeparateEntityContentRequireContainer.class
+					);
 				if (dataRequirement != null) {
-					this.requiredLocaleSet = Arrays.stream(dataRequirement.getLocales())
-						.filter(Objects::nonNull)
-						.collect(Collectors.toSet());
+					final Locale[] locales = dataRequirement.getLocales();
+					final Set<Locale> localeSet = CollectionUtils.createHashSet(locales.length);
+					for (final Locale loc : locales) {
+						if (loc != null) {
+							localeSet.add(loc);
+						}
+					}
+					this.requiredLocaleSet = localeSet;
 				} else {
 					final Locale theLocale = getLocale();
 					if (theLocale != null) {
@@ -571,14 +685,21 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns set of primary keys that are required by the query in {@link EntityPrimaryKeyInSet} query.
-	 * If there is no such query empty array is returned in the result.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns set of primary keys that are required by the query in
+	 * {@link EntityPrimaryKeyInSet} query. If there is no such query
+	 * empty array is returned in the result. Accessor method caches
+	 * the found result so that consecutive calls of this method are
+	 * pretty fast.
 	 */
 	@Nonnull
 	public int[] getPrimaryKeys() {
 		if (this.primaryKeys == null) {
-			this.primaryKeys = ofNullable(QueryUtils.findFilter(this.query, EntityPrimaryKeyInSet.class, SeparateEntityScopeContainer.class))
+			this.primaryKeys = ofNullable(
+				QueryUtils.findFilter(
+					this.query,
+					EntityPrimaryKeyInSet.class,
+					SeparateEntityScopeContainer.class
+				))
 				.map(EntityPrimaryKeyInSet::getPrimaryKeys)
 				.orElse(ArrayUtils.EMPTY_INT_ARRAY);
 		}
@@ -590,7 +711,10 @@ public class EvitaRequest {
 	 */
 	public boolean isRequiresEntity() {
 		if (this.requiresEntity == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(
+				this.query, EntityFetch.class,
+				SeparateEntityContentRequireContainer.class
+			);
 			this.requiresEntity = entityFetch != null;
 			this.entityRequirement = entityFetch;
 		}
@@ -599,7 +723,9 @@ public class EvitaRequest {
 
 	/**
 	 * Method will find all requirement specifying richness of main entities. The constraints inside
-	 * {@link SeparateEntityContentRequireContainer} implementing of same type are ignored because they relate to the different entity context.
+	 * {@link SeparateEntityContentRequireContainer} implementations
+	 * of the same type are ignored because they relate to the
+	 * different entity context.
 	 */
 	@Nullable
 	public EntityFetch getEntityRequirement() {
@@ -619,7 +745,10 @@ public class EvitaRequest {
 				this.parentContent = null;
 				this.requiresParent = false;
 			} else {
-				this.parentContent = QueryUtils.findConstraint(entityFetch, HierarchyContent.class, SeparateEntityContentRequireContainer.class);
+				this.parentContent = QueryUtils.findConstraint(
+					entityFetch, HierarchyContent.class,
+					SeparateEntityContentRequireContainer.class
+				);
 				this.requiresParent = this.parentContent != null;
 			}
 		}
@@ -628,7 +757,8 @@ public class EvitaRequest {
 
 	/**
 	 * Method will find all requirement specifying richness of main entities. The constraints inside
-	 * {@link SeparateEntityContentRequireContainer} implementing of same type are ignored because they relate to the
+	 * {@link SeparateEntityContentRequireContainer} implementations
+	 * of the same type are ignored because they relate to the
 	 * different entity context.
 	 */
 	@Nullable
@@ -640,8 +770,9 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns TRUE if requirement {@link AttributeContent} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns TRUE if requirement {@link AttributeContent} is present
+	 * in the query. Accessor method caches the found result so that
+	 * consecutive calls of this method are pretty fast.
 	 */
 	public boolean isRequiresEntityAttributes() {
 		if (this.entityAttributes == null) {
@@ -650,19 +781,30 @@ public class EvitaRequest {
 				this.entityAttributes = false;
 				this.entityAttributeSet = Collections.emptySet();
 			} else {
-				final AttributeContent requiresAttributeContent = QueryUtils.findConstraint(entityFetch, AttributeContent.class, SeparateEntityContentRequireContainer.class);
+				final AttributeContent requiresAttributeContent =
+					QueryUtils.findConstraint(
+						entityFetch,
+						AttributeContent.class,
+						SeparateEntityContentRequireContainer.class
+					);
 				this.entityAttributes = requiresAttributeContent != null;
-				this.entityAttributeSet = requiresAttributeContent != null ?
-					Arrays.stream(requiresAttributeContent.getAttributeNames()).collect(Collectors.toSet()) :
-					Collections.emptySet();
+				if (requiresAttributeContent != null) {
+					final String[] names = requiresAttributeContent.getAttributeNames();
+					final Set<String> set = CollectionUtils.createHashSet(names.length);
+					Collections.addAll(set, names);
+					this.entityAttributeSet = set;
+				} else {
+					this.entityAttributeSet = Collections.emptySet();
+				}
 			}
 		}
 		return this.entityAttributes;
 	}
 
 	/**
-	 * Returns set of attribute names that were requested in the query. The set is empty if none is requested
-	 * which means - all attributes is ought to be returned.
+	 * Returns set of attribute names that were requested in the query.
+	 * The set is empty if none is requested
+	 * which means - all attributes are to be returned.
 	 */
 	@Nonnull
 	public Set<String> getEntityAttributeSet() {
@@ -673,8 +815,9 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns TRUE if requirement {@link AssociatedDataContent} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns TRUE if requirement {@link AssociatedDataContent} is
+	 * present in the query. Accessor method caches the found result
+	 * so that consecutive calls of this method are pretty fast.
 	 */
 	public boolean isRequiresEntityAssociatedData() {
 		if (this.entityAssociatedData == null) {
@@ -683,19 +826,30 @@ public class EvitaRequest {
 				this.entityAssociatedData = false;
 				this.entityAssociatedDataSet = Collections.emptySet();
 			} else {
-				final AssociatedDataContent requiresAssociatedDataContent = QueryUtils.findConstraint(entityFetch, AssociatedDataContent.class, SeparateEntityContentRequireContainer.class);
+				final AssociatedDataContent requiresAssociatedDataContent =
+					QueryUtils.findConstraint(
+						entityFetch,
+						AssociatedDataContent.class,
+						SeparateEntityContentRequireContainer.class
+					);
 				this.entityAssociatedData = requiresAssociatedDataContent != null;
-				this.entityAssociatedDataSet = requiresAssociatedDataContent != null ?
-					Arrays.stream(requiresAssociatedDataContent.getAssociatedDataNames()).collect(Collectors.toSet()) :
-					Collections.emptySet();
+				if (requiresAssociatedDataContent != null) {
+					final String[] names = requiresAssociatedDataContent.getAssociatedDataNames();
+					final Set<String> set = CollectionUtils.createHashSet(names.length);
+					Collections.addAll(set, names);
+					this.entityAssociatedDataSet = set;
+				} else {
+					this.entityAssociatedDataSet = Collections.emptySet();
+				}
 			}
 		}
 		return this.entityAssociatedData;
 	}
 
 	/**
-	 * Returns set of associated data names that were requested in the query. The set is empty if none is requested
-	 * which means - all associated data is ought to be returned.
+	 * Returns set of associated data names that were requested in the
+	 * query. The set is empty if none is requested
+	 * which means - all associated data are to be returned.
 	 */
 	@Nonnull
 	public Set<String> getEntityAssociatedDataSet() {
@@ -706,8 +860,9 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns TRUE if requirement {@link ReferenceContent} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns TRUE if requirement {@link ReferenceContent} is present
+	 * in the query. Accessor method caches the found result so that
+	 * consecutive calls of this method are pretty fast.
 	 */
 	public boolean isRequiresEntityReferences() {
 		if (this.entityReference == null) {
@@ -717,56 +872,91 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns {@link PriceContentMode} if requirement {@link PriceContent} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns {@link PriceContentMode} if requirement
+	 * {@link PriceContent} is present in the query. Accessor method
+	 * caches the found result so that consecutive calls of this
+	 * method are pretty fast.
 	 */
 	@Nonnull
 	public PriceContentMode getRequiresEntityPrices() {
 		if (this.entityPrices == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(
+				this.query, EntityFetch.class,
+				SeparateEntityContentRequireContainer.class
+			);
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
 				this.additionalPriceLists = ArrayUtils.EMPTY_STRING_ARRAY;
+				this.accompanyingPrices = AccompanyingPrice.EMPTY_ARRAY;
 			} else {
-				final Optional<PriceContent> priceContentRequirement = ofNullable(QueryUtils.findConstraint(entityFetch, PriceContent.class, SeparateEntityContentRequireContainer.class));
+				final Optional<PriceContent> priceContentRequirement =
+					ofNullable(QueryUtils.findConstraint(
+						entityFetch, PriceContent.class,
+						SeparateEntityContentRequireContainer.class
+					));
 				this.entityPrices = priceContentRequirement
 					.map(PriceContent::getFetchMode)
 					.orElse(PriceContentMode.NONE);
-				final String[] theDefaultAccompaniedPriceLists = this.getDefaultAccompanyingPricePriceLists();
-				this.accompanyingPrices = QueryUtils.findConstraints(entityFetch, AccompanyingPriceContent.class, SeparateEntityContentRequireContainer.class)
-					.stream()
-					.map(it -> {
-						final String priceName = it.getAccompanyingPriceName().orElse(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE);
-						if (it.getPriceLists().length == 0) {
+				final String[] theDefaultAccompaniedPriceLists =
+					this.getDefaultAccompanyingPricePriceLists();
+				final List<AccompanyingPriceContent> accompanyingPriceContents =
+					QueryUtils.findConstraints(
+						entityFetch,
+						AccompanyingPriceContent.class,
+						SeparateEntityContentRequireContainer.class
+					);
+				if (accompanyingPriceContents.isEmpty()) {
+					this.accompanyingPrices = AccompanyingPrice.EMPTY_ARRAY;
+				} else {
+					final AccompanyingPrice[] accompanyingResult =
+						new AccompanyingPrice[accompanyingPriceContents.size()];
+					for (int i = 0; i < accompanyingPriceContents.size(); i++) {
+						final AccompanyingPriceContent apc = accompanyingPriceContents.get(i);
+						final String priceName =
+							apc.getAccompanyingPriceName()
+								.orElse(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE);
+						if (apc.getPriceLists().length == 0) {
 							Assert.isTrue(
 								!ArrayUtils.isEmptyOrItsValuesNull(theDefaultAccompaniedPriceLists),
-								"Default accompanying price lists must be defined in the query if no accompanying price name and no price lists are specified in the query!"
+								"Default accompanying price lists must be defined in the query " +
+									"if no accompanying price name and no price lists are " +
+									"specified in the query!"
 							);
-							return new AccompanyingPrice(priceName, theDefaultAccompaniedPriceLists);
+							accompanyingResult[i] = new AccompanyingPrice(
+								priceName, theDefaultAccompaniedPriceLists
+							);
 						} else {
-							return new AccompanyingPrice(priceName, it.getPriceLists());
+							accompanyingResult[i] = new AccompanyingPrice(
+								priceName, apc.getPriceLists()
+							);
 						}
-					})
-					.toArray(AccompanyingPrice[]::new);
-				this.additionalPriceLists = theDefaultAccompaniedPriceLists.length == 0 && this.accompanyingPrices.length == 0 ?
-					priceContentRequirement
+					}
+					this.accompanyingPrices = accompanyingResult;
+				}
+				if (theDefaultAccompaniedPriceLists.length == 0 &&
+					this.accompanyingPrices.length == 0) {
+					this.additionalPriceLists = priceContentRequirement
 						.map(PriceContent::getAdditionalPriceListsToFetch)
-						.orElse(ArrayUtils.EMPTY_STRING_ARRAY) :
-					// default accompanying price lists are always fetched, so we can merge them with additional price lists
-					Stream.concat(
-							Stream.concat(
-								Arrays.stream(theDefaultAccompaniedPriceLists), Arrays.stream(
-									priceContentRequirement
-										.map(PriceContent::getAdditionalPriceListsToFetch)
-										.orElse(ArrayUtils.EMPTY_STRING_ARRAY)
-								)
-							),
-							Arrays.stream(this.accompanyingPrices)
-								.flatMap(accompanyingPrice -> Arrays.stream(accompanyingPrice.priceListPriority())
-								)
-						)
-						.distinct()
-						.toArray(String[]::new);
+						.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
+				} else {
+					// default accompanying price lists are always fetched,
+					// so we can merge them with additional price lists
+					final String[] additionalFromRequirement = priceContentRequirement
+						.map(PriceContent::getAdditionalPriceListsToFetch)
+						.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
+					int estimatedSize = theDefaultAccompaniedPriceLists.length + additionalFromRequirement.length;
+					for (final AccompanyingPrice ap : this.accompanyingPrices) {
+						estimatedSize += ap.priceListPriority().length;
+					}
+					final LinkedHashSet<String> merged =
+						CollectionUtils.createLinkedHashSet(estimatedSize);
+					Collections.addAll(merged, theDefaultAccompaniedPriceLists);
+					Collections.addAll(merged, additionalFromRequirement);
+					for (final AccompanyingPrice ap : this.accompanyingPrices) {
+						Collections.addAll(merged, ap.priceListPriority());
+					}
+					this.additionalPriceLists = merged.toArray(String[]::new);
+				}
 			}
 		}
 		return this.entityPrices;
@@ -777,7 +967,7 @@ public class EvitaRequest {
 	 * been initialized, it triggers the loading of entity prices.
 	 *
 	 * @return an array of AccompanyingPrice objects representing the accompanying prices.
-	 *         The returned array is non-null.
+	 * The returned array is non-null.
 	 */
 	@Nonnull
 	public AccompanyingPrice[] getAccompanyingPrices() {
@@ -788,13 +978,20 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns array of price list ids if requirement {@link DefaultAccompanyingPriceLists} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns array of price list ids if requirement
+	 * {@link DefaultAccompanyingPriceLists} is present in the query.
+	 * Accessor method caches the found result so that consecutive
+	 * calls of this method are pretty fast.
 	 */
 	@Nonnull
 	public String[] getDefaultAccompanyingPricePriceLists() {
 		if (this.defaultAccompanyingPricePriceLists == null) {
-			this.defaultAccompanyingPricePriceLists = ofNullable(QueryUtils.findRequire(this.query, DefaultAccompanyingPriceLists.class, SeparateEntityContentRequireContainer.class))
+			this.defaultAccompanyingPricePriceLists = ofNullable(
+				QueryUtils.findRequire(
+					this.query,
+					DefaultAccompanyingPriceLists.class,
+					SeparateEntityContentRequireContainer.class
+				))
 				.map(DefaultAccompanyingPriceLists::getPriceLists)
 				.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
 		}
@@ -802,8 +999,10 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns array of price list ids if requirement {@link PriceContent} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns array of price list ids if requirement
+	 * {@link PriceContent} is present in the query. Accessor method
+	 * caches the found result so that consecutive calls of this
+	 * method are pretty fast.
 	 */
 	@Nonnull
 	public String[] getFetchesAdditionalPriceLists() {
@@ -814,29 +1013,34 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns TRUE if any {@link PriceInPriceLists} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns TRUE if any {@link PriceInPriceLists} is present in the
+	 * query. Accessor method caches the found result so that
+	 * consecutive calls of this method are pretty fast.
 	 */
 	public boolean isRequiresPriceLists() {
 		if (this.requiresPriceLists == null) {
-			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findFilters(this.query, PriceInPriceLists.class);
+			final List<PriceInPriceLists> priceInPriceLists =
+				QueryUtils.findFilters(this.query, PriceInPriceLists.class);
 			Assert.isTrue(
 				priceInPriceLists.size() <= 1,
 				"Query can not contain more than one price in price lists filter constraints!"
 			);
-			final Optional<PriceInPriceLists> pricesInPriceList = priceInPriceLists.isEmpty() ?
-				Optional.empty() : Optional.of(priceInPriceLists.get(0));
-			this.priceLists = pricesInPriceList
-				.map(PriceInPriceLists::getPriceLists)
-				.orElse(new String[0]);
-			this.requiresPriceLists = pricesInPriceList.isPresent();
+			if (priceInPriceLists.isEmpty()) {
+				this.priceLists = ArrayUtils.EMPTY_STRING_ARRAY;
+				this.requiresPriceLists = false;
+			} else {
+				this.priceLists = priceInPriceLists.get(0).getPriceLists();
+				this.requiresPriceLists = true;
+			}
 		}
 		return this.requiresPriceLists;
 	}
 
 	/**
-	 * Returns array of price list ids if filter {@link PriceInPriceLists} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns array of price list ids if filter
+	 * {@link PriceInPriceLists} is present in the query. Accessor
+	 * method caches the found result so that consecutive calls of
+	 * this method are pretty fast.
 	 */
 	@Nonnull
 	public String[] getRequiresPriceLists() {
@@ -847,44 +1051,59 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns set of price list ids if requirement {@link PriceInCurrency} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns set of price list ids if requirement
+	 * {@link PriceInCurrency} is present in the query. Accessor
+	 * method caches the found result so that consecutive calls of
+	 * this method are pretty fast.
 	 */
 	@Nullable
 	public Currency getRequiresCurrency() {
 		if (this.currencySet == null) {
-			final List<Currency> currenciesFound = QueryUtils.findFilters(this.query, PriceInCurrency.class)
-				.stream()
-				.map(PriceInCurrency::getCurrency)
-				.distinct()
-				.toList();
-			Assert.isTrue(
-				currenciesFound.size() <= 1,
-				"Query can not contain more than one currency filtering constraints!"
-			);
-			this.currency = currenciesFound.isEmpty() ? null : currenciesFound.get(0);
+			final List<PriceInCurrency> currencyConstraints =
+				QueryUtils.findFilters(this.query, PriceInCurrency.class);
+			Currency foundCurrency = null;
+			for (final PriceInCurrency pic : currencyConstraints) {
+				final Currency curr = pic.getCurrency();
+				if (foundCurrency == null) {
+					foundCurrency = curr;
+				} else {
+					Assert.isTrue(
+						Objects.equals(foundCurrency, curr),
+						"Query can not contain more than one currency filtering constraints!"
+					);
+				}
+			}
+			this.currency = foundCurrency;
 			this.currencySet = true;
 		}
 		return this.currency;
 	}
 
 	/**
-	 * Returns price valid in datetime if requirement {@link io.evitadb.api.query.filter.PriceValidIn} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns price valid in datetime if requirement
+	 * {@link io.evitadb.api.query.filter.PriceValidIn} is present
+	 * in the query. Accessor method caches the found result so that
+	 * consecutive calls of this method are pretty fast.
 	 */
 	@Nullable
 	public OffsetDateTime getRequiresPriceValidIn() {
 		if (this.priceValidInTimeSet == null) {
-			final List<OffsetDateTime> validitySpan = QueryUtils.findFilters(this.query, PriceValidIn.class)
-				.stream()
-				.map(it -> it.getTheMoment(this::getAlignedNow))
-				.distinct()
-				.toList();
-			Assert.isTrue(
-				validitySpan.size() <= 1,
-				"Query can not contain more than one price validity constraints!"
-			);
-			this.priceValidInTime = validitySpan.isEmpty() ? null : validitySpan.get(0);
+			final List<PriceValidIn> priceValidInConstraints = QueryUtils.findFilters(this.query, PriceValidIn.class);
+			OffsetDateTime foundValidIn = null;
+			boolean foundAny = false;
+			for (final PriceValidIn pvi : priceValidInConstraints) {
+				final OffsetDateTime moment = pvi.getTheMoment(this::getAlignedNow);
+				if (!foundAny) {
+					foundValidIn = moment;
+					foundAny = true;
+				} else {
+					Assert.isTrue(
+						Objects.equals(foundValidIn, moment),
+						"Query can not contain more than one price validity constraints!"
+					);
+				}
+			}
+			this.priceValidInTime = foundValidIn;
 			this.priceValidInTimeSet = true;
 		}
 		return this.priceValidInTime;
@@ -901,7 +1120,10 @@ public class EvitaRequest {
 	@Nonnull
 	public FacetRelationType getDefaultFacetRelationType() {
 		if (this.defaultFacetRelationType == null) {
-			final Optional<FacetCalculationRules> customRules = ofNullable(QueryUtils.findRequire(this.query, FacetCalculationRules.class));
+			final Optional<FacetCalculationRules> customRules =
+				ofNullable(QueryUtils.findRequire(
+					this.query, FacetCalculationRules.class
+				));
 			this.defaultFacetRelationType = customRules
 				.map(FacetCalculationRules::getFacetsWithSameGroupRelationType)
 				.orElse(FacetRelationType.DISJUNCTION);
@@ -923,7 +1145,10 @@ public class EvitaRequest {
 	@Nonnull
 	public FacetRelationType getDefaultGroupRelationType() {
 		if (this.defaultGroupRelationType == null) {
-			final Optional<FacetCalculationRules> customRules = ofNullable(QueryUtils.findRequire(this.query, FacetCalculationRules.class));
+			final Optional<FacetCalculationRules> customRules =
+				ofNullable(QueryUtils.findRequire(
+					this.query, FacetCalculationRules.class
+				));
 			this.defaultFacetRelationType = customRules
 				.map(FacetCalculationRules::getFacetsWithSameGroupRelationType)
 				.orElse(FacetRelationType.DISJUNCTION);
@@ -935,8 +1160,9 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
-	 * joined by conjunction (AND) instead of default disjunction (OR).
+	 * Returns filter by representing group entity primary keys of
+	 * `referenceName` facets, that are requested to be joined by
+	 * conjunction (AND) instead of default disjunction (OR).
 	 */
 	@Nonnull
 	public Optional<FacetFilterBy> getFacetGroupConjunction(@Nonnull String referenceName) {
@@ -945,15 +1171,22 @@ public class EvitaRequest {
 			QueryUtils.findRequires(this.query, FacetGroupsConjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupConjunction.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
+					this.facetGroupConjunction.put(
+						reqReferenceName,
+						new FacetFilterBy(
+							it.getFacetGroups().orElse(null)
+						)
+					);
 				});
 		}
 		return ofNullable(this.facetGroupConjunction.get(referenceName));
 	}
 
 	/**
-	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
-	 * joined with other facet groups by disjunction (OR) instead of default conjunction (AND).
+	 * Returns filter by representing group entity primary keys of
+	 * `referenceName` facets, that are requested to be joined with
+	 * other facet groups by disjunction (OR) instead of default
+	 * conjunction (AND).
 	 */
 	@Nonnull
 	public Optional<FacetFilterBy> getFacetGroupDisjunction(@Nonnull String referenceName) {
@@ -962,15 +1195,21 @@ public class EvitaRequest {
 			QueryUtils.findRequires(this.query, FacetGroupsDisjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupDisjunction.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
+					this.facetGroupDisjunction.put(
+						reqReferenceName,
+						new FacetFilterBy(
+							it.getFacetGroups().orElse(null)
+						)
+					);
 				});
 		}
 		return ofNullable(this.facetGroupDisjunction.get(referenceName));
 	}
 
 	/**
-	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
-	 * joined by negation (AND NOT) instead of default disjunction (OR).
+	 * Returns filter by representing group entity primary keys of
+	 * `referenceName` facets, that are requested to be joined by
+	 * negation (AND NOT) instead of default disjunction (OR).
 	 */
 	@Nonnull
 	public Optional<FacetFilterBy> getFacetGroupNegation(@Nonnull String referenceName) {
@@ -979,15 +1218,21 @@ public class EvitaRequest {
 			QueryUtils.findRequires(this.query, FacetGroupsNegation.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupNegation.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
+					this.facetGroupNegation.put(
+						reqReferenceName,
+						new FacetFilterBy(
+							it.getFacetGroups().orElse(null)
+						)
+					);
 				});
 		}
 		return ofNullable(this.facetGroupNegation.get(referenceName));
 	}
 
 	/**
-	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
-	 * calculated in exclusive fashion (no other facet from same group is selected).
+	 * Returns filter by representing group entity primary keys of
+	 * `referenceName` facets, that are requested to be calculated in
+	 * exclusive fashion (no other facet from same group is selected).
 	 */
 	@Nonnull
 	public Optional<FacetFilterBy> getFacetGroupExclusivity(@Nonnull String referenceName) {
@@ -996,26 +1241,34 @@ public class EvitaRequest {
 			QueryUtils.findRequires(this.query, FacetGroupsExclusivity.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupExclusivity.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
+					this.facetGroupExclusivity.put(
+						reqReferenceName,
+						new FacetFilterBy(
+							it.getFacetGroups().orElse(null)
+						)
+					);
 				});
 		}
 		return ofNullable(this.facetGroupExclusivity.get(referenceName));
 	}
 
 	/**
-	 * Returns TRUE if requirement {@link QueryTelemetry} is present in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns TRUE if requirement {@link QueryTelemetry} is present in
+	 * the query. Accessor method caches the found result so that
+	 * consecutive calls of this method are pretty fast.
 	 */
 	public boolean isQueryTelemetryRequested() {
 		if (this.queryTelemetryRequested == null) {
-			this.queryTelemetryRequested = QueryUtils.findRequire(this.query, QueryTelemetry.class) != null;
+			this.queryTelemetryRequested =
+				QueryUtils.findRequire(this.query, QueryTelemetry.class) != null;
 		}
 		return this.queryTelemetryRequested;
 	}
 
 	/**
-	 * Returns true if passed {@link DebugMode} is enabled in the query.
-	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 * Returns true if passed {@link DebugMode} is enabled in the
+	 * query. Accessor method caches the found result so that
+	 * consecutive calls of this method are pretty fast.
 	 */
 	public boolean isDebugModeEnabled(@Nonnull DebugMode debugMode) {
 		if (this.debugModes == null) {
@@ -1095,59 +1348,63 @@ public class EvitaRequest {
 	@Nonnull
 	public Map<String, RequirementContext> getReferenceEntityFetch() {
 		if (this.entityFetchRequirements == null) {
-			this.entityFetchRequirements = ofNullable(getEntityRequirement())
-				.map(
-					entityRequirement -> {
-						final List<ReferenceContent> referenceContent = QueryUtils.findConstraints(entityRequirement, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
-						this.entityReference = !referenceContent.isEmpty();
-						this.defaultReferenceRequirement = referenceContent
-							.stream()
-							.filter(it -> it.getInstanceName() == null)
-							.filter(it -> ArrayUtils.isEmpty(it.getReferenceNames()))
-							.map(it -> getRequirementContext(it, it.getAttributeContent().orElse(null)))
-							.findFirst()
-							.orElse(null);
+			final EntityFetch entityRequirement = getEntityRequirement();
+			if (entityRequirement == null) {
+				this.entityReference = false;
+				this.entityFetchRequirements = Collections.emptyMap();
+			} else {
+				final List<ReferenceContent> referenceContent =
+					QueryUtils.findConstraints(
+						entityRequirement,
+						ReferenceContent.class,
+						SeparateEntityContentRequireContainer.class
+					);
+				this.entityReference = !referenceContent.isEmpty();
 
-						return referenceContent
-							.stream()
-							.filter(
-								it -> {
-									final String instanceName = it.getInstanceName();
-									if (instanceName == null) {
-										return true;
-									} else {
-										if (this.namedEntityFetchRequirements == null) {
-											this.namedEntityFetchRequirements = new TreeMap<>();
-										}
-										this.namedEntityFetchRequirements.put(
-											new ReferenceContentKey(instanceName, it.getReferenceName()),
-											getRequirementContext(it, it.getAttributeContent().orElse(null))
-										);
-										return false;
-									}
-								}
-							)
-							.flatMap(it ->
-								Arrays
-									.stream(it.getReferenceNames())
-									.map(
-										entityType -> new SimpleEntry<>(
-											entityType,
-											getRequirementContext(it, it.getAttributeContent().orElse(null))
-										)
-									)
-							)
-							.collect(
-								Collectors.toMap(
-									SimpleEntry::getKey,
-									SimpleEntry::getValue
-								)
-							);
+				// find default requirement (no instance name, no reference names)
+				RequirementContext defaultReq = null;
+				for (final ReferenceContent rc : referenceContent) {
+					if (rc.getInstanceName() == null &&
+						ArrayUtils.isEmpty(rc.getReferenceNames())) {
+						defaultReq = getRequirementContext(
+							rc, rc.getAttributeContent().orElse(null)
+						);
+						break;
 					}
-				).orElseGet(() -> {
-					this.entityReference = false;
-					return Collections.emptyMap();
-				});
+				}
+				this.defaultReferenceRequirement = defaultReq;
+
+				// build the requirements map
+				final Map<String, RequirementContext> result =
+					CollectionUtils.createHashMap(referenceContent.size());
+				for (final ReferenceContent rc : referenceContent) {
+					final String instanceName = rc.getInstanceName();
+					if (instanceName != null) {
+						// named reference
+						if (this.namedEntityFetchRequirements == null) {
+							this.namedEntityFetchRequirements = new TreeMap<>();
+						}
+						this.namedEntityFetchRequirements.put(
+							new ReferenceContentKey(instanceName, rc.getReferenceName()),
+							getRequirementContext(
+								rc, rc.getAttributeContent().orElse(null)
+							)
+						);
+					} else {
+						// unnamed reference - add each reference name
+						final String[] refNames = rc.getReferenceNames();
+						if (refNames.length > 0) {
+							final RequirementContext ctx = getRequirementContext(
+								rc, rc.getAttributeContent().orElse(null)
+							);
+							for (final String refName : refNames) {
+								result.put(refName, ctx);
+							}
+						}
+					}
+				}
+				this.entityFetchRequirements = result;
+			}
 		}
 		return this.entityFetchRequirements;
 	}
@@ -1166,7 +1423,8 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns transformation function that wraps list of references into appropriate implementation of the chunk
+	 * Returns transformation function that wraps list of references
+	 * into appropriate implementation of the chunk
 	 * data structure requested and expected by the client.
 	 */
 	@Nonnull
@@ -1201,12 +1459,16 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Method creates copy of this request with changed `entityType` and entity `requirements`. The copy will share
-	 * already resolved and memoized values of this request except those that relate to the changed entity type and
-	 * requirements.
+	 * Method creates copy of this request with changed `entityType`
+	 * and entity `requirements`. The copy will share already resolved
+	 * and memoized values of this request except those that relate to
+	 * the changed entity type and requirements.
 	 */
 	@Nonnull
-	public EvitaRequest deriveCopyWith(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
+	public EvitaRequest deriveCopyWith(
+		@Nullable String entityType,
+		@Nonnull EntityFetchRequire requirements
+	) {
 		return new EvitaRequest(
 			this,
 			entityType,
@@ -1216,9 +1478,10 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Method creates copy of this request with changed `entityType` and entity `requirements`. The copy will share
-	 * already resolved and memoized values of this request except those that relate to the changed entity type and
-	 * requirements.
+	 * Method creates copy of this request with changed `entityType`
+	 * and entity `requirements`. The copy will share already resolved
+	 * and memoized values of this request except those that relate to
+	 * the changed entity type and requirements.
 	 */
 	@Nonnull
 	public EvitaRequest deriveCopyWith(
@@ -1234,9 +1497,10 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Method creates copy of this request with changed `entityType` and `filterConstraint`. The copy will share
-	 * already resolved and memoized values of this request except those that relate to the changed entity type and
-	 * the filtering constraints.
+	 * Method creates copy of this request with changed `entityType`
+	 * and `filterConstraint`. The copy will share already resolved
+	 * and memoized values of this request except those that relate
+	 * to the changed entity type and the filtering constraints.
 	 */
 	@Nonnull
 	public EvitaRequest deriveCopyWith(
@@ -1295,20 +1559,27 @@ public class EvitaRequest {
 
 	/**
 	 * Internal method that consults input query and initializes pagination information.
-	 * If there is no pagination in the input query, first page with size of 20 records is used as default.
+	 * If there is no pagination in the input query, first page with
+	 * size of 20 records is used as default.
 	 */
 	private void initPagination() {
-		final Optional<Page> page = ofNullable(QueryUtils.findRequire(this.query, Page.class, SeparateEntityContentRequireContainer.class));
-		final Optional<Strip> strip = ofNullable(QueryUtils.findRequire(this.query, Strip.class, SeparateEntityContentRequireContainer.class));
+		final Optional<Page> page = ofNullable(
+			QueryUtils.findRequire(
+				this.query, Page.class,
+				SeparateEntityContentRequireContainer.class
+			)
+		);
+		final Optional<Strip> strip = ofNullable(
+			QueryUtils.findRequire(
+				this.query, Strip.class,
+				SeparateEntityContentRequireContainer.class
+			)
+		);
 		if (page.isPresent()) {
 			final Page thePage = page.get();
 			this.limit = thePage.getPageSize();
 			this.start = thePage.getPageNumber();
-			this.conditionalGaps = thePage.getSpacing()
-				.stream()
-				.flatMap(it -> Arrays.stream(it.getGaps()))
-				.map(it -> new ConditionalGap(it.getSize(), it.getOnPage()))
-				.toArray(ConditionalGap[]::new);
+			this.conditionalGaps = convertSpacingToGaps(thePage.getSpacing().orElse(null));
 			this.resultForm = EvitaRequest.ResultForm.PAGINATED_LIST;
 		} else if (strip.isPresent()) {
 			final Strip theStrip = strip.get();
@@ -1330,14 +1601,16 @@ public class EvitaRequest {
 	 * It defines two possible formats:
 	 *
 	 * 1. PAGINATED_LIST: Represents a list format where results are divided into pages.
-	 * 2. STRIP_LIST: Represents a continuous list format where results are displayed in a single strip.
+	 * 2. STRIP_LIST: Represents a continuous list format where results
+	 * are displayed in a single strip.
 	 */
 	public enum ResultForm {
 		PAGINATED_LIST, STRIP_LIST
 	}
 
 	/**
-	 * Simple DTO that allows collection of {@link ReferenceContent} inner constraints related to fetching the entity
+	 * Simple DTO that allows collection of {@link ReferenceContent}
+	 * inner constraints related to fetching the entity
 	 * and group entity for fast access in this evita request instance.
 	 *
 	 * @param managedReferencesBehaviour controls behaviour of excluding missing managed references
@@ -1362,12 +1635,15 @@ public class EvitaRequest {
 		 * If attributeContent is null, an empty set of attributes is created.
 		 * Otherwise, the attribute names from attributeContent are used.
 		 *
-		 * @return an AttributeRequest instance containing the set of attribute names and whether any attributes are required
+		 * @return an AttributeRequest instance containing the set of
+		 * attribute names and whether any attributes are required
 		 */
 		@Nonnull
 		public AttributeRequest attributeRequest() {
 			return new AttributeRequest(
-				this.attributeContent == null ? Collections.emptySet() : this.attributeContent.getAttributeNamesAsSet(),
+				this.attributeContent == null ?
+					Collections.emptySet() :
+					this.attributeContent.getAttributeNamesAsSet(),
 				this.attributeContent != null
 			);
 		}
@@ -1387,19 +1663,28 @@ public class EvitaRequest {
 		}
 
 		/**
-		 * Extends the current attribute content requirement of the `RequirementContext` by combining it with
-		 * the provided attribute content. If the current attribute content is null, the provided attribute content
+		 * Extends the current attribute content requirement of the
+		 * `RequirementContext` by combining it with the provided
+		 * attribute content. If the current attribute content is null,
+		 * the provided attribute content
 		 * will be used as-is. Otherwise, it merges the existing attribute content with the new one.
 		 *
-		 * @param attributeContent the new {@link AttributeContent} to extend the current attribute content requirement
-		 * @return a new {@link RequirementContext} instance with the updated attribute content requirement
+		 * @param attributeContent the new {@link AttributeContent} to
+		 *                         extend the current attribute content
+		 *                         requirement
+		 * @return a new {@link RequirementContext} instance with the
+		 * updated attribute content requirement
 		 * @throws NullPointerException if the provided attribute content is null
 		 */
 		@Nonnull
-		public RequirementContext withExtendedAttributeContentRequirement(@Nonnull AttributeContent attributeContent) {
+		public RequirementContext withExtendedAttributeContentRequirement(
+			@Nonnull AttributeContent attributeContent
+		) {
 			return new RequirementContext(
 				this.managedReferencesBehaviour,
-				this.attributeContent == null ? attributeContent : this.attributeContent.combineWith(attributeContent),
+				this.attributeContent == null ?
+					attributeContent :
+					this.attributeContent.combineWith(attributeContent),
 				this.entityFetch,
 				this.entityGroupFetch,
 				this.filterBy,
@@ -1410,11 +1695,16 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Attribute request DTO contains information about all attribute names that has been requested for the particular
+	 * Attribute request DTO contains information about all attribute
+	 * names that has been requested for the particular
 	 * reference.
 	 *
-	 * @param attributeSet             Contains information about all attribute names that has been fetched / requested for the entity.
-	 * @param requiresEntityAttributes Contains true if any of the attributes of the entity has been fetched / requested.
+	 * @param attributeSet             Contains information about all
+	 *                                 attribute names that has been
+	 *                                 fetched / requested for the entity.
+	 * @param requiresEntityAttributes Contains true if any of the
+	 *                                 attributes of the entity has been
+	 *                                 fetched / requested.
 	 */
 	public record AttributeRequest(
 		@Nonnull Set<String> attributeSet,
@@ -1431,7 +1721,8 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Wraps the information whether the facet group was altered by a refinement constraint and if so, whether
+	 * Wraps the information whether the facet group was altered by a
+	 * refinement constraint and if so, whether
 	 * filterBy constraint was provided or not.
 	 *
 	 * @param filterBy filterBy constraint that was provided by the refinement constraint
@@ -1443,15 +1734,17 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Represents a ConditionalGap with a specified size and an associated expression.
+	 * Represents a ConditionalGap with a specified size and an
+	 * associated expression.
 	 *
-	 * This record is used to encapsulate the information of a gap, primarily its size
-	 * and the condition or expression that determines some dynamic property or behavior
-	 * related to the gap.
+	 * This record is used to encapsulate the information of a gap,
+	 * primarily its size and the condition or expression that
+	 * determines some dynamic property or behavior related to
+	 * the gap.
 	 *
-	 * Fields:
-	 * - size: The size of the gap.
-	 * - expression: The condition that needs to be satisfied for the gap to be applied.
+	 * @param size       the size of the gap
+	 * @param expression the condition that needs to be satisfied
+	 *                   for the gap to be applied
 	 */
 	public record ConditionalGap(
 		int size,
@@ -1465,13 +1758,17 @@ public class EvitaRequest {
 	 * and ensures it is added to filterBy constraint.
 	 */
 	@RequiredArgsConstructor
-	private static class ScopeEnforcer implements BiFunction<ConstraintCloneVisitor, Constraint<?>, Constraint<?>> {
+	private static class ScopeEnforcer implements
+		BiFunction<ConstraintCloneVisitor, Constraint<?>, Constraint<?>> {
 		private final EntityScope enforcedScope;
 		private boolean scopeFound;
 
 		@Nullable
 		@Override
-		public Constraint<?> apply(ConstraintCloneVisitor constraintCloneVisitor, Constraint<?> constraint) {
+		public Constraint<?> apply(
+			ConstraintCloneVisitor constraintCloneVisitor,
+			Constraint<?> constraint
+		) {
 			if (constraint instanceof EntityScope) {
 				this.scopeFound = true;
 				return this.enforcedScope;
@@ -1489,7 +1786,8 @@ public class EvitaRequest {
 
 	/**
 	 * Key allowing to distinguish different reference content requirements.
-	 * @param instanceName optional name of the reference content instance
+	 *
+	 * @param instanceName  optional name of the reference content instance
 	 * @param referenceName name of the reference
 	 */
 	public record ReferenceContentKey(
@@ -1497,9 +1795,12 @@ public class EvitaRequest {
 		@Nonnull String referenceName
 	) implements Serializable, Comparable<ReferenceContentKey> {
 
-		private static final Comparator<ReferenceContentKey> REFERENCE_CONTENT_KEY_COMPARATOR = Comparator
-			.comparing(ReferenceContentKey::referenceName)
-			.thenComparing(ReferenceContentKey::instanceName, Comparator.nullsFirst(Comparator.naturalOrder()));
+		private static final Comparator<ReferenceContentKey> REFERENCE_CONTENT_KEY_COMPARATOR =
+			Comparator.comparing(ReferenceContentKey::referenceName)
+				.thenComparing(
+					ReferenceContentKey::instanceName,
+					Comparator.nullsFirst(Comparator.naturalOrder())
+				);
 
 		@Override
 		public int compareTo(@Nonnull ReferenceContentKey other) {

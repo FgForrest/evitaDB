@@ -29,16 +29,45 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * This exception is thrown when client code tries to assign value of different type than defined in the schema
- * to the attribute.
+ * Exception thrown when attempting to assign a value whose type does not match the type declared in the schema.
+ *
+ * This exception enforces type safety for entity attributes and associated data. It is thrown during entity
+ * construction or mutation when client code provides a value whose Java type is incompatible with the type
+ * defined in the corresponding schema definition.
+ *
+ * The exception carries both the expected type (from the schema) and the actual type (from the provided value)
+ * to facilitate debugging and error reporting.
+ *
+ * **Common Causes:**
+ * - Setting an attribute with a type different from its {@link io.evitadb.api.requestResponse.schema.AttributeSchemaContract#getType()}
+ * - Providing associated data with a type different from its {@link io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract#getType()}
+ * - Passing array values to sortable attributes (which require single values)
+ *
+ * **Usage Context:**
+ * - {@link io.evitadb.api.requestResponse.data.structure.InitialAttributesBuilder}: validates attribute types during entity creation
+ * - {@link io.evitadb.api.requestResponse.data.structure.InitialAssociatedDataBuilder}: validates associated data types
+ * - Entity builders: enforces schema contracts during entity mutation
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class InvalidDataTypeMutationException extends InvalidMutationException {
 	@Serial private static final long serialVersionUID = -333068314618284721L;
+	/**
+	 * The type expected by the schema definition.
+	 */
 	@Getter private final Class<?> expectedType;
+	/**
+	 * The actual type of the value provided by the client.
+	 */
 	@Getter private final Class<?> actualType;
 
+	/**
+	 * Creates a new exception indicating a type mismatch between schema and provided value.
+	 *
+	 * @param message detailed error message explaining the context and mismatch
+	 * @param expectedType the type declared in the schema
+	 * @param actualType the type of the value provided by the client
+	 */
 	public InvalidDataTypeMutationException(@Nonnull String message, @Nonnull Class<?> expectedType, @Nonnull Class<?> actualType) {
 		super(message);
 		this.expectedType = expectedType;

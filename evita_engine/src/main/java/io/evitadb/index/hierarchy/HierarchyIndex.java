@@ -48,9 +48,9 @@ import io.evitadb.index.hierarchy.suppliers.HierarchyForParentBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownBitmapSupplier;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart;
-import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart.LevelIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexStoragePart.LevelIndex;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -76,7 +76,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -546,10 +546,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
 			return createAllHierarchyNodesFormula();
 		} else {
-			if (this.memoizedAllNodeFormula == null) {
-				this.memoizedAllNodeFormula = createAllHierarchyNodesFormula();
+			Formula result = this.memoizedAllNodeFormula;
+			if (result == null) {
+				result = createAllHierarchyNodesFormula();
+				this.memoizedAllNodeFormula = result;
 			}
-			return this.memoizedAllNodeFormula;
+			return result;
 		}
 	}
 

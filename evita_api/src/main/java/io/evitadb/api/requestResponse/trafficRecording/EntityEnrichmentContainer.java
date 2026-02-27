@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,14 +35,16 @@ import java.util.UUID;
  * This container holds information about single entity enrichment.
  *
  * @param sessionSequenceOrder   the session sequence order of the enrichment (similar to session id but monotonic)
- * @param sessionId              the session id which the mutation belongs to
+ * @param sessionId              the session id which the enrichment belongs to
  * @param recordSessionOffset    the order (sequence) of the record in the session
+ * @param sessionRecordsCount    the total count of the records in the session
  * @param query                  the query accompanying the enrichment
  * @param created                the time when the enrichment was executed
  * @param durationInMilliseconds the duration of the enrichment execution within the session in milliseconds
  * @param ioFetchCount           the number of IO fetches performed by the enrichment
  * @param ioFetchedSizeBytes     the total size of the data fetched by the enrichment in bytes
  * @param primaryKey             the primary key of the record being enriched
+ * @param finishedWithError      the error message if the enrichment finished with an error
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

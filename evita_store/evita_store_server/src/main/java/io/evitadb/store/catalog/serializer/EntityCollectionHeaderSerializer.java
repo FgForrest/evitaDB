@@ -27,9 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.PersistentStorageHeader;
+import io.evitadb.store.model.header.EntityCollectionFileHeader;
+import io.evitadb.store.model.header.PersistentStorageHeader;
+import io.evitadb.store.shared.model.FileLocation;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -38,14 +38,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link EntityCollectionHeader} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link EntityCollectionFileHeader} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
+public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionFileHeader> {
 
 	@Override
-	public void write(Kryo kryo, Output output, EntityCollectionHeader object) {
+	public void write(Kryo kryo, Output output, EntityCollectionFileHeader object) {
 		output.writeString(object.entityType());
 		output.writeVarInt(object.entityTypePrimaryKey(), true);
 		output.writeVarInt(object.entityTypeFileIndex(), true);
@@ -66,7 +66,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 	}
 
 	@Override
-	public EntityCollectionHeader read(Kryo kryo, Input input, Class<? extends EntityCollectionHeader> type) {
+	public EntityCollectionFileHeader read(Kryo kryo, Input input, Class<? extends EntityCollectionFileHeader> type) {
 		final String entityType = input.readString();
 		final int entityTypePrimaryKey = input.readVarInt(true);
 		final int entityTypeFileIndex = input.readVarInt(true);
@@ -85,7 +85,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		final Integer globalIndexKey = kryo.readObjectOrNull(input, Integer.class);
 		final List<Integer> entityIndexIds = deserializeEntityIndexIds(input);
 
-		return new EntityCollectionHeader(
+		return new EntityCollectionFileHeader(
 			entityType,
 			entityTypePrimaryKey,
 			entityTypeFileIndex,
@@ -100,7 +100,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		);
 	}
 
-	private static void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
+	private static void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionFileHeader catalogEntityHeader) {
 		final int entityIndexCount = catalogEntityHeader.usedEntityIndexPrimaryKeys().size();
 		output.writeVarInt(entityIndexCount, true);
 		output.writeInts(

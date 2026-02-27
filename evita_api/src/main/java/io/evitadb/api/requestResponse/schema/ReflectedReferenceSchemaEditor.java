@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import java.util.Collection;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSchemaEditor<S>> extends ReferenceSchemaEditor<S> {
+public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSchemaEditor<S>> extends ReferenceSchemaEditor<S>, ReflectedReferenceSchemaContract {
 
 	String GROUP_TYPE_EXCEPTION_MESSAGE = "Group type can be set only on original reference. It makes no sense to change it on reflected one.";
 
@@ -64,6 +64,7 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	 * @param cardinality the cardinality of the reflected reference
 	 * @return the builder to continue with configuration
 	 */
+	@Nonnull
 	S withCardinality(@Nonnull Cardinality cardinality);
 
 	/**

@@ -29,11 +29,16 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.CoreConstants;
 import ch.qos.logback.core.LayoutBase;
 import ch.qos.logback.core.util.CachingDateFormatter;
+import com.linecorp.armeria.common.RequestContext;
+import com.linecorp.armeria.common.logging.RequestLog;
+import com.linecorp.armeria.common.logging.RequestLogAccess;
+import com.linecorp.armeria.common.logging.RequestLogProperty;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.utils.StringUtils;
 import lombok.Setter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 
 /**
@@ -88,28 +93,30 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 		buf.append(escapeMessage(completeMessage));
 		buf.append("\"");
 
-		buf.append(",");
-
+		// Add client_id field only if it is available
 		final String clientId = event.getMDCPropertyMap().get(TracingContext.MDC_CLIENT_ID_PROPERTY);
-		buf.append("\"client_id\":");
-		if (clientId == null) {
-			buf.append("null");
-		} else {
-			buf.append("\"");
+		if (clientId != null) {
+			buf.append(",");
+			buf.append("\"client_id\":\"");
 			buf.append(clientId);
 			buf.append("\"");
 		}
 
-		buf.append(",");
-
+		// Add trace_id field only if it is available
 		final String traceId = event.getMDCPropertyMap().get(TracingContext.MDC_TRACE_ID_PROPERTY);
-		buf.append("\"trace_id\":");
-		if (traceId == null) {
-			buf.append("null");
-		} else {
-			buf.append("\"");
+		if (traceId != null) {
+			buf.append(",");
+			buf.append("\"trace_id\":\"");
 			buf.append(traceId);
 			buf.append("\"");
+		}
+
+		// Add duration_ms field only if Armeria RequestContext is available and request is complete
+		final Long durationMs = getRequestDurationMs();
+		if (durationMs != null) {
+			buf.append(",");
+			buf.append("\"duration_ms\":");
+			buf.append(durationMs);
 		}
 
 		buf.append("}");
@@ -125,7 +132,32 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 	 * @param message the message to escape
 	 * @return the escaped message
 	 */
+	@Nonnull
 	private static String escapeMessage(@Nonnull String message) {
 		return StringUtils.replaceEach(message, ESCAPED_CHARS, REPLACEMENTS_FOR_ESCAPED_CHARS);
+	}
+
+	/**
+	 * Retrieves the request duration in milliseconds from the current Armeria RequestContext.
+	 * Returns null if no request context is available or if the request has not yet completed.
+	 *
+	 * @return the request duration in milliseconds, or null if unavailable
+	 */
+	@Nullable
+	private static Long getRequestDurationMs() {
+		final RequestContext requestContext = RequestContext.currentOrNull();
+		if (requestContext != null) {
+			final RequestLogAccess logAccess = requestContext.log();
+			if (logAccess.isAvailable(RequestLogProperty.RESPONSE_END_TIME)) {
+				final RequestLog partialLog = logAccess.partial();
+				if (partialLog.isRequestComplete()) {
+					final long durationNanos = partialLog.totalDurationNanos();
+					return durationNanos / 1_000_000L;
+				} else {
+					return null;
+				}
+			}
+		}
+		return null;
 	}
 }

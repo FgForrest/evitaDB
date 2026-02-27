@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.grpc.services;
 
 
+import com.linecorp.armeria.common.util.TimeoutMode;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
@@ -72,7 +74,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 
 	public EvitaTrafficRecordingService(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions) {
 		this.evita = evita;
-		this.tracingContext = ExternalApiTracingContextProvider.getContext(headerOptions);
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(Metadata.class, headerOptions);
 	}
 
 	/**
@@ -157,6 +159,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 			}
 		);
 
+		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
 		executeWithClientContext(
 			session -> {
 				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
@@ -170,6 +173,10 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addTrafficRecord(event);
 						responseObserver.onNext(builder.build());
+
+						serviceContext.setRequestTimeout(
+							TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+						);
 					}
 				);
 				responseObserver.onCompleted();

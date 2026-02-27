@@ -238,6 +238,8 @@ message GrpcRegisterSystemChangeCaptureResponse {
   // The type of the response - when subscription is set-up, acknowledgement is sent
   // Then with each capture event, the type is set to `change`
   GrpcCaptureResponseType responseType = 3;
+  // Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+  GrpcHeartBeat heartBeat = 4;
 }
 
 // Request to get progress of the top-level engine mutations.

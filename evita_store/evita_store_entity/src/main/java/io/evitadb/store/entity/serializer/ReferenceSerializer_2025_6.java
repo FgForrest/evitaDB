@@ -56,7 +56,7 @@ public class ReferenceSerializer_2025_6 extends Serializer<Reference> {
 
 	@Override
 	public Reference read(Kryo kryo, Input input, Class<? extends Reference> type) {
-		final EntitySchema schema = EntitySchemaContext.getEntitySchema();
+		final EntitySchema schema = io.evitadb.spi.store.catalog.persistence.EntitySchemaContext.getEntitySchema();
 		final int version = input.readVarInt(true);
 		final String referenceName = input.readString();
 		final int entityPrimaryKey = input.readInt();

@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.utils;
 
+import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -61,7 +62,7 @@ public class FormulaFactory {
 		} else if (innerFormulas[0] instanceof FutureNotFormula) {
 			return FutureNotFormula.postProcess(
 				innerFormulas,
-				OrFormula::new,
+				EnclosingContainerRelation.DISJUNCTION,
 				superSetFormulaSupplier
 			);
 		} else {

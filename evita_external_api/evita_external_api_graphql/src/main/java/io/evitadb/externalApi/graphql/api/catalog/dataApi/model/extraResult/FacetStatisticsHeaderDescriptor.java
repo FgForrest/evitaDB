@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,18 +34,18 @@ public interface FacetStatisticsHeaderDescriptor {
 
 	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
 		.name("filterBy")
-		// TOBEDONE JNO: proper docs for filterBy
 		.description("""
-			Filters returned facets by defined constraints.
+			Optional filter constraint that limits the facets displayed and calculated
+			in the summary to those that match the specified filter constraint.
 			""")
-		// type is expected to be a  `filterBy` container
+		// type is expected to be a `filterBy` container
 		.build();
 	PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
 		.name("orderBy")
-		// TOBEDONE JNO: proper docs for orderBy
 		.description("""
-			Sorts returned facets by defined constraints.
+			Optional order constraint that specifies the order of the facet options
+			within each facet group.
 			""")
-		// type is expected to be a `orderBy` container
+		// type is expected to be an `orderBy` container
 		.build();
 }

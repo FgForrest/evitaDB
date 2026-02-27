@@ -24,7 +24,7 @@
 package io.evitadb.core.transaction.conflict;
 
 import io.evitadb.api.requestResponse.mutation.conflict.CommutativeConflictKey;
-import io.evitadb.core.Catalog;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;

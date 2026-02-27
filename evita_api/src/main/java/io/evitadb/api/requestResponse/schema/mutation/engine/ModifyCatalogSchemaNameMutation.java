@@ -34,14 +34,14 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,20 +53,35 @@ import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for renaming an existing {@link CatalogSchemaContract}.
- * Mutation implements {@link CombinableCatalogSchemaMutation} allowing to resolve conflicts with the same mutation
- * if the mutation is placed twice in the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-@RequiredArgsConstructor
 public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMutation<CommitVersions> {
-	@Serial private static final long serialVersionUID = -5779012919587623154L;
-	@Getter @Nonnull private final String catalogName;
-	@Getter @Nonnull private final String newCatalogName;
+	@Serial private static final long serialVersionUID = 2748912537205157142L;
+	@Nonnull @Getter private final String catalogName;
+	@Nonnull @Getter private final String newCatalogName;
 	@Getter private final boolean overwriteTarget;
+
+	/**
+	 * Creates a new mutation that will rename the specified catalog.
+	 *
+	 * @param catalogName     name of the existing catalog to rename
+	 * @param newCatalogName  new name for the catalog
+	 * @param overwriteTarget whether to overwrite an existing catalog with the new name
+	 */
+	public ModifyCatalogSchemaNameMutation(
+		@Nonnull String catalogName,
+		@Nonnull String newCatalogName,
+		boolean overwriteTarget
+	) {
+		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, newCatalogName);
+		this.catalogName = catalogName;
+		this.newCatalogName = newCatalogName;
+		this.overwriteTarget = overwriteTarget;
+	}
 
 	@Nonnull
 	@Override
@@ -86,12 +101,12 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 						"Use `overwriteTarget` flag to overwrite existing catalog."
 				);
 			}
-			// check the names in all naming conventions are unique in the entity schema
+			// check the names in all naming conventions are unique among catalogs
 			CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName);
 		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		Assert.notNull(
@@ -136,8 +151,8 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 
 	@Override
 	public String toString() {
-		return (this.overwriteTarget ? "Replace catalog " : "Modify catalog name") + "`" + this.catalogName + "`: " +
-			"newCatalogName='" + this.newCatalogName + '\'';
+		return (this.overwriteTarget ? "Replace catalog " : "Modify catalog name ") +
+			"`" + this.catalogName + "`: newCatalogName='" + this.newCatalogName + '\'';
 	}
 
 }

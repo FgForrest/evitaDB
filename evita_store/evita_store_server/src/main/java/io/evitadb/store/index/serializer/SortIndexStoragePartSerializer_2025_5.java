@@ -32,9 +32,9 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
-import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;

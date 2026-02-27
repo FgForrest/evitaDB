@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ public interface FacetSummaryDescriptor {
 			.description("""
 				Contains referenced entity representing.
 				""")
-			// type is expected to be entity object
+			// type is expected to be an entity object of target entity type
 			.build();
 		PropertyDescriptor REQUESTED = PropertyDescriptor.builder()
 			.name("requested")
@@ -126,12 +126,25 @@ public interface FacetSummaryDescriptor {
 			.type(nullableRef(FacetRequestImpactDescriptor.THIS))
 			.build();
 
-		ObjectDescriptor THIS = ObjectDescriptor.builder()
-			.name("*FacetStatistics")
+		ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
+			.name("FacetStatistics")
 			.description("""
 				This DTO contains information about single facet statistics of the entities that are present in the response.
 				""")
 			.staticProperties(List.of(REQUESTED, COUNT, IMPACT))
+			.build();
+	}
+
+	/**
+	 * Implementation of {@link FacetStatisticsDescriptor} for specific target entity
+	 */
+	interface EntityFacetStatisticsDescriptor extends FacetStatisticsDescriptor {
+
+		ObjectDescriptor THIS = ObjectDescriptor.implementing(FacetStatisticsDescriptor.THIS_INTERFACE)
+			.name("*FacetStatistics")
+			.description("""
+				This DTO contains information about single facet statistics of the entities that are present in the response.
+				""")
 			.build();
 	}
 

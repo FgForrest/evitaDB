@@ -23,14 +23,12 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
@@ -62,7 +60,7 @@ import java.io.Serial;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode(callSuper = false)
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaLocalizedMutation
 	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
@@ -162,43 +160,10 @@ public class SetAttributeSchemaLocalizedMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
-		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
-			));
-
-		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
-		return replaceAttributeIfDifferent(
-			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
-		);
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
-		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(this.name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
-			));
-
-		final EntityAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, EntityAttributeSchemaContract.class);
-		return replaceAttributeIfDifferent(
-			entitySchema, existingAttributeSchema, updatedAttributeSchema
-		);
-	}
-
-	@Nullable
-	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
-		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, this.name);
-		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema, AttributeSchemaContract.class);
-		return replaceAttributeIfDifferent(
-			referenceSchema, existingAttributeSchema, updatedAttributeSchema
-		);
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
+		return mutateGlobalAttributeSchema(catalogSchema, entitySchemaAccessor, this);
 	}
 
 	@Nonnull

@@ -27,7 +27,7 @@ package io.evitadb.core.buffer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.ContinuingIterator;
 import io.evitadb.dataType.iterator.EmptyIterator;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;

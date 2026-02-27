@@ -51,7 +51,7 @@ public interface ConsistencySensitiveDataStructure {
 		 */
 		CONSISTENT,
 		/**
-		 * Index is operating ok, but some data are not consistent from the user prospective. This state is usually
+		 * Index is operating ok, but some data are not consistent from the user perspective. This state is usually
 		 * temporary and should be eventually corrected by new data arriving to the index.
 		 */
 		INCONSISTENT,

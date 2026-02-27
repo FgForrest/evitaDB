@@ -42,13 +42,15 @@ import java.nio.file.attribute.BasicFileAttributes;
  * This class is simple DTO object holding general options of the Evita shared for all catalogs (or better - catalog
  * agnostic).
  *
- * @param name      Name of the evitaDB instance with automatically added hash consisting of host name, path of the data
- *                  directory and the timestamp of its creation. This hash allows to correctly distinguish instances even
- *                  if the user leaves configuration defaults and doesn't bother changing the instance name.
- *                  It's used for identification purposes only.
- * @param server    Contains server wide options.
- * @param storage   This field contains all options related to underlying key-value store.
- * @param cache     Cache options contain settings crucial for Evita caching and cache invalidation.
+ * @param name        Name of the evitaDB instance with automatically added hash consisting of host name, path of the data
+ *                    directory and the timestamp of its creation. This hash allows to correctly distinguish instances even
+ *                    if the user leaves configuration defaults and doesn't bother changing the instance name.
+ *                    It's used for identification purposes only.
+ * @param server      Contains server wide options.
+ * @param storage     This field contains all options related to underlying key-value store.
+ * @param transaction Contains transaction related options.
+ * @param cache       Cache options contain settings crucial for Evita caching and cache invalidation.
+ * @param export      Export options contain settings for file export functionality including storage backend selection.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaConfiguration(
@@ -56,7 +58,8 @@ public record EvitaConfiguration(
 	@Nonnull ServerOptions server,
 	@Nonnull StorageOptions storage,
 	@Nonnull TransactionOptions transaction,
-	@Nonnull CacheOptions cache
+	@Nonnull CacheOptions cache,
+	@Nonnull ExportOptions export
 ) {
 	public static final String DEFAULT_SERVER_NAME = "evitaDB";
 
@@ -79,7 +82,8 @@ public record EvitaConfiguration(
 		@Nonnull ServerOptions server,
 		@Nonnull StorageOptions storage,
 		@Nonnull TransactionOptions transaction,
-		@Nonnull CacheOptions cache
+		@Nonnull CacheOptions cache,
+		@Nonnull ExportOptions export
 	) {
 		try {
 			if (DEFAULT_SERVER_NAME.equals(name)) {
@@ -102,23 +106,31 @@ public record EvitaConfiguration(
 			} else {
 				this.name = name;
 			}
-			ClassifierUtils.validateClassifierFormat(ClassifierType.SERVER_NAME, name);
+			ClassifierUtils.validateClassifierFormat(ClassifierType.SERVER_NAME, this.name);
 			this.server = server;
 			this.storage = storage;
 			this.transaction = transaction;
 			this.cache = cache;
+			this.export = export;
 		} catch (IOException ex) {
 			throw new GenericEvitaInternalError("Unable to access storage directory creation time!", ex);
 		}
 	}
 
-	public EvitaConfiguration() {
+	/**
+	 * Creates a new EvitaConfiguration with default values.
+	 * Export options must be provided as there is no default implementation.
+	 *
+	 * @param export export options implementation
+	 */
+	public EvitaConfiguration(@Nonnull ExportOptions export) {
 		this(
 			DEFAULT_SERVER_NAME,
 			new ServerOptions(),
 			new StorageOptions(),
 			new TransactionOptions(),
-			new CacheOptions()
+			new CacheOptions(),
+			export
 		);
 	}
 
@@ -141,15 +153,18 @@ public record EvitaConfiguration(
 		private StorageOptions storage = StorageOptions.builder().build();
 		private TransactionOptions transaction = TransactionOptions.builder().build();
 		private CacheOptions cache = CacheOptions.builder().build();
+		private ExportOptions export = DefaultExportOptions.INSTANCE;
 
 		Builder() {
 		}
 
 		Builder(@Nonnull EvitaConfiguration configuration) {
+			this.name = configuration.name;
 			this.server = configuration.server;
 			this.storage = configuration.storage;
 			this.transaction = configuration.transaction;
 			this.cache = configuration.cache;
+			this.export = configuration.export;
 		}
 
 		@Nonnull
@@ -182,9 +197,16 @@ public record EvitaConfiguration(
 			return this;
 		}
 
+		@Nonnull
+		public EvitaConfiguration.Builder export(@Nonnull ExportOptions export) {
+			this.export = export;
+			return this;
+		}
+
+		@Nonnull
 		public EvitaConfiguration build() {
 			return new EvitaConfiguration(
-				this.name, this.server, this.storage, this.transaction, this.cache
+				this.name, this.server, this.storage, this.transaction, this.cache, this.export
 			);
 		}
 

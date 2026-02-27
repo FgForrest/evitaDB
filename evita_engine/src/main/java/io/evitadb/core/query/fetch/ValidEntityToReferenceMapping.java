@@ -68,7 +68,11 @@ import static java.util.Optional.ofNullable;
  */
 class ValidEntityToReferenceMapping {
 	/**
-	 * Function that produces representative key for a given reference decorator.
+	 * Function that produces a {@link RepresentativeReferenceKey} for a given {@link ReferenceDecorator}.
+	 * For references whose cardinality allows duplicates, the produced key includes representative attribute
+	 * values extracted via {@link RepresentativeAttributeDefinition#getRepresentativeValues} to disambiguate
+	 * multiple references pointing to the same entity. For references without duplicates, the key contains
+	 * only the reference key (name + primary key).
 	 */
 	private final Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer;
 	/**
@@ -78,10 +82,20 @@ class ValidEntityToReferenceMapping {
 	 */
 	private final IntObjectMap<RepresentativeMapping> mapping;
 	/**
-	 * Internal, helper variable that contains initialized {@link RoaringBitmap} with all source entity primary keys.
+	 * Internal helper variable containing a {@link RoaringBitmap} with all source entity primary keys present
+	 * in {@link #mapping}. Lazily initialized on the first call to
+	 * {@link #restrictTo(RepresentativeReferenceKey, Bitmap)} and cached for subsequent calls.
 	 */
 	private RoaringBitmap knownEntityPrimaryKeys;
 
+	/**
+	 * Creates a new validity mapping for tracking which referenced entities are allowed for each source entity.
+	 *
+	 * @param expectedEntityCount the expected number of source entities, used to pre-size internal data structures
+	 * @param referenceSchema     the schema of the reference being fetched; its cardinality determines whether
+	 *                            the representative key producer includes representative attribute values
+	 *                            (for duplicate-cardinality references) or only the reference key
+	 */
 	public ValidEntityToReferenceMapping(
 		int expectedEntityCount,
 		@Nonnull ReferenceSchema referenceSchema
@@ -105,11 +119,9 @@ class ValidEntityToReferenceMapping {
 			this.knownEntityPrimaryKeys == null,
 			"Known entity primary keys are not expected to be initialized here."
 		);
-		final int expectedSize = referencedPrimaryKeys.size();
 		final RepresentativeMapping matchingReferencedPrimaryKeys = ofNullable(this.mapping.get(entityPrimaryKey))
 			.orElseGet(() -> {
-				final RepresentativeMapping theSet = new RepresentativeMapping(
-					this.representativeKeyProducer, expectedSize);
+				final RepresentativeMapping theSet = new RepresentativeMapping(this.representativeKeyProducer);
 				this.mapping.put(entityPrimaryKey, theSet);
 				return theSet;
 			});
@@ -146,13 +158,33 @@ class ValidEntityToReferenceMapping {
 	}
 
 	/**
-	 * Clears validity mappings for all source entities except those that are present in the input
-	 * `referencedPrimaryKeys` argument. Each source entity not present in the input set will be left with
-	 * no referenced entities allowed.
+	 * Removes referenced entity primary keys from every source entity's mapping unless they are present
+	 * in the provided `referencedPrimaryKeys` set. After this call, each source entity will only retain
+	 * references to entities whose primary keys appear in the input set.
+	 *
+	 * @param referencedPrimaryKeys the set of referenced entity primary keys that should remain allowed
 	 */
 	public void forbidAllExcept(@Nonnull IntSet referencedPrimaryKeys) {
 		for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
 			entry.value.removeAll(it -> !referencedPrimaryKeys.contains(it));
+		}
+	}
+
+	/**
+	 * Performs the same filtering as {@link #forbidAllExcept(IntSet)} — removes referenced entity primary keys
+	 * not present in the provided set — and additionally disables implicit allowance of representative keys
+	 * that lack explicit restrictions by setting {@link RepresentativeMapping#setUnrestrictedKeysAllowed(boolean)}
+	 * to `false` on each mapping entry.
+	 *
+	 * This method is used for references with duplicate cardinality, where representative attribute values
+	 * serve as discriminators and only explicitly restricted representative keys should be considered valid.
+	 *
+	 * @param referencedPrimaryKeys the set of referenced entity primary keys that should remain allowed
+	 */
+	public void forbidAllExceptIncludingDiscriminators(@Nonnull IntSet referencedPrimaryKeys) {
+		for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
+			entry.value.removeAll(it -> !referencedPrimaryKeys.contains(it));
+			entry.value.setUnrestrictedKeysAllowed(false);
 		}
 	}
 
@@ -167,51 +199,75 @@ class ValidEntityToReferenceMapping {
 	}
 
 	/**
-	 * Restricts the existing validity mapping - for passed referenced primary key. If this reference is present
-	 * in other records than present in input `entityPrimaryKeys` it will be removed from there (not allowed to
-	 * be visible there).
+	 * Restricts visibility of a specific referenced entity (identified by `representativeReferenceKey`) to only
+	 * the source entities whose primary keys are present in `entityPrimaryKeys`.
+	 *
+	 * The method handles two cases based on the representative reference key:
+	 *
+	 * - **No representative attribute values** (simple references without duplicates): iterates over all source
+	 *   entities NOT in `entityPrimaryKeys` and removes the referenced entity PK from their mappings, effectively
+	 *   making the reference invisible for those source entities.
+	 * - **With representative attribute values** (duplicate-cardinality references): for each source entity
+	 *   in `entityPrimaryKeys`, records a fine-grained per-discriminator restriction via
+	 *   {@link RepresentativeMapping#restrictTo(RepresentativeReferenceKey, Bitmap)}, allowing the mapping
+	 *   to distinguish between multiple references to the same entity based on their representative attributes.
+	 *
+	 * @param representativeReferenceKey the key identifying the referenced entity, optionally including
+	 *                                   representative attribute values for disambiguation
+	 * @param entityPrimaryKeys          the set of source entity primary keys for which this reference
+	 *                                   should remain visible
 	 */
 	public void restrictTo(
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
 		@Nonnull Bitmap entityPrimaryKeys
 	) {
-		final OfInt it1 = entityPrimaryKeys.iterator();
-		while (it1.hasNext()) {
-			final int entityPk = it1.nextInt();
-			final RepresentativeMapping mappingForEntity = this.mapping.get(entityPk);
-			if (mappingForEntity != null) {
-				mappingForEntity.restrictTo(representativeReferenceKey);
+		if (representativeReferenceKey.representativeAttributeValues().length == 0) {
+			if (this.knownEntityPrimaryKeys == null) {
+				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+				for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
+					writer.add(entry.key);
+				}
+				this.knownEntityPrimaryKeys = writer.get();
 			}
-		}
-
-		if (this.knownEntityPrimaryKeys == null) {
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
-				writer.add(entry.key);
+			final RoaringBitmap invalidRecords = RoaringBitmap.andNot(
+				this.knownEntityPrimaryKeys,
+				RoaringBitmapBackedBitmap.getRoaringBitmap(
+					entityPrimaryKeys
+				)
+			);
+			final int referencedEntityPk = representativeReferenceKey.primaryKey();
+			final PeekableIntIterator it2 = invalidRecords.getIntIterator();
+			while (it2.hasNext()) {
+				this.mapping
+					.get(it2.next())
+					.removeAll(pk -> pk == referencedEntityPk);
 			}
-			this.knownEntityPrimaryKeys = writer.get();
-		}
-		final RoaringBitmap invalidRecords = RoaringBitmap.andNot(
-			this.knownEntityPrimaryKeys,
-			RoaringBitmapBackedBitmap.getRoaringBitmap(
-				entityPrimaryKeys
-			)
-		);
-		final int referencedEntityPk = representativeReferenceKey.primaryKey();
-		final PeekableIntIterator it2 = invalidRecords.getIntIterator();
-		while (it2.hasNext()) {
-			this.mapping
-				.get(it2.next())
-				.removeAll(pk -> pk == referencedEntityPk);
+		} else {
+			final OfInt it1 = entityPrimaryKeys.iterator();
+			while (it1.hasNext()) {
+				final int entityPk = it1.nextInt();
+				RepresentativeMapping mappingForEntity = this.mapping.get(entityPk);
+				if (mappingForEntity == null) {
+					mappingForEntity = new RepresentativeMapping(this.representativeKeyProducer);
+					this.mapping.put(entityPk, mappingForEntity);
+				}
+				mappingForEntity.restrictTo(representativeReferenceKey, entityPrimaryKeys);
+			}
 		}
 	}
 
 	/**
-	 * Returns true if `referencedPrimaryKey` is allowed to be fetched for passed `entityPrimaryKey`.
+	 * Returns `true` if the given `reference` is allowed to be visible for the specified `entityPrimaryKey`.
+	 * Delegates to {@link RepresentativeMapping#contains(int, ReferenceDecorator)} which evaluates both
+	 * simple primary key presence and representative key restrictions.
+	 *
+	 * @param entityPrimaryKey the primary key of the source entity
+	 * @param reference        the reference decorator to check visibility for
+	 * @return `true` if the reference is allowed for the given entity, `false` otherwise
 	 */
 	public boolean isReferenceSelected(int entityPrimaryKey, @Nonnull ReferenceDecorator reference) {
 		return ofNullable(this.mapping.get(entityPrimaryKey))
-			.map(it -> it.contains(reference))
+			.map(it -> it.contains(entityPrimaryKey, reference))
 			.orElse(false);
 	}
 

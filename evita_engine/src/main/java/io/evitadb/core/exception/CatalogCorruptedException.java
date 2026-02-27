@@ -23,7 +23,7 @@
 
 package io.evitadb.core.exception;
 
-import io.evitadb.core.UnusableCatalog;
+import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,8 +77,20 @@ public record ApiOptions(
 	/**
 	 * Builder for the api options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
+	@Nonnull
 	public static ApiOptions.Builder builder() {
 		return new ApiOptions.Builder();
+	}
+
+	/**
+	 * Builder for the api options initialized from an existing instance. Recommended to use for creating
+	 * modified copies of existing configuration.
+	 *
+	 * @param source the existing ApiOptions instance to copy values from
+	 */
+	@Nonnull
+	public static ApiOptions.Builder builder(@Nonnull ApiOptions source) {
+		return new ApiOptions.Builder(source);
 	}
 
 	public ApiOptions(
@@ -215,6 +227,27 @@ public record ApiOptions(
 			this.enabledProviders = CollectionUtils.createHashMap(this.apiProviders.size());
 			this.headers = new HeaderOptions.Builder().build();
 			this.certificate = new CertificateOptions.Builder().build();
+		}
+
+		Builder(@Nonnull ApiOptions source) {
+			//noinspection unchecked
+			this.apiProviders = ExternalApiServer.gatherExternalApiProviders()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						ExternalApiProviderRegistrar::getExternalApiCode,
+						ExternalApiProviderRegistrar::getConfigurationClass
+					)
+				);
+			this.enabledProviders = CollectionUtils.createHashMap(source.endpoints().size());
+			this.enabledProviders.putAll(source.endpoints());
+			this.workerGroupThreads = source.workerGroupThreadsAsInt();
+			this.idleTimeoutInMillis = source.idleTimeoutInMillis();
+			this.requestTimeoutInMillis = source.requestTimeoutInMillis();
+			this.maxEntitySizeInBytes = source.maxEntitySizeInBytes();
+			this.accessLog = source.accessLog();
+			this.headers = source.headers();
+			this.certificate = source.certificate();
 		}
 
 		@Nonnull

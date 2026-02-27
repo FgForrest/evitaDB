@@ -31,12 +31,14 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -54,17 +56,34 @@ class RepresentativeMapping {
 	 */
 	private final Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer;
 	/**
-	 * Set of all valid referenced entity primary keys for particular entity.
+	 * Set of all valid referenced entity primary keys for a particular entity.
 	 */
 	private final BaseBitmap referencedEntityIds;
 	/**
-	 * Set of allowed representative keys - if empty or null, all representative keys are allowed.
+	 * Map of allowed representative keys to the set of source entity primary keys that may see them.
+	 * Used only for references with duplicate cardinality, where representative attribute values
+	 * disambiguate multiple references to the same entity. When `null` or missing a particular key,
+	 * the visibility decision falls back to the {@link #unrestrictedKeysAllowed} flag.
 	 */
-	private Set<RepresentativeReferenceKey> restrictedKeys = null;
+	private Map<RepresentativeReferenceKey, Bitmap> restrictedKeys = null;
+	/**
+	 * Flag indicating whether representative keys without an explicit entry in {@link #restrictedKeys} are
+	 * considered allowed. Defaults to `true`, meaning references are visible unless explicitly excluded.
+	 * Set to `false` by {@link ValidEntityToReferenceMapping#forbidAllExceptIncludingDiscriminators} to require
+	 * an explicit restriction entry for each representative key — used for duplicate-cardinality references
+	 * after filtering narrows the valid set.
+	 */
+	private boolean unrestrictedKeysAllowed = true;
 
+	/**
+	 * Creates a new representative mapping with the given key producer function.
+	 *
+	 * @param representativeKeyProducer function that extracts a {@link RepresentativeReferenceKey} from
+	 *                                  a {@link ReferenceDecorator}, used during {@link #contains} checks
+	 *                                  to produce the lookup key for a given reference
+	 */
 	public RepresentativeMapping(
-		@Nonnull Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer,
-		int expectedSize
+		@Nonnull Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer
 	) {
 		this.representativeKeyProducer = representativeKeyProducer;
 		this.referencedEntityIds = new BaseBitmap();
@@ -114,16 +133,30 @@ class RepresentativeMapping {
 	}
 
 	/**
-	 * Restricts the entity to the provided {@link RepresentativeReferenceKey}. If the internal set of restricted keys
-	 * is not initialized, it is created to accommodate the restriction.
+	 * Sets whether unrestricted keys are allowed in the context of this mapping.
 	 *
-	 * @param representativeReferenceKey the key representing the reference to which the restriction is being applied
+	 * @param unrestrictedKeysAllowed a boolean flag indicating whether unrestricted keys are permitted.
+	 *                                 If true, unrestricted keys are allowed; if false, they are not.
 	 */
-	public void restrictTo(@Nonnull RepresentativeReferenceKey representativeReferenceKey) {
+	public void setUnrestrictedKeysAllowed(boolean unrestrictedKeysAllowed) {
+		this.unrestrictedKeysAllowed = unrestrictedKeysAllowed;
+	}
+
+	/**
+	 * Records a fine-grained restriction for a specific {@link RepresentativeReferenceKey}. The provided
+	 * `entityPrimaryKeys` bitmap represents the set of **source entity** primary keys that are allowed to
+	 * see references identified by the given representative key. If the internal restricted keys map is not
+	 * yet initialized, it is created to accommodate the restriction.
+	 *
+	 * @param representativeReferenceKey the key identifying the reference (including representative attribute
+	 *                                   values for duplicate-cardinality references)
+	 * @param entityPrimaryKeys          the set of source entity primary keys allowed to see this reference
+	 */
+	public void restrictTo(@Nonnull RepresentativeReferenceKey representativeReferenceKey, @Nonnull Bitmap entityPrimaryKeys) {
 		if (this.restrictedKeys == null) {
-			this.restrictedKeys = CollectionUtils.createHashSet(8);
+			this.restrictedKeys = CollectionUtils.createHashMap(8);
 		}
-		this.restrictedKeys.add(representativeReferenceKey);
+		this.restrictedKeys.put(representativeReferenceKey, entityPrimaryKeys);
 	}
 
 	/**
@@ -138,21 +171,32 @@ class RepresentativeMapping {
 	}
 
 	/**
-	 * Checks if the provided reference is contained within the referenced entity identifiers.
-	 * The method evaluates based on both primary key presence and potential restrictions applied.
+	 * Checks whether the given reference is visible for the specified source entity. The method operates
+	 * in two modes depending on the produced {@link RepresentativeReferenceKey}:
 	 *
-	 * @param reference the reference to check, wrapped in a {@link ReferenceDecorator},
-	 *                  which serves as the input for determining the presence.
-	 * @return true if the reference is contained in the set of referenced entity identifiers
-	 * and meets any applicable restrictions; otherwise, false.
+	 * - **No representative attribute values** (simple reference without duplicates): performs a direct
+	 *   bitmap lookup — returns `true` if the referenced entity's primary key is present in
+	 *   {@link #referencedEntityIds}.
+	 * - **With representative attribute values** (duplicate-cardinality reference): looks up the
+	 *   {@link #restrictedKeys} map for the produced key. If an explicit restriction exists, checks
+	 *   whether `entityPrimaryKey` is in the allowed bitmap. If no restriction is found, falls back
+	 *   to the {@link #unrestrictedKeysAllowed} flag.
+	 *
+	 * @param entityPrimaryKey the primary key of the source entity
+	 * @param reference        the reference decorator to check visibility for
+	 * @return `true` if the reference is visible for the given source entity, `false` otherwise
 	 */
-	public boolean contains(@Nonnull ReferenceDecorator reference) {
+	public boolean contains(int entityPrimaryKey, @Nonnull ReferenceDecorator reference) {
 		final RepresentativeReferenceKey referenceKey = this.representativeKeyProducer.apply(reference);
 		if (referenceKey.representativeAttributeValues().length == 0) {
 			return this.referencedEntityIds.contains(referenceKey.primaryKey());
 		} else {
-			return this.referencedEntityIds.contains(referenceKey.primaryKey()) &&
-				(this.restrictedKeys == null || this.restrictedKeys.contains(referenceKey));
+			final Bitmap restrictedPrimaryKeys = this.restrictedKeys == null ? null : this.restrictedKeys.get(referenceKey);
+			if (restrictedPrimaryKeys == null) {
+				return this.unrestrictedKeysAllowed;
+			} else {
+				return restrictedPrimaryKeys.contains(entityPrimaryKey);
+			}
 		}
 	}
 
@@ -169,10 +213,10 @@ class RepresentativeMapping {
 		}
 		if (this.restrictedKeys != null) {
 			sb.append(" restricted to: ");
-			final Iterator<RepresentativeReferenceKey> it2 = this.restrictedKeys.iterator();
+			final Iterator<Entry<RepresentativeReferenceKey, Bitmap>> it2 = this.restrictedKeys.entrySet().iterator();
 			while (it2.hasNext()) {
-				RepresentativeReferenceKey pk = it2.next();
-				sb.append(pk);
+				Entry<RepresentativeReferenceKey, Bitmap> pk = it2.next();
+				sb.append(pk.getKey()).append(": ").append(pk.getValue());
 				if (it2.hasNext()) {
 					sb.append(", ");
 				}

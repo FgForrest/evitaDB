@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -135,17 +135,20 @@ public class InsertReferenceMutation extends ReferenceMutation<ComparableReferen
 						"` but it can be automatically created, in order to do so, you need to specify the cardinality and referenced entity type."
 				)
 			);
-			final Optional<EntitySchemaContract> targetEntity = catalogSchema.getEntitySchema(
-				this.referencedEntityType);
-			if (targetEntity.isEmpty()) {
-				entitySchemaBuilder.withReferenceTo(
+
+			final boolean managed = existingSchema
+				.map(ReferenceSchemaContract::isReferencedEntityTypeManaged)
+				.orElseGet(() -> catalogSchema.getEntitySchema(this.referencedEntityType).isPresent());
+
+			if (managed) {
+				entitySchemaBuilder.withReferenceToEntity(
 					this.referenceKey.referenceName(),
 					this.referencedEntityType,
 					this.referenceCardinality,
 					ReferenceSchemaEditor::indexed
 				);
 			} else {
-				entitySchemaBuilder.withReferenceToEntity(
+				entitySchemaBuilder.withReferenceTo(
 					this.referenceKey.referenceName(),
 					this.referencedEntityType,
 					this.referenceCardinality,

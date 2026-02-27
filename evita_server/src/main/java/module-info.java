@@ -23,7 +23,8 @@
 
 import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+import io.evitadb.spi.export.ExportServiceFactory;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 
 /**
  * Module contains evitaDB standalone server.
@@ -33,6 +34,7 @@ module evita.server {
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
 	uses ProbesProvider;
+	uses ExportServiceFactory;
 
 	opens io.evitadb.server.configuration to com.fasterxml.jackson.databind;
 	exports io.evitadb.server;
@@ -55,4 +57,5 @@ module evita.server {
 	requires evita.engine;
 	requires evita.external.api.core;
 	requires ch.qos.logback.classic;
+	requires com.linecorp.armeria;
 }

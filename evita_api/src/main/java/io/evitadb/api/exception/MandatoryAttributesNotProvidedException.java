@@ -35,15 +35,50 @@ import java.util.stream.Stream;
 import static java.util.Optional.of;
 
 /**
- * Exception is thrown when store entity lacks mandatory attributes.
+ * Exception thrown when attempting to persist an entity that lacks required attributes defined as mandatory
+ * in its schema.
+ *
+ * Attributes can be marked as mandatory (non-nullable) in the entity schema using
+ * {@link io.evitadb.api.requestResponse.schema.AttributeSchemaContract}. When an entity is saved or updated,
+ * evitaDB validates that all mandatory attributes are present. This exception is thrown if any required
+ * values are missing.
+ *
+ * The exception handles two categories of mandatory attributes:
+ * - **Entity attributes**: direct attributes on the entity itself
+ * - **Reference attributes**: attributes attached to entity references
+ *
+ * Each category is further divided into:
+ * - **Global attributes**: non-localized values required for all entities
+ * - **Localized attributes**: values required for each locale the entity supports
+ *
+ * The error message groups missing attributes by entity vs. reference and by locale to facilitate debugging.
+ *
+ * **Usage Context:**
+ * - {@link io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor}: validates attribute
+ *   completeness before persisting entity mutations
+ * - Thrown during entity upsert operations when mandatory attributes are absent
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class MandatoryAttributesNotProvidedException extends InvalidMutationException {
 	@Serial private static final long serialVersionUID = -8575134582708076162L;
 
+	/**
+	 * Record representing missing mandatory attributes on a specific reference.
+	 *
+	 * @param referenceName the name of the reference that has missing mandatory attributes
+	 * @param missingMandatedAttributes list of attribute keys that are required but missing on this reference
+	 */
 	public record MissingReferenceAttribute(@Nonnull String referenceName, @Nonnull List<AttributeKey> missingMandatedAttributes) {}
 
+	/**
+	 * Creates a new exception listing all missing mandatory attributes.
+	 *
+	 * @param entityName the name (type) of the entity being validated
+	 * @param missingMandatedAttributes list of missing attributes; may contain {@link AttributeKey} instances
+	 *                                  (for entity attributes) or {@link MissingReferenceAttribute} instances
+	 *                                  (for reference attributes)
+	 */
 	public MandatoryAttributesNotProvidedException(@Nonnull String entityName, @Nonnull List<?> missingMandatedAttributes) {
 		super(composeErrorMessage(entityName, missingMandatedAttributes));
 	}

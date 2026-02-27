@@ -169,7 +169,7 @@ The <LS to="e,j,r,c">`page` requirement</LS><LS to="g">`recordPage` field</LS>
 is the most natural and commonly used requirement for the pagination of the query results.
 To get the second page of the query result, use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Second page of results retrieval example](/documentation/user/en/query/requirements/examples/paging/page.evitaql)
 
@@ -295,7 +295,7 @@ that position, and you want to correctly fetch records for the 5th page, you nee
 (4 pages * 20 positions per page - 4 records omitted on the previous 4 pages) and limit 19. To get such a strip, use
 the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Non-uniform strip of results retrieval example](/documentation/user/en/query/requirements/examples/paging/strip.evitaql)
 </SourceCodeTabs>
@@ -370,7 +370,7 @@ such as advertisements, banners, blog posts, or other external content that you 
 For example, let's say you want to display an ad on every even page up to the 10th page, and you also want to display
 a blog post on the 1st and 4th page. To accomplish this, you would use the following query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page1.evitaql)
 
@@ -408,7 +408,7 @@ recalculated because a total of 7 records were left on the front pages.
 
 **Second page:**
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page2.evitaql)
 
@@ -432,7 +432,7 @@ recalculated because a total of 7 records were left on the front pages.
 
 **Fourth page:**
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page4.evitaql)
 

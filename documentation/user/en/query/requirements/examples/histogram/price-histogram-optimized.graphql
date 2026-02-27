@@ -21,6 +21,7 @@
           threshold
           occurrences
           requested
+          relativeFrequency
         }
       }
     }

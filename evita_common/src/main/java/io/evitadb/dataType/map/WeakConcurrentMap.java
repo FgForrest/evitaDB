@@ -52,8 +52,11 @@ import java.util.function.Function;
 public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	implements Iterable<Map.Entry<K, V>> {
 
-	public final ConcurrentMap<WeakKey<K>, V> target;
+	final ConcurrentMap<WeakKey<K>, V> target;
 
+	/**
+	 * Creates a new empty weak concurrent map with an initial capacity of 64.
+	 */
 	public WeakConcurrentMap() {
 		this.target = CollectionUtils.createConcurrentHashMap(64);
 	}
@@ -64,7 +67,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 */
 	@Nullable
 	@SuppressWarnings("CollectionIncompatibleType")
-	public V get(K key) {
+	public V get(@Nonnull K key) {
 		if (key == null) {
 			throw new NullPointerException();
 		}
@@ -87,7 +90,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 * @return {@code true} if the key already defines a value.
 	 */
 	@SuppressWarnings("CollectionIncompatibleType")
-	public boolean containsKey(K key) {
+	public boolean containsKey(@Nonnull K key) {
 		if (key == null) {
 			throw new NullPointerException();
 		}
@@ -101,7 +104,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 * @return The previous entry or {@code null} if it does not exist.
 	 */
 	@Nullable
-	public V put(K key, V value) {
+	public V put(@Nonnull K key, @Nonnull V value) {
 		if (key == null || value == null) {
 			throw new NullPointerException();
 		}
@@ -112,7 +115,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	/**
 	 * @see Map#computeIfAbsent(Object, Function)
 	 */
-	public V computeIfAbsent(K key, Function<K, V> computer) {
+	public V computeIfAbsent(@Nonnull K key, @Nonnull Function<K, V> computer) {
 		return this.target.computeIfAbsent(
 			new WeakKey<>(key, this),
 			kWeakKey -> computer.apply(kWeakKey.get())
@@ -124,7 +127,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 * @return The removed entry or {@code null} if it does not exist.
 	 */
 	@SuppressWarnings("CollectionIncompatibleType")
-	public V remove(K key) {
+	public V remove(@Nonnull K key) {
 		if (key == null) {
 			throw new NullPointerException();
 		}
@@ -208,6 +211,11 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 * Therefore, we can guarantee that there is no memory leak.
 	 */
 
+	/**
+	 * A weak reference wrapper that uses identity hash code for map key storage.
+	 * The hash code is computed eagerly and cached to remain available even after
+	 * the referent is garbage collected.
+	 */
 	private static class WeakKey<T> extends WeakReference<T> {
 
 		private final int hashCode;
@@ -226,18 +234,19 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 		public boolean equals(Object other) {
 			if (other instanceof LatentKey<?>) {
 				return ((LatentKey<?>) other).key == get();
-			} else {
+			} else if (other instanceof WeakKey<?>) {
 				return ((WeakKey<?>) other).get() == get();
+			} else {
+				return false;
 			}
 		}
 	}
 
-	/*
-	 * A latent key must only be used for looking up instances within a map. For this to work, it implements an identical contract for
-	 * hash code and equals as the WeakKey implementation. At the same time, the latent key implementation does not extend WeakReference
-	 * and avoids the overhead that a weak reference implies.
+	/**
+	 * A lightweight key wrapper used only for map lookups. Implements the same
+	 * hash code and equals contract as {@link WeakKey} without the overhead of
+	 * extending {@link java.lang.ref.WeakReference}.
 	 */
-
 	private static class LatentKey<T> {
 
 		final T key;
@@ -253,8 +262,10 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 		public boolean equals(Object other) {
 			if (other instanceof LatentKey<?>) {
 				return ((LatentKey<?>) other).key == this.key;
-			} else {
+			} else if (other instanceof WeakKey<?>) {
 				return ((WeakKey<?>) other).get() == this.key;
+			} else {
+				return false;
 			}
 		}
 
@@ -264,6 +275,10 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 		}
 	}
 
+	/**
+	 * An iterator over live map entries that automatically skips entries
+	 * whose weak keys have been garbage collected.
+	 */
 	private class EntryIterator implements Iterator<Map.Entry<K, V>> {
 
 		private final Iterator<Map.Entry<WeakKey<K>, V>> iterator;
@@ -312,11 +327,15 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 		}
 	}
 
+	/**
+	 * A snapshot of a map entry that holds a strong reference to the key
+	 * to prevent garbage collection during iteration.
+	 */
 	private class SimpleEntry implements Map.Entry<K, V> {
 
 		private final K key;
 
-		final Map.Entry<WeakKey<K>, V> entry;
+		private final Map.Entry<WeakKey<K>, V> entry;
 
 		private SimpleEntry(@Nonnull K key, @Nonnull Map.Entry<WeakKey<K>, V> entry) {
 			this.key = key;

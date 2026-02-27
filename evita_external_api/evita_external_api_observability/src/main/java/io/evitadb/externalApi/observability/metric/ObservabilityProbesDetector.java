@@ -52,8 +52,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -184,7 +187,27 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 					}
 
 					// run all checks in parallel
-					CompletableFuture.allOf(futures).join();
+					try {
+						CompletableFuture.allOf(futures).get(10, TimeUnit.SECONDS);
+					} catch (TimeoutException e) {
+						log.warn("Readiness probe timed out — some API checks did not complete in time");
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						log.warn("Readiness probe interrupted");
+					} catch (ExecutionException e) {
+						log.warn("Readiness probe failed: {}", e.getMessage());
+					} finally {
+						// cancel all non-finished futures
+						for (final CompletableFuture<?> future : futures) {
+							if (future != null && !future.isDone()) {
+								future.cancel(true);
+							}
+						}
+					}
+					// ensure all API codes have a readiness entry (timed-out checks default to not ready)
+					for (final String apiCode : apiCodes) {
+						readiness.putIfAbsent(apiCode, false);
+					}
 					final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
 					if (ready) {
 						this.seenReady.set(true);

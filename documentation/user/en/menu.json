@@ -281,8 +281,8 @@
 		"path": "/deep-dive/cache.md"
 	  },
 	  {
-		"title": "Observe changes",
-		"path": "/deep-dive/observing.md"
+		"title": "Change Capture",
+		"path": "/deep-dive/cc.md"
 	  }
 	]
   },
@@ -298,12 +298,12 @@
 		"path" : "/solve/render-category-menu.md"
 	  },
 	  {
-		"title": "Filter products in category",
-		"path" : "/solve/filtering-products-in-category.md"
+		"title": "Render products in category",
+		"path" : "/solve/render-products-in-category.md"
 	  },
 	  {
-		"title": "Render referenced brand",
-		"path": "/solve/render-referenced-brand.md"
+		"title": "Render products in brand",
+		"path": "/solve/render-products-in-brand.md"
 	  },
 	  {
 		"title": "Handle images & binaries",

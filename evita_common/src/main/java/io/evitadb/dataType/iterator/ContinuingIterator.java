@@ -66,6 +66,9 @@ public class ContinuingIterator<T> implements Iterator<T> {
 		this.currentIteratorIndex = 0;
 	}
 
+	/**
+	 * Returns true if any of the remaining sub-iterators has elements.
+	 */
 	@Override
 	public boolean hasNext() {
 		// Find the next iterator that has elements
@@ -78,6 +81,9 @@ public class ContinuingIterator<T> implements Iterator<T> {
 		return false;
 	}
 
+	/**
+	 * Returns the next element from the current sub-iterator.
+	 */
 	@Override
 	public T next() {
 		if (!hasNext()) {

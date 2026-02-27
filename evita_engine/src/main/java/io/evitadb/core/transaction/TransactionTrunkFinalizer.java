@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
 package io.evitadb.core.transaction;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.Catalog;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;

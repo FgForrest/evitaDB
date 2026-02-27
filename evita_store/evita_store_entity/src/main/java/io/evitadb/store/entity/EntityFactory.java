@@ -37,12 +37,12 @@ import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformer
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
-import io.evitadb.store.entity.model.entity.AttributesStoragePart;
-import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
-import io.evitadb.store.entity.model.entity.PricesStoragePart;
-import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.store.model.EntityStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 

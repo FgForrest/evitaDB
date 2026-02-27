@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,10 +59,20 @@ public class ObjectDescriptorToGraphQLObjectTransformer implements ObjectDescrip
 			.map(this.fieldBuilderTransformer)
 			.forEach(objectBuilder::field);
 
-		if (objectDescriptor.interfaceDescriptor() != null) {
-			objectBuilder.withInterface(GraphQLTypeReference.typeRef(objectDescriptor.interfaceDescriptor().name()));
-		}
+		addImplementedInterfaces(objectBuilder, objectDescriptor);
 
 		return objectBuilder;
+	}
+
+	private void addImplementedInterfaces(
+		@Nonnull GraphQLObjectType.Builder objectBuilder,
+		@Nonnull ObjectDescriptor objectDescriptor
+	) {
+		if (objectDescriptor.interfaceDescriptor() != null && objectDescriptor.interfaceDescriptor().isNameStatic()) {
+			objectBuilder.withInterface(GraphQLTypeReference.typeRef(objectDescriptor.interfaceDescriptor().name()));
+
+			// GQL requires that objects implement interfaces recursively
+			addImplementedInterfaces(objectBuilder, objectDescriptor.interfaceDescriptor());
+		}
 	}
 }

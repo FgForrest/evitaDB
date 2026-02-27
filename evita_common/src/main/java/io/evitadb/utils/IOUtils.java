@@ -31,9 +31,13 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static java.nio.file.Files.newOutputStream;
 
 /**
  * IOUtils contains various utility methods for work with input/output streams.
@@ -346,6 +350,32 @@ public class IOUtils {
 				// ignore exception, it should not be propagated
 				log.debug("An exception occurred while closing a resource: {}", e.getMessage(), e);
 			}
+		}
+	}
+
+	/**
+	 * Copies the data from the provided {@link InputStream} to the specified file path.
+	 *
+	 * The method writes the contents of the given {@code InputStream} to a file represented by the {@code Path}.
+	 * If the target file already exists, it is overwritten with new conten.
+	 *
+	 * @param from the {@link InputStream} to read data from; must not be {@code null}
+	 * @param toPath the {@link Path} where the data will be written; must not be {@code null}
+	 * @throws UnexpectedIOException if any I/O error occurs during copying
+	 */
+	public static void copy(@Nonnull InputStream from, @Nonnull Path toPath) {
+		try (
+			final OutputStream outputStream = newOutputStream(
+				toPath, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING
+			)
+		) {
+			from.transferTo(outputStream);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"An unexpected I/O exception occurred while copying data to file " + toPath + ": " + e.getMessage(),
+				"An unexpected I/O exception occurred while copying data to file.",
+				e
+			);
 		}
 	}
 

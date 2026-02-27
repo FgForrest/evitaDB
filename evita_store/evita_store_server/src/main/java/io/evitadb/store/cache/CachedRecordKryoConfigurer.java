@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,7 +36,8 @@ import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredOutRecordsS
 import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer;
 import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesSerializer;
 import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer;
-import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
+import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer_2026_1;
+import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import lombok.RequiredArgsConstructor;
 
 import java.util.function.Consumer;
@@ -57,7 +58,12 @@ class CachedRecordKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(FlattenedFormulaWithFilteredOutRecords.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredOutRecordsSerializer(), FlattenedFormulaWithFilteredOutRecords.class), 201);
 		kryo.register(FlattenedFormulaWithFilteredPrices.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredPricesSerializer(this.globalEntityIndexAccessor), FlattenedFormulaWithFilteredPrices.class), 202);
 		kryo.register(FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer(this.globalEntityIndexAccessor), FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class), 203);
-		kryo.register(FlattenedHistogramComputer.class, new SerialVersionBasedSerializer<>(new FlattenedHistogramComputerSerializer(), FlattenedHistogramComputer.class), 204);
+		kryo.register(
+			FlattenedHistogramComputer.class,
+			new SerialVersionBasedSerializer<>(new FlattenedHistogramComputerSerializer(), FlattenedHistogramComputer.class)
+				.addBackwardCompatibleSerializer(4049228240087093145L, new FlattenedHistogramComputerSerializer_2026_1()),
+			204
+		);
 	}
 
 }

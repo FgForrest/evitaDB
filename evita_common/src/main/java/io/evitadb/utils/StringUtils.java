@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,9 +72,10 @@ public class StringUtils {
 	 */
 	public static final int ONE_GB = ONE_KB * ONE_MB;
 	/**
-	 * Universal word splitter inspired by <a href="https://regex101.com/library/zT4rM9">this</a>.
+	 * Universal word splitter inspired by <a href="https://regex101.com/library/zT4rM9">this</a>. Extended to support
+	 * abbreviations.
 	 */
-	private static final Pattern STRING_WITH_CASE_WORD_SPLITTING_PATTERN = Pattern.compile("([^\\s\\-_A-Z]+)|([A-Z]+[^\\s\\-_A-Z]*)");
+	private static final Pattern STRING_WITH_CASE_WORD_SPLITTING_PATTERN = Pattern.compile("([A-Z]*[0-9A-Z]+(?![a-z]))|([^\\s\\-_A-Z]+)|([A-Z]+[^\\s\\-_A-Z]*)");
 	/**
 	 * Finds unsupported characters in concrete cases (not base case).
 	 * Characters are based on {@link ClassifierUtils#SUPPORTED_FORMAT_PATTERN} regex.

@@ -32,7 +32,7 @@ import javax.annotation.Nullable;
 import java.util.function.Function;
 
 /**
- * A thread-local context holder for tracking hierarchical entity information during conflict generation.
+ * A scoped context holder for tracking hierarchical entity information during conflict generation.
  * This class provides temporary context scoping for catalog, entity, and reference information,
  * ensuring that nested operations can access the appropriate contextual data while maintaining
  * proper cleanup semantics.

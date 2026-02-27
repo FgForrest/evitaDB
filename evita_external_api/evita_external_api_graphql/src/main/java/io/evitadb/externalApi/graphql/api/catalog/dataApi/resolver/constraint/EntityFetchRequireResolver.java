@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
@@ -39,12 +40,13 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionPageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
@@ -476,7 +478,8 @@ public class EntityFetchRequireResolver {
 		final OrderBy orderBy = resolveReferenceContentOrder(referencePageField, currentEntitySchema, referenceSchema);
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referencePageField.getSelectionSet());
-		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferencePageDescriptor.DATA.name()));
+		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(
+			ReferenceDefinitionPageDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
@@ -508,7 +511,8 @@ public class EntityFetchRequireResolver {
 		final OrderBy orderBy = resolveReferenceContentOrder(referenceStripField, currentEntitySchema, referenceSchema);
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referenceStripField.getSelectionSet());
-		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferenceStripDescriptor.DATA.name()));
+		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(
+			ReferenceDefinitionStripDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
@@ -640,7 +644,9 @@ public class EntityFetchRequireResolver {
 		@Nullable Locale desiredLocale,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final List<SelectedField> referencedEntityFields = referenceBodyFields.getImmediateFields(ReferenceDescriptor.REFERENCED_ENTITY.name());
+		final List<SelectedField> referencedEntityFields = referenceBodyFields.getImmediateFields(
+			ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name()
+		);
 		if (referencedEntityFields.isEmpty()) {
 			return null;
 		}
@@ -654,7 +660,9 @@ public class EntityFetchRequireResolver {
 			desiredLocale,
 			referencedEntitySchema
 		)
-			.orElse(null);
+			// if the referenced entity block was requested, we need at least its body everytime, so we know whether the referenced
+			// entity exists or not during serialization
+			.orElseGet(QueryConstraints::entityFetch);
 	}
 
 	@Nullable
@@ -663,8 +671,10 @@ public class EntityFetchRequireResolver {
 		@Nullable Locale desiredLocale,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final List<SelectedField> referencedGroupFields = referenceBodyFields.getImmediateFields(ReferenceDescriptor.GROUP_ENTITY.name());
-		if (referencedGroupFields.isEmpty()) {
+		final List<SelectedField> groupFields = referenceBodyFields.getImmediateFields(
+			ReferenceDefinitionDescriptor.GROUP_ENTITY.name()
+		);
+		if (groupFields.isEmpty()) {
 			return null;
 		}
 
@@ -673,7 +683,7 @@ public class EntityFetchRequireResolver {
 			null;
 
 		return resolveGroupFetch(
-			SelectionSetAggregator.fromFields(referencedGroupFields),
+			SelectionSetAggregator.fromFields(groupFields),
 			desiredLocale,
 			referencedEntitySchema
 		)

@@ -36,9 +36,9 @@ specify the locale derived from the domain name.
 If the attribute is marked as unique, we can simply search for the owner entity by the attribute value. The following 
 query will return the entity by the code, which is a simple unique attribute of the entity (not catalog-wide):
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Retrieve product by unique attribute](documentation/user/en/solve/examples/routing/get-by-unique-attribute.evitaql)
+[Retrieve product by unique attribute](/documentation/user/en/solve/examples/routing/get-by-unique-attribute.evitaql)
 
 </SourceCodeTabs>
 
@@ -51,19 +51,19 @@ query will return the entity by the code, which is a simple unique attribute of 
 
 <LS to="e,j,c">
 
-<MDInclude>[Result for unique attribute](documentation/user/en/solve/examples/routing/get-by-unique-attribute.evitaql.md)</MDInclude>
+<MDInclude>[Result for unique attribute](/documentation/user/en/solve/examples/routing/get-by-unique-attribute.evitaql.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result for unique attribute](documentation/user/en/solve/examples/routing/get-by-unique-attribute.graphql.json.md)</MDInclude>
+<MDInclude>[Result for unique attribute](/documentation/user/en/solve/examples/routing/get-by-unique-attribute.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for unique attribute](documentation/user/en/solve/examples/routing/get-by-unique-attribute.rest.json.md)</MDInclude>
+<MDInclude>[Result for unique attribute](/documentation/user/en/solve/examples/routing/get-by-unique-attribute.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -72,9 +72,9 @@ query will return the entity by the code, which is a simple unique attribute of 
 As you can see, we need to specify the collection name to get the entity through the code. Since the URL is unique 
 across the catalog we can search for the entity without specifying the collection name:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly ignoreTest>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly ignoreTest>
 
-[Retrieve product by globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-attribute.evitaql)
+[Retrieve product by globally unique attribute](/documentation/user/en/solve/examples/routing/get-by-globally-unique-attribute.evitaql)
 
 </SourceCodeTabs>
 
@@ -88,9 +88,9 @@ uses the `UNIQUE_WITHIN_CATALOG` instead. See the next example.
 
 If the URL is unique only within the locale, we need to specify the <LS to="e,j,c">`entityLocaleEquals` constraint</LS><LS to="g,r">`locale` parameter</LS> as well:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Retrieve product by globally unique locale specific attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql)
+[Retrieve product by globally unique locale specific attribute](/documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql)
 
 </SourceCodeTabs>
 
@@ -103,19 +103,19 @@ If the URL is unique only within the locale, we need to specify the <LS to="e,j,
 
 <LS to="e,j,c">
 
-<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.md)</MDInclude>
+<MDInclude>[Result for locally specific globally unique attribute](/documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.graphql.json.md)</MDInclude>
+<MDInclude>[Result for locally specific globally unique attribute](/documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.rest.json.md)</MDInclude>
+<MDInclude>[Result for locally specific globally unique attribute](/documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -168,9 +168,9 @@ To demonstrate the behavior of such a query, let's define a query that requires 
 
 </LS>
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Retrieve product with data by globally unique locale specific attribute](documentation/user/en/solve/examples/routing/get-product-with-data.evitaql)
+[Retrieve product with data by globally unique locale specific attribute](/documentation/user/en/solve/examples/routing/get-product-with-data.evitaql)
 </SourceCodeTabs>
 
 <LS to="e,j,c">
@@ -215,13 +215,13 @@ The GraphQL server then automatically selects the correct fragment based on the 
 </NoteTitle>
 
 <LS to="e,j,c">
-<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-product-with-data.evitaql.md)</MDInclude>
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](/documentation/user/en/solve/examples/routing/get-product-with-data.evitaql.md)</MDInclude>
 </LS>
 <LS to="g">
-<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-product-with-data.graphql.json.md)</MDInclude>
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](/documentation/user/en/solve/examples/routing/get-product-with-data.graphql.json.md)</MDInclude>
 </LS>
 <LS to="r">
-<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-product-with-data.rest.json.md)</MDInclude>
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](/documentation/user/en/solve/examples/routing/get-product-with-data.rest.json.md)</MDInclude>
 </LS>
 
 </Note>
@@ -229,9 +229,9 @@ The GraphQL server then automatically selects the correct fragment based on the 
 The response contains all the data that matches the schema of the `Product` entity, and the rest is simply ignored.
 Now let's look at the same query, but for the URL of the `Category` entity:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Retrieve category with data by globally unique locale specific attribute](documentation/user/en/solve/examples/routing/get-category-with-data.evitaql)
+[Retrieve category with data by globally unique locale specific attribute](/documentation/user/en/solve/examples/routing/get-category-with-data.evitaql)
 </SourceCodeTabs>
 
 You can see that in the result there is information about the `level` attribute and the `parent` information that 
@@ -245,13 +245,13 @@ doesn't make sense for the `product` entity, but does for the `category` entity:
 </NoteTitle>
 
 <LS to="e,j,c">
-<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-category-with-data.evitaql.md)</MDInclude>
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](/documentation/user/en/solve/examples/routing/get-category-with-data.evitaql.md)</MDInclude>
 </LS>
 <LS to="g">
-<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-category-with-data.graphql.json.md)</MDInclude>
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](/documentation/user/en/solve/examples/routing/get-category-with-data.graphql.json.md)</MDInclude>
 </LS>
 <LS to="r">
-<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-category-with-data.rest.json.md)</MDInclude>
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](/documentation/user/en/solve/examples/routing/get-category-with-data.rest.json.md)</MDInclude>
 </LS>
 
 </Note>

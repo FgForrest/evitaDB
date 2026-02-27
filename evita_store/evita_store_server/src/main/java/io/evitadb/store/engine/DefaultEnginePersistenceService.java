@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,22 +30,22 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
+import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.service.KryoFactory;
-import io.evitadb.store.spi.EnginePersistenceService;
-import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.LogFileRecordReference;
-import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.wal.EngineMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.ArrayUtils;
@@ -87,7 +87,7 @@ import static io.evitadb.store.offsetIndex.model.StorageRecord.read;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Slf4j
-public class DefaultEnginePersistenceService implements EnginePersistenceService {
+public class DefaultEnginePersistenceService implements EnginePersistenceService<LogFileRecordReference> {
 	/**
 	 * Storage configuration options.
 	 */
@@ -156,7 +156,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	/**
 	 * Current state of the engine.
 	 */
-	private EngineState engineState;
+	private EngineState<LogFileRecordReference> engineState;
 
 	/**
 	 * Flag indicating whether the engine state was newly created.
@@ -266,12 +266,12 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Nonnull
 	@Override
-	public EngineState getEngineState() {
+	public EngineState<LogFileRecordReference> getEngineState() {
 		return this.engineState;
 	}
 
 	@Override
-	public void storeEngineState(@Nonnull EngineState engineState) {
+	public void storeEngineState(@Nonnull EngineState<LogFileRecordReference> engineState) {
 		this.created = false;
 		// Validate that the version is incremented by exactly one
 		Assert.isPremiseValid(
@@ -413,7 +413,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			return Optional.empty();
 		} else {
 			// Get the first non-processed transaction from the WAL
-			return this.mutationLog.getFirstNonProcessedTransaction(this.engineState.walFileReference())
+			return this.mutationLog.getFirstNonProcessedTransaction(this.engineState.walReference())
 			                       .map(TransactionMutationWithWalFileReference::transactionMutation);
 		}
 	}
@@ -443,16 +443,16 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	}
 
 	@Override
-	public void truncateWalFile(@Nonnull LogFileRecordReference walFileReference) {
-		if (walFileReference.fileLocation() != null) {
-			final Path filePath = walFileReference.toFilePath(this.storageOptions.storageDirectory());
-			if (filePath.toFile().length() > walFileReference.fileLocation().endPosition()) {
+	public void truncateWriteAheadLog(@Nonnull LogFileRecordReference walReference) {
+		if (walReference.fileLocation() != null) {
+			final Path filePath = walReference.toFilePath(this.storageOptions.storageDirectory());
+			if (filePath.toFile().length() > walReference.fileLocation().endPosition()) {
 				try (RandomAccessFile randomAccessFile = new RandomAccessFile(filePath.toFile(), "rw")) {
 					log.info(
 						"Engine log file contains more data than expected, truncating it to {} bytes: {}",
-						walFileReference.fileLocation().endPosition(), filePath
+						walReference.fileLocation().endPosition(), filePath
 					);
-					randomAccessFile.setLength(walFileReference.fileLocation().endPosition());
+					randomAccessFile.setLength(walReference.fileLocation().endPosition());
 				} catch (IOException ex) {
 					throw new UnexpectedIOException(
 						"Failed to truncate an engine log file: " + filePath,
@@ -501,8 +501,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * @return the engine state read from storage
 	 */
 	@Nonnull
-	private EngineState readEngineState() {
-		final EngineState engineState;
+	private EngineState<LogFileRecordReference> readEngineState() {
+		final EngineState<LogFileRecordReference> engineState;
 		try (
 			final ReadOnlyFileHandle readOnlyFileHandle = new ReadOnlyFileHandle(
 				null,
@@ -512,9 +512,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				this.storageOptions
 			)
 		) {
+			//noinspection unchecked
 			engineState = readOnlyFileHandle.execute(
 				observableInput ->
-					read(
+					(EngineState<LogFileRecordReference>) read(
 						observableInput,
 						(theInput, recordLength) -> {
 							final Kryo readKryo = this.dataKryoPool.obtain();
@@ -544,9 +545,9 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 *         or the original engine state if no changes are detected
 	 */
 	@Nonnull
-	private EngineState syncEngineStateByFolderContents(
+	private EngineState<LogFileRecordReference> syncEngineStateByFolderContents(
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull EngineState engineState
+		@Nonnull EngineState<LogFileRecordReference> engineState
 	) {
 		// Detect catalogs present on disk and reduce to only previously unknown ones
 		final Path[] directories = FileUtils.listDirectories(storageOptions.storageDirectory());
@@ -597,7 +598,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		}
 
 		// Create new engine state with updated catalogs
-		final EngineState newEngineState = EngineState.builder(engineState)
+		final EngineState<LogFileRecordReference> newEngineState = EngineState.builder(engineState)
 			.version(this.engineState.version() + 1)
 			.activeCatalogs(newActive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
 			.inactiveCatalogs(newInactive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
@@ -616,12 +617,12 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * @return newly created engine state
 	 */
 	@Nonnull
-	private EngineState createNewEngineState(@Nonnull StorageOptions storageOptions) {
+	private EngineState<LogFileRecordReference> createNewEngineState(@Nonnull StorageOptions storageOptions) {
 		// Get all directories in the storage directory to identify active catalogs
 		final Path[] directories = FileUtils.listDirectories(storageOptions.storageDirectory());
 
 		// Create new engine state with initial values
-		final EngineState newEngineState = new EngineState(
+		final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(
 			STORAGE_PROTOCOL_VERSION,
 			1L,  // Initial version
 			OffsetDateTime.now(),

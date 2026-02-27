@@ -25,8 +25,8 @@ package io.evitadb.core.traffic;
 
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.LabelIntrospector;
-import io.evitadb.api.TrafficRecordingReader;
+import io.evitadb.api.traffic.LabelIntrospector;
+import io.evitadb.api.traffic.TrafficRecordingReader;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
@@ -45,12 +45,12 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.file.ExportFileService;
+import io.evitadb.core.management.FileManagementService;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.store.spi.SessionSink;
-import io.evitadb.store.spi.TrafficRecorder;
+import io.evitadb.spi.store.catalog.trafficRecorder.SessionSink;
+import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
@@ -94,7 +94,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	private final AtomicReference<CatalogInfo> catalogInfo;
 	private final StorageOptions storageOptions;
 	@Getter private final TrafficRecordingOptions trafficOptions;
-	private final ExportFileService exportFileService;
+	private final FileManagementService fileManagementService;
 	private final Scheduler scheduler;
 	private final TracingContext tracingContext;
 	/**
@@ -117,7 +117,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * recorder with the provided parameters.
 	 *
 	 * @param catalogName       the name of the catalog to associate with the traffic recorder, must not be null
-	 * @param exportFileService the service responsible for handling file exports during traffic recording, must not be null
+	 * @param fileManagementService the service responsible for handling file exports during traffic recording, must not be null
 	 * @param scheduler         the scheduler used for executing scheduled tasks within the traffic recorder, must not be null
 	 * @param storageOptions    the storageOptions options to be used by the traffic recorder, must not be null
 	 * @param recordingOptions  the traffic recording options to be used by the traffic recorder, must not be null
@@ -127,7 +127,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	@Nonnull
 	private static TrafficRecorder getRichTrafficRecorderIfPossible(
 		@Nonnull String catalogName,
-		@Nonnull ExportFileService exportFileService,
+		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Scheduler scheduler,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TrafficRecordingOptions recordingOptions
@@ -138,7 +138,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			.orElseThrow(() -> new EvitaInvalidUsageException("Traffic recorder implementation is not available!"))
 			.get();
 		trafficRecorderInstance.init(
-			catalogName, exportFileService, scheduler,
+			catalogName, fileManagementService, scheduler,
 			storageOptions,
 			recordingOptions
 		);
@@ -150,14 +150,14 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		@Nonnull CatalogState catalogState,
 		@Nonnull TracingContext tracingContext,
 		@Nonnull EvitaConfiguration configuration,
-		@Nonnull ExportFileService exportFileService,
+		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Scheduler scheduler
 	) {
 		final CatalogInfo catalogInfo = new CatalogInfo(catalogName, catalogState);
 		this.catalogInfo = new AtomicReference<>(catalogInfo);
 		this.storageOptions = configuration.storage();
 		this.trafficOptions = configuration.server().trafficRecording();
-		this.exportFileService = exportFileService;
+		this.fileManagementService = fileManagementService;
 		this.scheduler = scheduler;
 		this.tracingContext = tracingContext;
 		initializeTrafficRecorder(catalogInfo);
@@ -194,7 +194,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			if (defaultTrafficRecorder instanceof NoOpTrafficRecorder) {
 				final TrafficRecorder richTrafficRecorderInstance = getRichTrafficRecorderIfPossible(
 					this.catalogInfo.get().catalogName(),
-					this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
+					this.fileManagementService, this.scheduler, this.storageOptions, this.trafficOptions
 				);
 				this.suppressedTrafficRecorder.set(defaultTrafficRecorder);
 				this.trafficRecorder.set(richTrafficRecorderInstance);
@@ -576,7 +576,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		if (this.trafficOptions.enabled() && catalogInfo.state() == CatalogState.ALIVE) {
 			final TrafficRecorder trafficRecorderInstance = getRichTrafficRecorderIfPossible(
 				catalogInfo.catalogName(),
-				this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
+				this.fileManagementService, this.scheduler, this.storageOptions, this.trafficOptions
 			);
 			this.trafficRecorder.set(trafficRecorderInstance);
 		} else {

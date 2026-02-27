@@ -26,17 +26,55 @@ package io.evitadb.api.observability.trace;
 import javax.annotation.Nonnull;
 
 /**
- * Dummy block reference when no tracing implementation is present. This does nothing.
+ * No-op implementation of {@link TracingBlockReference} used when no active tracing system is
+ * configured. This class serves as a null object pattern to avoid null checks in client code.
  *
- * @author Lukáš Hornych, FG Forres a.s. (c) 2024
+ * **Design Purpose:**
+ * When observability is disabled or no OpenTelemetry tracing context is available, this
+ * implementation allows code to execute normally without incurring tracing overhead. All methods
+ * are no-ops that do nothing but satisfy the interface contract.
+ *
+ * **Usage Context:**
+ * - Returned by {@link DefaultTracingContext#createAndActivateBlock} methods
+ * - Used as a fallback when {@link TracingContextProvider} finds no real tracing implementation
+ * - Safe to use with try-with-resources — `close()` is a no-op
+ *
+ * **Thread-Safety:**
+ * This class is stateless and thread-safe.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 public class DefaultTracingBlockReference implements TracingBlockReference {
 
+	/**
+	 * No-op implementation that does nothing. The error is not recorded anywhere.
+	 *
+	 * @param error the exception to record (ignored in this implementation)
+	 */
 	@Override
 	public void setError(@Nonnull Throwable error) {
 		// noop
 	}
 
+	/**
+	 * No-op implementation that does nothing. Safe to call from any thread.
+	 */
+	@Override
+	public void detachScope() {
+		// noop
+	}
+
+	/**
+	 * No-op implementation that does nothing. Safe to call from any thread.
+	 */
+	@Override
+	public void end() {
+		// noop
+	}
+
+	/**
+	 * No-op implementation that does nothing. Safe to call multiple times.
+	 */
 	@Override
 	public void close() {
 		// noop

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,15 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.ClientFactoryBuilder;
+import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.client.retry.RetryRule;
 import com.linecorp.armeria.client.retry.RetryingClient;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import com.linecorp.armeria.common.util.EventLoopGroups;
+import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
@@ -42,13 +45,16 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
@@ -65,6 +71,9 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMuta
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
 import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
+import io.evitadb.driver.config.ClientConnectionOptions;
+import io.evitadb.driver.config.ClientTimeoutOptions;
+import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -104,6 +113,7 @@ import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import io.netty.channel.EventLoopGroup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -112,6 +122,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
+import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
@@ -124,10 +135,12 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -153,6 +166,10 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public class EvitaClient implements EvitaContract {
 	static final Pattern ERROR_MESSAGE_PATTERN = Pattern.compile("(\\w+:\\w+:\\w+): (.*)");
+	/**
+	 * Counter for naming threads created by the client executor.
+	 */
+	private static final AtomicInteger CLIENT_THREAD_COUNTER = new AtomicInteger();
 	/**
 	 * Client call timeout.
 	 */
@@ -208,6 +225,10 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private final EvitaClientManagement management;
 	/**
+	 * Contains reference to the proxy factory that is used to create proxies for the entities.
+	 */
+	@Getter private final ProxyFactory proxyFactory;
+	/**
 	 * Callback that will be called when session is created.
 	 */
 	private final Consumer<EvitaSessionContract> onSessionCreationCallback;
@@ -215,6 +236,11 @@ public class EvitaClient implements EvitaContract {
 	 * Callback that will be called when session is closed.
 	 */
 	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
+	/**
+	 * Duration to extend the response timeout for each received message.
+	 * This helps keep the streaming connection alive as long as messages are being received.
+	 */
+	private final Duration streamingTimeout;
 
 	/**
 	 * Transforms the given Throwable into a RuntimeException based on its type.
@@ -322,39 +348,69 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
 	) {
 		this.configuration = configuration;
-		this.onSessionCreationCallback = onSessionCreationCallback == null ?
-			Functions.noOpConsumer() : onSessionCreationCallback;
-		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
-			Functions.noOpConsumer() : onSessionTerminationCallback;
+		final ClientTimeoutOptions clientTimeouts = this.configuration.timeouts();
+		this.streamingTimeout = Duration.of(
+			clientTimeouts.streamingTimeout(),
+			clientTimeouts.streamingTimeoutUnit().toChronoUnit()
+		);
+		this.onSessionCreationCallback = onSessionCreationCallback == null
+			? Functions.noOpConsumer()
+			: onSessionCreationCallback;
+		this.onSessionTerminationCallback = onSessionTerminationCallback == null
+			? Functions.noOpConsumer()
+			: onSessionTerminationCallback;
+
+		// in tests we don't want to wait for graceful shutdown, so we set it to 0,
+		// but in production we want to wait a bit to let all requests finish properly
+		final EventLoopGroup workerGroup;
+		if (DevelopmentConstants.isTestRun()) {
+			workerGroup = EventLoopGroups
+				.builder()
+				.numThreads(Runtime.getRuntime().availableProcessors())
+				/* TOBEDONE - UNCOMMENT THIS WHEN https://github.com/line/armeria/issues/6632 is closed */
+				//.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0))
+				.build();
+		} else {
+			workerGroup = EventLoopGroups
+				.builder()
+				.numThreads(Runtime.getRuntime().availableProcessors())
+				.build();
+		}
+
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory
 			.builder()
-	        .workerGroup(Runtime.getRuntime().availableProcessors())
+			.workerGroup(workerGroup, true)
 			.idleTimeoutMillis(
 				TimeUnit.MILLISECONDS.convert(
-					configuration.timeout(),
-					configuration.timeoutUnit()
+					clientTimeouts.timeout(),
+					clientTimeouts.timeoutUnit()
 				)
 			)
 			.pingIntervalMillis(1000);
 
 		final String uriScheme;
-		if (configuration.tlsEnabled()) {
+		final ClientTlsOptions tlsOptions = configuration.tls();
+		final ClientConnectionOptions connectionOptions = configuration.connection();
+		if (tlsOptions.tlsEnabled()) {
 			uriScheme = "https";
 
 			final Builder certificateBuilder = new Builder()
 				.useGeneratedCertificate(
-					configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
-				.usingTrustedServerCertificate(configuration.trustCertificate())
-				.trustStorePassword(configuration.trustStorePassword())
-				.mtls(configuration.mtlsEnabled())
-				.clientCertificateFilePath(configuration.certificateFileName())
-				.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
-				.clientPrivateKeyPassword(configuration.certificateKeyPassword());
-			if (configuration.certificateFolderPath() != null) {
-				certificateBuilder.certificateClientFolderPath(configuration.certificateFolderPath());
+					tlsOptions.useGeneratedCertificate(),
+					connectionOptions.host(),
+					connectionOptions.systemApiPort()
+				)
+				.usingTrustedServerCertificate(tlsOptions.trustCertificate())
+				.trustStorePassword(tlsOptions.trustStorePassword())
+				.mtls(tlsOptions.mtlsEnabled())
+				.clientCertificateFilePath(tlsOptions.certificateFileName())
+				.clientPrivateKeyFilePath(tlsOptions.certificateKeyFileName())
+				.clientPrivateKeyPassword(tlsOptions.certificateKeyPassword());
+			if (tlsOptions.certificateFolderPath() != null) {
+				certificateBuilder.certificateClientFolderPath(tlsOptions.certificateFolderPath());
 			}
-			if (configuration.serverCertificatePath() != null) {
-				certificateBuilder.serverCertificateFilePath(configuration.serverCertificatePath());
+			if (tlsOptions.serverCertificatePath() != null) {
+				certificateBuilder.serverCertificateFilePath(tlsOptions.serverCertificatePath());
 			}
 			final ClientCertificateManager clientCertificateManager = certificateBuilder.build();
 
@@ -385,7 +441,23 @@ public class EvitaClient implements EvitaContract {
 			uriScheme = "http";
 		}
 
-		this.executor = Executors.newCachedThreadPool();
+		final ThreadPoolOptions threadPoolOptions = configuration.threadPool();
+		this.executor = new ThreadPoolExecutor(
+			threadPoolOptions.minThreadCount(),
+			threadPoolOptions.maxThreadCount(),
+			60L, TimeUnit.SECONDS,
+			new LinkedBlockingQueue<>(threadPoolOptions.queueSize()),
+			r -> {
+				final Thread thread = new Thread(r, "evita-client-" + CLIENT_THREAD_COUNTER.incrementAndGet());
+				thread.setDaemon(true);
+				if (thread.getPriority() != threadPoolOptions.threadPriority()) {
+					thread.setPriority(threadPoolOptions.threadPriority());
+				}
+				return thread;
+			},
+			// Use CallerRunsPolicy to apply backpressure on the calling thread when the queue is full.
+			new ThreadPoolExecutor.CallerRunsPolicy()
+		);
 		this.clientFactory = clientFactoryBuilder.build();
 
 		SemVer clientVersion;
@@ -396,20 +468,22 @@ public class EvitaClient implements EvitaContract {
 		}
 
 		final GrpcClientBuilder grpcClientBuilder = GrpcClients
-			.builder(uriScheme + "://" + configuration.host() + ":" + configuration.port() + "/")
+			.builder(uriScheme + "://" + connectionOptions.host() + ":" + connectionOptions.port() + "/")
 			.factory(this.clientFactory)
 			.serializationFormat(GrpcSerializationFormats.PROTO)
-			.intercept(new ClientSessionInterceptor(configuration.clientId(), clientVersion));
+			.intercept(new ClientSessionInterceptor(connectionOptions.clientId(), clientVersion));
 
 		if (configuration.retry()) {
 			grpcClientBuilder.decorator(
 				RetryingClient.builder(
-					RetryRule.of(
-						RetryRule.builder().onTimeoutException().thenBackoff(),
-						RetryRule.builder().onStatus(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT, HttpStatus.UNKNOWN).thenBackoff(),
-						RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
+						RetryRule.of(
+							RetryRule.builder().onTimeoutException().thenBackoff(),
+							RetryRule.builder()
+								.onStatus(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT, HttpStatus.UNKNOWN)
+								.thenBackoff(),
+							RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
+						)
 					)
-				)
 					.useRetryAfter(true)
 					.newDecorator()
 			);
@@ -427,10 +501,11 @@ public class EvitaClient implements EvitaContract {
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
 		this.timeout = ThreadLocal.withInitial(() -> {
 			final LinkedList<Timeout> timeouts = new LinkedList<>();
-			timeouts.add(new Timeout(configuration.timeout(), configuration.timeoutUnit()));
+			timeouts.add(new Timeout(clientTimeouts.timeout(), clientTimeouts.timeoutUnit()));
 			return timeouts;
 		});
 		this.management = new EvitaClientManagement(this, this.grpcClientBuilder);
+		this.proxyFactory = ProxyFactory.createInstance(this.reflectionLookup);
 		this.active.set(true);
 
 		try {
@@ -542,9 +617,10 @@ public class EvitaClient implements EvitaContract {
 			this,
 			this.executor,
 			this.management,
+			this.proxyFactory,
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),
-				catalogName -> new EvitaEntitySchemaCache(catalogName, this.reflectionLookup)
+				EvitaEntitySchemaCache::new
 			),
 			this.grpcClientBuilder,
 			traits.catalogName(),
@@ -676,7 +752,7 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public Progress<Void> deactivateCatalogWithProgress(@Nonnull String catalogName) {
 		assertActive();
-		if (getCatalogState(catalogName).map(it -> it == CatalogState.WARMING_UP || it == CatalogState.ALIVE).orElse(false)) {
+		if (getCatalogState(catalogName).map(CatalogState::isActive).orElse(false)) {
 			return applyMutation(new SetCatalogStateMutation(catalogName, false));
 		} else {
 			throw new InvalidMutationException(
@@ -762,6 +838,12 @@ public class EvitaClient implements EvitaContract {
 			.setMutation(DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation))
 			.build();
 
+		final ClientTimeoutOptions clientTimeouts = this.configuration.timeouts();
+		final Duration streamingTimeout = Duration.of(
+			clientTimeouts.streamingTimeout(),
+			clientTimeouts.streamingTimeoutUnit().toChronoUnit()
+		);
+
 		//noinspection unchecked
 		return Objects.requireNonNull(
 			executeWithStreamingEvitaService(
@@ -787,6 +869,9 @@ public class EvitaClient implements EvitaContract {
 							if (grpcResponse.hasCatalogSchemaVersion()) {
 								this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion().getValue();
 							}
+
+							// postpone timeout with each message received
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, streamingTimeout);
 
 							if (progressObserver != null) {
 								progressObserver.accept(grpcResponse.getProgressInPercent());
@@ -983,13 +1068,14 @@ public class EvitaClient implements EvitaContract {
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeSystemCaptureProcessor(
 						this.configuration.changeCaptureQueueSize(),
+						this.streamingTimeout,
 						this.executor,
 						subscriber -> executeWithStreamingEvitaService(
 							evitaService -> {
 								evitaService.registerSystemChangeCapture(
-								ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(
-									(ChangeSystemCaptureRequest) theRequest),
-								subscriber
+									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(
+										(ChangeSystemCaptureRequest) theRequest),
+										subscriber
 								);
 								return null;
 							}
@@ -1092,10 +1178,7 @@ public class EvitaClient implements EvitaContract {
 	) {
 		try {
 			return lambda.apply(
-				this.evitaServiceStub.withDeadlineAfter(
-					this.configuration.streamingTimeout(),
-					this.configuration.streamingTimeoutUnit()
-				)
+				this.evitaServiceStub.withDeadlineAfter(this.streamingTimeout)
 			);
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
@@ -1106,9 +1189,10 @@ public class EvitaClient implements EvitaContract {
 			Thread.currentThread().interrupt();
 			throw new EvitaClientServerCallException("Server call interrupted.", e);
 		} catch (TimeoutException e) {
+			final ClientTimeoutOptions clientTimeouts = this.configuration.timeouts();
 			throw new EvitaClientTimedOutException(
-				this.configuration.streamingTimeout(),
-				this.configuration.streamingTimeoutUnit()
+				clientTimeouts.streamingTimeout(),
+				clientTimeouts.streamingTimeoutUnit()
 			);
 		}
 	}
