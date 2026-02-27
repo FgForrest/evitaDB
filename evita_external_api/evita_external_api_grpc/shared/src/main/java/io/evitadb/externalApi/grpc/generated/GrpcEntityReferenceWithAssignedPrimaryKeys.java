@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -121,7 +121,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -173,7 +173,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair reassignedReferenceKeys = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPairOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPairOrBuilder> 
       getReassignedReferenceKeysOrBuilderList() {
     return reassignedReferenceKeys_;
   }
@@ -581,7 +581,7 @@ private static final long serialVersionUID = 0L;
             reassignedReferenceKeysBuilder_ = null;
             reassignedReferenceKeys_ = other.reassignedReferenceKeys_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            reassignedReferenceKeysBuilder_ =
+            reassignedReferenceKeysBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getReassignedReferenceKeysFieldBuilder() : null;
           } else {
@@ -692,7 +692,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -1089,7 +1089,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair reassignedReferenceKeys = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPairOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPairOrBuilder> 
          getReassignedReferenceKeysOrBuilderList() {
       if (reassignedReferenceKeysBuilder_ != null) {
         return reassignedReferenceKeysBuilder_.getMessageOrBuilderList();
@@ -1133,12 +1133,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair reassignedReferenceKeys = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair.Builder> 
          getReassignedReferenceKeysBuilderList() {
       return getReassignedReferenceKeysFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair, io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPairOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair, io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPair.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceKeyPairOrBuilder> 
         getReassignedReferenceKeysFieldBuilder() {
       if (reassignedReferenceKeysBuilder_ == null) {
         reassignedReferenceKeysBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

@@ -251,6 +251,10 @@ public class SetReferenceSchemaIndexedMutation
 						.toArray(ScopedReferenceIndexedComponents[]::new);
 				}
 
+				// strip components for scopes that are now NONE after merging
+				final ScopedReferenceIndexedComponents[] filteredComponents =
+					ReferenceSchema.filterComponentsArrayForNoneScopes(mergedComponents, existingIndexedScopes);
+
 				final SetReferenceSchemaIndexedMutation combinedMutation = new SetReferenceSchemaIndexedMutation(
 					this.name,
 					existingIndexedScopes
@@ -258,11 +262,45 @@ public class SetReferenceSchemaIndexedMutation
 						.stream()
 						.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
 						.toArray(ScopedReferenceIndexType[]::new),
-					mergedComponents
+					filteredComponents
 				);
 				return new MutationCombinationResult<>(null, combinedMutation);
 			}
+		} else if (existingMutation instanceof CreateReferenceSchemaMutation createMutation
+			&& this.name.equals(createMutation.getName())
+			&& this.indexedInScopes != null) {
+			// Absorb into the Create mutation using merge semantics — the Set mutation's
+			// scopes are merged into the Create's existing scopes (matching Set+Set merge)
+			final ScopedReferenceIndexType[] mergedScopes =
+				mergeIndexedScopes(createMutation.getIndexedInScopes(), this.indexedInScopes);
+			final ScopedReferenceIndexedComponents[] mergedComponents =
+				mergeIndexedComponents(
+					createMutation.getIndexedComponentsInScopes(),
+					this.indexedComponentsInScopes,
+					mergedScopes
+				);
+			return new MutationCombinationResult<>(
+				new CreateReferenceSchemaMutation(
+					createMutation.getName(),
+					createMutation.getDescription(),
+					createMutation.getDeprecationNotice(),
+					createMutation.getCardinality(),
+					createMutation.getReferencedEntityType(),
+					createMutation.isReferencedEntityTypeManaged(),
+					createMutation.getReferencedGroupType(),
+					createMutation.isReferencedGroupTypeManaged(),
+					mergedScopes,
+					mergedComponents,
+					createMutation.getFacetedInScopes()
+				)
+			);
 		} else {
+			// Note: we intentionally do NOT absorb into CreateReflectedReferenceSchemaMutation.
+			// Reflected references have complex inheritance semantics for indexed components —
+			// null components means "inherited from the reflected reference" — which cannot be
+			// faithfully represented in CreateReflected when scopes are explicit (the _internalBuild
+			// method resolves null components + explicit scopes to defaults, losing inheritance).
+			// Leaving the Set as a separate mutation preserves correct behavior via Set.mutate().
 			return null;
 		}
 	}
@@ -286,19 +324,51 @@ public class SetReferenceSchemaIndexedMutation
 				);
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 			ReflectedReferenceSchema result = reflectedReferenceSchema;
+			boolean scopesChanged = false;
 			if (hasIndexedScopesChanged(reflectedReferenceSchema, indexedScopes)) {
 				result = (ReflectedReferenceSchema) result.withIndexed(this.indexedInScopes);
+				scopesChanged = true;
 			}
 			if (hasIndexedComponentsChanged(reflectedReferenceSchema)) {
-				result = (ReflectedReferenceSchema) result.withIndexedComponents(this.indexedComponentsInScopes);
+				// only filter when scopes are explicit (non-null); when inherited, components pass
+				// through unfiltered and are resolved later against the actual inherited scopes
+				final ScopedReferenceIndexedComponents[] componentsToApply =
+					this.indexedInScopes != null
+						? ReferenceSchema.filterComponentsArrayForNoneScopes(
+							this.indexedComponentsInScopes, indexedScopes)
+						: this.indexedComponentsInScopes;
+				result = (ReflectedReferenceSchema) result.withIndexedComponents(componentsToApply);
+			} else if (scopesChanged && this.indexedInScopes != null
+				&& !result.isIndexedComponentsInherited()) {
+				// scopes changed but components didn't — still strip components for newly-NONE scopes
+				final Map<Scope, Set<ReferenceIndexedComponents>> currentComponents =
+					result.getIndexedComponentsInScopes();
+				final Map<Scope, Set<ReferenceIndexedComponents>> filtered =
+					ReferenceSchema.filterComponentsForNoneScopes(currentComponents, indexedScopes);
+				if (filtered != currentComponents) {
+					final ScopedReferenceIndexedComponents[] filteredArray =
+						new ScopedReferenceIndexedComponents[filtered.size()];
+					int i = 0;
+					for (Map.Entry<Scope, Set<ReferenceIndexedComponents>> entry : filtered.entrySet()) {
+						filteredArray[i++] = new ScopedReferenceIndexedComponents(
+							entry.getKey(),
+							entry.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+						);
+					}
+					result = (ReflectedReferenceSchema) result.withIndexedComponents(filteredArray);
+				}
 			}
 			return result;
 		} else {
-			final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponents = this.indexedComponentsInScopes != null
-				?
-				ReferenceSchema.toIndexedComponentsEnumMap(this.indexedComponentsInScopes)
-				:
-					ReferenceSchema.defaultIndexedComponents(indexedScopes);
+			// strip components for NONE-indexed scopes before building the schema
+			final ScopedReferenceIndexedComponents[] filteredComponentsArray =
+				ReferenceSchema.filterComponentsArrayForNoneScopes(
+					this.indexedComponentsInScopes, indexedScopes
+				);
+			final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponents =
+				filteredComponentsArray != null
+					? ReferenceSchema.toIndexedComponentsEnumMap(filteredComponentsArray)
+					: ReferenceSchema.defaultIndexedComponents(indexedScopes);
 
 			if (indexedScopes.equals(referenceSchema.getReferenceIndexTypeInScopes()) &&
 				indexedComponents.equals(referenceSchema.getIndexedComponentsInScopes())) {
@@ -331,7 +401,7 @@ public class SetReferenceSchemaIndexedMutation
 						: referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					scopedIndexTypes,
-					this.indexedComponentsInScopes,
+					filteredComponentsArray,
 					Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).toArray(Scope[]::new),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()
@@ -439,5 +509,69 @@ public class SetReferenceSchemaIndexedMutation
 			this.indexedComponentsInScopes
 		);
 		return !schema.getIndexedComponentsInScopes().equals(newComponents);
+	}
+
+	/**
+	 * Merges new indexed scopes into existing ones. New scopes take precedence
+	 * for overlapping entries, matching the Set+Set merge semantics.
+	 *
+	 * @param existing the existing indexed scopes from the Create mutation
+	 * @param incoming the new indexed scopes from this Set mutation
+	 * @return merged array of scoped index types
+	 */
+	@Nonnull
+	private static ScopedReferenceIndexType[] mergeIndexedScopes(
+		@Nonnull ScopedReferenceIndexType[] existing,
+		@Nonnull ScopedReferenceIndexType[] incoming
+	) {
+		final EnumMap<Scope, ReferenceIndexType> merged = new EnumMap<>(Scope.class);
+		for (ScopedReferenceIndexType sit : existing) {
+			merged.put(sit.scope(), sit.indexType());
+		}
+		for (ScopedReferenceIndexType sit : incoming) {
+			merged.put(sit.scope(), sit.indexType());
+		}
+		return merged.entrySet()
+			.stream()
+			.map(e -> new ScopedReferenceIndexType(e.getKey(), e.getValue()))
+			.toArray(ScopedReferenceIndexType[]::new);
+	}
+
+	/**
+	 * Merges new indexed components into existing ones, stripping components
+	 * for scopes that are now {@link ReferenceIndexType#NONE}.
+	 *
+	 * @param existing     the existing components from the Create mutation
+	 * @param incoming     the new components from this Set mutation (may be null)
+	 * @param mergedScopes the already-merged index type scopes for NONE filtering
+	 * @return merged and filtered components array
+	 */
+	@Nullable
+	private static ScopedReferenceIndexedComponents[] mergeIndexedComponents(
+		@Nonnull ScopedReferenceIndexedComponents[] existing,
+		@Nullable ScopedReferenceIndexedComponents[] incoming,
+		@Nonnull ScopedReferenceIndexType[] mergedScopes
+	) {
+		if (incoming == null) {
+			// null incoming = "use defaults" — return null so the Create constructor
+			// auto-derives default components from the merged scopes
+			return null;
+		}
+		final EnumMap<Scope, ReferenceIndexedComponents[]> componentMap = new EnumMap<>(Scope.class);
+		for (ScopedReferenceIndexedComponents ec : existing) {
+			componentMap.put(ec.scope(), ec.indexedComponents());
+		}
+		for (ScopedReferenceIndexedComponents ic : incoming) {
+			componentMap.put(ic.scope(), ic.indexedComponents());
+		}
+		final ScopedReferenceIndexedComponents[] merged = componentMap.entrySet()
+			.stream()
+			.map(e -> new ScopedReferenceIndexedComponents(e.getKey(), e.getValue()))
+			.toArray(ScopedReferenceIndexedComponents[]::new);
+		final EnumMap<Scope, ReferenceIndexType> scopeMap = new EnumMap<>(Scope.class);
+		for (ScopedReferenceIndexType sit : mergedScopes) {
+			scopeMap.put(sit.scope(), sit.indexType());
+		}
+		return ReferenceSchema.filterComponentsArrayForNoneScopes(merged, scopeMap);
 	}
 }

@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.test.Entities;
 
+import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
@@ -41,10 +42,11 @@ public interface BrandInterfaceEditor extends BrandInterface, InstanceEditor<Bra
 
 	BrandInterfaceEditor setCode(String code);
 
+	BrandInterfaceEditor setName(String brandName, Locale locale);
+
 	@ReferenceRef(Entities.STORE)
 	BrandInterfaceEditor setStore(int storeId);
 
 	@ReferenceRef(Entities.STORE)
 	BrandInterfaceEditor setNewStore(@CreateWhenMissing Consumer<StoreInterfaceEditor> storeConsumer);
-
 }

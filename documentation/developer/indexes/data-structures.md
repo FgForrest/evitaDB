@@ -203,13 +203,13 @@ relationships.
 
 ### Behaviour Across EntityIndex Types
 
-| Feature                        | GlobalEntityIndex | ReducedEntityIndex                       | ReferencedTypeEntityIndex |
-|--------------------------------|-------------------|------------------------------------------|---------------------------|
-| Unique indexes                 | yes               | yes (reference attrs)                    | no                        |
-| Filter indexes                 | yes               | yes (reference attrs)                    | yes (with cardinality)    |
-| Sort indexes                   | yes               | yes (reference attrs)                    | **no** (no-op)            |
-| Chain indexes                  | yes               | yes (reference attrs)                    | no                        |
-| Entity-level attribute indexes | yes               | only if `FOR_FILTERING_AND_PARTITIONING` | no                        |
+| Feature                        | GlobalEntityIndex | ReducedEntityIndex                       | ReducedGroupEntityIndex                  | ReferencedTypeEntityIndex |
+|--------------------------------|-------------------|------------------------------------------|------------------------------------------|---------------------------|
+| Unique indexes                 | yes               | yes (reference attrs)                    | **no** (no-op)                           | no                        |
+| Filter indexes                 | yes               | yes (reference attrs)                    | yes (with cardinality)                   | yes (with cardinality)    |
+| Sort indexes                   | yes               | yes (reference attrs)                    | **no** (no-op)                           | **no** (no-op)            |
+| Chain indexes                  | yes               | yes (reference attrs)                    | no                                       | no                        |
+| Entity-level attribute indexes | yes               | only if `FOR_FILTERING_AND_PARTITIONING` | only if `FOR_FILTERING_AND_PARTITIONING` | no                        |
 
 In `ReferencedTypeEntityIndex`, `insertSortAttribute` and `removeSortAttribute` are explicit no-ops.
 Only filter indexes are maintained, and each filter value is tracked by a paired
@@ -565,10 +565,11 @@ reference-attribute filtering. The void implementation avoids null checks throug
 
 ## Cardinality Indexes
 
-Cardinality indexes exist **only** in
+Cardinality indexes exist in
 <Term location="/documentation/developer/indexes/overview.md" name="Referenced Type Entity Index">
-`ReferencedTypeEntityIndex`</Term>.
-They solve a problem unique to type-level aggregation: multiple
+`ReferencedTypeEntityIndex`</Term>
+and `ReducedGroupEntityIndex`.
+They solve a problem where multiple
 <Term location="/documentation/developer/indexes/overview.md" name="owning entity">owning entities</Term>
 can contribute the same attribute value or reference the same target PK. A naive approach would
 remove the value from the filter index on the first entity removal, breaking queries for the
@@ -643,6 +644,24 @@ graph TD
     RTCI -- " guards entityIds add/remove " --> EID["entityIds bitmap"]
 ```
 
+### Cardinality in ReducedGroupEntityIndex
+
+`ReducedGroupEntityIndex` uses the same `AttributeCardinalityIndex` mechanism as
+`ReferencedTypeEntityIndex` for **filter attribute** deduplication. In addition, it maintains
+**inline PK cardinality** tracking:
+
+| Field                        | Type                                             | Purpose                                             |
+|------------------------------|--------------------------------------------------|-----------------------------------------------------|
+| `pkCardinalities`            | `TransactionalMap<Integer, Integer>`              | Owning entity PK to insertion count                 |
+| `referencedPrimaryKeysIndex` | `TransactionalMap<Integer, TransactionalBitmap>`  | Referenced PK to set of owning entity PKs           |
+| `cardinalityIndexes`         | `TransactionalMap<AttributeIndexKey, AttributeCardinalityIndex>` | Per-attribute cardinality tracking |
+
+Unlike `ReferencedTypeEntityIndex` (which uses `ReferenceTypeCardinalityIndex` with packed
+`Long` keys), `ReducedGroupEntityIndex` uses a simple `Map<Integer, Integer>` for PK
+cardinality. This is because the group index does not need to track a mapping between two
+different kinds of primary keys (index PK vs. referenced entity PK) -- it directly tracks
+owning entity PK counts.
+
 ### Test Blueprint Hints -- Cardinality Indexes
 
 1. **Deferred removal.** Add the same attribute value `"red"` for two different record ids (entity PKs)
@@ -665,20 +684,21 @@ graph TD
 
 ## Summary: Sub-Indexes Per EntityIndex Type
 
-| Sub-index / Feature               | GlobalEntityIndex       | ReducedEntityIndex                             | ReferencedTypeEntityIndex                         |
-|-----------------------------------|-------------------------|------------------------------------------------|---------------------------------------------------|
-| `entityIds` bitmap                | yes (owning entity PKs) | yes (owning entity PKs)                        | yes (referenced entity PKs, card.-guarded)        |
-| `entityIdsByLanguage`             | yes                     | yes                                            | yes                                               |
-| **AttributeIndex**                | yes (entity attrs only) | yes (ref attrs always + entity attrs if PART.) | yes (ref attrs only, filter, no sort)             |
-| -- UniqueIndex                    | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | no                                                |
-| -- FilterIndex                    | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | yes (ref attrs, with `AttributeCardinalityIndex`) |
-| -- SortIndex                      | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | no (no-op)                                        |
-| -- ChainIndex                     | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | no                                                |
-| **HierarchyIndex**                | yes                     | no (throws)                                    | no                                                |
-| **FacetIndex**                    | yes                     | yes                                            | yes                                               |
-| **Price index**                   | `PriceSuperIndex`       | `PriceRefIndex`                                | `VoidPriceIndex`                                  |
-| **ReferenceTypeCardinalityIndex** | no                      | no                                             | yes                                               |
-| **AttributeCardinalityIndex**     | no                      | no                                             | yes (per attribute)                               |
+| Sub-index / Feature               | GlobalEntityIndex       | ReducedEntityIndex                             | ReducedGroupEntityIndex                                  | ReferencedTypeEntityIndex                         |
+|-----------------------------------|-------------------------|------------------------------------------------|----------------------------------------------------------|---------------------------------------------------|
+| `entityIds` bitmap                | yes (owning entity PKs) | yes (owning entity PKs)                        | yes (owning entity PKs, PK card.-guarded)                | yes (referenced entity PKs, card.-guarded)        |
+| `entityIdsByLanguage`             | yes                     | yes                                            | yes                                                      | yes                                               |
+| **AttributeIndex**                | yes (entity attrs only) | yes (ref attrs always + entity attrs if PART.) | yes (ref attrs filter only + entity attrs if PART.)      | yes (ref attrs only, filter, no sort)             |
+| -- UniqueIndex                    | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | no (no-op)                                               | no                                                |
+| -- FilterIndex                    | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | yes (ref attrs, with `AttributeCardinalityIndex`)        | yes (ref attrs, with `AttributeCardinalityIndex`) |
+| -- SortIndex                      | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | no (no-op)                                               | no (no-op)                                        |
+| -- ChainIndex                     | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | no                                                       | no                                                |
+| **HierarchyIndex**                | yes                     | no (throws)                                    | no                                                       | no                                                |
+| **FacetIndex**                    | yes                     | yes                                            | yes                                                      | yes                                               |
+| **Price index**                   | `PriceSuperIndex`       | `PriceRefIndex`                                | `PriceRefIndex`                                          | `VoidPriceIndex`                                  |
+| **ReferenceTypeCardinalityIndex** | no                      | no                                             | no                                                       | yes                                               |
+| **PK cardinality (inline map)**   | no                      | no                                             | yes (`Map<Integer, Integer>`)                            | no                                                |
+| **AttributeCardinalityIndex**     | no                      | no                                             | yes (per filter attribute)                               | yes (per attribute)                               |
 
 **Legend:** "entity attrs" = entity-level attributes; "ref attrs" = reference-level attributes;
 "PART." = `ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING`.

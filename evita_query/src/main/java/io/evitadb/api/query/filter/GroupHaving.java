@@ -38,33 +38,91 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The `groupHaving` constraint is used to examine the attributes or other filterable properties of the referenced
- * entity group. It can only be used within the referenceHaving constraint, which defines the name of the entity
- * reference that identifies the target entity to be subjected to the filtering restrictions in the groupHaving
- * constraint.
+ * The `groupHaving` constraint filters based on attributes and other filterable properties of the group entity
+ * associated with a reference. It can only be used as a child constraint within {@link ReferenceHaving} or
+ * {@link FacetHaving}, which establish the reference context. This constraint shifts the filtering scope from the
+ * reference (relation) to the group entity, allowing you to examine properties of the group entity rather than
+ * properties of the relationship or the referenced entity itself.
  *
- * The filtering constraints for the entity can use an entire range of filtering operators.
+ * This constraint requires the reference schema to have the `REFERENCED_GROUP_ENTITY` component enabled in its indexed
+ * components configuration and a group type defined.
  *
- * Example:
+ * This constraint is an {@link EntityConstraint} and {@link SeparateEntityScopeContainer}, declaring that it defines
+ * a filtering context for a different entity type than the query's primary collection. It is supported in the
+ * {@code REFERENCE}, {@code INLINE_REFERENCE}, {@code FACET}, and {@code SEGMENT} constraint domains.
  *
- * <pre>
+ * ## Basic Usage
+ *
+ * Filter entities that reference a `brand` whose group entity (a `Store`) has a specific `code` attribute:
+ *
+ * ```
  * referenceHaving(
  *     "brand",
  *     groupHaving(
- *         attributeEquals("code", "apple")
+ *         attributeEquals("code", "store-london")
  *     )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/references#group-having">Visit detailed user documentation</a></p>
+ * This query matches entities (e.g., products) that have a `brand` reference whose group (a Store entity) has
+ * its `code` attribute equal to "store-london".
+ *
+ * ## Full Range of Filtering Operators
+ *
+ * The `groupHaving` constraint accepts any filtering constraint that is valid in the entity domain. You can use
+ * attribute comparisons, range queries, primary key filters, and even nested constraints:
+ *
+ * ```
+ * referenceHaving(
+ *     "brand",
+ *     groupHaving(
+ *         entityPrimaryKeyInSet(1, 2, 3)
+ *     )
+ * )
+ * ```
+ *
+ * ## Contrast with Reference and Entity Attributes
+ *
+ * Without `entityHaving` or `groupHaving`, filtering constraints within `referenceHaving` apply to **reference
+ * attributes** (attributes stored on the relationship itself). With `entityHaving`, constraints apply to **referenced
+ * entity attributes**. With `groupHaving`, constraints apply to **group entity attributes**:
+ *
+ * - **Reference attribute**: `referenceHaving("brand", attributeEquals("priority", 1))` -- filters on relation attribute.
+ * - **Entity attribute**: `referenceHaving("brand", entityHaving(attributeEquals("name", "Apple")))` -- filters on brand entity's attribute.
+ * - **Group attribute**: `referenceHaving("brand", groupHaving(attributeEquals("code", "london")))` -- filters on group (Store) entity's attribute.
+ *
+ * ## Single Child Constraint
+ *
+ * The `groupHaving` container accepts exactly one child constraint. If you need multiple filtering conditions, use
+ * a logical container like {@link And} or {@link Or}:
+ *
+ * ```
+ * referenceHaving(
+ *     "brand",
+ *     groupHaving(
+ *         or(
+ *             attributeEquals("code", "store-london"),
+ *             attributeEquals("code", "store-paris")
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * ## Relationship to Other Constraints
+ *
+ * - {@link ReferenceHaving}: The parent container that defines the reference name and provides the filtering context.
+ * - {@link FacetHaving}: Similar to `referenceHaving` but used for faceted filtering; `groupHaving` works identically within both.
+ * - {@link EntityHaving}: A sibling constraint that shifts scope to the referenced entity; `groupHaving` shifts scope to the group entity instead.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#group-having)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
 	name = "groupHaving",
-	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
-		"match inner filtering constraints. This container resembles the SQL inner join clauses where the `groupHaving`" +
-		"contains the filtering condition on particular join.",
+	shortDescription = "The container that shifts the filtering scope to the group entity of the reference, " +
+		"allowing to filter by its attributes and other properties rather than by the reference relation " +
+		"or referenced entity attributes.",
 	userDocsLink = "/documentation/query/filtering/references#group-having",
 	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.FACET, ConstraintDomain.SEGMENT }
 )

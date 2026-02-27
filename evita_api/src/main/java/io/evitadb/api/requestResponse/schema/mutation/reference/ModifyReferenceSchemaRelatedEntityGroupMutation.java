@@ -124,6 +124,7 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 					Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
 				this.referencedGroupTypeManaged,
 				referenceSchema.getReferenceIndexTypeInScopes(),
+				referenceSchema.getIndexedComponentsInScopes(),
 				referenceSchema.getFacetedInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()

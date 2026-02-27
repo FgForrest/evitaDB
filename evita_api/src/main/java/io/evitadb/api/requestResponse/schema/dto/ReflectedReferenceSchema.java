@@ -221,7 +221,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				? null
 				: ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		if (indexedInScopes != null && facetedInScopes != null) {
-			validateScopeSettings(facetedScopes, indexedScopesMap);
+			validateScopeSettings(facetedScopes, indexedScopesMap, indexedComponentsMap);
 		}
 
 		return new ReflectedReferenceSchema(
@@ -302,7 +302,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
 		if (indexedInScopes != null && facetedInScopes != null) {
-			validateScopeSettings(facetedInScopes, indexedInScopes);
+			validateScopeSettings(facetedInScopes, indexedInScopes, indexedComponentsInScopes);
 		}
 
 		return new ReflectedReferenceSchema(
@@ -363,7 +363,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			ReferenceSchema.toIndexedComponentsEnumMap(indexedComponentsInScopes) : null;
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		if (!indexedInherited && !facetedInherited) {
-			validateScopeSettings(facetedScopes, indexedScopesMap);
+			validateScopeSettings(
+				facetedScopes, indexedScopesMap,
+				indexedComponentsInherited ? null : indexedComponentsMap
+			);
 		}
 
 		return new ReflectedReferenceSchema(
@@ -1636,7 +1639,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				.filter(originalReference::isIndexedInScope)
 				.collect(Collectors.toMap(
 					scope -> scope,
-					scope -> ReferenceIndexType.FOR_FILTERING,
+					originalReference::getReferenceIndexType,
 					(existing, replacement) -> existing,
 					() -> new EnumMap<>(Scope.class)
 				)) :
@@ -1649,7 +1652,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				.filter(originalReference::isFacetedInScope)
 				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :
 			this.facetedInScopes;
-		validateScopeSettings(facetedScopes, indexedScopes);
+		validateScopeSettings(facetedScopes, indexedScopes, indexedComponents, this.referencedGroupType);
 
 		return new ReflectedReferenceSchema(
 			this.name,

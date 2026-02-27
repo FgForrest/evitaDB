@@ -24,289 +24,74 @@
 package io.evitadb.core.query.filter.translator.reference;
 
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.filter.EntityScope;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
-import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.core.query.QueryPlanner;
-import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.deferred.DeferredFormula;
-import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
-import io.evitadb.core.query.algebra.reference.ReferenceOwnerTranslatingFormula;
-import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
-import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
-import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.NumberUtils;
-import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link GroupHaving} to {@link AbstractFormula}.
- *
- * TODO JNO - toto nechat Claude zrefaktorovat
- * TODO JNO - nechat dopsat dokumentaci
- * TODO JNO - dopsat testy na filtraci (vybrat správný integrační test)
+ * The translator filters entities by evaluating a nested query against the group entity type of a reference and
+ * then translating the matched group entity primary keys back to owner entity primary keys using group-specific
+ * indexes ({@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} / {@link EntityIndexType#REFERENCED_GROUP_ENTITY}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class GroupHavingTranslator implements FilteringConstraintTranslator<GroupHaving>, SelfTraversingTranslator {
 
-	/**
-	 * Plans and constructs a nested query by for the provided target entity type and filter constraint. The formula
-	 * is cached and computed only once to avoid redundant computation. When the target entity doesn't have a global
-	 * index, an empty formula is returned (since no entities are present there).
-	 *
-	 * @param targetEntityType         The type of the target entity for which the nested query is being planned.
-	 * @param filter                   The filter constraint that applies the necessary filtering logic.
-	 * @param filterByVisitor          The visitor object used for traversing and processing filter constraints.
-	 * @param taskDescriptionSupplier  A supplier that provides a task description used in exception messages
-	 *                                 and logging.
-	 * @return A GlobalIndexAndFormula object containing the global entity index and
-	 *                                 filter formula resulting from planning the nested query.
-	 */
-	@Nonnull
-	private static List<GlobalIndexAndFormula> planNestedQuery(
-		@Nonnull String targetEntityType,
-		@Nonnull FilterConstraint filter,
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull Supplier<String> taskDescriptionSupplier
-	) {
-		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		final EntityCollection targetEntityCollection = filterByVisitor.getEntityCollectionOrThrowException(targetEntityType, taskDescriptionSupplier);
-		final List<GlobalEntityIndex> globalIndexes = processingScope.getScopes()
-			.stream()
-			.map(scope -> targetEntityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
-			.filter(Objects::nonNull)
-			.map(GlobalEntityIndex.class::cast)
-			.toList();
-		if (globalIndexes.isEmpty()) {
-			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
-		} else {
-			final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
-			final FilterConstraint enrichedConstraint = enricher.apply(filter);
-			final FilterBy combinedFilterBy = enrichedConstraint instanceof FilterBy fb ? fb : new FilterBy(enrichedConstraint);
-			final Optional<EntityNestedQueryComparator> entityNestedQueryComparator = ofNullable(processingScope.getEntityNestedQueryComparator());
-
-			return globalIndexes
-				.stream()
-				.map(globalIndex -> new GlobalIndexAndFormula(
-						globalIndex,
-						filterByVisitor.computeOnlyOnce(
-							Collections.singletonList(globalIndex),
-							combinedFilterBy,
-							() -> {
-								final Set<Scope> targetedScopes = EnumSet.noneOf(Scope.class);
-								targetedScopes.addAll(
-									Arrays.asList(
-										ofNullable(
-											QueryUtils.findConstraint(
-												combinedFilterBy, EntityScope.class,
-												SeparateEntityScopeContainer.class
-											)
-										).map(it -> it.getScope().toArray(Scope[]::new))
-											.orElseGet(() -> new Scope[]{globalIndex.getIndexKey().scope()})
-									)
-								);
-								final QueryPlanningContext nestedQueryContext = entityNestedQueryComparator
-									.map(it -> {
-										final Optional<EntityPropertyWithScopes> orderBy = ofNullable(it.getOrderBy());
-										orderBy.ifPresent(ob -> targetedScopes.addAll(ob.scopes()));
-										return targetEntityCollection.createQueryContext(
-											filterByVisitor.getQueryContext(),
-											filterByVisitor.getEvitaRequest().deriveCopyWith(
-												targetEntityType,
-												combinedFilterBy,
-												orderBy.map(EntityPropertyWithScopes::createStandaloneOrderBy).orElse(null),
-												it.getLocale(),
-												targetedScopes
-											),
-											filterByVisitor.getEvitaSession()
-										);
-									})
-									.orElseGet(
-										() -> targetEntityCollection.createQueryContext(
-											filterByVisitor.getQueryContext(),
-											filterByVisitor.getEvitaRequest().deriveCopyWith(
-												targetEntityType,
-												combinedFilterBy,
-												null,
-												null,
-												targetedScopes
-											),
-											filterByVisitor.getEvitaSession()
-										)
-									);
-
-								return QueryPlanner.planNestedQuery(nestedQueryContext, taskDescriptionSupplier)
-									.getFilter();
-							}
-						)
-					)
-				).toList();
-		}
-	}
-
 	@Nonnull
 	@Override
-	public Formula translate(@Nonnull GroupHaving entityHaving, @Nonnull FilterByVisitor filterByVisitor) {
-		final EntitySchemaContract entitySchema = Objects.requireNonNull(filterByVisitor.getProcessingScope().getEntitySchema());
+	public Formula translate(@Nonnull GroupHaving groupHaving, @Nonnull FilterByVisitor filterByVisitor) {
+		final EntitySchemaContract entitySchema = Objects.requireNonNull(
+			filterByVisitor.getProcessingScope().getEntitySchema()
+		);
 		final ReferenceSchemaContract referenceSchema = filterByVisitor
 			.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
-				             "Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
-					             "parent constraint that allows to resolve the entity `" +
-					             entitySchema.getName() + "` referenced entity type."
-			             )
-			);
-		final String referencedEntityType = referenceSchema.getReferencedGroupType();
-		Assert.isTrue(
-			referencedEntityType != null,
-			() -> "Filtering constraint `" + entityHaving + "` targets reference `" + referenceSchema.getName() +
-				"` that does not reference any group type."
+				"Filtering constraint `" + groupHaving + "` needs to be placed within `ReferenceHaving` " +
+					"parent constraint that allows resolving the entity `" +
+					entitySchema.getName() + "` referenced entity type."
+			));
+		final String referencedGroupType = Objects.requireNonNull(
+			referenceSchema.getReferencedGroupType(),
+			() -> "Filtering constraint `" + groupHaving + "` targets reference `" +
+				referenceSchema.getName() + "` that does not reference any group type."
 		);
 		Assert.isTrue(
 			referenceSchema.isReferencedGroupTypeManaged(),
-			() -> "Filtering constraint `" + entityHaving + "` targets entity " +
-				"`" + referenceSchema.getReferencedEntityType() + "` that is not managed by evitaDB."
+			() -> "Filtering constraint `" + groupHaving + "` targets group entity " +
+				"`" + referencedGroupType + "` that is not managed by evitaDB."
 		);
-		final FilterConstraint filterConstraint = entityHaving.getChild();
+		final FilterConstraint filterConstraint = groupHaving.getChild();
 		if (filterConstraint != null) {
-			@SuppressWarnings("unchecked") final ProcessingScope<EntityIndex> processingScope = (ProcessingScope<EntityIndex>) filterByVisitor.getProcessingScope();
-			final Supplier<String> nestedQueryDescription = () -> "filtering reference `" + referenceSchema.getName() +
-				"` by group entity `" + referencedEntityType + "` having: " + filterConstraint;
+			final Supplier<String> nestedQueryDescription = () ->
+				"filtering reference `" + referenceSchema.getName() +
+					"` by group entity `" + referencedGroupType + "` having: " + filterConstraint;
 
-			return FormulaFactory.or(
-				planNestedQuery(
-					referencedEntityType,
-					filterConstraint,
-					filterByVisitor,
-					nestedQueryDescription
-				)
-					.stream()
-					.map(nestedResult -> {
-						if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
-							return FormulaFactory.or(
-								processingScope
-									.getIndexStream()
-									.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
-									.map(ReferencedTypeEntityIndex.class::cast)
-									.map(
-										it -> new ReferencedEntityIndexPrimaryKeyTranslatingFormula(
-										     referenceSchema,
-										     filterByVisitor::getGlobalEntityIndexIfExists,
-										     it,
-										     nestedResult.filter(),
-										     processingScope.getScopes(),
-										     processingScope.getReferencedEntityExpansionFunction()
-									     )
-									)
-									.toArray(Formula[]::new)
-							);
-						} else {
-							if (nestedResult.globalIndex() == null) {
-								return EmptyFormula.INSTANCE;
-							}
-							return filterByVisitor.computeOnlyOnce(
-								List.of(nestedResult.globalIndex()),
-								filterConstraint,
-								() -> {
-									final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
-										nestedResult.globalIndex(),
-										nestedResult.filter(),
-										it -> {
-											// leave the return here, so that we can easily debug it
-											final RoaringBitmap combinedResult = RoaringBitmap.or(
-												filterByVisitor.getReferencedEntityIndexes(entitySchema, referenceSchema, it)
-													.map(EntityIndex::getAllPrimaryKeys)
-													.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-													.toArray(RoaringBitmap[]::new)
-											);
-											return combinedResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
-										}
-									);
-									return new DeferredFormula(
-										new FormulaWrapper(
-											outputFormula,
-											(executionContext, formula) -> {
-												try {
-													executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
-													return formula.compute();
-												} finally {
-													executionContext.popStep();
-												}
-											}
-										)
-									);
-								},
-								2L,
-								// we need to add exact pointers to the entity schema and reference schema, which play role
-								// in the lambda evaluation
-								NumberUtils.join(
-									System.identityHashCode(entitySchema),
-									System.identityHashCode(referenceSchema)
-								),
-								nestedResult.globalIndex() == null ? 0L : nestedResult.globalIndex().getPrimaryKey()
-							);
-						}
-					})
-					.toArray(Formula[]::new)
+			return HavingTranslatorHelper.translateHavingConstraint(
+				filterConstraint,
+				filterByVisitor,
+				entitySchema,
+				referenceSchema,
+				referencedGroupType,
+				referenceSchema.isReferencedGroupTypeManaged(),
+				filterByVisitor::getReferencedGroupEntityIndexes,
+				nestedQueryDescription
 			);
 		}
 		return EmptyFormula.INSTANCE;
-	}
-
-	/**
-	 * Represents a combination of a global entity index and a corresponding filter formula.
-	 * This record is used within the context of query planning and execution to encapsulate
-	 * the necessary components for filtering entities based on specific criteria.
-	 *
-	 * @param globalIndex The global entity index that contains a complete set of indexed data,
-	 *                    including their bodies, for all entities in the collection.
-	 * @param filter      The formula that represents the filter constraints applied to the entities
-	 *                    in the global index.
-	 */
-	private record GlobalIndexAndFormula(
-		@Nullable GlobalEntityIndex globalIndex,
-		@Nonnull Formula filter
-	) {
-
 	}
 
 }

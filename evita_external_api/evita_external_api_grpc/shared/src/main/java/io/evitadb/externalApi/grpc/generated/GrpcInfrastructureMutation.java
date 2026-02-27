@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -697,7 +697,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder> 
         getTransactionMutationFieldBuilder() {
       if (transactionMutationBuilder_ == null) {
         if (!(mutationCase_ == 1)) {

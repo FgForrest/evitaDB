@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@ import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
@@ -48,10 +48,10 @@ import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.Functions;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -160,7 +160,7 @@ public class HierarchyOfReferenceTranslator
 											return createFilterFormula(
 												extraResultPlanner.getQueryContext(),
 												filter,
-												ReducedEntityIndex.class,
+												AbstractReducedEntityIndex.class,
 												entitySchema,
 												reducedIndex,
 												extraResultPlanner.getAttributeSchemaAccessor()

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1659,6 +1659,9 @@ public interface QueryConstraints {
 	 * that identifies the target entity to be subjected to the filtering restrictions in the entityHaving constraint.
 	 * The filtering constraints for the entity can use entire range of filtering operators.
 	 *
+	 * This constraint requires the reference schema to have the `REFERENCED_ENTITY` component enabled in its indexed
+	 * components configuration and a group type defined.
+	 *
 	 * Example:
 	 *
 	 * <pre>
@@ -1678,7 +1681,26 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TODO JNO
+	 * The `groupHaving` constraint is used to examine the attributes or other filterable properties of the group entity
+	 * associated with a reference. It can only be used within the referenceHaving constraint, which defines the name
+	 * of the entity reference whose group entity will be subjected to the filtering restrictions in the groupHaving
+	 * constraint. The filtering constraints for the group entity can use the entire range of filtering operators.
+	 *
+	 * This constraint requires the reference schema to have `REFERENCED_GROUP_ENTITY` component enabled in its indexed
+	 * components configuration.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * referenceHaving(
+	 *     "brand",
+	 *     groupHaving(
+	 *         attributeEquals("code", "store-london")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#group-having">Visit detailed user documentation</a></p>
 	 */
 	@Nullable
 	static GroupHaving groupHaving(@Nullable FilterConstraint filterConstraint) {

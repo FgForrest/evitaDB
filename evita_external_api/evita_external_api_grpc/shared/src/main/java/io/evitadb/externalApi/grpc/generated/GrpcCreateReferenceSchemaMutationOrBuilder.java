@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -437,7 +437,7 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 13;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType> 
       getScopedIndexTypesList();
   /**
    * <pre>
@@ -465,7 +465,7 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 13;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder> 
       getScopedIndexTypesOrBuilderList();
   /**
    * <pre>
@@ -487,7 +487,7 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> 
       getScopedIndexedComponentsList();
   /**
    * <pre>
@@ -518,7 +518,7 @@ public interface GrpcCreateReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
       getScopedIndexedComponentsOrBuilderList();
   /**
    * <pre>

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ public interface GrpcUpdateCatalogSchemaRequestOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation> 
       getSchemaMutationsList();
   /**
    * <pre>
@@ -63,7 +63,7 @@ public interface GrpcUpdateCatalogSchemaRequestOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> 
       getSchemaMutationsOrBuilderList();
   /**
    * <pre>

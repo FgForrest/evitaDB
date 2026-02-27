@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -113,7 +113,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -473,7 +473,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 14;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
       getUniqueInScopesOrBuilderList() {
     return uniqueInScopes_;
   }
@@ -539,7 +539,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder> 
       getUniqueGloballyInScopesOrBuilderList() {
     return uniqueGloballyInScopes_;
   }
@@ -1449,7 +1449,7 @@ private static final long serialVersionUID = 0L;
             uniqueInScopesBuilder_ = null;
             uniqueInScopes_ = other.uniqueInScopes_;
             bitField0_ = (bitField0_ & ~0x00002000);
-            uniqueInScopesBuilder_ =
+            uniqueInScopesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getUniqueInScopesFieldBuilder() : null;
           } else {
@@ -1475,7 +1475,7 @@ private static final long serialVersionUID = 0L;
             uniqueGloballyInScopesBuilder_ = null;
             uniqueGloballyInScopes_ = other.uniqueGloballyInScopes_;
             bitField0_ = (bitField0_ & ~0x00004000);
-            uniqueGloballyInScopesBuilder_ =
+            uniqueGloballyInScopesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getUniqueGloballyInScopesFieldBuilder() : null;
           } else {
@@ -1710,7 +1710,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -1922,7 +1922,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2088,7 +2088,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2834,7 +2834,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 13;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> 
         getDefaultValueFieldBuilder() {
       if (defaultValueBuilder_ == null) {
         defaultValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3117,7 +3117,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 14;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
          getUniqueInScopesOrBuilderList() {
       if (uniqueInScopesBuilder_ != null) {
         return uniqueInScopesBuilder_.getMessageOrBuilderList();
@@ -3158,12 +3158,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 14;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder> 
          getUniqueInScopesBuilderList() {
       return getUniqueInScopesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
         getUniqueInScopesFieldBuilder() {
       if (uniqueInScopesBuilder_ == null) {
         uniqueInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -3447,7 +3447,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder> 
          getUniqueGloballyInScopesOrBuilderList() {
       if (uniqueGloballyInScopesBuilder_ != null) {
         return uniqueGloballyInScopesBuilder_.getMessageOrBuilderList();
@@ -3488,12 +3488,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType.Builder> 
          getUniqueGloballyInScopesBuilderList() {
       return getUniqueGloballyInScopesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder> 
         getUniqueGloballyInScopesFieldBuilder() {
       if (uniqueGloballyInScopesBuilder_ == null) {
         uniqueGloballyInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

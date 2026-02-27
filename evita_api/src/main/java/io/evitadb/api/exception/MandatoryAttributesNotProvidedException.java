@@ -69,7 +69,10 @@ public class MandatoryAttributesNotProvidedException extends InvalidMutationExce
 	 * @param referenceName the name of the reference that has missing mandatory attributes
 	 * @param missingMandatedAttributes list of attribute keys that are required but missing on this reference
 	 */
-	public record MissingReferenceAttribute(@Nonnull String referenceName, @Nonnull List<AttributeKey> missingMandatedAttributes) {}
+	public record MissingReferenceAttribute(
+		@Nonnull String referenceName,
+		@Nonnull List<AttributeKey> missingMandatedAttributes
+	) {}
 
 	/**
 	 * Creates a new exception listing all missing mandatory attributes.
@@ -81,6 +84,17 @@ public class MandatoryAttributesNotProvidedException extends InvalidMutationExce
 	 */
 	public MandatoryAttributesNotProvidedException(@Nonnull String entityName, @Nonnull List<?> missingMandatedAttributes) {
 		super(composeErrorMessage(entityName, missingMandatedAttributes));
+	}
+
+	/**
+	 * Creates a new exception with a pre-composed error message. Used for cases where the standard
+	 * error message composition is not applicable, such as when the entity has no locales but
+	 * non-nullable localized attributes are defined in the schema.
+	 *
+	 * @param message the complete error message
+	 */
+	public MandatoryAttributesNotProvidedException(@Nonnull String message) {
+		super(message);
 	}
 
 	private static String composeErrorMessage(@Nonnull String entityName, @Nonnull List<?> missingMandatedAttributes) {
@@ -107,7 +121,11 @@ public class MandatoryAttributesNotProvidedException extends InvalidMutationExce
 		).collect(Collectors.joining("\n"));
 	}
 
-	private static String composeErrorMessage(@Nonnull String entityName, @Nonnull String reference, @Nonnull List<AttributeKey> missingMandatedAttributes) {
+	private static String composeErrorMessage(
+		@Nonnull String entityName,
+		@Nonnull String reference,
+		@Nonnull List<AttributeKey> missingMandatedAttributes
+	) {
 		final String missingGlobalAttributes = of(missingMandatedAttributes.stream()
 			.filter(it -> it.locale() == null)
 			.map(it -> "`" + it.attributeName() + "`")

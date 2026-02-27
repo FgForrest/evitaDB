@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -301,7 +301,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 14;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType> 
       getUniqueInScopesList();
   /**
    * <pre>
@@ -329,7 +329,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 14;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
       getUniqueInScopesOrBuilderList();
   /**
    * <pre>
@@ -350,7 +350,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType> 
       getUniqueGloballyInScopesList();
   /**
    * <pre>
@@ -378,7 +378,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder> 
       getUniqueGloballyInScopesOrBuilderList();
   /**
    * <pre>

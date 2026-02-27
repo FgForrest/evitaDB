@@ -113,7 +113,18 @@ public final class ReflectedReferenceSchemaBuilder
 							.stream()
 							.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
 							.toArray(ScopedReferenceIndexType[]::new),
-					null,
+					this.baseSchema.isIndexedComponentsInherited()
+						? null
+						: this.baseSchema.getIndexedComponentsInScopes()
+							.entrySet()
+							.stream()
+							.map(
+								it -> new ScopedReferenceIndexedComponents(
+									it.getKey(),
+									it.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+								)
+							)
+							.toArray(ScopedReferenceIndexedComponents[]::new),
 					this.baseSchema.isFacetedInherited() ?
 						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new),
 					this.baseSchema.getAttributesInheritanceBehavior(),
@@ -458,7 +469,8 @@ public final class ReflectedReferenceSchemaBuilder
 	public ReflectedReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = indexedForTypeInScope(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING, inScope
+			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING,
+			getIndexedComponentsInScopes(), inScope
 		);
 		return this;
 	}
@@ -468,7 +480,8 @@ public final class ReflectedReferenceSchemaBuilder
 	public ReflectedReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = indexedForTypeInScope(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, inScope
+			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			getIndexedComponentsInScopes(), inScope
 		);
 		return this;
 	}

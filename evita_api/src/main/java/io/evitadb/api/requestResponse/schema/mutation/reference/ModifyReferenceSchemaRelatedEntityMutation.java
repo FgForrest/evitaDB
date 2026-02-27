@@ -125,6 +125,7 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 					: referenceSchema.getGroupTypeNameVariants(s -> null),
 				referenceSchema.isReferencedGroupTypeManaged(),
 				referenceSchema.getReferenceIndexTypeInScopes(),
+				referenceSchema.getIndexedComponentsInScopes(),
 				referenceSchema.getFacetedInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()

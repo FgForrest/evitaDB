@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -176,7 +176,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder> 
       getEndpointsOrBuilderList() {
     return endpoints_;
   }
@@ -603,7 +603,7 @@ private static final long serialVersionUID = 0L;
             endpointsBuilder_ = null;
             endpoints_ = other.endpoints_;
             bitField0_ = (bitField0_ & ~0x00000008);
-            endpointsBuilder_ =
+            endpointsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getEndpointsFieldBuilder() : null;
           } else {
@@ -1188,7 +1188,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder> 
          getEndpointsOrBuilderList() {
       if (endpointsBuilder_ != null) {
         return endpointsBuilder_.getMessageOrBuilderList();
@@ -1229,12 +1229,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder> 
          getEndpointsBuilderList() {
       return getEndpointsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEndpoint, io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder, io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEndpoint, io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder, io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder> 
         getEndpointsFieldBuilder() {
       if (endpointsBuilder_ == null) {
         endpointsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

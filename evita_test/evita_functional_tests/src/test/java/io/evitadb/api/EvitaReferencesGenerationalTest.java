@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
@@ -68,10 +69,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
 import static org.apache.commons.io.FileUtils.sizeOfDirectory;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -163,6 +161,25 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 					.withAttribute(ATTRIBUTE_CODE, String.class, GlobalAttributeSchemaEditor::uniqueGlobally)
 					.updateVia(session);
 
+				final SealedEntitySchema brandSchema = session.defineEntitySchema(Entities.BRAND)
+					.verifySchemaStrictly()
+					.withGeneratedPrimaryKey()
+					.withoutHierarchy()
+					.withoutPrice()
+					.withLocale(Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN)
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable().localized().sortable().nullable())
+					.updateAndFetchVia(session);
+
+				this.dataGenerator.generateEntities(
+						brandSchema,
+						this.randomEntityPicker,
+						SEED
+					)
+					.limit(5)
+					.map(session::upsertAndFetchEntity)
+					.forEach(it -> this.generatedEntities.put(Entities.BRAND, it.getPrimaryKeyOrThrowException()));
+
 				this.categorySchema = session.defineEntitySchema(Entities.CATEGORY)
 					.verifySchemaStrictly()
 					.withGeneratedPrimaryKey()
@@ -221,6 +238,11 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 						whichIs ->
 							/* we can specify special attributes on relation */
 							whichIs.indexedForFilteringAndPartitioning()
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
 								.withAttribute(ATTRIBUTE_CATEGORY_GROUP, String.class, thatIs -> thatIs.filterable().representative())
 								.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Long.class, thatIs -> thatIs.sortable())
@@ -417,6 +439,11 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 							final Integer categoryPrimaryKey = ref.getReferencedPrimaryKey();
 							final Long categoryPriority = ref.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class);
 							final String categoryGroup = ref.getAttribute(ATTRIBUTE_CATEGORY_GROUP, String.class);
+							assertTrue(
+								ref.getGroup().isPresent(),
+								"Product " + product.getPrimaryKey() + " reference to category " +
+									categoryPrimaryKey + " should have a group entity reference"
+							);
 							expectedProductsIndex.computeIfAbsent(
 								categoryPrimaryKey,
 								k -> new ExpectedProducts()
@@ -456,6 +483,9 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 								"Category " + categoryPrimaryKey + " reference to product " + referenceKey +
 									" has incorrect attribute " + ATTRIBUTE_CATEGORY_GROUP
 							);
+							// Note: reflected references do not carry group entity references
+							// (groups are only stored on the original/owning side of the reference),
+							// so we do not validate groups here on the category (reflected) side.
 						})
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.sorted()
@@ -539,7 +569,12 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 		private final Map<ComparableKey, Long> productPriorities = new HashMap<>(128);
 		private final Map<ComparableKey, String> productGroups = new HashMap<>(128);
 
-		public void addProduct(int productId, @Nonnull ReferenceKey referenceKey, @Nonnull Long priority, @Nonnull String group) {
+		public void addProduct(
+			int productId,
+			@Nonnull ReferenceKey referenceKey,
+			@Nonnull Long priority,
+			@Nonnull String group
+		) {
 			this.productIds.add(productId);
 			final ComparableKey crk = new ComparableKey(productId, referenceKey.internalPrimaryKey());
 			this.productPriorities.put(crk, priority);

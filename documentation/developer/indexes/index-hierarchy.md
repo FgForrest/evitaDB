@@ -117,19 +117,42 @@ filters partitioned by group.
 
 ### REFERENCED_GROUP_ENTITY
 
-Analogous to `REFERENCED_ENTITY` but partitions by the **group entity primary key**. Backed by
-<Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">`ReducedEntityIndex`</Term>.
-Contains the same data structures as `REFERENCED_ENTITY` (entity IDs, reference attributes,
-<Term location="/documentation/developer/indexes/overview.md" name="entity attribute">entity attributes</Term>,
-prices, facets) but the partition key is the group entity PK rather than the referenced entity PK.
+A per-referenced-entity index for **group-based queries**, backed by
+`ReducedGroupEntityIndex`. Unlike `ReducedEntityIndex`, this class adds **cardinality tracking**
+for both primary keys and filter attributes. This is necessary because multiple references from
+different
+<Term location="/documentation/developer/indexes/overview.md" name="owning entity">owning entities</Term>
+can share the same group, causing the same entity primary key and attribute values to be indexed
+multiple times into the same group-level index.
+
+The index is keyed by the **same**
+<Term location="/documentation/developer/indexes/overview.md" name="Representative Reference Key">
+`RepresentativeReferenceKey`</Term> as `REFERENCED_ENTITY` -- the referenced entity PK, not the
+group PK. The group PK is tracked **internally** by `ReducedGroupEntityIndex` via its
+`referencedPrimaryKeysIndex` (which maps referenced entity PKs to bitmaps of owning entity PKs)
+and `pkCardinalities` (which tracks how many times each owning entity PK was added).
+
 The `entityIds` bitmap contains
 <Term location="/documentation/developer/indexes/overview.md" name="owning entity">**owning** entity PKs</Term>
-(same semantics as `REFERENCED_ENTITY`).
+(same semantics as `REFERENCED_ENTITY`), but an owning entity PK is only added to the bitmap
+when its cardinality transitions from 0 to 1, and only removed when it drops back to 0.
+
+Key behavioral differences from `ReducedEntityIndex`:
+
+- **No sort indexes** -- all sort methods are no-ops because an entity may reference multiple
+  entities in the same group, making sort ordering ambiguous
+- **No unique attributes** -- no-ops because multiple entities can reference the same group,
+  making uniqueness checks inappropriate
+- **Filter attributes use cardinality tracking** -- via `AttributeCardinalityIndex`, identical
+  to the mechanism used in `ReferencedTypeEntityIndex`
+- **Two-argument PK insertion/removal** -- `insertPrimaryKeyIfMissing(int, int)` and
+  `removePrimaryKey(int, int)` require both the owning entity PK and the referenced entity PK;
+  single-argument versions throw `UnsupportedOperationException`
 
 **Discriminator:**
 <Term location="/documentation/developer/indexes/overview.md" name="Representative Reference Key">`RepresentativeReferenceKey`</Term>
--- combines the reference name, the **group** entity primary key, and representative attribute
-values.
+-- the same key as `REFERENCED_ENTITY`, combining the reference name, the **referenced** entity
+primary key, and representative attribute values.
 
 
 ## EntityIndexKey
@@ -154,7 +177,7 @@ public record EntityIndexKey(
 | `REFERENCED_ENTITY_TYPE` | LIVE or ARCHIVED | `String` | `(REF_ENTITY_TYPE, LIVE, "brand")` |
 | `REFERENCED_ENTITY` | LIVE or ARCHIVED | `RepresentativeReferenceKey` | `(REF_ENTITY, LIVE, {brand/42, []})` |
 | `REFERENCED_GROUP_ENTITY_TYPE` | LIVE or ARCHIVED | `String` | `(REF_GROUP_TYPE, LIVE, "category")` |
-| `REFERENCED_GROUP_ENTITY` | LIVE or ARCHIVED | `RepresentativeReferenceKey` | `(REF_GROUP, LIVE, {category/7, []})` |
+| `REFERENCED_GROUP_ENTITY` | LIVE or ARCHIVED | `RepresentativeReferenceKey` | `(REF_GROUP, LIVE, {brand/42, []})` |
 
 ### Constructor validation
 
@@ -230,10 +253,22 @@ classDiagram
         +createThrowingStub()$ GlobalEntityIndex
     }
 
-    class ReducedEntityIndex {
+    class AbstractReducedEntityIndex {
+        <<abstract>>
         -PriceRefIndex priceIndex
         +getReferenceKey() ReferenceKey
         +getRepresentativeReferenceKey() RepresentativeReferenceKey
+    }
+
+    class ReducedEntityIndex {
+    }
+
+    class ReducedGroupEntityIndex {
+        -TransactionalMap~Integer‚ Integer~ pkCardinalities
+        -TransactionalMap~Integer‚ TransactionalBitmap~ referencedPrimaryKeysIndex
+        -TransactionalMap~AttributeIndexKey‚ AttributeCardinalityIndex~ cardinalityIndexes
+        +insertPrimaryKeyIfMissing(int, int) bool
+        +removePrimaryKey(int, int) bool
     }
 
     class ReferencedTypeEntityIndex {
@@ -246,8 +281,10 @@ classDiagram
     }
 
     EntityIndex <|-- GlobalEntityIndex
-    EntityIndex <|-- ReducedEntityIndex
+    EntityIndex <|-- AbstractReducedEntityIndex
     EntityIndex <|-- ReferencedTypeEntityIndex
+    AbstractReducedEntityIndex <|-- ReducedEntityIndex
+    AbstractReducedEntityIndex <|-- ReducedGroupEntityIndex
 ```
 
 
@@ -259,7 +296,7 @@ classDiagram
 | `REFERENCED_ENTITY_TYPE` | `ReferencedTypeEntityIndex` | `String` | `VoidPriceIndex` | Yes | Type-level reference attribute filters |
 | `REFERENCED_ENTITY` | `ReducedEntityIndex` | `RepresentativeReferenceKey` | `PriceRefIndex` | No | Per-target partitioned view for fast lookups |
 | `REFERENCED_GROUP_ENTITY_TYPE` | `ReferencedTypeEntityIndex` | `String` | `VoidPriceIndex` | Yes | Group-level reference attribute filters |
-| `REFERENCED_GROUP_ENTITY` | `ReducedEntityIndex` | `RepresentativeReferenceKey` | `PriceRefIndex` | No | Per-group partitioned view for fast lookups |
+| `REFERENCED_GROUP_ENTITY` | `ReducedGroupEntityIndex` | `RepresentativeReferenceKey` | `PriceRefIndex` | Yes (PK + attribute) | Per-group partitioned view with cardinality tracking |
 | `REFERENCED_HIERARCHY_NODE` | *(deprecated)* | `RepresentativeReferenceKey` | -- | -- | Merged into `REFERENCED_ENTITY` |
 
 
@@ -305,8 +342,12 @@ On commit, `createCopyWithMergedTransactionalMemory()` produces a new `GlobalEnt
 <Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">`ReducedEntityIndex`</Term>
 is the
 <Term location="/documentation/developer/indexes/overview.md" name="partitioned view">**partitioned view**</Term>
-that enables O(bitmap-intersection) lookups for reference-based queries. It extends `EntityIndex`
-and adds:
+that enables O(bitmap-intersection) lookups for reference-based queries. It extends
+`AbstractReducedEntityIndex` (which itself extends `EntityIndex`) and adds no additional fields
+beyond the shared base. Its sibling class `ReducedGroupEntityIndex` handles `REFERENCED_GROUP_ENTITY`
+indexes with cardinality tracking (see below).
+
+`AbstractReducedEntityIndex` provides:
 
 - **`PriceRefIndex`** -- a lightweight price index that delegates to the global
   `PriceSuperIndex` for actual price record storage. It maintains its own
@@ -359,6 +400,84 @@ Asserting that every locale removal must succeed would produce false negatives.
   the
   <Term location="/documentation/developer/indexes/overview.md" name="Representative Reference Key">`RepresentativeReferenceKey`</Term>
   discriminator. It must never return null.
+
+
+## ReducedGroupEntityIndex -- Deep Dive
+
+`ReducedGroupEntityIndex` is a specialization of `AbstractReducedEntityIndex` that adds
+**cardinality tracking** for primary keys and filter attributes. It handles
+`REFERENCED_GROUP_ENTITY` indexes and is created when a reference schema has
+`ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY` enabled.
+
+### Why cardinality tracking is needed
+
+Multiple references from different
+<Term location="/documentation/developer/indexes/overview.md" name="owning entity">owning entities</Term>
+can share the same group. Consider products P1 and P2 both referencing brand B1 with group G1:
+both P1 and P2 are indexed into the same `ReducedGroupEntityIndex`. Without cardinality tracking:
+
+- The sort index would fail with "Record id already present!" errors when the same entity PK
+  is inserted twice
+- Removing one reference would incorrectly remove data that still belongs to the other reference
+
+### Keying strategy
+
+The `ReducedGroupEntityIndex` is keyed by the **same** `RepresentativeReferenceKey` as
+`ReducedEntityIndex` -- containing the referenced entity PK, not the group PK. The group
+relationship is tracked internally:
+
+- **`referencedPrimaryKeysIndex`** (`Map<Integer, TransactionalBitmap>`) -- maps referenced
+  entity PKs to bitmaps of owning entity PKs within this group index
+- **`pkCardinalities`** (`Map<Integer, Integer>`) -- tracks how many times each owning entity
+  PK has been added
+
+### PK cardinality semantics
+
+The single-argument `insertPrimaryKeyIfMissing(int)` and `removePrimaryKey(int)` are
+**overridden to throw `UnsupportedOperationException`**. Callers must use:
+
+- `insertPrimaryKeyIfMissing(int entityPrimaryKey, int referencedEntityPrimaryKey)` --
+  increments the cardinality counter. Only when the counter transitions from 0 to 1 is
+  the entity PK actually added to the `entityIds` bitmap.
+- `removePrimaryKey(int entityPrimaryKey, int referencedEntityPrimaryKey)` -- decrements
+  the cardinality counter. Only when the counter reaches 0 is the entity PK removed
+  from the `entityIds` bitmap.
+
+### Attribute handling
+
+| Feature | ReducedEntityIndex | ReducedGroupEntityIndex |
+|---|---|---|
+| Filter indexes | Direct delegation | Cardinality-tracked via `AttributeCardinalityIndex` |
+| Sort indexes | Maintained | **No-op** (ambiguous ordering) |
+| Unique indexes | Maintained | **No-op** (uniqueness inappropriate) |
+| Sort attribute compounds | Maintained | **No-op** |
+
+Filter attributes are tracked with the same `AttributeCardinalityIndex` mechanism used in
+`ReferencedTypeEntityIndex`. A value is only inserted into the underlying `FilterIndex` when
+its cardinality transitions from 0 to 1, and only removed when it drops back to 0.
+
+Sort and unique indexes are intentionally not maintained because an entity may reference
+multiple target entities within the same group, making unambiguous sorting and uniqueness
+enforcement impossible.
+
+### Test Blueprint Hints
+
+- **Cardinality add/remove:** Adding the same entity PK twice (via two different referenced
+  entity PKs) must result in a single entry in `entityIds`. Removing one must NOT remove
+  the entry -- only the second removal (cardinality reaching 0) should.
+- **Filter attribute cardinality:** Inserting the same filter attribute value for two different
+  record IDs must result in a single entry in the underlying `FilterIndex`. Removing one must
+  leave the entry; removing the second must remove it.
+- **No sort indexes:** Calling `insertSortAttribute()` must be a silent no-op (no exception,
+  no state change).
+- **No unique indexes:** Calling `insertUniqueAttribute()` must be a silent no-op.
+- **UnsupportedOperationException:** Calling the single-argument `insertPrimaryKeyIfMissing(int)`
+  must throw `UnsupportedOperationException`.
+- **Emptiness:** `isEmpty()` must check both the base `EntityIndex` emptiness conditions AND
+  `pkCardinalities.isEmpty()`.
+- **Subset invariant:** Every PK in a `ReducedGroupEntityIndex` for
+  <Term location="/documentation/developer/indexes/overview.md" name="scope">scope</Term>
+  S must also exist in the `GlobalEntityIndex` for scope S.
 
 
 ## ReferencedTypeEntityIndex -- Deep Dive

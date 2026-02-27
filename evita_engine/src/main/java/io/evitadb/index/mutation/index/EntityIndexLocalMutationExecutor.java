@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,9 +58,9 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.dataType.Scope;
@@ -95,6 +95,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToIntBiFunction;
 
@@ -179,17 +180,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Memoized scope of the current entity.
 	 */
 	private Scope memoizedScope;
-
-	/**
-	 * Constructs an {@link EntityIndexKey} for a referenced entity type using the specified reference name.
-	 *
-	 * @param referenceName The name of the reference for which the index key should be created.
-	 * @return An instance of {@link EntityIndexKey} corresponding to the referenced entity type.
-	 */
-	@Nonnull
-	private static EntityIndexKey getReferencedTypeIndexKey(@Nonnull String referenceName, @Nonnull Scope scope) {
-		return new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName);
-	}
 
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -291,23 +281,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				// when new upserted price is not indexed, it is removed from indexes, so we need to behave like removal
 				(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isIndexed())) {
 				// removal must first occur on the reduced indexes, because they consult the super index
-				ReferenceIndexMutator.executeWithReferenceIndexes(
-					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
-					this,
+				final ReferenceIndexConsumer priceRemovalConsumer =
 					(referenceSchema, indexForRemoval, indexForUpsert) ->
-						updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert),
-					true
+						updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert);
+				ReferenceIndexMutator.executeWithAllReferenceIndexes(
+					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceRemovalConsumer, true
 				);
 				updatePriceIndex(null, priceMutation, globalIndex, globalIndex);
 			} else {
 				// upsert must first occur on super index, because reduced indexed rely on information in super index
 				updatePriceIndex(null, priceMutation, globalIndex, globalIndex);
-				ReferenceIndexMutator.executeWithReferenceIndexes(
-					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
-					this,
+				final ReferenceIndexConsumer priceUpsertConsumer =
 					(referenceSchema, indexForRemoval, indexForUpsert) ->
-						updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert),
-					true
+						updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert);
+				ReferenceIndexMutator.executeWithAllReferenceIndexes(
+					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceUpsertConsumer, true
 				);
 			}
 		} else if (localMutation instanceof ParentMutation parentMutation) {
@@ -317,15 +305,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final ReferenceSchemaContract referenceSchema = getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
 			if (referenceSchema.isIndexedInScope(getScope())) {
 				updateReferences(referenceMutation, globalIndex);
-				ReferenceIndexMutator.executeWithReferenceIndexes(
-					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
-					this,
+				final ReferenceIndexConsumer crossRefConsumer =
 					(theReferenceSchema, indexForRemoval, indexForUpsert) -> updateReferencesInReferenceIndex(
 						referenceMutation, theReferenceSchema, indexForRemoval, indexForUpsert
-					),
+					);
+				final Predicate<ReferenceContract> crossRefPredicate =
 					// avoid indexing the referenced index that got updated by updateReferences method
-					referenceContract -> !referenceKey.equalsInGeneral(referenceContract.getReferenceKey()),
-					!(referenceMutation instanceof InsertReferenceMutation)
+					referenceContract -> !referenceKey.equalsInGeneral(referenceContract.getReferenceKey());
+				final boolean presenceExpected = !(referenceMutation instanceof InsertReferenceMutation);
+				ReferenceIndexMutator.executeWithAllReferenceIndexes(
+					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
+					crossRefConsumer, crossRefPredicate, presenceExpected
 				);
 			}
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
@@ -343,13 +333,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				);
 			//noinspection DataFlowIssue
 			attributeUpdateApplicator.accept(true, globalIndex, globalIndex, null);
-			ReferenceIndexMutator.executeWithReferenceIndexes(
-				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
-				this,
-				(theReferenceSchema,indexForRemoval, indexForUpsert) ->
-					attributeUpdateApplicator.accept(false, indexForRemoval, indexForUpsert, theReferenceSchema),
-				Droppable::exists,
-				true
+			final ReferenceIndexConsumer attrConsumer =
+				(theReferenceSchema, indexForRemoval, indexForUpsert) ->
+					attributeUpdateApplicator.accept(false, indexForRemoval, indexForUpsert, theReferenceSchema);
+			ReferenceIndexMutator.executeWithAllReferenceIndexes(
+				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
+				attrConsumer, Droppable::exists, true
 			);
 		} else if (localMutation instanceof AssociatedDataMutation) {
 			// do nothing, associated data doesn't affect entity index directly
@@ -437,6 +426,136 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Extracts the primary key of the active (non-dropped) group from the given reference,
+	 * or returns null if no active group is assigned.
+	 *
+	 * @param reference the reference contract to extract the group from
+	 * @return the group primary key, or null if no active group exists
+	 */
+	@Nullable
+	private static Integer extractActiveGroupPrimaryKey(@Nonnull ReferenceContract reference) {
+		return reference.getGroup()
+			.filter(Droppable::exists)
+			.map(GroupEntityReference::getPrimaryKey)
+			.orElse(null);
+	}
+
+	/**
+	 * Removes the entity from group-level indexes associated with the given reference key.
+	 * Looks up the reference from storage and delegates to
+	 * {@link #removeFromGroupIndexes(int, EntitySchema, ReferenceSchemaContract, RepresentativeReferenceKey, ReferenceKey, ReferenceContract, Scope, ExistingDataSupplierFactory)}.
+	 *
+	 * @param epk                    the entity primary key
+	 * @param entitySchema           the entity schema
+	 * @param referenceSchema        the reference schema
+	 * @param rrk                    the entity-level representative reference key
+	 * @param referenceKey           the reference key
+	 * @param scope                  the current scope
+	 * @param existingDataFactory    factory supplying existing data for the removal
+	 */
+	private void removeFromGroupIndexes(
+		int epk,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull RepresentativeReferenceKey rrk,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Scope scope,
+		@Nonnull ExistingDataSupplierFactory existingDataFactory
+	) {
+		final ReferenceContract existingReference = getReferencesStoragePart()
+			.findReferenceOrThrowException(referenceKey);
+		removeFromGroupIndexes(
+			epk, entitySchema, referenceSchema, rrk, referenceKey,
+			existingReference, scope, existingDataFactory
+		);
+	}
+
+	/**
+	 * Removes the entity from group-level indexes associated with the given reference.
+	 * Does nothing if the reference has no active group.
+	 *
+	 * @param epk                    the entity primary key
+	 * @param entitySchema           the entity schema
+	 * @param referenceSchema        the reference schema
+	 * @param rrk                    the entity-level representative reference key
+	 * @param referenceKey           the reference key
+	 * @param existingReference      the existing reference contract (already resolved)
+	 * @param scope                  the current scope
+	 * @param existingDataFactory    factory supplying existing data for the removal
+	 */
+	private void removeFromGroupIndexes(
+		int epk,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull RepresentativeReferenceKey rrk,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceContract existingReference,
+		@Nonnull Scope scope,
+		@Nonnull ExistingDataSupplierFactory existingDataFactory
+	) {
+		final Integer groupPK = extractActiveGroupPrimaryKey(existingReference);
+		if (groupPK != null) {
+			final ReferencedTypeEntityIndex groupTypeIndex =
+				ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
+					this, rrk.referenceName(), scope
+				);
+			// use rrk (with referenced entity PK) as the discriminator — the type index
+			// mapping is keyed by groupPK separately via the referencedPrimaryKey parameter
+			final AbstractReducedEntityIndex groupIndex = ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
+				this, rrk, scope
+			);
+			ReferenceIndexMutator.referenceRemovalPerComponent(
+				epk, entitySchema, referenceSchema, this,
+				groupTypeIndex, groupIndex, referenceKey, groupPK,
+				existingDataFactory, this.undoActionsAppender
+			);
+		}
+	}
+
+	/**
+	 * Inserts the entity into group-level indexes for the given group primary key.
+	 * Creates or retrieves the group type index and group reduced index, then delegates
+	 * to {@link ReferenceIndexMutator#referenceInsertPerComponent}.
+	 *
+	 * @param epk                        the entity primary key
+	 * @param entitySchema               the entity schema
+	 * @param referenceSchema            the reference schema
+	 * @param rrk                        the entity-level representative reference key
+	 * @param referenceKey               the reference key
+	 * @param groupPK                    the group primary key
+	 * @param scope                      the current scope
+	 * @param existingDataSupplierFactory factory supplying existing data for the insertion
+	 */
+	private void insertIntoGroupIndexes(
+		int epk,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull RepresentativeReferenceKey rrk,
+		@Nonnull ReferenceKey referenceKey,
+		int groupPK,
+		@Nonnull Scope scope,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
+		final ReferencedTypeEntityIndex groupTypeIndex =
+			ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
+				this, rrk.referenceName(), scope
+			);
+		// use rrk (with referenced entity PK) as the discriminator — the type index
+		// mapping is keyed by groupPK separately via the referencedPrimaryKey parameter
+		final AbstractReducedEntityIndex groupIndex =
+			ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
+				this, rrk, scope
+			);
+		ReferenceIndexMutator.referenceInsertPerComponent(
+			epk, entitySchema, referenceSchema, this,
+			groupTypeIndex, groupIndex, referenceKey,
+			groupPK, groupPK,
+			existingDataSupplierFactory,
+			this.undoActionsAppender
+		);
+	}
+
+	/**
 	 * Retrieves the ReferencesStoragePart instance associated with the entity type and primary key index.
 	 *
 	 * @return a non-null ReferencesStoragePart instance containing reference storage data
@@ -514,32 +633,79 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		);
 		if (bothKeys.differ() && (this.createdReferences == null || !this.createdReferences.contains(bothKeys.current()))) {
 			final EntitySchema entitySchema = getEntitySchema();
-			// we need to remove entity from the old reduced entity index
-			final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
-			final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
-			final ReducedEntityIndex formerReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-				this, bothKeys.stored(), scope
-			);
-			final ReducedEntityIndex newReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-				this, bothKeys.current(), scope
-			);
 			existingStoragePartFactory.executeWithRepresentativeReferenceKeyAlias(
 				bothKeys.current(), bothKeys.stored(),
 				() -> {
-					ReferenceIndexMutator.referenceRemoval(
-						entityPrimaryKey, entitySchema, referenceSchema, this,
-						globalEntityIndex, referenceTypeIndex, formerReferenceIndex,
-						referenceKey,
-						existingStoragePartFactory,
-						this.undoActionsAppender
+					// global: always — migrate facet between representative keys
+					ReferenceIndexMutator.referenceRemovalGlobal(
+						entityPrimaryKey, referenceSchema, globalEntityIndex,
+						referenceKey, this, this.undoActionsAppender
 					);
-					// and move it to the new one
-					ReferenceIndexMutator.referenceInsert(
-						entityPrimaryKey, entitySchema, referenceSchema, this,
-						globalEntityIndex, referenceTypeIndex, newReferenceIndex, referenceKey, null,
-						existingStoragePartFactory,
-						this.undoActionsAppender
+					ReferenceIndexMutator.referenceInsertGlobal(
+						entityPrimaryKey, referenceSchema, globalEntityIndex,
+						referenceKey, null, this, this.undoActionsAppender
 					);
+					// entity component migration (only when configured)
+					if (ReferenceIndexMutator.isIndexedForEntityComponent(referenceSchema, scope)) {
+						final ReferencedTypeEntityIndex referenceTypeIndex =
+							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
+								this, referenceKey.referenceName(), scope
+							);
+						final ReducedEntityIndex formerReferenceIndex =
+							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
+								this, bothKeys.stored(), scope
+							);
+						final ReducedEntityIndex newReferenceIndex =
+							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
+								this, bothKeys.current(), scope
+							);
+						ReferenceIndexMutator.referenceRemovalPerComponent(
+							entityPrimaryKey, entitySchema, referenceSchema, this,
+							referenceTypeIndex, formerReferenceIndex, referenceKey,
+							referenceKey.primaryKey(),
+							existingStoragePartFactory, this.undoActionsAppender
+						);
+						ReferenceIndexMutator.referenceInsertPerComponent(
+							entityPrimaryKey, entitySchema, referenceSchema, this,
+							referenceTypeIndex, newReferenceIndex, referenceKey,
+							referenceKey.primaryKey(), null,
+							existingStoragePartFactory, this.undoActionsAppender
+						);
+					}
+					// group component migration (if group indexing enabled and group exists)
+					if (ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope)) {
+						final ReferenceContract reference = getReferencesStoragePart()
+							.findReference(referenceKey)
+							.orElse(null);
+						if (reference != null) {
+							final Integer groupPK = extractActiveGroupPrimaryKey(reference);
+							if (groupPK != null) {
+								// use entity-level RRKs (with referenced entity PK) as group index discriminator
+								final ReferencedTypeEntityIndex groupTypeIndex =
+									ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
+										this, referenceKey.referenceName(), scope
+									);
+								final ReducedGroupEntityIndex formerGroupIndex =
+									ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
+										this, bothKeys.stored(), scope
+									);
+								final ReducedGroupEntityIndex newGroupIndex =
+									ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
+										this, bothKeys.current(), scope
+									);
+								ReferenceIndexMutator.referenceRemovalPerComponent(
+									entityPrimaryKey, entitySchema, referenceSchema, this,
+									groupTypeIndex, formerGroupIndex, referenceKey, groupPK,
+									existingStoragePartFactory, this.undoActionsAppender
+								);
+								ReferenceIndexMutator.referenceInsertPerComponent(
+									entityPrimaryKey, entitySchema, referenceSchema, this,
+									groupTypeIndex, newGroupIndex, referenceKey, groupPK, groupPK,
+									existingStoragePartFactory, this.undoActionsAppender
+								);
+							}
+						}
+					}
 				}
 			);
 		}
@@ -761,10 +927,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		ReferenceSchemaContract referenceSchema = null;
-		if (targetIndex instanceof ReducedEntityIndex reducedEntityIndex &&
+		if (targetIndex instanceof AbstractReducedEntityIndex reducedEntityIndex &&
 			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey referenceKey) {
-			referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+			final ReferenceSchemaContract referenceSchema = entitySchema
+				.getReferenceOrThrowException(referenceKey.referenceName());
 			if (ReferenceIndexMutator.isIndexedReferenceForFilteringAndPartitioning(referenceSchema, getScope())) {
 				ReferenceIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 					this,
@@ -778,7 +944,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		} else {
 			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 				this,
-				referenceSchema,
+				null,
 				targetIndex,
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
@@ -805,7 +971,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		ReferenceSchemaContract referenceSchema = null;
-		if (targetIndex instanceof ReducedEntityIndex reducedEntityIndex &&
+		if (targetIndex instanceof AbstractReducedEntityIndex reducedEntityIndex &&
 			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey referenceKey) {
 			final String referenceName = referenceKey.referenceName();
 			referenceSchema = entitySchema.getReference(referenceName)
@@ -977,7 +1143,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Attributes are held in these indexes:
 	 *
 	 * - {@link GlobalEntityIndex}
-	 * - {@link ReducedEntityIndex}
+	 * - {@link AbstractReducedEntityIndex}
 	 *
 	 * @param entity                      The entity whose global attributes are to be unindexed.
 	 * @param entitySchema                The schema contract defining the attributes and their metadata for the entity.
@@ -1023,7 +1189,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * attributes are held in these indexes:
 	 *
 	 * - {@link ReferencedTypeEntityIndex}
-	 * - {@link ReducedEntityIndex}
+	 * - {@link AbstractReducedEntityIndex}
 	 *
 	 * @param entity                      The entity whose references are to be unindexed
 	 * @param scope                       The scope in which the references are to be unindexed
@@ -1047,17 +1213,36 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					epk, globalIndex, referenceKey, referenceSchema, true
 				);
 				if (ReferenceIndexMutator.isIndexedReferenceForFiltering(referenceSchema, scope)) {
-					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
-					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
-					final ReducedEntityIndex mainReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-						this, rrk, scope
+					// global: always — remove facet from global index
+					ReferenceIndexMutator.referenceRemovalGlobal(
+						epk, referenceSchema, globalIndex, referenceKey,
+						this, this.undoActionsAppender
 					);
-					ReferenceIndexMutator.referenceRemoval(
-						epk, entitySchema, referenceSchema, this,
-						globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey,
-						existingDataSupplierFactory,
-						this.undoActionsAppender
-					);
+					// entity component: entity type index + entity reduced index (only when configured)
+					if (ReferenceIndexMutator.isIndexedForEntityComponent(referenceSchema, scope)) {
+						final ReferencedTypeEntityIndex referenceTypeIndex =
+							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
+								this, referenceKey.referenceName(), scope
+							);
+						final ReducedEntityIndex mainReferenceIndex =
+							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
+								this, rrk, scope
+							);
+						ReferenceIndexMutator.referenceRemovalPerComponent(
+							epk, entitySchema, referenceSchema, this,
+							referenceTypeIndex, mainReferenceIndex, referenceKey,
+							referenceKey.primaryKey(),
+							existingDataSupplierFactory,
+							this.undoActionsAppender
+						);
+					}
+					// group component: independent — group type index + group reduced index
+					if (ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope)) {
+						removeFromGroupIndexes(
+							epk, entitySchema, referenceSchema, rrk, referenceKey,
+							reference, scope, existingDataSupplierFactory
+						);
+					}
 				}
 			}
 		}
@@ -1180,7 +1365,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Indexes all global attributes for a given entity. Attributes are held in these indexes:
 	 *
 	 * - {@link GlobalEntityIndex}
-	 * - {@link ReducedEntityIndex}
+	 * - {@link AbstractReducedEntityIndex}
 	 *
 	 * @param entity                      The entity containing attributes to be indexed.
 	 * @param entitySchema                The schema contract of the entity providing attribute definitions.
@@ -1302,7 +1487,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * updating the global index and any relevant entity indexes. Reference attributes are held in these indexes:
 	 *
 	 * - {@link ReferencedTypeEntityIndex}
-	 * - {@link ReducedEntityIndex}
+	 * - {@link AbstractReducedEntityIndex}
 	 *
 	 * @param entity                      The entity containing references to be indexed.
 	 * @param scope                       The scope within which indexing is to be performed.
@@ -1326,35 +1511,55 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					epk, globalIndex, referenceKey, referenceSchema, true
 				);
 				if (ReferenceIndexMutator.isIndexedReferenceForFiltering(referenceSchema, scope)) {
-					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(rrk.referenceName(), scope);
-					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
-					final ReducedEntityIndex mainReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-						this, rrk, scope
+					final Integer groupId = extractActiveGroupPrimaryKey(reference);
+					// global: always — add facet to global index
+					ReferenceIndexMutator.referenceInsertGlobal(
+						epk, referenceSchema, globalIndex, referenceKey, groupId,
+						this, this.undoActionsAppender
 					);
-					final Integer groupId = reference.getGroup().filter(Droppable::exists).map(GroupEntityReference::getPrimaryKey).orElse(null);
-					ReferenceIndexMutator.referenceInsert(
-						epk, entitySchema, referenceSchema, this,
-						globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey, groupId,
-						existingDataSupplierFactory,
-						this.undoActionsAppender
-					);
-					if (referenceSchema.isFacetedInScope(scope)) {
-						for (ReferenceContract otherReferences : entity.getReferences()) {
-							if (ReferenceKey.FULL_COMPARATOR.compare(rrk.referenceKey(), otherReferences.getReferenceKey()) != 0) {
-								final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-									this, rrk, scope
-								);
-								ReferenceIndexMutator.addFacetToIndex(
-									referenceIndex,
-									referenceSchema,
-									referenceKey,
-									groupId,
-									epk,
-									this,
-									this.undoActionsAppender
-								);
+					// entity component: entity type index + entity reduced index (only when configured)
+					if (ReferenceIndexMutator.isIndexedForEntityComponent(referenceSchema, scope)) {
+						final ReferencedTypeEntityIndex referenceTypeIndex =
+							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
+								this, rrk.referenceName(), scope
+							);
+						final ReducedEntityIndex mainReferenceIndex =
+							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
+								this, rrk, scope
+							);
+						ReferenceIndexMutator.referenceInsertPerComponent(
+							epk, entitySchema, referenceSchema, this,
+							referenceTypeIndex, mainReferenceIndex, referenceKey,
+							referenceKey.primaryKey(), groupId,
+							existingDataSupplierFactory,
+							this.undoActionsAppender
+						);
+						// cross-reference facet indexing: only when entity component is enabled
+						if (referenceSchema.isFacetedInScope(scope)) {
+							for (ReferenceContract otherRef : entity.getReferences()) {
+								if (ReferenceKey.FULL_COMPARATOR.compare(
+									rrk.referenceKey(), otherRef.getReferenceKey()
+								) != 0) {
+									ReferenceIndexMutator.addFacetToIndex(
+										mainReferenceIndex,
+										referenceSchema,
+										referenceKey,
+										groupId,
+										epk,
+										this,
+										this.undoActionsAppender
+									);
+								}
 							}
 						}
+					}
+					// group component: independent — group type index + group reduced index
+					if (groupId != null &&
+						ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope)) {
+						insertIntoGroupIndexes(
+							epk, entitySchema, referenceSchema, rrk, referenceKey,
+							groupId, scope, existingDataSupplierFactory
+						);
 					}
 				}
 			}
@@ -1362,7 +1567,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Applies passed consumer function on all {@link ReducedEntityIndex} related to currently existing
+	 * Applies passed consumer function on all {@link AbstractReducedEntityIndex} related to currently existing
 	 * {@link ReferenceContract} of the entity.
 	 */
 	private void applyOnExistingReducedIndexes(
@@ -1380,17 +1585,51 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					theReferenceSchema = entitySchema.getReferenceOrThrowException(refKey.referenceName());
 					referenceSchema.set(theReferenceSchema);
 				}
-				final List<ReducedEntityIndex> allReducedIndexes = ContainerizedLocalMutationExecutor.getAllReducedIndexes(
-					eik -> (ReferencedTypeEntityIndex) getOrCreateIndex(eik),
-					eik -> (ReducedEntityIndex) getOrCreateIndex(eik),
-					epk -> getIndexByPrimaryKey(epk).map(ReducedEntityIndex.class::cast).orElse(null),
-					scope,
-					theReferenceSchema.getName(),
-					refKey.primaryKey(),
-					theReferenceSchema.getCardinality().allowsDuplicates()
-				);
-				for (ReducedEntityIndex reducedIndex : allReducedIndexes) {
-					entityIndexConsumer.accept(theReferenceSchema, reducedIndex);
+				// entity reduced indexes (only when entity component is configured)
+				if (ReferenceIndexMutator.isIndexedForEntityComponent(theReferenceSchema, scope)) {
+					final List<ReducedEntityIndex> allReducedIndexes =
+						ContainerizedLocalMutationExecutor.getAllReducedIndexes(
+							eik -> ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(this, eik),
+							eik -> (ReducedEntityIndex) getOrCreateIndex(eik),
+							epk -> getIndexByPrimaryKey(epk).map(ReducedEntityIndex.class::cast).orElse(null),
+							scope,
+							theReferenceSchema.getName(),
+							refKey.primaryKey(),
+							theReferenceSchema.getCardinality().allowsDuplicates(),
+							EntityIndexType.REFERENCED_ENTITY_TYPE,
+							EntityIndexType.REFERENCED_ENTITY
+						);
+					for (ReducedEntityIndex reducedIndex : allReducedIndexes) {
+						entityIndexConsumer.accept(theReferenceSchema, reducedIndex);
+					}
+				}
+				// group reduced indexes
+				if (ReferenceIndexMutator.isIndexedForGroupComponent(theReferenceSchema, scope)) {
+					final ReferenceContract reference = getReferencesStoragePart()
+						.findReference(refKey)
+						.orElse(null);
+					if (reference != null) {
+						final Integer groupPK = extractActiveGroupPrimaryKey(reference);
+						if (groupPK != null) {
+							final List<ReducedGroupEntityIndex> groupReducedIndexes =
+								ContainerizedLocalMutationExecutor.getAllReducedIndexes(
+									eik -> ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(this, eik),
+									eik -> (ReducedGroupEntityIndex) getOrCreateIndex(eik),
+									epk -> getIndexByPrimaryKey(epk).map(ReducedGroupEntityIndex.class::cast).orElse(null),
+									scope,
+									theReferenceSchema.getName(),
+									groupPK,
+									// always use type index path — group index discriminator uses referenced entity PK,
+									// not group PK, so direct key construction would fail
+									true,
+									EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
+									EntityIndexType.REFERENCED_GROUP_ENTITY
+								);
+							for (AbstractReducedEntityIndex groupIndex : groupReducedIndexes) {
+								entityIndexConsumer.accept(theReferenceSchema, groupIndex);
+							}
+						}
+					}
 				}
 			});
 	}
@@ -1405,79 +1644,178 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.NEW);
 		final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
 		final ReferenceSchema referenceSchema = getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
+		final boolean entityComponentEnabled = ReferenceIndexMutator.isIndexedForEntityComponent(referenceSchema, scope);
+		final boolean groupIndexingEnabled = ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope);
 
 		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
 			final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(epk, entityIndex, referenceKey, referenceSchema, true);
-			final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+			// update facet group in global index (always)
 			ReferenceIndexMutator.setFacetGroupInIndex(
 				epk, entityIndex, referenceSchema,
 				upsertReferenceGroupMutation.getReferenceKey(),
 				upsertReferenceGroupMutation.getGroupPrimaryKey(),
 				this
 			);
-			ReferenceIndexMutator.setFacetGroupInIndex(
-				epk, referenceIndex, referenceSchema,
-				upsertReferenceGroupMutation.getReferenceKey(),
-				upsertReferenceGroupMutation.getGroupPrimaryKey(),
-				this
-			);
+			// entity component: update facet group in entity reduced index
+			if (entityComponentEnabled) {
+				final ReducedEntityIndex referenceIndex =
+					ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+				ReferenceIndexMutator.setFacetGroupInIndex(
+					epk, referenceIndex, referenceSchema,
+					upsertReferenceGroupMutation.getReferenceKey(),
+					upsertReferenceGroupMutation.getGroupPrimaryKey(),
+					this
+				);
+			}
+			// group component: remove old group index, create new group index
+			if (groupIndexingEnabled) {
+				final EntitySchema entitySchema = getEntitySchema();
+				final EntityStoragePartExistingDataFactory existingStoragePartFactory = getStoragePartExistingDataFactory();
+				// remove from old group indexes (if old group existed)
+				removeFromGroupIndexes(
+					epk, entitySchema, referenceSchema, rrk, referenceKey,
+					scope, existingStoragePartFactory
+				);
+				// insert into new group indexes
+				final int newGroupPK = upsertReferenceGroupMutation.getGroupPrimaryKey();
+				insertIntoGroupIndexes(
+					epk, entitySchema, referenceSchema, rrk, referenceKey,
+					newGroupPK, scope, existingStoragePartFactory
+				);
+			}
 		} else if (referenceMutation instanceof RemoveReferenceGroupMutation removeReferenceGroupMutation) {
 			final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(epk, entityIndex, referenceKey, referenceSchema, true);
-			final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+			// update facet group in global index (always)
 			ReferenceIndexMutator.removeFacetGroupInIndex(
 				epk, entityIndex, referenceSchema,
 				removeReferenceGroupMutation.getReferenceKey(),
 				this
 			);
-			ReferenceIndexMutator.removeFacetGroupInIndex(
-				epk, referenceIndex, referenceSchema,
-				removeReferenceGroupMutation.getReferenceKey(),
-				this
-			);
+			// entity component: update facet group in entity reduced index
+			if (entityComponentEnabled) {
+				final ReducedEntityIndex referenceIndex =
+					ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+				ReferenceIndexMutator.removeFacetGroupInIndex(
+					epk, referenceIndex, referenceSchema,
+					removeReferenceGroupMutation.getReferenceKey(),
+					this
+				);
+			}
+			// group component: remove from group indexes
+			if (groupIndexingEnabled) {
+				removeFromGroupIndexes(
+					epk, getEntitySchema(), referenceSchema, rrk, referenceKey,
+					scope, getStoragePartExistingDataFactory()
+				);
+			}
 		} else {
 			if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
 				final AttributeMutation attributeMutation = referenceAttributesUpdateMutation.getAttributeMutation();
 				final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(epk, entityIndex, referenceKey, referenceSchema, true);
-				// if the mutation changes the representative attribute value
 				final EntityStoragePartExistingDataFactory existingStoragePartFactory = getStoragePartExistingDataFactory();
-				final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(
-					getReferencedTypeIndexKey(referenceKey.referenceName(), scope)
-				);
-				final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
-				ReferenceIndexMutator.attributeUpdate(
-					this, existingStoragePartFactory,
-					referenceTypeIndex,
-					// we may pass the same index for both removal and upsert, because in method `getRepresentativeReferenceKey`
-					// all the data are migrated to the target index already
-					referenceIndex, referenceIndex,
-					referenceSchema, referenceKey, attributeMutation
-				);
+				// entity component: attribute update on entity type index + entity reduced index
+				if (entityComponentEnabled) {
+					final ReferencedTypeEntityIndex referenceTypeIndex =
+						ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
+							this, referenceKey.referenceName(), scope
+						);
+					final ReducedEntityIndex referenceIndex =
+						ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+					ReferenceIndexMutator.attributeUpdate(
+						this, existingStoragePartFactory,
+						referenceTypeIndex,
+						// we may pass the same index for both removal and upsert, because in
+						// method `getRepresentativeReferenceKey` all data are migrated already
+						referenceIndex, referenceIndex,
+						referenceSchema, referenceKey, attributeMutation
+					);
+				}
+				// group component: attribute update on group type index + group reduced index
+				if (groupIndexingEnabled) {
+					final ReferenceContract existingReference = getReferencesStoragePart()
+						.findReference(referenceKey)
+						.orElse(null);
+					if (existingReference != null) {
+						final Integer groupPK = extractActiveGroupPrimaryKey(existingReference);
+						if (groupPK != null) {
+							// use rrk (with referenced entity PK) as the group index discriminator
+							final ReferencedTypeEntityIndex groupTypeIndex =
+								ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
+									this, referenceKey.referenceName(), scope
+								);
+							final ReducedGroupEntityIndex groupIndex =
+								ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
+									this, rrk, scope
+								);
+							ReferenceIndexMutator.attributeUpdate(
+								this, existingStoragePartFactory,
+								groupTypeIndex,
+								groupIndex, groupIndex,
+								referenceSchema, referenceKey, attributeMutation
+							);
+						}
+					}
+				}
 			} else {
 				final EntitySchema entitySchema = getEntitySchema();
 				if (referenceMutation instanceof InsertReferenceMutation) {
-					final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(epk, entityIndex, referenceKey, referenceSchema, false);
-					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(
-						getReferencedTypeIndexKey(referenceKey.referenceName(), scope)
+					// groupId is null at insert time — group component is handled by SetReferenceGroupMutation
+					final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(
+						epk, entityIndex, referenceKey, referenceSchema, false
 					);
-					final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
-					ReferenceIndexMutator.referenceInsert(
-						epk, entitySchema, referenceSchema, this,
-						entityIndex, referenceTypeIndex, referenceIndex, referenceKey, null,
-						getStoragePartExistingDataFactory(),
-						this.undoActionsAppender
+					// global: always — add facet to global index
+					ReferenceIndexMutator.referenceInsertGlobal(
+						epk, referenceSchema, entityIndex, referenceKey, null,
+						this, this.undoActionsAppender
 					);
+					// entity component: entity type index + entity reduced index
+					if (entityComponentEnabled) {
+						final ReferencedTypeEntityIndex referenceTypeIndex =
+							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
+								this, referenceKey.referenceName(), scope
+							);
+						final ReducedEntityIndex referenceIndex =
+							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+						ReferenceIndexMutator.referenceInsertPerComponent(
+							epk, entitySchema, referenceSchema, this,
+							referenceTypeIndex, referenceIndex, referenceKey,
+							referenceKey.primaryKey(), null,
+							getStoragePartExistingDataFactory(),
+							this.undoActionsAppender
+						);
+					}
 				} else if (referenceMutation instanceof RemoveReferenceMutation) {
-					final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(epk, entityIndex, referenceKey, referenceSchema, true);
-					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(rrk.referenceName(), scope);
-					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
-					final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
-					ReferenceIndexMutator.referenceRemoval(
-						epk, entitySchema, referenceSchema, this,
-						entityIndex, referenceTypeIndex, referenceIndex,
-						referenceKey,
-						getStoragePartExistingDataFactory(),
-						this.undoActionsAppender
+					final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(
+						epk, entityIndex, referenceKey, referenceSchema, true
 					);
+					// global: always — remove facet from global index
+					ReferenceIndexMutator.referenceRemovalGlobal(
+						epk, referenceSchema, entityIndex, referenceKey,
+						this, this.undoActionsAppender
+					);
+					// entity component: entity type index + entity reduced index
+					if (entityComponentEnabled) {
+						final ReferencedTypeEntityIndex referenceTypeIndex =
+							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
+								this, rrk.referenceName(), scope
+							);
+						final ReducedEntityIndex referenceIndex =
+							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+						ReferenceIndexMutator.referenceRemovalPerComponent(
+							epk, entitySchema, referenceSchema, this,
+							referenceTypeIndex, referenceIndex, referenceKey,
+							referenceKey.primaryKey(),
+							getStoragePartExistingDataFactory(),
+							this.undoActionsAppender
+						);
+					}
+					// group component: remove from group indexes (if reference had a group)
+					if (groupIndexingEnabled) {
+						removeFromGroupIndexes(
+							epk, entitySchema, referenceSchema, rrk, referenceKey,
+							scope, getStoragePartExistingDataFactory()
+						);
+					}
 				} else {
 					// SHOULD NOT EVER HAPPEN
 					throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
@@ -1662,8 +2000,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private void updateReferencesInReferenceIndex(
 		@Nonnull ReferenceMutation<?> referenceMutation,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReducedEntityIndex indexForRemoval,
-		@Nonnull ReducedEntityIndex indexForUpsert
+		@Nonnull AbstractReducedEntityIndex indexForRemoval,
+		@Nonnull AbstractReducedEntityIndex indexForUpsert
 	) {
 		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
 			ReferenceIndexMutator.setFacetGroupInIndex(
@@ -1754,8 +2092,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				}
 			};
 
-			// first remove data from reduced indexes
-			ReferenceIndexMutator.executeWithReferenceIndexes(
+			// first remove data from reduced indexes (entity + group)
+			ReferenceIndexMutator.executeWithAllReferenceIndexes(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
 				pricesRemoval::accept, true
 			);
@@ -1768,8 +2106,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			//noinspection DataFlowIssue
 			pricesInsertion.accept(null, index, index);
 
-			// and then we can add data to reduced indexes
-			ReferenceIndexMutator.executeWithReferenceIndexes(
+			// and then we can add data to reduced indexes (entity + group)
+			ReferenceIndexMutator.executeWithAllReferenceIndexes(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
 				pricesInsertion::accept, true
 			);
@@ -1892,21 +2230,5 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		EXISTING,
 		NEW
 	}
-
-	/**
-	 * Key used for determining whether sortable attribute compound is already indexed.
-	 * @param entityType name of the entity schema of the entity
-	 * @param referenceName name of the reference if the attribute belongs to a reference, or null if it is global attribute
-	 * @param compoundName name of the attribute compound
-	 * @param locale locale of the attribute compound
-	 * @param entityPrimaryKey primary key of the entity
-	 */
-	private record SortableAttributeCompoundKey(
-		@Nonnull String entityType,
-		@Nullable String referenceName,
-		@Nonnull String compoundName,
-		@Nullable Locale locale,
-		int entityPrimaryKey
-	) {}
 
 }

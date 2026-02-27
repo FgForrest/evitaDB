@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,13 +32,14 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterInScope;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -159,7 +160,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 			// if query is hierarchy filtering query targeting different entity
 			addReferenceIndexOption(referenceHaving);
 			for (FilterConstraint subConstraint : referenceHaving.getChildren()) {
-				if (!(subConstraint instanceof EntityHaving)) {
+				if (!(subConstraint instanceof EntityHaving) && !(subConstraint instanceof GroupHaving)) {
 					subConstraint.accept(this);
 				}
 			}
@@ -205,7 +206,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					}
 					// locate all hierarchy indexes
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
-					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
+					final List<ReducedEntityIndex> theTargetIndexes =
+						new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
 					final AtomicInteger cardinalityCounter = new AtomicInteger(0);
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						for (Scope scope : scopes) {

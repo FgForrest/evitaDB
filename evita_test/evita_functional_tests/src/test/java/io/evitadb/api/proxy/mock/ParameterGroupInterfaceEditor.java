@@ -30,6 +30,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
 
 import java.io.Serializable;
+import java.util.Locale;
 
 /**
  * Example interface mapping a parameter group entity.
@@ -46,4 +47,9 @@ public interface ParameterGroupInterfaceEditor extends Serializable {
 	String getCode();
 
 	void setCode(String code);
+
+	@AttributeRef(DataGenerator.ATTRIBUTE_NAME)
+	String getName(Locale locale);
+
+	void setName(Locale locale, String name);
 }

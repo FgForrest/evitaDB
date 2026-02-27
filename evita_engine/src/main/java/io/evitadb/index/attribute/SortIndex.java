@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,9 +39,9 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
-import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndexChanges.ValueStartIndex;
@@ -116,8 +116,8 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@Nonnull final ComparatorSource[] comparatorBase;
 	/**
-	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
-	 * is part of the global {@link GlobalEntityIndex}.
+	 * Reference key (discriminator) of the {@link AbstractReducedEntityIndex} this index belongs to. Or null if
+	 * this index is part of the global {@link GlobalEntityIndex}.
 	 */
 	@Getter @Nullable private final RepresentativeReferenceKey referenceKey;
 	/**

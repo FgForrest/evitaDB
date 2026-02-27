@@ -158,6 +158,8 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 
 	/**
 	 * Inserts product with only mandatory attributes so it passes validation, otherwise it's empty.
+	 * The product is created with Czech locale only, so that tests can verify the behavior when
+	 * querying with a different locale (e.g. English) that the entity doesn't have.
 	 */
 	protected int insertMinimalEmptyProduct(GraphQLTester tester) {
 		return tester.test(TEST_CATALOG)
@@ -173,6 +175,13 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
                                         value: "pwoa"
                                     },
                                 },
+                                {
+                                    upsertAttributeMutation: {
+										name: "url",
+										locale: "cs-CZ",
+										value: "pwoa-url"
+									},
+								},
                                 {
                                     upsertAttributeMutation: {
 										name: "visible",
@@ -529,7 +538,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			node = parentNode;
 		}
 
-		final Map<String, Object> entityWithParentsDto = map()
+		return map()
 			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), hierarchicalEntity.getParentEntity().isPresent() ? hierarchicalEntity.getParentEntity().get().getPrimaryKey() : null)
 			.e(GraphQLEntityDescriptor.PARENTS.name(), parents.stream()
 				.map(entityClassifier -> {
@@ -553,8 +562,6 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				})
 				.toList())
 			.build();
-
-		return entityWithParentsDto;
 	}
 
 	@Nonnull

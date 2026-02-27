@@ -652,6 +652,215 @@ class SetReferenceSchemaIndexedMutationTest {
 		}
 
 		@Test
+		@DisplayName("should strip indexed components for scopes set to NONE during combine")
+		void shouldStripComponentsForNoneScopesDuringCombine() {
+			// Mutation1: LIVE with FOR_FILTERING and explicit components
+			final SetReferenceSchemaIndexedMutation existingMutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					}
+				);
+			// Mutation2: sets LIVE to NONE with empty components array
+			final SetReferenceSchemaIndexedMutation newMutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.NONE)
+					},
+					new ScopedReferenceIndexedComponents[0]
+				);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				newMutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class),
+					Mockito.mock(EntitySchemaContract.class),
+					existingMutation
+				);
+
+			assertNotNull(result);
+			assertNotNull(result.current());
+			final SetReferenceSchemaIndexedMutation combined =
+				(SetReferenceSchemaIndexedMutation) result.current()[0];
+
+			// LIVE components should be stripped because LIVE is now NONE
+			final ScopedReferenceIndexedComponents[] components =
+				combined.getIndexedComponentsInScopes();
+			assertNotNull(components);
+			assertEquals(0, components.length);
+			// index types should reflect the merged LIVE=NONE
+			final ScopedReferenceIndexType[] indexTypes = combined.getIndexedInScopes();
+			assertNotNull(indexTypes);
+			assertEquals(1, indexTypes.length);
+			assertEquals(Scope.LIVE, indexTypes[0].scope());
+			assertEquals(ReferenceIndexType.NONE, indexTypes[0].indexType());
+		}
+
+		@Test
+		@DisplayName("should strip components for NONE scopes during mutate on non-reflected reference")
+		void shouldStripComponentsForNoneScopesDuringMutateNonReflected() {
+			// Build a non-faceted but indexed reference (faceted would conflict with NONE)
+			final ReferenceSchemaContract nonFacetedIndexed = ReferenceSchema._internalBuild(
+				REFERENCE_NAME,
+				"description", null,
+				"category", false,
+				Cardinality.ZERO_OR_MORE,
+				null, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				Scope.NO_SCOPE,
+				Collections.emptyMap(), Collections.emptyMap()
+			);
+			// mutation sets LIVE to NONE but carries explicit LIVE components
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.NONE)
+					},
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					}
+				);
+
+			final ReferenceSchemaContract mutatedSchema =
+				mutation.mutate(
+					Mockito.mock(EntitySchemaContract.class),
+					nonFacetedIndexed
+				);
+
+			assertNotNull(mutatedSchema);
+			// LIVE is NONE, so components should be stripped (empty set)
+			assertTrue(
+				mutatedSchema.getIndexedComponents(Scope.LIVE).isEmpty(),
+				"LIVE scope components should be stripped when index type is NONE"
+			);
+		}
+
+		@Test
+		@DisplayName("should strip components for NONE scopes during mutate on reflected reference")
+		void shouldStripComponentsForNoneScopesDuringMutateReflected() {
+			// Build a non-faceted reflected reference (faceted LIVE would conflict with NONE)
+			final ReflectedReferenceSchema reflectedSchema =
+				ReflectedReferenceSchema._internalBuild(
+					REFERENCE_NAME,
+					"reflectedDescription", null,
+					"category", "originalRef",
+					Cardinality.ZERO_OR_MORE,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE, ReferenceIndexType.FOR_FILTERING
+						)
+					},
+					Scope.NO_SCOPE,
+					Collections.emptyMap(), Collections.emptyMap(),
+					ReflectedReferenceSchemaContract.AttributeInheritanceBehavior
+						.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			// mutation sets LIVE to NONE — components should be stripped even though
+			// the mutation's components are the same as the schema's defaults
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.NONE)
+					}
+				);
+
+			final ReferenceSchemaContract mutatedSchema =
+				mutation.mutate(
+					Mockito.mock(EntitySchemaContract.class), reflectedSchema
+				);
+
+			assertNotNull(mutatedSchema);
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, mutatedSchema);
+			// LIVE is NONE, so components should be empty for LIVE scope
+			assertTrue(
+				mutatedSchema.getIndexedComponents(Scope.LIVE).isEmpty(),
+				"LIVE scope components should be stripped when index type is NONE"
+			);
+		}
+
+		@Test
+		@DisplayName("should throw when _internalBuild has components for NONE-indexed scope")
+		void shouldThrowWhenInternalBuildHasComponentsForNoneScope() {
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> ReferenceSchema._internalBuild(
+					REFERENCE_NAME,
+					"description", "deprecationNotice",
+					"category", false,
+					Cardinality.ZERO_OR_MORE,
+					null, false,
+					// LIVE is NONE
+					ScopedReferenceIndexType.EMPTY,
+					// but explicit components declared for LIVE
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.LIVE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY
+							}
+						)
+					},
+					Scope.NO_SCOPE,
+					Collections.emptyMap(), Collections.emptyMap()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should succeed when _internalBuild components match indexed scopes")
+		void shouldSucceedWhenInternalBuildComponentsMatchIndexedScopes() {
+			final ReferenceSchemaContract schema = ReferenceSchema._internalBuild(
+				REFERENCE_NAME,
+				"description", "deprecationNotice",
+				"category", false,
+				Cardinality.ZERO_OR_MORE,
+				null, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				new ScopedReferenceIndexedComponents[]{
+					new ScopedReferenceIndexedComponents(
+						Scope.LIVE,
+						new ReferenceIndexedComponents[]{
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						}
+					)
+				},
+				Scope.NO_SCOPE,
+				Collections.emptyMap(), Collections.emptyMap()
+			);
+
+			assertNotNull(schema);
+			final Set<ReferenceIndexedComponents> liveComponents =
+				schema.getIndexedComponents(Scope.LIVE);
+			assertEquals(2, liveComponents.size());
+			assertTrue(liveComponents.contains(ReferenceIndexedComponents.REFERENCED_ENTITY));
+			assertTrue(liveComponents.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY));
+		}
+
+		@Test
 		@DisplayName("should switch to inherited components when new mutation has null components")
 		void shouldSwitchToInheritedComponentsWhenNewMutationHasNull() {
 			// Mutation1: has explicit components for LIVE scope

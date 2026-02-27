@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -86,20 +86,13 @@ import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
-import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.Index;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -155,10 +148,15 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> THROWING_MISSING_RTEI_SUPPLIER =
 		ReferencedTypeEntityIndex::createThrowingStub;
 	/**
-	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
+	 * A no-op supplier that returns `null` for any missing reduced entity index lookup.
 	 */
-	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> NO_OP_MISSING_REI_SUPPLIER =
-		(entitySchema, entityIndexKey) -> null;
+	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex>
+		NO_OP_MISSING_REI_SUPPLIER = (entitySchema, entityIndexKey) -> null;
+	/**
+	 * A no-op supplier that returns `null` for any missing reduced group entity index lookup.
+	 */
+	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReducedGroupEntityIndex>
+		NO_OP_MISSING_RGEI_SUPPLIER = (entitySchema, entityIndexKey) -> null;
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
@@ -744,32 +742,34 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Set<Scope> scope,
 		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier
 	) {
-		final String referenceName = referenceHaving.getReferenceName();
+		final ReferenceSchemaContract referenceSchema = resolveReferenceSchema(
+			getProcessingScope().getEntitySchema(), referenceHaving
+		);
 		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
-		final EntitySchemaContract entitySchema = processingScope.getEntitySchema();
-		final ReferenceSchemaContract referenceSchema = ofNullable(entitySchema)
-			.flatMap(it -> it.getReference(referenceName))
-			.orElseThrow(() -> entitySchema == null ? new ReferenceNotFoundException(referenceName) : new ReferenceNotFoundException(referenceName, entitySchema));
+		final EntitySchemaContract entitySchema = Objects.requireNonNull(processingScope.getEntitySchema());
 
 		final Formula reducedIndexPksFormula = processingScope.doWithScope(
 			scope,
-			() -> getReducedEntityIndexPrimaryKeyFormula(
+			() -> getReducedIndexPrimaryKeyFormula(
 				entitySchema,
 				referenceSchema,
 				new FilterBy(referenceHaving.getChildren()),
+				EntityIndexType.REFERENCED_ENTITY_TYPE,
 				missingReferencedIndexSupplier
 			)
 		);
 
 		final IntFunction<ReducedEntityIndex> indexAccessor;
 		if (this.getSchema().getName().equals(entitySchema.getName())) {
-			indexAccessor = reducedIndexPk -> getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class);
+			indexAccessor = reducedIndexPk ->
+				getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class);
 		} else {
 			final EntityCollection targetCollection = getEntityCollectionOrThrowException(
 				entitySchema.getName(),
 				"locate referenced record entity indexes"
 			);
-			indexAccessor = reducedIndexPk -> targetCollection.getIndexIfExists(reducedIndexPk, value -> (ReducedEntityIndex) null);
+			indexAccessor = reducedIndexPk ->
+				targetCollection.getIndexIfExists(reducedIndexPk, value -> (ReducedEntityIndex) null);
 		}
 
 		final Bitmap reducedIndexPks = reducedIndexPksFormula.compute();
@@ -787,6 +787,83 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
+	 * Returns bitmap of group entity primary keys that match the given group-level filter constraints.
+	 * This method evaluates the filter against {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} indexes
+	 * and translates the resulting index PKs to group entity PKs.
+	 *
+	 * @param referenceHaving            the reference having constraint wrapping group filter children
+	 * @param scopes                     the scopes to evaluate
+	 * @param missingReferencedIndexSupplier supplier for missing indexes
+	 * @return bitmap of matching group entity primary keys
+	 */
+	@Nonnull
+	public Bitmap getMatchingGroupEntityPrimaryKeys(
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier
+	) {
+		final EntitySchemaContract entitySchema = getProcessingScope().getEntitySchemaOrThrowException();
+		final ReferenceSchemaContract referenceSchema = resolveReferenceSchema(entitySchema, referenceHaving);
+		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
+		final String referenceName = referenceSchema.getName();
+
+		final Formula reducedIndexPksFormula = processingScope.doWithScope(
+			scopes,
+			() -> getReducedIndexPrimaryKeyFormula(
+				entitySchema,
+				referenceSchema,
+				new FilterBy(referenceHaving.getChildren()),
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
+				missingReferencedIndexSupplier
+			)
+		);
+
+		final Bitmap reducedIndexPks = reducedIndexPksFormula.compute();
+		if (reducedIndexPks.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+
+		// translate reduced-group-index PKs back to group entity PKs via the type-level cardinality index
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (Scope scope : scopes) {
+			final EntityIndexKey groupTypeKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
+			);
+			final Optional<ReferencedTypeEntityIndex> groupTypeIndex = getEntityIndex(
+				entitySchema.getName(), groupTypeKey, ReferencedTypeEntityIndex.class
+			);
+			if (groupTypeIndex.isPresent()) {
+				final Bitmap groupPks = groupTypeIndex.get().getReferencedPrimaryKeysForIndexPks(reducedIndexPks);
+				groupPks.forEach(writer::add);
+			}
+		}
+		final RoaringBitmap bitmap = writer.get();
+		return bitmap.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(bitmap);
+	}
+
+	/**
+	 * Resolves the {@link ReferenceSchemaContract} for the given {@link ReferenceHaving} constraint
+	 * using the current processing scope's entity schema.
+	 *
+	 * @param entitySchema    the entity schema to resolve the reference from
+	 * @param referenceHaving the constraint identifying the reference by name
+	 * @return the resolved reference schema
+	 * @throws ReferenceNotFoundException if the reference is not found in the entity schema
+	 */
+	@Nonnull
+	private static ReferenceSchemaContract resolveReferenceSchema(
+		@Nullable EntitySchemaContract entitySchema,
+		@Nonnull ReferenceHaving referenceHaving
+	) {
+		final String referenceName = referenceHaving.getReferenceName();
+		return ofNullable(entitySchema)
+			.flatMap(it -> it.getReference(referenceName))
+			.orElseThrow(() -> entitySchema == null
+				? new ReferenceNotFoundException(referenceName)
+				: new ReferenceNotFoundException(referenceName, entitySchema));
+	}
+
+	/**
 	 * Returns bitmap of primary keys ({@link EntityContract#getPrimaryKey()}) of referenced entities that satisfy
 	 * the passed filtering constraint.
 	 *
@@ -801,8 +878,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy
 	) {
-		final Formula reducedEntityIndexPrimaryKeys = getReducedEntityIndexPrimaryKeyFormula(
-			entitySchema, referenceSchema, filterBy
+		final Formula reducedEntityIndexPrimaryKeys = getReducedIndexPrimaryKeyFormula(
+			entitySchema, referenceSchema, filterBy,
+			EntityIndexType.REFERENCED_ENTITY_TYPE,
+			THROWING_MISSING_RTEI_SUPPLIER
 		);
 		// we need to translate entity index primary keys to referenced entity primary keys
 		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
@@ -815,44 +894,23 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Returns bitmap of entity index primary keys ({@link EntityIndex#getPrimaryKey()}) that satisfy
-	 * the passed filtering constraint.
+	 * Shared implementation for evaluating a filter against a reference type-level index. The `indexType`
+	 * parameter controls whether entity-level ({@link EntityIndexType#REFERENCED_ENTITY_TYPE}) or
+	 * group-level ({@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE}) indexes are used.
 	 *
-	 * @param entitySchema    that identifies the examined entities
-	 * @param referenceSchema that identifies the examined entities
-	 * @param filterBy        the filtering constraint to satisfy
-	 * @return bitmap with referenced entity ids
+	 * @param entitySchema                       the schema of the entity being queried
+	 * @param referenceSchema                    the reference schema
+	 * @param filterBy                           the filter constraint to evaluate
+	 * @param indexType                          the type of reference index to use
+	 * @param missingReferencedTypeIndexSupplier supplier for missing indexes
+	 * @return formula computing matching index primary keys
 	 */
 	@Nonnull
-	public Formula getReducedEntityIndexPrimaryKeyFormula(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterBy filterBy
-	) {
-		return getReducedEntityIndexPrimaryKeyFormula(
-			entitySchema,
-			referenceSchema,
-			filterBy,
-			THROWING_MISSING_RTEI_SUPPLIER
-		);
-	}
-
-	/**
-	 * Returns bitmap of entity index primary keys ({@link EntityIndex#getPrimaryKey()}) that satisfy
-	 * the passed filtering constraint.
-	 *
-	 * @param entitySchema                       that identifies the examined entities
-	 * @param referenceSchema                    that identifies the examined entities
-	 * @param filterBy                           the filtering constraint to satisfy
-	 * @param missingReferencedTypeIndexSupplier supplier that will produce missing {@link ReferencedTypeEntityIndex}
-	 *                                           index or NULL
-	 * @return bitmap with referenced entity ids
-	 */
-	@Nonnull
-	public Formula getReducedEntityIndexPrimaryKeyFormula(
+	private Formula getReducedIndexPrimaryKeyFormula(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy,
+		@Nonnull EntityIndexType indexType,
 		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedTypeIndexSupplier
 	) {
 		final String referenceName = referenceSchema.getName();
@@ -861,9 +919,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			scopesToLookUp
 				.stream()
 				.map(scope -> {
-					final EntityIndexKey entityIndexKey = new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
-					);
+					final EntityIndexKey entityIndexKey = new EntityIndexKey(indexType, scope, referenceName);
 					final Optional<ReferencedTypeEntityIndex> entityIndex = getEntityIndex(
 						entitySchema.getName(),
 						entityIndexKey,
@@ -945,16 +1001,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * words - when {@link ReferenceHaving} constraint is part of the query. This situation must be taken into an
 	 * account in hierarchy translators.
 	 */
-	public boolean isReferenceQueriedByOtherConstraints() {
+	public boolean isReferenceNotQueriedByOtherConstraints() {
 		return this.targetIndexes.stream()
-			.anyMatch(it -> it.getRepresentedConstraint() instanceof ReferenceHaving);
+			.noneMatch(it -> it.getRepresentedConstraint() instanceof ReferenceHaving);
 	}
 
 	/**
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
 	 */
 	@Nonnull
-	public Stream<ReducedEntityIndex> getReferencedEntityIndexes(
+	public Stream<AbstractReducedEntityIndex> getReferencedEntityIndexes(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int referencedEntityId
@@ -964,6 +1020,27 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			.flatMap(
 				scope -> getQueryContext().getReducedEntityIndexes(
 					scope, referencedEntityId, entitySchema, referenceSchema, NO_OP_MISSING_REI_SUPPLIER
+				)
+			);
+	}
+
+	/**
+	 * Returns {@link EntityIndex} that contains indexed entities whose references have
+	 * group entity `referenceName` and `groupEntityId`. This method mirrors
+	 * {@link #getReferencedEntityIndexes(EntitySchemaContract, ReferenceSchemaContract, int)} but uses
+	 * group-specific index types.
+	 */
+	@Nonnull
+	public Stream<AbstractReducedEntityIndex> getReferencedGroupEntityIndexes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int groupEntityId
+	) {
+		final Set<Scope> scopes = getProcessingScope().getScopes();
+		return (scopes.isEmpty() ? Stream.of(Scope.DEFAULT_SCOPE) : scopes.stream())
+			.flatMap(
+				scope -> getQueryContext().getReducedGroupEntityIndexes(
+					scope, groupEntityId, entitySchema, referenceSchema, NO_OP_MISSING_RGEI_SUPPLIER
 				)
 			);
 	}

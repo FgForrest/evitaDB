@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -133,7 +133,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
       getStepsOrBuilderList() {
     return steps_;
   }
@@ -629,7 +629,7 @@ private static final long serialVersionUID = 0L;
             stepsBuilder_ = null;
             steps_ = other.steps_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            stepsBuilder_ =
+            stepsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getStepsFieldBuilder() : null;
           } else {
@@ -1099,7 +1099,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
          getStepsOrBuilderList() {
       if (stepsBuilder_ != null) {
         return stepsBuilder_.getMessageOrBuilderList();
@@ -1137,12 +1137,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry steps = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder> 
          getStepsBuilderList() {
       return getStepsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
         getStepsFieldBuilder() {
       if (stepsBuilder_ == null) {
         stepsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

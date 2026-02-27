@@ -43,10 +43,14 @@ static boolean isIndexedReferenceFor(
 | FacetIndex entries in GlobalEntityIndex              | --     | yes (if `isFaceted`) | yes (if `isFaceted`)             |
 | ReferencedTypeEntityIndex (`REFERENCED_ENTITY_TYPE`) | --     | yes                  | yes                              |
 | ReducedEntityIndex (`REFERENCED_ENTITY`)             | --     | yes                  | yes                              |
+| ReducedGroupEntityIndex (`REFERENCED_GROUP_ENTITY`)  | --     | yes (if group component enabled) | yes (if group component enabled) |
 | Reference attributes in ReferencedTypeEntityIndex    | --     | yes                  | yes                              |
 | Reference attributes in ReducedEntityIndex           | --     | yes                  | yes                              |
+| Reference attributes in ReducedGroupEntityIndex      | --     | yes (filter only, with cardinality) | yes (filter only, with cardinality) |
 | **Entity** attributes in ReducedEntityIndex          | --     | --                   | **yes**                          |
+| **Entity** attributes in ReducedGroupEntityIndex     | --     | --                   | **yes** (filter only, no sort/unique) |
 | **Prices** in ReducedEntityIndex                     | --     | --                   | **yes**                          |
+| **Prices** in ReducedGroupEntityIndex                | --     | --                   | **yes**                          |
 | Locales in ReducedEntityIndex                        | --     | yes                  | yes                              |
 | Sortable attribute compounds in ReducedEntityIndex   | --     | --                   | **yes**                          |
 
@@ -135,10 +139,10 @@ scope (`isIndexedInScope(scope) == false`) returns an empty set.
 
 Each component creates a parallel set of index structures:
 
-| Component                 | EntityIndexType (type index)   | EntityIndexType (reduced index) |
-|---------------------------|--------------------------------|---------------------------------|
-| `REFERENCED_ENTITY`       | `REFERENCED_ENTITY_TYPE`       | `REFERENCED_ENTITY`             |
-| `REFERENCED_GROUP_ENTITY` | `REFERENCED_GROUP_ENTITY_TYPE` | `REFERENCED_GROUP_ENTITY`       |
+| Component                 | EntityIndexType (type index)   | EntityIndexType (reduced index) | Concrete reduced class       |
+|---------------------------|--------------------------------|---------------------------------|------------------------------|
+| `REFERENCED_ENTITY`       | `REFERENCED_ENTITY_TYPE`       | `REFERENCED_ENTITY`             | `ReducedEntityIndex`         |
+| `REFERENCED_GROUP_ENTITY` | `REFERENCED_GROUP_ENTITY_TYPE` | `REFERENCED_GROUP_ENTITY`       | `ReducedGroupEntityIndex`    |
 
 Both components share the same `ReferenceIndexType` level -- the type level applies uniformly to
 all enabled components within a scope.

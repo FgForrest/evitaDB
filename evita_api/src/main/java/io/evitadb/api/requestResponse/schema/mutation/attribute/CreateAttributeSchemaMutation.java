@@ -382,6 +382,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					referenceSchema.getReferenceIndexTypeInScopes(),
+					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
 					Stream.concat(
 							referenceSchema.getAttributes().values().stream(),

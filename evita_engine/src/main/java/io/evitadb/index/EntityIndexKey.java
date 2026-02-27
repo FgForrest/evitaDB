@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,16 +66,20 @@ public record EntityIndexKey(
 		this.scope = scope;
 		if (discriminator instanceof RepresentativeReferenceKey rrk) {
 			Assert.isPremiseValid(
-				type == EntityIndexType.REFERENCED_ENTITY,
+				type == EntityIndexType.REFERENCED_ENTITY ||
+					type == EntityIndexType.REFERENCED_GROUP_ENTITY,
 				() -> "When using `" + rrk + "` (RepresentativeReferenceKey) as discriminator, " +
-					"the index type must be " + EntityIndexType.REFERENCED_ENTITY + "!"
+					"the index type must be " + EntityIndexType.REFERENCED_ENTITY +
+					" or " + EntityIndexType.REFERENCED_GROUP_ENTITY + "!"
 			);
 			this.discriminator = rrk;
 		} else if (discriminator instanceof String str) {
 			Assert.isPremiseValid(
-				type == EntityIndexType.REFERENCED_ENTITY_TYPE,
+				type == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+					type == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
 				() -> "When using " + RepresentativeReferenceKey.class.getSimpleName() + " (String) as discriminator, " +
-					"the index type must be " + EntityIndexType.REFERENCED_ENTITY_TYPE + "!"
+					"the index type must be " + EntityIndexType.REFERENCED_ENTITY_TYPE +
+					" or " + EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE + "!"
 			);
 			this.discriminator = str;
 		} else if (discriminator == null) {
@@ -86,8 +90,10 @@ public record EntityIndexKey(
 			this.discriminator = null;
 		} else {
 			throw new GenericEvitaInternalError(
-				"Discriminator must be either String (for " + EntityIndexType.REFERENCED_ENTITY_TYPE + ") " +
-					"or RepresentativeReferenceKey (for " + EntityIndexType.REFERENCED_ENTITY + ")!"
+				"Discriminator must be either String (for " + EntityIndexType.REFERENCED_ENTITY_TYPE +
+					" or " + EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE + ") " +
+					"or RepresentativeReferenceKey (for " + EntityIndexType.REFERENCED_ENTITY +
+					" or " + EntityIndexType.REFERENCED_GROUP_ENTITY + ")!"
 			);
 		}
 	}
@@ -103,12 +109,12 @@ public record EntityIndexKey(
 		if (typeComparison == 0) {
 			return switch (this.type) {
 				case GLOBAL -> Integer.compare(this.scope.ordinal(), o.scope.ordinal());
-				case REFERENCED_ENTITY_TYPE -> {
+				case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> {
 					final String thisDis = (String) Objects.requireNonNull(this.discriminator);
 					final String thatDis = (String) Objects.requireNonNull(o.discriminator);
 					yield thisDis.compareTo(thatDis);
 				}
-				case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE -> {
+				case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE, REFERENCED_GROUP_ENTITY -> {
 					final RepresentativeReferenceKey thisDis = (RepresentativeReferenceKey) Objects.requireNonNull(this.discriminator);
 					final RepresentativeReferenceKey thatDis = (RepresentativeReferenceKey) Objects.requireNonNull(o.discriminator);
 					yield thisDis.compareTo(thatDis);

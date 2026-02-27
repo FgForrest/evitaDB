@@ -197,7 +197,7 @@ References are maintained across six `EntityIndexType` variants (see
 | `REFERENCED_ENTITY_TYPE`       | `String` (reference name)    | `ReferencedTypeEntityIndex` |
 | `REFERENCED_ENTITY`            | `RepresentativeReferenceKey` | `ReducedEntityIndex`        |
 | `REFERENCED_GROUP_ENTITY_TYPE` | `String` (reference name)    | `ReferencedTypeEntityIndex` |
-| `REFERENCED_GROUP_ENTITY`      | `RepresentativeReferenceKey` | `ReducedEntityIndex`        |
+| `REFERENCED_GROUP_ENTITY`      | `RepresentativeReferenceKey` | `ReducedGroupEntityIndex`   |
 
 Group indexes (`REFERENCED_GROUP_*`) are only maintained when the reference schema has
 `ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY` enabled for the active scope

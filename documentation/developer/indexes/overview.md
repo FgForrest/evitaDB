@@ -14,13 +14,16 @@
         </dd>
         <dt>Reduced Entity Index</dt>
         <dd>
-            A partitioned view of the Global Entity Index, scoped to a single referenced entity (or
-            group entity). Contains only the owning entity PKs that hold a reference to a specific
-            target. Stores reference attributes always, and entity attributes plus prices only when
-            the reference is configured for `FOR_FILTERING_AND_PARTITIONING`. Its PriceRefIndex
-            reuses price record objects from the global PriceSuperIndex without duplicating them.
-            This is the workhorse index for reference-based queries -- selecting a reduced index
-            keyed to a particular target instantly narrows the search space to a pre-filtered bitmap.
+            A partitioned view of the Global Entity Index, scoped to a single referenced entity.
+            Contains only the owning entity PKs that hold a reference to a specific target. Stores
+            reference attributes always, and entity attributes plus prices only when the reference
+            is configured for `FOR_FILTERING_AND_PARTITIONING`. Its PriceRefIndex reuses price
+            record objects from the global PriceSuperIndex without duplicating them. This is the
+            workhorse index for reference-based queries -- selecting a reduced index keyed to a
+            particular target instantly narrows the search space to a pre-filtered bitmap. Two
+            concrete implementations exist: `ReducedEntityIndex` (for `REFERENCED_ENTITY`) and
+            `ReducedGroupEntityIndex` (for `REFERENCED_GROUP_ENTITY`), which adds cardinality
+            tracking for primary keys and filter attributes. Both extend `AbstractReducedEntityIndex`.
         </dd>
         <dt>Referenced Type Entity Index</dt>
         <dd>
@@ -142,7 +145,9 @@ new immutable snapshot of each modified index
 | `EntityIndexKey` | evita_engine | Composite key `(type, scope, discriminator)` |
 | `EntityIndex` | evita_engine | Abstract base with shared attribute/facet/hierarchy support |
 | `GlobalEntityIndex` | evita_engine | Complete per-entity-type index with `PriceSuperIndex` |
+| `AbstractReducedEntityIndex` | evita_engine | Shared base for per-entity and per-group <Term>partitioned view</Term> indexes |
 | `ReducedEntityIndex` | evita_engine | Per-referenced-entity <Term>partitioned view</Term> with `PriceRefIndex` |
+| `ReducedGroupEntityIndex` | evita_engine | Per-group <Term>partitioned view</Term> with PK and attribute cardinality tracking |
 | `ReferencedTypeEntityIndex` | evita_engine | Per-reference-name type-level index with cardinality tracking |
 
 
@@ -204,13 +209,17 @@ graph TD
     subgraph "EntityIndex Class Hierarchy"
         EI["EntityIndex<br/><i>abstract</i>"]
         GEI["GlobalEntityIndex"]
+        AREI["AbstractReducedEntityIndex<br/><i>abstract</i>"]
         REI["ReducedEntityIndex"]
+        RGEI["ReducedGroupEntityIndex"]
         RTEI["ReferencedTypeEntityIndex"]
     end
 
     EI --> GEI
-    EI --> REI
+    EI --> AREI
     EI --> RTEI
+    AREI --> REI
+    AREI --> RGEI
 
     subgraph "Shared Data Structures (in EntityIndex)"
         AI["AttributeIndex<br/>filter / sort / unique / chain"]
@@ -233,16 +242,19 @@ graph TD
     end
 
     GEI --> PSI
-    REI --> PRI
+    AREI --> PRI
     RTEI --> VPI
 
-    subgraph "Cardinality Tracking<br/>(ReferencedTypeEntityIndex only)"
-        RTCI["ReferenceTypeCardinalityIndex"]
-        ACI["AttributeCardinalityIndex"]
+    subgraph "Cardinality Tracking"
+        RTCI["ReferenceTypeCardinalityIndex<br/><i>(ReferencedTypeEntityIndex)</i>"]
+        ACI["AttributeCardinalityIndex<br/><i>(ReferencedTypeEntityIndex +<br/>ReducedGroupEntityIndex)</i>"]
+        PKCI["pkCardinalities Map<br/><i>(ReducedGroupEntityIndex)</i>"]
     end
 
     RTEI --> RTCI
     RTEI --> ACI
+    RGEI --> ACI
+    RGEI --> PKCI
 
     subgraph "EntityIndexType enum values"
         T1["GLOBAL"]
@@ -257,7 +269,7 @@ graph TD
     T2 -. "keys" .-> RTEI
     T3 -. "keys" .-> REI
     T4 -. "keys" .-> RTEI
-    T5 -. "keys" .-> REI
+    T5 -. "keys" .-> RGEI
 ```
 
 

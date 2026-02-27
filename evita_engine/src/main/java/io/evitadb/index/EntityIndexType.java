@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -72,5 +73,26 @@ public enum EntityIndexType {
 	 * bring any additional value.
 	 */
 	@Deprecated(since = "2024.11", forRemoval = true)
-	REFERENCED_HIERARCHY_NODE
+	REFERENCED_HIERARCHY_NODE,
+	/**
+	 * Index contains attribute indexes containing only data for reference attributes indexed by the referenced
+	 * **group entity** primary key. Analogous to {@link #REFERENCED_ENTITY_TYPE} but for group-based indexing.
+	 * This index is used when query contains {@link GroupHaving} constraint and allows filtering and sorting
+	 * by reference attributes within a specific group.
+	 *
+	 * Discriminator is `String` representing the {@link ReferenceSchemaContract#getName()}.
+	 */
+	REFERENCED_GROUP_ENTITY_TYPE,
+	/**
+	 * Index that contains record ids connected with a certain referenced group entity type and primary key.
+	 * Analogous to {@link #REFERENCED_ENTITY} but for group-based indexing. This index is used when query
+	 * contains {@link GroupHaving} constraint and contains copy of all indexed reference attributes and entity
+	 * attributes of the indexed (source) entity, partitioned by the group entity primary key.
+	 *
+	 * Discriminator is {@link RepresentativeReferenceKey} instance that combines information about the
+	 * {@link ReferenceSchemaContract#getName()}, group entity {@link EntityContract#getPrimaryKey()} and
+	 * set of representative attribute values that distinguish this reference from other references of the same type
+	 * and the same target group entity.
+	 */
+	REFERENCED_GROUP_ENTITY
 }

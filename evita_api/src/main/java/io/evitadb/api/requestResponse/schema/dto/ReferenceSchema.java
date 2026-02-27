@@ -201,7 +201,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		for (ScopedReferenceIndexedComponents entry : indexedComponentsInScopes) {
 			final EnumSet<ReferenceIndexedComponents> components = EnumSet.noneOf(ReferenceIndexedComponents.class);
 			Collections.addAll(components, entry.indexedComponents());
-			result.put(entry.scope(), components);
+			result.put(entry.scope(), Collections.unmodifiableSet(components));
 		}
 		return result;
 	}
@@ -221,7 +221,10 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		final EnumMap<Scope, Set<ReferenceIndexedComponents>> result = new EnumMap<>(Scope.class);
 		for (Map.Entry<Scope, ReferenceIndexType> entry : indexedScopes.entrySet()) {
 			if (entry.getValue() != ReferenceIndexType.NONE) {
-				result.put(entry.getKey(), EnumSet.of(ReferenceIndexedComponents.REFERENCED_ENTITY));
+				result.put(
+					entry.getKey(),
+					Collections.unmodifiableSet(EnumSet.of(ReferenceIndexedComponents.REFERENCED_ENTITY))
+				);
 			}
 		}
 		return result;
@@ -247,6 +250,72 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		return indexedComponentsInScopes != null
 			? toIndexedComponentsEnumMap(indexedComponentsInScopes)
 			: defaultIndexedComponents(indexedScopesMap);
+	}
+
+	/**
+	 * Removes entries from the indexed components map for any scope where the index type is
+	 * {@link ReferenceIndexType#NONE}. Components are meaningless for non-indexed scopes and their
+	 * presence would violate the schema invariant.
+	 *
+	 * Returns the same map instance when no filtering is needed (allocation-free happy path).
+	 *
+	 * @param indexedComponentsInScopes the components map to filter
+	 * @param indexedScopes the index type per scope
+	 * @return a filtered copy, or the original map if nothing was removed
+	 */
+	@Nonnull
+	public static Map<Scope, Set<ReferenceIndexedComponents>> filterComponentsForNoneScopes(
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes
+	) {
+		boolean modified = false;
+		final EnumMap<Scope, Set<ReferenceIndexedComponents>> result = new EnumMap<>(indexedComponentsInScopes);
+		for (Scope scope : Scope.values()) {
+			if (indexedScopes.getOrDefault(scope, ReferenceIndexType.NONE) == ReferenceIndexType.NONE) {
+				if (result.remove(scope) != null) {
+					modified = true;
+				}
+			}
+		}
+		return modified ? result : indexedComponentsInScopes;
+	}
+
+	/**
+	 * Filters a scoped-components array, removing entries whose scope has index type
+	 * {@link ReferenceIndexType#NONE} in the given index type map.
+	 *
+	 * Returns null if the input is null. Returns the same array instance when no filtering
+	 * is needed (allocation-free happy path).
+	 *
+	 * @param components the scoped components array, may be null
+	 * @param indexedScopes the index type per scope
+	 * @return filtered array, or null if input was null
+	 */
+	@Nullable
+	public static ScopedReferenceIndexedComponents[] filterComponentsArrayForNoneScopes(
+		@Nullable ScopedReferenceIndexedComponents[] components,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes
+	) {
+		if (components == null) {
+			return null;
+		}
+		int kept = 0;
+		for (ScopedReferenceIndexedComponents scopedComponent : components) {
+			if (indexedScopes.getOrDefault(scopedComponent.scope(), ReferenceIndexType.NONE) != ReferenceIndexType.NONE) {
+				kept++;
+			}
+		}
+		if (kept == components.length) {
+			return components;
+		}
+		final ScopedReferenceIndexedComponents[] filtered = new ScopedReferenceIndexedComponents[kept];
+		int i = 0;
+		for (ScopedReferenceIndexedComponents scopedComponent : components) {
+			if (indexedScopes.getOrDefault(scopedComponent.scope(), ReferenceIndexType.NONE) != ReferenceIndexType.NONE) {
+				filtered[i++] = scopedComponent;
+			}
+		}
+		return filtered;
 	}
 
 	/**
@@ -508,7 +577,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			indexedComponentsInScopes, indexedScopesMap
 		);
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
-		validateScopeSettings(facetedScopes, indexedScopesMap);
+		validateScopeSettings(facetedScopes, indexedScopesMap, indexedComponentsMap);
 
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -562,25 +631,95 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
-	 * Validates the consistency between the sets of faceted and indexed scopes.
-	 * Ensures that any scope marked as faceted is also marked as indexed.
+	 * Validates the consistency between faceted scopes, indexed scopes and indexed components.
+	 * Ensures that:
 	 *
-	 * @param facetedScopes the set of scopes where faceting is enabled; must not be null
-	 * @param indexedScopes the set of scopes where indexing is enabled; must not be null
+	 * - any scope marked as faceted is also marked as indexed
+	 * - no indexed components exist for scopes where the index type is {@link ReferenceIndexType#NONE}
+	 *
+	 * This overload does **not** validate the {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} /
+	 * group-type consistency — use the 4-parameter variant when the referenced group type is known.
+	 *
+	 * @param facetedScopes the set of scopes where faceting is enabled
+	 * @param indexedScopes the set of scopes where indexing is enabled
+	 * @param indexedComponentsInScopes the indexed components per scope, or null when inherited
+	 *                                 (component validation is skipped when null)
 	 */
 	static void validateScopeSettings(
 		@Nonnull Set<Scope> facetedScopes,
-		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes
+		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes,
+		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes
 	) {
 		final Scope[] scopes = Scope.values();
 		for (Scope scope : scopes) {
+			final boolean isNone = indexedScopes.getOrDefault(scope, ReferenceIndexType.NONE) == ReferenceIndexType.NONE;
 			if (facetedScopes.contains(scope)) {
 				Assert.isTrue(
-					indexedScopes.get(scope) != ReferenceIndexType.NONE,
+					!isNone,
 					() -> new InvalidSchemaMutationException(
-						"When reference is marked as faceted in scope `" + scope + "`, it needs also to be indexed for the same scope."
+						"When reference is marked as faceted in scope `" + scope +
+							"`, it needs also to be indexed for the same scope."
 					)
 				);
+			}
+			if (indexedComponentsInScopes != null && isNone && indexedComponentsInScopes.containsKey(scope)) {
+				throw new InvalidSchemaMutationException(
+					"Indexed components must not be defined for scope `" + scope +
+						"` when the reference index type is NONE."
+				);
+			}
+		}
+	}
+
+	/**
+	 * Validates the consistency between faceted scopes, indexed scopes and indexed components.
+	 * Ensures that:
+	 *
+	 * - any scope marked as faceted is also marked as indexed
+	 * - no indexed components exist for scopes where the index type is {@link ReferenceIndexType#NONE}
+	 * - {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} is only used when a group type is defined
+	 *
+	 * @param facetedScopes the set of scopes where faceting is enabled
+	 * @param indexedScopes the set of scopes where indexing is enabled
+	 * @param indexedComponentsInScopes the indexed components per scope, or null when inherited
+	 *                                 (component validation is skipped when null)
+	 * @param referencedGroupType the group entity type, or null if the reference has no group;
+	 *                            when null the group entity component validation is skipped
+	 */
+	static void validateScopeSettings(
+		@Nonnull Set<Scope> facetedScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes,
+		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
+		@Nullable String referencedGroupType
+	) {
+		final Scope[] scopes = Scope.values();
+		for (Scope scope : scopes) {
+			final boolean isNone = indexedScopes.getOrDefault(scope, ReferenceIndexType.NONE) == ReferenceIndexType.NONE;
+			if (facetedScopes.contains(scope)) {
+				Assert.isTrue(
+					!isNone,
+					() -> new InvalidSchemaMutationException(
+						"When reference is marked as faceted in scope `" + scope +
+							"`, it needs also to be indexed for the same scope."
+					)
+				);
+			}
+			if (indexedComponentsInScopes != null) {
+				if (isNone && indexedComponentsInScopes.containsKey(scope)) {
+					throw new InvalidSchemaMutationException(
+						"Indexed components must not be defined for scope `" + scope +
+							"` when the reference index type is NONE."
+					);
+				}
+				final Set<ReferenceIndexedComponents> components = indexedComponentsInScopes.get(scope);
+				if (referencedGroupType == null
+					&& components != null
+					&& components.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)) {
+					throw new InvalidSchemaMutationException(
+						"Indexed component `REFERENCED_GROUP_ENTITY` in scope `" + scope +
+							"` requires a non-null referenced group type on the reference schema."
+					);
+				}
 			}
 		}
 	}

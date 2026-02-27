@@ -354,7 +354,8 @@ public final class ReferenceSchemaBuilder
 	public ReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = indexedForTypeInScope(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING, inScope
+			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING,
+			getIndexedComponentsInScopes(), inScope
 		);
 		return this;
 	}
@@ -364,7 +365,8 @@ public final class ReferenceSchemaBuilder
 	public ReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = indexedForTypeInScope(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, inScope
+			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			getIndexedComponentsInScopes(), inScope
 		);
 		return this;
 	}

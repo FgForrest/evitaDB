@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -87,6 +87,7 @@ import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntObjPredicate;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
@@ -315,7 +316,7 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull BiConsumer<List<ReferenceKey>, DataStoreReader> eachReferenceConsumer
 	) {
 		// we need to access index in target entity collection, because we need to retrieve index with primary references
-		final List<ReducedEntityIndex> indexes = getAllReducedIndexes(
+		final List<ReducedEntityIndex> indexes = getAllReducedReferencedEntityIndexes(
 			dataStoreReader, scope,
 			referenceSchema.getReflectedReferenceName(),
 			this.entityPrimaryKey,
@@ -378,7 +379,7 @@ public final class ContainerizedLocalMutationExecutor
 	 * @return a list of reduced entity indexes that match the specified parameters
 	 */
 	@Nonnull
-	private static List<ReducedEntityIndex> getAllReducedIndexes(
+	private static List<ReducedEntityIndex> getAllReducedReferencedEntityIndexes(
 		@Nonnull DataStoreReader dataStoreReader,
 		@Nonnull Scope scope,
 		@Nonnull String referenceName,
@@ -389,41 +390,47 @@ public final class ContainerizedLocalMutationExecutor
 			eik -> dataStoreReader.getIndexIfExists(eik, __ -> null),
 			eik -> dataStoreReader.getIndexIfExists(eik, __ -> null),
 			epk -> dataStoreReader.getIndexIfExists(epk, __ -> null),
-			scope, referenceName, entityPrimaryKey, allowsDuplicates
+			scope, referenceName, entityPrimaryKey, allowsDuplicates,
+			EntityIndexType.REFERENCED_ENTITY_TYPE,
+			EntityIndexType.REFERENCED_ENTITY
 		);
 	}
 
 	/**
-	 * Retrieves all reduced entity indexes related to the specified reference schema within the given scope.
-	 * This method returns a list of indexes that are filtered based on the cardinality and attributes
-	 * of the reference schema, ensuring that duplicate references are correctly handled.
+	 * Retrieves all reduced entity indexes matching the given reference and entity primary key, parameterized
+	 * by the type index type and reduced index type. This allows the same logic to be reused for both
+	 * entity-level and group-level reference indexes.
 	 *
-	 * @param referencedTypeIndexProvider    function that provides the index based on the given {@link EntityIndexKey}
-	 * @param reducedIndexProvider    function that provides the index based on the given {@link EntityIndexKey}
-	 * @param reducedIndexByPkProvider    function that provides the index based on the given index primary key
-	 * @param scope            the scope in which the indexes are searched
-	 * @param referenceName    the name of the reference schema for which the indexes are retrieved
-	 * @param theEntityPrimaryKey the primary key of the entity to which the reference belongs
-	 * @param allowsDuplicates flag indicating whether the reference schema allows duplicate references
-	 * @return a list of reduced entity indexes corresponding to the given reference schema within the scope
+	 * @param referencedTypeIndexProvider function that provides the type-level index
+	 * @param reducedIndexProvider        function that provides the reduced index by key
+	 * @param reducedIndexByPkProvider    function that provides the reduced index by internal PK
+	 * @param scope                       the scope in which the indexes are searched
+	 * @param referenceName               the name of the reference schema
+	 * @param theEntityPrimaryKey         the primary key (entity PK or group PK) to look up
+	 * @param allowsDuplicates            whether the reference schema allows duplicate references
+	 * @param typeIndexType               the {@link EntityIndexType} for the type-level index
+	 * @param reducedIndexType            the {@link EntityIndexType} for the reduced index
+	 * @return a list of reduced entity indexes corresponding to the given parameters
 	 */
 	@Nonnull
-	public static List<ReducedEntityIndex> getAllReducedIndexes(
+	public static <T extends AbstractReducedEntityIndex> List<T> getAllReducedIndexes(
 		@Nonnull Function<EntityIndexKey, ReferencedTypeEntityIndex> referencedTypeIndexProvider,
-		@Nonnull Function<EntityIndexKey, ReducedEntityIndex> reducedIndexProvider,
-		@Nonnull IntFunction<ReducedEntityIndex> reducedIndexByPkProvider,
+		@Nonnull Function<EntityIndexKey, T> reducedIndexProvider,
+		@Nonnull IntFunction<T> reducedIndexByPkProvider,
 		@Nonnull Scope scope,
 		@Nonnull String referenceName,
 		int theEntityPrimaryKey,
-		boolean allowsDuplicates
+		boolean allowsDuplicates,
+		@Nonnull EntityIndexType typeIndexType,
+		@Nonnull EntityIndexType reducedIndexType
 	) {
-		final List<ReducedEntityIndex> indexes;
+		final List<T> indexes;
 		if (allowsDuplicates) {
 			// we need to collect all indexes that contain primary references to this entity
 			// with all combinations of representative attribute values
 			final ReferencedTypeEntityIndex typeIndex = referencedTypeIndexProvider.apply(
 				new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY_TYPE,
+					typeIndexType,
 					scope,
 					referenceName
 				)
@@ -435,9 +442,9 @@ public final class ContainerizedLocalMutationExecutor
 				      .filter(Objects::nonNull)
 				      .toList();
 		} else {
-			final ReducedEntityIndex targetIndex = reducedIndexProvider.apply(
+			final T targetIndex = reducedIndexProvider.apply(
 				new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY,
+					reducedIndexType,
 					scope,
 					// we need to use this reflected reference name
 					new RepresentativeReferenceKey(
@@ -1689,6 +1696,24 @@ public final class ContainerizedLocalMutationExecutor
 					}
 				}
 			});
+
+		// verify that entity retains at least one locale if non-nullable localized attributes exist
+		if (checkLocalized && entityLocales.isEmpty()) {
+			final List<String> nonNullableLocalizedAttributes = nonNullableOrDefaultValueAttributes.stream()
+				.filter(attr -> attr.isLocalized() && !attr.isNullable() && attr.getDefaultValue() == null)
+				.map(EntityAttributeSchemaContract::getName)
+				.sorted()
+				.toList();
+			if (!nonNullableLocalizedAttributes.isEmpty()) {
+				throw new MandatoryAttributesNotProvidedException(
+					"Entity `" + entitySchema.getName() + "` requires at least one locale because it has " +
+						"non-nullable localized attributes: " +
+						nonNullableLocalizedAttributes.stream()
+							.map(name -> "`" + name + "`")
+							.collect(Collectors.joining(", ")) + "."
+				);
+			}
+		}
 	}
 
 	/**
@@ -2125,7 +2150,7 @@ public final class ContainerizedLocalMutationExecutor
 									referencedSchemaName,
 									referencedEntityType,
 									epk ->
-										getAllReducedIndexes(
+										getAllReducedReferencedEntityIndexes(
 											this.dataStoreReader,
 											usedScope,
 											referenceName,
@@ -2398,9 +2423,16 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
-	 * Method verifies that all non-mandatory associated data are present on entity.
+	 * Verifies that all mandatory (non-nullable) associated data are present on the entity.
+	 *
+	 * @param entityStorageContainer the entity body storage part to validate
+	 * @throws MandatoryAssociatedDataNotProvidedException if any mandatory associated data is missing
+	 *                                                     or if the entity has no locales but non-nullable
+	 *                                                     localized associated data are defined in the schema
 	 */
-	private void verifyMandatoryAssociatedData(@Nonnull EntityBodyStoragePart entityStorageContainer) throws MandatoryAssociatedDataNotProvidedException {
+	private void verifyMandatoryAssociatedData(
+		@Nonnull EntityBodyStoragePart entityStorageContainer
+	) throws MandatoryAssociatedDataNotProvidedException {
 		final EntitySchema entitySchema = this.schemaAccessor.get();
 		final Collection<AssociatedDataSchema> nonNullableAssociatedData = entitySchema.getNonNullableAssociatedData();
 		if (nonNullableAssociatedData.isEmpty()) {
@@ -2419,13 +2451,34 @@ public final class ContainerizedLocalMutationExecutor
 						.flatMap(key -> availableAssociatedDataKeys.contains(key) ? Stream.empty() : Stream.of(key));
 				} else {
 					final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedData.getName());
-					return availableAssociatedDataKeys.contains(associatedDataKey) ? Stream.empty() : Stream.of(associatedDataKey);
+					return availableAssociatedDataKeys.contains(associatedDataKey)
+						? Stream.empty()
+						: Stream.of(associatedDataKey);
 				}
 			})
 			.toList();
 
 		if (!missingMandatedAssociatedData.isEmpty()) {
 			throw new MandatoryAssociatedDataNotProvidedException(entitySchema.getName(), missingMandatedAssociatedData);
+		}
+
+		// verify that entity has at least one locale if non-nullable localized associated data exist
+		if (entityLocales.isEmpty()) {
+			final List<String> nonNullableLocalizedAssociatedData = nonNullableAssociatedData
+				.stream()
+				.filter(AssociatedDataSchema::isLocalized)
+				.map(AssociatedDataSchema::getName)
+				.sorted()
+				.toList();
+			if (!nonNullableLocalizedAssociatedData.isEmpty()) {
+				throw new MandatoryAssociatedDataNotProvidedException(
+					"Entity `" + entitySchema.getName() + "` requires at least one locale because it has " +
+						"non-nullable localized associated data: " +
+						nonNullableLocalizedAssociatedData.stream()
+							.map(it -> "`" + it + "`")
+							.collect(Collectors.joining(", ")) + "."
+				);
+			}
 		}
 	}
 
@@ -2438,19 +2491,20 @@ public final class ContainerizedLocalMutationExecutor
 	 * ones that are mandatory according to the provided entity schema. The verification involves:
 	 * - Collecting the mandatory associated data names from the entity schema.
 	 * - Filtering out the associated data that is dirty, empty, and mandatory.
+	 * - Skipping localized associated data whose locale has been dropped from the entity (removing
+	 *   all localized data for a locale is allowed as long as at least one locale remains).
 	 * - Checking if there are any missing mandatory associated data.
 	 *
 	 * If any mandatory associated data is missing, the method raises an exception containing the details
 	 * of the missing data and the entity type to ensure that all necessary data is provided before proceeding.
 	 *
-	 * Throws:
-	 * - {@link MandatoryAssociatedDataNotProvidedException} if any mandatory associated data is missing.
-	 *
-	 * Note: This method operates on the internal state of the associated data containers and the entity schema,
-	 *       ensuring consistency and adherence to the schema's rules.
+	 * @throws MandatoryAssociatedDataNotProvidedException if any mandatory associated data is missing
+	 *                                                     or if the entity has no locales but non-nullable
+	 *                                                     localized associated data are defined in the schema
 	 */
 	private void verifyRemovedMandatoryAssociatedData() {
 		final AtomicReference<Set<String>> mandatoryAssociatedData = new AtomicReference<>();
+		final Set<Locale> entityLocales = this.entityContainer.getLocales();
 		final List<AssociatedDataKey> missingMandatedAssociatedData = ofNullable(this.associatedDataContainers)
 			.map(Map::values)
 			.orElse(Collections.emptyList())
@@ -2470,10 +2524,32 @@ public final class ContainerizedLocalMutationExecutor
 				return mandatoryAssociatedData.get().contains(it.getValue().key().associatedDataName());
 			})
 			.map(it -> it.getValue().key())
+			// skip localized associated data whose locale has been dropped from the entity
+			.filter(key -> key.locale() == null || entityLocales.contains(key.locale()))
 			.toList();
 
 		if (!missingMandatedAssociatedData.isEmpty()) {
 			throw new MandatoryAssociatedDataNotProvidedException(this.entityType, missingMandatedAssociatedData);
+		}
+
+		// verify that entity retains at least one locale if non-nullable localized associated data exist
+		if (entityLocales.isEmpty()) {
+			final EntitySchema entitySchema = this.schemaAccessor.get();
+			final List<String> nonNullableLocalizedAssociatedData = entitySchema.getNonNullableAssociatedData()
+				.stream()
+				.filter(AssociatedDataSchema::isLocalized)
+				.map(AssociatedDataSchema::getName)
+				.sorted()
+				.toList();
+			if (!nonNullableLocalizedAssociatedData.isEmpty()) {
+				throw new MandatoryAssociatedDataNotProvidedException(
+					"Entity `" + this.entityType + "` requires at least one locale because it has " +
+						"non-nullable localized associated data: " +
+						nonNullableLocalizedAssociatedData.stream()
+							.map(it -> "`" + it + "`")
+							.collect(Collectors.joining(", ")) + "."
+				);
+			}
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -321,7 +321,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
       getSessionIdOrBuilderList() {
     return sessionId_;
   }
@@ -458,7 +458,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
       getLabelsOrBuilderList() {
     return labels_;
   }
@@ -1058,7 +1058,7 @@ private static final long serialVersionUID = 0L;
             sessionIdBuilder_ = null;
             sessionId_ = other.sessionId_;
             bitField0_ = (bitField0_ & ~0x00000020);
-            sessionIdBuilder_ =
+            sessionIdBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getSessionIdFieldBuilder() : null;
           } else {
@@ -1090,7 +1090,7 @@ private static final long serialVersionUID = 0L;
             labelsBuilder_ = null;
             labels_ = other.labels_;
             bitField0_ = (bitField0_ & ~0x00000100);
-            labelsBuilder_ =
+            labelsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLabelsFieldBuilder() : null;
           } else {
@@ -1441,7 +1441,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime since = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getSinceFieldBuilder() {
       if (sinceBuilder_ == null) {
         sinceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1598,7 +1598,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value sinceSessionSequenceId = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
         getSinceSessionSequenceIdFieldBuilder() {
       if (sinceSessionSequenceIdBuilder_ == null) {
         sinceSessionSequenceIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1782,7 +1782,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value sinceRecordSessionOffset = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
         getSinceRecordSessionOffsetFieldBuilder() {
       if (sinceRecordSessionOffsetBuilder_ == null) {
         sinceRecordSessionOffsetBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2238,7 +2238,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
          getSessionIdOrBuilderList() {
       if (sessionIdBuilder_ != null) {
         return sessionIdBuilder_.getMessageOrBuilderList();
@@ -2276,12 +2276,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder> 
          getSessionIdBuilderList() {
       return getSessionIdFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
         getSessionIdFieldBuilder() {
       if (sessionIdBuilder_ == null) {
         sessionIdBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -2439,7 +2439,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
         getLongerThanMillisecondsFieldBuilder() {
       if (longerThanMillisecondsBuilder_ == null) {
         longerThanMillisecondsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2596,7 +2596,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
         getFetchingMoreBytesThanFieldBuilder() {
       if (fetchingMoreBytesThanBuilder_ == null) {
         fetchingMoreBytesThanBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2864,7 +2864,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
          getLabelsOrBuilderList() {
       if (labelsBuilder_ != null) {
         return labelsBuilder_.getMessageOrBuilderList();
@@ -2902,12 +2902,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder> 
          getLabelsBuilderList() {
       return getLabelsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
         getLabelsFieldBuilder() {
       if (labelsBuilder_ == null) {
         labelsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
