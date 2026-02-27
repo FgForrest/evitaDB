@@ -3,6 +3,7 @@
 name: CI Master branch
 
 on:
+  workflow_dispatch:              # allows manual triggering from GitHub UI or CLI
   push:
     branches:
       - "master"                   # trap each push to master branch
