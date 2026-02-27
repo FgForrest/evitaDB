@@ -1,7 +1,7 @@
 ---
 name: release-pr
 description: Prepare or update a release PR from dev to master with auto-generated release notes
-allowed-tools: Read, Bash(git *), Bash(grep *), Bash(./tools/list-issues.sh *), Bash(./tools/list-commits.sh *), Bash(gh pr list --repo FgForrest/evitaDB *), Bash(gh pr create --repo FgForrest/evitaDB *), Bash(gh pr edit *), Bash(gh api --method POST /repos/FgForrest/evitaDB/pulls/*)
+allowed-tools: Read, Edit, Grep, WebFetch, AskUserQuestion, Bash(git *), Bash(grep *), Bash(./tools/verify-pgp-keys.sh *), Bash(./tools/list-issues.sh *), Bash(./tools/list-commits.sh *), Bash(gh pr list --repo FgForrest/evitaDB *), Bash(gh pr create --repo FgForrest/evitaDB *), Bash(gh pr edit *), Bash(gh api --method POST /repos/FgForrest/evitaDB/pulls/*)
 ---
 
 # Release PR
@@ -19,6 +19,67 @@ Creates or updates a GitHub pull request from `dev` (main branch) to `master` (r
 ## Workflow
 
 Execute the following steps **in order**. Stop and report to the user if any step fails.
+
+### Preliminary Phase: PGP Dependency Signature Verification
+
+Verify that all dependency signatures are valid before proceeding with the release. This catches PGP key rotations that would break the CI/CD `PGP Keys Check` step.
+
+#### P1: Run PGP verification
+
+```shell
+./tools/verify-pgp-keys.sh --check
+```
+
+If it exits 0 (all signatures valid), skip to Step 1.
+
+If it exits non-zero, the script outputs a structured report for each failing group with:
+- New signing fingerprint
+- Cross-reference result (same key signs other group artifacts)
+- Public keyserver lookup result (which server, UID)
+- Old key expiry status
+
+#### P2: Present findings to the user
+
+For each group in the script output, present a summary table:
+
+| Check | Result |
+|---|---|
+| New key fingerprint | `0x...` (from script output) |
+| Cross-ref: same key signs other group artifacts | Yes/No |
+| Key found on public keyserver | Yes/No (which server) |
+| Key UID | From script output |
+| Old key expired | Yes (date) / No |
+
+#### P3: Apply validated keys
+
+**For `[PASS]` entries** (cross-reference succeeded AND/OR key exists on a keyserver):
+- Ask the user for confirmation using AskUserQuestion before applying changes.
+- If confirmed, run:
+  ```shell
+  ./tools/verify-pgp-keys.sh --fix
+  ```
+  This updates `pgp-keys-map.list` with the validated fingerprints.
+- Commit the change: `git add pgp-keys-map.list && git commit -m "chore: update PGP keys for <groupIds> after key rotation"`
+- Proceed to P4 to re-verify.
+
+**For `[FAIL]` entries** (cross-reference failed AND key not on any keyserver):
+- **Stop and warn the user.** Do NOT proceed with the release. Report exactly which checks failed and advise manual investigation. This could indicate a supply-chain compromise.
+
+If the report contains a mix of PASS and FAIL entries, apply the PASS fixes first, then stop and report the FAIL entries. Do not proceed to Step 1 until all entries are resolved.
+
+#### P4: Re-run verification
+
+After applying fixes, re-run the check:
+
+```shell
+./tools/verify-pgp-keys.sh --check
+```
+
+If it passes, proceed to Step 1. If it still fails, repeat from P2 for the remaining failures.
+
+Note: Any PGP key update commits from the Preliminary Phase will be part of the working tree when Step 2 checks for a clean state. The user must push those commits before proceeding.
+
+---
 
 ### Step 1: Validate branch
 
