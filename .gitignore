@@ -87,6 +87,9 @@ fabric.properties
 ### VisualStudioCode ###
 .vscode/*
 
+### Hole
+.hole/*
+
 ### Claude settings
 /.claude/agent-memory/
 /.claude/settings.local.json
