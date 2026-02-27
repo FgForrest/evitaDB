@@ -61,7 +61,7 @@ jobs:
         fi
 
     - name: Checkout code
-      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1 checkout sources
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.1 checkout sources
       with:
         ref: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
         fetch-depth: 0
@@ -106,7 +106,7 @@ jobs:
         fi
 
     - name: Setup Java JDK
-      uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0  # setup JDK 17 for building
+      uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0  # setup JDK 17 for building
       with:
         distribution: 'temurin'
         java-version: '17'
@@ -155,7 +155,7 @@ jobs:
 
     - name: Create release
       id: create_release
-      uses: release-drafter/release-drafter@b1476f6e6eb133afa41ed8589daba6dc69b4d3f5 # v6.1.0
+      uses: release-drafter/release-drafter@6db134d15f3909ccc9eefd369f02bd1e9cffdf97 # v6.2.0
       with:
         version: ${{ steps.release_version.outputs.version }}
         publish: false
