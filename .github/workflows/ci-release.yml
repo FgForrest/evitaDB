@@ -60,6 +60,19 @@ jobs:
           exit 1
         fi
 
+    - name: Read release version
+      id: read_version
+      if: ${{ github.event.workflow_run.conclusion == 'success' }}
+      run: |
+        if [ -f "released_version.txt" ]; then
+          RELEASE_VERSION=$(cat released_version.txt)
+          echo "version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "Using release version: $RELEASE_VERSION"
+        else
+          echo "released_version.txt not found"
+          exit 1
+        fi
+
     - name: Checkout code
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.1 checkout sources
       with:
@@ -69,11 +82,13 @@ jobs:
 
     - name: Resolve new release version
       id: release_version
+      env:
+        ARTIFACT_VERSION: ${{ steps.read_version.outputs.version }}
       run: |
-        # Check if released_version.txt exists (from workflow artifact)
-        if [ -f "released_version.txt" ]; then
-          VERSION=$(cat released_version.txt)
-          echo "Using version from released_version.txt: $VERSION"
+        # Check if version was already read from workflow artifact (before checkout wiped it)
+        if [ -n "$ARTIFACT_VERSION" ]; then
+          VERSION="$ARTIFACT_VERSION"
+          echo "Using version from master workflow artifact: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         else
           # Extract version from branch name (e.g., release_2025-7 -> 2025.7)
