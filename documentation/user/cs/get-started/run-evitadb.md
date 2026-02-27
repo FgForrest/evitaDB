@@ -63,14 +63,14 @@ Pro integraci evitaDB do vašeho projektu použijte následující kroky:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:2025.8.0'
+implementation 'io.evitadb:evita_db:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -108,14 +108,14 @@ při povolení příslušného API v konfiguraci evitaDB.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:2025.8.0'
+implementation 'io.evitadb:evita_external_api_grpc:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -128,14 +128,14 @@ implementation 'io.evitadb:evita_external_api_grpc:2025.8.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:2025.8.0'
+implementation 'io.evitadb:evita_external_api_graphql:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -148,14 +148,14 @@ implementation 'io.evitadb:evita_external_api_graphql:2025.8.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:2025.8.0'
+implementation 'io.evitadb:evita_external_api_rest:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -225,7 +225,7 @@ Po spuštění evitaDB serveru byste měli v konzoli vidět následující infor
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2025.8.0 (keep calm and report bugs 😉)
+beta build 2026.1.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml

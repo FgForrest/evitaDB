@@ -75,7 +75,7 @@ Po dokončení tohoto postupu byste měli v konzoli vidět podobný výstup:
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2025.8.0 (keep calm and report bugs 😉)
+beta build 2026.1.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:
@@ -127,13 +127,13 @@ Otevřete své Java IDE a přidejte do projektu následující závislost:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2025.8.0'
+implementation 'io.evitadb:evita_java_driver:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
