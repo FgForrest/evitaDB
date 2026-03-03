@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ package io.evitadb.externalApi.http;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.SessionProtocol;
+import com.linecorp.armeria.common.metric.MeterIdPrefix;
+import com.linecorp.armeria.common.metric.MoreMeterBinders;
 import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.server.ClientAddressSource;
 import com.linecorp.armeria.server.HttpService;
@@ -66,9 +68,13 @@ import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.StringUtils;
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.netty.channel.EventLoopGroup;
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -503,7 +509,34 @@ public class ExternalApiServer implements AutoCloseable {
 		// we share worker group both for I/O and service processing, all computations are done in separate executors
 		// and having different worker groups for I/O and service processing only slows down the server
 		// due to context switching between threads and branch misses
-		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
+		final EventLoopGroup workerGroup;
+
+		// in tests we don't want to wait for graceful shutdown, so we set it to 0,
+		// but in production we want to wait a bit to let all requests finish properly
+		if (DevelopmentConstants.isTestRun()) {
+			workerGroup = EventLoopGroups
+				.builder()
+				.numThreads(apiOptions.workerGroupThreadsAsInt())
+				.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0))
+				.build();
+		} else {
+			workerGroup = EventLoopGroups
+				.builder()
+				.numThreads(apiOptions.workerGroupThreadsAsInt())
+				.build();
+		}
+
+		// Create a shared meter registry backed by the default PrometheusRegistry
+		// (the same registry scraped by PrometheusScrapeHandler)
+		final PrometheusMeterRegistry meterRegistry = new PrometheusMeterRegistry(
+			PrometheusConfig.DEFAULT, PrometheusRegistry.defaultRegistry, Clock.SYSTEM
+		);
+
+		// Bind EventLoop metrics to the shared registry
+		MoreMeterBinders
+			.eventLoopMetrics(workerGroup, new MeterIdPrefix("armeria.netty.worker"))
+			.bindTo(meterRegistry);
+
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), false)
 			// this may be changed in future versions to a limited set
@@ -540,6 +573,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.workerGroup(workerGroup, true)
+			.meterRegistry(meterRegistry)
 			.unloggedExceptionsReportInterval(Duration.ofMillis(10));
 
 		if (apiOptions.accessLog()) {
@@ -665,6 +699,10 @@ public class ExternalApiServer implements AutoCloseable {
 			);
 			// customize TLS settings
 			setupTls(serverBuilder, apiOptions.certificate().generateAndUseSelfSigned(), certificatePath, evita.getServiceExecutor());
+			// Bind certificate metrics (expiry, validity) to the shared registry
+			MoreMeterBinders
+				.certificateMetrics(new File(certificatePath.certificate()), new MeterIdPrefix("armeria.server.certificate"))
+				.bindTo(meterRegistry);
 		}
 
 		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,

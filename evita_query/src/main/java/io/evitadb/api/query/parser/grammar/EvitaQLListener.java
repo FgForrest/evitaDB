@@ -712,6 +712,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitEntityHavingConstraint(EvitaQLParser.EntityHavingConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code groupHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterGroupHavingConstraint(EvitaQLParser.GroupHavingConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code groupHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitGroupHavingConstraint(EvitaQLParser.GroupHavingConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code filterInScopeConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree

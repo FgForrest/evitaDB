@@ -129,7 +129,7 @@ public enum GrpcTimeFlow
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(37);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(38);
   }
 
   private static final GrpcTimeFlow[] VALUES = values();

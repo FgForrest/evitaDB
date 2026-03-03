@@ -39,6 +39,7 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.dataType.SupportedClass;
 import io.evitadb.exception.EvitaInvalidUsageException;

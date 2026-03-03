@@ -751,6 +751,10 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										scope
 										indexType
 									}
+									indexedComponents {
+										scope
+										indexedComponents
+									}
 									faceted
 								}
 								obsoleteBrand {
@@ -814,6 +818,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), brandReferenceSchema.isReferencedGroupTypeManaged())
 								.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexedDto(brandReferenceSchema))
+								.e(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), createReferenceIndexedComponentsDto(brandReferenceSchema))
 								.e(ReferenceSchemaDescriptor.FACETED.name(), createReferencedFacetedDto(brandReferenceSchema))
 								.build())
 							.e(REFERENCE_OBSOLETE_BRAND, map()

@@ -115,6 +115,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(EntityScope.class, new EntityScopeSerializer(), index++);
 		kryo.register(FilterInScope.class, new FilterInScopeSerializer(), index++);
 		kryo.register(HierarchyAnyHaving.class, new HierarchyAnyHavingSerializer(), index++);
+		kryo.register(GroupHaving.class, new GroupHavingSerializer(), index++);
 
 		index = QUERY_BASE + 300;
 		kryo.register(AttributeNatural.class, new AttributeNaturalSerializer(), index++);

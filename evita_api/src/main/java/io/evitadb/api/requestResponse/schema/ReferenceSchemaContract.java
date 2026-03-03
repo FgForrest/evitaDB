@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 
@@ -284,6 +283,40 @@ public interface ReferenceSchemaContract extends
 	 */
 	@Nonnull
 	Map<Scope, ReferenceIndexType> getReferenceIndexTypeInScopes();
+
+	/**
+	 * Returns the set of indexed components for the reference in the {@link Scope#DEFAULT_SCOPE}.
+	 * Indexed components specify which parts of the reference relationship (referenced entity,
+	 * referenced group entity, or both) are indexed and queryable.
+	 *
+	 * @return set of indexed components for the default scope, empty if not indexed
+	 */
+	@Nonnull
+	default Set<ReferenceIndexedComponents> getIndexedComponents() {
+		return getIndexedComponents(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the set of indexed components for the reference in the given scope.
+	 * Indexed components specify which parts of the reference relationship (referenced entity,
+	 * referenced group entity, or both) are indexed and queryable.
+	 *
+	 * Returns an empty set if the reference is not indexed in the given scope.
+	 *
+	 * @param scope the scope to get indexed components for
+	 * @return set of indexed components for the given scope, empty if not indexed in that scope
+	 */
+	@Nonnull
+	Set<ReferenceIndexedComponents> getIndexedComponents(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding indexed components that are configured
+	 * for this reference. Only scopes where the reference is actually indexed are included.
+	 *
+	 * @return map where keys are scopes and values are the sets of indexed components
+	 */
+	@Nonnull
+	Map<Scope, Set<ReferenceIndexedComponents>> getIndexedComponentsInScopes();
 
 	/**
 	 * Returns TRUE if the statistics data in any scope for this reference should be maintained and this

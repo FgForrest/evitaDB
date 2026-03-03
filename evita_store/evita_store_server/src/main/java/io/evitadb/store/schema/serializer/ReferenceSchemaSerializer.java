@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
@@ -46,8 +46,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
 
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+
+import java.util.Set;
+
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readIndexedComponentsMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopedReferenceIndexTypeArray;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeIndexedComponentsMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopedReferenceIndexTypeArray;
 
@@ -93,6 +99,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 		}
 
 		writeScopedReferenceIndexTypeArray(kryo, output, referenceSchema.getReferenceIndexTypeInScopes());
+		writeIndexedComponentsMap(kryo, output, referenceSchema.getIndexedComponentsInScopes());
 		writeScopeSet(kryo, output, referenceSchema.getFacetedInScopes());
 
 		kryo.writeObject(output, referenceSchema.getAttributes());
@@ -151,6 +158,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			);
 		}
 		final Map<Scope, ReferenceIndexType> indexedInScopes = readScopedReferenceIndexTypeArray(kryo, input);
+		final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes = readIndexedComponentsMap(kryo, input);
 		final EnumSet<Scope> facetedInScopes = readScopeSet(kryo, input);
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
@@ -173,6 +181,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
 			indexedInScopes,
+			indexedComponentsInScopes,
 			facetedInScopes,
 			attributes, sortableAttributeCompounds
 		);

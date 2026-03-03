@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,15 +26,23 @@ var evita = new EvitaClient(
 		EvitaClientConfiguration.builder()
 		.host("localhost")
 		.port(5555)
-		.useGeneratedCertificate(true)
-		.mtlsEnabled(true)
+		.tls(
+			ClientTlsOptions.builder()
+				.useGeneratedCertificate(true)
+				.mtlsEnabled(true)
+				.build()
+		)
 		.build() :
 	EvitaClientConfiguration.builder()
 		.host("demo.evitadb.io")
 		.port(5555)
-        // demo server provides Let's encrypt trusted certificate
-		.useGeneratedCertificate(false)
-        // the client will not be mutually verified by the server side
-        .mtlsEnabled(false)
+		.tls(
+			ClientTlsOptions.builder()
+				// demo server provides Let's encrypt trusted certificate
+				.useGeneratedCertificate(false)
+				// the client will not be mutually verified by the server side
+				.mtlsEnabled(false)
+				.build()
+		)
 		.build()
 );

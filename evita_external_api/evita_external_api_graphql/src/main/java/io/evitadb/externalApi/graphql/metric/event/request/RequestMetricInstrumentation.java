@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@ import graphql.execution.instrumentation.parameters.InstrumentationValidationPar
 import graphql.language.Document;
 import graphql.language.OperationDefinition;
 import graphql.validation.ValidationError;
+import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.externalApi.graphql.utils.GraphQLOperationNameResolver;
 import lombok.RequiredArgsConstructor;
 

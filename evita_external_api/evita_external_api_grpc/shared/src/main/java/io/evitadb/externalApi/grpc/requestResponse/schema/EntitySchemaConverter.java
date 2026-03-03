@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutationConverter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -502,6 +504,22 @@ public class EntitySchemaConverter {
 					)
 					.toList()
 			)
+			.addAllScopedIndexedComponents(
+				referenceSchema.getIndexedComponentsInScopes()
+					.entrySet()
+					.stream()
+					.map(
+						it -> GrpcScopedReferenceIndexedComponents.newBuilder()
+							.setScope(toGrpcScope(it.getKey()))
+							.addAllIndexedComponents(
+								it.getValue().stream()
+									.map(EvitaEnumConverter::toGrpcReferenceIndexedComponents)
+									.toList()
+							)
+							.build()
+					)
+					.toList()
+			)
 			.setIndexed(referenceSchema.isIndexed())
 			.addAllFacetedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
 			.setFaceted(referenceSchema.isFaceted());
@@ -522,6 +540,8 @@ public class EntitySchemaConverter {
 				.setDescriptionInherited(reflectedSchema.isDescriptionInherited())
 				.setDeprecationNoticeInherited(reflectedSchema.isDeprecatedInherited())
 				.setCardinalityInherited(reflectedSchema.isCardinalityInherited())
+				.setIndexedInherited(reflectedSchema.isIndexedInherited())
+				.setIndexedComponentsInherited(reflectedSchema.isIndexedComponentsInherited())
 				.setFacetedInherited(reflectedSchema.isFacetedInherited())
 				.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(reflectedSchema.getAttributesInheritanceBehavior()));
 			for (String attributeName : reflectedSchema.getAttributeInheritanceFilter()) {
@@ -696,6 +716,8 @@ public class EntitySchemaConverter {
 	private static ReferenceSchemaContract toReferenceSchema(@Nonnull GrpcReferenceSchema referenceSchema) {
 		final Optional<Cardinality> cardinality = toCardinality(referenceSchema.getCardinality());
 		final ScopedReferenceIndexType[] indexedInScopes = getIndexedInScopes(referenceSchema);
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes =
+			getIndexedComponentsInScopes(referenceSchema);
 		final Scope[] facetedInScopes = referenceSchema.getFacetedInScopesList().isEmpty() ?
 			(referenceSchema.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
@@ -719,6 +741,7 @@ public class EntitySchemaConverter {
 				referenceSchema.getReflectedReferenceName().getValue(),
 				cardinality.orElse(Cardinality.ZERO_OR_MORE),
 				indexedInScopes,
+				indexedComponentsInScopes,
 				facetedInScopes,
 				referenceSchema.getAttributesMap()
 					.entrySet()
@@ -740,6 +763,7 @@ public class EntitySchemaConverter {
 				referenceSchema.getDeprecationNoticeInherited(),
 				referenceSchema.getCardinalityInherited(),
 				referenceSchema.getIndexedInherited(),
+				referenceSchema.getIndexedComponentsInherited(),
 				referenceSchema.getFacetedInherited(),
 				toAttributeInheritanceBehavior(referenceSchema.getAttributeInheritanceBehavior()),
 				referenceSchema.getAttributeInheritanceFilterList().toArray(String[]::new),
@@ -797,6 +821,7 @@ public class EntitySchemaConverter {
 					: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
 				referenceSchema.getReferencedGroupTypeManaged(),
 				indexedInScopes,
+				indexedComponentsInScopes,
 				facetedInScopes,
 				referenceSchema.getAttributesMap()
 					.entrySet()
@@ -858,6 +883,25 @@ public class EntitySchemaConverter {
 				} :
 				ScopedReferenceIndexType.EMPTY;
 		}
+	}
+
+	/**
+	 * Retrieves an array of {@link ScopedReferenceIndexedComponents} objects based on the scoped
+	 * indexed components provided within the given {@link GrpcReferenceSchema}. Returns null if
+	 * no indexed components are defined, allowing defaults to be computed by the schema builder.
+	 *
+	 * @param referenceSchema the {@link GrpcReferenceSchema} from which the scoped indexed
+	 *                        components are extracted. Must not be null.
+	 * @return an array of {@link ScopedReferenceIndexedComponents} objects derived from the
+	 *         provided reference schema, or null if no indexed components are defined.
+	 */
+	@javax.annotation.Nullable
+	private static ScopedReferenceIndexedComponents[] getIndexedComponentsInScopes(
+		@Nonnull GrpcReferenceSchema referenceSchema
+	) {
+		return SetReferenceSchemaIndexedMutationConverter.getIndexedComponentsInScopes(
+			referenceSchema.getScopedIndexedComponentsList()
+		);
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,12 +25,14 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReflectedReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -75,6 +77,20 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			)
 		);
 
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes = input.getOptionalProperty(
+			CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES.name(),
+			new PropertyObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES,
+				ScopedReferenceIndexedComponents.class,
+				nestedInput -> new ScopedReferenceIndexedComponents(
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS)
+				)
+			)
+		);
+
 		return new CreateReflectedReferenceSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.DESCRIPTION),
@@ -83,6 +99,7 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME),
 			indexedInScopes,
+			indexedComponentsInScopes,
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER)

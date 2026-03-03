@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,11 +29,12 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
@@ -77,7 +78,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -5200773391501101688L;
+	@Serial private static final long serialVersionUID = 4361829150237811293L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -87,6 +88,7 @@ public class CreateReferenceSchemaMutation
 	@Getter @Nullable private final String referencedGroupType;
 	@Getter private final boolean referencedGroupTypeManaged;
 	@Getter @Nonnull private final ScopedReferenceIndexType[] indexedInScopes;
+	@Getter @Nonnull private final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
 	@Getter @Nonnull private final Scope[] facetedInScopes;
 
 	/**
@@ -110,10 +112,11 @@ public class CreateReferenceSchemaMutation
 			referencedEntityType, referencedEntityTypeManaged,
 			referencedGroupType, referencedGroupTypeManaged,
 			indexed
-				? new ScopedReferenceIndexType[] {
-					new ScopedReferenceIndexType(DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
-				}
+				? ScopedReferenceIndexType.DEFAULT
 				: ScopedReferenceIndexType.EMPTY,
+			indexed
+				? ScopedReferenceIndexedComponents.DEFAULT
+				: ScopedReferenceIndexedComponents.EMPTY,
 			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE
 		);
 	}
@@ -132,6 +135,7 @@ public class CreateReferenceSchemaMutation
 		@Nullable String referencedGroupType,
 		boolean referencedGroupTypeManaged,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nullable Scope[] facetedInScopes
 	) {
 		super(name);
@@ -145,6 +149,18 @@ public class CreateReferenceSchemaMutation
 		this.referencedGroupType = referencedGroupType;
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
 		this.indexedInScopes = indexedInScopes == null ? ScopedReferenceIndexType.EMPTY : indexedInScopes;
+		if (indexedComponentsInScopes == null) {
+			if (indexedInScopes == null) {
+				this.indexedComponentsInScopes = ScopedReferenceIndexedComponents.EMPTY;
+			} else {
+				this.indexedComponentsInScopes = Arrays.stream(indexedInScopes)
+					.filter(it -> it.indexType() != ReferenceIndexType.NONE)
+					.map(it -> new ScopedReferenceIndexedComponents(it.scope(), ReferenceIndexedComponents.DEFAULT_INDEXED_COMPONENTS))
+					.toArray(ScopedReferenceIndexedComponents[]::new);
+			}
+		} else {
+			this.indexedComponentsInScopes = indexedComponentsInScopes;
+		}
 		this.facetedInScopes = facetedInScopes == null ? NO_SCOPE : facetedInScopes;
 	}
 
@@ -238,6 +254,29 @@ public class CreateReferenceSchemaMutation
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
+									ReferenceSchemaContract::getIndexedComponentsInScopes,
+									newValue -> new SetReferenceSchemaIndexedMutation(
+										this.name,
+										createdVersion.getReferenceIndexTypeInScopes()
+											.entrySet()
+											.stream()
+											.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+											.toArray(ScopedReferenceIndexType[]::new),
+										createdVersion.getIndexedComponentsInScopes()
+											.entrySet()
+											.stream()
+											.map(
+												it -> new ScopedReferenceIndexedComponents(
+													it.getKey(),
+													it.getValue().toArray(ReferenceIndexedComponents[]::new)
+												)
+											)
+											.toArray(ScopedReferenceIndexedComponents[]::new)
+									)
+								),
+								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
+									createdVersion, existingVersion,
 									ref -> Arrays.stream(Scope.values())
 										.filter(ref::isFacetedInScope)
 										.toArray(Scope[]::new),
@@ -287,7 +326,8 @@ public class CreateReferenceSchemaMutation
 			this.referencedEntityType, this.referencedEntityTypeManaged,
 			this.cardinality,
 			this.referencedGroupType, this.referencedGroupTypeManaged,
-			this.indexedInScopes, this.facetedInScopes,
+			this.indexedInScopes, this.indexedComponentsInScopes,
+			this.facetedInScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
@@ -324,6 +364,7 @@ public class CreateReferenceSchemaMutation
 			", groupType='" + this.referencedGroupType + '\'' +
 			", referencedGroupTypeManaged=" + this.referencedGroupTypeManaged +
 			", indexed=" + Arrays.toString(this.indexedInScopes) +
+			", indexedComponents=" + Arrays.toString(this.indexedComponentsInScopes) +
 			", faceted=" + Arrays.toString(this.facetedInScopes);
 	}
 

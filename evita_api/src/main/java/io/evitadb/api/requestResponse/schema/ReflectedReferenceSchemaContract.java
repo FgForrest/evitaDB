@@ -90,6 +90,13 @@ public interface ReflectedReferenceSchemaContract extends ReferenceSchemaContrac
 	boolean isFacetedInherited();
 
 	/**
+	 * Returns true if the indexed components settings of the reflected reference is inherited from the target reference.
+	 *
+	 * @return true if the indexed components settings is inherited, false otherwise
+	 */
+	boolean isIndexedComponentsInherited();
+
+	/**
 	 * Returns the inheritance behavior for attributes in the reflected schema.
 	 *
 	 * This method returns an instance of the {@link AttributeInheritanceBehavior} enum that specifies how attribute

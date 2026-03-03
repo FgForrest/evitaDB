@@ -33,8 +33,9 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -112,6 +113,18 @@ public final class ReflectedReferenceSchemaBuilder
 							.stream()
 							.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
 							.toArray(ScopedReferenceIndexType[]::new),
+					this.baseSchema.isIndexedComponentsInherited()
+						? null
+						: this.baseSchema.getIndexedComponentsInScopes()
+							.entrySet()
+							.stream()
+							.map(
+								it -> new ScopedReferenceIndexedComponents(
+									it.getKey(),
+									it.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+								)
+							)
+							.toArray(ScopedReferenceIndexedComponents[]::new),
 					this.baseSchema.isFacetedInherited() ?
 						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new),
 					this.baseSchema.getAttributesInheritanceBehavior(),
@@ -456,7 +469,8 @@ public final class ReflectedReferenceSchemaBuilder
 	public ReflectedReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = indexedForTypeInScope(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING, inScope
+			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING,
+			getIndexedComponentsInScopes(), inScope
 		);
 		return this;
 	}
@@ -466,7 +480,43 @@ public final class ReflectedReferenceSchemaBuilder
 	public ReflectedReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = indexedForTypeInScope(
 			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, inScope
+			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			getIndexedComponentsInScopes(), inScope
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder indexedWithComponentsInScope(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceIndexedComponents... components
+	) {
+		this.updatedSchemaDirty = indexedWithComponentsInScope(
+			this.catalogSchema, this.entitySchema, this.mutations,
+			this.updatedSchemaDirty, getName(), getReferenceIndexTypeInScopes(),
+			scope, components
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder withIndexedComponentsInherited() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(
+					getName(),
+					this.getReferenceIndexTypeInScopes()
+						.entrySet()
+						.stream()
+						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new),
+					(ScopedReferenceIndexedComponents[]) null
+				)
+			)
 		);
 		return this;
 	}

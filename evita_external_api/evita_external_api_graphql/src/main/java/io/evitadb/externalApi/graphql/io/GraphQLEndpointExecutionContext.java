@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,11 @@
 package io.evitadb.externalApi.graphql.io;
 
 import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.utils.Assert;
 
@@ -49,9 +50,10 @@ public class GraphQLEndpointExecutionContext extends EndpointExecutionContext {
 	public GraphQLEndpointExecutionContext(
 		@Nonnull HttpRequest httpRequest,
 		@Nonnull Evita evita,
+		@Nonnull ServiceRequestContext serviceRequestContext,
 		@Nonnull ExecutedEvent requestExecutedEvent
 	) {
-		super(httpRequest, evita);
+		super(httpRequest, evita, serviceRequestContext);
 		this.requestExecutedEvent = requestExecutedEvent;
 	}
 

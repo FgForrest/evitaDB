@@ -737,6 +737,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterGroupHavingConstraint(EvitaQLParser.GroupHavingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitGroupHavingConstraint(EvitaQLParser.GroupHavingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterFilterInScopeConstraint(EvitaQLParser.FilterInScopeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}

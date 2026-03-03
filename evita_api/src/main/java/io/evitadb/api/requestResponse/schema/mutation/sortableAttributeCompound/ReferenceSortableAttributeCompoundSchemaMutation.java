@@ -195,6 +195,7 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 						Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					referenceSchema.getReferenceIndexTypeInScopes(),
+					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getAttributes(),
 					Stream.concat(

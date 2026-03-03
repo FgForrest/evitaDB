@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,8 +67,10 @@ import java.util.function.UnaryOperator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractFormula implements ChildrenDependentFormula {
-	private static final long CLASS_ID = 6841111737856593641L;
+public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
+	extends AbstractFormula
+	implements ChildrenDependentFormula {
+	private static final long CLASS_ID = 2738491562847195632L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
 	 * Optional union bitmap of all referenced entity primary keys that are allowed to participate
@@ -132,29 +134,34 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 	 * Creates a translating formula that takes referenced entity primary keys produced by the
 	 * inner formula and lazily maps them to primary keys of the referenced-type entity index.
 	 *
-	 * When the referenced entity type is managed, this constructor also builds a superset of allowed
-	 * referenced entity primary keys by querying {@link GlobalEntityIndex} for the referenced entity
-	 * type in all provided scopes where the reference is indexed. The union of these bitmaps is used
-	 * to filter the inner result during evaluation. Transactional ids of the contributing indices are
-	 * captured so that {@link #includeAdditionalHash(LongHashFunction)} can properly invalidate caches
-	 * when any of them changes.
+	 * When the target entity type is managed, this constructor also builds a superset of allowed
+	 * entity primary keys by querying {@link GlobalEntityIndex} for the target entity type in all
+	 * provided scopes where the reference is indexed. The union of these bitmaps is used to filter
+	 * the inner result during evaluation. Transactional ids of the contributing indices are captured
+	 * so that {@link #includeAdditionalHash(LongHashFunction)} can properly invalidate caches when
+	 * any of them changes.
 	 *
 	 * @param referenceSchema schema of the processed reference
+	 * @param targetEntityType the entity type to resolve the superset for (referenced entity type
+	 *        for entity-having, referenced group type for group-having)
+	 * @param isTargetManaged whether the target entity type is managed by evitaDB
 	 * @param referencedEntitySuperSetSupplier supplier returning {@link GlobalEntityIndex} for a
-	 *        referenced entity type and a scope
+	 *        target entity type and a scope
 	 * @param referencedTypeEntityIndex target referenced-type entity index
 	 * @param innerFormula inner formula producing referenced entity primary keys
 	 * @param scopes scopes the query is evaluated in
 	 */
 	public ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String targetEntityType,
+		boolean isTargetManaged,
 		@Nonnull BiFunction<String, Scope, Optional<GlobalEntityIndex>> referencedEntitySuperSetSupplier,
 		@Nonnull ReferencedTypeEntityIndex referencedTypeEntityIndex,
 		@Nonnull Formula innerFormula,
 		@Nonnull Set<Scope> scopes,
 		@Nullable UnaryOperator<Bitmap> expansionFunction
 	) {
-		if (referenceSchema.isReferencedEntityTypeManaged()) {
+		if (isTargetManaged) {
 			RoaringBitmap bitmap = null;
 			final long[] transactionalIds = new long[scopes.size()];
 			int transactionalIdIndex = 0;
@@ -163,7 +170,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 				// to avoid their removal from the final result
 				if (referenceSchema.isIndexedInScope(theScope)) {
 					final Optional<GlobalEntityIndex> globalEntityIndex = referencedEntitySuperSetSupplier
-						.apply(referenceSchema.getReferencedEntityType(), theScope);
+						.apply(targetEntityType, theScope);
 					final Bitmap allPrimaryKeys;
 					if (globalEntityIndex.isPresent()) {
 						allPrimaryKeys = globalEntityIndex.get().getAllPrimaryKeys();
@@ -249,9 +256,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 				RoaringBitmapBackedBitmap.getRoaringBitmap(referencedEntityIds),
 				RoaringBitmapBackedBitmap.getRoaringBitmap(this.referencedEntitySuperSet)
 			);
-			return new BaseBitmap(
-				this.referencedEntityTypeIndex.getIndexPrimaryKeys(matchingReferencedEntityPks)
-			);
+			return this.referencedEntityTypeIndex.getIndexPrimaryKeys(matchingReferencedEntityPks);
 		}
 	}
 
@@ -279,6 +284,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 		return 1;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "TRANSLATE TO REFERENCED ENTITY INDEX PRIMARY KEYS";

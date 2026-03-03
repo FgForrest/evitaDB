@@ -79,6 +79,10 @@ message GrpcCreateReferenceSchemaMutation {
   // Scoped reference index types that define both the scope and the type of index for the reference.
   // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
   repeated GrpcScopedReferenceIndexType scopedIndexTypes = 13;
+  // Scoped reference indexed components that specify which parts of a reference relationship
+  // (referenced entity, referenced group entity) are indexed per scope.
+  // When not specified, the default indexed components are determined automatically.
+  repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;
 }
 
 // Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
@@ -147,6 +151,10 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
   // When `indexedInherited` is true, this field is ignored.
   repeated GrpcScopedReferenceIndexType scopedIndexTypes = 14;
+  // Scoped reference indexed components that specify which parts of a reference relationship
+  // (referenced entity, referenced group entity) are indexed per scope.
+  // When `indexedInherited` is true, this field is ignored.
+  repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
@@ -299,4 +307,8 @@ message GrpcSetReferenceSchemaIndexedMutation {
   // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
   // When `inherited` is true, this field is ignored.
   repeated GrpcScopedReferenceIndexType scopedIndexTypes = 4;
+  // Scoped reference indexed components that specify which parts of a reference relationship
+  // (referenced entity, referenced group entity) are indexed per scope.
+  // When `inherited` is true, this field is ignored.
+  repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;
 }

@@ -121,20 +121,32 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			allowing to filter by `reference_{reference name}_having` filtering constraints and sorted by
 			`reference_{reference name}_property` constraints. Index is also required when reference is `faceted` -
 			but it has to be indexed in the same scope as faceted.
-						
+
 			Do not mark reference as indexed unless you know that you'll need to filter/sort entities by this reference.
 			Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
 			the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 			alongside other references and is available by calling entity reference methods.
-			
+
 			The index type determines the level of indexing optimization applied to improve query performance when
 			filtering by reference constraints. The index type affects both memory/disk usage and query performance.
 			Maintaining partitioned indexes provides better query performance at the cost of increased storage
 			requirements and maintenance overhead.
-			
+
 			Returns array of scopes and their corresponding reference index types in which this reference is indexed.
 			""")
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
+		.build();
+
+	PropertyDescriptor INDEXED_COMPONENTS = PropertyDescriptor.builder()
+		.name("indexedComponents")
+		.description("""
+			Contains information about which parts of the reference relationship are indexed per scope.
+			Controls whether the referenced entity itself, the referenced group entity, or both
+			are maintained in the index for filtering and querying operations.
+
+			Returns array of scopes and their corresponding indexed components configuration.
+			""")
+		.type(nonNullListRef(ScopedReferenceIndexedComponentsDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor FACETED = PropertyDescriptor.builder()
@@ -143,10 +155,10 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			Contains `true` if the statistics data for this reference should be maintained and this allowing to get
 			`facetStatistics` for this reference or use `facet_{reference name}_inSet`
 			filtering constraint.
-						
+			
 			Do not mark reference as faceted unless you want it among `facetStatistics`. Each faceted reference
 			occupies (memory/disk) space in the form of index.
-						
+			
 			Reference that was marked as faceted is called Facet.
 			
 			Returns array of scope in which this reference is faceted.
@@ -161,11 +173,11 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
 			(`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
 			memory space for data that will never be used in search queries.
-						
+			
 			Filtering in attributes is executed by using constraints like `and`,
 			`not`, `attribute_{name}_equals`, `attribute_{name}_contains`
 			and many others. Sorting can be achieved with `attribute_{name}_natural` or others.
-						
+			
 			Attributes are not recommended for bigger data as they are all loaded at once.
 			""")
 		// type is expected to be a map with attribute names as keys and attribute schemas as values
@@ -178,11 +190,11 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
 			(`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
 			memory space for data that will never be used in search queries.
-						
+			
 			Filtering in attributes is executed by using constraints like `and`,
 			`not`, `attribute_{name}_equals`, `attribute_{name}_contains`
 			and many others. Sorting can be achieved with `attribute_{name}_natural` or others.
-						
+			
 			Attributes are not recommended for bigger data as they are all loaded at once.
 			""")
 		.type(nonNullListRef(AttributeSchemaDescriptor.THIS))
@@ -201,6 +213,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			REFERENCED_GROUP_TYPE,
 			REFERENCED_GROUP_TYPE_MANAGED,
 			INDEXED,
+			INDEXED_COMPONENTS,
 			FACETED,
 			ENTITY_TYPE_NAME_VARIANTS,
 			GROUP_TYPE_NAME_VARIANTS
@@ -241,6 +254,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			GROUP_TYPE_NAME_VARIANTS,
 			REFERENCED_GROUP_TYPE_MANAGED,
 			INDEXED,
+			INDEXED_COMPONENTS,
 			FACETED,
 			ALL_ATTRIBUTES,
 			ALL_SORTABLE_ATTRIBUTE_COMPOUNDS

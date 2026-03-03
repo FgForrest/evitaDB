@@ -35,7 +35,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
@@ -110,10 +111,27 @@ class CreateReflectedReferenceSchemaMutationTest {
 		}
 
 		@Test
-		@DisplayName("should not generate indexed mutation when indexed scopes are unchanged")
-		void shouldNotGenerateIndexedMutationWhenIndexedScopesAreUnchanged() {
-			// Create a mutation with DIFFERENT description but the SAME indexed/faceted scopes
-			// as the existing reflected reference
+		@DisplayName("should not generate indexed/faceted mutations when inheritance status matches")
+		void shouldNotGenerateIndexedOrFacetedMutationsWhenInheritanceMatches() {
+			// Create a fully inherited existing reflected reference (all null indexed/faceted/components)
+			final ReflectedReferenceSchema existingReflected = ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME,
+				"reflectedDescription",
+				"reflectedDeprecationNotice",
+				REFERENCE_TYPE,
+				REFLECTED_REFERENCE_NAME,
+				Cardinality.ZERO_OR_MORE,
+				// inherited indexed scopes
+				null,
+				// inherited faceted scopes
+				null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+				null
+			);
+			// Create a mutation with DIFFERENT description but same inherited
+			// indexed/faceted/components
 			final CreateReflectedReferenceSchemaMutation mutation =
 				new CreateReflectedReferenceSchemaMutation(
 					REFERENCE_NAME,
@@ -121,18 +139,13 @@ class CreateReflectedReferenceSchemaMutationTest {
 					Cardinality.ZERO_OR_MORE,
 					REFERENCE_TYPE,
 					REFLECTED_REFERENCE_NAME,
-					// same indexed scopes as the existing reflected reference
-					new ScopedReferenceIndexType[]{
-						new ScopedReferenceIndexType(
-							Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING
-						)
-					},
-					// same faceted scopes as the existing reflected reference
-					new Scope[]{Scope.LIVE},
+					// inherited (null) — matching existing
+					null,
+					null,
+					null,
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 					null
 				);
-			final ReflectedReferenceSchema existingReflected = createExistingReflectedReferenceSchema();
 			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
 				.thenReturn(of(existingReflected));
@@ -153,20 +166,76 @@ class CreateReflectedReferenceSchemaMutationTest {
 			// Since description is different, there should be a description mutation
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaDescriptionMutation),
+					.anyMatch(ModifyReferenceSchemaDescriptionMutation.class::isInstance),
 				"Should generate description mutation since description differs"
 			);
-			// Since indexed and faceted scopes are the same, there should be NO
-			// SetReferenceSchemaIndexedMutation or SetReferenceSchemaFacetedMutation
+			// Since indexed scopes, components, and faceted are all inherited in both
+			// versions, there should be NO SetReferenceSchemaIndexedMutation or
+			// SetReferenceSchemaFacetedMutation
 			assertFalse(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof SetReferenceSchemaIndexedMutation),
-				"Should not generate SetReferenceSchemaIndexedMutation when indexed scopes are unchanged"
+					.anyMatch(SetReferenceSchemaIndexedMutation.class::isInstance),
+				"Should not generate SetReferenceSchemaIndexedMutation when inheritance matches"
 			);
 			assertFalse(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof SetReferenceSchemaFacetedMutation),
-				"Should not generate SetReferenceSchemaFacetedMutation when faceted scopes are unchanged"
+					.anyMatch(SetReferenceSchemaFacetedMutation.class::isInstance),
+				"Should not generate SetReferenceSchemaFacetedMutation when inheritance matches"
+			);
+		}
+
+		@Test
+		@DisplayName("should generate indexed components mutation when components change")
+		void shouldGenerateIndexedComponentsMutationWhenComponentsChange() {
+			// Create a mutation with explicit indexed components
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"reflectedDescription", "reflectedDeprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					// same indexed scopes as the existing reflected reference
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING
+						)
+					},
+					// explicit indexed components — the existing reflected reference has inherited (null)
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.DEFAULT_SCOPE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					},
+					new Scope[]{Scope.LIVE},
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			// The existing reflected reference has inherited (null) indexed components
+			final ReflectedReferenceSchema existingReflected = createExistingReflectedReferenceSchema();
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(existingReflected));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			assertNotNull(result.current());
+			// Since indexed components differ (explicit vs inherited), a SetReferenceSchemaIndexedMutation
+			// should be generated
+			assertTrue(
+				Arrays.stream(result.current())
+					.anyMatch(SetReferenceSchemaIndexedMutation.class::isInstance),
+				"Should generate SetReferenceSchemaIndexedMutation when indexed components change"
 			);
 		}
 

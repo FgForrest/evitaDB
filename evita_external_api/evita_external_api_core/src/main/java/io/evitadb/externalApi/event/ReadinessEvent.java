@@ -48,7 +48,7 @@ public class ReadinessEvent extends AbstractExternalApiEvent {
 	 */
 	@Label("API type")
 	@Name("api")
-	@Description("The identification of the API being probed.")
+	@Description("The identification of the API being called.")
 	@ExportMetricLabel
 	final String api;
 

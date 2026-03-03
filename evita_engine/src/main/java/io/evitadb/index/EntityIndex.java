@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ import static java.util.Optional.ofNullable;
  *
  * There may be multiple {@link EntityIndex} instances with different slices of the original data. There will be always
  * single {@link GlobalEntityIndex} index that contains all the data, but also several thinner
- * {@link ReducedEntityIndex indexes} that would contain only part of these. We aim to choose the smallest index
+ * {@link AbstractReducedEntityIndex reduced indexes} that would contain only part of these. We aim to choose the smallest index
  * possible that can still provide correct answer for the input query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,6 +60,14 @@ public class SessionKiller implements Runnable, Closeable {
 	 */
 	private final DelayedAsyncTask killerTask;
 
+	/**
+	 * Creates a new session killer that periodically checks for inactive sessions
+	 * and terminates them after the specified inactivity timeout.
+	 *
+	 * @param allowedInactivityInSeconds maximum allowed inactivity time in seconds
+	 * @param evita the evitaDB instance to manage sessions for
+	 * @param scheduler the scheduler used to plan periodic execution
+	 */
 	public SessionKiller(int allowedInactivityInSeconds, @Nonnull Evita evita, @Nonnull Scheduler scheduler) {
 		this.allowedInactivityInSeconds = allowedInactivityInSeconds;
 		this.evita = evita;
@@ -69,7 +77,7 @@ public class SessionKiller implements Runnable, Closeable {
 			scheduler,
 			() -> {
 				run();
-				// plan again according to plan
+				// return 0 to reschedule with the full default delay
 				return 0L;
 			},
 			Math.min(60, allowedInactivityInSeconds),
@@ -78,6 +86,11 @@ public class SessionKiller implements Runnable, Closeable {
 		this.killerTask.schedule();
 	}
 
+	/**
+	 * Scans all active sessions and terminates those that have been inactive
+	 * longer than the configured threshold. Sessions with open transactions
+	 * are rolled back before termination.
+	 */
 	@Override
 	public void run() {
 		try {
@@ -135,10 +148,14 @@ public class SessionKiller implements Runnable, Closeable {
 				);
 			}
 		} catch (Exception ex) {
-			log.error("Session killer terminated unexpectedly: " + ex.getMessage(), ex);
+			log.error("Session killer terminated unexpectedly: {}", ex.getMessage(), ex);
 		}
 	}
 
+	/**
+	 * Stops the periodic scheduling of the session killer task. Direct calls
+	 * to {@link #run()} remain functional after close.
+	 */
 	@Override
 	public void close() {
 		IOUtils.closeQuietly(this.killerTask::close);

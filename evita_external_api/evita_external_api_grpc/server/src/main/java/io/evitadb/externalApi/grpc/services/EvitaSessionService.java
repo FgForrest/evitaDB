@@ -66,7 +66,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
-import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.CancellableRunnable;
+import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
@@ -96,6 +97,7 @@ import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionIntercepto
 import io.evitadb.externalApi.grpc.services.subscriber.ChangeCatalogCaptureSubscriber;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
+import io.evitadb.externalApi.http.CancellationSupport;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.function.QuadriConsumer;
@@ -180,36 +182,35 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	static void executeWithClientContext(
 		@Nonnull Consumer<EvitaInternalSessionContract> lambda,
-		@Nonnull ObservableExecutorServiceWithHardDeadline executor,
+		@Nonnull ObservableExecutorServiceWithCancellationSupport executor,
 		@Nonnull StreamObserver<?> responseObserver,
 		@Nonnull ExternalApiTracingContext<Metadata> context
 	) {
 		// Retrieve the deadline from the context
-		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
+		final ServiceRequestContext ctx = ServiceRequestContext.current();
 		final Metadata metadata = METADATA.get();
 		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
 		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
 		final Context grpcContext = Context.current();
-		executor.execute(
-			executor.createTask(
-				methodName,
-				() -> {
-					try {
-						grpcContext.run(
-							() -> context.executeWithinBlock(
-								methodName,
-								metadata,
-								() -> lambda.accept(session)
-							)
-						);
-					} catch (RuntimeException exception) {
-						// Delegate exception handling to GlobalExceptionHandlerInterceptor
-						GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
-					}
-				},
-				requestTimeoutMillis
-			)
+		final CancellableRunnable task = executor.createTask(
+			methodName,
+			() -> {
+				try {
+					grpcContext.run(
+						() -> context.executeWithinBlock(
+							methodName,
+							metadata,
+							() -> lambda.accept(session)
+						)
+					);
+				} catch (RuntimeException exception) {
+					// Delegate exception handling to GlobalExceptionHandlerInterceptor
+					GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+				}
+			}
 		);
+		CancellationSupport.wireCancellation(ctx, task);
+		executor.execute(task);
 	}
 
 	/**
@@ -609,7 +610,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public EvitaSessionService(@Nonnull Evita evita, @Nonnull HeaderOptions headers) {
 		this.evita = evita;
 		this.trackSourceQueries = evita.getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled();
-		this.tracingContext = ExternalApiTracingContextProvider.getContext(headers);
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(Metadata.class, headers);
 	}
 
 	/**
@@ -2342,13 +2343,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
 		((ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver).setOnCancelHandler(
-			() -> {
-				try {
-					subscriptionFuture.get().cancel();
-				} catch (Exception e) {
-					log.debug("Failed to remove progress listener on cancel", e);
+			// cancel handler runs on the event loop thread — must not block
+			() -> subscriptionFuture.whenComplete((subscription, ex) -> {
+				if (subscription != null) {
+					subscription.cancel();
 				}
-			}
+			})
 		);
 
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();

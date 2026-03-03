@@ -25,8 +25,6 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
@@ -67,6 +65,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
@@ -97,7 +96,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStorag
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -249,28 +247,41 @@ public class DefaultEntityCollectionPersistenceService
 
 			// load additional containers only when requested
 			final ReferencesStoragePart referencesStorageContainer = fetchReferences(
-				null, new ReferenceContractSerializablePredicate(evitaRequest),
-				() -> Arrays.stream(storageParts)
-					.filter(ReferencesStoragePart.class::isInstance)
-					.map(ReferencesStoragePart.class::cast)
-					.findFirst()
-					.orElseGet(
-						() -> ioFetchStatistics.record(
-							dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
-						)
-					)
+				null,
+				new ReferenceContractSerializablePredicate(evitaRequest),
+				new Supplier<>() {
+					@Nullable
+					@Override
+					public ReferencesStoragePart get() {
+						return Arrays.stream(storageParts)
+							.filter(ReferencesStoragePart.class::isInstance)
+							.map(ReferencesStoragePart.class::cast)
+							.findFirst()
+							.orElseGet(
+								() -> ioFetchStatistics.record(
+									dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
+								)
+							);
+					}
+				}
 			);
 			final PricesStoragePart priceStorageContainer = fetchPrices(
 				null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
-				() -> Arrays.stream(storageParts)
-					.filter(PricesStoragePart.class::isInstance)
-					.map(PricesStoragePart.class::cast)
-					.findFirst()
-					.orElseGet(
-						() -> ioFetchStatistics.record(
-							dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
-						)
-					)
+				new Supplier<>() {
+					@Nullable
+					@Override
+					public PricesStoragePart get() {
+						return Arrays.stream(storageParts)
+							.filter(PricesStoragePart.class::isInstance)
+							.map(PricesStoragePart.class::cast)
+							.findFirst()
+							.orElseGet(
+								() -> ioFetchStatistics.record(
+									dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
+								)
+							);
+					}
+				}
 			);
 
 			final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
@@ -485,6 +496,31 @@ public class DefaultEntityCollectionPersistenceService
 			"Cardinality index with id `" + entityIndexId + "` with key `" + referenceName + "` was not found in persistent storage!"
 		);
 		return cardinalityIndexCnt.getCardinalityIndex();
+	}
+
+	/**
+	 * Fetches {@link GroupCardinalityIndexStoragePart} from the {@link OffsetIndex} and returns the
+	 * PK cardinalities and referenced primary keys index maps.
+	 */
+	@Nonnull
+	private static GroupCardinalityIndexStoragePart fetchGroupCardinalityIndex(
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
+		@Nonnull String referenceName
+	) {
+		final long primaryKey = GroupCardinalityIndexStoragePart.computeUniquePartId(
+			entityIndexId, referenceName, persistenceService.getReadOnlyKeyCompressor()
+		);
+		final GroupCardinalityIndexStoragePart storagePart = persistenceService.getStoragePart(
+			catalogVersion, primaryKey, GroupCardinalityIndexStoragePart.class
+		);
+		isPremiseValid(
+			storagePart != null,
+			"Group cardinality index with id `" + entityIndexId + "` with key `" +
+				referenceName + "` was not found in persistent storage!"
+		);
+		return storagePart;
 	}
 
 	/**
@@ -1139,7 +1175,10 @@ public class DefaultEntityCollectionPersistenceService
 				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), entitySchema));
 		} else {
 			final String referenceName;
-			if (entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+			if (
+				entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+					entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+			) {
 				referenceKey = null;
 				referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			} else {
@@ -1196,7 +1235,10 @@ public class DefaultEntityCollectionPersistenceService
 				hierarchyIndex,
 				facetIndex
 			);
-		} else if (entityIndexType == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+		} else if (
+			entityIndexType == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+				entityIndexType == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+		) {
 			final String referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			final ReferenceTypeCardinalityIndex referenceTypeCardinalityIndex = fetchReferenceTypeCardinalityIndex(
 				catalogVersion, entityIndexId, this.storagePartPersistenceService, referenceName
@@ -1215,6 +1257,35 @@ public class DefaultEntityCollectionPersistenceService
 				hierarchyIndex,
 				facetIndex,
 				referenceTypeCardinalityIndex,
+				cardinalityIndexes
+			);
+		} else if (entityIndexType == EntityIndexType.REFERENCED_GROUP_ENTITY) {
+			final Scope scope = entityIndexKey.scope();
+			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
+				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
+			);
+			final String referenceName = Objects.requireNonNull(
+				((RepresentativeReferenceKey) entityIndexKey.discriminator()).referenceName()
+			);
+			final GroupCardinalityIndexStoragePart groupCardinalityPart = fetchGroupCardinalityIndex(
+				catalogVersion, entityIndexId, this.storagePartPersistenceService, referenceName
+			);
+			return new ReducedGroupEntityIndex(
+				entityIndexCnt.getPrimaryKey(),
+				entityIndexKey,
+				entityIndexCnt.getVersion(),
+				entityIndexCnt.getEntityIds(),
+				entityIndexCnt.getEntityIdsByLanguage(),
+				new AttributeIndex(
+					entitySchema.getName(),
+					referenceKey,
+					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				),
+				new PriceRefIndex(scope, priceIndexes),
+				hierarchyIndex,
+				facetIndex,
+				groupCardinalityPart.getPkCardinalities(),
+				groupCardinalityPart.getReferencedPrimaryKeysIndex(),
 				cardinalityIndexes
 			);
 		} else {

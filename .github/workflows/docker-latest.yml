@@ -23,14 +23,14 @@ jobs:
           persist-credentials: false
 
       - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
+        uses: dawidd6/action-download-artifact@0bd50d53a6d7fb5cb921e607957e9cc12b4ce392 # v12
         with:
           run_id: ${{ github.event.workflow_run.id }}
           name: evita-server.jar
           path: docker
 
       - name: Download a version information # download `version.txt` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
+        uses: dawidd6/action-download-artifact@0bd50d53a6d7fb5cb921e607957e9cc12b4ce392 # v12
         with:
           run_id: ${{ github.event.workflow_run.id }}
           name: version.txt
@@ -45,7 +45,7 @@ jobs:
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes -c yes
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         with:
           buildkitd-flags: --debug
           platforms: linux/amd64,linux/arm64/v8

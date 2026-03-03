@@ -68,15 +68,7 @@ import io.evitadb.core.query.policy.PlanningPolicy.PrefetchPolicy;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.*;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -425,8 +417,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Retrieves a stream of {@link ReducedEntityIndex} objects based on the provided scope, referenced entity ID,
-	 * entity schema, reference schema, and a supplier for handling missing indexes.
+	 * Retrieves a stream of {@link ReducedEntityIndex} objects based on the provided scope, referenced
+	 * entity ID, entity schema, reference schema, and a supplier for handling missing indexes.
 	 *
 	 * @param scope the scope within which the entity indexes are retrieved
 	 * @param referencedEntityId the ID of the referenced entity
@@ -454,7 +446,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 						referencedEntityId
 					);
 					return Arrays.stream(allReducedEntityIndexPks)
-					             .mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedEntityIndex.class));
+						.mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedEntityIndex.class));
 				})
 				.orElseGet(() -> {
 					final ReducedEntityIndex missingIndex = missingIndexSupplier.apply(entitySchema, entityIndexKey);
@@ -468,11 +460,53 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					new ReferenceKey(referenceName, referencedEntityId)
 				)
 			);
-			return Stream.of(
-				getEntityIndex(entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class)
-				  .orElseGet(() -> missingIndexSupplier.apply(entitySchema, entityIndexKey))
-			).filter(Objects::nonNull);
+			return getEntityIndex(entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class)
+				.or(() -> Optional.ofNullable(missingIndexSupplier.apply(entitySchema, entityIndexKey)))
+				.stream();
 		}
+	}
+
+	/**
+	 * Retrieves a stream of {@link AbstractReducedEntityIndex} instances corresponding to the group entity
+	 * identified by `groupEntityId` within the given scope. This method mirrors
+	 * {@link #getReducedEntityIndexes(Scope, int, EntitySchemaContract, ReferenceSchemaContract, BiFunction)}
+	 * but uses group-specific index types (`REFERENCED_GROUP_ENTITY_TYPE` / `REFERENCED_GROUP_ENTITY`)
+	 * instead of entity-level ones.
+	 *
+	 * @param scope the scope within which the group entity indexes are retrieved
+	 * @param groupEntityId the ID of the group entity
+	 * @param entitySchema the schema of the entity used for configuration
+	 * @param referenceSchema the schema of the reference defining the relationship to the group entity
+	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing
+	 * @return a stream of {@link AbstractReducedEntityIndex} corresponding to the specified query criteria
+	 */
+	@Nonnull
+	public Stream<ReducedGroupEntityIndex> getReducedGroupEntityIndexes(
+		@Nonnull Scope scope,
+		int groupEntityId,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedGroupEntityIndex> missingIndexSupplier
+	) {
+		final String referenceName = referenceSchema.getName();
+		// always use the type index path — group index discriminator uses referenced entity PK,
+		// not group PK, so direct key construction by groupEntityId is not possible
+		final EntityIndexKey entityIndexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
+		);
+		return getEntityIndex(entitySchema.getName(), entityIndexKey, ReferencedTypeEntityIndex.class)
+			.map(referencedTypeEntityIndex -> {
+				final int[] allReducedEntityIndexPks = referencedTypeEntityIndex.getAllReferenceIndexes(
+					groupEntityId
+				);
+				return Arrays.stream(allReducedEntityIndexPks)
+					.mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedGroupEntityIndex.class));
+			})
+			.orElseGet(() -> {
+				final ReducedGroupEntityIndex missingIndex =
+					missingIndexSupplier.apply(entitySchema, entityIndexKey);
+				return missingIndex == null ? Stream.empty() : Stream.of(missingIndex);
+			});
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,12 +52,12 @@ public class StartJfrRecordingHandler extends JfrRecordingEndpointHandler {
 	@Override
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull JfrRecordingEndpointExecutionContext executionContext) {
 		return parseRequestBody(executionContext, JfrRecorderTask.RecordingSettings.class)
-			.thenApply(settings -> {
+			.thenCompose(settings -> executionContext.executeAsyncInRequestThreadPool(() -> {
 				final ServerTask<RecordingSettings, FileForFetch> task = this.manager.start(
 					settings.allowedEvents(), settings.maxSizeInBytes(), settings.maxAgeInSeconds()
 				);
 				return new SuccessEndpointResponse(task.getStatus());
-			});
+			}));
 	}
 
 	@Nonnull

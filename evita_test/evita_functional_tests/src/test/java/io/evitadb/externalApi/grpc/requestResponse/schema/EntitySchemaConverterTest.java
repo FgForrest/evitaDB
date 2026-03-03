@@ -41,6 +41,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * This test verifies functionalities of methods in {@link EntitySchemaConverter} class.
@@ -221,7 +222,7 @@ class EntitySchemaConverterTest {
 	}
 
 	private static void assertAttributeSchema(@Nonnull AttributeSchemaContract expected, @Nonnull AttributeSchemaContract actual) {
-		assertEquals(expected.getClass(), actual.getClass());
+		assertSame(expected.getClass(), actual.getClass());
 		if (expected instanceof GlobalAttributeSchemaContract expectedGlobal) {
 			assertEquals(expectedGlobal.isUniqueGlobally(), ((GlobalAttributeSchemaContract) actual).isUniqueGlobally());
 		}
@@ -235,14 +236,20 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.isFilterable(), actual.isFilterable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isFilterable() ? "filterable" : "not filterable") + "!");
 		assertEquals(expected.isSortable(), actual.isSortable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isSortable() ? "sortable" : "not sortable") + "!");
 		assertEquals(expected.isNullable(), actual.isNullable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isNullable() ? "nullable" : "not nullable") + "!");
-		assertEquals(expected.getType(), actual.getType(), "Attribute `" + expected.getName() + "` is expected to be of type `" + expected.getType() + "`!");
-		assertEquals(expected.getPlainType(), actual.getPlainType(), "Attribute `" + expected.getName() + "` is expected to be of plain type `" + expected.getPlainType() + "`!");
+		assertSame(
+			expected.getType(), actual.getType(),
+			"Attribute `" + expected.getName() + "` is expected to be of type `" + expected.getType() + "`!"
+		);
+		assertSame(
+			expected.getPlainType(), actual.getPlainType(),
+			"Attribute `" + expected.getName() + "` is expected to be of plain type `" + expected.getPlainType() + "`!"
+		);
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue(), "Attribute `" + expected.getName() + "` is expected to have default value `" + expected.getDefaultValue() + "`!");
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces(), "Attribute `" + expected.getName() + "` is expected to have indexed decimal places `" + expected.getIndexedDecimalPlaces() + "`!");
 	}
 
 	private static void assertSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract expected, @Nonnull SortableAttributeCompoundSchemaContract actual) {
-		assertEquals(expected.getClass(), actual.getClass());
+		assertSame(expected.getClass(), actual.getClass());
 
 		assertEquals(expected.getName(), actual.getName());
 		assertEquals(expected.getDescription(), actual.getDescription());
@@ -258,7 +265,7 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getDeprecationNotice(), actual.getDeprecationNotice());
 		assertEquals(expected.isLocalized(), actual.isLocalized());
 		assertEquals(expected.isNullable(), actual.isNullable());
-		assertEquals(expected.getType(), actual.getType());
+		assertSame(expected.getType(), actual.getType());
 	}
 
 	private static void assertReferenceSchema(@Nonnull ReferenceSchemaContract expected, @Nonnull ReferenceSchemaContract actual) {
@@ -272,6 +279,8 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getReferencedGroupType(), actual.getReferencedGroupType());
 		assertEquals(expected.isReferencedGroupTypeManaged(), actual.isReferencedGroupTypeManaged());
 		assertEquals(expected.isIndexed(), actual.isIndexed());
+		assertEquals(expected.getReferenceIndexTypeInScopes(), actual.getReferenceIndexTypeInScopes());
+		assertEquals(expected.getIndexedComponentsInScopes(), actual.getIndexedComponentsInScopes());
 		assertEquals(expected.isFaceted(), actual.isFaceted());
 		assertEquals(expected.getSortableAttributeCompounds(), actual.getSortableAttributeCompounds());
 

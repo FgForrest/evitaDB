@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ package io.evitadb.externalApi.grpc.services.interceptors;
 
 import com.google.protobuf.Any;
 import com.google.rpc.ErrorInfo;
+import com.linecorp.armeria.common.stream.ClosedStreamException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.ExceptionUtils;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
@@ -40,11 +42,13 @@ import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 
 /**
  * Centralized interceptor that handles all kinds of possible exceptions that could be emitted by evitaDB for input
- * requests in a generic way.
+ * requests in a generic way. Client-initiated cancellations (e.g., HTTP/2 RST_STREAM CANCEL) are logged at
+ * DEBUG level and not treated as server errors.
  *
  * <a href="https://techdozo.dev/getting-error-handling-right-in-grpc/#-grpc-error-interceptor">Source of inspiration</a>
  *
@@ -79,6 +83,12 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 
 		if (exception instanceof CompletionException completionException) {
 			return createErrorStatus(completionException.getCause());
+		} else if (isClientCancellation(exception)) {
+			log.debug("Client cancelled gRPC call: {}", exception.getMessage());
+
+			rpcStatus = com.google.rpc.Status.newBuilder()
+				.setCode(Code.CANCELLED.value())
+				.build();
 		} else if (exception instanceof EvitaInvalidUsageException invalidUsageException) {
 			if (log.isDebugEnabled()) {
 				log.debug("Invalid usage exception gRPC call: " + exception.getMessage(), exception);
@@ -124,6 +134,18 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 		return new ExceptionHandler<>(delegate, serverCall);
 	}
 
+	/**
+	 * Checks whether the given exception represents a client-initiated cancellation
+	 * (e.g., HTTP/2 RST_STREAM CANCEL or CompletableFuture cancellation).
+	 *
+	 * @param exception the exception to check
+	 * @return true if the exception indicates client cancellation
+	 */
+	private static boolean isClientCancellation(@Nonnull Throwable exception) {
+		return ExceptionUtils.causeChainContains(exception, ClosedStreamException.class)
+			|| ExceptionUtils.causeChainContains(exception, CancellationException.class);
+	}
+
 	private static class ExceptionHandler<T, R> extends ForwardingServerCallListener.SimpleForwardingServerCallListener<T> {
 		private final ServerCall<T, R> delegate;
 
@@ -142,8 +164,13 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 				handleException(ex, this.delegate);
 				throw ex;
 			} catch (RuntimeException ex) {
-				// we're responsible for logging the exception here
-				log.error("Exception occurred during processing of gRPC call", ex);
+				if (isClientCancellation(ex)) {
+					// client cancelled the request — not a server error
+					log.debug("Client cancelled gRPC call during processing", ex);
+				} else {
+					// we're responsible for logging the exception here
+					log.error("Exception occurred during processing of gRPC call", ex);
+				}
 				handleException(ex, this.delegate);
 				throw ex;
 			}

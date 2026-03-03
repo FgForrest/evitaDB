@@ -48,6 +48,7 @@ private static final long serialVersionUID = 0L;
     name_ = "";
     indexedInScopes_ = java.util.Collections.emptyList();
     scopedIndexTypes_ = java.util.Collections.emptyList();
+    scopedIndexedComponents_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -160,7 +161,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=296
+   *     See GrpcReferenceSchemaMutations.proto;l=304
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Override
@@ -182,7 +183,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=296
+   *     See GrpcReferenceSchemaMutations.proto;l=304
    * @return The count of indexedInScopes.
    */
   @java.lang.Override
@@ -203,7 +204,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=296
+   *     See GrpcReferenceSchemaMutations.proto;l=304
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -225,7 +226,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=296
+   *     See GrpcReferenceSchemaMutations.proto;l=304
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Override
@@ -247,7 +248,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=296
+   *     See GrpcReferenceSchemaMutations.proto;l=304
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -328,6 +329,77 @@ private static final long serialVersionUID = 0L;
     return scopedIndexTypes_.get(index);
   }
 
+  public static final int SCOPEDINDEXEDCOMPONENTS_FIELD_NUMBER = 5;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> scopedIndexedComponents_;
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `inherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> getScopedIndexedComponentsList() {
+    return scopedIndexedComponents_;
+  }
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `inherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+      getScopedIndexedComponentsOrBuilderList() {
+    return scopedIndexedComponents_;
+  }
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `inherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+   */
+  @java.lang.Override
+  public int getScopedIndexedComponentsCount() {
+    return scopedIndexedComponents_.size();
+  }
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `inherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents getScopedIndexedComponents(int index) {
+    return scopedIndexedComponents_.get(index);
+  }
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `inherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder getScopedIndexedComponentsOrBuilder(
+      int index) {
+    return scopedIndexedComponents_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -358,6 +430,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < scopedIndexTypes_.size(); i++) {
       output.writeMessage(4, scopedIndexTypes_.get(i));
+    }
+    for (int i = 0; i < scopedIndexedComponents_.size(); i++) {
+      output.writeMessage(5, scopedIndexedComponents_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -391,6 +466,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, scopedIndexTypes_.get(i));
     }
+    for (int i = 0; i < scopedIndexedComponents_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(5, scopedIndexedComponents_.get(i));
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -413,6 +492,8 @@ private static final long serialVersionUID = 0L;
     if (!indexedInScopes_.equals(other.indexedInScopes_)) return false;
     if (!getScopedIndexTypesList()
         .equals(other.getScopedIndexTypesList())) return false;
+    if (!getScopedIndexedComponentsList()
+        .equals(other.getScopedIndexedComponentsList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -436,6 +517,10 @@ private static final long serialVersionUID = 0L;
     if (getScopedIndexTypesCount() > 0) {
       hash = (37 * hash) + SCOPEDINDEXTYPES_FIELD_NUMBER;
       hash = (53 * hash) + getScopedIndexTypesList().hashCode();
+    }
+    if (getScopedIndexedComponentsCount() > 0) {
+      hash = (37 * hash) + SCOPEDINDEXEDCOMPONENTS_FIELD_NUMBER;
+      hash = (53 * hash) + getScopedIndexedComponentsList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -584,6 +669,13 @@ private static final long serialVersionUID = 0L;
         scopedIndexTypesBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000008);
+      if (scopedIndexedComponentsBuilder_ == null) {
+        scopedIndexedComponents_ = java.util.Collections.emptyList();
+      } else {
+        scopedIndexedComponents_ = null;
+        scopedIndexedComponentsBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00000010);
       return this;
     }
 
@@ -630,6 +722,15 @@ private static final long serialVersionUID = 0L;
         result.scopedIndexTypes_ = scopedIndexTypes_;
       } else {
         result.scopedIndexTypes_ = scopedIndexTypesBuilder_.build();
+      }
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (((bitField0_ & 0x00000010) != 0)) {
+          scopedIndexedComponents_ = java.util.Collections.unmodifiableList(scopedIndexedComponents_);
+          bitField0_ = (bitField0_ & ~0x00000010);
+        }
+        result.scopedIndexedComponents_ = scopedIndexedComponents_;
+      } else {
+        result.scopedIndexedComponents_ = scopedIndexedComponentsBuilder_.build();
       }
     }
 
@@ -731,6 +832,32 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (!other.scopedIndexedComponents_.isEmpty()) {
+          if (scopedIndexedComponents_.isEmpty()) {
+            scopedIndexedComponents_ = other.scopedIndexedComponents_;
+            bitField0_ = (bitField0_ & ~0x00000010);
+          } else {
+            ensureScopedIndexedComponentsIsMutable();
+            scopedIndexedComponents_.addAll(other.scopedIndexedComponents_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.scopedIndexedComponents_.isEmpty()) {
+          if (scopedIndexedComponentsBuilder_.isEmpty()) {
+            scopedIndexedComponentsBuilder_.dispose();
+            scopedIndexedComponentsBuilder_ = null;
+            scopedIndexedComponents_ = other.scopedIndexedComponents_;
+            bitField0_ = (bitField0_ & ~0x00000010);
+            scopedIndexedComponentsBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getScopedIndexedComponentsFieldBuilder() : null;
+          } else {
+            scopedIndexedComponentsBuilder_.addAllMessages(other.scopedIndexedComponents_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -797,6 +924,19 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 34
+            case 42: {
+              io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.parser(),
+                      extensionRegistry);
+              if (scopedIndexedComponentsBuilder_ == null) {
+                ensureScopedIndexedComponentsIsMutable();
+                scopedIndexedComponents_.add(m);
+              } else {
+                scopedIndexedComponentsBuilder_.addMessage(m);
+              }
+              break;
+            } // case 42
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -978,7 +1118,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @return A list containing the indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
@@ -999,7 +1139,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @return The count of indexedInScopes.
      */
     @java.lang.Deprecated public int getIndexedInScopesCount() {
@@ -1019,7 +1159,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @param index The index of the element to return.
      * @return The indexedInScopes at the given index.
      */
@@ -1040,7 +1180,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @param index The index to set the value at.
      * @param value The indexedInScopes to set.
      * @return This builder for chaining.
@@ -1069,7 +1209,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @param value The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -1096,7 +1236,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @param values The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -1123,7 +1263,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearIndexedInScopes() {
@@ -1146,7 +1286,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @return A list containing the enum numeric values on the wire for indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<java.lang.Integer>
@@ -1167,7 +1307,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      */
@@ -1188,7 +1328,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @param index The index to set the value at.
      * @param value The enum numeric value on the wire for indexedInScopes to set.
      * @return This builder for chaining.
@@ -1214,7 +1354,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @param value The enum numeric value on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -1238,7 +1378,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=296
+     *     See GrpcReferenceSchemaMutations.proto;l=304
      * @param values The enum numeric values on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -1598,6 +1738,354 @@ private static final long serialVersionUID = 0L;
         scopedIndexTypes_ = null;
       }
       return scopedIndexTypesBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> scopedIndexedComponents_ =
+      java.util.Collections.emptyList();
+    private void ensureScopedIndexedComponentsIsMutable() {
+      if (!((bitField0_ & 0x00000010) != 0)) {
+        scopedIndexedComponents_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents>(scopedIndexedComponents_);
+        bitField0_ |= 0x00000010;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> scopedIndexedComponentsBuilder_;
+
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> getScopedIndexedComponentsList() {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(scopedIndexedComponents_);
+      } else {
+        return scopedIndexedComponentsBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public int getScopedIndexedComponentsCount() {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        return scopedIndexedComponents_.size();
+      } else {
+        return scopedIndexedComponentsBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents getScopedIndexedComponents(int index) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        return scopedIndexedComponents_.get(index);
+      } else {
+        return scopedIndexedComponentsBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder setScopedIndexedComponents(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents value) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.set(index, value);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder setScopedIndexedComponents(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder builderForValue) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder addScopedIndexedComponents(io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents value) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.add(value);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder addScopedIndexedComponents(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents value) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.add(index, value);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder addScopedIndexedComponents(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder builderForValue) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.add(builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder addScopedIndexedComponents(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder builderForValue) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder addAllScopedIndexedComponents(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> values) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, scopedIndexedComponents_);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder clearScopedIndexedComponents() {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        scopedIndexedComponents_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000010);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public Builder removeScopedIndexedComponents(int index) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.remove(index);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder getScopedIndexedComponentsBuilder(
+        int index) {
+      return getScopedIndexedComponentsFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder getScopedIndexedComponentsOrBuilder(
+        int index) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        return scopedIndexedComponents_.get(index);  } else {
+        return scopedIndexedComponentsBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+         getScopedIndexedComponentsOrBuilderList() {
+      if (scopedIndexedComponentsBuilder_ != null) {
+        return scopedIndexedComponentsBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(scopedIndexedComponents_);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder addScopedIndexedComponentsBuilder() {
+      return getScopedIndexedComponentsFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder addScopedIndexedComponentsBuilder(
+        int index) {
+      return getScopedIndexedComponentsFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When `inherited` is true, this field is ignored.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder> 
+         getScopedIndexedComponentsBuilderList() {
+      return getScopedIndexedComponentsFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+        getScopedIndexedComponentsFieldBuilder() {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        scopedIndexedComponentsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder>(
+                scopedIndexedComponents_,
+                ((bitField0_ & 0x00000010) != 0),
+                getParentForChildren(),
+                isClean());
+        scopedIndexedComponents_ = null;
+      }
+      return scopedIndexedComponentsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
