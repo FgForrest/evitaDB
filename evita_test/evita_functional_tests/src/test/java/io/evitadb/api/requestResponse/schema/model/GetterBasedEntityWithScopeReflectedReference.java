@@ -55,12 +55,12 @@ public interface GetterBasedEntityWithScopeReflectedReference {
 			@ScopeReferenceSettings(
 				scope = Scope.LIVE,
 				indexed = ReferenceIndexType.FOR_FILTERING,
-				faceted = @Expression("true")
+				faceted = true
 			),
 			@ScopeReferenceSettings(
 				scope = Scope.ARCHIVED,
 				indexed = ReferenceIndexType.FOR_FILTERING,
-				faceted = @Expression("false")
+				faceted = false
 			)
 		}
 	)
@@ -99,12 +99,12 @@ public interface GetterBasedEntityWithScopeReflectedReference {
 				@ScopeReferenceSettings(
 					scope = Scope.LIVE,
 					indexed = ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
-					faceted = @Expression("true")
+					faceted = true
 				),
 				@ScopeReferenceSettings(
 					scope = Scope.ARCHIVED,
 					indexed = ReferenceIndexType.FOR_FILTERING,
-					faceted = @Expression("false")
+					faceted = false
 				)
 			}
 		)

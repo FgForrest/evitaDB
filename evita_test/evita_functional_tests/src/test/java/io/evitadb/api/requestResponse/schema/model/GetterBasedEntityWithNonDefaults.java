@@ -121,7 +121,7 @@ public interface GetterBasedEntityWithNonDefaults {
 		groupEntityManaged = false,
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
-		faceted = @Expression("true"),
+		faceted = true,
 		indexed = ReferenceIndexType.FOR_FILTERING
 	)
 	Brand[] getLicensingBrands();

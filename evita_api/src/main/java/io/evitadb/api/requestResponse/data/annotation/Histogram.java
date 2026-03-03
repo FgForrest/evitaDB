@@ -49,12 +49,6 @@ public @interface Histogram {
 	String nameOfTheIndex() default "";
 
 	/**
-	 * Condition predicate that determines whether a referenced entity
-	 * contributes to the histogram. Defaults to disabled (empty predicate).
-	 */
-	Expression condition() default @Expression;
-
-	/**
 	 * Value expression that computes the histogram bucket value for each
 	 * referenced entity. Defaults to no expression (empty).
 	 */
