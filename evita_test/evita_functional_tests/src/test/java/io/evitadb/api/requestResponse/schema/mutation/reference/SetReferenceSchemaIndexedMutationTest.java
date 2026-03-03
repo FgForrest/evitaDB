@@ -323,6 +323,72 @@ class SetReferenceSchemaIndexedMutationTest {
 		}
 
 		@Test
+		@DisplayName("should throw when mutation changes indexed scope to NONE with filterable attribute")
+		void shouldThrowWhenMutationChangesIndexedScopeToNoneWithFilterableAttribute() {
+			// Create a reference that IS indexed in LIVE with a filterable attribute
+			// (valid initial state — indexed + filterable is allowed)
+			final ReferenceSchemaContract indexedReferenceWithFilterable =
+				ReferenceSchema._internalBuild(
+					REFERENCE_NAME,
+					"description", null,
+					"category", false,
+					Cardinality.ZERO_OR_MORE,
+					null, false,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE, ReferenceIndexType.FOR_FILTERING
+						)
+					},
+					Scope.NO_SCOPE,
+					Map.of(
+						"filterableAttr",
+						AttributeSchema._internalBuild(
+							"filterableAttr",
+							null, null,
+							new ScopedAttributeUniquenessType[]{
+								new ScopedAttributeUniquenessType(
+									Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE
+								)
+							},
+							new Scope[]{Scope.LIVE},
+							Scope.NO_SCOPE,
+							false, false, false,
+							Integer.class, null, 0
+						)
+					),
+					Collections.emptyMap()
+				);
+			// Mutation changes LIVE from FOR_FILTERING to NONE — should reject because
+			// the NEW state has NONE for LIVE but a filterable attribute exists there
+			final SetReferenceSchemaIndexedMutation mutation =
+				new SetReferenceSchemaIndexedMutation(
+					REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.LIVE, ReferenceIndexType.NONE
+						)
+					}
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getName()).thenReturn("product");
+
+			final InvalidSchemaMutationException exception = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> mutation.mutate(
+					entitySchema, indexedReferenceWithFilterable, ConsistencyChecks.APPLY
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains("non-indexed"),
+				"Exception message should contain 'non-indexed', got: " + exception.getMessage()
+			);
+			assertTrue(
+				exception.getMessage().contains("filterableAttr"),
+				"Exception message should contain 'filterableAttr', got: " + exception.getMessage()
+			);
+		}
+
+		@Test
 		@DisplayName("should not throw when consistency checks are skipped")
 		void shouldNotThrowWhenConsistencyChecksSkipped() {
 			// Same invalid-state setup: non-indexed with filterable attribute
@@ -678,7 +744,7 @@ class SetReferenceSchemaIndexedMutationTest {
 					new ScopedReferenceIndexType[]{
 						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.NONE)
 					},
-					new ScopedReferenceIndexedComponents[0]
+					ScopedReferenceIndexedComponents.EMPTY
 				);
 
 			final MutationCombinationResult<LocalEntitySchemaMutation> result =

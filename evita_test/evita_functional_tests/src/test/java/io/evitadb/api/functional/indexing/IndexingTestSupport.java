@@ -239,40 +239,6 @@ public interface IndexingTestSupport {
 	}
 
 	/**
-	 * Asserts that an entity index with the given key exists in the collection.
-	 *
-	 * @param collection the entity collection to check
-	 * @param key        the entity index key to look for
-	 */
-	static void assertIndexExists(
-		@Nonnull EntityCollectionContract collection,
-		@Nonnull EntityIndexKey key
-	) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		assertNotNull(
-			((EntityCollection) collection).getIndexByKeyIfExists(key),
-			"Expected index " + key + " to exist, but it was not found!"
-		);
-	}
-
-	/**
-	 * Asserts that an entity index with the given key does NOT exist in the collection.
-	 *
-	 * @param collection the entity collection to check
-	 * @param key        the entity index key to look for
-	 */
-	static void assertIndexDoesNotExist(
-		@Nonnull EntityCollectionContract collection,
-		@Nonnull EntityIndexKey key
-	) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		assertNull(
-			((EntityCollection) collection).getIndexByKeyIfExists(key),
-			"Expected index " + key + " to NOT exist, but it was found!"
-		);
-	}
-
-	/**
 	 * Asserts that the given entity index contains expected data (unique, filter, sort indexes
 	 * and price index) for the given record id.
 	 *

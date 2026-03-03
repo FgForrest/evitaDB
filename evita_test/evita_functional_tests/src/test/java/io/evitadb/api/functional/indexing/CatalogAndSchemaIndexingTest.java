@@ -134,8 +134,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Direct mutations and catalog updates")
 	class DirectMutationsAndCatalogUpdatesTest {
 
-		@DisplayName("Update catalog with direct mutations.")
 		@Test
+		@DisplayName("Update catalog with direct mutations.")
 		void shouldApplyDirectMutations() {
 			CatalogAndSchemaIndexingTest.this.evita.defineCatalog(TEST_CATALOG)
 				.withEntitySchema(
@@ -190,8 +190,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@DisplayName("Update catalog in warm-up mode with another product - synchronously.")
 		@Test
+		@DisplayName("Update catalog in warm-up mode with another product - synchronously.")
 		void shouldUpdateCatalogWithAnotherProduct() {
 			final SealedEntity addedEntity = CatalogAndSchemaIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
@@ -225,8 +225,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@DisplayName("Update catalog in warm-up mode with another product - asynchronously.")
 		@Test
+		@DisplayName("Update catalog in warm-up mode with another product - asynchronously.")
 		void shouldUpdateCatalogWithAnotherProductAsynchronously()
 			throws ExecutionException, InterruptedException, TimeoutException {
 			shouldUpdateCatalogWithAnotherProduct();
@@ -264,8 +264,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Prototyping mode and schema creation")
 	class PrototypingModeAndSchemaCreationTest {
 
-		@DisplayName("Create catalog and entity collections in prototyping mode.")
 		@Test
+		@DisplayName("Create catalog and entity collections in prototyping mode.")
 		void shouldAllowCreatingCatalogAndEntityCollectionsInPrototypingMode() {
 			final String someCatalogName = "differentCatalog";
 			try {
@@ -342,8 +342,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			}
 		}
 
-		@DisplayName("Create catalog and entity collections along with the schema.")
 		@Test
+		@DisplayName("Create catalog and entity collections along with the schema.")
 		void shouldAllowCreatingCatalogAndEntityCollectionsAlongWithTheSchema() {
 			final String someCatalogName = "differentCatalog";
 			try {
@@ -381,8 +381,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			}
 		}
 
-		@DisplayName("Update catalog and entity collections along with the schema.")
 		@Test
+		@DisplayName("Update catalog and entity collections along with the schema.")
 		void shouldAllowUpdatingCatalogAndEntityCollectionsAlongWithTheSchema() {
 			/* first update the catalog the standard way */
 			CatalogAndSchemaIndexingTest.this.evita.updateCatalog(
@@ -447,8 +447,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Strict schema validation")
 	class StrictSchemaValidationTest {
 
-		@DisplayName("Fail to upsert unknown entity to strictly validated catalog schema.")
 		@Test
+		@DisplayName("Fail to upsert unknown entity to strictly validated catalog schema.")
 		void shouldFailToUpsertUnknownEntityToStrictlyValidatedCatalogSchema() {
 			/* set strict schema verification */
 			CatalogAndSchemaIndexingTest.this.evita.updateCatalog(
@@ -475,8 +475,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@DisplayName("Upsert unknown entity to laxly validated catalog schema.")
 		@Test
+		@DisplayName("Upsert unknown entity to laxly validated catalog schema.")
 		void shouldUpsertUnknownEntityToLaxlyValidatedCatalogSchema() {
 			/* set lax schema verification */
 			CatalogAndSchemaIndexingTest.this.evita.updateCatalog(
@@ -522,8 +522,8 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@DisplayName("Different clients see schema unchanged until committed.")
 		@Test
+		@DisplayName("Different clients see schema unchanged until committed.")
 		void shouldDifferentClientsSeeSchemaUnchangedUntilCommitted() {
 			CatalogAndSchemaIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,

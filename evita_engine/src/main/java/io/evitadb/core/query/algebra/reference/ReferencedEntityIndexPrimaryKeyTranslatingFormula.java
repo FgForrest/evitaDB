@@ -70,7 +70,7 @@ import java.util.function.UnaryOperator;
 public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	extends AbstractFormula
 	implements ChildrenDependentFormula {
-	private static final long CLASS_ID = 6841111737856593641L;
+	private static final long CLASS_ID = 2738491562847195632L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
 	 * Optional union bitmap of all referenced entity primary keys that are allowed to participate
@@ -256,9 +256,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 				RoaringBitmapBackedBitmap.getRoaringBitmap(referencedEntityIds),
 				RoaringBitmapBackedBitmap.getRoaringBitmap(this.referencedEntitySuperSet)
 			);
-			return new BaseBitmap(
-				this.referencedEntityTypeIndex.getIndexPrimaryKeys(matchingReferencedEntityPks)
-			);
+			return this.referencedEntityTypeIndex.getIndexPrimaryKeys(matchingReferencedEntityPks);
 		}
 	}
 

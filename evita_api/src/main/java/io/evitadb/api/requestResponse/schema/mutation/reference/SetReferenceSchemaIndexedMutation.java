@@ -77,12 +77,20 @@ public class SetReferenceSchemaIndexedMutation
 	/**
 	 * Verifies that making the reference non-indexed does not conflict with any filterable, unique,
 	 * or sortable attributes that require an indexed reference to function.
+	 *
+	 * @param entitySchema    the entity schema containing the reference
+	 * @param referenceSchema the reference schema whose attributes are being checked
+	 * @param newIndexedScopes the NEW index types being set by the mutation (not the old ones)
 	 */
 	private static void verifyAttributeIndexRequirements(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Map<Scope, ReferenceIndexType> newIndexedScopes
 	) {
 		for (Scope scope : Scope.values()) {
+			final ReferenceIndexType newIndexType = newIndexedScopes.getOrDefault(
+				scope, ReferenceIndexType.NONE
+			);
 			for (AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
 				if (attributeSchema.isFilterableInScope(scope) ||
 					attributeSchema.isUniqueInScope(scope) ||
@@ -95,13 +103,17 @@ public class SetReferenceSchemaIndexedMutation
 					} else {
 						type = "sortable";
 					}
-					if (referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.NONE) {
-						// reference schema is not indexed in the scope, but attribute is indexed
-						// this is not allowed, because it would prevent filtering / sorting by the attribute
+					if (newIndexType == ReferenceIndexType.NONE) {
+						// new index type is NONE in the scope, but attribute is indexed
+						// this is not allowed because it would prevent filtering/sorting
 						throw new InvalidSchemaMutationException(
-							"Cannot make reference schema `" + referenceSchema.getName() + "` of entity `" + entitySchema.getName() + "` " +
-								"non-indexed if there is a single " + type + " attribute in scope `" + scope + "`! Found " + type + " attribute " +
-								"definition `" + attributeSchema.getName() + "`."
+							"Cannot make reference schema `" +
+								referenceSchema.getName() + "` of entity `" +
+								entitySchema.getName() + "` " +
+								"non-indexed if there is a single " + type +
+								" attribute in scope `" + scope + "`! " +
+								"Found " + type + " attribute definition `" +
+								attributeSchema.getName() + "`."
 						);
 					}
 				}
@@ -376,7 +388,7 @@ public class SetReferenceSchemaIndexedMutation
 				return referenceSchema;
 			} else {
 				if (consistencyChecks == ConsistencyChecks.APPLY) {
-					verifyAttributeIndexRequirements(entitySchema, referenceSchema);
+					verifyAttributeIndexRequirements(entitySchema, referenceSchema, indexedScopes);
 				}
 
 				// Convert EnumMap<Scope, ReferenceIndexType> to ScopedReferenceIndexType[]

@@ -53,6 +53,7 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -93,7 +94,7 @@ public class ReferenceTypeCardinalityIndex
 	 * Helper bitmap that contains all referenced entity primary keys that are present in keys of
 	 * {@link #referencedPrimaryKeysIndex}.
 	 */
-	private RoaringBitmap memoizedAllReferencedPrimaryKeys;
+	@Nullable private RoaringBitmap memoizedAllReferencedPrimaryKeys;
 
 	public ReferenceTypeCardinalityIndex() {
 		this.dirty = new TransactionalBoolean();
@@ -146,6 +147,9 @@ public class ReferenceTypeCardinalityIndex
 			indexIdBitmap.add(indexPrimaryKey);
 		}
 
+		if (!isTransactionAvailable()) {
+			this.memoizedAllReferencedPrimaryKeys = null;
+		}
 		this.dirty.setToTrue();
 		return added;
 	}
@@ -174,6 +178,17 @@ public class ReferenceTypeCardinalityIndex
 			);
 			// remove the index primary key from the bitmap
 			indexIdBitmap.remove(indexPrimaryKey);
+			// clean up empty bitmap to avoid memory leaks
+			if (indexIdBitmap.isEmpty()) {
+				final TransactionalBitmap removedBitmap = this.referencedPrimaryKeysIndex.remove(referencedEntityPrimaryKey);
+				final TransactionalLayerMaintainer transactionalLayer = Transaction.getTransactionalLayerMaintainer();
+				if (transactionalLayer != null) {
+					removedBitmap.removeLayer(transactionalLayer);
+				}
+			}
+		}
+		if (!isTransactionAvailable()) {
+			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
 		return removed;

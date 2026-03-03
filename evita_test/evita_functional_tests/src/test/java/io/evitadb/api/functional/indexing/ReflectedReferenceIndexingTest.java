@@ -31,7 +31,9 @@ import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
@@ -124,7 +126,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 			.defineEntitySchema(Entities.PRODUCT)
 			.withReferenceToEntity(
 				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			)
 			.updateVia(session);
 	}
@@ -190,7 +192,8 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 					)
 					.withAttribute(
 						ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class,
-						thatIs -> thatIs.filterable().sortable())
+						thatIs -> thatIs.filterable().sortable()
+					)
 			)
 			.updateVia(session);
 	}
@@ -207,7 +210,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Nonnull EvitaSessionContract session,
 		@Nonnull String productNotInherited,
 		@Nullable String productInherited,
-		@Nonnull String categoryMarket
+		@SuppressWarnings("SameParameterValue") @Nonnull String categoryMarket
 	) {
 		final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
 		final ReferenceContract productCategory = product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).orElseThrow();
@@ -252,7 +255,9 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 	}
 
 	@Nonnull
-	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
+	private EvitaConfiguration getEvitaConfiguration(
+		@SuppressWarnings("SameParameterValue") int inactivityTimeoutInSeconds
+	) {
 		return EvitaConfiguration.builder()
 			.server(
 				ServerOptions.builder()
@@ -279,7 +284,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup reflected references when product references category on entity creation")
 		void shouldAutomaticallySetupReflectedReferencesOnEntityCreation() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -301,7 +306,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup one-to-many reflected references including attributes on entity creation")
 		void shouldAutomaticallySetupOneToManyReflectedReferencesIncludingAttributesOnEntityCreation() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.CATEGORY)
@@ -319,7 +324,8 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 							whichIs -> whichIs.indexedForFilteringAndPartitioning()
 								.withAttribute(
 									ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class,
-									thatIs -> thatIs.filterable())
+									AttributeSchemaEditor::filterable
+								)
 						)
 						.updateVia(session);
 
@@ -360,32 +366,43 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 				}
 			);
 
-			evita.queryCatalog(
+			ReflectedReferenceIndexingTest.this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					final SealedEntity category1 = session.getEntity(
 						Entities.CATEGORY, 1, entityFetchAllContent()
 					).orElseThrow();
-					assertTrue(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
-						           .orElseThrow()
-						           .getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
-						           .booleanValue());
-					assertFalse(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11)
-						            .orElseThrow()
-						            .getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
-						            .booleanValue());
+					assertEquals(
+						Boolean.TRUE, category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+							.orElseThrow()
+							.getAttribute(
+								ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
+					);
+					assertNotEquals(
+						Boolean.TRUE, category1.getReference(
+								REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11)
+							.orElseThrow()
+							.getAttribute(
+								ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
+					);
 
 					final SealedEntity category2 = session.getEntity(
 						Entities.CATEGORY, 2, entityFetchAllContent()
 					).orElseThrow();
-					assertFalse(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
-						            .orElseThrow()
-						            .getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
-						            .booleanValue());
-					assertTrue(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11)
-						           .orElseThrow()
-						           .getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
-						           .booleanValue());
+					assertNotEquals(
+						Boolean.TRUE,
+						category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+							.orElseThrow()
+							.getAttribute(
+								ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
+					);
+					assertEquals(
+						Boolean.TRUE,
+						category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11)
+							.orElseThrow()
+							.getAttribute(
+								ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
+					);
 				}
 			);
 		}
@@ -393,7 +410,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup references when reflected ones exist on entity creation")
 		void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreation() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -415,7 +432,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup reflected references by references on already-created entity")
 		void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntity() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -437,7 +454,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup references by reflected references on already-created entity")
 		void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntity() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -459,7 +476,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup reflected reference via update of existing entity")
 		void shouldAutomaticallySetupReflectedReference() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -488,7 +505,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup reference via reflected reference update on existing entity")
 		void shouldAutomaticallySetupReferenceViaReflectedReference() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -522,7 +539,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup reflected references including inherited attributes on entity creation")
 		void shouldAutomaticallySetupReflectedReferencesOnEntityCreationIncludingInheritedAttributes() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -550,7 +567,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup references when reflected ones exist including inherited attributes")
 		void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreationIncludingInheritedAttributes() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -577,7 +594,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup reflected references by references on created entity including inherited values")
 		void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntityIncludingInheritedValues() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -604,7 +621,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup references by reflected references on created entity including inherited attributes")
 		void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntityIncludingInheritedAttributes() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -631,7 +648,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup reflected reference including inherited attributes via update")
 		void shouldAutomaticallySetupReflectedReferenceIncludingInheritedAttributes() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -665,7 +682,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Setup reference via reflected reference with inherited attributes")
 		void shouldAutomaticallySetupReferenceViaReflectedReferenceWithInheritedAttributes() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -699,7 +716,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Update inherited attribute on reflected reference")
 		void shouldUpdateInheritedAttributeOnReflectedReference() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -740,7 +757,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Update inherited attribute on reference when set on reflected one")
 		void shouldUpdateInheritedAttributeOnReferenceWhenSetOnReflectedOne() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -781,7 +798,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Remove inherited attribute on reflected reference")
 		void shouldRemoveInheritedAttributeOnReflectedReference() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -822,7 +839,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Remove inherited attribute on reference when set on reflected one")
 		void shouldRemoveInheritedAttributeOnReferenceWhenSetOnReflectedOne() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributes(session);
@@ -868,7 +885,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Remove reference when reflected reference is removed")
 		void shouldAutomaticallyRemoveReferenceViaReflectedReferenceIsRemoved() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -898,7 +915,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Remove reflected reference when regular reference is removed")
 		void shouldAutomaticallyRemoveReflectedReferenceViaReferenceIsRemoved() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -928,7 +945,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Remove reflected reference when referenced entity is removed")
 		void shouldAutomaticallyRemoveReflectedReferenceViaReferenceOnEntityRemoval() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -954,7 +971,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Remove reference when entity owning reflected reference is removed")
 		void shouldAutomaticallyRemoveReferenceViaReflectedReferenceOnEntityRemoval() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -985,7 +1002,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Fail when base entity is not present during creation")
 		void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringCreation() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -1004,7 +1021,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Fail when base entity is not present during update")
 		void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringUpdate() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchema(session);
@@ -1030,7 +1047,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 		@Test
 		@DisplayName("Fail when mandatory attributes have no default values")
 		void shouldFailToCreateReflectedReferenceWhenMandatoryAttributesHasNoDefaultValues() {
-			evita.updateCatalog(
+			ReflectedReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					createEntangledSchemaWithInheritedAttributesWithoutDefaults(session);

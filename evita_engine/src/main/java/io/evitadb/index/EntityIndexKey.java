@@ -107,8 +107,12 @@ public record EntityIndexKey(
 	public int compareTo(@Nonnull EntityIndexKey o) {
 		final int typeComparison = this.type.compareTo(o.type);
 		if (typeComparison == 0) {
+			final int scopeComparison = Integer.compare(this.scope.ordinal(), o.scope.ordinal());
+			if (scopeComparison != 0) {
+				return scopeComparison;
+			}
 			return switch (this.type) {
-				case GLOBAL -> Integer.compare(this.scope.ordinal(), o.scope.ordinal());
+				case GLOBAL -> 0;
 				case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> {
 					final String thisDis = (String) Objects.requireNonNull(this.discriminator);
 					final String thatDis = (String) Objects.requireNonNull(o.discriminator);

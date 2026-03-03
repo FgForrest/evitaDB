@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
@@ -145,7 +146,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@DisplayName("Should fail to violate ZERO_OR_ONE cardinality on new entity")
 		void shouldFailToViolateReferenceCardinalityExactlyZeroOrOne() {
 			try {
-				evita.updateCatalog(
+				ReferenceIndexingTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session
@@ -175,7 +176,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Should fail to violate ZERO_OR_ONE cardinality on existing entity")
 		void shouldFailToViolateReferenceCardinalityExactlyZeroOrOneOnExistingEntity() {
-			evita.updateCatalog(
+			ReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -191,7 +192,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 			);
 
 			try {
-				evita.updateCatalog(
+				ReferenceIndexingTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
@@ -217,7 +218,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@DisplayName("Should fail to violate EXACTLY_ONE cardinality on new entity")
 		void shouldFailToViolateReferenceCardinalityExactlyOne() {
 			try {
-				evita.updateCatalog(
+				ReferenceIndexingTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session
@@ -245,7 +246,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Should fail to violate EXACTLY_ONE cardinality on existing entity")
 		void shouldFailToViolateReferenceCardinalityExactlyOneOnExistingEntity() {
-			evita.updateCatalog(
+			ReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -261,7 +262,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 			);
 
 			try {
-				evita.updateCatalog(
+				ReferenceIndexingTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
@@ -287,7 +288,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@DisplayName("Should fail to violate ONE_OR_MORE cardinality on new entity")
 		void shouldFailToViolateReferenceCardinalityExactlyOneOrMore() {
 			try {
-				evita.updateCatalog(
+				ReferenceIndexingTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session
@@ -314,7 +315,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Should fail to violate ONE_OR_MORE cardinality on existing entity")
 		void shouldFailToViolateReferenceCardinalityExactlyOneOrMoreOnExistingEntity() {
-			evita.updateCatalog(
+			ReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -329,7 +330,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 			);
 
 			try {
-				evita.updateCatalog(
+				ReferenceIndexingTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
@@ -359,7 +360,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Should index attributes and prices after reference to hierarchical entity is set")
 		void shouldIndexAllAttributesAndPricesAfterReferenceToHierarchicalEntityIsSet() {
-			evita.updateCatalog(
+			ReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -408,7 +409,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					session.upsertEntity(product);
 
 					// check there are no specialized entity indexes
-					final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+					final CatalogContract catalog = ReferenceIndexingTest.this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 					final EntityCollectionContract productCollection =
 						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
 
@@ -452,7 +453,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Should create, delete and recreate referenced entity with same attribute")
 		void shouldCreateDeleteAndRecreateReferencedEntityWithSameAttribute() {
-			evita.updateCatalog(
+			ReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.CATEGORY);
@@ -466,7 +467,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 								.withAttribute(
 									ATTRIBUTE_CATEGORY_PRIORITY,
 									Long.class,
-									thatIs -> thatIs.sortable()
+									AttributeSchemaEditor::sortable
 								)
 						).updateVia(session);
 
@@ -515,7 +516,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Should create, delete and recreate sortable attribute for referenced entity")
 		void shouldCreateDeleteAndRecreateSortableAttributeForReferencedEntity() {
-			evita.updateCatalog(
+			ReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 
@@ -584,7 +585,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Should avoid creating indexes for non-indexed references")
 		void shouldAvoidCreatingIndexesForNonIndexedReferences() {
-			evita.updateCatalog(
+			ReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -636,7 +637,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					session.upsertEntity(product);
 
 					// verify no reduced indexes are created for non-indexed references
-					final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+					final CatalogContract catalog = ReferenceIndexingTest.this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 					final EntityCollectionContract productCollection =
 						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
 
@@ -654,7 +655,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Should remove deep structure of hierarchical entity")
 		void shouldRemoveDeepStructureOfHierarchicalEntity() {
-			evita.updateCatalog(
+			ReferenceIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session

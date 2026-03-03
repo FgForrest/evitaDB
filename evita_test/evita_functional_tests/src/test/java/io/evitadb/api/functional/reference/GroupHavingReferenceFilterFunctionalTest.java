@@ -23,11 +23,15 @@
 
 package io.evitadb.api.functional.reference;
 
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -37,8 +41,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.annotation.Nonnull;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -53,6 +59,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -79,7 +86,7 @@ public class GroupHavingReferenceFilterFunctionalTest extends AbstractReferenceF
 	@Nonnull
 	private static Set<Integer> extractGroupPks(
 		@Nonnull List<SealedEntity> originalProducts,
-		@Nonnull String referenceName
+		@SuppressWarnings("SameParameterValue") @Nonnull String referenceName
 	) {
 		return originalProducts.stream()
 			.flatMap(p -> p.getReferences(referenceName).stream())
@@ -300,6 +307,113 @@ public class GroupHavingReferenceFilterFunctionalTest extends AbstractReferenceF
 				return null;
 			}
 		);
+	}
+
+	@DisplayName("Should throw when groupHaving targets reference without group type")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowWhenGroupHavingTargetsReferenceWithoutGroupType(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								referenceHaving(
+									Entities.PRICE_LIST,
+									groupHaving(
+										entityPrimaryKeyInSet(1)
+									)
+								)
+							),
+							require(entityFetch())
+						)
+					)
+				);
+
+				assertTrue(
+					exception.getMessage().contains(
+						"does not reference any group type"
+					),
+					"Exception should mention missing group type, " +
+						"but was: " + exception.getMessage()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw when groupHaving targets unmanaged group entity type")
+	@Test
+	void shouldThrowWhenGroupHavingTargetsUnmanagedGroupType(@TempDir Path tempDir) {
+		final String unmanagedGroupRef = "unmanagedGroupRef";
+		final String externalGroup = "ExternalGroupEntity";
+		try (
+			final Evita tempEvita = new Evita(
+				EvitaConfiguration.builder()
+					.storage(StorageOptions.builder().storageDirectory(tempDir).build())
+					.build()
+			)
+		) {
+			tempEvita.defineCatalog(TEST_CATALOG);
+			tempEvita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceTo(
+							unmanagedGroupRef,
+							"ExternalEntity",
+							Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedForFiltering()
+								.withGroupType(externalGroup)
+						)
+						.updateVia(session);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setReference(
+								unmanagedGroupRef, 1,
+								whichIs -> whichIs.setGroup(externalGroup, 1)
+							)
+					);
+				}
+			);
+
+			tempEvita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaInvalidUsageException exception = assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> session.querySealedEntity(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									referenceHaving(
+										unmanagedGroupRef,
+										groupHaving(
+											entityPrimaryKeyInSet(1)
+										)
+									)
+								),
+								require(entityFetch())
+							)
+						)
+					);
+
+					assertTrue(
+						exception.getMessage().contains(
+							"not managed by evitaDB"
+						),
+						"Exception should mention unmanaged group, " +
+							"but was: " + exception.getMessage()
+					);
+					return null;
+				}
+			);
+		}
 	}
 
 }

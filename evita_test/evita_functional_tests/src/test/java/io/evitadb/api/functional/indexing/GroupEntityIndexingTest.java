@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -317,6 +318,174 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 	}
 
 	@Nested
+	@DisplayName("Group entity index key discrimination")
+	class GroupEntityIndexKeyDiscriminationTest {
+
+		@Test
+		@DisplayName("Should key group entity index by referenced entity PK, not group PK")
+		void shouldKeyGroupEntityIndexByReferencedEntityPkNotGroupPk() {
+			GroupEntityIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND).updateVia(session);
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
+						)
+						.updateVia(session);
+
+					// use distinct PKs: CATEGORY=10, BRAND=20, PRODUCT=5
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 20));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 10));
+
+					session.createNewEntity(Entities.PRODUCT, 5)
+						.setReference(
+							Entities.CATEGORY, 10,
+							whichIs -> whichIs.setGroup(Entities.BRAND, 20)
+						)
+						.upsertVia(session);
+
+					final CatalogContract catalog = GroupEntityIndexingTest.this.evita
+						.getCatalogInstance(TEST_CATALOG).orElseThrow();
+					final EntityCollectionContract productCollection =
+						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+					// group entity index should be keyed by referenced entity PK (CATEGORY 10)
+					final EntityIndex groupEntityIndex = IndexingTestSupport
+						.getReferencedGroupEntityIndex(
+							productCollection, Scope.LIVE, Entities.CATEGORY, 10
+						);
+					assertNotNull(
+						groupEntityIndex,
+						"Group entity index should exist keyed by referenced entity PK 10"
+					);
+					assertTrue(
+						groupEntityIndex.getAllPrimaryKeys().contains(5),
+						"Group entity index should contain the product PK 5"
+					);
+
+					// group entity index should NOT exist keyed by group PK (BRAND 20)
+					assertNull(
+						IndexingTestSupport.getReferencedGroupEntityIndex(
+							productCollection, Scope.LIVE, Entities.CATEGORY, 20
+						),
+						"Group entity index must NOT be keyed by group PK 20"
+					);
+
+					// verify entity index is also keyed by referenced entity PK (CATEGORY 10)
+					assertNotNull(
+						IndexingTestSupport.getReferencedEntityIndex(
+							productCollection, Entities.CATEGORY, 10
+						),
+						"Referenced entity index should exist for CATEGORY PK 10"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("Should maintain separate group indexes for different referenced entity PKs")
+		void shouldMaintainSeparateGroupIndexesForDifferentReferencedEntityPks() {
+			GroupEntityIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND).updateVia(session);
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
+						)
+						.updateVia(session);
+
+					// use distinct PKs to avoid any coincidental overlap
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 30));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 10));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 20));
+
+					// product 1 references CATEGORY 10 with group BRAND 30
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setReference(
+							Entities.CATEGORY, 10,
+							whichIs -> whichIs.setGroup(Entities.BRAND, 30)
+						)
+						.upsertVia(session);
+
+					// product 2 references CATEGORY 20 with the same group BRAND 30
+					session.createNewEntity(Entities.PRODUCT, 2)
+						.setReference(
+							Entities.CATEGORY, 20,
+							whichIs -> whichIs.setGroup(Entities.BRAND, 30)
+						)
+						.upsertVia(session);
+
+					final CatalogContract catalog = GroupEntityIndexingTest.this.evita
+						.getCatalogInstance(TEST_CATALOG).orElseThrow();
+					final EntityCollectionContract productCollection =
+						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+					// separate group entity indexes should exist for each referenced entity PK
+					final EntityIndex groupIndexCat10 = IndexingTestSupport
+						.getReferencedGroupEntityIndex(
+							productCollection, Scope.LIVE, Entities.CATEGORY, 10
+						);
+					assertNotNull(
+						groupIndexCat10,
+						"Group entity index should exist for CATEGORY PK 10"
+					);
+					assertTrue(
+						groupIndexCat10.getAllPrimaryKeys().contains(1),
+						"Group index for CATEGORY 10 should contain product PK 1"
+					);
+					assertFalse(
+						groupIndexCat10.getAllPrimaryKeys().contains(2),
+						"Group index for CATEGORY 10 should NOT contain product PK 2"
+					);
+
+					final EntityIndex groupIndexCat20 = IndexingTestSupport
+						.getReferencedGroupEntityIndex(
+							productCollection, Scope.LIVE, Entities.CATEGORY, 20
+						);
+					assertNotNull(
+						groupIndexCat20,
+						"Group entity index should exist for CATEGORY PK 20"
+					);
+					assertTrue(
+						groupIndexCat20.getAllPrimaryKeys().contains(2),
+						"Group index for CATEGORY 20 should contain product PK 2"
+					);
+					assertFalse(
+						groupIndexCat20.getAllPrimaryKeys().contains(1),
+						"Group index for CATEGORY 20 should NOT contain product PK 1"
+					);
+
+					// no group index should exist keyed by the group PK (BRAND 30)
+					assertNull(
+						IndexingTestSupport.getReferencedGroupEntityIndex(
+							productCollection, Scope.LIVE, Entities.CATEGORY, 30
+						),
+						"Group entity index must NOT be keyed by group PK 30"
+					);
+				}
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("Group entity index data")
 	class GroupEntityIndexDataTest {
 
@@ -519,7 +688,7 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 								.withAttribute(
 									ATTRIBUTE_CATEGORY_PRIORITY, Long.class,
 									// unique implies filterable; separate filterable() is not needed
-									thatIs -> thatIs.unique()
+									AttributeSchemaEditor::unique
 								)
 						)
 						.updateVia(session);

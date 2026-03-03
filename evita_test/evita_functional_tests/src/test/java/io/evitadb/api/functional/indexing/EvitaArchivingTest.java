@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -76,6 +77,8 @@ import java.util.Locale;
 
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getGlobalIndex;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedEntityIndex;
+import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedGroupEntityIndex;
+import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedGroupEntityTypeIndex;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.StringUtils.normalizeLineEndings;
@@ -647,6 +650,273 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 			assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
 		}
 
+	}
+
+	@Nested
+	@DisplayName("Group entity index archival and restoration")
+	class GroupEntityIndexArchivalTest {
+
+		@Test
+		@DisplayName("Group entity indexes should be cleaned up on archive and rebuilt on restore")
+		void shouldCleanUpGroupEntityIndexesOnArchiveAndRebuildOnRestore() {
+			// create schema with group entity indexing enabled on the CATEGORY reference
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND)
+						.withoutGeneratedPrimaryKey()
+						.updateVia(session);
+
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withoutGeneratedPrimaryKey()
+						.updateVia(session);
+
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.filterable())
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
+						)
+						.updateVia(session);
+
+					// create referenced entities
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 10));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 20));
+
+					// create product with a reference to CATEGORY grouped by BRAND
+					session.createNewEntity(Entities.PRODUCT, 100)
+						.setAttribute(ATTRIBUTE_CODE, "TV-123")
+						.setReference(
+							Entities.CATEGORY, 20,
+							whichIs -> whichIs.setGroup(Entities.BRAND, 10)
+						)
+						.upsertVia(session);
+				}
+			);
+
+			// verify group entity index exists in LIVE scope
+			final Catalog catalog1 = (Catalog) EvitaArchivingTest.this.evita
+				.getCatalogInstance(TEST_CATALOG).orElseThrow();
+			final EntityCollectionContract productCollection1 = catalog1
+				.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+			assertNotNull(
+				getReferencedGroupEntityIndex(
+					productCollection1, Scope.LIVE, Entities.CATEGORY, 20
+				),
+				"Group entity index should exist in LIVE before archiving"
+			);
+			assertNotNull(
+				getReferencedGroupEntityTypeIndex(
+					productCollection1, Scope.LIVE, Entities.CATEGORY
+				),
+				"Group entity type index should exist in LIVE before archiving"
+			);
+
+			// archive the product
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// verify group entity index is removed from LIVE scope
+			final Catalog catalog2 = (Catalog) EvitaArchivingTest.this.evita
+				.getCatalogInstance(TEST_CATALOG).orElseThrow();
+			final EntityCollectionContract productCollection2 = catalog2
+				.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+			assertNull(
+				getReferencedGroupEntityIndex(
+					productCollection2, Scope.LIVE, Entities.CATEGORY, 20
+				),
+				"Group entity index should be removed from LIVE after archiving"
+			);
+			assertNull(
+				getReferencedEntityIndex(
+					productCollection2, Scope.LIVE, Entities.CATEGORY, 20
+				),
+				"Referenced entity index should be removed from LIVE after archiving"
+			);
+
+			// restore the product
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.restoreEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// verify group entity index is rebuilt in LIVE scope
+			final Catalog catalog3 = (Catalog) EvitaArchivingTest.this.evita
+				.getCatalogInstance(TEST_CATALOG).orElseThrow();
+			final EntityCollectionContract productCollection3 = catalog3
+				.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+			assertNotNull(
+				getReferencedGroupEntityIndex(
+					productCollection3, Scope.LIVE, Entities.CATEGORY, 20
+				),
+				"Group entity index should be rebuilt in LIVE after restore"
+			);
+			assertNotNull(
+				getReferencedGroupEntityTypeIndex(
+					productCollection3, Scope.LIVE, Entities.CATEGORY
+				),
+				"Group entity type index should be rebuilt in LIVE after restore"
+			);
+			assertNotNull(
+				getReferencedEntityIndex(
+					productCollection3, Scope.LIVE, Entities.CATEGORY, 20
+				),
+				"Referenced entity index should be rebuilt in LIVE after restore"
+			);
+		}
+
+		@Test
+		@DisplayName("Group entity index should survive archive/restore cycle with multiple products")
+		void shouldRetainGroupEntityIndexForRemainingProductsAfterArchivingOne() {
+			// create schema with group entity indexing enabled
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND)
+						.withoutGeneratedPrimaryKey()
+						.updateVia(session);
+
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withoutGeneratedPrimaryKey()
+						.updateVia(session);
+
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.filterable())
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
+						)
+						.updateVia(session);
+
+					// create referenced entities
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, 10));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 20));
+
+					// create two products referencing the same category with the same group
+					session.createNewEntity(Entities.PRODUCT, 100)
+						.setAttribute(ATTRIBUTE_CODE, "TV-100")
+						.setReference(
+							Entities.CATEGORY, 20,
+							whichIs -> whichIs.setGroup(Entities.BRAND, 10)
+						)
+						.upsertVia(session);
+
+					session.createNewEntity(Entities.PRODUCT, 200)
+						.setAttribute(ATTRIBUTE_CODE, "TV-200")
+						.setReference(
+							Entities.CATEGORY, 20,
+							whichIs -> whichIs.setGroup(Entities.BRAND, 10)
+						)
+						.upsertVia(session);
+				}
+			);
+
+			// verify both products are in group entity index
+			final Catalog catalog1 = (Catalog) EvitaArchivingTest.this.evita
+				.getCatalogInstance(TEST_CATALOG).orElseThrow();
+			final EntityCollectionContract productColl1 = catalog1
+				.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+			assertNotNull(
+				getReferencedGroupEntityIndex(
+					productColl1, Scope.LIVE, Entities.CATEGORY, 20
+				),
+				"Group entity index should exist for both products"
+			);
+			assertTrue(
+				getReferencedGroupEntityIndex(
+					productColl1, Scope.LIVE, Entities.CATEGORY, 20
+				).getAllPrimaryKeys().contains(100),
+				"Group entity index should contain product 100"
+			);
+			assertTrue(
+				getReferencedGroupEntityIndex(
+					productColl1, Scope.LIVE, Entities.CATEGORY, 20
+				).getAllPrimaryKeys().contains(200),
+				"Group entity index should contain product 200"
+			);
+
+			// archive only product 100
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// group entity index should still exist (product 200 keeps it alive)
+			final Catalog catalog2 = (Catalog) EvitaArchivingTest.this.evita
+				.getCatalogInstance(TEST_CATALOG).orElseThrow();
+			final EntityCollectionContract productColl2 = catalog2
+				.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+			assertNotNull(
+				getReferencedGroupEntityIndex(
+					productColl2, Scope.LIVE, Entities.CATEGORY, 20
+				),
+				"Group entity index should still exist after archiving one product"
+			);
+			assertFalse(
+				getReferencedGroupEntityIndex(
+					productColl2, Scope.LIVE, Entities.CATEGORY, 20
+				).getAllPrimaryKeys().contains(100),
+				"Product 100 should be removed from group entity index"
+			);
+			assertTrue(
+				getReferencedGroupEntityIndex(
+					productColl2, Scope.LIVE, Entities.CATEGORY, 20
+				).getAllPrimaryKeys().contains(200),
+				"Product 200 should still be in group entity index"
+			);
+
+			// restore product 100
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.restoreEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// both products should be in group entity index again
+			final Catalog catalog3 = (Catalog) EvitaArchivingTest.this.evita
+				.getCatalogInstance(TEST_CATALOG).orElseThrow();
+			final EntityCollectionContract productColl3 = catalog3
+				.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+
+			assertTrue(
+				getReferencedGroupEntityIndex(
+					productColl3, Scope.LIVE, Entities.CATEGORY, 20
+				).getAllPrimaryKeys().contains(100),
+				"Product 100 should be back in group entity index after restore"
+			);
+			assertTrue(
+				getReferencedGroupEntityIndex(
+					productColl3, Scope.LIVE, Entities.CATEGORY, 20
+				).getAllPrimaryKeys().contains(200),
+				"Product 200 should still be in group entity index"
+			);
+		}
 	}
 
 	@Nested
@@ -2662,7 +2932,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 							ArrayUtils.mergeArrays(
 								filterBy,
 								ArrayUtils.isEmptyOrItsValuesNull(scope) ?
-									new FilterConstraint[0] : new FilterConstraint[] { scope(scope) }
+									FilterConstraint.EMPTY_ARRAY : new FilterConstraint[] { scope(scope) }
 							)
 						)
 					).normalizeQuery(),

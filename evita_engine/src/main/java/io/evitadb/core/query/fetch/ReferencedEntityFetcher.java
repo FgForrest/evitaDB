@@ -692,7 +692,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Map<Scope, Bitmap> allReferencedEntityPksInScope;
 		final Bitmap allReferencedEntityPks;
 		// if query required filtering or only existing references and the referenced entity type is managed
-		if ((managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null) && referencedEntityTypeManaged) {
+		if (
+			(managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null)
+				&& referencedEntityTypeManaged
+		) {
 			// we need to filter the referenced entity ids to only those that really exist
 			allReferencedEntityPksInScope = limitToExistingEntities(
 				combineWithOr(allReferencedEntityPksFromEntitiesInScope.values()),

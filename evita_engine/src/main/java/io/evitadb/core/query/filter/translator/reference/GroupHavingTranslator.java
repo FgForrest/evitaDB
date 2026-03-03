@@ -64,8 +64,9 @@ public class GroupHavingTranslator implements FilteringConstraintTranslator<Grou
 					"parent constraint that allows resolving the entity `" +
 					entitySchema.getName() + "` referenced entity type."
 			));
-		final String referencedGroupType = Objects.requireNonNull(
-			referenceSchema.getReferencedGroupType(),
+		final String referencedGroupType = referenceSchema.getReferencedGroupType();
+		Assert.notNull(
+			referencedGroupType,
 			() -> "Filtering constraint `" + groupHaving + "` targets reference `" +
 				referenceSchema.getName() + "` that does not reference any group type."
 		);

@@ -367,8 +367,14 @@ public interface ReferenceIndexMutator {
 		@Nonnull Predicate<ReferenceContract> referencePredicate,
 		boolean referencePresenceExpected
 	) {
-		executeWithReferenceIndexes(indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected);
-		executeWithGroupReferenceIndexes(indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected);
+		executeWithReferenceIndexes(
+			indexType, executor, referenceIndexConsumer,
+			referencePredicate, referencePresenceExpected
+		);
+		executeWithGroupReferenceIndexes(
+			indexType, executor, referenceIndexConsumer,
+			referencePredicate, referencePresenceExpected
+		);
 	}
 
 	/**
@@ -448,7 +454,8 @@ public interface ReferenceIndexMutator {
 	 * Returns (or lazily creates) the {@link ReferencedTypeEntityIndex} of type
 	 * {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} for the given reference name and scope.
 	 *
-	 * This is the group-level counterpart of {@link #getOrCreateReferencedTypeEntityIndex(EntityIndexLocalMutationExecutor,
+	 * This is the group-level counterpart of
+	 * {@link #getOrCreateReferencedTypeEntityIndex(EntityIndexLocalMutationExecutor,
 	 * String, Scope)}: one index per (reference name, scope) pair, keyed by group primary keys.
 	 *
 	 * @param executor      the mutation executor that manages index lifecycle
@@ -691,7 +698,8 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Resolves and returns the corresponding {@link ReferenceSchemaContract} for the provided {@link ReferenceKey}.
-	 * If the reference name within the given {@code referenceKey} matches the name of the provided {@code referenceSchema},
+	 * If the reference name within the given {@code referenceKey} matches the name of the provided
+	 * {@code referenceSchema},
 	 * the {@code referenceSchema} is returned. Otherwise, the method retrieves the appropriate schema from
 	 * the {@link EntityIndexLocalMutationExecutor}.
 	 *
@@ -750,9 +758,10 @@ public interface ReferenceIndexMutator {
 			.getReferenceAttributeValueSupplier(referenceKey);
 
 		// we access attributes and sortable compounds from the reference schema
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider = new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-			entitySchema, referenceSchema
-		);
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
+				entitySchema, referenceSchema
+			);
 
 		executor.executeWithDifferentPrimaryKeyToIndex(
 			(indexType, target) ->
@@ -854,9 +863,10 @@ public interface ReferenceIndexMutator {
 		}
 
 		// we access attributes and sortable compounds from the reference schema
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider = new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-			entitySchema, referenceSchema
-		);
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
+				entitySchema, referenceSchema
+			);
 
 		// index all reference attributes to the reference type index
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
@@ -1030,9 +1040,10 @@ public interface ReferenceIndexMutator {
 		}
 
 		// we access attributes and sortable compounds from the reference schema
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider = new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-			entitySchema, referenceSchema
-		);
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
+				entitySchema, referenceSchema
+			);
 
 		// remove all reference attributes from the reference type index
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
@@ -1640,8 +1651,11 @@ public interface ReferenceIndexMutator {
 				final Optional<GroupEntityReference> groupReference = reference.getGroup();
 
 				// we gain advantage of sorted references in the storage container to avoid unnecessary schema lookups
-				referenceKeySchema = referenceKeySchema == null || !referenceKeySchema.getName().equals(referenceKey.referenceName()) ?
-					getReferenceSchemaFor(referenceKey, referenceSchema, executor) : referenceKeySchema;
+				referenceKeySchema =
+					referenceKeySchema == null ||
+						!referenceKeySchema.getName().equals(referenceKey.referenceName())
+						? getReferenceSchemaFor(referenceKey, referenceSchema, executor)
+						: referenceKeySchema;
 				if (reference.exists() && referenceKeySchema.isFacetedInScope(scope)) {
 					final Integer groupId = groupReference
 						.filter(Droppable::exists)
@@ -1734,9 +1748,8 @@ public interface ReferenceIndexMutator {
 		// if the reference is indexed for filtering and partitioning, we need to index attributes from the entity schema
 		final Scope scope = targetIndex.getIndexKey().scope();
 		if (isIndexedReferenceFor(referenceSchema, scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)) {
-			final EntitySchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider = new EntitySchemaAttributeAndCompoundSchemaProvider(
-				entitySchema
-			);
+			final EntitySchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema);
 
 			existingDataSupplierFactory.getEntityAttributeValueSupplier()
 				.getAttributeValues()
@@ -1759,9 +1772,10 @@ public interface ReferenceIndexMutator {
 		}
 
 		// and the second, we access attributes and sortable compounds from the reference schema
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider = new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-			entitySchema, referenceSchema
-		);
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
+				entitySchema, referenceSchema
+			);
 
 		existingDataSupplierFactory.getReferenceAttributeValueSupplier(rrk)
 			.getAttributeValues()
@@ -1866,8 +1880,11 @@ public interface ReferenceIndexMutator {
 			for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
 				final ReferenceKey referenceKey = reference.getReferenceKey();
 				// we gain advantage of sorted references in the storage container to avoid unnecessary schema lookups
-				referenceKeySchema = referenceKeySchema == null || !referenceKeySchema.getName().equals(referenceKey.referenceName()) ?
-					getReferenceSchemaFor(referenceKey, referenceSchema, executor) : referenceKeySchema;
+				referenceKeySchema =
+					referenceKeySchema == null ||
+						!referenceKeySchema.getName().equals(referenceKey.referenceName())
+						? getReferenceSchemaFor(referenceKey, referenceSchema, executor)
+						: referenceKeySchema;
 				if (reference.exists() && referenceKeySchema.isFacetedInScope(scope)) {
 					removeFacetInIndexInternal(
 						targetIndex, referenceSchema, entityPrimaryKey, reference, undoActionConsumer
@@ -1981,8 +1998,8 @@ public interface ReferenceIndexMutator {
 		final Scope scope = targetIndex.getIndexKey().scope();
 		if (isIndexedReferenceFor(referenceSchema, scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)) {
 			// first, we access attributes and sortable compounds from the entity schema
-			final EntitySchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider = new EntitySchemaAttributeAndCompoundSchemaProvider(
-				entitySchema);
+			final EntitySchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema);
 
 			existingDataSupplierFactory.getEntityAttributeValueSupplier()
 				.getAttributeValues()
@@ -2003,9 +2020,10 @@ public interface ReferenceIndexMutator {
 		}
 
 		// and the second, we access attributes and sortable compounds from the reference schema
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider = new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-			entitySchema, referenceSchema
-		);
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
+				entitySchema, referenceSchema
+			);
 
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
 			.getReferenceAttributeValueSupplier(rrk);

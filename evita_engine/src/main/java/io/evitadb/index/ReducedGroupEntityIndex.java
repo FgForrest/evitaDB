@@ -44,6 +44,7 @@ import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceRefIndex;
+import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
@@ -191,6 +192,59 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex {
 		this.changeTracker = new CardinalityChangeTracker();
 	}
 
+	/**
+	 * Creates a reduced group entity index as a transactional copy. This constructor is used internally by
+	 * {@link #createCopyForNewCatalogAttachment(CatalogState)} and preserves original storage part state.
+	 *
+	 * @param primaryKey                  the primary key of this index
+	 * @param indexKey                    the key identifying this index
+	 * @param version                     the version of this index
+	 * @param entityIds                   transactional bitmap of entity primary keys
+	 * @param entityIdsByLanguage         transactional map of entity primary keys by locale
+	 * @param attributeIndex              the attribute index
+	 * @param hierarchyIndex              the hierarchy index
+	 * @param facetIndex                  the facet index
+	 * @param originalHierarchyIndexEmpty whether the hierarchy index was originally empty
+	 * @param originalAttributeIndexes    original attribute index storage keys
+	 * @param originalPriceIndexes        original price index keys
+	 * @param originalFacetIndexes        original facet index referenced entities
+	 * @param priceIndex                  the price reference index
+	 * @param pkCardinalities             cardinality tracking for entity primary keys
+	 * @param referencedPrimaryKeysIndex  maps referenced entity PKs to bitmaps of entity PKs
+	 * @param cardinalityIndexes          cardinality tracking for filter attributes
+	 */
+	private ReducedGroupEntityIndex(
+		int primaryKey,
+		@Nonnull EntityIndexKey indexKey,
+		int version,
+		@Nonnull TransactionalBitmap entityIds,
+		@Nonnull TransactionalMap<Locale, TransactionalBitmap> entityIdsByLanguage,
+		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull HierarchyIndex hierarchyIndex,
+		@Nonnull FacetIndex facetIndex,
+		boolean originalHierarchyIndexEmpty,
+		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
+		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
+		@Nonnull Set<String> originalFacetIndexes,
+		@Nonnull PriceRefIndex priceIndex,
+		@Nonnull TransactionalMap<Integer, Integer> pkCardinalities,
+		@Nonnull TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
+		@Nonnull TransactionalMap<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes
+	) {
+		super(
+			primaryKey, indexKey, version, entityIds,
+			entityIdsByLanguage, attributeIndex, hierarchyIndex, facetIndex,
+			originalHierarchyIndexEmpty,
+			originalAttributeIndexes, originalPriceIndexes, originalFacetIndexes,
+			priceIndex
+		);
+		this.cardinalityDirty = new TransactionalBoolean();
+		this.pkCardinalities = pkCardinalities;
+		this.referencedPrimaryKeysIndex = referencedPrimaryKeysIndex;
+		this.cardinalityIndexes = cardinalityIndexes;
+		this.changeTracker = new CardinalityChangeTracker();
+	}
+
 	@Override
 	public void resetDirty() {
 		super.resetDirty();
@@ -209,9 +263,13 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex {
 			this.primaryKey, this.indexKey, this.version,
 			this.entityIds, this.entityIdsByLanguage,
 			this.attributeIndex,
-			getPriceIndex().createCopyForNewCatalogAttachment(catalogState),
 			this.hierarchyIndex,
 			this.facetIndex,
+			this.originalHierarchyIndexEmpty,
+			this.originalAttributeIndexes,
+			this.originalPriceIndexes,
+			this.originalFacetIndexes,
+			getPriceIndex().createCopyForNewCatalogAttachment(catalogState),
 			this.pkCardinalities,
 			this.referencedPrimaryKeysIndex,
 			this.cardinalityIndexes

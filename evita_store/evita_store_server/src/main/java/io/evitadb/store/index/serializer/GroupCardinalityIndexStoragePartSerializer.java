@@ -67,7 +67,7 @@ public class GroupCardinalityIndexStoragePartSerializer extends Serializer<Group
 		final Map<Integer, Integer> pkCardinalities = storagePart.getPkCardinalities();
 		output.writeVarInt(pkCardinalities.size(), true);
 		for (Entry<Integer, Integer> entry : pkCardinalities.entrySet()) {
-			output.writeVarInt(entry.getKey(), true);
+			output.writeVarInt(entry.getKey(), false);
 			output.writeVarInt(entry.getValue(), true);
 		}
 
@@ -75,7 +75,7 @@ public class GroupCardinalityIndexStoragePartSerializer extends Serializer<Group
 		final Map<Integer, TransactionalBitmap> referencedPKsIndex = storagePart.getReferencedPrimaryKeysIndex();
 		output.writeVarInt(referencedPKsIndex.size(), true);
 		for (Entry<Integer, TransactionalBitmap> entry : referencedPKsIndex.entrySet()) {
-			output.writeVarInt(entry.getKey(), true);
+			output.writeVarInt(entry.getKey(), false);
 			kryo.writeObject(output, entry.getValue());
 		}
 	}
@@ -95,7 +95,7 @@ public class GroupCardinalityIndexStoragePartSerializer extends Serializer<Group
 		final int cardinalityCount = input.readVarInt(true);
 		final Map<Integer, Integer> pkCardinalities = CollectionUtils.createHashMap(cardinalityCount);
 		for (int i = 0; i < cardinalityCount; i++) {
-			final int entityPK = input.readVarInt(true);
+			final int entityPK = input.readVarInt(false);
 			final int count = input.readVarInt(true);
 			pkCardinalities.put(entityPK, count);
 		}
@@ -104,7 +104,7 @@ public class GroupCardinalityIndexStoragePartSerializer extends Serializer<Group
 		final int referencedPKsSize = input.readVarInt(true);
 		final Map<Integer, TransactionalBitmap> referencedPKsIndex = CollectionUtils.createHashMap(referencedPKsSize);
 		for (int i = 0; i < referencedPKsSize; i++) {
-			final int referencedPK = input.readVarInt(true);
+			final int referencedPK = input.readVarInt(false);
 			final TransactionalBitmap bitmap = kryo.readObject(input, TransactionalBitmap.class);
 			referencedPKsIndex.put(referencedPK, bitmap);
 		}
