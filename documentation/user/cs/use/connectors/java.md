@@ -25,13 +25,13 @@ Pro použití Java remote klienta stačí přidat následující závislost do v
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2025.8.0'
+implementation 'io.evitadb:evita_java_driver:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>

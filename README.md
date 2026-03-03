@@ -147,7 +147,7 @@ That's it.
 
 [Read license FAQ](https://evitadb.io/documentation/use/license)
 
-## Prerequisities
+## Prerequisites
 
 To checkout Git repository on Windows you need to have long paths enabled:
 
@@ -176,14 +176,13 @@ mvn clean install
 
 **Maven setup**
 
-The build uses Maven toolchains to select the correct JDK version. You must have JDK 17 installed and configured in your
-in your Maven toolchains. You can find more information about Maven toolchains in the [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
+The build uses Maven toolchains to select the correct JDK version. You must have JDK 17 installed and configured in your Maven toolchains. You can find more information about Maven toolchains in the [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
 
 In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/settings.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF8"?>
-<toolchains xmlns="http://maven.apache.org/POM/4.0.0"
+<?xml version="1.0" encoding="UTF-8"?>
+<toolchains xmlns="http://maven.apache.org/TOOLCHAINS/1.1.0"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://maven.apache.org/TOOLCHAINS/1.1.0 https://maven.apache.org/xsd/toolchains-1.1.0.xsd">
   <toolchain>
@@ -202,7 +201,9 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
 
 ## How this repository is organized
 
+- **docker**: Dockerfile, build scripts, and entrypoint for container builds
 - **documentation**: research documents, documentation, specifications
+- **tools**: utility and maintenance scripts (commit listing, PGP verification, etc.)
 - **evita_common**: shared functions, exceptions, data types, and common utilities
 - **evita_query**: query language (EvitaQL), query parser, and utilities for query handling
 - **evita_api**: public API of evitaDB including data type conversions and basic structures
