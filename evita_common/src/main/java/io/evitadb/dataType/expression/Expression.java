@@ -29,7 +29,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,7 +44,6 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
 @EqualsAndHashCode
 public class Expression implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 661548006498130632L;
@@ -52,6 +51,14 @@ public class Expression implements ExpressionNode {
 	 * The root node of the expression tree to which all operations are delegated.
 	 */
 	private final ExpressionNode root;
+	@EqualsAndHashCode.Exclude
+	@Getter
+	private final ExpressionNode[] children;
+
+	public Expression(@Nonnull ExpressionNode root) {
+		this.root = root;
+		this.children = new ExpressionNode[]{this.root};
+	}
 
 	@Nullable
 	@Override
@@ -63,6 +70,11 @@ public class Expression implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return this.root.determinePossibleRange();
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

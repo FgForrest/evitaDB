@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.expression.object;
 
-import io.evitadb.api.query.expression.evaluate.EmptyExpressionEvaluationContext;
 import io.evitadb.api.query.expression.object.accessor.ObjectAccessorRegistry;
 import io.evitadb.api.query.expression.object.accessor.ObjectElementAccessor;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
@@ -56,24 +55,9 @@ import java.io.Serializable;
 public class ElementAccessStep implements ObjectAccessStep {
 	@Serial private static final long serialVersionUID = 2760082902212762061L;
 
-	@Nonnull private final ExpressionNode elementIdentifierOperand;
+	@Nonnull @Getter private final ExpressionNode elementIdentifierOperand;
 
 	@Nullable @Getter private final ObjectAccessStep next;
-
-	@Nonnull
-	public Serializable getAccessedIdentifier() {
-		final Serializable elementIdentifier = this.elementIdentifierOperand.compute(EmptyExpressionEvaluationContext.getInstance());
-		if (elementIdentifier == null) {
-			throw new ExpressionEvaluationException("Element identifier is required, but evaluated to null.");
-		}
-		if (!(elementIdentifier instanceof String) && !(elementIdentifier instanceof Long)) {
-			throw new ExpressionEvaluationException(
-				"Element identifier must be either string or integer, was `" + elementIdentifier.getClass().getName() + "`",
-				"Element identifier must be either string or integer."
-			);
-		}
-		return elementIdentifier;
-	}
 
 	@Nullable
 	@Override
@@ -125,5 +109,10 @@ public class ElementAccessStep implements ObjectAccessStep {
 		}
 
 		return getNext().compute(context, result);
+	}
+
+	@Override
+	public String toString() {
+		return "[" + this.elementIdentifierOperand + "]" + (this.next != null ? this.next.toString() : "");
 	}
 }

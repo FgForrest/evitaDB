@@ -114,15 +114,7 @@ import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
-import io.evitadb.index.IndexMaintainer;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.*;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
@@ -2720,7 +2712,10 @@ public final class EntityCollection implements
 									EntityCollection.this.getEntityType(),
 									eikAgain
 								);
-							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+							} else if (
+								eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+									eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+							) {
 								assertReferenceIndexPrerequisities(
 									((String) Objects.requireNonNull(eikAgain.discriminator()))
 								);
@@ -2733,6 +2728,16 @@ public final class EntityCollection implements
 										.referenceName()
 								);
 								entityIndex = new ReducedEntityIndex(
+									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getEntityType(),
+									eikAgain
+								);
+							} else if (eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY) {
+								assertReferenceIndexPrerequisities(
+									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
+										.referenceName()
+								);
+								entityIndex = new ReducedGroupEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
 									EntityCollection.this.getEntityType(),
 									eikAgain

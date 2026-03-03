@@ -29,8 +29,10 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,13 +52,17 @@ import java.io.Serializable;
 public class NestedOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 1706903340400175650L;
 	private final ExpressionNode operator;
+	@EqualsAndHashCode.Exclude
+	@Getter
+	private final ExpressionNode[] children;
 
-	public NestedOperator(ExpressionNode operator) {
+	public NestedOperator(@Nonnull ExpressionNode operator) {
 		Assert.isTrue(
 			operator != null,
-			() -> new ParserException("Inversion function must have at least one operand!")
+			() -> new ParserException("Nested operator must have at least one operand!")
 		);
 		this.operator = operator;
+		this.children = new ExpressionNode[]{this.operator};
 	}
 
 	@Nullable
@@ -69,6 +75,11 @@ public class NestedOperator implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return this.operator.determinePossibleRange();
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

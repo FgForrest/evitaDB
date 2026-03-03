@@ -4,7 +4,7 @@
   <h4>Labels used in metrics</h4>
   <dl>
     <dt>api</dt>
-    <dd><strong>API type</strong>: The identification of the API being probed.</dd>
+    <dd><strong>API type</strong>: The identification of the API being called.</dd>
     <dt>area</dt>
     <dd><strong>Area</strong>: Area for which events are published.</dd>
     <dt>buildType</dt>
@@ -20,7 +20,7 @@
     <dt>graphQLOperationType</dt>
     <dd><strong>GraphQL operation type</strong>: The type of operation specified in the GQL request: QUERY, MUTATION, or SUBSCRIPTION.</dd>
     <dt>grpcResponseStatus</dt>
-    <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, CANCELED).</dd>
+    <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, or CANCELLED).</dd>
     <dt>httpMethod</dt>
     <dd><strong>HTTP method</strong>: The HTTP method of the request.</dd>
     <dt>httpStatusCode</dt>
@@ -29,6 +29,8 @@
     <dd><strong>Initiator of the call</strong>: Initiator of the gRPC call (either client or server).</dd>
     <dt>instanceId</dt>
     <dd><strong>Server instance id</strong>: Unique server name taken from the configuration file.</dd>
+    <dt>methodName</dt>
+    <dd><strong>Method name</strong>: The endpoint or method name from RequestLog.</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: The logical name of the file that was flushed. Identifies the file more precisely.</dd>
     <dt>operationId</dt>
@@ -48,11 +50,11 @@ duration of the probe.</dd>
     <dt>recordType</dt>
     <dd><strong>Record type</strong>: Type of records that changed in the OffsetIndex.</dd>
     <dt>requestResult</dt>
-    <dd><strong>Request result</strong>: Simplified result of the request (success, error, cancelled).</dd>
+    <dd><strong>Request result</strong>: Simplified result of the request (SUCCESS, ERROR, TIMED_OUT, CANCELLED).</dd>
     <dt>resolution</dt>
     <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
     <dt>responseStatus</dt>
-    <dd><strong>Response status</strong>: The status of the response: OK or ERROR.</dd>
+    <dd><strong>Response status</strong>: The status of the response: OK, ERROR, or CANCELLED.</dd>
     <dt>restInstanceType</dt>
     <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
     <dt>restOperationType</dt>
@@ -61,6 +63,8 @@ duration of the probe.</dd>
     <dd><strong>Server version</strong>: Precise version of the evitaDB server.</dd>
     <dt>serviceName</dt>
     <dd><strong>Service name</strong>: Name of the gRPC service that was called (the name of the Java class).</dd>
+    <dt>sessionProtocol</dt>
+    <dd><strong>Session protocol</strong>: The session protocol (H1C, H1, H2C, H2, etc.).</dd>
     <dt>stage</dt>
     <dd><strong>Transaction stage</strong>: The name of the stage the transaction is waiting for.</dd>
     <dt>taskName</dt>
@@ -75,8 +79,20 @@ duration of the probe.</dd>
   <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
   <dt><code>io_evitadb_external_api_readiness_total</code> (COUNTER)</dt>
   <dd>Readiness probe invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd>Request total duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_request_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Request receive duration</strong>: Time to receive the full request body in milliseconds.<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_request_length_bytes</code> (HISTOGRAM)</dt>
+  <dd><strong>Request length</strong>: Request content length in bytes.<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_response_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Response send duration</strong>: Time to send the response in milliseconds.<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_response_length_bytes</code> (HISTOGRAM)</dt>
+  <dd><strong>Response length</strong>: Response content length in bytes.<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
   <dt><code>io_evitadb_external_api_request_total</code> (COUNTER)</dt>
-  <dd>Requests invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>requestResult</Term><br/></dd>
+  <dd>Requests invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_total_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>Total duration</strong>: End-to-end request duration in milliseconds.<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>methodName</Term>, <Term>requestResult</Term>, <Term>sessionProtocol</Term><br/></dd>
 </dl>
 
 #### API / GraphQL / Instance / Schema

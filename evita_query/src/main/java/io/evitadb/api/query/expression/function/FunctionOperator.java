@@ -29,13 +29,16 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -50,34 +53,70 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@RequiredArgsConstructor
 public class FunctionOperator implements ExpressionNode {
 
 	@Serial private static final long serialVersionUID = -7377835303003418997L;
 
 	@Nonnull private final FunctionProcessor functionProcessor;
 	@Nonnull private final List<ExpressionNode> argumentOperands;
+	@Getter
+	private final ExpressionNode[] children;
+
+	public FunctionOperator(
+		@Nonnull FunctionProcessor functionProcessor,
+		@Nonnull List<ExpressionNode> argumentOperands
+	) {
+		this.functionProcessor = functionProcessor;
+		this.argumentOperands = argumentOperands;
+		this.children = this.argumentOperands.toArray(new ExpressionNode[0]);
+	}
 
 	@Nullable
 	@Override
 	public Serializable compute(@Nonnull ExpressionEvaluationContext context) throws ExpressionEvaluationException {
-		final List<Serializable> arguments = this.argumentOperands.stream()
-			.map(operand -> operand.compute(context))
-			.toList();
-		return this.functionProcessor.process(arguments);
+		final List<Serializable> arguments =
+			new ArrayList<>(this.argumentOperands.size());
+		for (final ExpressionNode operand : this.argumentOperands) {
+			arguments.add(operand.compute(context));
+		}
+		return this.functionProcessor.process(Collections.unmodifiableList(arguments));
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		if (this.functionProcessor instanceof NumericFunctionProcessor numericFunctionProcessor) {
-			return numericFunctionProcessor.determinePossibleRange(
-				this.argumentOperands.stream()
-					.map(ExpressionNode::determinePossibleRange)
-					.toList()
-			);
+			final List<BigDecimalNumberRange> ranges =
+				new java.util.ArrayList<>(this.argumentOperands.size());
+			for (final ExpressionNode operand : this.argumentOperands) {
+				ranges.add(operand.determinePossibleRange());
+			}
+			return numericFunctionProcessor.determinePossibleRange(Collections.unmodifiableList(ranges));
 		} else {
 			return BigDecimalNumberRange.INFINITE;
 		}
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
+	}
+
+	@Override
+	public String toString() {
+		final int size = this.argumentOperands.size();
+		// estimate: function name + parens + ~10 chars per arg + separators
+		final StringBuilder sb = new StringBuilder(
+			this.functionProcessor.getName().length() + 2 + size * 12
+		);
+		sb.append(this.functionProcessor.getName()).append('(');
+		for (int i = 0; i < size; i++) {
+			if (i > 0) {
+				sb.append(", ");
+			}
+			sb.append(this.argumentOperands.get(i).toString());
+		}
+		sb.append(')');
+		return sb.toString();
 	}
 }

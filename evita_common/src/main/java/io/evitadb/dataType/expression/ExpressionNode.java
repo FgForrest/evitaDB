@@ -45,6 +45,12 @@ import java.util.function.UnaryOperator;
 public interface ExpressionNode extends Serializable {
 
 	/**
+	 * Returns children of this node. If the node doesn't support children, returns null.
+	 */
+	@Nullable
+	ExpressionNode[] getChildren();
+
+	/**
 	 * Computes the result of evaluating this expression node within the given context.
 	 *
 	 * @param context the context in which the predicate is evaluated
@@ -83,5 +89,10 @@ public interface ExpressionNode extends Serializable {
 	 */
 	@Nonnull
 	BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException;
+
+	/**
+	 * Accepts a node visitor.
+	 */
+	void accept(@Nonnull ExpressionNodeVisitor visitor);
 
 }

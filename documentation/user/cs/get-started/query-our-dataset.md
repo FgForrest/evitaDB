@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 Ačkoli je mnohem lepší pracovat se schématem a daty, která odpovídají vašemu vlastnímu e-commerce případu použití, věříme, že mnoho z vás bude chtít otestovat Query API bez zbytečné práce. Proto jsme pro vás připravili ukázkové schéma virtuálního e-shopu s daty pro více než tisíc produktů, se kterými si můžete ihned pohrát.
 
@@ -75,7 +76,7 @@ Po dokončení tohoto postupu byste měli v konzoli vidět podobný výstup:
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2025.8.0 (keep calm and report bugs 😉)
+beta build 2026.1.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:
@@ -127,13 +128,13 @@ Otevřete své Java IDE a přidejte do projektu následující závislost:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2025.8.0'
+implementation 'io.evitadb:evita_java_driver:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -218,7 +219,7 @@ Pokud potřebujete více tipů k dotazování na data, zkuste [kapitolu o Query 
 
 ## Připojení k GraphQL API
 
-Otevřete svého [GraphQL klienta](../use/connectors/graphql.md#doporučená-ide) dle výběru a zadejte
+Otevřete svého [GraphQL klienta](../use/connectors/graphql.md#doporučená-vývojová-prostředí-ide) dle výběru a zadejte
 URL API katalogových dat našeho demo katalogu `https://demo.evitadb.io:5555/gql/evita`.
 
 Poté můžete na tuto adresu posílat GraphQL požadavky a vyzkoušet libovolné GraphQL dotazy popsané v

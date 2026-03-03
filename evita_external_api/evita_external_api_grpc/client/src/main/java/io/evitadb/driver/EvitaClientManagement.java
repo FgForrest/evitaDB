@@ -427,8 +427,22 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 				}
 			);
 
-			// Wait for the download to complete
-			downloadFuture.join();
+			// Wait for the download to complete with timeout
+			final Timeout timeout = Objects.requireNonNull(this.evitaClient.timeout.get().peek());
+			try {
+				downloadFuture.get(timeout.timeout(), timeout.timeoutUnit());
+			} catch (TimeoutException e) {
+				downloadFuture.cancel(true);
+				throw new EvitaClientTimedOutException(timeout.timeout(), timeout.timeoutUnit());
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new EvitaClientServerCallException("File download interrupted.", e);
+			} catch (ExecutionException e) {
+				throw EvitaClient.transformException(
+					e.getCause() == null ? e : e.getCause(),
+					Functions.noOpRunnable()
+				);
+			}
 
 			// Return an InputStream for the temporary file
 			return new FileInputStream(tempFile.toFile()) {

@@ -26,8 +26,9 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
@@ -82,7 +83,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 					updateEmptySchema {
 						version
 					}
-				}	
+				}
 				"""
 			)
 			.executeAndThen()
@@ -106,7 +107,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 					) {
 						version
 					}
-				}	
+				}
 				"""
 			)
 			.executeAndThen()
@@ -798,6 +799,10 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									scope
 									indexType
 								}
+								indexedComponents {
+									scope
+									indexedComponents
+								}
 								faceted
 							}
 						}
@@ -828,8 +833,19 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									ReferenceSchemaDescriptor.INDEXED.name(),
 									list().i(
 										map()
-											.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 											.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+									)
+								)
+								.e(
+									ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(),
+									list().i(
+										map()
+											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+											.e(
+												ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+												list().i(ReferenceIndexedComponents.REFERENCED_ENTITY.name())
+											)
 									)
 								)
 								.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
@@ -932,7 +948,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	}
 
 
-	private int getEntitySchemaVersion(@Nonnull GraphQLTester tester, @Nonnull String entityType) {
+	private static int getEntitySchemaVersion(@Nonnull GraphQLTester tester, @Nonnull String entityType) {
 		return tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.document(

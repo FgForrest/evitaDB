@@ -5,6 +5,7 @@ perex: Tato kapitola podrobně popisuje algoritmus výpočtu prodejní ceny, př
 author: Ing. Jan Novotný
 proofreading: needed
 commit: '3ba6b0125c098b31c0b47f60be780ef4f90fd5f1'
+translated: 'true'
 ---
 <UsedTerms>
     <h4>Použité pojmy v tomto dokumentu</h4>
@@ -24,9 +25,9 @@ commit: '3ba6b0125c098b31c0b47f60be780ef4f90fd5f1'
 		<dd>Produkt s variantami je „virtuální produkt“, který nelze zakoupit přímo. Zákazník si místo toho musí vybrat jednu z jeho variant.
 			Produkty s variantami se velmi často vyskytují v e-shopech s módou, kde oblečení existuje v různých velikostech a barvách.
 			Jeden produkt může mít desítky kombinací velikostí a barev. Pokud by každá kombinace představovala standardní
-			[produkt](#product), výpis produktů v [kategorii](#category) a na dalších místech by se stal nepoužitelným.
+			produkt, výpis produktů v kategorii a na dalších místech by se stal nepoužitelným.
 			V této situaci jsou produkty s variantami velmi užitečné. Tento „virtuální produkt“ může být uveden místo variant
-			a výběr varianty probíhá při vkládání zboží do [košíku](#cart). Příklad:
+			a výběr varianty probíhá při vkládání zboží do košíku. Příklad:
 			Máme tričko s obrázkem jednorožce. Tričko se vyrábí v různých velikostech a barvách – konkrétně:<br/><br/>
 			&ndash; velikost: S, M, L, XL, XXL<br/>
 			&ndash; barva: modrá, růžová, fialová<br/><br/>
@@ -39,7 +40,7 @@ commit: '3ba6b0125c098b31c0b47f60be780ef4f90fd5f1'
 			Při zobrazování a filtrování podle sady produktů ve výpisech na e-shopu potřebujeme mít přiřazenou nějakou cenu,
 			ale nemusí být přiřazena přesná cena a vlastník e-shopu očekává, že cena bude vypočítána jako agregace cen dílčích produktů.
 			Toto chování je podporováno nastavením správného
-			[PriceInnerEntityReferenceHandling](../../en/deep-dive/classes/price_inner_entity_reference_handling).</dd>
+			[PriceInnerEntityReferenceHandling](classes/price_inner_entity_reference_handling).</dd>
     </dl>
 
 </UsedTerms>

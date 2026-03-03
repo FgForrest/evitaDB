@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,6 +42,9 @@ import java.io.Serializable;
  * child constraint within {@link ReferenceHaving} or {@link FacetHaving}, which establish the reference context. This constraint shifts the
  * filtering scope from the reference (relation) to the referenced entity itself, allowing you to examine properties of the target entity
  * rather than properties of the relationship.
+ *
+ * This constraint requires the reference schema to have the `REFERENCED_ENTITY` component enabled in its indexed
+ * components configuration and a group type defined.
  *
  * This constraint is an {@link EntityConstraint} and {@link SeparateEntityScopeContainer}, declaring that it defines a filtering context for
  * a different entity type than the query's primary collection. It is supported in the {@code REFERENCE}, {@code INLINE_REFERENCE},

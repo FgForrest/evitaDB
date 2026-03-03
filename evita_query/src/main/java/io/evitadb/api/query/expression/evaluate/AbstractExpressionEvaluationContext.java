@@ -36,7 +36,7 @@ import java.util.Random;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 abstract sealed class AbstractExpressionEvaluationContext implements ExpressionEvaluationContext
-	permits EmptyExpressionEvaluationContext, MultiVariableEvaluationContext, SingleVariableEvaluationContext {
+	permits MultiVariableEvaluationContext, SingleVariableEvaluationContext {
 
 	@Nullable private final Object thisObject;
 	private final Random random;

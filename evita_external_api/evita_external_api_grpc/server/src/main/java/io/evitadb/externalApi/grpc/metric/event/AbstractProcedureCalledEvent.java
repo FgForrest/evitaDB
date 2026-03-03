@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.metric.event;
 
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
+import io.evitadb.externalApi.event.ResponseStatus;
 import io.grpc.MethodDescriptor.MethodType;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
@@ -55,7 +56,7 @@ public abstract class AbstractProcedureCalledEvent extends AbstractGrpcApiEvent 
 	String initiator;
 
 	@Label("gRPC response status")
-	@Description("State of the gRPC response (OK, ERROR, CANCELED).")
+	@Description("State of the gRPC response (OK, ERROR, or CANCELLED).")
 	@ExportMetricLabel
 	String grpcResponseStatus;
 
@@ -72,7 +73,7 @@ public abstract class AbstractProcedureCalledEvent extends AbstractGrpcApiEvent 
 		this.serviceName = serviceName;
 		this.procedureName = procedureName;
 		this.methodType = methodType;
-		this.grpcResponseStatus = ResponseState.OK.name();
+		this.grpcResponseStatus = ResponseStatus.OK.name();
 		this.begin();
 	}
 
@@ -112,7 +113,7 @@ public abstract class AbstractProcedureCalledEvent extends AbstractGrpcApiEvent 
 	 * Set the response state.
 	 * @param grpcResponseStatus the response state
 	 */
-	public void setGrpcResponseStatus(@Nonnull ResponseState grpcResponseStatus) {
+	public void setGrpcResponseStatus(@Nonnull ResponseStatus grpcResponseStatus) {
 		this.grpcResponseStatus = grpcResponseStatus.name();
 	}
 
@@ -135,13 +136,5 @@ public abstract class AbstractProcedureCalledEvent extends AbstractGrpcApiEvent 
 
 	}
 
-	/**
-	 * Enum representing the state of the response.
-	 */
-	public enum ResponseState {
-
-		OK, ERROR, CANCELED
-
-	}
 
 }

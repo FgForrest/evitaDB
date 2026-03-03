@@ -29,6 +29,8 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
+import java.util.Locale;
+
 /**
  * Example store interface for proxying.
  *
@@ -37,6 +39,8 @@ import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 public interface StoreInterfaceEditor extends StoreInterface {
 
 	StoreInterfaceEditor setCode(String code);
+
+	StoreInterfaceEditor setName(String name, Locale locale);
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
 	StoreInterfaceEditor setLabels(Labels labels);

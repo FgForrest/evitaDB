@@ -68,11 +68,28 @@ public class MandatoryAssociatedDataNotProvidedException extends InvalidMutation
 	 * @param missingMandatedAssociatedData list of associated data keys that are required but missing; may include
 	 *                                      both global (non-localized) and localized keys
 	 */
-	public MandatoryAssociatedDataNotProvidedException(@Nonnull String entityName, @Nonnull List<AssociatedDataKey> missingMandatedAssociatedData) {
+	public MandatoryAssociatedDataNotProvidedException(
+		@Nonnull String entityName,
+		@Nonnull List<AssociatedDataKey> missingMandatedAssociatedData
+	) {
 		super(composeErrorMessage(entityName, missingMandatedAssociatedData));
 	}
 
-	private static String composeErrorMessage(@Nonnull String entityName, @Nonnull List<AssociatedDataKey> missingMandatedAssociatedData) {
+	/**
+	 * Creates a new exception with a pre-composed error message. Used for cases where the standard
+	 * error message composition is not applicable, such as when the entity has no locales but
+	 * non-nullable localized associated data are defined in the schema.
+	 *
+	 * @param message the complete error message
+	 */
+	public MandatoryAssociatedDataNotProvidedException(@Nonnull String message) {
+		super(message);
+	}
+
+	private static String composeErrorMessage(
+		@Nonnull String entityName,
+		@Nonnull List<AssociatedDataKey> missingMandatedAssociatedData
+	) {
 		final String missingGlobalAttributes = of(missingMandatedAssociatedData.stream()
 			.sorted()
 			.filter(it -> it.locale() == null)

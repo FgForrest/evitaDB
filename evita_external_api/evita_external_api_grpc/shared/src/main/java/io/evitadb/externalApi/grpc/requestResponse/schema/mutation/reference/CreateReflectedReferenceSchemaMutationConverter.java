@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,9 +25,10 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.StringValue;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -42,6 +43,7 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toA
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCardinality;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeInheritanceBehavior;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCardinality;
+import static java.util.Optional.ofNullable;
 
 /**
  * Converts between {@link CreateReflectedReferenceSchemaMutation} and {@link GrpcCreateReflectedReferenceSchemaMutation} in both directions.
@@ -54,13 +56,17 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 
 	@Nonnull
 	public CreateReflectedReferenceSchemaMutation convert(@Nonnull GrpcCreateReflectedReferenceSchemaMutation mutation) {
-		final ScopedReferenceIndexType[] indexedInScopes = mutation.getIndexedInScopesList().isEmpty() ?
-			new ScopedReferenceIndexType[] {new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)}
-			:
-			mutation.getIndexedInScopesList()
-				.stream()
-				.map(scope -> new ScopedReferenceIndexType(EvitaEnumConverter.toScope(scope), ReferenceIndexType.FOR_FILTERING))
-				.toArray(ScopedReferenceIndexType[]::new);
+		final ScopedReferenceIndexType[] indexedInScopes =
+			SetReferenceSchemaIndexedMutationConverter.resolveIndexedInScopes(
+				mutation.getScopedIndexTypesList(),
+				mutation.getIndexedInScopesList(),
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(
+						Scope.DEFAULT_SCOPE,
+						ReferenceIndexType.FOR_FILTERING
+					)
+				}
+			);
 		final Scope[] facetedInScopes = mutation.getFacetedInScopesList().isEmpty() ?
 			(mutation.hasFaceted() && mutation.getFaceted().getValue() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
@@ -68,6 +74,16 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 				.stream()
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
+
+		// Handle indexed components — only when not inherited
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
+		if (mutation.getIndexedInherited()) {
+			indexedComponentsInScopes = null;
+		} else {
+			indexedComponentsInScopes = SetReferenceSchemaIndexedMutationConverter.getIndexedComponentsInScopes(
+				mutation.getScopedIndexedComponentsList()
+			);
+		}
 
 		return new CreateReflectedReferenceSchemaMutation(
 			mutation.getName(),
@@ -77,6 +93,7 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			mutation.getReferencedEntityType(),
 			mutation.getReflectedReferenceName(),
 			mutation.getIndexedInherited() ? null : indexedInScopes,
+			indexedComponentsInScopes,
 			mutation.getFacetedInherited() ? null : facetedInScopes,
 			toAttributeInheritanceBehavior(mutation.getAttributeInheritanceBehavior()),
 			mutation.getAttributeInheritanceFilterList().toArray(String[]::new)
@@ -104,6 +121,19 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 					.map(scopedIndexType -> EvitaEnumConverter.toGrpcScope(scopedIndexType.scope()))
 					.toList()
 			);
+			builder.addAllScopedIndexTypes(
+				Arrays.stream(mutation.getIndexedInScopes())
+					.map(scopedType -> io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.newBuilder()
+						.setScope(EvitaEnumConverter.toGrpcScope(scopedType.scope()))
+						.setIndexType(EvitaEnumConverter.toGrpcReferenceIndexType(scopedType.indexType()))
+						.build())
+					.toList()
+			);
+			// Indexed components — only when indexed is not inherited
+			ofNullable(mutation.getIndexedComponentsInScopes())
+				.ifPresent(components -> builder.addAllScopedIndexedComponents(
+					SetReferenceSchemaIndexedMutationConverter.toGrpcScopedIndexedComponents(components)
+				));
 		} else {
 			builder.setIndexedInherited(true);
 		}

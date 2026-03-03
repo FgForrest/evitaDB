@@ -25,14 +25,16 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 
 import javax.annotation.Nonnull;
@@ -112,7 +114,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	}
 
 	@Nonnull
-	protected static List<String> createReferencedFacetedDto(ReferenceSchemaContract schema) {
+	protected static List<String> createReferencedFacetedDto(@Nonnull ReferenceSchemaContract schema) {
 		return Arrays.stream(Scope.values())
 			.filter(schema::isFacetedInScope)
 			.map(Enum::name)
@@ -120,14 +122,31 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	}
 
 	@Nonnull
-	protected static List<Map<String, Object>> createReferenceIndexedDto(ReferenceSchemaContract schema) {
+	protected static List<Map<String, Object>> createReferenceIndexedDto(@Nonnull ReferenceSchemaContract schema) {
 		return schema.getReferenceIndexTypeInScopes()
 			.entrySet()
 			.stream()
 			.map(
 				it -> map()
-					.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), it.getKey().name())
+					.e(ScopedDataDescriptor.SCOPE.name(), it.getKey().name())
 					.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), it.getValue().name())
+					.build()
+			)
+			.toList();
+	}
+
+	@Nonnull
+	protected static List<Map<String, Object>> createReferenceIndexedComponentsDto(@Nonnull ReferenceSchemaContract schema) {
+		return schema.getIndexedComponentsInScopes()
+			.entrySet()
+			.stream()
+			.map(
+				entry -> map()
+					.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+					.e(
+						ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+						entry.getValue().stream().map(ReferenceIndexedComponents::name).toList()
+					)
 					.build()
 			)
 			.toList();

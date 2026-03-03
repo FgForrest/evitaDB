@@ -58,6 +58,13 @@ import java.io.Serializable;
  */
 public class EntityContractAccessor implements ObjectPropertyAccessor {
 
+	public static final String PRIMARY_KEY_PROPERTY = "primaryKey";
+	public static final String ATTRIBUTES_PROPERTY = "attributes";
+	public static final String LOCALIZED_ATTRIBUTES_PROPERTY = "localizedAttributes";
+	public static final String ASSOCIATED_DATA_PROPERTY = "associatedData";
+	public static final String LOCALIZED_ASSOCIATED_DATA_PROPERTY = "localizedAssociatedData";
+	public static final String REFERENCES_PROPERTY = "references";
+
 	@Nonnull
 	@Override
 	public Class<? extends Serializable>[] getSupportedTypes() {
@@ -76,11 +83,12 @@ public class EntityContractAccessor implements ObjectPropertyAccessor {
 		}
 
 		return switch (propertyIdentifier) {
-			case "attributes" -> new EntityAttributesEvaluationDto(entity, false);
-			case "localizedAttributes" -> new EntityAttributesEvaluationDto(entity, true);
-			case "associatedData" -> new EntityAssociatedDataEvaluationDto(entity, false);
-			case "localizedAssociatedData" -> new EntityAssociatedDataEvaluationDto(entity, true);
-			case "references" -> new EntityReferencesEvaluationDto(entity);
+			case PRIMARY_KEY_PROPERTY -> entity.getPrimaryKey();
+			case ATTRIBUTES_PROPERTY -> new EntityAttributesEvaluationDto(entity, false);
+			case LOCALIZED_ATTRIBUTES_PROPERTY -> new EntityAttributesEvaluationDto(entity, true);
+			case ASSOCIATED_DATA_PROPERTY -> new EntityAssociatedDataEvaluationDto(entity, false);
+			case LOCALIZED_ASSOCIATED_DATA_PROPERTY -> new EntityAssociatedDataEvaluationDto(entity, true);
+			case REFERENCES_PROPERTY -> new EntityReferencesEvaluationDto(entity);
 			default ->
 				throw new ExpressionEvaluationException(
 					"Property `" + propertyIdentifier + "` does not exist on EntityContract.",

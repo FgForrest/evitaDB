@@ -139,6 +139,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 		return newProperty()
 			.name(constraintKey)
 			.description(constructConstraintDescription(constraintDescriptor))
+			.deprecationNotice(constraintDescriptor.deprecated())
 			.type(constraintValue)
 			.build();
 	}

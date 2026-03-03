@@ -28,13 +28,14 @@ import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.expression.object.accessor.ObjectElementAccessor;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferencesContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.ExpressionEvaluationException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.List;
 
 /**
  * Implementation of {@link ObjectElementAccessor} for {@link ReferencesContract} objects.
@@ -75,6 +76,17 @@ public class ReferencesContractAccessor implements ObjectElementAccessor {
 			);
 		}
 
+		final Cardinality referenceCardinality = referencesContract
+			.getSchema()
+			.getReference(elementName)
+			.map(ReferenceSchemaContract::getCardinality)
+			.orElseThrow(
+				() -> new ExpressionEvaluationException(
+					"Reference schema `" + elementName + "` not found.",
+					"Cannot found reference `" + elementName + "`."
+				)
+			);
+
 		final Collection<ReferenceContract> references;
 		try {
 			references = referencesContract.getReferences(elementName);
@@ -86,19 +98,21 @@ public class ReferencesContractAccessor implements ObjectElementAccessor {
 			);
 		}
 
-		if (references.isEmpty()) {
-			return null;
-		} else if (references.size() == 1) {
-			return references.iterator().next();
-		} else {
-			final List<ReferenceContract> unmodifiableReferences = List.copyOf(references);
-			if (!(unmodifiableReferences instanceof Serializable)) {
-				throw new ExpressionEvaluationException(
-					"Expected unmodifiable ReferencesContract to be serializable, but it is not.",
-					"Unexpected internal error occurred while accessing references."
-				);
+		if (referenceCardinality == Cardinality.ZERO_OR_ONE) {
+			if (references.isEmpty()) {
+				return null;
+			} else {
+				return references.iterator().next();
 			}
-			return (Serializable) unmodifiableReferences;
+		} else if (referenceCardinality == Cardinality.EXACTLY_ONE) {
+			return references.iterator().next();
+		} else if (referenceCardinality == Cardinality.ZERO_OR_MORE || referenceCardinality == Cardinality.ONE_OR_MORE) {
+			return (Serializable) references;
+		} else {
+			throw new ExpressionEvaluationException(
+				"Reference cardinality `" + referenceCardinality + "` is not supported.",
+				"Unexpected internal error occurred while accessing references."
+			);
 		}
 	}
 }

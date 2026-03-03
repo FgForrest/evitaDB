@@ -38,6 +38,8 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
@@ -531,6 +533,97 @@ class ReflectedReferenceSchemaBuilderTest {
 	}
 
 	@Nested
+	@DisplayName("Indexed components")
+	class IndexedComponentsTests {
+
+		@Test
+		@DisplayName("should set indexed components on reflected reference")
+		void shouldSetIndexedComponents() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isIndexedComponentsInherited()),
+				() -> assertEquals(
+					2,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_ENTITY
+					)
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should inherit indexed components by default")
+		void shouldInheritIndexedComponentsByDefault() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> {}
+			);
+
+			assertTrue(ref.isIndexedComponentsInherited());
+		}
+
+		@Test
+		@DisplayName("should set inherited after explicit components")
+		void shouldSetInheritedAfterExplicitComponents() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.withIndexedComponentsInherited()
+			);
+
+			assertTrue(ref.isIndexedComponentsInherited());
+		}
+
+		@Test
+		@DisplayName("should override inherited with explicit components")
+		void shouldOverrideInheritedWithExplicit() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.withIndexedComponentsInherited()
+					.indexedInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+			);
+
+			assertAll(
+				() -> assertFalse(ref.isIndexedComponentsInherited()),
+				() -> assertEquals(
+					1,
+					ref.getIndexedComponents(Scope.LIVE).size()
+				),
+				() -> assertTrue(
+					ref.getIndexedComponents(Scope.LIVE).contains(
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+				)
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("Faceting operations")
 	class FacetingOperations {
 
@@ -885,6 +978,237 @@ class ReflectedReferenceSchemaBuilderTest {
 				() -> assertEquals(Cardinality.ZERO_OR_ONE, ref.getCardinality()),
 				() -> assertFalse(ref.isCardinalityInherited()),
 				() -> assertTrue(ref.isDeprecatedInherited())
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Mutation absorption")
+	class MutationAbsorption {
+
+		@Test
+		@DisplayName(
+			"should keep indexed separate from CreateReflected"
+		)
+		void shouldKeepIndexedSeparateFromCreateReflected() {
+			final ReflectedReferenceSchemaBuilder builder =
+				captureReflectedBuilder(
+					whichIs -> whichIs.indexedInScope(Scope.LIVE)
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			assertAll(
+				() -> assertEquals(
+					2, mutations.size(),
+					"CreateReflected + SetIndexed"
+				),
+				() -> assertInstanceOf(
+					CreateReflectedReferenceSchemaMutation.class,
+					mutations.get(0)
+				),
+				() -> assertInstanceOf(
+					SetReferenceSchemaIndexedMutation.class,
+					mutations.get(1)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should absorb faceted into CreateReflected")
+		void shouldAbsorbFacetedIntoCreateReflected() {
+			final ReflectedReferenceSchemaBuilder builder =
+				captureReflectedBuilder(
+					whichIs -> whichIs.facetedInScope(Scope.LIVE)
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			final CreateReflectedReferenceSchemaMutation create =
+				mutations.stream()
+					.filter(
+						CreateReflectedReferenceSchemaMutation
+							.class::isInstance
+					)
+					.map(
+						CreateReflectedReferenceSchemaMutation
+							.class::cast
+					)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertTrue(
+					mutations.stream().noneMatch(
+						SetReferenceSchemaFacetedMutation
+							.class::isInstance
+					),
+					"No separate faceted mutation"
+				),
+				() -> assertTrue(
+					create.isFaceted(),
+					"CreateReflected should have faceted flag"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep indexed with components separate "
+				+ "from CreateReflected"
+		)
+		void shouldKeepIndexedWithComponentsSeparateFromCreateReflected() {
+			final ReflectedReferenceSchemaBuilder builder =
+				captureReflectedBuilder(
+					whichIs -> whichIs
+						.indexedWithComponentsInScope(
+							Scope.LIVE,
+							ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents
+								.REFERENCED_GROUP_ENTITY
+						)
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			final SetReferenceSchemaIndexedMutation setIndexed =
+				mutations.stream()
+					.filter(
+						SetReferenceSchemaIndexedMutation
+							.class::isInstance
+					)
+					.map(
+						SetReferenceSchemaIndexedMutation
+							.class::cast
+					)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertEquals(
+					2, mutations.size(),
+					"CreateReflected + SetIndexed"
+				),
+				() -> assertInstanceOf(
+					CreateReflectedReferenceSchemaMutation.class,
+					mutations.get(0)
+				),
+				() -> assertNotNull(
+					setIndexed.getIndexedComponentsInScopes(),
+					"SetIndexed should have components"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should absorb faceted but keep indexed separate "
+				+ "for CreateReflected"
+		)
+		void shouldAbsorbFacetedButKeepIndexedSeparateForCreateReflected() {
+			final ReflectedReferenceSchemaBuilder builder =
+				captureReflectedBuilder(
+					whichIs -> whichIs
+						.indexedInScope(Scope.LIVE)
+						.facetedInScope(Scope.LIVE)
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			final CreateReflectedReferenceSchemaMutation create =
+				mutations.stream()
+					.filter(
+						CreateReflectedReferenceSchemaMutation
+							.class::isInstance
+					)
+					.map(
+						CreateReflectedReferenceSchemaMutation
+							.class::cast
+					)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertEquals(
+					2, mutations.size(),
+					"CreateReflected(with faceted) + SetIndexed"
+				),
+				() -> assertInstanceOf(
+					CreateReflectedReferenceSchemaMutation.class,
+					mutations.get(0)
+				),
+				() -> assertInstanceOf(
+					SetReferenceSchemaIndexedMutation.class,
+					mutations.get(1)
+				),
+				() -> assertTrue(
+					create.isFaceted(),
+					"Faceted should be absorbed into CreateReflected"
+				),
+				() -> assertTrue(
+					mutations.stream().noneMatch(
+						SetReferenceSchemaFacetedMutation
+							.class::isInstance
+					),
+					"No separate faceted mutation"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep indexed with explicit scopes "
+				+ "separate from CreateReflected"
+		)
+		void shouldKeepIndexedWithExplicitScopesSeparateFromCreateReflected() {
+			final ReflectedReferenceSchemaBuilder builder =
+				captureReflectedBuilder(
+					whichIs -> whichIs
+						.indexedInScope(Scope.LIVE)
+				);
+
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			final SetReferenceSchemaIndexedMutation setIndexed =
+				mutations.stream()
+					.filter(
+						SetReferenceSchemaIndexedMutation
+							.class::isInstance
+					)
+					.map(
+						SetReferenceSchemaIndexedMutation
+							.class::cast
+					)
+					.findFirst()
+					.orElseThrow();
+
+			assertAll(
+				() -> assertEquals(
+					2, mutations.size(),
+					"CreateReflected + SetIndexed"
+				),
+				() -> assertInstanceOf(
+					CreateReflectedReferenceSchemaMutation.class,
+					mutations.get(0)
+				),
+				() -> assertNotNull(
+					setIndexed.getIndexedInScopes(),
+					"Scopes should be explicit (not inherited)"
+				),
+				() -> assertEquals(
+					1,
+					setIndexed.getIndexedInScopes().length,
+					"Should have one indexed scope"
+				),
+				() -> assertEquals(
+					Scope.LIVE,
+					setIndexed.getIndexedInScopes()[0].scope()
+				)
 			);
 		}
 	}

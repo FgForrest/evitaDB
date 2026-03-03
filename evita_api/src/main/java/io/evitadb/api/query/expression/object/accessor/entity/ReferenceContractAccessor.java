@@ -54,6 +54,12 @@ import java.io.Serializable;
  */
 public class ReferenceContractAccessor implements ObjectPropertyAccessor {
 
+	public static final String REFERENCED_PRIMARY_KEY_PROPERTY = "referencedPrimaryKey";
+	public static final String ATTRIBUTES_PROPERTY = "attributes";
+	public static final String LOCALIZED_ATTRIBUTES_PROPERTY = "localizedAttributes";
+	public static final String REFERENCED_ENTITY_PROPERTY = "referencedEntity";
+	public static final String GROUP_ENTITY_PROPERTY = "groupEntity";
+
 	@Nonnull
 	@Override
 	public Class<? extends Serializable>[] getSupportedTypes() {
@@ -75,17 +81,11 @@ public class ReferenceContractAccessor implements ObjectPropertyAccessor {
 		}
 
 		return switch (propertyIdentifier) {
-			case "referencedPrimaryKey" -> referenceContract.getReferencedPrimaryKey();
-			case "attributes" -> new ReferenceAttributesEvaluationDto(referenceContract, false);
-			case "localizedAttributes" -> new ReferenceAttributesEvaluationDto(referenceContract, true);
-			case "referencedEntity" -> throw new ExpressionEvaluationException(
-				"Accessing referenced entity on ReferenceContract is not supported.",
-				"Accessing referenced entity on reference is not supported."
-			);
-			case "groupEntity" -> throw new ExpressionEvaluationException(
-				"Accessing group entity on ReferenceContract is not supported.",
-				"Accessing group entity on reference is not supported."
-			);
+			case REFERENCED_PRIMARY_KEY_PROPERTY -> referenceContract.getReferencedPrimaryKey();
+			case ATTRIBUTES_PROPERTY -> new ReferenceAttributesEvaluationDto(referenceContract, false);
+			case LOCALIZED_ATTRIBUTES_PROPERTY -> new ReferenceAttributesEvaluationDto(referenceContract, true);
+			case REFERENCED_ENTITY_PROPERTY -> referenceContract.getReferencedEntity().orElse(null);
+			case GROUP_ENTITY_PROPERTY -> referenceContract.getGroupEntity().orElse(null);
 			default ->
 				throw new ExpressionEvaluationException(
 					"Property `" + propertyIdentifier + "` does not exist on ReferenceContract.",

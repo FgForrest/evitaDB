@@ -29,8 +29,10 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -48,10 +50,14 @@ public class DivisionOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 2609645242654230184L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
+	@EqualsAndHashCode.Exclude
+	@Getter
+	private final ExpressionNode[] children;
 
 	public DivisionOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
+		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
 	}
 
 	@Nonnull
@@ -85,6 +91,11 @@ public class DivisionOperator implements ExpressionNode {
 		}
 		// we need to automatically switch to float values when necessary
 		return a.divide(b, 16, RoundingMode.HALF_UP).stripTrailingZeros();
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

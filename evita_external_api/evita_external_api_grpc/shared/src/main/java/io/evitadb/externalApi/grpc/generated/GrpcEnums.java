@@ -201,8 +201,12 @@ public final class GrpcEnums {
       "ndexType\022\035\n\031REFERENCE_INDEX_TYPE_NONE\020\000\022" +
       "&\n\"REFERENCE_INDEX_TYPE_FOR_FILTERING\020\001\022" +
       "7\n3REFERENCE_INDEX_TYPE_FOR_FILTERING_AN" +
-      "D_PARTITIONING\020\002*%\n\014GrpcTimeFlow\022\t\n\005AFTE" +
-      "R\020\000\022\n\n\006BEFORE\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "D_PARTITIONING\020\002*\216\001\n\036GrpcReferenceIndexe" +
+      "dComponents\0222\n.REFERENCE_INDEXED_COMPONE" +
+      "NTS_REFERENCED_ENTITY\020\000\0228\n4REFERENCE_IND" +
+      "EXED_COMPONENTS_REFERENCED_GROUP_ENTITY\020" +
+      "\001*%\n\014GrpcTimeFlow\022\t\n\005AFTER\020\000\022\n\n\006BEFORE\020\001" +
+      "B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

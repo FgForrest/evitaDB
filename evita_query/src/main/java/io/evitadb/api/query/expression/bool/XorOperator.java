@@ -28,8 +28,10 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -41,14 +43,18 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class XorOperator implements ExpressionNode {
+public class XorOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = -5124789469194418098L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
+	@EqualsAndHashCode.Exclude
+	@Getter
+	private final ExpressionNode[] children;
 
 	public XorOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
+		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
 	}
 
 	@Nonnull
@@ -68,11 +74,15 @@ public class XorOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		// todo lho xor op
 		return BigDecimalNumberRange.union(
 			this.leftOperator.determinePossibleRange(),
 			this.rightOperator.determinePossibleRange()
 		);
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

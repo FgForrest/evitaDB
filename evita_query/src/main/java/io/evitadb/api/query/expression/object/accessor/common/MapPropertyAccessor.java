@@ -45,6 +45,8 @@ import java.util.Map;
  */
 public class MapPropertyAccessor implements ObjectPropertyAccessor {
 
+	public static final String ENTRIES_PROPERTY = "entries";
+
 	@Nonnull
 	@Override
 	public Class<? extends Serializable>[] getSupportedTypes() {
@@ -67,7 +69,7 @@ public class MapPropertyAccessor implements ObjectPropertyAccessor {
 		}
 
 		return switch (propertyIdentifier) {
-			case "entries" -> {
+			case ENTRIES_PROPERTY -> {
 				final List<SerializableMapEntry> entries = map.entrySet()
 					.stream()
 					.map(e -> {

@@ -61,10 +61,10 @@ import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescript
 import io.evitadb.externalApi.api.catalog.model.cdc.DataSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.SchemaSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
@@ -93,6 +93,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
+import io.evitadb.externalApi.api.system.model.CatalogContractDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
@@ -102,7 +103,6 @@ import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutation
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
@@ -142,12 +142,6 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-	private static final NameVariantDataFetcher CAMEL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.CAMEL_CASE);
-	private static final NameVariantDataFetcher PASCAL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.PASCAL_CASE);
-	private static final NameVariantDataFetcher SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.SNAKE_CASE);
-	private static final NameVariantDataFetcher UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE);
-	private static final NameVariantDataFetcher KEBAB_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.KEBAB_CASE);
-
 	private static final PropertyDataFetcher<Map<NamingConvention, String>> CATALOG_NAME_VARIANTS_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((Catalog) it).getSchema().getNameVariants());
 	private static final PropertyDataFetcher<Boolean> CATALOG_SUPPORTS_TRANSACTION_DATA_FETCHER = PropertyDataFetcher.fetching(CatalogContract::supportsTransaction);
 	private static final PropertyDataFetcher<Boolean> CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> false);
@@ -170,7 +164,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		this.buildingContext.registerType(scalarEnum);
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
-		this.buildingContext.registerType(buildNameVariantsObject());
+		this.buildingContext.registerType(buildNameVariantsObject(this.buildingContext, this.objectBuilderTransformer));
 
 		final GraphQLObjectType catalogObject = buildCatalogObject();
 		this.buildingContext.registerType(catalogObject);
@@ -180,6 +174,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedReferenceIndexedComponentsDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		buildMutationInterface();
@@ -341,39 +336,6 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildNameVariantsObject() {
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.CAMEL_CASE,
-			CAMEL_CASE_VARIANT_DATA_FETCHER
-		);
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.PASCAL_CASE,
-			PASCAL_CASE_VARIANT_DATA_FETCHER
-		);
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.SNAKE_CASE,
-			SNAKE_CASE_VARIANT_DATA_FETCHER
-		);
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.UPPER_SNAKE_CASE,
-			UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER
-		);
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.KEBAB_CASE,
-			KEBAB_CASE_VARIANT_DATA_FETCHER
-		);
-
-		return NameVariantsDescriptor.THIS
-			.to(this.objectBuilderTransformer)
-			.build();
-	}
-
-	@Nonnull
 	private GraphQLObjectType buildCatalogObject() {
 		this.buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
@@ -387,7 +349,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		);
 		this.buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
-			CatalogDescriptor.UNUSABLE,
+			CatalogContractDescriptor.UNUSABLE,
 			CATALOG_UNUSABLE_DATA_FETCHER
 		);
 
@@ -408,7 +370,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		);
 		this.buildingContext.registerDataFetcher(
 			UnusableCatalogDescriptor.THIS,
-			UnusableCatalogDescriptor.UNUSABLE,
+			CatalogContractDescriptor.UNUSABLE,
 			UNUSABLE_CATALOG_UNUSABLE_DATA_FETCHER
 		);
 

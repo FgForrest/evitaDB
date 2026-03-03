@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
@@ -62,6 +63,13 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			output.writeBoolean(true);
 			writeScopeArray(kryo, output, mutation.getFacetedInScopes());
 		}
+		// write indexed components with null-check
+		if (mutation.getIndexedComponentsInScopes() != null) {
+			output.writeBoolean(true);
+			writeScopedReferenceIndexedComponentsArray(kryo, output, mutation.getIndexedComponentsInScopes());
+		} else {
+			output.writeBoolean(false);
+		}
 
 		kryo.writeObject(output, mutation.getAttributeInheritanceBehavior());
 
@@ -83,6 +91,9 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 
 		final ScopedReferenceIndexType[] indexedInScopes = input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null;
 		final Scope[] facetedInScopes = input.readBoolean() ? readScopeArray(kryo, input) : null;
+		// read indexed components with null-check
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes =
+			input.readBoolean() ? readScopedReferenceIndexedComponentsArray(kryo, input) : null;
 
 		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
 		final int attributesExcludedFromInheritanceLength = input.readVarInt(true);
@@ -99,6 +110,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			referencedEntityType,
 			reflectedReferenceName,
 			indexedInScopes,
+			indexedComponentsInScopes,
 			facetedInScopes,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance
@@ -106,4 +118,3 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 	}
 
 }
-

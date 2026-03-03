@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -133,7 +133,9 @@ abstract class AbstractEntityFetchingFunctionalTest extends AbstractHundredProdu
 	 */
 	@Nonnull
 	static Integer[] getRequestedIdsByPredicate(
-		@Nonnull List<SealedEntity> originalProducts, @Nonnull Predicate<SealedEntity> predicate) {
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull Predicate<SealedEntity> predicate
+	) {
 		final Integer[] entitiesMatchingTheRequirements = originalProducts
 			.stream()
 			.filter(predicate)
@@ -148,7 +150,10 @@ abstract class AbstractEntityFetchingFunctionalTest extends AbstractHundredProdu
 	 * Finds first entity matching the given predicate.
 	 */
 	@Nonnull
-	static SealedEntity findEntityByPredicate(@Nonnull List<SealedEntity> originalProducts, @Nonnull Predicate<SealedEntity> predicate) {
+	static SealedEntity findEntityByPredicate(
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull Predicate<SealedEntity> predicate
+	) {
 		return originalProducts
 			.stream()
 			.filter(predicate)
@@ -244,7 +249,11 @@ abstract class AbstractEntityFetchingFunctionalTest extends AbstractHundredProdu
 	/**
 	 * Asserts that the product has attributes in the given locale.
 	 */
-	static void assertProductHasAttributesInLocale(@Nonnull SealedEntity product, @Nonnull Locale locale, @Nonnull String... attributes) {
+	static void assertProductHasAttributesInLocale(
+		@Nonnull SealedEntity product,
+		@Nonnull Locale locale,
+		@Nonnull String... attributes
+	) {
 		for (String attribute : attributes) {
 			assertNotNull(
 				product.getAttribute(attribute, locale),
@@ -256,7 +265,11 @@ abstract class AbstractEntityFetchingFunctionalTest extends AbstractHundredProdu
 	/**
 	 * Asserts that the product does NOT have attributes in the given locale.
 	 */
-	static void assertProductHasNotAttributesInLocale(@Nonnull SealedEntity product, @Nonnull Locale locale, @Nonnull String... attributes) {
+	static void assertProductHasNotAttributesInLocale(
+		@Nonnull SealedEntity product,
+		@Nonnull Locale locale,
+		@Nonnull String... attributes
+	) {
 		for (String attribute : attributes) {
 			assertThrows(
 				ContextMissingException.class,
@@ -409,6 +422,7 @@ abstract class AbstractEntityFetchingFunctionalTest extends AbstractHundredProdu
 		};
 	}
 
+	@Nonnull
 	@DataSet(value = HUNDRED_PRODUCTS)
 	@Override
 	protected DataCarrier setUp(@Nonnull Evita evita) {

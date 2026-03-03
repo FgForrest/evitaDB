@@ -34,6 +34,7 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenC
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenExceptConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.GroupHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
@@ -666,6 +667,14 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new EntityHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+		);
+	}
+
+	@Override
+	public FilterConstraint visitGroupHavingConstraint(GroupHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new GroupHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 

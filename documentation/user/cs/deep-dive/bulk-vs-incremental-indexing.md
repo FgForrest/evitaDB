@@ -4,6 +4,7 @@ perex: 'evitaDB je navržena jako rychlá, transakční, pro čtení optimalizov
 date: '24.8.2028'
 author: Ing. Jan Novotný
 commit: '540315a5aa4d3e8d181eaed02c1b6f1e26664bf6'
+translated: true
 ---
 ## Hromadné indexování (FÁZE WARM-UP)
 

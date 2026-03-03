@@ -45,9 +45,10 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -1395,6 +1396,37 @@ public class EvitaEnumConverter {
 			case NONE -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_NONE;
 			case FOR_FILTERING -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_FOR_FILTERING;
 			case FOR_FILTERING_AND_PARTITIONING -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_FOR_FILTERING_AND_PARTITIONING;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcReferenceIndexedComponents} to a {@link ReferenceIndexedComponents}.
+	 *
+	 * @param grpcComponents the gRPC reference indexed components to convert.
+	 * @return the corresponding reference indexed components.
+	 * @throws EvitaInvalidUsageException if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static ReferenceIndexedComponents toReferenceIndexedComponents(@Nonnull GrpcReferenceIndexedComponents grpcComponents) {
+		return switch (grpcComponents) {
+			case REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY -> ReferenceIndexedComponents.REFERENCED_ENTITY;
+			case REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY -> ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized gRPC reference indexed components: " + grpcComponents);
+		};
+	}
+
+	/**
+	 * Converts a {@link ReferenceIndexedComponents} to a {@link GrpcReferenceIndexedComponents}.
+	 *
+	 * @param components the reference indexed components to convert.
+	 * @return the corresponding gRPC reference indexed components.
+	 */
+	@Nonnull
+	public static GrpcReferenceIndexedComponents toGrpcReferenceIndexedComponents(@Nonnull ReferenceIndexedComponents components) {
+		return switch (components) {
+			case REFERENCED_ENTITY -> GrpcReferenceIndexedComponents.REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY;
+			case REFERENCED_GROUP_ENTITY -> GrpcReferenceIndexedComponents.REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY;
 		};
 	}
 }

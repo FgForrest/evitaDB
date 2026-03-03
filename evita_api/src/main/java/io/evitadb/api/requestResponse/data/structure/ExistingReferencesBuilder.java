@@ -330,6 +330,12 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		return merged;
 	}
 
+	@Nonnull
+	@Override
+	public EntitySchemaContract getSchema() {
+		return this.entitySchema;
+	}
+
 	ExistingReferencesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull References baseReferences,

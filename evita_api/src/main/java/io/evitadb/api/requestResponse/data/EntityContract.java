@@ -58,16 +58,8 @@ public interface EntityContract extends EntityClassifierWithParent,
 	PricesContract,
 	ReferencesContract,
 	Versioned,
-	Droppable {
-
-	/**
-	 * Returns schema of the entity, that fully describes its structure and capabilities. Schema is up-to-date to the
-	 * moment entity was fetched from evitaDB.
-	 *
-	 * @return schema of the entity type
-	 */
-	@Nonnull
-	EntitySchemaContract getSchema();
+	Droppable,
+	WithEntitySchema {
 
 	/**
 	 * Returns primary key of the entity that is UNIQUE among all other entities of the same type.

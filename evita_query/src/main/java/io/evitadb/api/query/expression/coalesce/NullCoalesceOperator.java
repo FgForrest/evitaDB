@@ -27,7 +27,9 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,10 +52,14 @@ public class NullCoalesceOperator implements ExpressionNode {
 
 	@Nonnull private final ExpressionNode valueOperator;
 	@Nonnull private final ExpressionNode defaultValueOperator;
+	@EqualsAndHashCode.Exclude
+	@Getter
+	private final ExpressionNode[] children;
 
 	public NullCoalesceOperator(@Nonnull ExpressionNode valueOperator, @Nonnull ExpressionNode defaultValueOperator) {
 		this.valueOperator = valueOperator;
 		this.defaultValueOperator = defaultValueOperator;
+		this.children = new ExpressionNode[]{this.valueOperator, this.defaultValueOperator};
 	}
 
 	@Nullable
@@ -64,10 +70,22 @@ public class NullCoalesceOperator implements ExpressionNode {
 		return value != null ? value : defaultValue;
 	}
 
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
+	}
+
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		// todo lho
-		throw new UnsupportedOperationException();
+		return BigDecimalNumberRange.union(
+			this.valueOperator.determinePossibleRange(),
+			this.defaultValueOperator.determinePossibleRange()
+		);
+	}
+
+	@Override
+	public String toString() {
+		return this.valueOperator + " ?? " + this.defaultValueOperator;
 	}
 }

@@ -111,6 +111,45 @@ public class SetReferenceSchemaFacetedMutation
 		if (existingMutation instanceof SetReferenceSchemaFacetedMutation theExistingMutation
 			&& this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
+		} else if (existingMutation instanceof CreateReferenceSchemaMutation createMutation
+			&& this.name.equals(createMutation.getName())
+			&& this.facetedInScopes != null) {
+			// Absorb into the Create mutation — the Set mutation's faceted scopes fully
+			// replace the Create's faceted scopes (replacement semantics, not merge)
+			return new MutationCombinationResult<>(
+				new CreateReferenceSchemaMutation(
+					createMutation.getName(),
+					createMutation.getDescription(),
+					createMutation.getDeprecationNotice(),
+					createMutation.getCardinality(),
+					createMutation.getReferencedEntityType(),
+					createMutation.isReferencedEntityTypeManaged(),
+					createMutation.getReferencedGroupType(),
+					createMutation.isReferencedGroupTypeManaged(),
+					createMutation.getIndexedInScopes(),
+					createMutation.getIndexedComponentsInScopes(),
+					this.facetedInScopes
+				)
+			);
+		} else if (existingMutation instanceof CreateReflectedReferenceSchemaMutation createMutation
+			&& this.name.equals(createMutation.getName())) {
+			// Absorb into the CreateReflected mutation — no null guard needed since
+			// reflected references accept null facetedInScopes (meaning "inherited")
+			return new MutationCombinationResult<>(
+				new CreateReflectedReferenceSchemaMutation(
+					createMutation.getName(),
+					createMutation.getDescription(),
+					createMutation.getDeprecationNotice(),
+					createMutation.getCardinality(),
+					createMutation.getReferencedEntityType(),
+					createMutation.getReflectedReferenceName(),
+					createMutation.getIndexedInScopes(),
+					createMutation.getIndexedComponentsInScopes(),
+					this.facetedInScopes,
+					createMutation.getAttributeInheritanceBehavior(),
+					createMutation.getAttributeInheritanceFilter()
+				)
+			);
 		} else {
 			return null;
 		}
@@ -153,6 +192,7 @@ public class SetReferenceSchemaFacetedMutation
 					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					referenceSchema.getReferenceIndexTypeInScopes(),
+					referenceSchema.getIndexedComponentsInScopes(),
 					facetedScopes,
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()

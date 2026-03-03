@@ -33,16 +33,53 @@ import javax.annotation.Nullable;
 import java.util.function.Consumer;
 
 /**
- * This interface is used to co-locate hierarchy placement mutating routines which are rather procedural and long to
- * avoid excessive amount of code in {@link EntityIndexLocalMutationExecutor}.
+ * Co-location interface for hierarchy placement mutation routines that keep {@link EntityIndexLocalMutationExecutor}
+ * from growing unboundedly. All methods are static and operate on the {@link io.evitadb.index.hierarchy.HierarchyIndex}
+ * embedded in a given {@link EntityIndex}.
+ *
+ * Hierarchy in evitaDB is a per-entity-type tree where each entity may declare at most one parent entity of the
+ * same type. The index records this parent-child relationship and enables hierarchy-aware filtering constraints
+ * such as `hierarchyWithin` and extra-result computations such as `hierarchyOfSelf`. The index is only maintained
+ * for scopes in which hierarchy indexing is explicitly enabled by the entity schema
+ * (see {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract#isHierarchyIndexedInScope(Scope)}).
+ *
+ * This interface follows the same co-location pattern used by {@link AttributeIndexMutator} and
+ * {@link PriceIndexMutator} — procedural, stateless mutation logic is moved into static interface methods and
+ * imported with a static import in {@link EntityIndexLocalMutationExecutor}.
+ *
+ * The methods support transactional undo by accepting an optional `undoActionConsumer`. When provided, each
+ * mutation registers the inverse operation with the consumer so that a partial transaction can be rolled back
+ * without affecting the remainder of the index state.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface HierarchyPlacementMutator {
 
 	/**
-	 * Method updates {@link io.evitadb.index.hierarchy.HierarchyIndex} of the current & passed {@link EntityIndex}
-	 * when hierarchy placement is specified in the entity (create or update).
+	 * Records the hierarchical placement of an entity in the {@link io.evitadb.index.hierarchy.HierarchyIndex}
+	 * of the supplied {@link EntityIndex}.
+	 *
+	 * The method is invoked when an entity is first created with a parent, or when an existing entity's parent
+	 * is updated via {@link io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation}. It is also
+	 * called during full re-indexing to restore hierarchy positions from entity body data.
+	 *
+	 * The update is skipped silently when the entity's scope does not have hierarchy indexing enabled, allowing
+	 * entities to carry parent information without making it queryable in that scope (e.g. archived entities).
+	 *
+	 * When `parentPrimaryKey` is `null` the entity is placed at the root of the hierarchy tree. The
+	 * {@link io.evitadb.index.hierarchy.HierarchyIndex} supports out-of-order insertions: a child entity can be
+	 * indexed before its parent exists, in which case it is held in an orphan set until the parent is eventually
+	 * indexed.
+	 *
+	 * @param executor           the active mutation executor that provides access to entity schema and index state
+	 * @param entityIndex        the index whose embedded hierarchy index will be updated
+	 * @param primaryKeyToIndex  the primary key of the entity being placed in the hierarchy
+	 * @param parentPrimaryKey   the primary key of the parent entity, or `null` if the entity is a root node
+	 * @param undoActionConsumer optional consumer that collects undo lambdas for transactional rollback;
+	 *                           when non-null, the inverse `removeNode` operation is registered with it
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException if the entity schema does not have hierarchy enabled
+	 *                                                         (i.e. {@link EntitySchema#isWithHierarchy()} returns
+	 *                                                         `false`)
 	 */
 	static void setParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -52,7 +89,11 @@ public interface HierarchyPlacementMutator {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		Assert.isTrue(entitySchema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot set hierarchical placement for " + entitySchema.getName() + "!");
+		Assert.isTrue(
+			entitySchema.isWithHierarchy(),
+			"Schema does not enable hierarchy - " +
+				"cannot set hierarchical placement for `" + entitySchema.getName() + "`!"
+		);
 
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {
@@ -64,8 +105,29 @@ public interface HierarchyPlacementMutator {
 	}
 
 	/**
-	 * Method updates {@link io.evitadb.index.hierarchy.HierarchyIndex} of the current & passed {@link EntityIndex}
-	 * when hierarchy placement is removed from the entity.
+	 * Removes the hierarchical placement of an entity from the {@link io.evitadb.index.hierarchy.HierarchyIndex}
+	 * of the supplied {@link EntityIndex}.
+	 *
+	 * The method is invoked when an entity's parent relationship is cleared via
+	 * {@link io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation}, or when a hierarchical
+	 * entity is deleted and its index entry must be cleaned up.
+	 *
+	 * The update is skipped silently when the entity's scope does not have hierarchy indexing enabled, mirroring
+	 * the guard in {@link #setParent}.
+	 *
+	 * When an undo consumer is provided, the removed node's former parent primary key (returned by
+	 * {@link io.evitadb.index.hierarchy.HierarchyIndexContract#removeNode(int)}) is captured in the closure so
+	 * that the placement can be restored exactly if the transaction is rolled back.
+	 *
+	 * @param executor           the active mutation executor that provides access to entity schema and index state
+	 * @param entityIndex        the index whose embedded hierarchy index will be updated
+	 * @param primaryKeyToIndex  the primary key of the entity being removed from the hierarchy
+	 * @param undoActionConsumer optional consumer that collects undo lambdas for transactional rollback;
+	 *                           when non-null, the inverse `addNode` operation (restoring the original parent)
+	 *                           is registered with it
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException if the entity schema does not have hierarchy enabled
+	 *                                                         (i.e. {@link EntitySchema#isWithHierarchy()} returns
+	 *                                                         `false`)
 	 */
 	static void removeParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -74,7 +136,10 @@ public interface HierarchyPlacementMutator {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		Assert.isTrue(entitySchema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot remove hierarchical placement for " + entitySchema.getName() + "!");
+		Assert.isTrue(
+			entitySchema.isWithHierarchy(),
+			"Schema does not enable hierarchy - " +
+				"cannot remove hierarchical placement for `" + entitySchema.getName() + "`!");
 
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {

@@ -1,0 +1,32 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "referenceBrandHaving" : [
+      {
+        "groupHaving" : {
+          "attributeCodeEquals" : "TODO JNO"
+        }
+      }
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceBrandContent" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    }
+  }
+}

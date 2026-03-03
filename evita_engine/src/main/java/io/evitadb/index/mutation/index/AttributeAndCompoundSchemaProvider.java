@@ -31,54 +31,74 @@ import javax.annotation.Nonnull;
 import java.util.stream.Stream;
 
 /**
- * Schema provider interface that provides access to attribute schemas and sortable attribute compound schemas
- * for index mutation operations. This interface abstracts the source of schema information, allowing different
- * implementations to provide schemas from either entity-level or reference-level contexts.
+ * A sealed abstraction over the two schema contexts that supply attribute and sortable compound schema definitions
+ * during index mutation processing.
  *
- * This provider is primarily used by {@link io.evitadb.index.mutation.index.AttributeIndexMutator} and related
- * index mutation components to retrieve schema information needed for attribute indexing operations such as:
+ * The two permitted implementations cover exactly the two scopes in which attributes can appear in evitaDB:
  *
- * - Attribute value upserts and removals
- * - Sortable attribute compound management
- * - Index structure updates based on schema changes
+ * - {@link EntitySchemaAttributeAndCompoundSchemaProvider} — wraps an
+ *   {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract} and is used when mutating entity-level
+ *   attributes (i.e. attributes that belong directly to the entity, not to one of its references).
+ * - {@link ReferenceSchemaAttributeAndCompoundSchemaProvider} — wraps a
+ *   {@link io.evitadb.api.requestResponse.schema.ReferenceSchemaContract} together with the parent
+ *   {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract} (used for error context) and is used when
+ *   mutating reference-level attributes.
  *
- * The interface supports two main implementation contexts:
- * - **Entity context**: Provides schemas for entity-level attributes
- * - **Reference context**: Provides schemas for reference-level attributes
+ * The interface is consumed exclusively by {@link AttributeIndexMutator} static methods, which are kept in a
+ * separate interface to avoid bloating {@link EntityIndexLocalMutationExecutor}. Callers pass an appropriate
+ * provider instance instead of carrying both schema objects through every call-site, keeping the mutation API
+ * uniform regardless of whether the attribute belongs to an entity or a reference.
+ *
+ * Within {@link AttributeIndexMutator} this provider is used in three distinct ways:
+ *
+ * - as a method reference `attributeSchemaProvider::getAttributeSchema` passed to
+ *   `{@link io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema#isLocalized}` to determine
+ *   whether a compound index must be maintained per-locale
+ * - as a lambda `theAttributeName -> attributeSchemaProvider.getAttributeSchema(theAttributeName).getPlainType()`
+ *   passed to `EntityIndex#insertSortAttributeCompound` to resolve the plain Java type of each constituent attribute
+ * - directly via `getAttributeSchema(attributeName)` to obtain the full schema before applying any filter, sort,
+ *   or unique index mutation
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public sealed interface AttributeAndCompoundSchemaProvider permits EntitySchemaAttributeAndCompoundSchemaProvider, ReferenceSchemaAttributeAndCompoundSchemaProvider {
 
 	/**
-	 * Retrieves the attribute schema for the specified attribute name from the appropriate schema context
-	 * (either entity or reference level, depending on the implementation).
+	 * Returns the internal `{@link AttributeSchema}` DTO for the named attribute from the underlying schema context.
 	 *
-	 * This method is essential for index mutation operations as it provides the schema information
-	 * needed to properly handle attribute values, including their data types, constraints, and indexing
-	 * requirements.
+	 * The returned object exposes the concrete DTO type (rather than the contract interface) because
+	 * {@link AttributeIndexMutator} needs access to implementation-specific methods such as
+	 * `{@link AttributeSchema#getPlainType()}` that are not part of the public API contract.
 	 *
-	 * @param attributeName the name of the attribute whose schema should be retrieved
-	 * @return the attribute schema for the specified attribute name
-	 * @throws io.evitadb.api.exception.AttributeNotFoundException if the attribute with the given name
-	 *         does not exist in the schema context
+	 * This method is called before every index mutation that touches a named attribute — for upserts, removals,
+	 * and numeric-delta mutations alike — to determine the attribute's indexing characteristics (filterable,
+	 * sortable, unique, globally unique) and its target Java type for value coercion.
+	 *
+	 * @param attributeName the exact name of the attribute as declared in the schema
+	 * @return the attribute schema DTO for the given name
+	 * @throws io.evitadb.api.exception.AttributeNotFoundException if no attribute with that name exists in the
+	 *         underlying schema context; the exception message includes the schema name for diagnostics
 	 */
 	@Nonnull
 	AttributeSchema getAttributeSchema(@Nonnull String attributeName);
 
 	/**
-	 * Returns a stream of sortable attribute compound schemas that include the specified attribute name
-	 * as one of their constituent attributes.
+	 * Returns a stream of all {@link SortableAttributeCompoundSchema} definitions from the underlying schema context
+	 * whose constituent attribute list includes the named attribute.
 	 *
-	 * Sortable attribute compounds are composite indexes that combine multiple attributes to enable
-	 * efficient sorting operations. This method is used during index mutation operations to identify
-	 * which compound indexes need to be updated when a particular attribute value changes.
+	 * This method drives the "cascade update" logic in {@link AttributeIndexMutator}: whenever a single attribute
+	 * value changes, every compound sort index that references that attribute must also be rebuilt. The caller
+	 * iterates the returned stream and, for each compound, removes the old composite sort key and inserts a new
+	 * one reflecting the changed attribute value.
 	 *
-	 * The returned stream may be empty if the attribute is not part of any sortable attribute compounds.
+	 * The stream is derived from
+	 * `{@link io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider
+	 * #getSortableAttributeCompoundsForAttribute}` and cast to the internal DTO type, so all elements are
+	 * guaranteed to be non-null concrete {@link SortableAttributeCompoundSchema} instances.
 	 *
-	 * @param attributeName the name of the attribute to find compound schemas for
-	 * @return a stream of sortable attribute compound schemas that include the specified attribute,
-	 *         may be empty if no compounds exist for this attribute
+	 * @param attributeName the exact name of the attribute for which related compound schemas are requested
+	 * @return a stream of compound schemas that contain the given attribute; empty if the attribute participates in
+	 *         no sortable compounds in the underlying schema context
 	 */
 	@Nonnull
 	Stream<SortableAttributeCompoundSchema> getCompoundAttributeSchemas(@Nonnull String attributeName);

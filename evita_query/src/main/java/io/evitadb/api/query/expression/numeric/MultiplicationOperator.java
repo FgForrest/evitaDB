@@ -29,8 +29,10 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -47,10 +49,14 @@ public class MultiplicationOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -1457151698730020222L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
+	@EqualsAndHashCode.Exclude
+	@Getter
+	private final ExpressionNode[] children;
 
 	public MultiplicationOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
+		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
 	}
 
 	@Nonnull
@@ -75,6 +81,11 @@ public class MultiplicationOperator implements ExpressionNode {
 			this.rightOperator.determinePossibleRange(),
 			BigDecimal::multiply
 		);
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

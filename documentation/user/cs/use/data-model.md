@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 commit: ad421e827459646612395d321e5ebb1ad5b6bbe2
+translated: 'true'
 ---
 <UsedTerms>
     <h4>Použité pojmy v tomto dokumentu</h4>
@@ -504,7 +505,7 @@ Více detailů o cenách je popsáno v [kapitole o definici schématu](schema.md
 
 ### Scope
 
-Scopy jsou oddělené oblasti paměti, kde jsou ukládány indexy entit. Scopy se používají k oddělení živých dat od archivovaných dat. Scopy slouží k řešení tzv. „soft delete“ – aplikace si může zvolit mezi tvrdým smazáním a archivací entity, což jednoduše přesune entitu do archivačního scope. Podrobnosti o procesu archivace jsou popsány v kapitole [Archivace](../use/schema.md#scopy) a důvody této funkce jsou vysvětleny v [samostatném blogovém příspěvku](https://evitadb.io/blog/15-soft-delete).
+Scopy jsou oddělené oblasti paměti, kde jsou ukládány indexy entit. Scopy se používají k oddělení živých dat od archivovaných dat. Scopy slouží k řešení tzv. „soft delete“ – aplikace si může zvolit mezi tvrdým smazáním a archivací entity, což jednoduše přesune entitu do archivačního scope. Podrobnosti o procesu archivace jsou popsány v kapitole [Archivace](schema.md#scopy) a důvody této funkce jsou vysvětleny v [samostatném blogovém příspěvku](https://evitadb.io/blog/15-soft-delete).
 
 <Note type="info">
 

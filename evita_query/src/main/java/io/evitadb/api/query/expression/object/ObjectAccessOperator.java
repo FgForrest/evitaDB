@@ -27,8 +27,9 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,13 +47,23 @@ import java.io.Serializable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@RequiredArgsConstructor
 public class ObjectAccessOperator implements ExpressionNode {
 
 	@Serial private static final long serialVersionUID = 2269901980432598797L;
 
 	@Nonnull private final ExpressionNode operandOperator;
-	@Nonnull private final ObjectAccessStep accessChain;
+	@Nonnull @Getter private final ObjectAccessStep accessChain;
+	@Getter
+	private final ExpressionNode[] children;
+
+	public ObjectAccessOperator(
+		@Nonnull ExpressionNode operandOperator,
+		@Nonnull ObjectAccessStep accessChain
+	) {
+		this.operandOperator = operandOperator;
+		this.accessChain = accessChain;
+		this.children = new ExpressionNode[]{this.operandOperator};
+	}
 
 	@Nullable
 	@Override
@@ -61,9 +72,19 @@ public class ObjectAccessOperator implements ExpressionNode {
 		return this.accessChain.compute(context, operand);
 	}
 
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
+	}
+
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return this.operandOperator.determinePossibleRange();
+	}
+
+	@Override
+	public String toString() {
+		return this.operandOperator.toString() + this.accessChain.toString();
 	}
 }

@@ -34,7 +34,8 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.shared.serializer.dataType.HeterogeneousMapSerializer;
 import io.evitadb.utils.CollectionUtils;
@@ -42,6 +43,7 @@ import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -125,6 +127,54 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 			indexTypeMap.put(scope, referenceIndexType);
 		}
 		return indexTypeMap;
+	}
+
+	/**
+	 * Serializes a map of {@code Scope} to {@code Set<ReferenceIndexedComponents>} into a Kryo {@code Output}.
+	 *
+	 * @param kryo                    the Kryo instance to use for serialization
+	 * @param output                  the Output instance to write the serialized data to
+	 * @param indexedComponentsMap    the map to serialize
+	 */
+	static void writeIndexedComponentsMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsMap
+	) {
+		output.writeVarInt(indexedComponentsMap.size(), true);
+		for (Map.Entry<Scope, Set<ReferenceIndexedComponents>> entry : indexedComponentsMap.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			output.writeVarInt(entry.getValue().size(), true);
+			for (ReferenceIndexedComponents component : entry.getValue()) {
+				kryo.writeObject(output, component);
+			}
+		}
+	}
+
+	/**
+	 * Reads a map of {@code Scope} to {@code Set<ReferenceIndexedComponents>} from a Kryo {@code Input} stream.
+	 *
+	 * @param kryo  the Kryo instance used for deserialization
+	 * @param input the Input stream to read the serialized data from
+	 * @return a map of {@code Scope} to {@code Set<ReferenceIndexedComponents>}
+	 */
+	@Nonnull
+	static Map<Scope, Set<ReferenceIndexedComponents>> readIndexedComponentsMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input
+	) {
+		final int outerSize = input.readVarInt(true);
+		final EnumMap<Scope, Set<ReferenceIndexedComponents>> result = new EnumMap<>(Scope.class);
+		for (int i = 0; i < outerSize; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final int innerSize = input.readVarInt(true);
+			final EnumSet<ReferenceIndexedComponents> components = EnumSet.noneOf(ReferenceIndexedComponents.class);
+			for (int j = 0; j < innerSize; j++) {
+				components.add(kryo.readObject(input, ReferenceIndexedComponents.class));
+			}
+			result.put(scope, components);
+		}
+		return result;
 	}
 
 	@Override

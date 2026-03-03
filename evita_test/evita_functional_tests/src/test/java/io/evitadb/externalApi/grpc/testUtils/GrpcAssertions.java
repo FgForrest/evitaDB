@@ -233,6 +233,11 @@ public class GrpcAssertions {
 			assertEquals(expectedReferenceSchema.isReferencedGroupTypeManaged(), actualReferenceSchema.getReferencedGroupTypeManaged());
 			assertEquals(expectedReferenceSchema.isIndexed(), actualReferenceSchema.getIndexed());
 			assertEquals(expectedReferenceSchema.isFaceted(), actualReferenceSchema.getFaceted());
+			assertEquals(
+				expectedReferenceSchema.getIndexedComponentsInScopes().size(),
+				actualReferenceSchema.getScopedIndexedComponentsList().size(),
+				"Indexed components in scopes count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
+			);
 			assertAttributes(expectedReferenceSchema.getAttributes(), actualReferenceSchema.getAttributesMap());
 		}
 	}
@@ -655,10 +660,12 @@ public class GrpcAssertions {
 			expectedAttributeValues = attributeValues.stream().toList();
 		} else if (locales.size() == 1) {
 			expectedAttributeValues = attributeValues.stream().filter(
-				a -> a.key().locale() == null ||
-					a.key().locale() != null && a.key().locale().getLanguage().equals(
-						locales.stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable locale not found!")).getLanguage()
-					)
+				a -> a.key().locale() == null || a.key().locale().getLanguage().equals(
+					locales.stream()
+						.findFirst()
+						.orElseThrow(() -> new IllegalArgumentException("Suitable locale not found!"))
+						.getLanguage()
+				)
 			).toList();
 		} else {
 			expectedAttributeValues = attributeValues.stream().filter(a -> a.key().locale() == null).toList();
@@ -669,7 +676,7 @@ public class GrpcAssertions {
 			getAttributeCount(localizedAttributesMap, globalAttributesMap)
 		);
 
-		if (expectedAttributeValues.size() == 0)
+		if (expectedAttributeValues.isEmpty())
 			return;
 
 		for (final AttributesContract.AttributeValue attributeValue : expectedAttributeValues) {

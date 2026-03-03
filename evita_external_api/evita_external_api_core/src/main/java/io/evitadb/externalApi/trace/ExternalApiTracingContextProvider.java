@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,7 @@
 
 package io.evitadb.externalApi.trace;
 
-import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.externalApi.configuration.HeaderOptions;
-import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
 import javax.annotation.Nonnull;
@@ -34,43 +32,54 @@ import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 
 /**
- * Provider for fetching registered and used {@link ExternalApiTracingContext} implementation that are fetched via {@link ServiceLoader}.
+ * Provider for fetching registered {@link ExternalApiTracingContext} implementations via {@link ServiceLoader}.
+ * Uses a class token to select the correct implementation for the caller's protocol type, enabling
+ * compile-time type safety instead of runtime `instanceof` dispatch.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class ExternalApiTracingContextProvider {
+
 	/**
-	 * Fetches the {@link TracingContext} implementation.
+	 * All discovered implementations, loaded once and cached.
 	 */
-	@Nonnull
-	public static <T> ExternalApiTracingContext<T> getContext(@Nonnull HeaderOptions headerOptions) {
-		//noinspection unchecked
-		return (ExternalApiTracingContext<T>) loadContext(headerOptions);
+	@SuppressWarnings("rawtypes")
+	private static final List<ExternalApiTracingContext> IMPLEMENTATIONS;
+
+	static {
+		IMPLEMENTATIONS = ServiceLoader.load(ExternalApiTracingContext.class)
+			.stream()
+			.map(Provider::get)
+			.toList();
 	}
 
 	/**
-	 * Loads the implementation of the ExternalApiTracingContext interface using the ServiceLoader mechanism.
-	 * If there is only one implementation found, it returns that implementation. If there are multiple implementations
-	 * found, it throws an ExternalApiInternalError. If no implementation is found, it returns an instance of
-	 * DefaultExternalApiTracingContext.
+	 * Returns a type-safe {@link ExternalApiTracingContext} for the given context class.
+	 * Selects the matching implementation by comparing the requested class token against
+	 * each implementation's {@link ExternalApiTracingContext#contextType()}.
+	 * Falls back to {@link DefaultExternalApiTracingContext} when no match is found.
 	 *
-	 * @return the loaded ExternalApiTracingContext implementation
-	 * @throws ExternalApiInternalError if multiple implementations of ExternalApiTracingContext are found
+	 * @param contextType the class of the context object (e.g. `HttpRequest.class`, `Metadata.class`)
+	 * @param headerOptions header options to configure on the returned context
+	 * @param <C> the context type
+	 * @return a properly typed tracing context
 	 */
 	@Nonnull
-	private static ExternalApiTracingContext<?> loadContext(@Nonnull HeaderOptions headerOptions) {
-		//noinspection rawtypes
-		final List<ExternalApiTracingContext> collectedContexts = ServiceLoader.load(ExternalApiTracingContext.class)
-			.stream()
-			.map(Provider::get)
-			.peek(it -> it.configureHeaders(headerOptions))
-			.toList();
-		if (collectedContexts.size() > 1) {
-			throw new ExternalApiInternalError("There are multiple registered implementations of ExternalApiTracingContext.");
+	public static <C> ExternalApiTracingContext<C> getContext(
+		@Nonnull Class<C> contextType,
+		@Nonnull HeaderOptions headerOptions
+	) {
+		for (ExternalApiTracingContext<?> implementation : IMPLEMENTATIONS) {
+			if (contextType.equals(implementation.contextType())) {
+				implementation.configureHeaders(headerOptions);
+				@SuppressWarnings("unchecked")
+				final ExternalApiTracingContext<C> typed = (ExternalApiTracingContext<C>) implementation;
+				return typed;
+			}
 		}
-		if (collectedContexts.size() == 1) {
-			return collectedContexts.stream().findFirst().get();
-		}
-		return DefaultExternalApiTracingContext.INSTANCE;
+		// no matching implementation found — return the NOOP default
+		@SuppressWarnings("unchecked")
+		final ExternalApiTracingContext<C> fallback = (ExternalApiTracingContext<C>) DefaultExternalApiTracingContext.INSTANCE;
+		return fallback;
 	}
 }

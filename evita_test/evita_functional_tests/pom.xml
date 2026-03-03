@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2026.1-SNAPSHOT</version>
+		<version>2026.2-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 
@@ -162,7 +162,7 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
-            <version>1.20.0</version>
+            <version>1.21.0</version>
 	        <scope>test</scope>
         </dependency>
 		<dependency>
@@ -196,6 +196,12 @@
 		<dependency>
 			<groupId>one.edee.oss</groupId>
 			<artifactId>proxycian_bytebuddy</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-sdk-testing</artifactId>
+			<version>${opentelemetry.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

@@ -30,8 +30,10 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -49,14 +51,19 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class GreaterThanOperator implements ExpressionNode {
+public class GreaterThanOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = 7186979194287883119L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
 
-	public GreaterThanOperator(ExpressionNode leftOperator, ExpressionNode rightOperator) {
+	@EqualsAndHashCode.Exclude
+	@Getter
+	private final ExpressionNode[] children;
+
+	public GreaterThanOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
+		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
 	}
 
 	@Nonnull
@@ -65,12 +72,12 @@ public class GreaterThanOperator implements ExpressionNode {
 		final Serializable value1 = this.leftOperator.compute(context);
 		Assert.isTrue(
 			value1 instanceof Comparable,
-			() -> new ParserException("Greater than or equals function operand must be comparable!")
+			() -> new ParserException("Greater than function operand must be comparable!")
 		);
 		final Serializable value2 = this.rightOperator.compute(context);
 		Assert.isTrue(
 			value2 instanceof Comparable,
-			() -> new ParserException("Greater than or equals function operand must be comparable!")
+			() -> new ParserException("Greater than function operand must be comparable!")
 		);
 		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked
@@ -93,6 +100,11 @@ public class GreaterThanOperator implements ExpressionNode {
 		} else {
 			return BigDecimalNumberRange.from(from1.add(BigDecimal.ONE.movePointLeft(16)));
 		}
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

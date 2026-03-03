@@ -1116,7 +1116,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 */
 	@Nonnull
 	protected String constructConstraintDescription(@Nonnull ConstraintDescriptor constraintDescriptor) {
-		return constraintDescriptor.shortDescription() + " [Check detailed documentation](" + constraintDescriptor.userDocsLink() + ")";
+		final String deprecationPrefix = constraintDescriptor.deprecated() != null
+			? "**Deprecated:** " + constraintDescriptor.deprecated() + " "
+			: "";
+		return deprecationPrefix + constraintDescriptor.shortDescription() + " [Check detailed documentation](" + constraintDescriptor.userDocsLink() + ")";
 	}
 
 	/**

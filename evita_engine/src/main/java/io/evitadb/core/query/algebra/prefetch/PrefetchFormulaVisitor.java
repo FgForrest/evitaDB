@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -164,7 +164,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 					// when narrowed indexes were used we need to filter the prefetched primary keys to the ones that are
 					// present in the index
 					Assert.isPremiseValid(
-						ReducedEntityIndex.class.isAssignableFrom(this.targetIndexes.getIndexType()),
+						AbstractReducedEntityIndex.class.isAssignableFrom(this.targetIndexes.getIndexType()),
 						"Only reduced entity indexes are supported"
 					);
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
@@ -172,7 +172,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 							RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch),
 							RoaringBitmap.or(
 								this.targetIndexes.getIndexes().stream()
-									.map(index -> ((ReducedEntityIndex) index).getAllPrimaryKeys())
+									.map(index -> ((AbstractReducedEntityIndex) index).getAllPrimaryKeys())
 									.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 									.toArray(RoaringBitmap[]::new)
 							)

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ import static java.util.Optional.ofNullable;
 /**
  * Referenced type entity index exists once per {@link EntitySchemaContract#getReference(String)} and indexes not
  * the owner entity primary key, but the referenced entity primary key with attributes that lay on the reference
- * relation. We need this index to be able to navigate to {@link ReducedEntityIndex} that were specially created to
+ * relation. We need this index to be able to navigate to {@link AbstractReducedEntityIndex} that were specially created to
  * speed up queries that involve the references.
  *
  * This index doesn't maintain the prices of entities - only the attributes present on relations.
@@ -111,7 +111,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateThrowing> GET_ID_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"getId",
-		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReducedEntityIndex.class, "getId"),
+		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, AbstractReducedEntityIndex.class, "getId"),
 		(method, state) -> null,
 		(proxy, method, args, methodContext, proxyState, invokeSuper) -> 0L
 	);
@@ -280,6 +280,22 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Nonnull
 	public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
 		return this.indexPrimaryKeyCardinality.getAllReferenceIndexes(referencedEntityPrimaryKey);
+	}
+
+	/**
+	 * Returns the referenced entity primary keys (forward-mapping keys) whose reduced-index PK bitmaps
+	 * overlap with the given set of index primary keys. This is the reverse lookup of
+	 * {@link #getIndexPrimaryKeys(RoaringBitmap)}.
+	 *
+	 * For a `REFERENCED_GROUP_ENTITY_TYPE` index this translates reduced-group-index PKs back to
+	 * group entity primary keys.
+	 *
+	 * @param indexPrimaryKeys bitmap of reduced-index primary keys to look up
+	 * @return bitmap of referenced entity primary keys whose index PKs overlap with the input
+	 */
+	@Nonnull
+	public Bitmap getReferencedPrimaryKeysForIndexPks(@Nonnull Bitmap indexPrimaryKeys) {
+		return this.indexPrimaryKeyCardinality.getReferencedPrimaryKeysForIndexPks(indexPrimaryKeys);
 	}
 
 	@Nonnull

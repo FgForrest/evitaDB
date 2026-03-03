@@ -26,7 +26,6 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
@@ -41,7 +40,8 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMut
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.CancellableRunnable;
+import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
@@ -55,6 +55,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEng
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.services.subscriber.ChangeSystemCaptureSubscriber;
+import io.evitadb.externalApi.http.CancellationSupport;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.utils.UUIDUtil;
@@ -65,8 +66,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.Duration;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -127,17 +126,17 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	public static void executeWithClientContext(
 		@Nonnull Runnable lambda,
-		@Nonnull ObservableExecutorServiceWithHardDeadline executor,
+		@Nonnull ObservableExecutorServiceWithCancellationSupport executor,
 		@Nonnull StreamObserver<?> responseObserver,
 		@Nonnull ExternalApiTracingContext<Metadata> context
 	) {
 		// Retrieve the deadline from the context
-		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
+		final ServiceRequestContext ctx = ServiceRequestContext.current();
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
 		final Runnable theMethod =
-			() -> executor.execute(
-				executor.createTask(
+			() -> {
+				final CancellableRunnable task = executor.createTask(
 					methodName,
 					() -> {
 						try {
@@ -146,10 +145,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							// Delegate exception handling to GlobalExceptionHandlerInterceptor
 							GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
 						}
-					},
-					requestTimeoutMillis
-				)
-			);
+					}
+				);
+				CancellationSupport.wireCancellation(ctx, task);
+				executor.execute(task);
+			};
 
 		context
 			.executeWithinBlock(
@@ -164,7 +164,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		@Nonnull HeaderOptions headers
 	) {
 		this.evita = evita;
-		this.context = ExternalApiTracingContextProvider.getContext(headers);
+		this.context = ExternalApiTracingContextProvider.getContext(Metadata.class, headers);
 	}
 
 	/**
@@ -612,13 +612,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	) {
 		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
 		((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>)responseObserver).setOnCancelHandler(
-			() -> {
-				try {
-					subscriptionFuture.get().cancel();
-				} catch (Exception e) {
-					log.debug("Failed to remove progress listener on cancel", e);
+			// cancel handler runs on the event loop thread — must not block
+			() -> subscriptionFuture.whenComplete((subscription, ex) -> {
+				if (subscription != null) {
+					subscription.cancel();
 				}
-			}
+			})
 		);
 
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
@@ -1013,6 +1012,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					theProgress.addProgressListener(progressObserver);
 					applyMutationProgressRef.complete(theProgress);
 
+					// do not block the request executor thread — use async completion callback
 					theProgress
 						.onCompletion()
 						.whenComplete(
@@ -1033,9 +1033,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 									responseObserver.onError(throwable);
 								}
 								responseObserver.onCompleted();
-							})
-						.toCompletableFuture()
-						.join();
+							});
 				}
 			},
 			this.evita.getRequestExecutor(),
@@ -1057,22 +1055,24 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		@Nonnull CompletableFuture<Progress<?>> applyMutationProgressRef,
 		@Nonnull IntConsumer progressObserver
 	) {
+		// cancel handler runs on the event loop thread — must not block
 		responseObserver.setOnCancelHandler(
-			() -> {
-				try {
-					applyMutationProgressRef.get().removeProgressListener(progressObserver);
-				} catch (Exception e) {
-					log.debug("Failed to remove progress listener on cancel", e);
+			() -> applyMutationProgressRef.whenComplete((progress, ex) -> {
+				if (progress != null) {
+					progress.removeProgressListener(progressObserver);
 				}
-			}
+			})
 		);
 	}
 
 	/**
-	 * Waits for the completion of the given mutation progress and sends the appropriate response
-	 * to the provided gRPC response observer. If the mutation completes successfully, it sends
-	 * a success response with progress and, if applicable, version details. If an error occurs,
-	 * it sends the error to the response observer.
+	 * Registers an async completion callback on the given mutation progress that sends the
+	 * appropriate response to the provided gRPC response observer. If the mutation completes
+	 * successfully, it sends a success response with progress and, if applicable, version details.
+	 * If an error occurs, it sends the error to the response observer.
+	 *
+	 * This method returns immediately without blocking the calling thread — the response is sent
+	 * asynchronously when the progress completes.
 	 *
 	 * @param responseObserver the gRPC response observer used to send the progress or error responses
 	 * @param applyMutationProgress the progress tracker for the mutation operation to monitor
@@ -1081,6 +1081,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		@Nonnull StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver,
 		@Nonnull Progress<?> applyMutationProgress
 	) {
+		// do not block the request executor thread — use async completion callback
 		applyMutationProgress
 			.onCompletion()
 			.whenComplete(
@@ -1099,9 +1100,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 						responseObserver.onError(throwable);
 					}
 					responseObserver.onCompleted();
-				})
-			.toCompletableFuture()
-			.join();
+				});
 	}
 
 	/**

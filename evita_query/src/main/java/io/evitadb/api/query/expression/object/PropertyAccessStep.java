@@ -52,14 +52,9 @@ import java.io.Serializable;
 public class PropertyAccessStep implements ObjectAccessStep {
 	@Serial private static final long serialVersionUID = 2760082902212762061L;
 
-	@Nonnull private final String propertyIdentifier;
+	@Nonnull @Getter private final String propertyIdentifier;
 
 	@Getter @Nullable private final ObjectAccessStep next;
-
-	@Nonnull
-	public String getAccessedIdentifier() {
-		return this.propertyIdentifier;
-	}
 
 	@Nullable
 	@Override
@@ -89,5 +84,10 @@ public class PropertyAccessStep implements ObjectAccessStep {
 		}
 
 		return getNext().compute(context, result);
+	}
+
+	@Override
+	public String toString() {
+		return "." + this.propertyIdentifier + (this.next != null ? this.next.toString() : "");
 	}
 }

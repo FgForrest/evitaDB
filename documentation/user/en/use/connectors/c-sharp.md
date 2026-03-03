@@ -58,7 +58,7 @@ is thread safe and only single instance of it is expected to be used in the appl
 
 <Note type="info">
 The client instance is created regardless of whether the server is available. In order to verify that the server can be
-reached you need to call some method on it. The usual scenario would be [opening a new session](#open-session-to-catalog)
+reached you need to call some method on it. The usual scenario would be opening a new session
 to existing <Term location="/documentation/user/en/index.md">catalog</Term>.
 </Note>
 

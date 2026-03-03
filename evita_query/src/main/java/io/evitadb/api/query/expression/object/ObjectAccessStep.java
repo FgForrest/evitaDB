@@ -47,13 +47,16 @@ import java.io.Serializable;
  */
 public interface ObjectAccessStep extends Serializable {
 
-	@Nonnull Serializable getAccessedIdentifier();
-
 	@Nullable Serializable compute(
 		@Nonnull ExpressionEvaluationContext context,
 		@Nullable Serializable operand
 	) throws ExpressionEvaluationException;
 
+	/**
+	 * Retrieves the next step in the object access chain, if it exists.
+	 *
+	 * @return The next {@code ObjectAccessStep} in the chain, or {@code null} if this is the final step.
+	 */
 	@Nullable
 	ObjectAccessStep getNext();
 }

@@ -29,9 +29,11 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.exception.VariableNotDefinedException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -53,7 +55,11 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 public class VariableOperand implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 1575684554715298743L;
-	@Nullable private final String variableName;
+	@Nullable @Getter private final String variableName;
+
+	public boolean isThis() {
+		return this.variableName == null;
+	}
 
 	@Nullable
 	@Override
@@ -73,11 +79,10 @@ public class VariableOperand implements ExpressionNode {
 		try {
 			return context.getVariable(this.variableName)
 				.map(it -> {
-					// todo lho we need to support evita contracts
-//				Assert.isTrue(
-//					it instanceof Serializable && EvitaDataTypes.isSupportedType(it.getClass()),
-//					() -> new EvitaInvalidUsageException("Variable `" + this.variableName + "` has unsupported type `" + it.getClass().getSimpleName() + "`.")
-//				);
+					Assert.isTrue(
+						it instanceof Serializable,
+						() -> new EvitaInvalidUsageException("Variable `" + this.variableName + "` has unsupported type `" + it.getClass().getSimpleName() + "`.")
+					);
 					return (Serializable) it;
 				})
 				.orElse(null);
@@ -93,6 +98,17 @@ public class VariableOperand implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return BigDecimalNumberRange.INFINITE;
+	}
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return null;
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

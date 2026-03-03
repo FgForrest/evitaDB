@@ -31,11 +31,13 @@ import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -76,6 +78,17 @@ public class ConstantOperand implements ExpressionNode {
 		} catch (InconvertibleDataTypeException ex) {
 			return BigDecimalNumberRange.INFINITE;
 		}
+	}
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return null;
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
 	}
 
 	@Override

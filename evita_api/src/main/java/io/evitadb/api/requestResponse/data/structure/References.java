@@ -196,6 +196,12 @@ public class References implements ReferencesContract {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public EntitySchemaContract getSchema() {
+		return this.entitySchema;
+	}
+
 	public References(@Nonnull EntitySchemaContract schema) {
 		this.entitySchema = schema;
 		this.references = Map.of();
