@@ -268,6 +268,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 					referenceSchema.getReferenceIndexTypeInScopes(),
 					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
 					Stream.concat(
 						referenceSchema.getSortableAttributeCompounds().values().stream(),

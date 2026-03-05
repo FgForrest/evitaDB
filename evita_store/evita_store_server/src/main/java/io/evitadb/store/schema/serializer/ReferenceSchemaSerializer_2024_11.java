@@ -38,6 +38,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
@@ -104,13 +105,17 @@ public class ReferenceSchemaSerializer_2024_11 extends Serializer<ReferenceSchem
 			);
 		}
 
+		final Map<Scope, ReferenceIndexType> indexedInScopes =
+			indexed ? new EnumMap<>(Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)) : new EnumMap<>(Scope.class);
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			cardinality,
 			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
-			(indexed ? new EnumMap<>(Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)) : new EnumMap<>(Scope.class)),
+			indexedInScopes,
+			ReferenceSchema.defaultIndexedComponents(indexedInScopes),
 			(faceted ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class)),
+			Collections.emptyMap(),
 			attributes, sortableAttributeCompounds
 		);
 	}

@@ -175,6 +175,7 @@ public interface ReferenceAttributeSchemaMutation extends
 					referenceSchema.getReferenceIndexTypeInScopes(),
 					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
 					Stream.concat(
 							referenceSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
 							Stream.of(updatedAttributeSchema)

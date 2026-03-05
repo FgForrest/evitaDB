@@ -36,9 +36,8 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGlobalAttributeUniquenessType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType;
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedGlobalAttributeUniquenessTypes;
 
 /**
  * Converts between {@link SetAttributeSchemaGloballyUniqueMutation} and {@link GrpcSetAttributeSchemaGloballyUniqueMutation} in both directions.
@@ -51,15 +50,7 @@ public class SetAttributeSchemaGloballyUniqueMutationConverter implements Schema
 
 	@Nonnull
 	public SetAttributeSchemaGloballyUniqueMutation convert(@Nonnull GrpcSetAttributeSchemaGloballyUniqueMutation mutation) {
-		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = mutation.getUniqueGloballyInScopesList().isEmpty() ?
-			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(mutation.getUniqueGlobally()))
-			}
-			:
-			mutation.getUniqueGloballyInScopesList()
-				.stream()
-				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
-				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = toScopedGlobalAttributeUniquenessTypes(mutation.getUniqueGloballyInScopesList(), mutation.getUniqueGlobally());
 
 		return new SetAttributeSchemaGloballyUniqueMutation(
 			mutation.getName(),

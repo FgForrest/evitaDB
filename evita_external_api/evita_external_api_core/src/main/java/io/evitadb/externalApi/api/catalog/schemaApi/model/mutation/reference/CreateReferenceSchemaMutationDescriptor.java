@@ -26,6 +26,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
@@ -150,14 +151,27 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			Whether the statistics data for this reference should be maintained and this allowing to get
 			`facetSummary` for this reference or use `facet_{reference name}_inSet`
 			filtering query.
-			
+
 			Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
 			occupies (memory/disk) space in the form of index.
 			Reference that was marked as faceted is called Facet.
-			
+
 			This array defines in which scopes the reference will be faceted. It will not be faceted in not-specified scopes.
 			""")
 		.type(nullable(Scope[].class))
+		.build();
+	PropertyDescriptor FACETED_PARTIALLY_IN_SCOPES = PropertyDescriptor.builder()
+		.name("facetedPartiallyInScopes")
+		.description("""
+			Per-scope expressions that narrow which entities participate in faceting.
+			Each entry associates a scope with a boolean expression that is evaluated against
+			the entity data. Only entities for which the expression evaluates to true will
+			participate in facet statistics for the given scope.
+			""")
+		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS))
+		.build();
+	PropertyDescriptor FACETED_PARTIALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(FACETED_PARTIALLY_IN_SCOPES)
+		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
@@ -177,10 +191,12 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 		.staticProperty(INDEXED_IN_SCOPES)
 		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES)
 		.staticProperty(FACETED_IN_SCOPES)
+		.staticProperty(FACETED_PARTIALLY_IN_SCOPES)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateReferenceSchemaMutationInput")
 		.staticProperty(INDEXED_IN_SCOPES_INPUT)
 		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES_INPUT)
+		.staticProperty(FACETED_PARTIALLY_IN_SCOPES_INPUT)
 		.build();
 }

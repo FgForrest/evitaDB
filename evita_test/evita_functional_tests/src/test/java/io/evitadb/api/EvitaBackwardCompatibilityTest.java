@@ -238,10 +238,14 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			"WAL read complete: {} total records, last transaction version: {}",
 			walRecordCount, lastTransactionVersion
 		);
-		assertEquals(
-			currentCatalogVersion, lastTransactionVersion,
-			"Last WAL transaction version must equal current catalog version!"
-		);
+		if (walRecordCount > 0) {
+			assertEquals(
+				currentCatalogVersion, lastTransactionVersion,
+				"Last WAL transaction version must equal current catalog version!"
+			);
+		} else {
+			log.info("No WAL records found (dataset predates WAL storage) — skipping version assertion");
+		}
 	}
 
 }

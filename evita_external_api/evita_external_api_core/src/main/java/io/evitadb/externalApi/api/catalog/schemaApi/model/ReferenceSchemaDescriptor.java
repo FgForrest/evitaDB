@@ -33,6 +33,7 @@ import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
@@ -166,6 +167,19 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.type(nonNull(Scope[].class))
 		.build();
 
+	PropertyDescriptor FACETED_PARTIALLY = PropertyDescriptor.builder()
+		.name("facetedPartially")
+		.description("""
+			Contains per-scope expressions that narrow which entities participate in faceting.
+			Only meaningful for scopes where the reference is faceted. Each entry associates a scope
+			with a boolean expression evaluated against the entity data. Only entities for which
+			the expression evaluates to true will participate in facet statistics for the given scope.
+
+			Returns array of scopes and their corresponding partial-faceting expressions.
+			""")
+		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS))
+		.build();
+
 	PropertyDescriptor ATTRIBUTES = PropertyDescriptor.builder()
 		.name("attributes")
 		.description("""
@@ -215,6 +229,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			INDEXED,
 			INDEXED_COMPONENTS,
 			FACETED,
+			FACETED_PARTIALLY,
 			ENTITY_TYPE_NAME_VARIANTS,
 			GROUP_TYPE_NAME_VARIANTS
 		))
@@ -256,6 +271,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			INDEXED,
 			INDEXED_COMPONENTS,
 			FACETED,
+			FACETED_PARTIALLY,
 			ALL_ATTRIBUTES,
 			ALL_SORTABLE_ATTRIBUTE_COMPOUNDS
 		))

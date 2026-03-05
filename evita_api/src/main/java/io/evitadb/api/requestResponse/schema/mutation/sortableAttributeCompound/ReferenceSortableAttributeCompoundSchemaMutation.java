@@ -197,6 +197,7 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 					referenceSchema.getReferenceIndexTypeInScopes(),
 					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
 					Stream.concat(
 							referenceSchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),

@@ -737,6 +737,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							createReferenceIndexedComponentsDto(getEntitySchemaFromTestData(evita, ENTITY_EMPTY).getReference("mySpecialTags").orElseThrow())
 						)
 						.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
+						.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), list())
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.build()

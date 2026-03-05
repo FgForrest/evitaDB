@@ -77,6 +77,18 @@ public class Expression implements ExpressionNode {
 		visitor.visit(this);
 	}
 
+	/**
+	 * Returns the raw expression string without any EvitaDataTypes formatting.
+	 * This is useful for external API serialization where the expression text
+	 * should be round-trippable through `ExpressionFactory.parse()`.
+	 *
+	 * @return the raw expression text
+	 */
+	@Nonnull
+	public String toExpressionString() {
+		return this.root.toString();
+	}
+
 	@Override
 	public String toString() {
 		return EvitaDataTypes.formatValue(this.root.toString());

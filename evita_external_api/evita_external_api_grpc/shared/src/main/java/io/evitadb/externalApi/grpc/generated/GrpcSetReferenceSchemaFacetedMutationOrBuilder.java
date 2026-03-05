@@ -65,7 +65,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
    *
    * <code>bool faceted = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=272
+   *     See GrpcReferenceSchemaMutations.proto;l=276
    * @return The faceted.
    */
   @java.lang.Deprecated boolean getFaceted();
@@ -160,4 +160,53 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
    * @return The enum numeric value on the wire of facetedInScopes at the given index.
    */
   int getFacetedInScopesValue(int index);
+
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> 
+      getFacetedPartiallyList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially getFacetedPartially(int index);
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  int getFacetedPartiallyCount();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+      getFacetedPartiallyOrBuilderList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
+      int index);
 }

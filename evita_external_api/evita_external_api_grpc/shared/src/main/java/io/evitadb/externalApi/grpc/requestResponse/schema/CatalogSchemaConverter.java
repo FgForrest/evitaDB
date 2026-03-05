@@ -220,38 +220,10 @@ public class CatalogSchemaConverter {
 	 */
 	@Nonnull
 	private static GlobalAttributeSchemaContract toGlobalAttributeSchema(@Nonnull GrpcGlobalAttributeSchema attributeSchema) {
-		final ScopedAttributeUniquenessType[] uniqueInScopes = attributeSchema.getUniqueInScopesList().isEmpty() ?
-			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(attributeSchema.getUnique()))
-			}
-			:
-			attributeSchema.getUniqueInScopesList()
-				.stream()
-				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
-				.toArray(ScopedAttributeUniquenessType[]::new);
-		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = attributeSchema.getUniqueGloballyInScopesList().isEmpty() ?
-			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()))
-			}
-			:
-			attributeSchema.getUniqueGloballyInScopesList()
-				.stream()
-				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
-				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
-		final Scope[] filterableInScopes = attributeSchema.getFilterableInScopesList().isEmpty() ?
-			(attributeSchema.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			attributeSchema.getFilterableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
-		final Scope[] sortableInScopes = attributeSchema.getSortableInScopesList().isEmpty() ?
-			(attributeSchema.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			attributeSchema.getSortableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
+		final ScopedAttributeUniquenessType[] uniqueInScopes = toScopedAttributeUniquenessTypes(attributeSchema.getUniqueInScopesList(), attributeSchema.getUnique());
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = toScopedGlobalAttributeUniquenessTypes(attributeSchema.getUniqueGloballyInScopesList(), attributeSchema.getUniqueGlobally());
+		final Scope[] filterableInScopes = toBooleanScopes(attributeSchema.getFilterableInScopesList(), attributeSchema.getFilterable());
+		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		return GlobalAttributeSchema._internalBuild(
 			attributeSchema.getName(),

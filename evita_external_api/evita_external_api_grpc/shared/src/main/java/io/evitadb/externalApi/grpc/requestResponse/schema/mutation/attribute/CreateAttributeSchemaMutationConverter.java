@@ -38,9 +38,9 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toAttributeUniquenessType;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toBooleanScopes;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeUniquenessType;
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedAttributeUniquenessTypes;
 
 /**
  * Converts between {@link CreateAttributeSchemaMutation} and {@link GrpcCreateAttributeSchemaMutation} in both directions.
@@ -53,29 +53,9 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 
 	@Nonnull
 	public CreateAttributeSchemaMutation convert(@Nonnull GrpcCreateAttributeSchemaMutation mutation) {
-		final ScopedAttributeUniquenessType[] uniqueInScopes = mutation.getUniqueInScopesList().isEmpty() ?
-			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(mutation.getUnique()))
-			}
-			:
-			mutation.getUniqueInScopesList()
-				.stream()
-				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
-				.toArray(ScopedAttributeUniquenessType[]::new);
-		final Scope[] filterableInScopes = mutation.getFilterableInScopesList().isEmpty() ?
-			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			mutation.getFilterableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
-		final Scope[] sortableInScopes = mutation.getSortableInScopesList().isEmpty() ?
-			(mutation.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			mutation.getSortableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
+		final ScopedAttributeUniquenessType[] uniqueInScopes = toScopedAttributeUniquenessTypes(mutation.getUniqueInScopesList(), mutation.getUnique());
+		final Scope[] filterableInScopes = toBooleanScopes(mutation.getFilterableInScopesList(), mutation.getFilterable());
+		final Scope[] sortableInScopes = toBooleanScopes(mutation.getSortableInScopesList(), mutation.getSortable());
 
 		return new CreateAttributeSchemaMutation(
 			mutation.getName(),

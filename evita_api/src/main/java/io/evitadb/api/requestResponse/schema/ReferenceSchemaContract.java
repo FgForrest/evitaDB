@@ -36,12 +36,14 @@ import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -370,6 +372,39 @@ public interface ReferenceSchemaContract extends
 	 */
 	@Nonnull
 	Set<Scope> getFacetedInScopes();
+
+	/**
+	 * Returns the expression that narrows which entities participate in faceting in
+	 * the {@link Scope#DEFAULT_SCOPE}, or null if all faceted entities participate.
+	 *
+	 * @return the expression narrowing facet participation, or null if not set
+	 */
+	@Nullable
+	default Expression getFacetedPartially() {
+		return getFacetedPartiallyInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the expression that narrows which entities participate in faceting in
+	 * the given scope, or null if all faceted entities participate in that scope.
+	 *
+	 * @param scope the scope to get the expression for
+	 * @return the expression narrowing facet participation, or null if not set
+	 */
+	@Nullable
+	Expression getFacetedPartiallyInScope(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding facetedPartially expressions.
+	 * Only scopes where an expression is actually configured are included. An empty map
+	 * means no partial-faceting expressions are defined.
+	 *
+	 * @return map where keys are scopes and values are the expressions
+	 */
+	@Nonnull
+	default Map<Scope, Expression> getFacetedPartiallyInScopes() {
+		return Collections.emptyMap();
+	}
 
 	/**
 	 * Validates current reference schema for invalid settings using the information from current catalog schema.

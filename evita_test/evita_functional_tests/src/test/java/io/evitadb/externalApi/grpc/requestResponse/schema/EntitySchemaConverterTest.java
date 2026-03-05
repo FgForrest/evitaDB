@@ -29,10 +29,13 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
 import io.evitadb.test.Entities;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -122,15 +125,30 @@ class EntitySchemaConverterTest {
 				),
 				"test2", ReferenceSchema._internalBuild(
 					"test2",
+					NamingConvention.generate("test2"),
 					"desc",
 					"depr",
 					Entities.CATEGORY,
+					NamingConvention.generate(Entities.CATEGORY),
 					false,
 					Cardinality.ONE_OR_MORE,
 					null,
+					Collections.emptyMap(),
 					false,
-					new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.DEFAULT_SCOPE,
+							ReferenceIndexType.FOR_FILTERING
+						)
+					},
+					null,
 					new Scope[]{Scope.LIVE},
+					new ScopedFacetedPartially[]{
+						new ScopedFacetedPartially(
+							Scope.LIVE,
+							ExpressionFactory.parse("1 > 0")
+						)
+					},
 					Map.of(
 						"code", EntityAttributeSchema._internalBuild(
 							"code",
@@ -282,6 +300,7 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getReferenceIndexTypeInScopes(), actual.getReferenceIndexTypeInScopes());
 		assertEquals(expected.getIndexedComponentsInScopes(), actual.getIndexedComponentsInScopes());
 		assertEquals(expected.isFaceted(), actual.isFaceted());
+		assertEquals(expected.getFacetedPartiallyInScopes(), actual.getFacetedPartiallyInScopes());
 		assertEquals(expected.getSortableAttributeCompounds(), actual.getSortableAttributeCompounds());
 
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());

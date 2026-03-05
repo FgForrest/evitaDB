@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.At
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
@@ -1175,6 +1176,11 @@ public class ClassSchemaAnalyzer {
 				if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
 					editor.faceted();
 				}
+				// facetedPartially - set if expression is non-empty
+				final String facetedPartiallyExpr = reference.facetedPartially().value();
+				if (!facetedPartiallyExpr.isEmpty()) {
+					editor.facetedPartially(ExpressionFactory.parse(facetedPartiallyExpr));
+				}
 			} else {
 				Assert.isTrue(
 					reference.indexed() == ReferenceIndexType.NONE,
@@ -1207,6 +1213,17 @@ public class ClassSchemaAnalyzer {
 					.toArray(Scope[]::new);
 				if (!ArrayUtils.isEmptyOrItsValuesNull(facetedInScopes)) {
 					editor.facetedInScope(facetedInScopes);
+				}
+
+				// per-scope facetedPartially - set expression for each scope where defined
+				for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
+					final String scopeExprValue = scopeSettings.facetedPartially().value();
+					if (!scopeExprValue.isEmpty()) {
+						editor.facetedPartiallyInScope(
+							scopeSettings.scope(),
+							ExpressionFactory.parse(scopeExprValue)
+						);
+					}
 				}
 			}
 
@@ -1459,11 +1476,21 @@ public class ClassSchemaAnalyzer {
 				final Scope[] facetedInScopes = Arrays.stream(scopedDefinition)
 					.filter(ScopeReferenceSettings::faceted)
 					.map(ScopeReferenceSettings::scope)
-					// TODO LHO - tady je něco blbě ... tady se to musí nějak vyhodnotit
 					.filter(scope -> editor.isFacetedInherited() || !editor.isFacetedInScope(scope))
 					.toArray(Scope[]::new);
 				if (!ArrayUtils.isEmptyOrItsValuesNull(facetedInScopes)) {
 					editor.facetedInScope(facetedInScopes);
+				}
+
+				// per-scope facetedPartially - set expression for each scope where defined
+				for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
+					final String scopeExprValue = scopeSettings.facetedPartially().value();
+					if (!scopeExprValue.isEmpty()) {
+						editor.facetedPartiallyInScope(
+							scopeSettings.scope(),
+							ExpressionFactory.parse(scopeExprValue)
+						);
+					}
 				}
 			}
 

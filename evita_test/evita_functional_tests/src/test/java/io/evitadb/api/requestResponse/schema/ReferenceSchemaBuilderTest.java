@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
+import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -39,9 +39,12 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceS
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
@@ -723,6 +726,102 @@ class ReferenceSchemaBuilderTest {
 				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
 				() -> assertTrue(ref.isFacetedInScope(Scope.LIVE))
 			);
+		}
+
+		/**
+		 * Verifies that facetedPartiallyInScope sets a partial expression
+		 * on the built reference schema.
+		 */
+		@Test
+		@DisplayName("should set facetedPartially expression in scope")
+		void shouldSetFacetedPartiallyInScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.facetedInScope(Scope.LIVE)
+					.facetedPartiallyInScope(Scope.LIVE, expression)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isFacetedInScope(Scope.LIVE)),
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.LIVE)
+				),
+				() -> assertEquals(
+					expression.toExpressionString(),
+					ref.getFacetedPartiallyInScope(Scope.LIVE)
+						.toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that nonFacetedPartially clears the partial expression
+		 * for the specified scope.
+		 */
+		@Test
+		@DisplayName("should clear facetedPartially expression via nonFacetedPartially")
+		void shouldClearFacetedPartially() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.facetedInScope(Scope.LIVE)
+					.facetedPartiallyInScope(Scope.LIVE, expression)
+					.nonFacetedPartially(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isFacetedInScope(Scope.LIVE)),
+				() -> assertNull(
+					ref.getFacetedPartiallyInScope(Scope.LIVE)
+				)
+			);
+		}
+
+		/**
+		 * Verifies that the builder generates a SetReferenceSchemaFacetedMutation
+		 * containing the facetedPartially expression.
+		 */
+		@Test
+		@DisplayName("should generate facetedPartially mutation")
+		void shouldGenerateFacetedPartiallyMutation() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final AtomicReference<ReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.facetedInScope(Scope.LIVE)
+							.facetedPartiallyInScope(Scope.LIVE, expression);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder);
+			final List<LocalEntitySchemaMutation> mutations =
+				List.copyOf(builder.toMutation());
+
+			// The facetedPartially should be absorbed into the Create
+			// mutation via combineWith
+			final CreateReferenceSchemaMutation createMutation =
+				mutations.stream()
+					.filter(CreateReferenceSchemaMutation.class::isInstance)
+					.map(CreateReferenceSchemaMutation.class::cast)
+					.findFirst()
+					.orElseThrow();
+
+			final ScopedFacetedPartially[] partiallyInScopes =
+				createMutation.getFacetedPartiallyInScopes();
+			assertNotNull(partiallyInScopes);
+			assertTrue(partiallyInScopes.length > 0);
+			assertEquals(Scope.LIVE, partiallyInScopes[0].scope());
+			assertNotNull(partiallyInScopes[0].expression());
 		}
 	}
 

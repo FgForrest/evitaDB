@@ -27,11 +27,13 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -85,6 +87,17 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			);
 		}
 
+		// Handle facetedPartially expressions
+		final ScopedFacetedPartially[] facetedPartiallyInScopes;
+		if (mutation.getFacetedInherited()) {
+			// when faceted is inherited, facetedPartially is also inherited
+			facetedPartiallyInScopes = null;
+		} else {
+			facetedPartiallyInScopes = EntitySchemaConverter.parseFacetedPartially(
+				mutation.getFacetedPartiallyList()
+			);
+		}
+
 		return new CreateReflectedReferenceSchemaMutation(
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
@@ -95,6 +108,7 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			mutation.getIndexedInherited() ? null : indexedInScopes,
 			indexedComponentsInScopes,
 			mutation.getFacetedInherited() ? null : facetedInScopes,
+			facetedPartiallyInScopes,
 			toAttributeInheritanceBehavior(mutation.getAttributeInheritanceBehavior()),
 			mutation.getAttributeInheritanceFilterList().toArray(String[]::new)
 		);
@@ -144,6 +158,16 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			);
+			// Handle facetedPartially expressions when faceted is not inherited
+			final ScopedFacetedPartially[] facetedPartiallyInScopes =
+				mutation.getFacetedPartiallyInScopes();
+			if (facetedPartiallyInScopes != null) {
+				builder.addAllFacetedPartially(
+					SetReferenceSchemaFacetedMutationConverter.toGrpcScopedFacetedPartially(
+						facetedPartiallyInScopes
+					)
+				);
+			}
 		} else {
 			builder.setFacetedInherited(true);
 		}

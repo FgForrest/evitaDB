@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
@@ -43,6 +44,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDepreca
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
@@ -201,6 +203,26 @@ public abstract class SchemaJsonSerializer {
 			indexedComponentsArray.add(componentNode);
 		}
 		return indexedComponentsArray;
+	}
+
+	/**
+	 * Serializes the faceted partially expressions within the given {@link ReferenceSchemaContract} into a JSON array
+	 * structure. Each entry in the resulting array represents a scope and its corresponding partial-faceting expression.
+	 *
+	 * @param referenceSchema the reference schema containing the faceted partially expressions to be serialized
+	 * @return an {@link ArrayNode} representing the serialized faceted partially expressions
+	 */
+	@Nonnull
+	protected ArrayNode serializeFacetedPartially(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final ArrayNode facetedPartiallyArray = this.objectJsonSerializer.arrayNode();
+		final Map<Scope, Expression> facetedPartiallyInScopes = referenceSchema.getFacetedPartiallyInScopes();
+		for (Map.Entry<Scope, Expression> entry : facetedPartiallyInScopes.entrySet()) {
+			final ObjectNode facetedPartiallyNode = this.objectJsonSerializer.objectNode();
+			facetedPartiallyNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
+			facetedPartiallyNode.put(ScopedFacetedPartiallyDescriptor.EXPRESSION.name(), entry.getValue().toExpressionString());
+			facetedPartiallyArray.add(facetedPartiallyNode);
+		}
+		return facetedPartiallyArray;
 	}
 
 	/**

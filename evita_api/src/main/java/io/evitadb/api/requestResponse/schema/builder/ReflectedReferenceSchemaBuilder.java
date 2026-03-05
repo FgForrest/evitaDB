@@ -29,21 +29,26 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
-import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.ConsistencyChecks;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.*;
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -57,7 +62,6 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -71,17 +75,16 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class ReflectedReferenceSchemaBuilder
-	implements ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder, InternalSchemaBuilderHelper {
-	@Serial private static final long serialVersionUID = -6435272035844056999L;
+	extends AbstractReferenceSchemaBuilder<ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder, ReflectedReferenceSchema>
+	implements ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder {
+	@Serial private static final long serialVersionUID = 3141592653589793238L;
 
-	private final CatalogSchemaContract catalogSchema;
-	private final EntitySchemaContract entitySchema;
-	private final ReflectedReferenceSchema baseSchema;
-	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
-	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
-	private int lastMutationReflectedInSchema = 0;
-	private ReflectedReferenceSchema updatedSchema;
-
+	/**
+	 * Creates a new builder for a reflected reference schema. When `createNew` is true,
+	 * a {@link CreateReflectedReferenceSchemaMutation} is automatically emitted with the current
+	 * schema state (or inherited defaults when no overrides exist). Pre-existing mutations
+	 * targeting this reference (excluding create/remove) are also replayed.
+	 */
 	ReflectedReferenceSchemaBuilder(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull EntitySchemaContract entitySchema,
@@ -92,11 +95,12 @@ public final class ReflectedReferenceSchemaBuilder
 		@Nonnull List<LocalEntitySchemaMutation> mutations,
 		boolean createNew
 	) {
-		this.catalogSchema = catalogSchema;
-		this.entitySchema = entitySchema;
-		this.baseSchema = existingSchema == null ?
-			ReflectedReferenceSchema._internalBuild(name, entityType, reflectedReferenceName) :
-			(ReflectedReferenceSchema) existingSchema;
+		super(
+			catalogSchema, entitySchema,
+			existingSchema == null ?
+				ReflectedReferenceSchema._internalBuild(name, entityType, reflectedReferenceName) :
+				(ReflectedReferenceSchema) existingSchema
+		);
 		if (createNew) {
 			this.mutations.add(
 				new CreateReflectedReferenceSchemaMutation(
@@ -146,20 +150,16 @@ public final class ReflectedReferenceSchemaBuilder
 	 * Note: setting null to the description will cause the description is inherited from the original reference.
 	 * The description cannot be reset to NULL on the reflected reference if the original one has description set.
 	 *
+	 * This override is required to prevent Lombok's `@Delegate` from generating a conflicting delegation
+	 * for the `withDescription` method declared on `ReflectedReferenceSchema` DTO.
+	 *
 	 * @param description new value of description
 	 * @return this
 	 */
 	@Override
 	@Nonnull
 	public ReflectedReferenceSchemaBuilder withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSchemaDescriptionMutation(getName(), description)
-			)
-		);
-		return this;
+		return (ReflectedReferenceSchemaBuilder) super.withDescription(description);
 	}
 
 	@Nonnull
@@ -282,27 +282,6 @@ public final class ReflectedReferenceSchemaBuilder
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaFacetedMutation(getName(), (Scope[]) null)
-			)
-		);
-		return this;
-	}
-
-	/**
-	 * Note: setting null to the deprecation notice will cause the deprecation status is inherited from the original
-	 * reference. The deprecation notice cannot be reset to not deprecated on the reflected reference if the original
-	 * one is deprecated.
-	 *
-	 * @param deprecationNotice new value of deprecation notice
-	 * @return this
-	 */
-	@Override
-	@Nonnull
-	public ReflectedReferenceSchemaBuilder deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSchemaDeprecationNoticeMutation(getName(), deprecationNotice)
 			)
 		);
 		return this;
@@ -466,42 +445,6 @@ public final class ReflectedReferenceSchemaBuilder
 
 	@Nonnull
 	@Override
-	public ReflectedReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
-		this.updatedSchemaDirty = indexedForTypeInScope(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING,
-			getIndexedComponentsInScopes(), inScope
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
-		this.updatedSchemaDirty = indexedForTypeInScope(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
-			getIndexedComponentsInScopes(), inScope
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder indexedWithComponentsInScope(
-		@Nonnull Scope scope,
-		@Nonnull ReferenceIndexedComponents... components
-	) {
-		this.updatedSchemaDirty = indexedWithComponentsInScope(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), getReferenceIndexTypeInScopes(),
-			scope, components
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
 	public ReflectedReferenceSchemaBuilder withIndexedComponentsInherited() {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
@@ -565,80 +508,7 @@ public final class ReflectedReferenceSchemaBuilder
 			attributeSchema
 		);
 
-		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
-			this.updatedSchemaDirty = updateMutationImpact(
-				this.updatedSchemaDirty,
-				addMutations(
-					this.catalogSchema, this.entitySchema, this.mutations,
-					attributeSchemaBuilder
-						.toReferenceMutation(getName())
-						.stream()
-						.map(LocalEntitySchemaMutation.class::cast)
-						.toArray(LocalEntitySchemaMutation[]::new)
-				)
-			);
-		}
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public ReflectedReferenceSchemaBuilder withoutAttribute(@Nonnull String attributeName) {
-		checkSortableAttributeCompoundsWithoutAttribute(
-			attributeName, this.getSortableAttributeCompounds().values()
-		);
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceAttributeSchemaMutation(
-					this.getName(),
-					new RemoveAttributeSchemaMutation(attributeName)
-				)
-			)
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder withSortableAttributeCompound(
-		@Nonnull String name,
-		@Nonnull AttributeElement... attributeElements
-	) {
-		return withSortableAttributeCompound(
-			name, attributeElements, null
-		);
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder withSortableAttributeCompound(
-		@Nonnull String name,
-		@Nonnull AttributeElement[] attributeElements,
-		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
-	) {
-		this.updatedSchemaDirty = addSortableAttributeCompoundToReference(
-			this.catalogSchema, this.entitySchema, this, this.baseSchema,
-			this.mutations, this.updatedSchemaDirty,
-			name, attributeElements, whichIs
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder withoutSortableAttributeCompound(@Nonnull String name) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSortableAttributeCompoundSchemaMutation(
-					this.getName(),
-					new RemoveSortableAttributeCompoundSchemaMutation(name)
-				)
-			)
-		);
+		addAttributeMutationsIfChanged(existingAttribute.orElse(null), attributeSchema, attributeSchemaBuilder);
 		return this;
 	}
 
@@ -662,12 +532,20 @@ public final class ReflectedReferenceSchemaBuilder
 		return new ReferenceSchemaBuilderResult(currentSchema, mutations);
 	}
 
-	@Override
 	@Nonnull
-	public Collection<LocalEntitySchemaMutation> toMutation() {
-		// apply necessary mutation sort
-		sortReferenceAttributeMutationsLast(this.mutations);
-		return this.mutations;
+	@Override
+	protected ReflectedReferenceSchema mutateSchema(
+		@Nonnull ReflectedReferenceSchema currentSchema,
+		@Nonnull LocalEntitySchemaMutation mutation
+	) {
+		final ReflectedReferenceSchema result = (ReflectedReferenceSchema)
+			((ReferenceSchemaMutation) mutation).mutate(
+				this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP
+			);
+		if (result == null) {
+			throw new GenericEvitaInternalError("Reflected reference unexpectedly removed from inside!");
+		}
+		return result;
 	}
 
 	/**
@@ -675,32 +553,7 @@ public final class ReflectedReferenceSchemaBuilder
 	 */
 	@Delegate(types = ReflectedReferenceSchema.class)
 	private ReflectedReferenceSchema toInstanceInternal() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
-			// if the dirty flag is set to modified previous we need to start from the base schema again
-			// and reapply all mutations
-			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
-				this.lastMutationReflectedInSchema = 0;
-			}
-			// if the last mutation reflected in the schema is zero we need to start from the base schema
-			// else we can continue modification last known updated schema by adding additional mutations
-			ReflectedReferenceSchema currentSchema = this.lastMutationReflectedInSchema == 0 ?
-				this.baseSchema : this.updatedSchema;
-
-			if (this.lastMutationReflectedInSchema < this.mutations.size()) {
-				// apply the mutations not reflected in the schema
-				for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
-					final LocalEntitySchemaMutation mutation = this.mutations.get(i);
-					currentSchema = (ReflectedReferenceSchema) ((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
-					if (currentSchema == null) {
-						throw new GenericEvitaInternalError("Reflected reference unexpectedly removed from inside!");
-					}
-				}
-			}
-			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
-			this.lastMutationReflectedInSchema = this.mutations.size();
-		}
-		return this.updatedSchema;
+		return toInstance();
 	}
 
 }

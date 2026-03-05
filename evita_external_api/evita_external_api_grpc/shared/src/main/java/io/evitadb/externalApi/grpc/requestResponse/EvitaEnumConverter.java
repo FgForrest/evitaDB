@@ -47,6 +47,8 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
@@ -66,6 +68,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Optional;
 
 import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.*;
@@ -898,6 +901,77 @@ public class EvitaEnumConverter {
 			case UNIQUE_WITHIN_CATALOG -> GrpcGlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG;
 			case UNIQUE_WITHIN_CATALOG_LOCALE -> GrpcGlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
 		};
+	}
+
+	/**
+	 * Converts a gRPC scoped attribute uniqueness type list to a domain model array. When the scoped list is empty
+	 * (backward compatibility), falls back to the legacy single-value field wrapped in a default-scope array.
+	 *
+	 * @param scopedList   the gRPC scoped list (may be empty for legacy messages)
+	 * @param defaultValue the legacy single-value field used as fallback
+	 * @return array of scoped attribute uniqueness types
+	 */
+	@Nonnull
+	public static ScopedAttributeUniquenessType[] toScopedAttributeUniquenessTypes(
+		@Nonnull List<GrpcScopedAttributeUniquenessType> scopedList,
+		@Nonnull GrpcAttributeUniquenessType defaultValue
+	) {
+		return scopedList.isEmpty() ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(defaultValue))
+			}
+			:
+			scopedList
+				.stream()
+				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedAttributeUniquenessType[]::new);
+	}
+
+	/**
+	 * Converts a gRPC scoped global attribute uniqueness type list to a domain model array. When the scoped list
+	 * is empty (backward compatibility), falls back to the legacy single-value field wrapped in a default-scope array.
+	 *
+	 * @param scopedList   the gRPC scoped list (may be empty for legacy messages)
+	 * @param defaultValue the legacy single-value field used as fallback
+	 * @return array of scoped global attribute uniqueness types
+	 */
+	@Nonnull
+	public static ScopedGlobalAttributeUniquenessType[] toScopedGlobalAttributeUniquenessTypes(
+		@Nonnull List<GrpcScopedGlobalAttributeUniquenessType> scopedList,
+		@Nonnull GrpcGlobalAttributeUniquenessType defaultValue
+	) {
+		return scopedList.isEmpty() ?
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(defaultValue))
+			}
+			:
+			scopedList
+				.stream()
+				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+	}
+
+	/**
+	 * Converts a gRPC scope list to a domain model scope array. When the scoped list is empty
+	 * (backward compatibility), falls back to the legacy boolean field: `true` yields default scopes,
+	 * `false` yields no scopes.
+	 *
+	 * @param scopesList   the gRPC scope list (may be empty for legacy messages)
+	 * @param defaultValue the legacy boolean field used as fallback
+	 * @return array of scopes
+	 */
+	@Nonnull
+	public static Scope[] toBooleanScopes(
+		@Nonnull List<GrpcEntityScope> scopesList,
+		boolean defaultValue
+	) {
+		return scopesList.isEmpty() ?
+			(defaultValue ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			scopesList
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
 	}
 
 	/**

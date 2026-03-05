@@ -101,20 +101,25 @@ public class ReflectedReferenceSchemaSerializer_2025_5 extends Serializer<Reflec
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = indexedInScopes == null ?
+			null :
+			indexedInScopes
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Function.identity(),
+						scope -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+					)
+				);
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			indexedInScopes == null ?
-				null :
-				indexedInScopes
-					.stream()
-					.collect(
-						Collectors.toMap(
-							Function.identity(),
-							scope -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
-						)
-					),
+			indexedScopesMap,
+			indexedScopesMap != null
+				? ReferenceSchema.defaultIndexedComponents(indexedScopesMap)
+				: null,
 			facetedInScopes,
+			null,
 			attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);

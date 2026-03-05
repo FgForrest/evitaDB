@@ -56,6 +56,7 @@ private static final long serialVersionUID = 0L;
     facetedInScopes_ = java.util.Collections.emptyList();
     scopedIndexTypes_ = java.util.Collections.emptyList();
     scopedIndexedComponents_ = java.util.Collections.emptyList();
+    facetedPartially_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -357,7 +358,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=119
+   *     See GrpcReferenceSchemaMutations.proto;l=121
    * @return Whether the faceted field is set.
    */
   @java.lang.Override
@@ -377,7 +378,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=119
+   *     See GrpcReferenceSchemaMutations.proto;l=121
    * @return The faceted.
    */
   @java.lang.Override
@@ -528,7 +529,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Override
@@ -551,7 +552,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @return The count of indexedInScopes.
    */
   @java.lang.Override
@@ -573,7 +574,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -596,7 +597,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Override
@@ -619,7 +620,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -895,6 +896,67 @@ private static final long serialVersionUID = 0L;
     return scopedIndexedComponents_.get(index);
   }
 
+  public static final int FACETEDPARTIALLY_FIELD_NUMBER = 16;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> facetedPartially_;
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> getFacetedPartiallyList() {
+    return facetedPartially_;
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+      getFacetedPartiallyOrBuilderList() {
+    return facetedPartially_;
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  @java.lang.Override
+  public int getFacetedPartiallyCount() {
+    return facetedPartially_.size();
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially getFacetedPartially(int index) {
+    return facetedPartially_.get(index);
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
+      int index) {
+    return facetedPartially_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -962,6 +1024,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < scopedIndexedComponents_.size(); i++) {
       output.writeMessage(15, scopedIndexedComponents_.get(i));
+    }
+    for (int i = 0; i < facetedPartially_.size(); i++) {
+      output.writeMessage(16, facetedPartially_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -1049,6 +1114,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(15, scopedIndexedComponents_.get(i));
     }
+    for (int i = 0; i < facetedPartially_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(16, facetedPartially_.get(i));
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1099,6 +1168,8 @@ private static final long serialVersionUID = 0L;
         .equals(other.getScopedIndexTypesList())) return false;
     if (!getScopedIndexedComponentsList()
         .equals(other.getScopedIndexedComponentsList())) return false;
+    if (!getFacetedPartiallyList()
+        .equals(other.getFacetedPartiallyList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1157,6 +1228,10 @@ private static final long serialVersionUID = 0L;
     if (getScopedIndexedComponentsCount() > 0) {
       hash = (37 * hash) + SCOPEDINDEXEDCOMPONENTS_FIELD_NUMBER;
       hash = (53 * hash) + getScopedIndexedComponentsList().hashCode();
+    }
+    if (getFacetedPartiallyCount() > 0) {
+      hash = (37 * hash) + FACETEDPARTIALLY_FIELD_NUMBER;
+      hash = (53 * hash) + getFacetedPartiallyList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1298,6 +1373,7 @@ private static final long serialVersionUID = 0L;
         getFacetedFieldBuilder();
         getScopedIndexTypesFieldBuilder();
         getScopedIndexedComponentsFieldBuilder();
+        getFacetedPartiallyFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1346,6 +1422,13 @@ private static final long serialVersionUID = 0L;
         scopedIndexedComponentsBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00004000);
+      if (facetedPartiallyBuilder_ == null) {
+        facetedPartially_ = java.util.Collections.emptyList();
+      } else {
+        facetedPartially_ = null;
+        facetedPartiallyBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00008000);
       return this;
     }
 
@@ -1406,6 +1489,15 @@ private static final long serialVersionUID = 0L;
         result.scopedIndexedComponents_ = scopedIndexedComponents_;
       } else {
         result.scopedIndexedComponents_ = scopedIndexedComponentsBuilder_.build();
+      }
+      if (facetedPartiallyBuilder_ == null) {
+        if (((bitField0_ & 0x00008000) != 0)) {
+          facetedPartially_ = java.util.Collections.unmodifiableList(facetedPartially_);
+          bitField0_ = (bitField0_ & ~0x00008000);
+        }
+        result.facetedPartially_ = facetedPartially_;
+      } else {
+        result.facetedPartially_ = facetedPartiallyBuilder_.build();
       }
     }
 
@@ -1620,6 +1712,32 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      if (facetedPartiallyBuilder_ == null) {
+        if (!other.facetedPartially_.isEmpty()) {
+          if (facetedPartially_.isEmpty()) {
+            facetedPartially_ = other.facetedPartially_;
+            bitField0_ = (bitField0_ & ~0x00008000);
+          } else {
+            ensureFacetedPartiallyIsMutable();
+            facetedPartially_.addAll(other.facetedPartially_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.facetedPartially_.isEmpty()) {
+          if (facetedPartiallyBuilder_.isEmpty()) {
+            facetedPartiallyBuilder_.dispose();
+            facetedPartiallyBuilder_ = null;
+            facetedPartially_ = other.facetedPartially_;
+            bitField0_ = (bitField0_ & ~0x00008000);
+            facetedPartiallyBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getFacetedPartiallyFieldBuilder() : null;
+          } else {
+            facetedPartiallyBuilder_.addAllMessages(other.facetedPartially_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -1768,6 +1886,19 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 122
+            case 130: {
+              io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.parser(),
+                      extensionRegistry);
+              if (facetedPartiallyBuilder_ == null) {
+                ensureFacetedPartiallyIsMutable();
+                facetedPartially_.add(m);
+              } else {
+                facetedPartiallyBuilder_.addMessage(m);
+              }
+              break;
+            } // case 130
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2517,7 +2648,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=119
+     *     See GrpcReferenceSchemaMutations.proto;l=121
      * @return Whether the faceted field is set.
      */
     @java.lang.Deprecated public boolean hasFaceted() {
@@ -2536,7 +2667,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=119
+     *     See GrpcReferenceSchemaMutations.proto;l=121
      * @return The faceted.
      */
     @java.lang.Deprecated public com.google.protobuf.BoolValue getFaceted() {
@@ -3015,7 +3146,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @return A list containing the indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
@@ -3037,7 +3168,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @return The count of indexedInScopes.
      */
     @java.lang.Deprecated public int getIndexedInScopesCount() {
@@ -3058,7 +3189,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @param index The index of the element to return.
      * @return The indexedInScopes at the given index.
      */
@@ -3080,7 +3211,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @param index The index to set the value at.
      * @param value The indexedInScopes to set.
      * @return This builder for chaining.
@@ -3110,7 +3241,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @param value The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -3138,7 +3269,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @param values The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -3166,7 +3297,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearIndexedInScopes() {
@@ -3190,7 +3321,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @return A list containing the enum numeric values on the wire for indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<java.lang.Integer>
@@ -3212,7 +3343,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      */
@@ -3234,7 +3365,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @param index The index to set the value at.
      * @param value The enum numeric value on the wire for indexedInScopes to set.
      * @return This builder for chaining.
@@ -3261,7 +3392,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @param value The enum numeric value on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -3286,7 +3417,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=137
+     *     See GrpcReferenceSchemaMutations.proto;l=139
      * @param values The enum numeric values on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -4301,6 +4432,318 @@ private static final long serialVersionUID = 0L;
         scopedIndexedComponents_ = null;
       }
       return scopedIndexedComponentsBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> facetedPartially_ =
+      java.util.Collections.emptyList();
+    private void ensureFacetedPartiallyIsMutable() {
+      if (!((bitField0_ & 0x00008000) != 0)) {
+        facetedPartially_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially>(facetedPartially_);
+        bitField0_ |= 0x00008000;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> facetedPartiallyBuilder_;
+
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> getFacetedPartiallyList() {
+      if (facetedPartiallyBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(facetedPartially_);
+      } else {
+        return facetedPartiallyBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public int getFacetedPartiallyCount() {
+      if (facetedPartiallyBuilder_ == null) {
+        return facetedPartially_.size();
+      } else {
+        return facetedPartiallyBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially getFacetedPartially(int index) {
+      if (facetedPartiallyBuilder_ == null) {
+        return facetedPartially_.get(index);
+      } else {
+        return facetedPartiallyBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder setFacetedPartially(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially value) {
+      if (facetedPartiallyBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.set(index, value);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder setFacetedPartially(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder builderForValue) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder addFacetedPartially(io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially value) {
+      if (facetedPartiallyBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.add(value);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder addFacetedPartially(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially value) {
+      if (facetedPartiallyBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.add(index, value);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder addFacetedPartially(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder builderForValue) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.add(builderForValue.build());
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder addFacetedPartially(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder builderForValue) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder addAllFacetedPartially(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> values) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, facetedPartially_);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder clearFacetedPartially() {
+      if (facetedPartiallyBuilder_ == null) {
+        facetedPartially_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00008000);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public Builder removeFacetedPartially(int index) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.remove(index);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder getFacetedPartiallyBuilder(
+        int index) {
+      return getFacetedPartiallyFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
+        int index) {
+      if (facetedPartiallyBuilder_ == null) {
+        return facetedPartially_.get(index);  } else {
+        return facetedPartiallyBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+         getFacetedPartiallyOrBuilderList() {
+      if (facetedPartiallyBuilder_ != null) {
+        return facetedPartiallyBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(facetedPartially_);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder addFacetedPartiallyBuilder() {
+      return getFacetedPartiallyFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder addFacetedPartiallyBuilder(
+        int index) {
+      return getFacetedPartiallyFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder> 
+         getFacetedPartiallyBuilderList() {
+      return getFacetedPartiallyFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+        getFacetedPartiallyFieldBuilder() {
+      if (facetedPartiallyBuilder_ == null) {
+        facetedPartiallyBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder>(
+                facetedPartially_,
+                ((bitField0_ & 0x00008000) != 0),
+                getParentForChildren(),
+                isClean());
+        facetedPartially_ = null;
+      }
+      return facetedPartiallyBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

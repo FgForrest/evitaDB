@@ -49,6 +49,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import io.evitadb.utils.NamingConvention;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -269,12 +271,19 @@ class SetReferenceSchemaIndexedMutationTest {
 			final ReferenceSchemaContract referenceWithFilterable =
 				ReferenceSchema._internalBuild(
 					REFERENCE_NAME,
+					NamingConvention.generate(REFERENCE_NAME),
 					"description", "deprecationNotice",
-					"category", false,
 					Cardinality.ZERO_OR_MORE,
-					null, false,
-					ScopedReferenceIndexType.EMPTY,
-					Scope.NO_SCOPE,
+					"category",
+					NamingConvention.generate("category"),
+					false,
+					null,
+					Collections.emptyMap(),
+					false,
+					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Collections.emptySet(),
+					Collections.emptyMap(),
 					Map.of(
 						"filterableAttr",
 						AttributeSchema._internalBuild(
@@ -330,16 +339,21 @@ class SetReferenceSchemaIndexedMutationTest {
 			final ReferenceSchemaContract indexedReferenceWithFilterable =
 				ReferenceSchema._internalBuild(
 					REFERENCE_NAME,
+					NamingConvention.generate(REFERENCE_NAME),
 					"description", null,
-					"category", false,
 					Cardinality.ZERO_OR_MORE,
-					null, false,
-					new ScopedReferenceIndexType[]{
-						new ScopedReferenceIndexType(
-							Scope.LIVE, ReferenceIndexType.FOR_FILTERING
-						)
-					},
-					Scope.NO_SCOPE,
+					"category",
+					NamingConvention.generate("category"),
+					false,
+					null,
+					Collections.emptyMap(),
+					false,
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+					ReferenceSchema.defaultIndexedComponents(
+						Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					),
+					Collections.emptySet(),
+					Collections.emptyMap(),
 					Map.of(
 						"filterableAttr",
 						AttributeSchema._internalBuild(
@@ -395,12 +409,19 @@ class SetReferenceSchemaIndexedMutationTest {
 			final ReferenceSchemaContract referenceWithFilterable =
 				ReferenceSchema._internalBuild(
 					REFERENCE_NAME,
+					NamingConvention.generate(REFERENCE_NAME),
 					"description", "deprecationNotice",
-					"category", false,
 					Cardinality.ZERO_OR_MORE,
-					null, false,
-					ScopedReferenceIndexType.EMPTY,
-					Scope.NO_SCOPE,
+					"category",
+					NamingConvention.generate("category"),
+					false,
+					null,
+					Collections.emptyMap(),
+					false,
+					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Collections.emptySet(),
+					Collections.emptyMap(),
 					Map.of(
 						"filterableAttr",
 						AttributeSchema._internalBuild(
@@ -778,14 +799,21 @@ class SetReferenceSchemaIndexedMutationTest {
 			// Build a non-faceted but indexed reference (faceted would conflict with NONE)
 			final ReferenceSchemaContract nonFacetedIndexed = ReferenceSchema._internalBuild(
 				REFERENCE_NAME,
+				NamingConvention.generate(REFERENCE_NAME),
 				"description", null,
-				"category", false,
 				Cardinality.ZERO_OR_MORE,
-				null, false,
-				new ScopedReferenceIndexType[]{
-					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
-				},
-				Scope.NO_SCOPE,
+				"category",
+				NamingConvention.generate("category"),
+				false,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
 				Collections.emptyMap(), Collections.emptyMap()
 			);
 			// mutation sets LIVE to NONE but carries explicit LIVE components
@@ -835,6 +863,7 @@ class SetReferenceSchemaIndexedMutationTest {
 							Scope.LIVE, ReferenceIndexType.FOR_FILTERING
 						)
 					},
+					null,
 					Scope.NO_SCOPE,
 					Collections.emptyMap(), Collections.emptyMap(),
 					ReflectedReferenceSchemaContract.AttributeInheritanceBehavior
@@ -872,10 +901,15 @@ class SetReferenceSchemaIndexedMutationTest {
 				InvalidSchemaMutationException.class,
 				() -> ReferenceSchema._internalBuild(
 					REFERENCE_NAME,
+					NamingConvention.generate(REFERENCE_NAME),
 					"description", "deprecationNotice",
-					"category", false,
+					"category",
+					NamingConvention.generate("category"),
+					false,
 					Cardinality.ZERO_OR_MORE,
-					null, false,
+					null,
+					Collections.emptyMap(),
+					false,
 					// LIVE is NONE
 					ScopedReferenceIndexType.EMPTY,
 					// but explicit components declared for LIVE
@@ -888,6 +922,7 @@ class SetReferenceSchemaIndexedMutationTest {
 						)
 					},
 					Scope.NO_SCOPE,
+					null,
 					Collections.emptyMap(), Collections.emptyMap()
 				)
 			);
@@ -898,10 +933,15 @@ class SetReferenceSchemaIndexedMutationTest {
 		void shouldSucceedWhenInternalBuildComponentsMatchIndexedScopes() {
 			final ReferenceSchemaContract schema = ReferenceSchema._internalBuild(
 				REFERENCE_NAME,
+				NamingConvention.generate(REFERENCE_NAME),
 				"description", "deprecationNotice",
-				"category", false,
+				"category",
+				NamingConvention.generate("category"),
+				false,
 				Cardinality.ZERO_OR_MORE,
-				null, false,
+				null,
+				Collections.emptyMap(),
+				false,
 				new ScopedReferenceIndexType[]{
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
@@ -915,6 +955,7 @@ class SetReferenceSchemaIndexedMutationTest {
 					)
 				},
 				Scope.NO_SCOPE,
+				null,
 				Collections.emptyMap(), Collections.emptyMap()
 			);
 

@@ -23,12 +23,15 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
@@ -246,5 +249,74 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 						.i("order"))
 					.build()
 			);
+	}
+
+	/**
+	 * Verifies that output serialization includes FACETED_PARTIALLY_IN_SCOPES
+	 * when the mutation contains facetedPartially expressions.
+	 */
+	@Test
+	void shouldSerializeOutputWithFacetedPartially() {
+		final Expression expression = ExpressionFactory.parse("1 > 0");
+		final CreateReflectedReferenceSchemaMutation inputMutation =
+			new CreateReflectedReferenceSchemaMutation(
+				"tags",
+				"desc",
+				"depr",
+				Cardinality.ZERO_OR_MORE,
+				"tag",
+				"tags",
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(
+						Scope.LIVE,
+						ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+					)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				new ScopedFacetedPartially[]{
+					new ScopedFacetedPartially(Scope.LIVE, expression)
+				},
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				new String[]{"order"}
+			);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation =
+			(Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation).containsKey(
+			CreateReflectedReferenceSchemaMutationDescriptor
+				.FACETED_PARTIALLY_IN_SCOPES.name()
+		);
+	}
+
+	/**
+	 * Verifies that input parsing without FACETED_PARTIALLY_IN_SCOPES
+	 * produces a mutation with null facetedPartially (meaning inherited).
+	 */
+	@Test
+	void shouldResolveInputWithoutFacetedPartially() {
+		final CreateReflectedReferenceSchemaMutation convertedMutation =
+			this.converter.convertFromInput(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(CreateReflectedReferenceSchemaMutationDescriptor
+						.REFERENCED_ENTITY_TYPE.name(), "tag")
+					.e(CreateReflectedReferenceSchemaMutationDescriptor
+						.REFLECTED_REFERENCE_NAME.name(), "tags")
+					.e(CreateReflectedReferenceSchemaMutationDescriptor
+						.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(),
+						AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT)
+					.e(CreateReflectedReferenceSchemaMutationDescriptor
+						.FACETED_IN_SCOPES.name(), list().i(Scope.LIVE))
+					.build()
+			);
+
+		// facetedPartially is null when not provided (inherited)
+		// because the converter calls the 11-arg constructor which sets it to null
+		final ScopedFacetedPartially[] partiallyInScopes =
+			convertedMutation.getFacetedPartiallyInScopes();
+		// the 11-arg constructor delegates with null, resulting in null
+		assertThat(partiallyInScopes).isNull();
 	}
 }

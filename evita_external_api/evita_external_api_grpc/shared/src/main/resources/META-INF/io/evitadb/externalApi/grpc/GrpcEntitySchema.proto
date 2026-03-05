@@ -422,6 +422,8 @@ message GrpcReferenceSchema {
   // Contains true if the indexed components property settings of the reflected reference is
   // inherited from the target reference.
   bool indexedComponentsInherited = 30;
+  // Per-scope expressions that narrow which entities participate in faceting.
+  repeated GrpcScopedFacetedPartially facetedPartially = 31;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

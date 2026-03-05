@@ -234,6 +234,7 @@ public class RemoveAttributeSchemaMutation
 					referenceSchema.getReferenceIndexTypeInScopes(),
 					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
 					referenceSchema.getAttributes().values()
 						.stream()
 						.filter(it -> !it.getName().equals(this.name))

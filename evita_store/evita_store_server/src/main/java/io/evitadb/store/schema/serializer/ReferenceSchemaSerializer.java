@@ -30,32 +30,34 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Set;
 import java.util.function.Function;
 
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
-
-import java.util.Set;
-
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readFacetedPartiallyMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readIndexedComponentsMap;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readNameVariants;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopedReferenceIndexTypeArray;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readSortableAttributeCompounds;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeFacetedPartiallyMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeIndexedComponentsMap;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeNameVariants;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopedReferenceIndexTypeArray;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeSortableAttributeCompounds;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -71,36 +73,26 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 	@Override
 	public void write(Kryo kryo, Output output, ReferenceSchema referenceSchema) {
 		output.writeString(referenceSchema.getName());
-		output.writeVarInt(referenceSchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : referenceSchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
+		writeNameVariants(output, referenceSchema.getNameVariants());
 		output.writeString(referenceSchema.getReferencedEntityType());
 		output.writeBoolean(referenceSchema.isReferencedEntityTypeManaged());
 
 		final Map<NamingConvention, String> entityTypeNameVariants = referenceSchema.isReferencedEntityTypeManaged() ?
 			Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(IMPOSSIBLE_EXCEPTION_PRODUCER);
-		output.writeVarInt(entityTypeNameVariants.size(), true);
-		for (Entry<NamingConvention, String> entry : entityTypeNameVariants.entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
+		writeNameVariants(output, entityTypeNameVariants);
 		kryo.writeObject(output, referenceSchema.getCardinality());
 		output.writeString(referenceSchema.getReferencedGroupType());
 		output.writeBoolean(referenceSchema.isReferencedGroupTypeManaged());
 
 		final Map<NamingConvention, String> groupTypeNameVariants = referenceSchema.isReferencedGroupTypeManaged() ?
 			Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(IMPOSSIBLE_EXCEPTION_PRODUCER);
-		output.writeVarInt(groupTypeNameVariants.size(), true);
-		for (Entry<NamingConvention, String> entry : groupTypeNameVariants.entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
+		writeNameVariants(output, groupTypeNameVariants);
 
 		writeScopedReferenceIndexTypeArray(kryo, output, referenceSchema.getReferenceIndexTypeInScopes());
 		writeIndexedComponentsMap(kryo, output, referenceSchema.getIndexedComponentsInScopes());
 		writeScopeSet(kryo, output, referenceSchema.getFacetedInScopes());
+
+		writeFacetedPartiallyMap(kryo, output, referenceSchema.getFacetedPartiallyInScopes());
 
 		kryo.writeObject(output, referenceSchema.getAttributes());
 
@@ -117,63 +109,31 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			output.writeBoolean(false);
 		}
 
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = referenceSchema.getSortableAttributeCompounds();
-		output.writeVarInt(sortableAttributeCompounds.size(), true);
-		for (SortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
-			kryo.writeObject(output, sortableAttributeCompound);
-		}
-
+		writeSortableAttributeCompounds(kryo, output, referenceSchema.getSortableAttributeCompounds().values());
 	}
 
 	@Override
 	public ReferenceSchema read(Kryo kryo, Input input, Class<? extends ReferenceSchema> aClass) {
 		final String name = input.readString();
-		final int nameVariantCount = input.readVarInt(true);
-		final Map<NamingConvention, String> nameVariants = CollectionUtils.createLinkedHashMap(nameVariantCount);
-		for(int i = 0; i < nameVariantCount; i++) {
-			nameVariants.put(
-				NamingConvention.values()[input.readVarInt(true)],
-				input.readString()
-			);
-		}
+		final Map<NamingConvention, String> nameVariants = readNameVariants(input);
 		final String entityType = input.readString();
 		final boolean referencedEntityTypeManaged = input.readBoolean();
-		final int entityTypeNameVariantCount = input.readVarInt(true);
-		final Map<NamingConvention, String> entityTypeNameVariants = CollectionUtils.createLinkedHashMap(entityTypeNameVariantCount);
-		for(int i = 0; i < entityTypeNameVariantCount; i++) {
-			entityTypeNameVariants.put(
-				NamingConvention.values()[input.readVarInt(true)],
-				input.readString()
-			);
-		}
+		final Map<NamingConvention, String> entityTypeNameVariants = readNameVariants(input);
 		final Cardinality cardinality = kryo.readObject(input, Cardinality.class);
 		final String groupType = input.readString();
 		final boolean referencedGroupTypeManaged = input.readBoolean();
-		final int groupTypeNameVariantCount = input.readVarInt(true);
-		final Map<NamingConvention, String> groupTypeNameVariants = CollectionUtils.createLinkedHashMap(groupTypeNameVariantCount);
-		for(int i = 0; i < groupTypeNameVariantCount; i++) {
-			groupTypeNameVariants.put(
-				NamingConvention.values()[input.readVarInt(true)],
-				input.readString()
-			);
-		}
+		final Map<NamingConvention, String> groupTypeNameVariants = readNameVariants(input);
 		final Map<Scope, ReferenceIndexType> indexedInScopes = readScopedReferenceIndexTypeArray(kryo, input);
 		final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes = readIndexedComponentsMap(kryo, input);
 		final EnumSet<Scope> facetedInScopes = readScopeSet(kryo, input);
+
+		final Map<Scope, Expression> facetedPartiallyInScopes = readFacetedPartiallyMap(kryo, input);
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 
-		final int sortableAttributeCompoundsCount = input.readVarInt(true);
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
-		for (int i = 0; i < sortableAttributeCompoundsCount; i++) {
-			final SortableAttributeCompoundSchema sortableCompoundSchema = kryo.readObject(input, SortableAttributeCompoundSchema.class);
-			sortableAttributeCompounds.put(
-				sortableCompoundSchema.getName(),
-				sortableCompoundSchema
-			);
-		}
+		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = readSortableAttributeCompounds(kryo, input);
 
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
@@ -183,6 +143,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			indexedInScopes,
 			indexedComponentsInScopes,
 			facetedInScopes,
+			facetedPartiallyInScopes,
 			attributes, sortableAttributeCompounds
 		);
 	}

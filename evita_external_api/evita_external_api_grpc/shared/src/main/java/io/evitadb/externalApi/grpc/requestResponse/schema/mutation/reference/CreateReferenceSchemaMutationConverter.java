@@ -26,11 +26,13 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -78,6 +80,12 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 				mutation.getScopedIndexedComponentsList()
 			);
 
+		// Handle facetedPartially expressions
+		final ScopedFacetedPartially[] facetedPartiallyInScopes =
+			EntitySchemaConverter.parseFacetedPartially(
+				mutation.getFacetedPartiallyList()
+			);
+
 		return new CreateReferenceSchemaMutation(
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
@@ -89,7 +97,8 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			mutation.getReferencedGroupTypeManaged(),
 			indexedInScopes,
 			indexedComponentsInScopes,
-			facetedInScopes
+			facetedInScopes,
+			facetedPartiallyInScopes
 		);
 	}
 
@@ -136,6 +145,13 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			.ifPresent(components -> builder.addAllScopedIndexedComponents(
 				SetReferenceSchemaIndexedMutationConverter.toGrpcScopedIndexedComponents(components)
 			));
+
+		// Handle facetedPartially expressions
+		builder.addAllFacetedPartially(
+			SetReferenceSchemaFacetedMutationConverter.toGrpcScopedFacetedPartially(
+				mutation.getFacetedPartiallyInScopes()
+			)
+		);
 
 		return builder.build();
 	}

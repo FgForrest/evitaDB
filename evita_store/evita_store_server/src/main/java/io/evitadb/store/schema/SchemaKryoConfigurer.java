@@ -40,6 +40,8 @@ import io.evitadb.store.entity.serializer.EntitySchemaStoragePartSerializer;
 import io.evitadb.store.entity.serializer.EnumNameSerializer;
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.schema.serializer.*;
+import io.evitadb.store.shared.serializer.dataType.ExpressionSerializer;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.Assert;
 
 import java.util.function.Consumer;
@@ -90,7 +92,7 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 			new SerialVersionBasedSerializer<>(new ReferenceSchemaSerializer(), ReferenceSchema.class)
 				.addBackwardCompatibleSerializer(2018566260261489037L, new ReferenceSchemaSerializer_2024_11())
 				.addBackwardCompatibleSerializer(-5640763435228403921L, new ReferenceSchemaSerializer_2025_5())
-				.addBackwardCompatibleSerializer(6899584103779653340L, new ReferenceSchemaSerializer_2026_2()),
+				.addBackwardCompatibleSerializer(6899584103779653340L, new ReferenceSchemaSerializer_2026_1()),
 			index++
 		);
 		kryo.register(
@@ -109,7 +111,7 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 			new SerialVersionBasedSerializer<>(new ReflectedReferenceSchemaSerializer(), ReflectedReferenceSchema.class)
 				.addBackwardCompatibleSerializer(4857683151308476440L, new ReflectedReferenceSchemaSerializer_2024_11())
 				.addBackwardCompatibleSerializer(-9183685599546687429L, new ReflectedReferenceSchemaSerializer_2025_5())
-				.addBackwardCompatibleSerializer(4085419144686064539L, new ReflectedReferenceSchemaSerializer_2026_2()),
+				.addBackwardCompatibleSerializer(4085419144686064539L, new ReflectedReferenceSchemaSerializer_2026_1()),
 			index++
 		);
 		kryo.register(AttributeInheritanceBehavior.class, new EnumNameSerializer<>(), index++);
@@ -120,6 +122,7 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 			index++
 		);
 		kryo.register(ReferenceIndexedComponents.class, new EnumNameSerializer<>(), index++);
+		kryo.register(Expression.class, new SerialVersionBasedSerializer<>(new ExpressionSerializer(), Expression.class), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}
