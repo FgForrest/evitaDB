@@ -47,32 +47,44 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 /**
  * This array keeps unique (distinct) integer values in unordered fashion.
  *
- * This class envelopes simple primitive int array and makes it transactional. This means, that the array can be updated
- * by multiple writers and also multiple readers can read from it's original array without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * This class envelops a unique unordered int array and makes it transactional.
+ * This means, that the array can be updated by multiple writers and also
+ * multiple readers can read from its original array without spotting the changes
+ * made in transactional access. Each transaction is bound to the same thread and
+ * different threads don't see changes in other threads.
  *
- * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
- * safe for multiple writers!
+ * If no transaction is opened, changes are applied directly to the delegate
+ * array. In such case the class is not thread safe for multiple writers!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public class TransactionalUnorderedIntArray implements TransactionalLayerProducer<UnorderedIntArrayChanges, int[]>, Serializable {
+public class TransactionalUnorderedIntArray
+	implements TransactionalLayerProducer<UnorderedIntArrayChanges, int[]>,
+	Serializable {
 	@Serial private static final long serialVersionUID = 4753581686040233219L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final UnorderedLookup lookup;
 
+	/**
+	 * Creates an empty transactional unordered int array.
+	 */
 	public TransactionalUnorderedIntArray() {
 		this.lookup = new UnorderedLookup(ArrayUtils.EMPTY_INT_ARRAY);
 	}
 
-	public TransactionalUnorderedIntArray(int[] delegate) {
+	/**
+	 * Creates a transactional unordered int array wrapping the given delegate.
+	 *
+	 * @param delegate the initial unordered array of record ids
+	 */
+	public TransactionalUnorderedIntArray(@Nonnull int[] delegate) {
 		this.lookup = new UnorderedLookup(delegate);
 	}
 
 	/**
-	 * Returns array of positions that corresponds to the monotonic record id array {@link #getRecordIds()}.
+	 * Returns array of positions that corresponds to the monotonic
+	 * record id array {@link #getRecordIds()}.
 	 */
 	public int[] getPositions() {
 		return this.lookup.getPositions();
@@ -323,12 +335,14 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	}
 
 	/*
-		TRANSACTIONAL OBJECT IMPLEMENTATION
+		TransactionalLayerProducer implementation
 	 */
 
+	@Nullable
 	@Override
 	public UnorderedIntArrayChanges createLayer() {
-		return isTransactionAvailable() ? new UnorderedIntArrayChanges(this.lookup) : null;
+		return isTransactionAvailable()
+			? new UnorderedIntArrayChanges(this.lookup) : null;
 	}
 
 	@Override
@@ -338,7 +352,10 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 
 	@Nonnull
 	@Override
-	public int[] createCopyWithMergedTransactionalMemory(@Nullable UnorderedIntArrayChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public int[] createCopyWithMergedTransactionalMemory(
+		@Nullable UnorderedIntArrayChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		if (layer == null) {
 			return this.lookup.getArray();
 		} else {
