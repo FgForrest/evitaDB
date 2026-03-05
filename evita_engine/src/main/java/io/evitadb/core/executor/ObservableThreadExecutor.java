@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.requestResponse.progress.UnrejectableTask;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
+import io.evitadb.core.metric.event.system.ForkJoinPoolSaturatedEvent;
 import jdk.jfr.Event;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -147,7 +148,16 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 				options.minThreadCount(),
 				options.maxThreadCount(),
 				1,
-				pool -> true,
+				pool -> {
+					new ForkJoinPoolSaturatedEvent(name).commit();
+					log.warn(
+						"ObservableThreadExecutor ForkJoinPool `{}` saturated " +
+							"— all compensating threads exhausted, " +
+							"allowing current thread to block.",
+						name
+					);
+					return true;
+				},
 				60,
 				TimeUnit.SECONDS
 			);
