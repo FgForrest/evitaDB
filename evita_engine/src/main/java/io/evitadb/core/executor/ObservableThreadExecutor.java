@@ -147,7 +147,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 				options.minThreadCount(),
 				options.maxThreadCount(),
 				1,
-				null,
+				pool -> true,
 				60,
 				TimeUnit.SECONDS
 			);
