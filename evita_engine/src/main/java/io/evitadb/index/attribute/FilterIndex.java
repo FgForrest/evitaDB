@@ -112,7 +112,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	private final Class<?> attributeType;
 	/**
-	 * Instance of conversion function that converts the value before it's placed into internal index or looked up
+	 * Instance of conversion function that converts the value before it is placed into internal index or looked up
 	 * in it by {@link Comparator} interface.
 	 */
 	@Nonnull private final Function<Object, Serializable> normalizer;
@@ -790,7 +790,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 	@Nonnull
 	@Override
-	public FilterIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public FilterIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		// we can safely throw away dirty flag now
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new FilterIndex(

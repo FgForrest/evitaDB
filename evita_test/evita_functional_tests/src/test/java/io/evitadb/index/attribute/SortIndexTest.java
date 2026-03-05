@@ -24,16 +24,28 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.comparator.NullsFirstComparatorWrapper;
+import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.dataType.ComparableCurrency;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,18 +55,23 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static java.text.Normalizer.Form;
 import static java.text.Normalizer.normalize;
 import static org.junit.jupiter.api.Assertions.*;
@@ -158,7 +175,10 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldIndexCompoundRecordsAndReturnInAscendingOrder() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertArrayEquals(new int[]{8, 6, 4, 5, 1, 7, 3, 2, 9}, sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds());
+		assertArrayEquals(
+			new int[]{8, 6, 4, 5, 1, 7, 3, 2, 9},
+			sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+		);
 	}
 
 	@Test
@@ -225,7 +245,10 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldIndexCompoundRecordsAndReturnInDescendingOrder() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertArrayEquals(new int[]{9, 2, 3, 7, 1, 5, 4, 6, 8}, sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds());
+		assertArrayEquals(
+			new int[]{9, 2, 3, 7, 1, 5, 4, 6, 8},
+			sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+		);
 	}
 
 	@Test
@@ -346,7 +369,10 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			1_000,
-			new TestState(new StringBuilder(256), new SortIndex(String.class, new AttributeIndexKey(null, "whatever", null))),
+			new TestState(
+				new StringBuilder(256),
+				new SortIndex(String.class, new AttributeIndexKey(null, "whatever", null))
+			),
 			(random, testState) -> {
 				final StringBuilder ops = testState.code();
 				ops.append("final SortIndex sortIndex = new SortIndex(String.class);\n")
@@ -377,7 +403,9 @@ class SortIndexTest implements TimeBoundedTestSupport {
 									setToCompare.add(new ValueRecord(newValue, newRecId));
 									currentRecordSet.add(newRecId);
 
-									ops.append("sortIndex.addRecord(\"").append(newValue).append("\",").append(newRecId).append(");\n");
+									ops.append("sortIndex.addRecord(\"")
+										.append(newValue).append("\",")
+										.append(newRecId).append(");\n");
 									sortIndex.addRecord(newValue, newRecId);
 								} else {
 									// remove existing item
@@ -389,7 +417,9 @@ class SortIndexTest implements TimeBoundedTestSupport {
 									it.remove();
 									currentRecordSet.remove(valueToRemove.recordId());
 
-									ops.append("sortIndex.removeRecord(\"").append(valueToRemove.value()).append("\",").append(valueToRemove.recordId()).append(");\n");
+									ops.append("sortIndex.removeRecord(\"")
+										.append(valueToRemove.value()).append("\",")
+										.append(valueToRemove.recordId()).append(");\n");
 									sortIndex.removeRecord(valueToRemove.value(), valueToRemove.recordId());
 								}
 							}
@@ -403,8 +433,9 @@ class SortIndexTest implements TimeBoundedTestSupport {
 							expected,
 							committed.getAscendingOrderRecordsSupplier().getSortedRecordIds(),
 							"\nExpected: " + Arrays.toString(expected) + "\n" +
-								"Actual:  " + Arrays.toString(committed.getAscendingOrderRecordsSupplier().getSortedRecordIds()) + "\n\n" +
-								ops
+								"Actual:  " + Arrays.toString(
+								committed.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+							) + "\n\n" + ops
 						);
 
 						committedResult.set(
@@ -476,6 +507,684 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		sortIndex.addRecord(new Serializable[]{"C", 9}, 7);
 		sortIndex.addRecord(new Serializable[]{null, 3}, 8);
 		return sortIndex;
+	}
+
+	@Nested
+	@DisplayName("STM invariants")
+	class StmInvariantsTest {
+
+		@Test
+		@DisplayName("should assign unique id to each instance")
+		void shouldAssignUniqueIdToEachInstance() {
+			final SortIndex first = new SortIndex(Integer.class, new AttributeIndexKey(null, "x", null));
+			final SortIndex second = new SortIndex(Integer.class, new AttributeIndexKey(null, "y", null));
+
+			assertNotEquals(first.getId(), second.getId());
+		}
+
+		@Test
+		@DisplayName("should return same instance when no mutations applied")
+		void shouldReturnSameInstanceWhenNoMutationsApplied() {
+			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> {
+					// no mutations
+				},
+				(original, committed) -> assertSame(original, committed)
+			);
+		}
+
+		@Test
+		@DisplayName("should return new instance when dirty after commit")
+		void shouldReturnNewInstanceWhenDirtyAfterCommit() {
+			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> original.addRecord(42, 1),
+				(original, committed) -> {
+					assertNotSame(original, committed);
+					assertEquals(1, committed.size());
+					assertArrayEquals(new int[]{1}, committed.getSortedRecords());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should leave original unchanged after commit")
+		void shouldLeaveOriginalUnchangedAfterCommit() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("A", 1);
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> {
+					original.addRecord("B", 2);
+					original.addRecord("C", 3);
+				},
+				(original, committed) -> {
+					// original should still have only record 1
+					assertEquals(1, original.size());
+					assertArrayEquals(new int[]{1}, original.getSortedRecords());
+					// committed should have all 3
+					assertEquals(3, committed.size());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should discard changes after rollback")
+		void shouldDiscardChangesAfterRollback() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("X", 10);
+
+			assertStateAfterRollback(
+				sortIndex,
+				original -> {
+					original.addRecord("Y", 20);
+					original.addRecord("Z", 30);
+				},
+				(original, committed) -> {
+					// committed is null on rollback
+					assertNull(committed);
+					// original stays unchanged
+					assertEquals(1, original.size());
+					assertArrayEquals(new int[]{10}, original.getSortedRecords());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should deterministically commit add and remove")
+		void shouldDeterministicallyCommitAddAndRemove() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("A", 1);
+			sortIndex.addRecord("B", 2);
+			sortIndex.addRecord("C", 3);
+
+			assertStateAfterCommit(
+				sortIndex,
+				original -> {
+					original.addRecord("D", 4);
+					original.removeRecord("B", 2);
+				},
+				(original, committed) -> {
+					assertNotSame(original, committed);
+					assertArrayEquals(
+						new int[]{1, 3, 4},
+						committed.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+					);
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Functional gaps")
+	class FunctionalGapsTest {
+
+		@Test
+		@DisplayName("should report empty index correctly")
+		void shouldReportEmptyIndexCorrectly() {
+			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+
+			assertTrue(sortIndex.isEmpty());
+			assertEquals(0, sortIndex.size());
+		}
+
+		@Test
+		@DisplayName("should return null from createStoragePart when not dirty")
+		void shouldReturnNullFromCreateStoragePartWhenNotDirty() {
+			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+
+			final StoragePart storagePart = sortIndex.createStoragePart(1);
+			assertNull(storagePart);
+		}
+
+		@Test
+		@DisplayName("should return SortIndexStoragePart when dirty")
+		void shouldReturnStoragePartWhenDirty() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "name", null));
+			sortIndex.addRecord("Alpha", 1);
+			sortIndex.addRecord("Beta", 2);
+
+			final StoragePart storagePart = sortIndex.createStoragePart(42);
+			assertNotNull(storagePart);
+			assertInstanceOf(SortIndexStoragePart.class, storagePart);
+
+			final SortIndexStoragePart part = (SortIndexStoragePart) storagePart;
+			assertEquals(42, part.getEntityIndexPrimaryKey());
+			assertEquals(new AttributeIndexKey(null, "name", null), part.getAttributeIndexKey());
+			assertArrayEquals(new int[]{1, 2}, part.getSortedRecords());
+
+			// dirty is still true so subsequent call returns part
+			final StoragePart secondPart = sortIndex.createStoragePart(42);
+			assertNotNull(secondPart);
+		}
+
+		@Test
+		@DisplayName("should reset dirty flag via resetDirty()")
+		void shouldResetDirtyFlag() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("X", 1);
+
+			// dirty after add
+			assertNotNull(sortIndex.createStoragePart(1));
+
+			sortIndex.resetDirty();
+
+			// not dirty anymore
+			assertNull(sortIndex.createStoragePart(1));
+		}
+
+		@Test
+		@DisplayName("should cache sortIndexChanges in non-transactional mode")
+		void shouldCacheSortIndexChangesNonTransactional() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("A", 1);
+
+			// first call to ascending supplier creates changes
+			final SortedRecordsProvider first = sortIndex.getAscendingOrderRecordsSupplier();
+			assertNotNull(first);
+
+			// second call also works, uses cached changes
+			final SortedRecordsProvider second = sortIndex.getAscendingOrderRecordsSupplier();
+			assertNotNull(second);
+
+			// both return same record order
+			assertArrayEquals(first.getSortedRecordIds(), second.getSortedRecordIds());
+		}
+	}
+
+	@Nested
+	@DisplayName("Error guards")
+	class ErrorGuardsTest {
+
+		@Test
+		@DisplayName("should throw on duplicate recordId in scalar addRecord")
+		void shouldThrowOnDuplicateRecordIdScalar() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("A", 1);
+
+			final IllegalArgumentException ex = assertThrows(
+				IllegalArgumentException.class,
+				() -> sortIndex.addRecord("B", 1)
+			);
+			assertTrue(ex.getMessage().contains("already present"));
+		}
+
+		@Test
+		@DisplayName("should throw on duplicate recordId in array addRecord")
+		void shouldThrowOnDuplicateRecordIdArray() {
+			final SortIndex sortIndex = new SortIndex(
+				new ComparatorSource[]{
+					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				},
+				new AttributeIndexKey(null, "a", null)
+			);
+			sortIndex.addRecord(new Serializable[]{"A", 1}, 10);
+
+			final IllegalArgumentException ex = assertThrows(
+				IllegalArgumentException.class,
+				() -> sortIndex.addRecord(new Serializable[]{"B", 2}, 10)
+			);
+			assertTrue(ex.getMessage().contains("already present"));
+		}
+
+		@Test
+		@DisplayName("should throw when array passed as scalar value")
+		void shouldThrowWhenArrayPassedAsScalarValue() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+
+			// cast to Serializable to force the scalar overload
+			final Serializable arrayValue = new String[]{"A", "B"};
+			final IllegalArgumentException ex = assertThrows(
+				IllegalArgumentException.class,
+				() -> sortIndex.addRecord(arrayValue, 1)
+			);
+			assertTrue(ex.getMessage().contains("must not be an array"));
+		}
+
+		@Test
+		@DisplayName("should throw when wrong type passed to addRecord")
+		void shouldThrowWhenWrongTypePassed() {
+			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+
+			final IllegalArgumentException ex = assertThrows(
+				IllegalArgumentException.class,
+				() -> sortIndex.addRecord("not-an-int", 1)
+			);
+			assertTrue(ex.getMessage().contains("must be of type"));
+		}
+
+		@Test
+		@DisplayName("should throw when removing non-existent scalar value")
+		void shouldThrowOnRemoveNonExistentScalarValue() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("A", 1);
+
+			final IllegalArgumentException ex = assertThrows(
+				IllegalArgumentException.class,
+				() -> sortIndex.removeRecord("Z", 1)
+			);
+			assertTrue(ex.getMessage().contains("not present"));
+		}
+
+		@Test
+		@DisplayName("should throw when removing non-existent array value")
+		void shouldThrowOnRemoveNonExistentArrayValue() {
+			final SortIndex sortIndex = new SortIndex(
+				new ComparatorSource[]{
+					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				},
+				new AttributeIndexKey(null, "a", null)
+			);
+			sortIndex.addRecord(new Serializable[]{"A", 1}, 10);
+
+			final IllegalArgumentException ex = assertThrows(
+				IllegalArgumentException.class,
+				() -> sortIndex.removeRecord(new Serializable[]{"Z", 99}, 10)
+			);
+			assertTrue(ex.getMessage().contains("not present"));
+		}
+	}
+
+	@Nested
+	@DisplayName("Query edge cases")
+	class QueryEdgeCasesTest {
+
+		@Test
+		@DisplayName("should return EmptyBitmap for absent scalar value")
+		void shouldReturnEmptyBitmapForAbsentScalarValue() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			final Bitmap result = sortIndex.getRecordsEqualTo("Z");
+			assertSame(EmptyBitmap.INSTANCE, result);
+		}
+
+		@Test
+		@DisplayName("should return EmptyBitmap for absent compound value")
+		void shouldReturnEmptyBitmapForAbsentCompoundValue() {
+			final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
+
+			final Bitmap result = sortIndex.getRecordsEqualTo(new Serializable[]{"Z", 999});
+			assertSame(EmptyBitmap.INSTANCE, result);
+		}
+
+		@Test
+		@DisplayName("should handle cardinality exactly 2 removal correctly")
+		void shouldHandleCardinalityExactly2Removal() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("X", 1);
+			sortIndex.addRecord("X", 2);
+
+			// cardinality is 2
+			assertEquals(2, sortIndex.valueCardinalities.get("X"));
+
+			// remove one -- cardinality drops to 1, entry removed
+			sortIndex.removeRecord("X", 1);
+			assertNull(sortIndex.valueCardinalities.get("X"));
+
+			// still one record remains
+			assertEquals(1, sortIndex.size());
+			assertEquals(new BaseBitmap(2), sortIndex.getRecordsEqualTo("X"));
+		}
+	}
+
+	@Nested
+	@DisplayName("Seekers")
+	class SeekersTest {
+
+		@Test
+		@DisplayName("should reset and re-traverse forward seeker")
+		void shouldResetAndReTraverseForwardSeeker() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			final SortedComparableForwardSeeker seeker = sortIndex.createSortedComparableForwardSeeker();
+
+			// first traversal
+			final String[] firstPass = new String[sortIndex.size()];
+			for (int i = 0; i < sortIndex.size(); i++) {
+				firstPass[i] = (String) seeker.getValueToCompareOn(i);
+			}
+
+			// reset
+			seeker.reset();
+
+			// second traversal
+			final String[] secondPass = new String[sortIndex.size()];
+			for (int i = 0; i < sortIndex.size(); i++) {
+				secondPass[i] = (String) seeker.getValueToCompareOn(i);
+			}
+
+			assertArrayEquals(firstPass, secondPass);
+			assertArrayEquals(
+				new String[]{"A", "B", "B", "C", "C", "C", "C", "E"},
+				firstPass
+			);
+		}
+
+		@Test
+		@DisplayName("should throw on out-of-bounds for forward seeker")
+		void shouldThrowOnOutOfBoundsForwardSeeker() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			final SortedComparableForwardSeeker seeker = sortIndex.createSortedComparableForwardSeeker();
+
+			assertThrows(ArrayIndexOutOfBoundsException.class, () -> seeker.getValueToCompareOn(-1));
+		}
+
+		@Test
+		@DisplayName("should reset and re-traverse reversed seeker")
+		void shouldResetAndReTraverseReversedSeeker() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			final SortedComparableForwardSeeker seeker =
+				sortIndex.createReversedSortedComparableForwardSeeker();
+
+			// first traversal
+			final String[] firstPass = new String[sortIndex.size()];
+			for (int i = 0; i < sortIndex.size(); i++) {
+				firstPass[i] = (String) seeker.getValueToCompareOn(i);
+			}
+
+			// reset
+			seeker.reset();
+
+			// second traversal
+			final String[] secondPass = new String[sortIndex.size()];
+			for (int i = 0; i < sortIndex.size(); i++) {
+				secondPass[i] = (String) seeker.getValueToCompareOn(i);
+			}
+
+			assertArrayEquals(firstPass, secondPass);
+			assertArrayEquals(
+				new String[]{"E", "C", "C", "C", "C", "B", "B", "A"},
+				firstPass
+			);
+		}
+
+		@Test
+		@DisplayName("should throw on out-of-bounds for reversed seeker")
+		void shouldThrowOnOutOfBoundsReversedSeeker() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+			final SortedComparableForwardSeeker seeker =
+				sortIndex.createReversedSortedComparableForwardSeeker();
+
+			assertThrows(ArrayIndexOutOfBoundsException.class, () -> seeker.getValueToCompareOn(-1));
+		}
+
+		@Test
+		@DisplayName("should create seeker via factory methods on SortIndex")
+		void shouldCreateSeekerViaFactoryMethods() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			final SortedComparableForwardSeeker forward = sortIndex.createSortedComparableForwardSeeker();
+			assertNotNull(forward);
+
+			final SortedComparableForwardSeeker reversed =
+				sortIndex.createReversedSortedComparableForwardSeeker();
+			assertNotNull(reversed);
+		}
+	}
+
+	@Nested
+	@DisplayName("Construction and configuration")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should invert positions correctly")
+		void shouldInvertPositionsCorrectly() {
+			final int[] original = {0, 1, 2, 3, 4};
+			final int[] inverted = SortIndex.invert(original);
+
+			assertArrayEquals(new int[]{4, 3, 2, 1, 0}, inverted);
+		}
+
+		@Test
+		@DisplayName("should invert single-element array")
+		void shouldInvertSingleElementArray() {
+			final int[] original = {0};
+			final int[] inverted = SortIndex.invert(original);
+
+			assertArrayEquals(new int[]{0}, inverted);
+		}
+
+		@Test
+		@DisplayName("should create normalizer for BigDecimal type")
+		void shouldCreateNormalizerForBigDecimal() {
+			final ComparatorSource source =
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+
+			// BigDecimal "1.10" and "1.1" normalize to same value
+			final Serializable normalized1 = normalizer.apply(new BigDecimal("1.10"));
+			final Serializable normalized2 = normalizer.apply(new BigDecimal("1.1"));
+			assertEquals(normalized1, normalized2);
+
+			// null input returns null
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("should create normalizer for Locale type")
+		void shouldCreateNormalizerForLocale() {
+			final ComparatorSource source =
+				new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+
+			final Serializable result = normalizer.apply(Locale.ENGLISH);
+			assertInstanceOf(ComparableLocale.class, result);
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("should create normalizer for Currency type")
+		void shouldCreateNormalizerForCurrency() {
+			final ComparatorSource source =
+				new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+
+			final Serializable result = normalizer.apply(Currency.getInstance("USD"));
+			assertInstanceOf(ComparableCurrency.class, result);
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("should create normalizer for String type")
+		void shouldCreateNormalizerForString() {
+			final ComparatorSource source =
+				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
+
+			final Serializable result = normalizer.apply("\u00e9"); // e-acute
+			assertNotNull(result);
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("should return empty normalizer for Integer type")
+		void shouldReturnEmptyNormalizerForInteger() {
+			final ComparatorSource source =
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
+		}
+
+		@SuppressWarnings("rawtypes")
+		@Test
+		@DisplayName("should create NULLS_FIRST ASC comparator")
+		void shouldCreateNullsFirstAscComparator() {
+			final ComparatorSource source =
+				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST);
+			final Comparator comparator = SortIndex.createComparatorFor(null, source);
+
+			assertInstanceOf(NullsFirstComparatorWrapper.class, comparator);
+			// null should come before any value
+			assertTrue(comparator.compare(null, "A") < 0);
+		}
+
+		@SuppressWarnings("rawtypes")
+		@Test
+		@DisplayName("should create NULLS_LAST DESC comparator")
+		void shouldCreateNullsLastDescComparator() {
+			final ComparatorSource source =
+				new ComparatorSource(String.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST);
+			final Comparator<String> comparator = SortIndex.createComparatorFor(null, source);
+
+			assertInstanceOf(NullsLastComparatorWrapper.class, comparator);
+			// null should come after any value (last)
+			assertTrue(comparator.compare(null, "A") > 0);
+			// DESC: "B" < "A" (reversed)
+			assertTrue(comparator.compare("B", "A") < 0);
+		}
+
+		@SuppressWarnings("rawtypes")
+		@Test
+		@DisplayName("should create NULLS_FIRST DESC comparator")
+		void shouldCreateNullsFirstDescComparator() {
+			final ComparatorSource source =
+				new ComparatorSource(String.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST);
+			final Comparator comparator = SortIndex.createComparatorFor(null, source);
+
+			assertInstanceOf(NullsFirstComparatorWrapper.class, comparator);
+			// null should come first
+			assertTrue(comparator.compare(null, "A") < 0);
+			// DESC: "B" < "A" (reversed)
+			assertTrue(comparator.compare("B", "A") < 0);
+		}
+
+		@SuppressWarnings("rawtypes")
+		@Test
+		@DisplayName("should create NULLS_LAST ASC comparator")
+		void shouldCreateNullsLastAscComparator() {
+			final ComparatorSource source =
+				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final Comparator comparator = SortIndex.createComparatorFor(null, source);
+
+			assertInstanceOf(NullsLastComparatorWrapper.class, comparator);
+			// null should come last
+			assertTrue(comparator.compare(null, "A") > 0);
+			// ASC: "A" < "B"
+			assertTrue(comparator.compare("A", "B") < 0);
+		}
+
+		@Test
+		@DisplayName("should throw for non-Comparable type in ComparatorSource")
+		void shouldThrowForNonComparableType() {
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> new ComparatorSource(Object.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			);
+		}
+
+		@Test
+		@DisplayName("should throw when multi-field constructor receives single comparator")
+		void shouldThrowWhenSingleComparatorPassedToMultiField() {
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> new SortIndex(
+					new ComparatorSource[]{
+						new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+					},
+					new AttributeIndexKey(null, "a", null)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should construct via 6-arg deserialization constructor")
+		void shouldConstructViaDeserializationConstructor() {
+			final ComparatorSource[] base = new ComparatorSource[]{
+				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			final Map<Serializable, Integer> cardinalities = new HashMap<>(4);
+			cardinalities.put("B", 2);
+
+			final SortIndex sortIndex = new SortIndex(
+				base, null,
+				new AttributeIndexKey(null, "a", null),
+				new int[]{1, 2, 3},
+				new String[]{"A", "B"},
+				cardinalities
+			);
+
+			assertEquals(3, sortIndex.size());
+			assertFalse(sortIndex.isEmpty());
+			assertArrayEquals(new int[]{1, 2, 3}, sortIndex.getSortedRecords());
+			assertArrayEquals(new String[]{"A", "B"}, sortIndex.getSortedRecordValues());
+		}
+
+		@Test
+		@DisplayName("should return reference key from referenceKey constructor")
+		void shouldReturnReferenceKeyFromConstructor() {
+			final RepresentativeReferenceKey refKey = new RepresentativeReferenceKey(new ReferenceKey("brand", 1));
+			final SortIndex sortIndex = new SortIndex(
+				String.class, refKey, new AttributeIndexKey(null, "name", null)
+			);
+
+			assertNotNull(sortIndex.getReferenceKey());
+			assertSame(refKey, sortIndex.getReferenceKey());
+		}
+
+		@Test
+		@DisplayName("should return null referenceKey for non-reference constructor")
+		void shouldReturnNullReferenceKeyForNonReference() {
+			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "name", null));
+
+			assertNull(sortIndex.getReferenceKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("ComparableArray contract")
+	class ComparableArrayTest {
+
+		@Test
+		@DisplayName("should have consistent equals for same arrays")
+		void shouldHaveConsistentEquals() {
+			final ComparableArray a = new ComparableArray(new Serializable[]{"A", 1});
+			final ComparableArray b = new ComparableArray(new Serializable[]{"A", 1});
+
+			assertEquals(a, b);
+			assertEquals(a.hashCode(), b.hashCode());
+		}
+
+		@Test
+		@DisplayName("should not equal for different arrays")
+		void shouldNotEqualForDifferentArrays() {
+			final ComparableArray a = new ComparableArray(new Serializable[]{"A", 1});
+			final ComparableArray b = new ComparableArray(new Serializable[]{"B", 2});
+
+			assertNotEquals(a, b);
+		}
+
+		@Test
+		@DisplayName("should produce readable toString")
+		void shouldProduceReadableToString() {
+			final ComparableArray arr = new ComparableArray(new Serializable[]{"Hello", 42});
+
+			final String result = arr.toString();
+			assertTrue(result.contains("Hello"));
+			assertTrue(result.contains("42"));
+		}
+
+		@Test
+		@DisplayName("should handle reflexive equals")
+		void shouldHandleReflexiveEquals() {
+			final ComparableArray a = new ComparableArray(new Serializable[]{"X"});
+
+			assertEquals(a, a);
+		}
+
+		@Test
+		@DisplayName("should handle null and different type in equals")
+		void shouldHandleNullAndDifferentTypeInEquals() {
+			final ComparableArray a = new ComparableArray(new Serializable[]{"X"});
+
+			assertNotEquals(null, a);
+			assertNotEquals("not-a-comparable-array", a);
+		}
 	}
 
 	private record TestState(

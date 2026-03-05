@@ -525,8 +525,8 @@ public class ChainIndex implements
 	 */
 
 	/**
-	 * Retrieves or creates temporary data structure. When transaction exists it's created in the transactional memory
-	 * space so that other threads are not affected by the changes in the {@link SortIndex}.
+	 * Retrieves or creates temporary data structure. When transaction exists, it is created in the transactional memory
+	 * space so that other threads are not affected by the changes in the {@link ChainIndex}.
 	 */
 	@Nonnull
 	private ChainIndexChanges getOrCreateChainIndexChanges() {

@@ -85,7 +85,7 @@ import static java.util.Optional.ofNullable;
  *
  * Histogram supports transaction memory. This means, that the histogram can be updated by multiple writers and also
  * multiple readers can read from its original array without spotting the changes made in transactional access. Each
- * transaction is bound to the same thread and different threads doesn't see changes in another threads.
+ * transaction is bound to the same thread and different threads don't see changes in other threads.
  *
  * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
  * safe for multiple writers!
@@ -238,7 +238,7 @@ public class AttributeIndex implements AttributeIndexContract,
 	 * in the sense that it creates locale specific key only if {@link AttributeSchemaContract#isUniqueWithinLocale()} is true.
 	 *
 	 * @param referenceSchema The reference schema contract that is envelope for attribute schema contract,
-	 *                        can be null when attribute is definedon entity level.
+	 *                        can be null when attribute is defined on entity level.
 	 * @param attributeSchema The attribute schema contract.
 	 * @param allowedLocales  The set of allowed locales.
 	 * @param scope           The scope in which the uniqueness is enforced.
@@ -751,7 +751,10 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Nonnull
 	@Override
-	public AttributeIndex createCopyWithMergedTransactionalMemory(AttributeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public AttributeIndex createCopyWithMergedTransactionalMemory(
+		@Nullable AttributeIndexChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		final AttributeIndex attributeIndex = new AttributeIndex(
 			this.entityType,
 			this.referenceKey,
