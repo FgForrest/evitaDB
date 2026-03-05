@@ -42,34 +42,50 @@ import java.util.PrimitiveIterator.OfInt;
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
- * This class envelopes simple primitive int bitmap and makes it transactional. This means, that the bitmap can be updated
- * by multiple writers and also multiple readers can read from its original array without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * This class envelops simple primitive int bitmap and makes it transactional. This means, that the bitmap can be
+ * updated by multiple writers and also multiple readers can read from its original array without spotting the changes
+ * made in transactional access. Each transaction is bound to the same thread and different threads don't see changes
+ * in other threads.
  *
- * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
- * safe for multiple writers!
+ * If no transaction is opened, changes are applied directly to the delegate bitmap. In such case the class is not
+ * thread safe for multiple writers!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public class TransactionalBitmap implements RoaringBitmapBackedBitmap, TransactionalLayerProducer<BitmapChanges, Bitmap>, Serializable {
+public class TransactionalBitmap
+	implements RoaringBitmapBackedBitmap,
+	TransactionalLayerProducer<BitmapChanges, Bitmap>,
+	Serializable {
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final RoaringBitmap roaringBitmap;
 	private volatile int memoizedCardinality;
 
+	/**
+	 * Creates a new empty transactional bitmap.
+	 */
 	public TransactionalBitmap() {
 		this.roaringBitmap = new RoaringBitmap();
 		this.memoizedCardinality = 0;
 	}
 
-	public TransactionalBitmap(int... recordIds) {
+	/**
+	 * Creates a transactional bitmap pre-populated with the given record ids.
+	 *
+	 * @param recordIds initial record ids to add
+	 */
+	public TransactionalBitmap(@Nonnull int... recordIds) {
 		this.roaringBitmap = new RoaringBitmap();
 		this.roaringBitmap.add(recordIds);
 		this.memoizedCardinality = this.roaringBitmap.getCardinality();
 	}
 
+	/**
+	 * Creates a transactional bitmap copied from the given bitmap.
+	 *
+	 * @param bitmap source bitmap to copy
+	 */
 	public TransactionalBitmap(@Nonnull Bitmap bitmap) {
 		final RoaringBitmap theRoaringBitmap;
 		if (bitmap instanceof RoaringBitmapBackedBitmap) {
@@ -88,7 +104,9 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Nonnull
 	@Override
-	public RoaringBitmapBackedBitmap createCopyWithMergedTransactionalMemory(@Nullable BitmapChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public RoaringBitmapBackedBitmap createCopyWithMergedTransactionalMemory(
+		@Nullable BitmapChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		if (layer == null) {
 			return this;
 		} else {
@@ -117,7 +135,6 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			final boolean added = this.roaringBitmap.checkedAdd(recordId);
-			//noinspection UnnecessaryLocalVariable
 			final int newCardinality = added ? -1 : this.memoizedCardinality;
 			this.memoizedCardinality = newCardinality;
 			return added;
@@ -159,7 +176,6 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			final boolean removed = this.roaringBitmap.checkedRemove(recordId);
-			//noinspection UnnecessaryLocalVariable
 			final int newCardinality = removed ? -1 : this.memoizedCardinality;
 			this.memoizedCardinality = newCardinality;
 			return removed;
@@ -316,10 +332,10 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		TransactionalBitmap that = (TransactionalBitmap) o;
+		final TransactionalBitmap that = (TransactionalBitmap) o;
 		return this.roaringBitmap.equals(that.roaringBitmap);
 	}
 
@@ -329,14 +345,13 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 		return Arrays.toString(theBitmap.toArray());
 	}
 
+	@Nonnull
 	private RoaringBitmap getTheCurrentBitmap() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
-		final RoaringBitmap theBitmap;
 		if (layer == null) {
-			theBitmap = this.roaringBitmap;
+			return this.roaringBitmap;
 		} else {
-			theBitmap = layer.getMergedBitmap();
+			return layer.getMergedBitmap();
 		}
-		return theBitmap;
 	}
 }

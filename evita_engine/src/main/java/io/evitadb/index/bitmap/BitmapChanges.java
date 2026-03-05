@@ -30,7 +30,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * This class/objects holds transactional changes upon read-only bitmap implementation.
+ * Collects insertions and removals recorded against a {@link TransactionalBitmap} during a transaction. On commit,
+ * the diff is merged with the immutable baseline via {@link #getMergedBitmap()}. Results are memoized until the next
+ * modification.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -41,11 +43,11 @@ public class BitmapChanges {
 	 */
 	private final RoaringBitmap originalBitmap;
 	/**
-	 * IntegerBitmap of records ids added to the bitmap.
+	 * RoaringBitmap of record ids added to the bitmap.
 	 */
 	private final RoaringBitmap insertions = new RoaringBitmap();
 	/**
-	 * IntegerBitmap of record ids removed from the bitmap.
+	 * RoaringBitmap of record ids removed from the bitmap.
 	 */
 	private final RoaringBitmap removals = new RoaringBitmap();
 	/**
@@ -54,7 +56,12 @@ public class BitmapChanges {
 	 */
 	@Nullable private volatile RoaringBitmap memoizedMergedBitmap;
 
-	BitmapChanges(RoaringBitmap original) {
+	/**
+	 * Creates a new diff layer over the given immutable baseline bitmap.
+	 *
+	 * @param original the immutable baseline bitmap
+	 */
+	BitmapChanges(@Nonnull RoaringBitmap original) {
 		this.originalBitmap = original;
 	}
 
@@ -73,7 +80,7 @@ public class BitmapChanges {
 
 	/**
 	 * Returns true if passed recordId is part of the modified delegate bitmap. I.e. whether it was newly inserted or
-	 * contained in original bitmap and not removed so far.
+	 * contained in the original bitmap and not removed so far.
 	 */
 	boolean contains(int recordId) {
 		final boolean originalContainsRecord = this.originalBitmap.contains(recordId);
@@ -92,14 +99,13 @@ public class BitmapChanges {
 		// remove removal order for the record id if exists
 		final boolean removalRemoved = this.removals.checkedRemove(recordId);
 		// add insertion order for the record id
-		if (!this.originalBitmap.contains(recordId) && this.insertions.checkedAdd(recordId)) {
+		final boolean inserted = !this.originalBitmap.contains(recordId) && this.insertions.checkedAdd(recordId);
+		if (inserted || removalRemoved) {
 			// nullify memoized result that becomes obsolete by this operation
 			this.memoizedMergedBitmap = null;
 			return true;
 		} else {
-			// nullify memoized result that becomes obsolete by this operation
-			this.memoizedMergedBitmap = null;
-			return removalRemoved;
+			return false;
 		}
 	}
 
@@ -120,8 +126,8 @@ public class BitmapChanges {
 	}
 
 	/**
-	 * This method computes new bitmap from the immutable original bitmap and the set of insertions / removals made upon
-	 * it.
+	 * This method computes a new bitmap from the immutable original bitmap and the set of insertions / removals made
+	 * upon it.
 	 */
 	@Nonnull
 	RoaringBitmap getMergedBitmap() {
@@ -137,6 +143,7 @@ public class BitmapChanges {
 					RoaringBitmap.or(this.originalBitmap, this.insertions),
 					this.removals
 				);
+				// compress run containers for better memory and iteration performance
 				mergedBitmap.runOptimize();
 				this.memoizedMergedBitmap = mergedBitmap;
 				return mergedBitmap;
@@ -150,7 +157,10 @@ public class BitmapChanges {
 	 * Computes length of the bitmap with all requested changes applied.
 	 */
 	int getMergedLength() {
-		return this.originalBitmap.getCardinality() - this.removals.getCardinality() + this.insertions.getCardinality();
+		// correct because insertions never overlap with originalBitmap (enforced by addRecordId)
+		return this.originalBitmap.getCardinality()
+			- this.removals.getCardinality()
+			+ this.insertions.getCardinality();
 	}
 
 }
