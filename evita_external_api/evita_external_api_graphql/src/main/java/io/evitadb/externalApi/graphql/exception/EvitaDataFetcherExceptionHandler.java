@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.exception;
 
 import com.linecorp.armeria.common.stream.ClosedStreamException;
+import com.linecorp.armeria.server.RequestTimeoutException;
 import graphql.GraphQLContext;
 import graphql.execution.DataFetcherExceptionHandler;
 import graphql.execution.DataFetcherExceptionHandlerParameters;
@@ -48,7 +49,8 @@ import java.util.concurrent.CompletionException;
 /**
  * Handles all exceptions occurred during query executions. Internal errors of GraphQL are logged and exceptions
  * from external libraries are treated like internal errors. Client-initiated cancellations (e.g., HTTP/2
- * RST_STREAM CANCEL) are logged at DEBUG level and not treated as server errors.
+ * RST_STREAM CANCEL) are logged at DEBUG level and not treated as server errors. Server-enforced request timeouts
+ * are logged at WARN level and reported with a `TIMEOUT` response status.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -79,6 +81,29 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 
 			return CompletableFuture.completedFuture(DataFetcherExceptionHandlerResult.newResult()
 				.error(error)
+				.build());
+		}
+
+		// server-enforced request timeout — expected, but worth noting
+		if (isServerTimeout(exception)) {
+			log.warn("GraphQL request timed out: {}", exception.getMessage());
+
+			final GraphQLContext graphQlTimeoutContext = handlerParameters.getDataFetchingEnvironment().getGraphQlContext();
+
+			final ExecutedEvent timeoutExecutedEvent = graphQlTimeoutContext.get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+			if (timeoutExecutedEvent != null) {
+				timeoutExecutedEvent.provideResponseStatus(ResponseStatus.TIMEOUT);
+			}
+
+			final EvitaGraphQLError timeoutError = new EvitaGraphQLError(
+				"Request timed out.",
+				handlerParameters.getSourceLocation(),
+				handlerParameters.getPath().toList(),
+				Map.of("errorCode", "REQUEST_TIMEOUT")
+			);
+
+			return CompletableFuture.completedFuture(DataFetcherExceptionHandlerResult.newResult()
+				.error(timeoutError)
 				.build());
 		}
 
@@ -162,5 +187,15 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 	private static boolean isClientCancellation(@Nonnull Throwable exception) {
 		return ExceptionUtils.causeChainContains(exception, ClosedStreamException.class)
 			|| ExceptionUtils.causeChainContains(exception, CancellationException.class);
+	}
+
+	/**
+	 * Checks whether the given exception represents a server-enforced request timeout.
+	 *
+	 * @param exception the exception to check
+	 * @return true if the exception indicates a server-side request timeout
+	 */
+	private static boolean isServerTimeout(@Nonnull Throwable exception) {
+		return ExceptionUtils.causeChainContains(exception, RequestTimeoutException.class);
 	}
 }
