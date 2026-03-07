@@ -61,7 +61,7 @@ import static java.util.Optional.ofNullable;
 public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupIndexChanges, FacetGroupIndex>, IndexDataStructure {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
-	 * Contains primary key of the group. Might contain NULL if the group index encloses facets wouth group assignment.
+	 * Contains primary key of the group. Might contain NULL if the group index encloses facets without group assignment.
 	 */
 	@Nullable private final Integer groupId;
 	/**
@@ -224,7 +224,10 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 
 	@Nonnull
 	@Override
-	public FacetGroupIndex createCopyWithMergedTransactionalMemory(@Nullable FacetGroupIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public FacetGroupIndex createCopyWithMergedTransactionalMemory(
+		@Nullable FacetGroupIndexChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		final Map<Integer, FacetIdIndex> stateCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.facetIdIndexes);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return new FacetGroupIndex(this.groupId, stateCopy);
