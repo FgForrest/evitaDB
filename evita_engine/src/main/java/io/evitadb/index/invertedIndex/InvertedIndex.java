@@ -73,8 +73,8 @@ import java.util.function.Function;
  * Thread safety:
  *
  * Histogram supports transaction memory. This means, that the histogram can be updated by multiple writers and also
- * multiple readers can read from it's original array without spotting the changes made in transactional access. Each
- * transaction is bound to the same thread and different threads doesn't see changes in another threads.
+ * multiple readers can read from its original array without spotting the changes made in transactional access. Each
+ * transaction is bound to the same thread and different threads don't see changes in other threads.
  *
  * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
  * safe for multiple writers!
@@ -144,7 +144,10 @@ public class InvertedIndex implements
 			Serializable finalPrevious = previous;
 			//noinspection unchecked
 			if (!(previous == null || comparator.compare(previous, bucket.getValue()) < 0)) {
-				report.append("Histogram values are not monotonic - conflicting values: ").append(finalPrevious).append(", ").append(bucket.getValue()).append(".\n");
+				report.append("Histogram values are not monotonic - ")
+					.append("conflicting values: ")
+					.append(finalPrevious).append(", ")
+					.append(bucket.getValue()).append(".\n");
 			}
 			previous = bucket.getValue();
 		}
@@ -418,14 +421,14 @@ public class InvertedIndex implements
 		this.dirty.setToFalse();
 	}
 
-	/*
-		Implementation of TransactionalLayerProducer
-	 */
-
 	@Nonnull
 	@Override
-	public InvertedIndex createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+	public InvertedIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		final boolean isDirty = transactionalLayer
+			.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new InvertedIndex(
 				transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap),
@@ -479,7 +482,11 @@ public class InvertedIndex implements
 	 * Returns array of all {@link ValueToRecordBitmap} in the range.
 	 */
 	@Nonnull
-	private ValueToRecordBitmap[] getRecordsInternal(@Nullable Serializable moreThanEq, @Nullable Serializable lessThanEq, @Nonnull BoundsHandling boundsHandling) {
+	private ValueToRecordBitmap[] getRecordsInternal(
+		@Nullable Serializable moreThanEq,
+		@Nullable Serializable lessThanEq,
+		@Nonnull BoundsHandling boundsHandling
+	) {
 		final HistogramBounds histogramBounds = new HistogramBounds(
 			this.valueToRecordBitmap.getArray(),
 			this.normalizer.apply(moreThanEq),

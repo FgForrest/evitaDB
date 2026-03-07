@@ -36,11 +36,11 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Objects;
 
 /**
  * Histogram point represents single "bucket" in {@link InvertedIndex} representing single {@link Comparable} {@link #value}
@@ -113,7 +113,11 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	 * Histogram point in the argument is required to have same value as this point.
 	 */
 	public void add(@Nonnull ValueToRecordBitmap histogramBucket) {
-		Assert.isTrue(this.value.equals(histogramBucket.value), "Values of the histogram point differs: " + this.value + " vs. " + histogramBucket.value);
+		Assert.isTrue(
+			this.value.equals(histogramBucket.value),
+			"Values of the histogram point differs: "
+				+ this.value + " vs. " + histogramBucket.value
+		);
 		this.recordIds.addAll(histogramBucket.getRecordIds());
 	}
 
@@ -122,7 +126,11 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	 * Histogram point in the argument is required to have same value as this point.
 	 */
 	public void remove(@Nonnull ValueToRecordBitmap histogramBucket) {
-		Assert.isTrue(this.value.equals(histogramBucket.value), "Values of the histogram point differs: " + this.value + " vs. " + histogramBucket.value);
+		Assert.isTrue(
+			this.value.equals(histogramBucket.value),
+			"Values of the histogram point differs: "
+				+ this.value + " vs. " + histogramBucket.value
+		);
 		this.recordIds.removeAll(histogramBucket.getRecordIds());
 	}
 
@@ -153,7 +161,7 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	/**
 	 * Returns true if passed histogram bucket is equal not only by value but also by all assigned record ids.
 	 */
-	public boolean deepEquals(Object o) {
+	public boolean deepEquals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		final ValueToRecordBitmap that = (ValueToRecordBitmap) o;
@@ -162,11 +170,11 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.value);
+		return this.value.hashCode();
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		final ValueToRecordBitmap that = (ValueToRecordBitmap) o;
@@ -187,7 +195,10 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 
 	@Nonnull
 	@Override
-	public ValueToRecordBitmap createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public ValueToRecordBitmap createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		return new ValueToRecordBitmap(
 			this.value,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds)
