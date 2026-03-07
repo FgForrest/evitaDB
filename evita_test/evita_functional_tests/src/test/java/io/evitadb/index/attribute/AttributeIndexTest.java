@@ -62,7 +62,7 @@ import static org.mockito.Mockito.when;
  * operations, STM commit/rollback, static utility methods, predecessor routing,
  * storage parts, and error paths.
  *
- * @author Claude Code Quality Pipeline
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @SuppressWarnings("SameParameterValue")
 @DisplayName("AttributeIndex")

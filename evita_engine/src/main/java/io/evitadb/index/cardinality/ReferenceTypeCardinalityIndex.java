@@ -81,8 +81,8 @@ public class ReferenceTypeCardinalityIndex
 	 * A variable that holds the cardinalities of different entities.
 	 *
 	 * The TransactionalMap is a map-like data structure that allows concurrent access and modification
-	 * of the cardinalities in a transactional manner. Each cardinality is associated with a AttributeCardinalityKey,
-	 * which uniquely identifies the entity for which the cardinality is being stored.
+	 * of the cardinalities in a transactional manner. Each cardinality is associated with a composed
+	 * long key, which uniquely identifies the entity for which the cardinality is being stored.
 	 */
 	private final TransactionalMap<Long, Integer> cardinalities;
 	/**
@@ -181,9 +181,11 @@ public class ReferenceTypeCardinalityIndex
 			// clean up empty bitmap to avoid memory leaks
 			if (indexIdBitmap.isEmpty()) {
 				final TransactionalBitmap removedBitmap = this.referencedPrimaryKeysIndex.remove(referencedEntityPrimaryKey);
-				final TransactionalLayerMaintainer transactionalLayer = Transaction.getTransactionalLayerMaintainer();
-				if (transactionalLayer != null) {
-					removedBitmap.removeLayer(transactionalLayer);
+				if (removedBitmap != null) {
+					final TransactionalLayerMaintainer transactionalLayer = Transaction.getTransactionalLayerMaintainer();
+					if (transactionalLayer != null) {
+						removedBitmap.removeLayer(transactionalLayer);
+					}
 				}
 			}
 		}
@@ -333,7 +335,7 @@ public class ReferenceTypeCardinalityIndex
 	public ReferenceTypeCardinalityIndex createCopyWithMergedTransactionalMemory(
 		@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new ReferenceTypeCardinalityIndex(
 				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities),

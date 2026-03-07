@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Tests for {@link LoggedMetric} record.
  *
- * @author Claude
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("LoggedMetric")
 class LoggedMetricTest {

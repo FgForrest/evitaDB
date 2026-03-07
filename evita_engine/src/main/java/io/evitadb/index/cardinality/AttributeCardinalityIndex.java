@@ -186,9 +186,12 @@ public class AttributeCardinalityIndex
 
 	@Nonnull
 	@Override
-	public AttributeCardinalityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public AttributeCardinalityIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		// we can safely throw away dirty flag now
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new AttributeCardinalityIndex(
 				this.valueType,
