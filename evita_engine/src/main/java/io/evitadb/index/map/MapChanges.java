@@ -47,8 +47,12 @@ import java.util.function.Function;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * Contains combination of changes in a Map and removals made upon it. There is no other possible way
- * how to track removals in a map than to keep a set of keys that was removed in it.
+ * STM diff layer for {@link TransactionalMap}. Records all insertions, updates, and removals applied within
+ * a transaction so that the original delegate map remains unchanged. On commit, changes are merged via
+ * {@link #createMergedMap(TransactionalLayerMaintainer)}; on rollback the layer is simply discarded.
+ *
+ * There is no other possible way to track removals in a map than to keep a set of removed keys — this class
+ * maintains that set alongside a map of created/modified keys and a count of newly inserted entries.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
@@ -93,7 +97,10 @@ public class MapChanges<K, V> implements Serializable {
 		@Nonnull Class<T> valueType,
 		@Nonnull Function<S, V> transactionalLayerWrapper
 	) {
-		Assert.isTrue(TransactionalLayerProducer.class.isAssignableFrom(valueType), "Value type is expected to implement TransactionalLayerProducer!");
+		Assert.isTrue(
+			TransactionalLayerProducer.class.isAssignableFrom(valueType),
+			"Value type is expected to implement TransactionalLayerProducer!"
+		);
 		this.mapDelegate = mapDelegate;
 		//noinspection unchecked
 		this.transactionalLayerWrapper = (Function<Object, V>) transactionalLayerWrapper;
@@ -108,7 +115,7 @@ public class MapChanges<K, V> implements Serializable {
 	}
 
 	/**
-	 * Returns set of keys that were modified in  the map.
+	 * Returns set of keys that were modified in the map.
 	 */
 	@Nonnull
 	public Map<K, V> getModifiedKeys() {
@@ -120,7 +127,7 @@ public class MapChanges<K, V> implements Serializable {
 	 */
 	@Nullable
 	@SuppressWarnings("unchecked")
-	V get(Object key) {
+	V get(@Nonnull Object key) {
 		if (containsRemoved((K) key)) {
 			return null;
 		} else if (containsCreatedOrModified((K) key)) {
@@ -138,7 +145,7 @@ public class MapChanges<K, V> implements Serializable {
 	 */
 	@SuppressWarnings({"unchecked", "SuspiciousMethodCalls"})
 	@Nullable
-	V remove(Object key) {
+	V remove(@Nonnull Object key) {
 		final V originalValue;
 		final boolean existing = this.mapDelegate.containsKey(key);
 		if (existing && containsRemoved((K) key)) {
@@ -161,7 +168,7 @@ public class MapChanges<K, V> implements Serializable {
 	 * data. If the record was not in original map the {@link #createdKeyCount} is incremented.
 	 */
 	@Nullable
-	V put(K key, V value) {
+	V put(@Nonnull K key, @Nullable V value) {
 		final V originalValue;
 		if (containsCreatedOrModified(key)) {
 			originalValue = registerModifiedKey(key, value);
@@ -185,7 +192,7 @@ public class MapChanges<K, V> implements Serializable {
 	 * Resolves whether the key is part of the original map or in this diff layer.
 	 */
 	@SuppressWarnings("unchecked")
-	boolean containsKey(Object key) {
+	boolean containsKey(@Nonnull Object key) {
 		if (containsCreatedOrModified((K) key)) {
 			return true;
 		} else if (containsRemoved((K) key)) {
@@ -199,14 +206,14 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Resolves whether the value is part of the original map or in this diff layer.
 	 */
-	boolean containsValue(Object value) {
+	boolean containsValue(@Nullable Object value) {
 		//noinspection unchecked
 		if (this.modifiedKeys.containsValue((V) value)) {
 			return true;
 		} else {
 			for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 				if (Objects.equals(value, entry.getValue())) {
-					return !containsRemoved(entry.getKey());
+					return !containsRemoved(entry.getKey()) && !containsCreatedOrModified(entry.getKey());
 				}
 			}
 			return false;
@@ -280,9 +287,9 @@ public class MapChanges<K, V> implements Serializable {
 				throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 			}
 			V value = entry.getValue();
-			if (value instanceof TransactionalLayerProducer) {
+			if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
 				value = this.transactionalLayerWrapper.apply(
-					transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value)
+					transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 				);
 			}
 			// update the value
@@ -303,21 +310,22 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Returns true if particular key is recorded to be removed.
 	 */
-	boolean containsRemoved(K key) {
+	boolean containsRemoved(@Nonnull K key) {
 		return this.removedKeys.contains(key);
 	}
 
 	/**
 	 * Returns true if particular key is recorded to be inserted or updated.
 	 */
-	boolean containsCreatedOrModified(K key) {
+	boolean containsCreatedOrModified(@Nonnull K key) {
 		return this.modifiedKeys.containsKey(key);
 	}
 
 	/**
 	 * Returns inserted / updated value for particular key.
 	 */
-	V getCreatedOrModifiedValue(K key) {
+	@Nullable
+	V getCreatedOrModifiedValue(@Nonnull K key) {
 		return this.modifiedKeys.get(key);
 	}
 
@@ -325,7 +333,7 @@ public class MapChanges<K, V> implements Serializable {
 	 * Registers an inserted entry.
 	 */
 	@Nullable
-	V registerCreatedKey(K key, V value) {
+	V registerCreatedKey(@Nonnull K key, @Nullable V value) {
 		final V previous = this.modifiedKeys.put(key, value);
 		this.createdKeyCount++;
 		return previous;
@@ -335,31 +343,32 @@ public class MapChanges<K, V> implements Serializable {
 	 * Registers an updated entry.
 	 */
 	@Nullable
-	V registerModifiedKey(K key, V value) {
+	V registerModifiedKey(@Nonnull K key, @Nullable V value) {
 		return this.modifiedKeys.put(key, value);
 	}
 
 	/**
 	 * Registers a removed entry.
 	 */
-	void registerRemovedKey(K key) {
+	void registerRemovedKey(@Nonnull K key) {
 		this.removedKeys.add(key);
 	}
 
 	/**
-	 * Removes previously registered inserted entry via. {@link #registerCreatedKey(Object, Object)}.
+	 * Removes previously registered inserted entry via {@link #registerCreatedKey(Object, Object)}.
 	 */
-	@Nonnull
-	V removeCreatedKey(K key) {
+	@Nullable
+	V removeCreatedKey(@Nonnull K key) {
 		final V previous = this.modifiedKeys.remove(key);
 		this.createdKeyCount--;
 		return previous;
 	}
 
 	/**
-	 * Removes previously registered updated entry via. {@link #registerModifiedKey(Object, Object)}.
+	 * Removes previously registered updated entry via {@link #registerModifiedKey(Object, Object)}.
 	 */
-	V removeModifiedKey(K key) {
+	@Nullable
+	V removeModifiedKey(@Nonnull K key) {
 		return this.modifiedKeys.remove(key);
 	}
 
