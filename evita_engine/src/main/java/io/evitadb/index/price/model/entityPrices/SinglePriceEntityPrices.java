@@ -47,12 +47,12 @@ class SinglePriceEntityPrices extends EntityPrices {
 
 	/**
 	 * Contains the price.
-	 * This particular data structure keeps always array of size 1 or NULL.
+	 * This particular data structure keeps always array of size 0 or 1.
 	 */
 	@Nonnull private final PriceRecordContract[] price;
 	/**
 	 * Contains array of all price ids ({@link PriceRecordContract#internalPriceId()} connected with this entity.
-	 * This particular data structure keeps always array of size 1 or NULL.
+	 * This particular data structure keeps always array of size 0 or 1.
 	 */
 	@Nonnull private final int[] internalPriceId;
 
@@ -61,6 +61,7 @@ class SinglePriceEntityPrices extends EntityPrices {
 		this.internalPriceId = priceRecord == null ? NO_PRICE_IDS : new int[] {priceRecord.internalPriceId()};
 	}
 
+	@Nullable
 	@Override
 	public PriceRecordContract[] getLowestPriceRecords() {
 		return this.price;
@@ -78,7 +79,9 @@ class SinglePriceEntityPrices extends EntityPrices {
 
 	@Override
 	public boolean containsInnerRecord(int innerRecordId) {
-		return false;
+		return this.price.length > 0
+			&& this.price[0].isInnerRecordSpecific()
+			&& this.price[0].innerRecordId() == innerRecordId;
 	}
 
 	@Nonnull
@@ -97,7 +100,6 @@ class SinglePriceEntityPrices extends EntityPrices {
 	protected boolean isInnerRecordSpecific() {
 		return this.price.length > 0 && this.price[0].isInnerRecordSpecific();
 	}
-
 
 	@Nonnull
 	@Override

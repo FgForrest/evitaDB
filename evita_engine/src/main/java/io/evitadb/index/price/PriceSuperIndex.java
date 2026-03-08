@@ -62,7 +62,9 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceSuperIndex> implements TransactionalLayerProducer<PriceIndexChanges, PriceSuperIndex> {
+public class PriceSuperIndex
+	extends AbstractPriceIndex<PriceListAndCurrencyPriceSuperIndex>
+	implements TransactionalLayerProducer<PriceIndexChanges, PriceSuperIndex> {
 	@Serial private static final long serialVersionUID = 7596276815836027747L;
 	/**
 	 * Map of {@link PriceListAndCurrencyPriceSuperIndex indexes} that contains prices that relates to specific price-list
@@ -89,7 +91,10 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 
 	@Nonnull
 	@Override
-	public PriceSuperIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public PriceSuperIndex createCopyWithMergedTransactionalMemory(
+		@Nullable PriceIndexChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		final PriceSuperIndex priceIndex = new PriceSuperIndex(
 			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes)
 		);

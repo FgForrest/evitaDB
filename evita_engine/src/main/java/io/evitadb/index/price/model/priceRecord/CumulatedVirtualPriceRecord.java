@@ -29,24 +29,35 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Comparator;
 
 /**
- * Represents a virtual record, that is created an "on the fly" record with computed prices. This record is created for
- * {@link PriceInnerRecordHandling#SUM sum price computation strategy}. After price records was
- * returned to the client it is garbage collected and stored nowhere in the indexes.
+ * Represents a virtual record, that is created as an "on the fly" record with computed prices.
+ * This record is created for {@link PriceInnerRecordHandling#SUM sum price computation strategy}.
+ * After price records are returned to the client they are garbage collected and stored nowhere
+ * in the indexes.
  *
+ * @param entityPrimaryKey the primary key of the entity this cumulated price belongs to
+ * @param price            the cumulated price value (either with or without tax based on priceMode)
+ * @param priceMode        determines whether {@link #price} represents a price with or without tax
+ * @param innerRecordPrices map of inner record id to price records that were summed into this record
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record CumulatedVirtualPriceRecord(
 	@Getter int entityPrimaryKey,
 	@Getter int price,
 	@Getter QueryPriceMode priceMode,
-	@Nonnull IntObjectMap<PriceRecordContract> innerRecordPrices
+	@Getter @Nonnull IntObjectMap<PriceRecordContract> innerRecordPrices
 ) implements PriceRecordContract {
 
 	@Serial private static final long serialVersionUID = -8702849059439375941L;
+
+	/**
+	 * Comparator that orders cumulated records by entity primary key,
+	 * then price without tax, then price with tax.
+	 */
 	private static final Comparator<PriceRecordContract> FULL_COMPARATOR =
 		Comparator.comparing(PriceRecordContract::entityPrimaryKey)
 			.thenComparing(PriceRecordContract::priceWithoutTax)
@@ -84,7 +95,7 @@ public record CumulatedVirtualPriceRecord(
 
 	@Override
 	public boolean relatesTo(@Nonnull PriceRecordContract anotherPriceRecord) {
-		return this.innerRecordPrices.keys().contains(anotherPriceRecord.innerRecordId());
+		return this.innerRecordPrices.containsKey(anotherPriceRecord.innerRecordId());
 	}
 
 	@Override
@@ -93,11 +104,21 @@ public record CumulatedVirtualPriceRecord(
 	}
 
 	@Override
-	public boolean equals(Object o) {
+	public boolean equals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		CumulatedVirtualPriceRecord that = (CumulatedVirtualPriceRecord) o;
-		return this.entityPrimaryKey == that.entityPrimaryKey && this.price == that.price && this.priceMode == that.priceMode;
+		final CumulatedVirtualPriceRecord that = (CumulatedVirtualPriceRecord) o;
+		return this.entityPrimaryKey == that.entityPrimaryKey
+			&& this.price == that.price
+			&& this.priceMode == that.priceMode;
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Integer.hashCode(this.entityPrimaryKey);
+		result = 31 * result + Integer.hashCode(this.price);
+		result = 31 * result + this.priceMode.hashCode();
+		return result;
 	}
 
 	@Nonnull
