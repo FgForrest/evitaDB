@@ -32,7 +32,6 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -315,10 +314,14 @@ public class AssertionUtils {
 	 */
 	private static class TestTransactionHandler<S, X, T extends TransactionalLayerProducer<X, S>> implements TransactionHandler {
 		private final T tested;
-		@Getter private S committed;
+		private S committed;
 
 		public TestTransactionHandler(@Nonnull T tested) {
 			this.tested = tested;
+		}
+
+		public S getCommitted() {
+			return this.committed;
 		}
 
 		@Override
@@ -349,10 +352,14 @@ public class AssertionUtils {
 	 */
 	private static class TestTransactionHandlerWithMultipleValues<S, X, T extends TransactionalLayerProducer<X, S>> implements TransactionHandler {
 		private final List<T> tested;
-		@Getter private List<S> committed;
+		private List<S> committed;
 
 		public TestTransactionHandlerWithMultipleValues(@Nonnull List<T> tested) {
 			this.tested = tested;
+		}
+
+		public List<S> getCommitted() {
+			return this.committed;
 		}
 
 		@Override

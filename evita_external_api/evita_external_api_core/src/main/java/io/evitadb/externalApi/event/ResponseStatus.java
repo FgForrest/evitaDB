@@ -30,6 +30,7 @@ package io.evitadb.externalApi.event;
  *
  * - {@code OK}: The request completed successfully.
  * - {@code ERROR}: The request encountered an error during processing.
+ * - {@code TIMEOUT}: The request has timed out on the server side.
  * - {@code CANCELLED}: The request was cancelled (e.g. client disconnected).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
@@ -37,5 +38,6 @@ package io.evitadb.externalApi.event;
 public enum ResponseStatus {
 	OK,
 	ERROR,
+	TIMEOUT,
 	CANCELLED
 }

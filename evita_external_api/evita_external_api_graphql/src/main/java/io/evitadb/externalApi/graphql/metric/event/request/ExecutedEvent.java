@@ -387,10 +387,4 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 		return this;
 	}
 
-	/**
-	 * Response status of GraphQL request
-	 */
-	public enum ResponseStatus {
-		OK, ERROR, CANCELLED, TIMEOUT
-	}
 }
