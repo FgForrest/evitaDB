@@ -28,30 +28,48 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * This class/objects holds transactional changes upon read-only atomic reference implementation.
+ * Represents a per-transaction diff layer snapshot for {@link TransactionalReference} in the
+ * Software Transactional Memory (STM) system. Each open transaction that modifies the reference
+ * gets its own `ReferenceChanges` instance, keeping the mutation isolated until the transaction
+ * is committed and merged back into the shared state.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
 public class ReferenceChanges<T> {
 	/**
-	 * Local value of the boolean.
+	 * The transaction-local snapshot of the reference value.
 	 */
 	private final AtomicReference<T> theValue;
 
+	/**
+	 * Creates a new instance initialized with the given reference value.
+	 *
+	 * @param theValue the initial reference value for this transaction layer
+	 */
 	public ReferenceChanges(@Nullable T theValue) {
 		this.theValue = new AtomicReference<>(theValue);
 	}
 
+	/**
+	 * Replaces the current reference value with the given one.
+	 */
 	public void set(@Nullable T value) {
-		this.theValue.set(value);;
+		this.theValue.set(value);
 	}
 
+	/**
+	 * Returns the current reference value.
+	 */
 	@Nullable
 	public T get() {
 		return this.theValue.get();
 	}
 
+	/**
+	 * Atomically sets the value to `newValue` if the current value equals `currentValue`.
+	 * Returns the witness value (the value before the attempted exchange).
+	 */
 	@Nullable
 	public T compareAndExchange(@Nullable T currentValue, @Nullable T newValue) {
 		return this.theValue.compareAndExchange(currentValue, newValue);
