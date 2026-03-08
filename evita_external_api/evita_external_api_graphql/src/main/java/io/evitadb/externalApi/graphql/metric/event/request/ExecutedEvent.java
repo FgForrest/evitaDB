@@ -88,7 +88,7 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	 * Response status of the request.
 	 */
 	@Label("Response status")
-	@Description("The status of the response: OK, ERROR, or CANCELLED.")
+	@Description("The status of the response: OK, ERROR, CANCELLED, or TIMEOUT.")
 	@Name("responseStatus")
 	@ExportMetricLabel
 	@Nonnull
@@ -387,4 +387,10 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 		return this;
 	}
 
+	/**
+	 * Response status of GraphQL request
+	 */
+	public enum ResponseStatus {
+		OK, ERROR, CANCELLED, TIMEOUT
+	}
 }
