@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
@@ -336,6 +337,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexTypeDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), createReferenceIndexedComponentsDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
+			.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), createFacetedPartiallyDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 
@@ -415,6 +417,29 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(
 					ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
 					entry.getValue().stream().map(ReferenceIndexedComponents::name).toList()
+				)
+				.build())
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the faceted partially expressions for different scopes
+	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope
+	 * and the corresponding partial-faceting expression string.
+	 *
+	 * @param referenceSchema the reference schema containing faceted partially expressions
+	 * @return a list of maps, where each map contains scope and expression fields
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createFacetedPartiallyDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Map<Scope, Expression> facetedPartiallyInScopes = referenceSchema.getFacetedPartiallyInScopes();
+		return facetedPartiallyInScopes.entrySet()
+			.stream()
+			.map(entry -> map()
+				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+				.e(
+					ScopedFacetedPartiallyDescriptor.EXPRESSION.name(),
+					entry.getValue().toExpressionString()
 				)
 				.build())
 			.toList();

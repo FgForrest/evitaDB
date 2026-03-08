@@ -83,6 +83,8 @@ message GrpcCreateReferenceSchemaMutation {
   // (referenced entity, referenced group entity) are indexed per scope.
   // When not specified, the default indexed components are determined automatically.
   repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;
+  // Per-scope expressions that narrow which entities participate in faceting.
+  repeated GrpcScopedFacetedPartially facetedPartially = 15;
 }
 
 // Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
@@ -155,6 +157,8 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // (referenced entity, referenced group entity) are indexed per scope.
   // When `indexedInherited` is true, this field is ignored.
   repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;
+  // Per-scope expressions that narrow which entities participate in faceting.
+  repeated GrpcScopedFacetedPartially facetedPartially = 16;
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
@@ -283,6 +287,9 @@ message GrpcSetReferenceSchemaFacetedMutation {
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
   repeated GrpcEntityScope facetedInScopes = 4;
+  // Per-scope expressions that narrow which entities participate in faceting.
+  // When absent (not set), expressions are inherited for reflected references.
+  repeated GrpcScopedFacetedPartially facetedPartially = 5;
 }
 
 // Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
@@ -312,3 +319,4 @@ message GrpcSetReferenceSchemaIndexedMutation {
   // When `inherited` is true, this field is ignored.
   repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;
 }
+

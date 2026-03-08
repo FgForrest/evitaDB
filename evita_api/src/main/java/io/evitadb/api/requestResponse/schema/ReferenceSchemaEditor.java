@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -212,6 +213,50 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T nonFaceted(@Nonnull Scope... inScope);
+
+	/**
+	 * Sets the expression that narrows which entities participate in faceting in the
+	 * {@link Scope#DEFAULT_SCOPE}. Only meaningful when the reference is faceted in that scope.
+	 *
+	 * @param expression the expression narrowing facet participation
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T facetedPartially(@Nonnull Expression expression) {
+		return facetedPartiallyInScope(Scope.DEFAULT_SCOPE, expression);
+	}
+
+	/**
+	 * Sets the expression that narrows which entities participate in faceting in the given scope.
+	 * Only meaningful when the reference is faceted in that scope.
+	 *
+	 * @param scope      the scope to set the expression for
+	 * @param expression the expression narrowing facet participation
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T facetedPartiallyInScope(@Nonnull Scope scope, @Nonnull Expression expression);
+
+	/**
+	 * Clears the facetedPartially expression in the {@link Scope#DEFAULT_SCOPE}, reverting to
+	 * full faceting where all faceted entities participate.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonFacetedPartially() {
+		return nonFacetedPartially(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Clears the facetedPartially expression in the given scope(s), reverting to full faceting
+	 * where all faceted entities participate.
+	 *
+	 * @param inScope one or more scopes to clear the expression for
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonFacetedPartially(@Nonnull Scope... inScope);
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with

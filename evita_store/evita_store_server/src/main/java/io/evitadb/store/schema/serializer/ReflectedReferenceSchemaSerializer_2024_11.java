@@ -96,11 +96,15 @@ public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<Refle
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 
+		final Map<Scope, ReferenceIndexType> indexedInScopes =
+			new EnumMap<>(Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING));
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			new EnumMap<>(Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)),
+			indexedInScopes,
+			ReferenceSchema.defaultIndexedComponents(indexedInScopes),
 			faceted == null ? null : (faceted ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class)),
+			null,
 			attributes,
 			sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance

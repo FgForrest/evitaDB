@@ -29,10 +29,14 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
+
+import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaFacetedMutationSerializer.readScopedFacetedPartiallyArray;
+import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaFacetedMutationSerializer.writeScopedFacetedPartiallyArray;
 
 /**
  * Serializer for {@link CreateReferenceSchemaMutation}.
@@ -56,6 +60,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		// write indexed components with null-check
 		output.writeBoolean(true);
 		writeScopedReferenceIndexedComponentsArray(kryo, output, mutation.getIndexedComponentsInScopes());
+		// write facetedPartially expressions
+		writeScopedFacetedPartiallyArray(kryo, output, mutation.getFacetedPartiallyInScopes());
 	}
 
 	@Override
@@ -74,6 +80,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		// read indexed components with null-check
 		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes =
 			input.readBoolean() ? readScopedReferenceIndexedComponentsArray(kryo, input) : null;
+		// read facetedPartially expressions
+		final ScopedFacetedPartially[] facetedPartiallyInScopes = readScopedFacetedPartiallyArray(kryo, input);
 
 		return new CreateReferenceSchemaMutation(
 			name,
@@ -86,7 +94,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 			referencedGroupTypeManaged,
 			indexedInScopes,
 			indexedComponentsInScopes,
-			facetedInScopes
+			facetedInScopes,
+			facetedPartiallyInScopes
 		);
 	}
 

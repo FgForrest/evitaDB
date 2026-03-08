@@ -123,6 +123,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 				Cardinality.ZERO_OR_MORE,
 				// inherited indexed scopes
 				null,
+				null,
 				// inherited faceted scopes
 				null,
 				Collections.emptyMap(),

@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
@@ -47,13 +48,13 @@ import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScop
 
 /**
  * Backward-compatible read-only serializer for {@link ReflectedReferenceSchema} that reads the format
- * without the `indexedComponentsInScopes` field.
+ * without the `indexedComponentsInScopes` and `facetedPartiallyInScopes` fields.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2026.2", forRemoval = true)
+@Deprecated(since = "2026.1", forRemoval = true)
 @RequiredArgsConstructor
-public class ReflectedReferenceSchemaSerializer_2026_2 extends Serializer<ReflectedReferenceSchema> {
+public class ReflectedReferenceSchemaSerializer_2026_1 extends Serializer<ReflectedReferenceSchema> {
 
 	@Override
 	public void write(Kryo kryo, Output output, ReflectedReferenceSchema referenceSchema) {
@@ -103,7 +104,12 @@ public class ReflectedReferenceSchemaSerializer_2026_2 extends Serializer<Reflec
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			indexedInScopes, facetedInScopes,
+			indexedInScopes,
+			indexedInScopes != null
+				? ReferenceSchema.defaultIndexedComponents(indexedInScopes)
+				: null,
+			facetedInScopes,
+			null,
 			attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);

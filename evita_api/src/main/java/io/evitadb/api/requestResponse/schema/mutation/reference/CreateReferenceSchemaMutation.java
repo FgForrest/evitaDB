@@ -46,6 +46,7 @@ import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -78,7 +79,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = 4361829150237811293L;
+	@Serial private static final long serialVersionUID = -4158068801437475007L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -90,6 +91,7 @@ public class CreateReferenceSchemaMutation
 	@Getter @Nonnull private final ScopedReferenceIndexType[] indexedInScopes;
 	@Getter @Nonnull private final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
 	@Getter @Nonnull private final Scope[] facetedInScopes;
+	@Getter @Nonnull private final ScopedFacetedPartially[] facetedPartiallyInScopes;
 
 	/**
 	 * Creates mutation that sets up a new reference schema with the given properties using simple boolean
@@ -124,7 +126,6 @@ public class CreateReferenceSchemaMutation
 	/**
 	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration.
 	 */
-	@SerializableCreator
 	public CreateReferenceSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -137,6 +138,34 @@ public class CreateReferenceSchemaMutation
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nullable Scope[] facetedInScopes
+	) {
+		this(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes,
+			facetedInScopes, null
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
+	 * including per-scope facetedPartially expressions.
+	 */
+	@SerializableCreator
+	public CreateReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
@@ -162,6 +191,8 @@ public class CreateReferenceSchemaMutation
 			this.indexedComponentsInScopes = indexedComponentsInScopes;
 		}
 		this.facetedInScopes = facetedInScopes == null ? NO_SCOPE : facetedInScopes;
+		this.facetedPartiallyInScopes = facetedPartiallyInScopes == null
+			? ScopedFacetedPartially.EMPTY : facetedPartiallyInScopes;
 	}
 
 	/**
@@ -281,6 +312,18 @@ public class CreateReferenceSchemaMutation
 										.filter(ref::isFacetedInScope)
 										.toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaFacetedMutation(this.name, newValue)
+								),
+								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
+									createdVersion, existingVersion,
+									ReferenceSchemaContract::getFacetedPartiallyInScopes,
+									newValue -> new SetReferenceSchemaFacetedMutation(
+										this.name,
+										null,
+										newValue.entrySet().stream()
+											.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
+											.toArray(ScopedFacetedPartially[]::new)
+									)
 								)
 							),
 							existingVersion.getAttributes()
@@ -322,12 +365,21 @@ public class CreateReferenceSchemaMutation
 		@Nonnull ConsistencyChecks consistencyChecks
 	) {
 		return ReferenceSchema._internalBuild(
-			this.name, this.description, this.deprecationNotice,
-			this.referencedEntityType, this.referencedEntityTypeManaged,
+			this.name, NamingConvention.generate(this.name),
+			this.description, this.deprecationNotice,
+			this.referencedEntityType,
+			this.referencedEntityTypeManaged
+				? Collections.emptyMap()
+				: NamingConvention.generate(this.referencedEntityType),
+			this.referencedEntityTypeManaged,
 			this.cardinality,
-			this.referencedGroupType, this.referencedGroupTypeManaged,
+			this.referencedGroupType,
+			this.referencedGroupType != null && !this.referencedGroupType.isBlank() && !this.referencedGroupTypeManaged
+				? NamingConvention.generate(this.referencedGroupType)
+				: Collections.emptyMap(),
+			this.referencedGroupTypeManaged,
 			this.indexedInScopes, this.indexedComponentsInScopes,
-			this.facetedInScopes,
+			this.facetedInScopes, this.facetedPartiallyInScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
@@ -365,7 +417,8 @@ public class CreateReferenceSchemaMutation
 			", referencedGroupTypeManaged=" + this.referencedGroupTypeManaged +
 			", indexed=" + Arrays.toString(this.indexedInScopes) +
 			", indexedComponents=" + Arrays.toString(this.indexedComponentsInScopes) +
-			", faceted=" + Arrays.toString(this.facetedInScopes);
+			", faceted=" + Arrays.toString(this.facetedInScopes) +
+			", facetedPartially=" + Arrays.toString(this.facetedPartiallyInScopes);
 	}
 
 }

@@ -24,18 +24,20 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
-import io.evitadb.externalApi.api.resolver.mutation.Input;
-import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
+import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
 
 import javax.annotation.Nonnull;
 
@@ -91,6 +93,11 @@ public class CreateReferenceSchemaMutationConverter
 			)
 		);
 
+		final ScopedFacetedPartially[] facetedPartiallyInScopes = parseFacetedPartially(
+			input,
+			CreateReferenceSchemaMutationDescriptor.FACETED_PARTIALLY_IN_SCOPES
+		);
+
 		return new CreateReferenceSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
@@ -102,8 +109,17 @@ public class CreateReferenceSchemaMutationConverter
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
 			indexedInScopes,
 			indexedComponentsInScopes,
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES)
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
+			facetedPartiallyInScopes
 		);
 	}
 
+	@Override
+	protected void convertToOutput(
+		@Nonnull CreateReferenceSchemaMutation mutation,
+		@Nonnull Output output
+	) {
+		serializeFacetedPartially(mutation.getFacetedPartiallyInScopes(), output);
+		super.convertToOutput(mutation, output);
+	}
 }

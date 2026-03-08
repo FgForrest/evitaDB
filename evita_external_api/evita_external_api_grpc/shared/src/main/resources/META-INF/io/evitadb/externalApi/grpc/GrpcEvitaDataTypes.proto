@@ -482,3 +482,12 @@ message GrpcScopedReferenceIndexedComponents {
   // The reference components that should be indexed in the given scope.
   repeated GrpcReferenceIndexedComponents indexedComponents = 2;
 }
+
+// Message representing a per-scope expression that narrows which entities participate in faceting.
+message GrpcScopedFacetedPartially {
+  // The scope in which the faceted partially expression applies.
+  GrpcEntityScope scope = 1;
+  // The expression that narrows which entities participate in faceting for this scope.
+  // When absent (not set), no partial faceting filter is applied for this scope.
+  google.protobuf.StringValue expression = 2;
+}

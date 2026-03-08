@@ -30,31 +30,34 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
-import io.evitadb.utils.CollectionUtils;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readFacetedPartiallyMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readIndexedComponentsMap;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readNameVariants;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopedReferenceIndexTypeArray;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readSortableAttributeCompounds;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeFacetedPartiallyMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeIndexedComponentsMap;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeNameVariants;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopedReferenceIndexTypeArray;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeSortableAttributeCompounds;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link ReflectedReferenceSchema} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -64,11 +67,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 	@Override
 	public void write(Kryo kryo, Output output, ReflectedReferenceSchema referenceSchema) {
 		output.writeString(referenceSchema.getName());
-		output.writeVarInt(referenceSchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : referenceSchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
+		writeNameVariants(output, referenceSchema.getNameVariants());
 		output.writeString(referenceSchema.getReferencedEntityType());
 		output.writeString(referenceSchema.getReflectedReferenceName());
 
@@ -97,6 +96,15 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			writeScopeSet(kryo, output, referenceSchema.getFacetedInScopes());
 		}
 
+		final Map<Scope, Expression> facetedPartiallyInScopes = referenceSchema.isFacetedInherited() ?
+			null : referenceSchema.getFacetedPartiallyInScopes();
+		if (facetedPartiallyInScopes == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeFacetedPartiallyMap(kryo, output, facetedPartiallyInScopes);
+		}
+
 		kryo.writeObject(output, referenceSchema.getDeclaredAttributes());
 
 		kryo.writeObjectOrNull(
@@ -111,11 +119,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			String.class
 		);
 
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = referenceSchema.getDeclaredSortableAttributeCompounds();
-		output.writeVarInt(sortableAttributeCompounds.size(), true);
-		for (SortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
-			kryo.writeObject(output, sortableAttributeCompound);
-		}
+		writeSortableAttributeCompounds(kryo, output, referenceSchema.getDeclaredSortableAttributeCompounds().values());
 
 		kryo.writeObject(output, referenceSchema.getAttributesInheritanceBehavior());
 		output.writeVarInt(referenceSchema.getAttributeInheritanceFilter().length, true);
@@ -127,14 +131,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 	@Override
 	public ReflectedReferenceSchema read(Kryo kryo, Input input, Class<? extends ReflectedReferenceSchema> aClass) {
 		final String name = input.readString();
-		final int nameVariantCount = input.readVarInt(true);
-		final Map<NamingConvention, String> nameVariants = CollectionUtils.createLinkedHashMap(nameVariantCount);
-		for(int i = 0; i < nameVariantCount; i++) {
-			nameVariants.put(
-				NamingConvention.values()[input.readVarInt(true)],
-				input.readString()
-			);
-		}
+		final Map<NamingConvention, String> nameVariants = readNameVariants(input);
 		final String entityType = input.readString();
 		final String reflectedReferenceName = input.readString();
 		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
@@ -143,20 +140,15 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes = input.readBoolean() ? readIndexedComponentsMap(kryo, input) : null;
 		final EnumSet<Scope> facetedInScopes = input.readBoolean() ? readScopeSet(kryo, input) : null;
 
+		final Map<Scope, Expression> facetedPartiallyInScopes =
+			input.readBoolean() ? readFacetedPartiallyMap(kryo, input) : null;
+
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
 
 		final String description = kryo.readObjectOrNull(input, String.class);
 		final String deprecationNotice = kryo.readObjectOrNull(input, String.class);
 
-		final int sortableAttributeCompoundsCount = input.readVarInt(true);
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
-		for (int i = 0; i < sortableAttributeCompoundsCount; i++) {
-			final SortableAttributeCompoundSchema sortableCompoundSchema = kryo.readObject(input, SortableAttributeCompoundSchema.class);
-			sortableAttributeCompounds.put(
-				sortableCompoundSchema.getName(),
-				sortableCompoundSchema
-			);
-		}
+		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = readSortableAttributeCompounds(kryo, input);
 
 		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
 		final int attributesExcludedFromInheritanceCount = input.readVarInt(true);
@@ -168,7 +160,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			indexedInScopes, indexedComponentsInScopes, facetedInScopes,
+			indexedInScopes, indexedComponentsInScopes, facetedInScopes, facetedPartiallyInScopes,
 			attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);

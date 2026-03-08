@@ -197,7 +197,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=119
+   *     See GrpcReferenceSchemaMutations.proto;l=121
    * @return Whether the faceted field is set.
    */
   @java.lang.Deprecated boolean hasFaceted();
@@ -214,7 +214,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=119
+   *     See GrpcReferenceSchemaMutations.proto;l=121
    * @return The faceted.
    */
   @java.lang.Deprecated com.google.protobuf.BoolValue getFaceted();
@@ -323,7 +323,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
@@ -342,7 +342,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @return The count of indexedInScopes.
    */
   @java.lang.Deprecated int getIndexedInScopesCount();
@@ -361,7 +361,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -381,7 +381,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<java.lang.Integer>
@@ -401,7 +401,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=137
+   *     See GrpcReferenceSchemaMutations.proto;l=139
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -603,5 +603,49 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder getScopedIndexedComponentsOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> 
+      getFacetedPartiallyList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially getFacetedPartially(int index);
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  int getFacetedPartiallyCount();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+      getFacetedPartiallyOrBuilderList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
       int index);
 }

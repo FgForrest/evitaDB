@@ -28,6 +28,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder;
@@ -896,7 +897,7 @@ class ReflectedReferenceSchemaBuilderTest {
 					.withAttribute("priority", Integer.class)
 			);
 
-			final ReferenceSchemaBuilder.ReferenceSchemaBuilderResult result = builder.toResult();
+			final AbstractReferenceSchemaBuilder.ReferenceSchemaBuilderResult result = builder.toResult();
 
 			assertAll(
 				() -> assertNotNull(result.schema()),

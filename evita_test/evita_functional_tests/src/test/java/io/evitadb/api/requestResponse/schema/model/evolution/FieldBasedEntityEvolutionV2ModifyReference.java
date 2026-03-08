@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.model.evolution;
 
-import io.evitadb.api.requestResponse.data.annotation.Expression;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -39,7 +38,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class FieldBasedEntityEvolutionV2ModifyReference extends FieldBasedEntityEvolutionV1 {
 
-	@Reference(managed = false, faceted = @Expression("true"))
+	@Reference(managed = false, faceted = true)
 	private Brand marketingBrand;
 
 }

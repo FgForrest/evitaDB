@@ -36,12 +36,14 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -72,7 +74,7 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public final class ReflectedReferenceSchema extends ReferenceSchema implements ReflectedReferenceSchemaContract {
-	@Serial private static final long serialVersionUID = 6048664745319055718L;
+	@Serial private static final long serialVersionUID = -3727686823037358036L;
 
 	/**
 	 * Contains name of the original reference of the {@link #getReferencedEntityType()} this reference reflects.
@@ -172,36 +174,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
-		@Nullable Scope[] facetedInScopes,
-		@Nonnull Map<String, AttributeSchemaContract> attributes,
-		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
-		@Nonnull AttributeInheritanceBehavior attributesInherited,
-		@Nullable String[] attributesExcludedFromInheritance
-	) {
-		return _internalBuild(
-			name, description, deprecationNotice,
-			entityType, reflectedReferenceName, cardinality,
-			indexedInScopes, null, facetedInScopes,
-			attributes, sortableAttributeCompounds,
-			attributesInherited, attributesExcludedFromInheritance
-		);
-	}
-
-	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
-	 *
-	 * Do not use this method from in the client code!
-	 */
-	@Nonnull
-	public static ReflectedReferenceSchema _internalBuild(
-		@Nonnull String name,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nonnull String entityType,
-		@Nonnull String reflectedReferenceName,
-		@Nullable Cardinality cardinality,
-		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nullable Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
@@ -256,44 +228,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
 		@Nullable Map<Scope, ReferenceIndexType> indexedInScopes,
-		@Nullable EnumSet<Scope> facetedInScopes,
-		@Nonnull Map<String, AttributeSchemaContract> attributes,
-		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
-		@Nonnull AttributeInheritanceBehavior attributesInherited,
-		@Nullable String[] attributesExcludedFromInheritance
-	) {
-		return _internalBuild(
-			name, nameVariants,
-			description, deprecationNotice,
-			entityType, reflectedReferenceName, cardinality,
-			indexedInScopes,
-			indexedInScopes != null
-				? ReferenceSchema.defaultIndexedComponents(indexedInScopes)
-				: null,
-			facetedInScopes,
-			attributes, sortableAttributeCompounds,
-			attributesInherited, attributesExcludedFromInheritance
-		);
-	}
-
-	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
-	 *
-	 * Do not use this method from in the client code!
-	 */
-	@Nonnull
-	public static ReflectedReferenceSchema _internalBuild(
-		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nonnull String entityType,
-		@Nonnull String reflectedReferenceName,
-		@Nullable Cardinality cardinality,
-		@Nullable Map<Scope, ReferenceIndexType> indexedInScopes,
 		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nullable EnumSet<Scope> facetedInScopes,
+		@Nullable Map<Scope, Expression> facetedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
@@ -305,7 +242,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			validateScopeSettings(facetedInScopes, indexedInScopes, indexedComponentsInScopes);
 		}
 
-		return new ReflectedReferenceSchema(
+		final ReflectedReferenceSchema base = new ReflectedReferenceSchema(
 			name, nameVariants,
 			description, deprecationNotice, cardinality,
 			entityType,
@@ -319,6 +256,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			attributesExcludedFromInheritance == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributesExcludedFromInheritance,
 			null
 		);
+		if (facetedPartiallyInScopes != null && !facetedPartiallyInScopes.isEmpty()) {
+			return base.withFacetedPartially(facetedPartiallyInScopes);
+		}
+		return base;
 	}
 
 	/**
@@ -343,6 +284,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		boolean descriptionInherited,
@@ -362,6 +304,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		final Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsMap = indexedComponentsInScopes != null ?
 			ReferenceSchema.toIndexedComponentsEnumMap(indexedComponentsInScopes) : null;
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
+		final Map<Scope, Expression> facetedPartiallyMap = ReferenceSchema.toFacetedPartiallyMap(facetedPartiallyInScopes);
 		if (!indexedInherited && !facetedInherited) {
 			validateScopeSettings(
 				facetedScopes, indexedScopesMap,
@@ -378,6 +321,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			indexedScopesMap,
 			indexedComponentsMap,
 			facetedScopes,
+			facetedPartiallyMap,
 			attributes,
 			sortableAttributeCompounds,
 			descriptionInherited,
@@ -613,6 +557,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					)
 					.orElseGet(() -> EnumSet.noneOf(Scope.class))
 				: facetedInScopes,
+			// facetedPartially piggybacks on faceted inheritance
+			facetedInScopes == null ?
+				ofNullable(reflectedReference)
+					.map(ReferenceSchemaContract::getFacetedPartiallyInScopes)
+					.orElse(Collections.emptyMap())
+				: Collections.emptyMap(),
 			reflectedReference == null ?
 				attributes :
 				union(
@@ -694,6 +644,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Map<Scope, ReferenceIndexType> indexedInScopes,
 		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nullable Set<Scope> facetedInScopes,
+		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		boolean descriptionInherited,
@@ -720,6 +671,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			indexedInScopes == null ? new EnumMap<>(Scope.class) : indexedInScopes,
 			indexedComponentsInScopes == null ? Collections.emptyMap() : indexedComponentsInScopes,
 			facetedInScopes == null ? EnumSet.noneOf(Scope.class) : facetedInScopes,
+			facetedPartiallyInScopes,
 			attributes,
 			sortableAttributeCompounds
 		);
@@ -937,6 +889,32 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						}
 					}
 				}
+				if (this.indexedInherited) {
+					final Map<Scope, ReferenceIndexType> originalIndexed = theReflectedReference.getReferenceIndexTypeInScopes();
+					if (!this.indexedInScopes.equals(originalIndexed)) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Indexed scopes differ from the original reference `" +
+									this.reflectedReferenceName + "` in entity `" + referencedEntityType +
+									"`, but indexed setting is inherited!"
+							)
+						);
+					}
+				}
+				if (this.indexedComponentsInherited) {
+					final Map<Scope, Set<ReferenceIndexedComponents>> originalComponents = theReflectedReference.getIndexedComponentsInScopes();
+					if (!this.indexedComponentsInScopes.equals(originalComponents)) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Indexed components differ from the original reference `" +
+									this.reflectedReferenceName + "` in entity `" + referencedEntityType +
+									"`, but indexed components setting is inherited!"
+							)
+						);
+					}
+				}
 				if (this.reflectedReference.getCardinality().allowsDuplicates()) {
 					if (!this.getCardinality().allowsDuplicates()) {
 						referenceErrors = Stream.concat(
@@ -971,6 +949,41 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 								"Reflected reference `" + this.getName() + "` must contain all representative attributes " +
 									"of the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "`! " +
 									"Missing representative attributes: " + String.join(", ", representativeAttributes)
+							)
+						);
+					}
+				}
+				for (Scope scope : this.facetedPartiallyInScopes.keySet()) {
+					if (!isFacetedInScope(scope)) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"FacetedPartially expression is defined for scope `" + scope +
+									"` but the reference is not faceted in that scope!"
+							)
+						);
+					}
+				}
+				if (this.facetedInherited) {
+					final Set<Scope> originalFacetedScopes = theReflectedReference.getFacetedInScopes();
+					if (!this.facetedInScopes.equals(originalFacetedScopes)) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Faceted scopes differ from the original reference `" +
+									this.reflectedReferenceName + "` in entity `" + referencedEntityType +
+									"`, but faceted setting is inherited!"
+							)
+						);
+					}
+					final Map<Scope, Expression> originalPartially = theReflectedReference.getFacetedPartiallyInScopes();
+					if (!this.facetedPartiallyInScopes.equals(originalPartially)) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"FacetedPartially expressions differ from the original reference `" +
+									this.reflectedReferenceName + "` in entity `" + referencedEntityType +
+									"`, but faceted setting is inherited!"
 							)
 						);
 					}
@@ -1182,6 +1195,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInScopes,
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			this.descriptionInherited,
@@ -1219,6 +1233,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInScopes,
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			description == null,
@@ -1256,6 +1271,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInScopes,
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			this.descriptionInherited,
@@ -1293,6 +1309,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInScopes,
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			this.descriptionInherited,
@@ -1390,6 +1407,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					),
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			this.descriptionInherited,
@@ -1433,6 +1451,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				null :
 				ReferenceSchema.toIndexedComponentsEnumMap(indexedComponentsInScopes),
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			this.descriptionInherited,
@@ -1457,6 +1476,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 */
 	@Nonnull
 	public ReflectedReferenceSchemaContract withFaceted(@Nullable Scope[] facetedInScopes) {
+		final Set<Scope> newFacetedScopes = facetedInScopes == null ?
+			null : ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		return new ReflectedReferenceSchema(
 			this.name,
 			this.nameVariants,
@@ -1471,7 +1492,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.reflectedReferenceName,
 			this.indexedInScopes,
 			this.indexedComponentsInScopes,
-			facetedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, facetedInScopes),
+			newFacetedScopes,
+			facetedInScopes == null ?
+				Collections.emptyMap() :
+				filterFacetedPartiallyForScopes(this.facetedPartiallyInScopes, newFacetedScopes),
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			this.descriptionInherited,
@@ -1480,6 +1504,46 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			facetedInScopes == null,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
+			this.reflectedReference
+		);
+	}
+
+	/**
+	 * Creates a copy of this instance with different facetedPartially expressions.
+	 *
+	 * @param facetedPartiallyInScopes new facetedPartially expressions per scope
+	 * @return copy of the schema with applied changes
+	 */
+	@Nonnull
+	public ReflectedReferenceSchema withFacetedPartially(
+		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes
+	) {
+		return new ReflectedReferenceSchema(
+			this.name,
+			this.nameVariants,
+			this.description,
+			this.deprecationNotice,
+			this.cardinality,
+			this.referencedEntityType,
+			this.entityTypeNameVariants,
+			this.referencedGroupType,
+			this.groupTypeNameVariants,
+			this.referencedGroupTypeManaged,
+			this.reflectedReferenceName,
+			this.indexedInScopes,
+			this.indexedComponentsInScopes,
+			this.facetedInScopes,
+			facetedPartiallyInScopes,
+			collectAttributeSchemas(),
+			collectAttributeCompoundSchemas(),
+			this.descriptionInherited,
+			this.deprecatedInherited,
+			this.cardinalityInherited,
+			this.indexedInherited,
+			this.indexedComponentsInherited,
+			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1513,6 +1577,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInScopes,
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			this.descriptionInherited,
@@ -1552,6 +1617,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInScopes,
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			this.reflectedReference == null ?
 				newlyDeclaredAttributes :
 				union(
@@ -1598,6 +1664,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInScopes,
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
 			collectAttributeSchemas(),
 			this.reflectedReference == null ?
 				newlyDeclaredSortableAttributeCompounds :
@@ -1669,6 +1736,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			indexedScopes,
 			indexedComponents,
 			facetedScopes,
+			this.facetedInherited ?
+				originalReference.getFacetedPartiallyInScopes() :
+				this.facetedPartiallyInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				union(
@@ -1736,6 +1806,31 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Override
 	protected boolean shouldValidate(@Nonnull AttributeSchemaContract attributeSchema) {
 		return !this.inheritedAttributes.contains(attributeSchema.getName());
+	}
+
+	/**
+	 * Filters the given facetedPartially map to only retain entries whose scope is present in the
+	 * provided set of faceted scopes.
+	 *
+	 * @param facetedPartially the original map of faceted partially expressions per scope
+	 * @param facetedScopes    the set of scopes to retain
+	 * @return a new map containing only entries whose scope is in facetedScopes
+	 */
+	@Nonnull
+	private static Map<Scope, Expression> filterFacetedPartiallyForScopes(
+		@Nonnull Map<Scope, Expression> facetedPartially,
+		@Nonnull Set<Scope> facetedScopes
+	) {
+		if (facetedPartially.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		final EnumMap<Scope, Expression> result = new EnumMap<>(Scope.class);
+		for (Entry<Scope, Expression> entry : facetedPartially.entrySet()) {
+			if (facetedScopes.contains(entry.getKey())) {
+				result.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return result.isEmpty() ? Collections.emptyMap() : result;
 	}
 
 	/**

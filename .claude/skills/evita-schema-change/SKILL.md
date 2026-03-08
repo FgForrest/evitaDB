@@ -477,12 +477,55 @@ final ScopedNewField[] newFieldInScopes = input.getOptionalProperty(
 
 For simple fields, use direct `input.getProperty()` or `input.getOptionalProperty()`.
 
+**Important — `getOptionalProperty()` overloads:** When reading array-typed properties (e.g., `Scope[]`), always use the **typed overload** `input.getOptionalProperty(name, Class)` — not the raw `input.getOptionalProperty(name)`. The raw overload returns the underlying `List` without type conversion, causing `ClassCastException` when the code expects an array. Example:
+
+```java
+// WRONG — returns raw List, will ClassCast to Scope[]:
+final Scope[] scopes = input.getOptionalProperty(FACETED_IN_SCOPES.name());
+
+// CORRECT — invokes toTargetType() -> toArrayOfSpecificType():
+final Scope[] scopes = input.getOptionalProperty(FACETED_IN_SCOPES.name(), Scope[].class);
+```
+
+### 5.5 Custom Output Serialization for Non-Primitive Types
+
+The base `MutationConverter.convertObjectToOutput()` uses reflection over `@SerializableCreator` constructor parameters and `Output.toSerializableValue()` for each value. **If any constructor parameter type is not natively supported** by `toSerializableValue()` (e.g., `Expression`, custom domain objects), the reflection-based output will throw.
+
+To handle this, **override `convertToOutput(M mutation, Output output)`** in the converter to pre-set properties with custom serialization **before** calling `super.convertToOutput()`. Pre-set properties are skipped by the reflection logic (line ~167 of `MutationConverter`):
+
+```java
+@Override
+protected void convertToOutput(
+	@Nonnull MyMutation mutation,
+	@Nonnull Output output
+) {
+	// Pre-serialize the non-primitive field BEFORE super call
+	final ScopedFacetedPartially[] partially = mutation.getFacetedPartiallyInScopes();
+	if (partially != null) {
+		final List<Map<String, Object>> serialized = new ArrayList<>(partially.length);
+		for (ScopedFacetedPartially entry : partially) {
+			final Map<String, Object> entryMap = new LinkedHashMap<>(2);
+			entryMap.put("scope", entry.scope());
+			final Expression expr = entry.expression();
+			entryMap.put("expression", expr != null ? expr.toExpressionString() : null);
+			serialized.add(entryMap);
+		}
+		output.setProperty("facetedPartiallyInScopes", serialized);
+	}
+	super.convertToOutput(mutation, output);
+}
+```
+
+**Tip:** If multiple converters need the same custom serialization, extract it as a `protected static` helper in the shared base class (e.g., `ReferenceSchemaMutationConverter`) to avoid code duplication.
+
 ### Checklist
 
 - [ ] Scoped descriptor created (if scope-aware) with `THIS` and `THIS_INPUT`
 - [ ] `PropertyDescriptor` added to schema descriptor
 - [ ] Mutation descriptors updated (both output and input variants)
 - [ ] Mutation converters updated with appropriate deserialization
+- [ ] Typed `getOptionalProperty(name, Class)` overload used for array properties (not raw overload)
+- [ ] `convertToOutput()` overridden for non-primitive types not supported by `Output.toSerializableValue()`
 
 ---
 
@@ -550,9 +593,10 @@ Update `EntitySchemaConverter` and gRPC mutation converters to map the new field
 
 **Module:** `evita_external_api_graphql`
 
-1. **Type registration** — register `ScopedNewFieldDescriptor.THIS` and `THIS_INPUT` in `CommonEvitaSchemaSchemaBuilder`
-2. **DataFetcher** — for scope-aware fields, create a singleton `DataFetcher` that converts `Map<Scope, Set<NewEnum>>` to `List<ScopedNewField>` for GraphQL output. For simple fields, no DataFetcher is needed — GraphQL Java resolves them from getters automatically.
-3. **Register DataFetcher** in `EntitySchemaSchemaBuilder` (or the appropriate schema builder)
+1. **Type registration in Catalog API** — register `ScopedNewFieldDescriptor.THIS` and `THIS_INPUT` in `CommonEvitaSchemaSchemaBuilder`
+2. **Type registration in System API** — register `ScopedNewFieldDescriptor.THIS` in `SystemGraphQLSchemaBuilder`. This is a **separate** GraphQL schema builder for the system-level API (health checks, catalog management, CDC subscriptions). It maintains its own list of registered types independently of the catalog schema builder. Missing this causes `graphql.AssertException: type ... not found in schema` errors in `EvitaServerTest` and all `SystemGraphQL*` tests.
+3. **DataFetcher** — for scope-aware fields, create a singleton `DataFetcher` that converts `Map<Scope, Set<NewEnum>>` to `List<ScopedNewField>` for GraphQL output. For simple fields, no DataFetcher is needed — GraphQL Java resolves them from getters automatically.
+4. **Register DataFetcher** in `EntitySchemaSchemaBuilder` (or the appropriate schema builder)
 
 **Backward compatibility note:** New output fields are non-breaking. New input fields must be optional so existing mutations without the field still parse.
 
@@ -562,6 +606,7 @@ Update `EntitySchemaConverter` and gRPC mutation converters to map the new field
 
 1. **Type registration** in `EntitySchemaObjectBuilder`
 2. **JSON serialization** — for scope-aware fields, add a serialization method in `SchemaJsonSerializer` that converts `Map<Scope, ...>` to a JSON array. Call it from `EntitySchemaJsonSerializer`. For simple fields, Jackson serializes them from the getter automatically.
+3. **REST functional test DTO helpers** — update `CatalogRestSchemaEndpointFunctionalTest.createReferenceSchemaDto()` (or equivalent `create*SchemaDto()` method) to include the new field. For scope-aware fields, create a new `create*Dto()` helper method that converts the schema's map data into the expected JSON structure (list of maps with scope + value). Without this, all REST schema endpoint functional tests will fail with JSON path mismatches.
 
 **Backward compatibility note:** New JSON fields in responses are non-breaking. Ensure request deserialization treats the new field as optional.
 
@@ -572,7 +617,8 @@ Update `EntitySchemaConverter` and gRPC mutation converters to map the new field
 - [ ] **gRPC:** `EvitaEnumConverter` updated (if new enum)
 - [ ] **gRPC:** `EntitySchemaConverter` and mutation converters updated
 - [ ] **gRPC:** Empty/default handling is backward compatible
-- [ ] **GraphQL:** Types registered in `CommonEvitaSchemaSchemaBuilder`
+- [ ] **GraphQL:** Types registered in `CommonEvitaSchemaSchemaBuilder` (Catalog API)
+- [ ] **GraphQL:** Types registered in `SystemGraphQLSchemaBuilder` (System API)
 - [ ] **GraphQL:** DataFetcher created and registered (if scope-aware)
 - [ ] **GraphQL:** Input types allow omission of new field
 - [ ] **REST:** Types registered in `EntitySchemaObjectBuilder`
@@ -598,35 +644,58 @@ Always use `EnumNameSerializer` for enums — it persists names (not ordinals), 
 
 ### 7.2 Serial Version Hash Workflow
 
-The `SerialVersionBasedSerializer` uses a hash of the serializer's structure to detect format changes. When you modify a serializer, you must preserve the old hash for backward compatibility.
+The `SerialVersionBasedSerializer` uses the target class's `serialVersionUID` (explicitly declared via `@Serial private static final long serialVersionUID = ...L;`) to detect format changes. Every serialized object is prefixed with this UID; on deserialization, the UID is read first to dispatch to the correct serializer version.
+
+**Important — release-only backward compatibility:** We only maintain backward compatibility with the **latest released version** (the latest `release_YYYY-M` branch). If a model changes multiple times during a single development cycle (between releases), do NOT create intermediate backward-compatible serializers — just update the current serializer. Only the release format matters.
 
 **Step-by-step process:**
 
-1. **Before modifying the serializer**, note the current `SerialVersionBasedSerializer` chain for the class in `SchemaKryoConfigurer.java`. The *current* serializer (first argument to `new SerialVersionBasedSerializer<>(...)`) has an implicit hash computed at runtime.
+1. **Determine the latest release branch and version suffix:**
 
-2. **Copy the current serializer** to a new file named `SchemaTypeSerializer_YYYY_M.java` (using the current release version). This becomes the backward-compatible reader for the old format.
+   ```shell
+   git branch -r --list 'origin/release_*' --sort=-v:refname | head -1
+   ```
+   This gives e.g. `origin/release_2026-1` → suffix `_2026_1`, annotation `@Deprecated(since = "2026.1")`.
 
-3. **Annotate the copy** with `@Deprecated(since = "YYYY.M", forRemoval = true)`.
+2. **Compare `serialVersionUID`** of the target class between the release branch and the current branch:
 
-4. **In the copy**, make `write()` throw `UnsupportedOperationException` and keep `read()` unchanged — it reads the *old* format.
+   ```shell
+   # Release branch UID:
+   git show origin/release_YYYY-M:path/to/SchemaType.java | grep serialVersionUID
+   # Current branch UID:
+   grep serialVersionUID path/to/SchemaType.java
+   ```
 
-5. **Modify the original serializer** to write/read the new field.
+3. **Decision tree:**
 
-6. **Run the tests.** The `SerialVersionBasedSerializer` will detect that the current serializer's hash has changed and report the **old hash** in the error message. Capture this hash value.
+   - **UIDs identical** → The target class hasn't changed since the release. No backward-compat serializer needed. Just update the current serializer to write/read the new field.
 
-7. **Register the backward-compatible serializer** with the captured old hash:
+   - **UIDs differ AND `SchemaTypeSerializer_YYYY_M.java` already exists** → A backward-compat serializer for the release format was already created earlier in this dev cycle (from a previous change to this model). Just update the current serializer. No new backward-compat file needed.
 
-```java
-kryo.register(
-	SchemaType.class,
-	new SerialVersionBasedSerializer<>(
-		new SchemaTypeSerializer(), SchemaType.class  // current version
-	)
-		.addBackwardCompatibleSerializer(EXISTING_HASH_1, new SchemaTypeSerializer_OLD_1())
-		.addBackwardCompatibleSerializer(CAPTURED_OLD_HASH, new SchemaTypeSerializer_YYYY_M()),  // NEW
-	index++
-);
-```
+   - **UIDs differ AND no `SchemaTypeSerializer_YYYY_M.java` exists** → This is the first change to this model since the release. Full workflow:
+
+     a. **Get the release-version serializer** from the release branch:
+        ```shell
+        git show origin/release_YYYY-M:path/to/SchemaTypeSerializer.java
+        ```
+     b. **Save it** as `SchemaTypeSerializer_YYYY_M.java`. This becomes the backward-compatible reader for the release format.
+     c. **Annotate** with `@Deprecated(since = "YYYY.M", forRemoval = true)`.
+     d. **In the copy**, make `write()` throw `UnsupportedOperationException` and keep `read()` unchanged — it reads the release format.
+     e. **Modify the original serializer** to write/read the new field.
+     f. **Run the tests.** `SerialVersionBasedSerializer` will detect the UID mismatch and report the **old hash** in the error message. Capture this value.
+     g. **Register** the backward-compatible serializer with the captured hash:
+
+     ```java
+     kryo.register(
+     	SchemaType.class,
+     	new SerialVersionBasedSerializer<>(
+     		new SchemaTypeSerializer(), SchemaType.class  // current version
+     	)
+     		.addBackwardCompatibleSerializer(EXISTING_HASH_1, new SchemaTypeSerializer_OLD_1())
+     		.addBackwardCompatibleSerializer(CAPTURED_OLD_HASH, new SchemaTypeSerializer_YYYY_M()),  // NEW
+     	index++
+     );
+     ```
 
 ### 7.3 Update Current Serializer
 
@@ -658,10 +727,10 @@ For `ReflectedReferenceSchema` (ReferenceSchema changes only), inherited fields 
 
 ### 7.4 Backward-Compatible Serializer
 
-The copy from step 7.2 reads the **old format** (without the new field). It must:
+The backward-compat serializer reads the **release format** (without the new field). It must:
 
-- Read fields in exactly the order the old version wrote them
-- NOT read the new field (it doesn't exist in old data)
+- Read fields in exactly the order the release version wrote them
+- NOT read the new field (it doesn't exist in release data)
 - Pass a default or `null` to the `_internalBuild()` method for the new field
 
 ```java
@@ -676,7 +745,7 @@ public class SchemaTypeSerializer_YYYY_M extends Serializer<SchemaType> {
 
 	@Override
 	public SchemaType read(Kryo kryo, Input input, Class<? extends SchemaType> aClass) {
-		// Read old format fields in original order...
+		// Read release format fields in original order...
 		// Do NOT read the new field
 		return SchemaType._internalBuild(/* old params, default for new field */);
 	}
@@ -686,10 +755,12 @@ public class SchemaTypeSerializer_YYYY_M extends Serializer<SchemaType> {
 ### Checklist
 
 - [ ] `EnumNameSerializer` registered for new enum (if applicable)
-- [ ] Old serializer copied to `SchemaTypeSerializer_YYYY_M.java`, annotated `@Deprecated`, write throws
+- [ ] Release branch identified, `serialVersionUID` compared (see decision tree above)
+- [ ] If first change since release: backward-compat serializer created from release-branch source, annotated `@Deprecated`, write throws
+- [ ] If subsequent change (backward-compat already exists): just update the current serializer — no new backward-compat file
 - [ ] Current serializer updated with new field read/write
-- [ ] Tests run to capture old serial version hash
-- [ ] Backward-compatible serializer registered with captured hash in `SchemaKryoConfigurer`
+- [ ] Tests run to capture old serial version hash (first change only)
+- [ ] Backward-compatible serializer registered with captured hash in `SchemaKryoConfigurer` (first change only)
 - [ ] *(ReferenceSchema only)* Both `ReferenceSchemaSerializer` and `ReflectedReferenceSchemaSerializer` updated
 
 ---
@@ -709,13 +780,16 @@ kryo.register(NewEnum.class, new EnumNameSerializer<>(), index++);
 
 ### 8.2 Serial Version Hash Workflow
 
-Follow the same process as Layer 7:
+Follow the same **decision tree** as Layer 7.2 — compare the mutation class's `serialVersionUID` between the latest release branch and the current branch:
 
-1. Copy current mutation serializer to `MutationSerializer_YYYY_M.java`
-2. Annotate `@Deprecated`, write throws `UnsupportedOperationException`
-3. Modify original to write/read new field
-4. Run tests, capture old hash from error message
-5. Register backward-compatible serializer with old hash in `WalKryoConfigurer`
+1. **UIDs identical** → No backward-compat needed, just update the current serializer.
+2. **UIDs differ AND `MutationSerializer_YYYY_M.java` already exists** → Backward compat for the release format is already handled. Just update the current serializer.
+3. **UIDs differ AND no backward-compat serializer exists** → First change since release. Full workflow:
+   a. Get the release-version serializer from the release branch
+   b. Save as `MutationSerializer_YYYY_M.java`, annotate `@Deprecated(since = "YYYY.M", forRemoval = true)`, make write throw `UnsupportedOperationException`
+   c. Modify original to write/read new field
+   d. Run tests, capture old hash from error message
+   e. Register backward-compatible serializer with old hash in `WalKryoConfigurer`
 
 ### 8.3 Update Current Mutation Serializers
 
@@ -746,10 +820,12 @@ The backward-compatible serializer reads the old format without the new field an
 ### Checklist
 
 - [ ] `EnumNameSerializer` registered for new enum in `WalKryoConfigurer` (if applicable)
-- [ ] Old serializer(s) copied and deprecated
+- [ ] Release branch identified, mutation class `serialVersionUID` compared (see decision tree above)
+- [ ] If first change since release: backward-compat serializer(s) created from release-branch source and deprecated
+- [ ] If subsequent change (backward-compat already exists): just update the current serializer — no new backward-compat file
 - [ ] Current mutation serializers updated with new field
-- [ ] Tests run to capture old hash(es)
-- [ ] `SerialVersionBasedSerializer` chain updated in `WalKryoConfigurer` for each mutation
+- [ ] Tests run to capture old hash(es) (first change only)
+- [ ] `SerialVersionBasedSerializer` chain updated in `WalKryoConfigurer` for each mutation (first change only)
 
 ---
 
@@ -802,6 +878,7 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 | gRPC assertions | `grpc/testUtils/GrpcAssertions.java` | Update assertion helpers |
 | GraphQL | `graphql/api/catalog/schemaApi/...` | Query functional tests |
 | REST | `rest/api/catalog/schemaApi/...` | Endpoint functional tests |
+| REST DTO helpers | `rest/.../CatalogRestSchemaEndpointFunctionalTest.java` | `create*SchemaDto()` helpers |
 
 ### Test Checklist
 
@@ -813,6 +890,7 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 - [ ] gRPC: converter round-trip, enum conversion both directions (if applicable)
 - [ ] GraphQL: query returns correct structure for new field
 - [ ] REST: JSON output includes new field in correct format
+- [ ] REST: `create*SchemaDto()` test helpers updated in `CatalogRestSchemaEndpointFunctionalTest`
 - [ ] *(Scope-aware only)* Scoped record: null-argument validation, equality with array fields
 - [ ] *(ReferenceSchema only)* Reflected: inheritance flag toggling, change detection edge cases
 
@@ -832,7 +910,8 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 | 6a - Proto | `evita_external_api_grpc/.../resources/META-INF/.../Grpc*.proto` |
 | 6a - Enum conv | `evita_external_api_grpc/.../requestResponse/EvitaEnumConverter.java` |
 | 6a - Schema conv | `evita_external_api_grpc/.../requestResponse/schema/EntitySchemaConverter.java` |
-| 6b - GQL builder | `evita_external_api_graphql/.../schemaApi/builder/*SchemaBuilder.java` |
+| 6b - GQL catalog builder | `evita_external_api_graphql/.../schemaApi/builder/*SchemaBuilder.java` |
+| 6b - GQL system builder | `evita_external_api_graphql/.../system/builder/SystemGraphQLSchemaBuilder.java` |
 | 6b - DataFetcher | `evita_external_api_graphql/.../schemaApi/resolver/dataFetcher/*DataFetcher.java` |
 | 6c - REST builder | `evita_external_api_rest/.../schemaApi/builder/*ObjectBuilder.java` |
 | 6c - REST serial | `evita_external_api_rest/.../schemaApi/resolver/serializer/*Serializer.java` |
@@ -872,6 +951,16 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 12. **Enum registration order in Kryo configurers.** New registrations must be appended at the end (before the assertion) to maintain stable index numbering. Never insert in the middle — it shifts all subsequent indices and breaks deserialization.
 
 13. **Missing gRPC `UNRECOGNIZED` case.** The gRPC enum converter `toEvita()` method must handle `UNRECOGNIZED` by throwing `EvitaInvalidUsageException`. The `toGrpc()` direction does not need it.
+
+14. **`Output.toSerializableValue()` doesn't support custom types.** The reflection-based `convertObjectToOutput()` in `MutationConverter` will throw for any `@SerializableCreator` parameter type not handled by `toSerializableValue()` (enums, primitives, strings, arrays of primitives are supported; custom domain objects like `Expression` are NOT). You must override `convertToOutput()` to pre-serialize these fields. This is easy to miss because the compile succeeds — the error only surfaces at runtime during test execution.
+
+15. **REST functional test DTO helpers must match serializer output.** When adding a field to `SchemaJsonSerializer`, the corresponding `create*SchemaDto()` test helper in `CatalogRestSchemaEndpointFunctionalTest` (or the relevant endpoint test base class) must also be updated. Missing this causes all REST schema endpoint functional tests to fail with JSON path mismatches — often 10+ failures that look like unrelated issues.
+
+16. **`SystemGraphQLSchemaBuilder` is a separate type registry.** evitaDB has **two independent** GraphQL schema builders: `CommonEvitaSchemaSchemaBuilder` (catalog API) and `SystemGraphQLSchemaBuilder` (system API). They maintain separate type registries. Registering a new type in one does NOT make it available in the other. Missing the system builder causes 500+ `graphql.AssertException: type ... not found in schema` errors across all system GraphQL tests and `EvitaServerTest`. Look for existing `Scoped*Descriptor.THIS` registrations in `SystemGraphQLSchemaBuilder.build()` and add the new one alongside them.
+
+17. **Backward-compat serializer version suffix and release-only policy.** The `YYYY_M` suffix on backward-compatible serializer files must match the **last released version** (latest `release_YYYY-M` branch), not the current development version. Determine it via `git branch -r --list 'origin/release_*' --sort=-v:refname | head -1`. For example, `origin/release_2026-1` → suffix `_2026_1`, annotation `@Deprecated(since = "2026.1")`. **Crucially, we only maintain backward compatibility with the release version.** If a model changes multiple times during a dev cycle and a backward-compat serializer for the release already exists, do NOT create additional backward-compat serializers for intermediate states — just update the current serializer.
+
+18. **`input.getOptionalProperty()` raw vs typed overload.** `getOptionalProperty(String)` returns the raw underlying object (e.g., `List`) without type conversion. `getOptionalProperty(String, Class)` invokes `toTargetType()` which handles `List` -> array conversion. Using the wrong overload causes `ClassCastException` at runtime when the mutation constructor expects an array type.
 
 ---
 

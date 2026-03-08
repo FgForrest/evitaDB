@@ -29,13 +29,11 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
@@ -43,24 +41,19 @@ import lombok.RequiredArgsConstructor;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.function.Function;
 
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopedReferenceIndexTypeArray;
 
 /**
  * Backward-compatible read-only serializer for {@link ReferenceSchema} that reads the format
- * without the `indexedComponentsInScopes` field.
+ * without the `indexedComponentsInScopes` and `facetedPartiallyInScopes` fields.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2026.2", forRemoval = true)
+@Deprecated(since = "2026.1", forRemoval = true)
 @RequiredArgsConstructor
-public class ReferenceSchemaSerializer_2026_2 extends Serializer<ReferenceSchema> {
-	private static final Function<String, EntitySchemaContract> IMPOSSIBLE_EXCEPTION_PRODUCER = s -> {
-		throw new GenericEvitaInternalError("Sanity check!");
-	};
+public class ReferenceSchemaSerializer_2026_1 extends Serializer<ReferenceSchema> {
 
 	@Override
 	public void write(Kryo kryo, Output output, ReferenceSchema referenceSchema) {
@@ -122,7 +115,9 @@ public class ReferenceSchemaSerializer_2026_2 extends Serializer<ReferenceSchema
 			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
 			indexedInScopes,
+			ReferenceSchema.defaultIndexedComponents(indexedInScopes),
 			facetedInScopes,
+			Collections.emptyMap(),
 			attributes, sortableAttributeCompounds
 		);
 	}

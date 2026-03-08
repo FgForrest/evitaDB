@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -75,7 +76,7 @@ import java.util.stream.Stream;
 public class CreateReflectedReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = 8762548294001376251L;
+	@Serial private static final long serialVersionUID = 6927605828004667957L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -85,6 +86,7 @@ public class CreateReflectedReferenceSchemaMutation
 	@Getter @Nullable private final ScopedReferenceIndexType[] indexedInScopes;
 	@Getter @Nullable private final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
 	@Getter @Nullable private final Scope[] facetedInScopes;
+	@Getter @Nullable private final ScopedFacetedPartially[] facetedPartiallyInScopes;
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributeInheritanceBehavior;
 	@Getter @Nonnull private final String[] attributeInheritanceFilter;
 
@@ -134,6 +136,8 @@ public class CreateReflectedReferenceSchemaMutation
 			null,
 			// by default reflected reference is not faceted unless explicitly set
 			faceted == null ? null : faceted ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
+			// by default facetedPartially is inherited
+			null,
 			attributeInheritanceBehavior, attributeInheritanceFilter
 		);
 	}
@@ -141,6 +145,32 @@ public class CreateReflectedReferenceSchemaMutation
 	/**
 	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
 	 * indexed/faceted configuration.
+	 */
+	public CreateReflectedReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull String reflectedReferenceName,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
+		@Nullable String[] attributeInheritanceFilter
+	) {
+		this(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, reflectedReferenceName,
+			indexedInScopes, indexedComponentsInScopes,
+			facetedInScopes, null,
+			attributeInheritanceBehavior, attributeInheritanceFilter
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
+	 * indexed/faceted configuration including per-scope facetedPartially expressions.
 	 */
 	@SerializableCreator
 	public CreateReflectedReferenceSchemaMutation(
@@ -153,6 +183,7 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
 	) {
@@ -167,6 +198,7 @@ public class CreateReflectedReferenceSchemaMutation
 		this.indexedInScopes = indexedInScopes;
 		this.indexedComponentsInScopes = indexedComponentsInScopes;
 		this.facetedInScopes = facetedInScopes;
+		this.facetedPartiallyInScopes = facetedPartiallyInScopes;
 		this.attributeInheritanceBehavior = attributeInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ?
 			ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
@@ -256,6 +288,17 @@ public class CreateReflectedReferenceSchemaMutation
 									createdVersion, existingVersion,
 									ref -> ref.isFacetedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isFacetedInScope).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaFacetedMutation(this.name, newValue)
+								),
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
+									ReferenceSchemaContract::getFacetedPartiallyInScopes,
+									newValue -> new SetReferenceSchemaFacetedMutation(
+										this.name,
+										null,
+										newValue.entrySet().stream()
+											.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
+											.toArray(ScopedFacetedPartially[]::new)
+									)
 								)
 							),
 							existingVersion.getAttributes()
@@ -286,7 +329,7 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull ConsistencyChecks consistencyChecks
 	) {
-		return ReflectedReferenceSchema._internalBuild(
+		final ReflectedReferenceSchema baseResult = ReflectedReferenceSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
 			this.referencedEntityType, this.reflectedReferenceName,
 			this.cardinality,
@@ -298,6 +341,12 @@ public class CreateReflectedReferenceSchemaMutation
 			this.attributeInheritanceBehavior,
 			this.attributeInheritanceFilter
 		);
+		if (this.facetedPartiallyInScopes != null && this.facetedPartiallyInScopes.length > 0) {
+			return baseResult.withFacetedPartially(
+				ReferenceSchema.toFacetedPartiallyMap(this.facetedPartiallyInScopes)
+			);
+		}
+		return baseResult;
 	}
 
 	@Nonnull
@@ -349,6 +398,14 @@ public class CreateReflectedReferenceSchemaMutation
 		} else {
 			facetedDescription = "(faceted in scopes: " + Arrays.toString(this.facetedInScopes) + ")";
 		}
+		final String facetedPartiallyDescription;
+		if (this.facetedPartiallyInScopes == null) {
+			facetedPartiallyDescription = "(inherited)";
+		} else if (this.facetedPartiallyInScopes.length == 0) {
+			facetedPartiallyDescription = "(none)";
+		} else {
+			facetedPartiallyDescription = "(in scopes: " + Arrays.toString(this.facetedPartiallyInScopes) + ")";
+		}
 		return "Create entity reflected reference schema: " +
 			"name='" + this.name + '\'' +
 			", description='" + this.description + '\'' +
@@ -359,6 +416,7 @@ public class CreateReflectedReferenceSchemaMutation
 			", indexed=" + indexedDescription +
 			componentsDescription +
 			", faceted=" + facetedDescription +
+			", facetedPartially=" + facetedPartiallyDescription +
 			", attributesInherited=" + this.attributeInheritanceBehavior +
 			", attributesExcludedFromInheritance=" +
 			Arrays.toString(this.attributeInheritanceFilter);

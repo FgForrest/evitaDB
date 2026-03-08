@@ -39,6 +39,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -47,6 +49,7 @@ import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.NamingConvention;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -56,6 +59,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -97,21 +101,25 @@ class CreateReferenceSchemaMutationTest {
 	 */
 	@Nonnull
 	static ReferenceSchemaContract createExistingReferenceSchema(boolean indexed) {
-		return ReferenceSchema._internalBuild(
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = indexed ?
+				Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) :
+				Collections.emptyMap();
+			return ReferenceSchema._internalBuild(
 			REFERENCE_NAME,
+			NamingConvention.generate(REFERENCE_NAME),
 			"oldDescription",
 			"oldDeprecationNotice",
-			REFERENCE_TYPE,
-			false,
 			Cardinality.ZERO_OR_MORE,
-			GROUP_TYPE,
+			REFERENCE_TYPE,
+			NamingConvention.generate(REFERENCE_TYPE),
 			false,
-			indexed ?
-				new ScopedReferenceIndexType[]{
-					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
-				} :
-				ScopedReferenceIndexType.EMPTY,
-			indexed ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE,
+			GROUP_TYPE,
+			NamingConvention.generate(GROUP_TYPE),
+			false,
+			indexedScopesMap,
+			ReferenceSchema.defaultIndexedComponents(indexedScopesMap),
+			indexed ? EnumSet.of(Scope.LIVE) : EnumSet.noneOf(Scope.class),
+			Collections.emptyMap(),
 			Map.of(
 				REFERENCE_ATTRIBUTE_PRIORITY,
 				AttributeSchema._internalBuild(
@@ -196,6 +204,7 @@ class CreateReferenceSchemaMutationTest {
 			new ScopedReferenceIndexType[]{
 				new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 			},
+			null,
 			new Scope[]{Scope.LIVE},
 			Collections.emptyMap(),
 			Collections.emptyMap(),
@@ -421,6 +430,49 @@ class CreateReferenceSchemaMutationTest {
 				referenceSchema.getIndexedComponentsInScopes();
 			assertEquals(1, allComponents.size());
 			assertNotNull(allComponents.get(Scope.LIVE));
+		}
+
+		/**
+		 * Verifies that the 12-arg constructor with facetedPartially produces
+		 * a reference schema where the expression is retrievable.
+		 */
+		@Test
+		@DisplayName("should create reference with facetedPartially expression")
+		void shouldCreateReferenceWithFacetedPartially() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING
+					)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				new ScopedFacetedPartially[]{
+					new ScopedFacetedPartially(Scope.LIVE, expression)
+				}
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertTrue(referenceSchema.isFacetedInScope(Scope.LIVE));
+			final Expression actual =
+				referenceSchema.getFacetedPartiallyInScope(Scope.LIVE);
+			assertNotNull(actual);
+			assertEquals(
+				expression.toExpressionString(),
+				actual.toExpressionString()
+			);
 		}
 
 		@Test

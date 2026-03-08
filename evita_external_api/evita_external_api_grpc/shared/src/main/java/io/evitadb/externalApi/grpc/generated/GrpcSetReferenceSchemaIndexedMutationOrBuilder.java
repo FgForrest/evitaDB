@@ -77,7 +77,7 @@ public interface GrpcSetReferenceSchemaIndexedMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=304
+   *     See GrpcReferenceSchemaMutations.proto;l=311
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
@@ -95,7 +95,7 @@ public interface GrpcSetReferenceSchemaIndexedMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=304
+   *     See GrpcReferenceSchemaMutations.proto;l=311
    * @return The count of indexedInScopes.
    */
   @java.lang.Deprecated int getIndexedInScopesCount();
@@ -113,7 +113,7 @@ public interface GrpcSetReferenceSchemaIndexedMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=304
+   *     See GrpcReferenceSchemaMutations.proto;l=311
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -132,7 +132,7 @@ public interface GrpcSetReferenceSchemaIndexedMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=304
+   *     See GrpcReferenceSchemaMutations.proto;l=311
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<java.lang.Integer>
@@ -151,7 +151,7 @@ public interface GrpcSetReferenceSchemaIndexedMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=304
+   *     See GrpcReferenceSchemaMutations.proto;l=311
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */

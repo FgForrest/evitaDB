@@ -23,12 +23,15 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
@@ -241,7 +244,74 @@ class CreateReferenceSchemaMutationConverterTest {
 					)
 					.e(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
+					.e(CreateReferenceSchemaMutationDescriptor.FACETED_PARTIALLY_IN_SCOPES.name(),
+						list())
 					.build()
 			);
+	}
+
+	/**
+	 * Verifies that output serialization includes FACETED_PARTIALLY_IN_SCOPES
+	 * when the mutation contains facetedPartially expressions.
+	 */
+	@Test
+	void shouldSerializeOutputWithFacetedPartially() {
+		final Expression expression = ExpressionFactory.parse("1 > 0");
+		final CreateReferenceSchemaMutation inputMutation = new CreateReferenceSchemaMutation(
+			"tags",
+			"desc",
+			"depr",
+			Cardinality.ZERO_OR_MORE,
+			"tag",
+			true,
+			"tagGroup",
+			true,
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(
+					Scope.LIVE, ReferenceIndexType.FOR_FILTERING
+				)
+			},
+			null,
+			new Scope[]{Scope.LIVE},
+			new ScopedFacetedPartially[]{
+				new ScopedFacetedPartially(Scope.LIVE, expression)
+			}
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation =
+			(Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation).containsKey(
+			CreateReferenceSchemaMutationDescriptor
+				.FACETED_PARTIALLY_IN_SCOPES.name()
+		);
+	}
+
+	/**
+	 * Verifies that input parsing without FACETED_PARTIALLY_IN_SCOPES
+	 * produces a mutation with empty facetedPartially (null defaults to empty).
+	 */
+	@Test
+	void shouldResolveInputWithoutFacetedPartially() {
+		final CreateReferenceSchemaMutation convertedMutation =
+			this.converter.convertFromInput(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(CreateReferenceSchemaMutationDescriptor
+						.REFERENCED_ENTITY_TYPE.name(), "tag")
+					.e(CreateReferenceSchemaMutationDescriptor
+						.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
+					.e(CreateReferenceSchemaMutationDescriptor
+						.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
+					.e(CreateReferenceSchemaMutationDescriptor
+						.FACETED_IN_SCOPES.name(), list().i(Scope.LIVE))
+					.build()
+			);
+
+		// facetedPartiallyInScopes defaults to EMPTY when not provided
+		assertEquals(
+			0,
+			convertedMutation.getFacetedPartiallyInScopes().length
+		);
 	}
 }

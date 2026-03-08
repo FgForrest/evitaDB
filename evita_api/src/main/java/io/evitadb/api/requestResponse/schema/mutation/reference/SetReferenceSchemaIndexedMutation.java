@@ -391,30 +391,26 @@ public class SetReferenceSchemaIndexedMutation
 					verifyAttributeIndexRequirements(entitySchema, referenceSchema, indexedScopes);
 				}
 
-				// Convert EnumMap<Scope, ReferenceIndexType> to ScopedReferenceIndexType[]
-				final ScopedReferenceIndexType[] scopedIndexTypes = indexedScopes.entrySet().stream()
-					.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
-					.toArray(ScopedReferenceIndexType[]::new);
-
 				return ReferenceSchema._internalBuild(
 					this.name,
 					referenceSchema.getNameVariants(),
 					referenceSchema.getDescription(),
 					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema.isReferencedEntityTypeManaged()
 						? Collections.emptyMap()
 						: referenceSchema.getEntityTypeNameVariants(s -> null),
 					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedGroupType(),
 					referenceSchema.isReferencedGroupTypeManaged()
 						? Collections.emptyMap()
 						: referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					scopedIndexTypes,
-					filteredComponentsArray,
-					Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).toArray(Scope[]::new),
+					indexedScopes,
+					indexedComponents,
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()
 				);

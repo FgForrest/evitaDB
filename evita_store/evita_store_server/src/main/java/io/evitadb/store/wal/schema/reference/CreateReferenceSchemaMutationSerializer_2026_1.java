@@ -28,57 +28,51 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
- * Backward-compatible read-only serializer for {@link CreateReflectedReferenceSchemaMutation}
- * that reads the format without the `indexedComponentsInScopes` field.
+ * Backward-compatible read-only serializer for {@link CreateReferenceSchemaMutation}
+ * that reads the format without the `indexedComponentsInScopes` and `facetedPartiallyInScopes` fields.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated(since = "2026.2", forRemoval = true)
-public class CreateReflectedReferenceSchemaMutationSerializer_2026_2 extends Serializer<CreateReflectedReferenceSchemaMutation> implements MutationSerializationFunctions {
+@Deprecated(since = "2026.1", forRemoval = true)
+public class CreateReferenceSchemaMutationSerializer_2026_1 extends Serializer<CreateReferenceSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override
-	public void write(Kryo kryo, Output output, CreateReflectedReferenceSchemaMutation mutation) {
+	public void write(Kryo kryo, Output output, CreateReferenceSchemaMutation mutation) {
 		throw new UnsupportedOperationException("This serializer is deprecated and should not be used for writing.");
 	}
 
 	@Override
-	public CreateReflectedReferenceSchemaMutation read(Kryo kryo, Input input, Class<? extends CreateReflectedReferenceSchemaMutation> type) {
+	public CreateReferenceSchemaMutation read(Kryo kryo, Input input, Class<? extends CreateReferenceSchemaMutation> type) {
 		final String name = input.readString();
 		final String description = input.readString();
 		final String deprecationNotice = input.readString();
-		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
+		final Cardinality cardinality = kryo.readObject(input, Cardinality.class);
 		final String referencedEntityType = input.readString();
-		final String reflectedReferenceName = input.readString();
+		final boolean referencedEntityTypeManaged = input.readBoolean();
+		final String referencedGroupType = input.readString();
+		final boolean referencedGroupTypeManaged = input.readBoolean();
 
-		final ScopedReferenceIndexType[] indexedInScopes = input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null;
-		final Scope[] facetedInScopes = input.readBoolean() ? readScopeArray(kryo, input) : null;
+		final ScopedReferenceIndexType[] indexedInScopes = readScopedReferenceIndexTypeArray(kryo, input);
+		final Scope[] facetedInScopes = readScopeArray(kryo, input);
 
-		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
-		final int attributesExcludedFromInheritanceLength = input.readVarInt(true);
-		final String[] attributesExcludedFromInheritance = new String[attributesExcludedFromInheritanceLength];
-		for (int i = 0; i < attributesExcludedFromInheritanceLength; i++) {
-			attributesExcludedFromInheritance[i] = input.readString();
-		}
-
-		return new CreateReflectedReferenceSchemaMutation(
+		return new CreateReferenceSchemaMutation(
 			name,
 			description,
 			deprecationNotice,
 			cardinality,
 			referencedEntityType,
-			reflectedReferenceName,
+			referencedEntityTypeManaged,
+			referencedGroupType,
+			referencedGroupTypeManaged,
 			indexedInScopes,
 			null,
-			facetedInScopes,
-			attributeInheritanceBehavior,
-			attributesExcludedFromInheritance
+			facetedInScopes
 		);
 	}
 

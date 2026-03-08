@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
+import io.evitadb.dataType.ClassifierType;
+import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -72,6 +74,9 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 		boolean referencedGroupTypeManaged
 	) {
 		super(name);
+		if (referencedGroupType != null) {
+			ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedGroupType);
+		}
 		this.referencedGroupType = referencedGroupType;
 		this.referencedGroupTypeManaged = referencedGroupType != null && referencedGroupTypeManaged;
 	}
@@ -126,6 +131,7 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 				referenceSchema.getReferenceIndexTypeInScopes(),
 				referenceSchema.getIndexedComponentsInScopes(),
 				referenceSchema.getFacetedInScopes(),
+				referenceSchema.getFacetedPartiallyInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()
 			);

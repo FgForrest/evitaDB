@@ -128,12 +128,24 @@ public @interface Reference {
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#isFaceted()}.
 	 */
-	Expression faceted() default @Expression;
+	boolean faceted() default false;
 
 	/**
-	 * Configures histogram computation for reference of this name.
+	 * Defines a condition to further narrow down the facet scope.
+	 * This is only evaluated if {@link #faceted()} is set to true.
 	 */
-	Histogram histogram() default @Histogram;
+	Expression facetedPartially() default @Expression;
+
+	/**
+	 * Enables histogram (bucketed) computation for reference of this name.
+	 */
+	Histogram bucketed() default @Histogram;
+
+	/**
+	 * Defines a condition to further narrow down the histogram scope.
+	 * This is only evaluated if {@link #bucketed()} is set up.
+	 */
+	Expression bucketedPartially() default @Expression;
 
 	/**
 	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
