@@ -142,7 +142,7 @@
 		<armeria.version>1.36.0</armeria.version>
 		<prometheus.version>1.5.0</prometheus.version>
 		<micrometer.version>1.16.3</micrometer.version>
-		<byteBuddy.version>1.17.8</byteBuddy.version>
+		<byteBuddy.version>1.18.7</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
 		<okhttp.version>5.3.2</okhttp.version>
 		<opentelemetry.version>1.59.0</opentelemetry.version>
