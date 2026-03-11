@@ -58,6 +58,7 @@ import java.io.Serializable;
  */
 public class EntityContractAccessor implements ObjectPropertyAccessor {
 
+	public static final String ENTITY_VARIABLE_NAME = "entity";
 	public static final String PRIMARY_KEY_PROPERTY = "primaryKey";
 	public static final String ATTRIBUTES_PROPERTY = "attributes";
 	public static final String LOCALIZED_ATTRIBUTES_PROPERTY = "localizedAttributes";

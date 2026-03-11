@@ -94,6 +94,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.schema.mutation.engine;
 	exports io.evitadb.api.requestResponse.mutation.infrastructure;
 	exports io.evitadb.api.traffic;
+	exports io.evitadb.api.query.expression.object.accessor.entity;
 
 	requires static lombok;
 	requires static jsr305;

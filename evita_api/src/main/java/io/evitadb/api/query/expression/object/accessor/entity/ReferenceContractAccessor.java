@@ -54,6 +54,7 @@ import java.io.Serializable;
  */
 public class ReferenceContractAccessor implements ObjectPropertyAccessor {
 
+	public static final String REFERENCE_VARIABLE_NAME = "reference";
 	public static final String REFERENCED_PRIMARY_KEY_PROPERTY = "referencedPrimaryKey";
 	public static final String ATTRIBUTES_PROPERTY = "attributes";
 	public static final String LOCALIZED_ATTRIBUTES_PROPERTY = "localizedAttributes";

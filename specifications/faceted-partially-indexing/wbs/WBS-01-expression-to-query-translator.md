@@ -436,13 +436,13 @@ All in `evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java` (s
 
 **Group 1: Core Translator Class**
 
-- [ ] Create `ExpressionToQueryTranslator` class in `evita_engine/src/main/java/io/evitadb/index/mutation/expression/ExpressionToQueryTranslator.java` — implement `ExpressionNodeVisitor` with a public static `translate(Expression, String referenceName): FilterBy` method. Follow the `AccessedDataFinder` pattern: private constructor, static factory method, internal mutable state for building the constraint tree during traversal.
+- [x] Create `ExpressionToQueryTranslator` class in `evita_engine/src/main/java/io/evitadb/core/expression/query/ExpressionToQueryTranslator.java` — implement `ExpressionNodeVisitor` with a public static `translate(Expression, String referenceName): FilterBy` method. Follow the `AccessedDataFinder` pattern: private constructor, static factory method, internal mutable state for building the constraint tree during traversal. *(Note: placed in `io.evitadb.core.expression.query` package instead of `io.evitadb.index.mutation.expression`)*
 
-- [ ] Implement `Expression` and `NestedOperator` unwrapping — when visiting these wrapper nodes, delegate to the single child (follow the `BooleanExpressionChecker` pattern at `evita_query/src/main/java/io/evitadb/api/query/expression/visitor/BooleanExpressionChecker.java` lines 73-80).
+- [x] Implement `Expression` and `NestedOperator` unwrapping — when visiting these wrapper nodes, delegate to the single child (follow the `BooleanExpressionChecker` pattern at `evita_query/src/main/java/io/evitadb/api/query/expression/visitor/BooleanExpressionChecker.java` lines 73-80).
 
-- [ ] Implement boolean operator translation: `ConjunctionOperator` -> `and()`, `DisjunctionOperator` -> `or()`, `InverseOperator` -> `not()`. For conjunction and disjunction, implement recursive flattening to collect all operands of the same type into a single variadic `and(...)` or `or(...)` call. `XorOperator` has no FilterBy equivalent and should be rejected with a clear error.
+- [x] Implement boolean operator translation: `ConjunctionOperator` -> `and()`, `DisjunctionOperator` -> `or()`, `InverseOperator` -> `not()`. For conjunction and disjunction, implement recursive flattening to collect all operands of the same type into a single variadic `and(...)` or `or(...)` call. `XorOperator` has no FilterBy equivalent and should be rejected with a clear error. *(XOR rejection deferred to iteration 5)*
 
-- [ ] Implement comparison operator translation — for each of `EqualsOperator`, `GreaterThanOperator`, `GreaterThanEqualsOperator`, `LesserThanOperator`, `LesserThanEqualsOperator`: extract the `ObjectAccessOperator` operand (data path) and `ConstantOperand` operand (literal value), determine the data path type, and produce the corresponding attribute constraint. Handle either operand order (path on left or right). When the `ConstantOperand` value is `null`, dispatch to null-check handling (see below).
+- [x] Implement comparison operator translation — for each of `EqualsOperator`, `GreaterThanOperator`, `GreaterThanEqualsOperator`, `LesserThanOperator`, `LesserThanEqualsOperator`: extract the `ObjectAccessOperator` operand (data path) and `ConstantOperand` operand (literal value), determine the data path type, and produce the corresponding attribute constraint. Handle either operand order (path on left or right). When the `ConstantOperand` value is `null`, dispatch to null-check handling (see below).
 
 - [ ] Implement null-check translation — when a comparison operator has a `null` `ConstantOperand`, produce the appropriate null-check constraint based on path type:
   - `$entity.attributes['x'] == null` -> `attributeIsNull("x")`
@@ -451,42 +451,42 @@ All in `evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java` (s
   - `$entity.parent != null` -> `hierarchyWithinRootSelf()`
   - Reference/group/referenced entity attribute null checks follow the same pattern, wrapped in the appropriate `referenceHaving`/`groupHaving`/`entityHaving` containers.
 
-- [ ] Implement `NotEqualsOperator` translation — decompose into `not(attributeEquals(...))` for non-null attribute comparisons. For null comparisons (`!= null`), use `attributeIsNotNull("x")` for attributes or `hierarchyWithinRootSelf()` for the parent path. For non-null value comparisons, produce `not(attributeEquals("x", v))`.
+- [x] Implement `NotEqualsOperator` translation — decompose into `not(attributeEquals(...))` for non-null attribute comparisons. For null comparisons (`!= null`), use `attributeIsNotNull("x")` for attributes or `hierarchyWithinRootSelf()` for the parent path. For non-null value comparisons, produce `not(attributeEquals("x", v))`. *(Null-check part blocked on EvitaEL grammar — no null literal)*
 
-- [ ] Implement data path classification — create a private helper method that walks an `ObjectAccessOperator`'s step chain (`PropertyAccessStep`, `ElementAccessStep`, `NullSafeAccessStep`) and returns a structured result indicating: (a) path type (ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE, GROUP_ENTITY_ATTRIBUTE, REFERENCED_ENTITY_ATTRIBUTE, ENTITY_PARENT, ASSOCIATED_DATA), and (b) the attribute name (extracted from the `ElementAccessStep`'s `ConstantOperand`).
+- [x] Implement data path classification — create a private helper method that walks an `ObjectAccessOperator`'s step chain (`PropertyAccessStep`, `ElementAccessStep`, `NullSafeAccessStep`) and returns a structured result indicating: (a) path type (ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE, GROUP_ENTITY_ATTRIBUTE, REFERENCED_ENTITY_ATTRIBUTE, ENTITY_PARENT, ASSOCIATED_DATA), and (b) the attribute name (extracted from the `ElementAccessStep`'s `ConstantOperand`). *(ENTITY_PARENT and ASSOCIATED_DATA deferred — blocked on grammar / deferred to iteration 5)*
 
-- [ ] Implement constraint wrapping based on path type:
+- [x] Implement constraint wrapping based on path type:
   - `ENTITY_ATTRIBUTE` -> bare `attributeXxx("attrName", value)` (no wrapper)
   - `REFERENCE_ATTRIBUTE` -> `referenceHaving(referenceName, attributeXxx("attrName", value))`
   - `GROUP_ENTITY_ATTRIBUTE` -> `referenceHaving(referenceName, groupHaving(attributeXxx("attrName", value)))` (using `QueryConstraints.groupHaving()`, **not** `entityGroupHaving`)
   - `REFERENCED_ENTITY_ATTRIBUTE` -> `referenceHaving(referenceName, entityHaving(attributeXxx("attrName", value)))`
-  - `ENTITY_PARENT` (existence check) -> `hierarchyWithinRootSelf()`
+  - `ENTITY_PARENT` (existence check) -> `hierarchyWithinRootSelf()` *(deferred — blocked on grammar)*
 
-- [ ] Implement `referenceHaving` merging — when multiple comparison nodes within the same **AND** context reference the same reference name, merge their inner constraints under a single `referenceHaving` wrapper rather than producing duplicate `referenceHaving` nodes. This is important for downstream parameterization: the executor needs a single `referenceHaving` node to locate and inject PK-scoping. **Merging is limited to AND contexts only.** In OR contexts (e.g., `$reference.attributes['a'] == 1 || $reference.attributes['b'] == 2`), the two `referenceHaving` nodes should be placed under the `or(...)` without merging — producing `or(referenceHaving("ref", attrEq("a",1)), referenceHaving("ref", attrEq("b",2)))`. Similarly, if one branch is negated, it should not be merged with non-negated branches. The rationale: merging inside OR would change the semantics of the generated FilterBy tree and break PK-scoping parameterization, because the executor injects scoping at the `referenceHaving` level.
+- [x] Implement `referenceHaving` merging — when multiple comparison nodes within the same **AND** context reference the same reference name, merge their inner constraints under a single `referenceHaving` wrapper rather than producing duplicate `referenceHaving` nodes. This is important for downstream parameterization: the executor needs a single `referenceHaving` node to locate and inject PK-scoping. **Merging is limited to AND contexts only.** In OR contexts (e.g., `$reference.attributes['a'] == 1 || $reference.attributes['b'] == 2`), the two `referenceHaving` nodes should be placed under the `or(...)` without merging — producing `or(referenceHaving("ref", attrEq("a",1)), referenceHaving("ref", attrEq("b",2)))`. Similarly, if one branch is negated, it should not be merged with non-negated branches. The rationale: merging inside OR would change the semantics of the generated FilterBy tree and break PK-scoping parameterization, because the executor injects scoping at the `referenceHaving` level.
 
-- [ ] Wrap the final constraint tree in `filterBy(...)` — the public `translate()` method should return `FilterBy` (using `QueryConstraints.filterBy(...)`).
+- [x] Wrap the final constraint tree in `filterBy(...)` — the public `translate()` method should return `FilterBy` (using `QueryConstraints.filterBy(...)`).
 
 **Group 2: Validation and Error Handling**
 
-- [ ] Create `NonTranslatableExpressionException` class in `evita_engine/src/main/java/io/evitadb/index/mutation/expression/NonTranslatableExpressionException.java` — extend `EvitaInvalidUsageException`. Include fields for the expression node that caused the error and a descriptive reason. Follow the evitaDB exception pattern with both an internal message and a public-facing message.
+- [x] Create `NonTranslatableExpressionException` class in `evita_engine/src/main/java/io/evitadb/core/expression/query/NonTranslatableExpressionException.java` — extend `EvitaInvalidUsageException`. *(Note: placed in `io.evitadb.core.expression.query` package instead of `io.evitadb.index.mutation.expression`)*
 
-- [ ] Validate: reject dynamic attribute paths — when an `ElementAccessStep`'s identifier operand is a `VariableOperand` instead of a `ConstantOperand`, throw `NonTranslatableExpressionException` with message: "Dynamic attribute path `$entity.attributes[<variable>]` cannot be translated to a FilterBy constraint because the attribute name is not a compile-time constant."
+- [x] Validate: reject dynamic attribute paths — when an `ElementAccessStep`'s identifier operand is a `VariableOperand` instead of a `ConstantOperand`, throw `NonTranslatableExpressionException` with message: "Dynamic attribute path `$entity.attributes[<variable>]` cannot be translated to a FilterBy constraint because the attribute name is not a compile-time constant."
 
-- [ ] Validate: reject `SpreadAccessStep` — if the `ObjectAccessOperator`'s step chain contains a `SpreadAccessStep`, throw `NonTranslatableExpressionException` with message explaining that spread operators cannot be mapped to FilterBy constraints.
+- [x] Validate: reject `SpreadAccessStep` — if the `ObjectAccessOperator`'s step chain contains a `SpreadAccessStep`, throw `NonTranslatableExpressionException` with message explaining that spread operators cannot be mapped to FilterBy constraints.
 
-- [ ] Validate: reject associated data paths — when the path contains `.associatedData[...]` (i.e., `IdentifierPathItem("associatedData")`), throw `NonTranslatableExpressionException` explaining that associated data has no FilterBy equivalent.
+- [x] Validate: reject associated data paths — when the path contains `.associatedData[...]` (i.e., `IdentifierPathItem("associatedData")`), throw `NonTranslatableExpressionException` explaining that associated data has no FilterBy equivalent.
 
-- [ ] Validate: reject cross-to-local comparisons — when both operands of a comparison operator are `ObjectAccessOperator` nodes, throw `NonTranslatableExpressionException` explaining that cross-constraint value comparisons are not supported in FilterBy.
+- [x] Validate: reject cross-to-local comparisons — when both operands of a comparison operator are `ObjectAccessOperator` nodes, throw `NonTranslatableExpressionException` explaining that cross-constraint value comparisons are not supported in FilterBy.
 
-- [ ] Validate: reject unsupported operators — for `AdditionOperator`, `SubtractionOperator`, `MultiplicationOperator`, `DivisionOperator`, `ModuloOperator`, `NegativeOperator`, `PositiveOperator`, `FunctionOperator`, `NullCoalesceOperator`, `SpreadNullCoalesceOperator`, throw `NonTranslatableExpressionException` explaining that arithmetic/function operators cannot be translated to FilterBy.
+- [x] Validate: reject unsupported operators — for `AdditionOperator`, `SubtractionOperator`, `MultiplicationOperator`, `DivisionOperator`, `ModuloOperator`, `NegativeOperator`, `PositiveOperator`, `FunctionOperator`, `NullCoalesceOperator`, `SpreadNullCoalesceOperator`, throw `NonTranslatableExpressionException` explaining that arithmetic/function operators cannot be translated to FilterBy.
 
-- [ ] Validate: reject `XorOperator` — throw `NonTranslatableExpressionException` explaining that XOR has no FilterBy equivalent. Suggest rewriting as `(a || b) && !(a && b)`.
+- [x] Validate: reject `XorOperator` — throw `NonTranslatableExpressionException` explaining that XOR has no FilterBy equivalent. Suggest rewriting as `(a || b) && !(a && b)`.
 
-- [ ] Validate: ensure the expression is a boolean expression — at entry, check `BooleanExpressionChecker.isBooleanExpression(expression)` and reject non-boolean expressions (e.g., pure arithmetic expressions that return a number rather than a boolean).
+- [x] Validate: ensure the expression is a boolean expression — at entry, check `BooleanExpressionChecker.isBooleanExpression(expression)` and reject non-boolean expressions (e.g., pure arithmetic expressions that return a number rather than a boolean).
 
 **Group 3: Collaboration with AccessedDataFinder**
 
-- [ ] Before translation, call `AccessedDataFinder.findAccessedPaths(expression)` to pre-validate that all paths are statically resolvable. If any path contains a `VariablePathItem` at a position that represents an attribute name (i.e., after an `IdentifierPathItem("attributes")`), reject with `NonTranslatableExpressionException`. This provides early detection before the AST traversal, with a clearer error than if the translator encountered it mid-traversal.
+- [x] Before translation, call `AccessedDataFinder.findAccessedPaths(expression)` to pre-validate that all paths are statically resolvable. If any path contains a `VariablePathItem` at a position that represents an attribute name (i.e., after an `IdentifierPathItem("attributes")`), reject with `NonTranslatableExpressionException`. This provides early detection before the AST traversal, with a clearer error than if the translator encountered it mid-traversal.
 
 ### Test Cases
 
@@ -497,18 +497,18 @@ Test class location: `evita_test/evita_functional_tests/src/test/java/io/evitadb
 Expressions are parsed via `ExpressionFactory.parse(String)` and translated via `ExpressionToQueryTranslator.translate(Expression, String)`. Assertions verify the resulting `FilterBy` constraint tree structure (constraint types, attribute names, values, nesting).
 
 **Happy path — entity attribute comparisons:**
-- [ ] `translates_entity_attribute_equals_string` — `$entity.attributes['status'] == 'ACTIVE'` translates to `filterBy(attributeEquals("status", "ACTIVE"))`
-- [ ] `translates_entity_attribute_equals_boolean_true` — `$entity.attributes['isActive'] == true` translates to `filterBy(attributeEquals("isActive", true))`
-- [ ] `translates_entity_attribute_equals_boolean_false` — `$entity.attributes['isActive'] == false` translates to `filterBy(attributeEquals("isActive", false))`
-- [ ] `translates_entity_attribute_equals_integer` — `$entity.attributes['priority'] == 1` translates to `filterBy(attributeEquals("priority", 1))`
-- [ ] `translates_entity_attribute_greater_than` — `$entity.attributes['price'] > 100` translates to `filterBy(attributeGreaterThan("price", 100))`
-- [ ] `translates_entity_attribute_greater_than_equals` — `$entity.attributes['price'] >= 100` translates to `filterBy(attributeGreaterThanEquals("price", 100))`
-- [ ] `translates_entity_attribute_less_than` — `$entity.attributes['price'] < 100` translates to `filterBy(attributeLessThan("price", 100))`
-- [ ] `translates_entity_attribute_less_than_equals` — `$entity.attributes['price'] <= 100` translates to `filterBy(attributeLessThanEquals("price", 100))`
+- [x] `translates_entity_attribute_equals_string` — `$entity.attributes['status'] == 'ACTIVE'` translates to `filterBy(attributeEquals("status", "ACTIVE"))`
+- [x] `translates_entity_attribute_equals_boolean_true` — `$entity.attributes['isActive'] == true` translates to `filterBy(attributeEquals("isActive", true))`
+- [x] `translates_entity_attribute_equals_boolean_false` — `$entity.attributes['isActive'] == false` translates to `filterBy(attributeEquals("isActive", false))`
+- [x] `translates_entity_attribute_equals_integer` — `$entity.attributes['priority'] == 1` translates to `filterBy(attributeEquals("priority", 1))`
+- [x] `translates_entity_attribute_greater_than` — `$entity.attributes['price'] > 100` translates to `filterBy(attributeGreaterThan("price", 100))`
+- [x] `translates_entity_attribute_greater_than_equals` — `$entity.attributes['price'] >= 100` translates to `filterBy(attributeGreaterThanEquals("price", 100))`
+- [x] `translates_entity_attribute_less_than` — `$entity.attributes['price'] < 100` translates to `filterBy(attributeLessThan("price", 100))`
+- [x] `translates_entity_attribute_less_than_equals` — `$entity.attributes['price'] <= 100` translates to `filterBy(attributeLessThanEquals("price", 100))`
 
 **Happy path — not-equals decomposition:**
-- [ ] `translates_entity_attribute_not_equals_to_not_attribute_equals` — `$entity.attributes['status'] != 'DELETED'` translates to `filterBy(not(attributeEquals("status", "DELETED")))`
-- [ ] `translates_reference_attribute_not_equals` — `$reference.attributes['priority'] != 0` translates to `filterBy(referenceHaving("refName", not(attributeEquals("priority", 0))))`
+- [x] `translates_entity_attribute_not_equals_to_not_attribute_equals` — `$entity.attributes['status'] != 'DELETED'` translates to `filterBy(not(attributeEquals("status", "DELETED")))`
+- [x] `translates_reference_attribute_not_equals` — `$reference.attributes['priority'] != 0` translates to `filterBy(referenceHaving("refName", not(attributeEquals("priority", 0))))`
 
 **Happy path — attribute null checks:**
 - [ ] `translates_entity_attribute_equals_null_to_attribute_is_null` — `$entity.attributes['status'] == null` translates to `filterBy(attributeIsNull("status"))`
@@ -522,93 +522,93 @@ Expressions are parsed via `ExpressionFactory.parse(String)` and translated via 
 - [ ] `translates_entity_parent_equals_null_to_not_hierarchy_within_root_self` — `$entity.parent == null` translates to `filterBy(not(hierarchyWithinRootSelf()))` (entity has no parent)
 
 **Happy path — reference attribute comparisons:**
-- [ ] `translates_reference_attribute_equals` — `$reference.attributes['priority'] == 1` translates to `filterBy(referenceHaving("refName", attributeEquals("priority", 1)))`
-- [ ] `translates_reference_attribute_greater_than` — `$reference.attributes['order'] > 5` translates to `filterBy(referenceHaving("refName", attributeGreaterThan("order", 5)))`
-- [ ] `translates_reference_attribute_less_than_equals` — `$reference.attributes['weight'] <= 10` translates to `filterBy(referenceHaving("refName", attributeLessThanEquals("weight", 10)))`
+- [x] `translates_reference_attribute_equals` — `$reference.attributes['priority'] == 1` translates to `filterBy(referenceHaving("refName", attributeEquals("priority", 1)))`
+- [x] `translates_reference_attribute_greater_than` — `$reference.attributes['order'] > 5` translates to `filterBy(referenceHaving("refName", attributeGreaterThan("order", 5)))`
+- [x] `translates_reference_attribute_less_than_equals` — `$reference.attributes['weight'] <= 10` translates to `filterBy(referenceHaving("refName", attributeLessThanEquals("weight", 10)))`
 
 **Happy path — group entity attribute comparisons:**
-- [ ] `translates_group_entity_attribute_equals` — `$reference.groupEntity?.attributes['status'] == 'ACTIVE'` translates to `filterBy(referenceHaving("refName", groupHaving(attributeEquals("status", "ACTIVE"))))`
-- [ ] `translates_group_entity_attribute_greater_than` — `$reference.groupEntity?.attributes['priority'] > 0` translates to `filterBy(referenceHaving("refName", groupHaving(attributeGreaterThan("priority", 0))))`
+- [x] `translates_group_entity_attribute_equals` — `$reference.groupEntity?.attributes['status'] == 'ACTIVE'` translates to `filterBy(referenceHaving("refName", groupHaving(attributeEquals("status", "ACTIVE"))))`
+- [x] `translates_group_entity_attribute_greater_than` — `$reference.groupEntity?.attributes['priority'] > 0` translates to `filterBy(referenceHaving("refName", groupHaving(attributeGreaterThan("priority", 0))))`
 
 **Happy path — referenced entity attribute comparisons:**
-- [ ] `translates_referenced_entity_attribute_equals` — `$reference.referencedEntity.attributes['status'] == 'PREVIEW'` translates to `filterBy(referenceHaving("refName", entityHaving(attributeEquals("status", "PREVIEW"))))`
-- [ ] `translates_referenced_entity_attribute_less_than` — `$reference.referencedEntity.attributes['rank'] < 50` translates to `filterBy(referenceHaving("refName", entityHaving(attributeLessThan("rank", 50))))`
+- [x] `translates_referenced_entity_attribute_equals` — `$reference.referencedEntity.attributes['status'] == 'PREVIEW'` translates to `filterBy(referenceHaving("refName", entityHaving(attributeEquals("status", "PREVIEW"))))`
+- [x] `translates_referenced_entity_attribute_less_than` — `$reference.referencedEntity.attributes['rank'] < 50` translates to `filterBy(referenceHaving("refName", entityHaving(attributeLessThan("rank", 50))))`
 
 **Happy path — boolean combinations (AND):**
-- [ ] `translates_conjunction_of_two_entity_attributes` — `$entity.attributes['a'] == 1 && $entity.attributes['b'] == 2` translates to `filterBy(and(attributeEquals("a", 1), attributeEquals("b", 2)))`
-- [ ] `translates_conjunction_of_three_entity_attributes_flattened` — `$entity.attributes['a'] == 1 && $entity.attributes['b'] == 2 && $entity.attributes['c'] == 3` translates to `filterBy(and(attributeEquals("a", 1), attributeEquals("b", 2), attributeEquals("c", 3)))` — verifies flattening into a single `and` with 3 children, not `and(and(a,b),c)`
-- [ ] `translates_deeply_nested_conjunction_flattened` — `$entity.attributes['a'] == 1 && ($entity.attributes['b'] == 2 && $entity.attributes['c'] == 3)` flattens to `filterBy(and(attributeEquals("a", 1), attributeEquals("b", 2), attributeEquals("c", 3)))` — verifies that parenthesized nested conjunctions are also flattened
+- [x] `translates_conjunction_of_two_entity_attributes` — `$entity.attributes['a'] == 1 && $entity.attributes['b'] == 2` translates to `filterBy(and(attributeEquals("a", 1), attributeEquals("b", 2)))`
+- [x] `translates_conjunction_of_three_entity_attributes_flattened` — `$entity.attributes['a'] == 1 && $entity.attributes['b'] == 2 && $entity.attributes['c'] == 3` translates to `filterBy(and(attributeEquals("a", 1), attributeEquals("b", 2), attributeEquals("c", 3)))` — verifies flattening into a single `and` with 3 children, not `and(and(a,b),c)`
+- [x] `translates_deeply_nested_conjunction_flattened` — `$entity.attributes['a'] == 1 && ($entity.attributes['b'] == 2 && $entity.attributes['c'] == 3)` flattens to `filterBy(and(attributeEquals("a", 1), attributeEquals("b", 2), attributeEquals("c", 3)))` — verifies that parenthesized nested conjunctions are also flattened
 
 **Happy path — boolean combinations (OR):**
-- [ ] `translates_disjunction_of_two_entity_attributes` — `$entity.attributes['a'] == 1 || $entity.attributes['b'] == 2` translates to `filterBy(or(attributeEquals("a", 1), attributeEquals("b", 2)))`
-- [ ] `translates_disjunction_of_three_entity_attributes_flattened` — `$entity.attributes['a'] == 1 || $entity.attributes['b'] == 2 || $entity.attributes['c'] == 3` translates to `filterBy(or(attributeEquals("a", 1), attributeEquals("b", 2), attributeEquals("c", 3)))` — verifies flattening
+- [x] `translates_disjunction_of_two_entity_attributes` — `$entity.attributes['a'] == 1 || $entity.attributes['b'] == 2` translates to `filterBy(or(attributeEquals("a", 1), attributeEquals("b", 2)))`
+- [x] `translates_disjunction_of_three_entity_attributes_flattened` — `$entity.attributes['a'] == 1 || $entity.attributes['b'] == 2 || $entity.attributes['c'] == 3` translates to `filterBy(or(attributeEquals("a", 1), attributeEquals("b", 2), attributeEquals("c", 3)))` — verifies flattening
 
 **Happy path — boolean combinations (NOT):**
-- [ ] `translates_negation_of_entity_attribute_equals` — `!($entity.attributes['isActive'] == true)` translates to `filterBy(not(attributeEquals("isActive", true)))`
-- [ ] `translates_negation_of_disjunction` — `!($entity.attributes['a'] == 1 || $entity.attributes['b'] == 2)` translates to `filterBy(not(or(attributeEquals("a", 1), attributeEquals("b", 2))))`
+- [x] `translates_negation_of_entity_attribute_equals` — `!($entity.attributes['isActive'] == true)` translates to `filterBy(not(attributeEquals("isActive", true)))`
+- [x] `translates_negation_of_disjunction` — `!($entity.attributes['a'] == 1 || $entity.attributes['b'] == 2)` translates to `filterBy(not(or(attributeEquals("a", 1), attributeEquals("b", 2))))`
 
 **Happy path — mixed boolean operators (no flattening across types):**
-- [ ] `translates_and_inside_or_without_cross_flattening` — `$entity.attributes['a'] == 1 || ($entity.attributes['b'] == 2 && $entity.attributes['c'] == 3)` translates to `filterBy(or(attributeEquals("a", 1), and(attributeEquals("b", 2), attributeEquals("c", 3))))` — verifies that AND inside OR is NOT flattened into the outer OR
-- [ ] `translates_or_inside_and_without_cross_flattening` — `($entity.attributes['a'] == 1 || $entity.attributes['b'] == 2) && $entity.attributes['c'] == 3` translates to `filterBy(and(or(attributeEquals("a", 1), attributeEquals("b", 2)), attributeEquals("c", 3)))` — verifies that OR inside AND is NOT flattened into the outer AND
+- [x] `translates_and_inside_or_without_cross_flattening` — `$entity.attributes['a'] == 1 || ($entity.attributes['b'] == 2 && $entity.attributes['c'] == 3)` translates to `filterBy(or(attributeEquals("a", 1), and(attributeEquals("b", 2), attributeEquals("c", 3))))` — verifies that AND inside OR is NOT flattened into the outer OR
+- [x] `translates_or_inside_and_without_cross_flattening` — `($entity.attributes['a'] == 1 || $entity.attributes['b'] == 2) && $entity.attributes['c'] == 3` translates to `filterBy(and(or(attributeEquals("a", 1), attributeEquals("b", 2)), attributeEquals("c", 3)))` — verifies that OR inside AND is NOT flattened into the outer AND
 
 **Happy path — cross-entity OR expression (WBS Example 1):**
-- [ ] `translates_cross_entity_or_from_wbs_example_1` — `$reference.groupEntity?.attributes['status'] == 'ACTIVE' || $reference.referencedEntity.attributes['status'] == 'PREVIEW'` translates to `filterBy(referenceHaving("parameter", or(groupHaving(attributeEquals("status", "ACTIVE")), entityHaving(attributeEquals("status", "PREVIEW")))))`
+- [x] `translates_cross_entity_or_from_wbs_example_1` — `$reference.groupEntity?.attributes['status'] == 'ACTIVE' || $reference.referencedEntity.attributes['status'] == 'PREVIEW'` translates to `filterBy(referenceHaving("parameter", or(groupHaving(attributeEquals("status", "ACTIVE")), entityHaving(attributeEquals("status", "PREVIEW")))))` *(implemented as `translates_cross_entity_or` using `REF_NAME` instead of `"parameter"`)*
 
 **Happy path — mixed-dependency AND expression (WBS Example 2):**
-- [ ] `translates_mixed_dependency_and_from_wbs_example_2` — `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX' && $entity.attributes['isActive'] == true` translates to `filterBy(and(referenceHaving("parameter", groupHaving(attributeEquals("inputWidgetType", "CHECKBOX"))), attributeEquals("isActive", true)))`
+- [x] `translates_mixed_dependency_and_from_wbs_example_2` — `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX' && $entity.attributes['isActive'] == true` translates to `filterBy(and(referenceHaving("parameter", groupHaving(attributeEquals("inputWidgetType", "CHECKBOX"))), attributeEquals("isActive", true)))` *(implemented as `translates_mixed_reference_and_entity_attribute` using `REF_NAME` instead of `"parameter"`)*
 
 **Happy path — reversed operand order:**
-- [ ] `translates_reversed_operand_order_constant_on_left` — `'ACTIVE' == $reference.groupEntity?.attributes['status']` produces the same `filterBy` as `$reference.groupEntity?.attributes['status'] == 'ACTIVE'` — verifies that constant-on-left, path-on-right is handled correctly
-- [ ] `translates_reversed_operand_order_for_comparison` — `100 < $entity.attributes['price']` translates equivalently to `$entity.attributes['price'] > 100` — verifies flipped comparison semantics when operands are reversed
+- [x] `translates_reversed_operand_order_constant_on_left` — `'ACTIVE' == $reference.groupEntity?.attributes['status']` produces the same `filterBy` as `$reference.groupEntity?.attributes['status'] == 'ACTIVE'` — verifies that constant-on-left, path-on-right is handled correctly
+- [x] `translates_reversed_operand_order_for_comparison` — `100 < $entity.attributes['price']` translates equivalently to `$entity.attributes['price'] > 100` — verifies flipped comparison semantics when operands are reversed
 
 **Happy path — Expression and NestedOperator unwrapping:**
-- [ ] `translates_parenthesized_expression` — `($entity.attributes['isActive'] == true)` translates identically to the non-parenthesized version — verifies `NestedOperator` unwrapping
-- [ ] `translates_double_parenthesized_expression` — `(($entity.attributes['isActive'] == true))` translates identically — verifies nested `NestedOperator` unwrapping
+- [x] `translates_parenthesized_expression` — `($entity.attributes['isActive'] == true)` translates identically to the non-parenthesized version — verifies `NestedOperator` unwrapping
+- [x] `translates_double_parenthesized_expression` — `(($entity.attributes['isActive'] == true))` translates identically — verifies nested `NestedOperator` unwrapping
 
 **Happy path — referenceHaving merging (AND context only):**
-- [ ] `merges_reference_having_for_same_reference_name` — `$reference.attributes['a'] == 1 && $reference.attributes['b'] == 2` produces `filterBy(referenceHaving("refName", and(attributeEquals("a", 1), attributeEquals("b", 2))))` — a single `referenceHaving` with merged children, not two separate `referenceHaving` nodes
-- [ ] `merges_group_entity_attributes_under_single_reference_having` — `$reference.groupEntity?.attributes['a'] == 1 && $reference.groupEntity?.attributes['b'] == 2` produces a single `referenceHaving` wrapping an `and(groupHaving(...), groupHaving(...))`
-- [ ] `merges_referenced_entity_attributes_under_single_reference_having` — `$reference.referencedEntity.attributes['a'] == 1 && $reference.referencedEntity.attributes['b'] == 2` produces a single `referenceHaving` wrapping an `and(entityHaving(...), entityHaving(...))`
-- [ ] `does_not_merge_reference_having_in_or_context` — `$reference.attributes['a'] == 1 || $reference.attributes['b'] == 2` produces `filterBy(or(referenceHaving("refName", attributeEquals("a", 1)), referenceHaving("refName", attributeEquals("b", 2))))` — two separate `referenceHaving` nodes under `or`, NOT merged into a single `referenceHaving`
+- [x] `merges_reference_having_for_same_reference_name` — `$reference.attributes['a'] == 1 && $reference.attributes['b'] == 2` produces `filterBy(referenceHaving("refName", and(attributeEquals("a", 1), attributeEquals("b", 2))))` — a single `referenceHaving` with merged children, not two separate `referenceHaving` nodes
+- [x] `merges_group_entity_attributes_under_single_reference_having` — `$reference.groupEntity?.attributes['a'] == 1 && $reference.groupEntity?.attributes['b'] == 2` produces a single `referenceHaving` wrapping an `and(groupHaving(...), groupHaving(...))`
+- [x] `merges_referenced_entity_attributes_under_single_reference_having` — `$reference.referencedEntity.attributes['a'] == 1 && $reference.referencedEntity.attributes['b'] == 2` produces a single `referenceHaving` wrapping an `and(entityHaving(...), entityHaving(...))`
+- [x] `does_not_merge_reference_having_in_or_context` — `$reference.attributes['a'] == 1 || $reference.attributes['b'] == 2` produces `filterBy(or(referenceHaving("refName", attributeEquals("a", 1)), referenceHaving("refName", attributeEquals("b", 2))))` — two separate `referenceHaving` nodes under `or`, NOT merged into a single `referenceHaving`
 
 **Happy path — complex mixed expressions:**
-- [ ] `translates_complex_three_path_conjunction` — `$entity.attributes['isActive'] == true && $reference.groupEntity?.attributes['status'] == 'ACTIVE' && $reference.referencedEntity.attributes['visible'] == true` produces a valid `FilterBy` tree combining all three path types under a single `and`
-- [ ] `translates_entity_attribute_with_negated_cross_entity_attribute` — `$entity.attributes['isActive'] == true && !($reference.groupEntity?.attributes['status'] == 'INACTIVE')` produces `filterBy(and(attributeEquals("isActive", true), not(referenceHaving("refName", groupHaving(attributeEquals("status", "INACTIVE"))))))`
+- [x] `translates_complex_three_path_conjunction` — `$entity.attributes['isActive'] == true && $reference.groupEntity?.attributes['status'] == 'ACTIVE' && $reference.referencedEntity.attributes['visible'] == true` produces a valid `FilterBy` tree combining all three path types under a single `and`
+- [x] `translates_entity_attribute_with_negated_cross_entity_attribute` — `$entity.attributes['isActive'] == true && !($reference.groupEntity?.attributes['status'] == 'INACTIVE')` produces `filterBy(and(attributeEquals("isActive", true), not(referenceHaving("refName", groupHaving(attributeEquals("status", "INACTIVE"))))))`
 
 **Rejection cases — non-translatable expressions:**
-- [ ] `rejects_dynamic_attribute_path_with_variable` — `$entity.attributes[$someVar] == 1` throws `NonTranslatableExpressionException` with a message identifying the dynamic path
-- [ ] `rejects_spread_access_step` — expression using `.*[...]` syntax (e.g., `$entity.references['brand'].*[$.attributes['tag']] == 'x'`) throws `NonTranslatableExpressionException`
-- [ ] `rejects_associated_data_access` — `$entity.associatedData['desc'] == 'test'` throws `NonTranslatableExpressionException` explaining associated data has no FilterBy equivalent
-- [ ] `rejects_cross_to_local_comparison_both_operands_are_paths` — `$reference.groupEntity?.attributes['type'] == $entity.attributes['category']` throws `NonTranslatableExpressionException` explaining cross-constraint value comparisons are unsupported
-- [ ] `rejects_xor_operator` — `$entity.attributes['a'] == 1 ^ $entity.attributes['b'] == 2` throws `NonTranslatableExpressionException` mentioning XOR has no FilterBy equivalent and suggesting rewrite as `(a || b) && !(a && b)`
-- [ ] `rejects_addition_operator` — `$entity.attributes['price'] + 10 > 100` throws `NonTranslatableExpressionException`
-- [ ] `rejects_subtraction_operator` — `$entity.attributes['price'] - 10 > 100` throws `NonTranslatableExpressionException`
-- [ ] `rejects_multiplication_operator` — `$entity.attributes['price'] * 2 > 100` throws `NonTranslatableExpressionException`
-- [ ] `rejects_division_operator` — `$entity.attributes['price'] / 2 > 50` throws `NonTranslatableExpressionException`
-- [ ] `rejects_modulo_operator` — `$entity.attributes['count'] % 2 == 0` throws `NonTranslatableExpressionException`
-- [ ] `rejects_negation_arithmetic_operator` — `-$entity.attributes['price'] < 0` throws `NonTranslatableExpressionException` (numeric negation, not boolean NOT)
-- [ ] `rejects_function_operator` — `random() > $entity.attributes['threshold']` throws `NonTranslatableExpressionException`
-- [ ] `rejects_null_coalesce_operator` — `$entity.attributes['name'] ?? 'default' == 'test'` throws `NonTranslatableExpressionException`
-- [ ] `rejects_reference_primary_key_comparison` — `$reference.referencedPrimaryKey == 42` throws `NonTranslatableExpressionException` explaining that reference PK comparisons are not supported in FilterBy translation (PK scoping is handled at trigger time by the executor)
-- [ ] `rejects_non_boolean_expression` — `$entity.attributes['price'] + 10` (pure arithmetic, not boolean) throws `NonTranslatableExpressionException` since the expression must be a boolean expression producing a filter predicate
+- [x] `rejects_dynamic_attribute_path_with_variable` — `$entity.attributes[$someVar] == 1` throws `NonTranslatableExpressionException` with a message identifying the dynamic path
+- [x] `rejects_spread_access_step` — expression using `.*[...]` syntax (e.g., `$entity.references['categories'].*[$.referencedPrimaryKey] == 1`) throws `NonTranslatableExpressionException` identifying the spread access operator
+- [x] `rejects_associated_data_access` — `$entity.associatedData['desc'] == 'test'` throws `NonTranslatableExpressionException` explaining associated data has no FilterBy equivalent
+- [x] `rejects_cross_to_local_comparison_both_operands_are_paths` — `$reference.groupEntity?.attributes['type'] == $entity.attributes['category']` throws `NonTranslatableExpressionException` explaining cross-constraint value comparisons are unsupported
+- [x] `rejects_xor_operator` — `$entity.attributes['a'] == 1 ^ $entity.attributes['b'] == 2` throws `NonTranslatableExpressionException` mentioning XOR has no FilterBy equivalent and suggesting rewrite as `(a || b) && !(a && b)`
+- [x] `rejects_addition_operator` — `$entity.attributes['price'] + 10 > 100` throws `NonTranslatableExpressionException`
+- [x] `rejects_subtraction_operator` — `$entity.attributes['price'] - 10 > 100` throws `NonTranslatableExpressionException`
+- [x] `rejects_multiplication_operator` — `$entity.attributes['price'] * 2 > 100` throws `NonTranslatableExpressionException`
+- [x] `rejects_division_operator` — `$entity.attributes['price'] / 2 > 50` throws `NonTranslatableExpressionException`
+- [x] `rejects_modulo_operator` — `$entity.attributes['count'] % 2 == 0` throws `NonTranslatableExpressionException`
+- [x] `rejects_negation_arithmetic_operator` — `-$entity.attributes['price'] < 0` throws `NonTranslatableExpressionException` (numeric negation, not boolean NOT) *(rejected as unsupported comparison operand type)*
+- [x] `rejects_function_operator` — `random() > $entity.attributes['threshold']` throws `NonTranslatableExpressionException`
+- [x] `rejects_null_coalesce_operator` — `$entity.attributes['name'] ?? 'default' == 'test'` throws `NonTranslatableExpressionException` *(rejected as unsupported comparison operand type)*
+- [x] `rejects_reference_primary_key_comparison` — `$reference.referencedPrimaryKey == 42` throws `NonTranslatableExpressionException` explaining that reference PK comparisons are not supported in FilterBy translation (PK scoping is handled at trigger time by the executor)
+- [x] `rejects_non_boolean_expression` — `$entity.attributes['price'] + 10` (pure arithmetic, not boolean) throws `NonTranslatableExpressionException` since the expression must be a boolean expression producing a filter predicate
 
 **Rejection cases — error message quality:**
-- [ ] `rejection_message_identifies_dynamic_path_variable_name` — when rejecting `$entity.attributes[$myVar] == 1`, the exception message contains the variable name or a description of the unsupported dynamic path construct
-- [ ] `rejection_message_identifies_unsupported_operator_type` — when rejecting an arithmetic expression, the exception message identifies the specific operator type (e.g., "multiplication") and explains it cannot be translated to FilterBy
-- [ ] `rejection_message_for_xor_suggests_alternative` — when rejecting XOR, the exception message suggests the `(a || b) && !(a && b)` rewrite pattern
-- [ ] `rejection_message_for_associated_data_explains_no_filter_equivalent` — when rejecting associated data access, the message explains there is no FilterBy constraint for associated data
+- [x] `rejection_message_identifies_dynamic_path_variable_name` — when rejecting `$entity.attributes[$myVar] == 1`, the exception message contains the variable name or a description of the unsupported dynamic path construct *(covered by `rejects_dynamic_attribute_path_with_variable` test — asserts message contains "Dynamic" or "compile-time constant")*
+- [x] `rejection_message_identifies_unsupported_operator_type` — when rejecting an arithmetic expression, the exception message identifies the specific operator type (e.g., "multiplication") and explains it cannot be translated to FilterBy *(covered by individual rejection tests — each asserts message contains the operator name)*
+- [x] `rejection_message_for_xor_suggests_alternative` — when rejecting XOR, the exception message suggests the `(a || b) && !(a && b)` rewrite pattern *(covered by `rejects_xor_operator` test)*
+- [x] `rejection_message_for_associated_data_explains_no_filter_equivalent` — when rejecting associated data access, the message explains there is no FilterBy constraint for associated data *(covered by `rejects_associated_data_access` test)*
 
 **Edge cases — boundary conditions:**
-- [ ] `translates_single_boolean_literal_comparison` — `$entity.attributes['flag'] == true` with a boolean value works correctly (boolean is `Serializable`)
-- [ ] `translates_attribute_name_with_special_characters` — attribute names containing underscores, digits, or camelCase (e.g., `$entity.attributes['myAttr_v2'] == 1`) are passed through as-is to the constraint
-- [ ] `translates_string_value_with_special_characters` — `$entity.attributes['status'] == 'ACTIVE_v2'` passes the string literal through unchanged
-- [ ] `translates_numeric_value_as_long` — `$entity.attributes['count'] == 42` where `42` is parsed as a numeric constant — verifies the constant type is preserved in the constraint
-- [ ] `handles_nested_not_with_and` — `!(($entity.attributes['a'] == 1 && $entity.attributes['b'] == 2))` translates to `filterBy(not(and(attributeEquals("a", 1), attributeEquals("b", 2))))` — multiple layers of wrapping
-- [ ] `handles_double_negation` — `!!($entity.attributes['isActive'] == true)` translates to `filterBy(not(not(attributeEquals("isActive", true))))` — translator does not optimize away double negation, preserves semantics
+- [x] `translates_single_boolean_literal_comparison` — `$entity.attributes['flag'] == true` with a boolean value works correctly (boolean is `Serializable`) *(covered by `translates_entity_attribute_equals_boolean_true`)*
+- [x] `translates_attribute_name_with_special_characters` — attribute names containing underscores, digits, or camelCase (e.g., `$entity.attributes['myAttr_v2'] == 1`) are passed through as-is to the constraint
+- [x] `translates_string_value_with_special_characters` — `$entity.attributes['status'] == 'ACTIVE_v2'` passes the string literal through unchanged
+- [x] `translates_numeric_value_as_long` — `$entity.attributes['count'] == 42` where `42` is parsed as a numeric constant — verifies the constant type is preserved in the constraint
+- [x] `handles_nested_not_with_and` — `!(($entity.attributes['a'] == 1 && $entity.attributes['b'] == 2))` translates to `filterBy(not(and(attributeEquals("a", 1), attributeEquals("b", 2))))` — multiple layers of wrapping
+- [x] `handles_double_negation` — `!!($entity.attributes['isActive'] == true)` translates to `filterBy(not(not(attributeEquals("isActive", true))))` — translator does not optimize away double negation, preserves semantics
 
 **Edge cases — path classification robustness:**
-- [ ] `correctly_identifies_entity_attribute_path_not_confused_with_reference` — `$entity.attributes['refName'] == 'x'` produces `attributeEquals` (not `referenceHaving`) — verifies that the attribute name `refName` is not confused with a reference name
-- [ ] `uses_provided_reference_name_in_reference_having` — translating with `referenceName = "parameter"` produces `referenceHaving("parameter", ...)`, translating same expression with `referenceName = "brand"` produces `referenceHaving("brand", ...)` — verifies reference name is taken from parameter, not from expression
+- [x] `correctly_identifies_entity_attribute_path_not_confused_with_reference` — `$entity.attributes['refName'] == 'x'` produces `attributeEquals` (not `referenceHaving`) — verifies that the attribute name `refName` is not confused with a reference name
+- [x] `uses_provided_reference_name_in_reference_having` — translating with `referenceName = "parameter"` produces `referenceHaving("parameter", ...)`, translating same expression with `referenceName = "brand"` produces `referenceHaving("brand", ...)` — verifies reference name is taken from parameter, not from expression
 
 #### `ExpressionToQueryTranslatorIntegrationTest` (integration readiness)
 
@@ -617,13 +617,53 @@ Test class location: `evita_test/evita_functional_tests/src/test/java/io/evitadb
 These tests verify that the translator's output is structurally compatible with downstream parameterization by the `ReevaluateFacetExpressionExecutor`.
 
 **Parameterization compatibility:**
-- [ ] `filter_by_tree_supports_group_entity_pk_scoping_injection` — translate `$reference.groupEntity?.attributes['status'] == 'ACTIVE'`, then navigate the resulting `FilterBy` tree to locate the `referenceHaving` node, and verify that a `groupHaving(entityPrimaryKeyInSet(99))` constraint can be programmatically added alongside the existing `groupHaving` within the `referenceHaving`'s children
-- [ ] `filter_by_tree_supports_referenced_entity_pk_scoping_injection` — translate `$reference.referencedEntity.attributes['status'] == 'PREVIEW'`, then navigate the resulting `FilterBy` tree to locate the `referenceHaving` node, and verify that an `entityHaving(entityPrimaryKeyInSet(99))` constraint can be programmatically injected
-- [ ] `filter_by_tree_with_mixed_paths_supports_scoping` — translate the mixed-dependency expression from WBS Example 2, navigate to `referenceHaving`, and verify scoping injection is feasible on the produced structure
+- [x] `filter_by_tree_supports_group_entity_pk_scoping_injection` — translate `$reference.groupEntity?.attributes['status'] == 'ACTIVE'`, then navigate the resulting `FilterBy` tree to locate the `referenceHaving` node, and verify that a `groupHaving(entityPrimaryKeyInSet(99))` constraint can be programmatically added alongside the existing `groupHaving` within the `referenceHaving`'s children
+- [x] `filter_by_tree_supports_referenced_entity_pk_scoping_injection` — translate `$reference.referencedEntity.attributes['status'] == 'PREVIEW'`, then navigate the resulting `FilterBy` tree to locate the `referenceHaving` node, and verify that an `entityHaving(entityPrimaryKeyInSet(99))` constraint can be programmatically injected
+- [x] `filter_by_tree_with_mixed_paths_supports_scoping` — translate the mixed-dependency expression from WBS Example 2, navigate to `referenceHaving`, and verify scoping injection is feasible on the produced structure
 
 **Immutability and thread safety:**
-- [ ] `translated_filter_by_is_immutable` — verify that the `FilterBy` tree returned by `translate()` uses only immutable constraint objects (all evitaDB constraint classes use `final` fields) — primarily an assertion that no mutable collections or state objects leak into the output
-- [ ] `translated_filter_by_is_safe_for_concurrent_reads` — translate an expression, share the resulting `FilterBy` across multiple threads reading its structure concurrently, verify no exceptions or inconsistencies — confirms the template is safe for reuse across trigger evaluations
+- [x] `translated_filter_by_is_immutable` — verify that the `FilterBy` tree returned by `translate()` uses only immutable constraint objects (all evitaDB constraint classes use `final` fields) — primarily an assertion that no mutable collections or state objects leak into the output
+- [x] `translated_filter_by_is_safe_for_concurrent_reads` — translate an expression, share the resulting `FilterBy` across multiple threads reading its structure concurrently, verify no exceptions or inconsistencies — confirms the template is safe for reuse across trigger evaluations
 
 **AccessedDataFinder collaboration:**
-- [ ] `pre_validation_rejects_dynamic_paths_before_traversal` — verify that calling `AccessedDataFinder.findAccessedPaths()` before translation detects dynamic attribute paths (paths with `VariablePathItem` at the attribute-name position) and that the translator leverages this for early rejection with a clear error message
+- [x] `pre_validation_rejects_dynamic_paths_before_traversal` — verify that calling `AccessedDataFinder.findAccessedPaths()` before translation detects dynamic attribute paths (paths with `VariablePathItem` at the attribute-name position) and that the translator leverages this for early rejection with a clear error message
+
+---
+
+## ⚠️ TOBEDONE JNO — Unsolved Issues Blocking Remaining Tests
+
+The following 7 test cases cannot be implemented because they require changes outside the translator's scope. Both issues are **language-level changes** to the EvitaEL expression infrastructure.
+
+### ⚠️ Issue 1: No `null` literal in EvitaEL grammar (blocks 5 tests)
+
+**Root cause:** The EvitaEL ANTLR grammar (`EvitaEL.g4`) defines `literal` as `STRING | INT | FLOAT | BOOLEAN` only — there is no `NULL` token. Additionally, `ConstantOperand` constructor explicitly rejects `null` values with `ParserException("Null value is not allowed!")`. Parsing `$entity.attributes['x'] == null` fails at the parser level before the translator is ever invoked.
+
+**Required changes:**
+1. Add `NULL` token to EvitaEL lexer
+2. Add `nullLiteral` alternative to the `literal` parser rule (or a separate `nullExpression` rule)
+3. Either allow `null` in `ConstantOperand` or create a dedicated `NullConstantOperand` operand type
+4. Update `DefaultExpressionVisitor` to handle the new null literal rule
+5. Update `ExpressionToQueryTranslator.translateComparison()` to detect null values and dispatch to `attributeIsNull()`/`attributeIsNotNull()` constraints
+
+**Blocked tests:**
+- [ ] `translates_entity_attribute_equals_null_to_attribute_is_null`
+- [ ] `translates_entity_attribute_not_equals_null_to_attribute_is_not_null`
+- [ ] `translates_reference_attribute_equals_null_to_attribute_is_null`
+- [ ] `translates_reference_attribute_not_equals_null_to_attribute_is_not_null`
+- [ ] `translates_null_check_combined_with_value_comparison`
+
+### ⚠️ Issue 2: No `$entity.parent` property in EntityContractAccessor (blocks 2 tests)
+
+**Root cause:** `EntityContractAccessor` supports properties: `primaryKey`, `attributes`, `localizedAttributes`, `associatedData`, `localizedAssociatedData`, `references` — but NOT `parent`. Accessing `$entity.parent` throws `ExpressionEvaluationException("Property 'parent' does not exist on EntityContract")`. This issue compounds with Issue 1 because the parent tests use null comparisons (`$entity.parent == null` / `$entity.parent != null`).
+
+**Required changes:**
+1. Add `PARENT_PROPERTY = "parent"` constant to `EntityContractAccessor`
+2. Add `parent` case to the switch statement in `EntityContractAccessor`, returning the parent entity (or null if no parent)
+3. Resolve Issue 1 above (null literal support) since parent existence checks use `== null` / `!= null`
+4. Add `ENTITY_PARENT` path type to `ExpressionToQueryTranslator.PathType` enum
+5. Update `classifyPath()` to recognize the `parent` property
+6. Update `wrapForPathType()` to map `ENTITY_PARENT` existence to `hierarchyWithinRootSelf()` / `not(hierarchyWithinRootSelf())`
+
+**Blocked tests:**
+- [ ] `translates_entity_parent_not_equals_null_to_hierarchy_within_root_self`
+- [ ] `translates_entity_parent_equals_null_to_not_hierarchy_within_root_self`

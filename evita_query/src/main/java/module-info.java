@@ -74,6 +74,14 @@ module evita.query {
 	exports io.evitadb.api.query.expression.object.accessor;
 	exports io.evitadb.api.query.expression.object.accessor.common;
 	exports io.evitadb.api.query.expression.function.processor;
+	exports io.evitadb.api.query.expression.bool;
+	exports io.evitadb.api.query.expression.utility;
+	exports io.evitadb.api.query.expression.object;
+	exports io.evitadb.api.query.expression.operand;
+	exports io.evitadb.api.query.expression.numeric;
+	exports io.evitadb.api.query.expression.coalesce;
+	exports io.evitadb.api.query.expression.function;
+	exports io.evitadb.api.query.expression.visitor;
 
 	requires static jsr305;
 	requires static lombok;
