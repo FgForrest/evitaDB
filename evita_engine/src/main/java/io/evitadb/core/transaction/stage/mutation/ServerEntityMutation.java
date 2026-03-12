@@ -24,7 +24,7 @@
 package io.evitadb.core.transaction.stage.mutation;
 
 
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 
 import javax.annotation.Nonnull;

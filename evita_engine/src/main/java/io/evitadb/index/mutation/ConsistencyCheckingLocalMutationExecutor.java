@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,8 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data.mutation;
+package io.evitadb.index.mutation;
 
+
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
