@@ -202,6 +202,18 @@ Index operations (add/remove facet) are **idempotent**. If both a local trigger 
 - Cross-entity triggers fire during post-processing (level N+1)
 - The local trigger always completes before the cross-entity reevaluation runs
 
+### De-Duplication of IndexMutations After `popMutations`
+
+When a single expression produces multiple triggers (e.g., an expression accessing
+`references['x'].attributes['A']` AND `references['y'].attributes['B']` on the referenced entity
+creates two triggers — one per `DependencyKey` — both carrying the same full `FilterBy`), these
+triggers can produce duplicate `IndexMutation` instances after `popMutations`. A deduplication
+step must be introduced after `popMutations` (before dispatch to target collections) to avoid
+processing the same mutation multiple times. While index operations are idempotent, the PK
+resolution and `FilterBy` evaluation are not free — deduplication avoids redundant work.
+
+See WBS-03a (AD-22) for context on why multiple triggers per expression are needed.
+
 ### Mutation Ordering Guarantee
 
 Cross-entity triggers fire AFTER the source entity's mutations complete (same as `popImplicitMutations` external mutations). This means:

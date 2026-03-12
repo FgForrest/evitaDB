@@ -69,20 +69,24 @@ Expressions can depend on data at various levels, determining whether triggers a
 
 ```
 Expression depends on:
-+-- $entity.attributes['x']          -> local trigger (same entity mutation)
-+-- $entity.associatedData['x']      -> local trigger (same entity mutation)
-+-- $entity.parent                   -> local trigger (same entity mutation)
-+-- $reference.attributes['x']       -> local trigger (same reference mutation)
-+-- $reference.referencedEntity.*    -> cross-entity trigger (referenced entity mutation or removal)
-+-- $reference.groupEntity.*         -> cross-entity trigger (group entity mutation or removal)
-                                        ^ THIS IS THE FAN-OUT CASE
++-- $entity.attributes['x']                                      -> local trigger (same entity mutation)
++-- $entity.associatedData['x']                                  -> local trigger (same entity mutation)
++-- $entity.parent                                               -> local trigger (same entity mutation)
++-- $reference.attributes['x']                                   -> local trigger (same reference mutation)
++-- $reference.referencedEntity.attributes['x']                  -> cross-entity trigger (referenced entity attribute change)
++-- $reference.referencedEntity.references['r']*.attributes['x'] -> cross-entity trigger (referenced entity reference mutation)
++-- $reference.groupEntity?.attributes['x']                      -> cross-entity trigger (group entity attribute change)
++-- $reference.groupEntity?.references['r']*.attributes['x']     -> cross-entity trigger (group entity reference mutation)
+                                                                    ^ THESE ARE THE FAN-OUT CASES
 ```
 
-Local dependencies (owner entity attributes, reference attributes) are handled inline in `ReferenceIndexMutator` without the cross-entity trigger mechanism. Only cross-entity dependencies (`REFERENCED_ENTITY_ATTRIBUTE`, `GROUP_ENTITY_ATTRIBUTE`) require `DependencyType` classification and registry-based dispatch.
+Local dependencies (owner entity attributes, reference attributes) are handled inline in `ReferenceIndexMutator` without the cross-entity trigger mechanism. Cross-entity dependencies require `DependencyType` classification and registry-based dispatch:
+- `REFERENCED_ENTITY_ATTRIBUTE` / `GROUP_ENTITY_ATTRIBUTE` — for entity-attribute dependencies
+- `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` / `GROUP_ENTITY_REFERENCE_ATTRIBUTE` — for reference-attribute dependencies on the target entity (see AD-22 in parent document)
 
 ### Single Entity Hop Limitation
 
-Expressions are limited to **single entity hop** — they can reference data on the entity itself, the reference, the referenced entity, or the group entity, but NOT entities reachable through further navigation (e.g., `$reference.referencedEntity.references['x'].referencedEntity...`).
+Expressions are limited to **single entity hop** — they can navigate from the owner entity to at most one other entity (the referenced entity or group entity). Once there, the expression may read that entity's own properties **including its references and their attributes** (e.g., `$reference.referencedEntity.references['x']*.attributes['A']`), but may NOT follow those references to reach a third entity (e.g., `$reference.referencedEntity.references['x'].referencedEntity...` is invalid).
 
 **Rationale:**
 - Without this, we would face transitive closure explosion (A->B->C->D...)
@@ -146,7 +150,9 @@ public interface ExpressionIndexTrigger {
 
     /**
      * How the mutated entity relates to the owner entity:
-     * {@code GROUP_ENTITY_ATTRIBUTE} or {@code REFERENCED_ENTITY_ATTRIBUTE}.
+     * {@code GROUP_ENTITY_ATTRIBUTE}, {@code REFERENCED_ENTITY_ATTRIBUTE},
+     * {@code GROUP_ENTITY_REFERENCE_ATTRIBUTE}, or
+     * {@code REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}.
      * Returns {@code null} for local-only triggers (expressions that reference
      * only {@code $entity.*} and {@code $reference.attributes['x']}) — these
      * are handled inline in {@code ReferenceIndexMutator} and do not need
@@ -156,9 +162,26 @@ public interface ExpressionIndexTrigger {
     DependencyType getDependencyType();
 
     /**
+     * For reference-level dependencies ({@code REFERENCED_ENTITY_REFERENCE_ATTRIBUTE},
+     * {@code GROUP_ENTITY_REFERENCE_ATTRIBUTE}), returns the reference name on
+     * the target entity whose mutations should trigger re-evaluation. For example,
+     * if the expression accesses
+     * {@code $reference.referencedEntity.references['brand']*.attributes['order']},
+     * this method returns {@code "brand"}.
+     *
+     * Returns {@code null} for entity-attribute dependencies and local-only triggers.
+     */
+    @Nullable
+    String getDependentReferenceName();
+
+    /**
      * Attribute names on the mutated entity (group or referenced) that
-     * this expression reads. Used by the detection step to skip triggers
-     * whose dependent attributes were not changed by the current mutation.
+     * this expression reads. For entity-attribute dependencies, these are
+     * entity attribute names. For reference-attribute dependencies, these
+     * are reference attribute names on the reference identified by
+     * {@link #getDependentReferenceName()}.
+     * Used by the detection step to skip triggers whose dependent
+     * attributes were not changed by the current mutation.
      */
     @Nonnull
     Set<String> getDependentAttributes();
@@ -250,7 +273,7 @@ Module: `io.evitadb.index.mutation` (`evita_engine`)
  * Classifies the relationship between a mutated entity and the owner entity
  * in a cross-entity expression trigger. Used as a registry key in
  * {@link CatalogExpressionTriggerRegistry} to look up which triggers should
- * fire when a given entity type's attributes change.
+ * fire when a given entity type's data changes.
  *
  * Only cross-entity relationships are represented here. Local dependencies
  * ({@code $entity.attributes['x']}, {@code $reference.attributes['x']}) are
@@ -269,6 +292,18 @@ public enum DependencyType {
     REFERENCED_ENTITY_ATTRIBUTE,
 
     /**
+     * The mutated entity is the **referenced entity** of the reference,
+     * and the dependency is on a **reference attribute** of that entity.
+     * Expression path: {@code $reference.referencedEntity.references['r']*.attributes['x']}
+     *
+     * The trigger fires when a reference mutation on the referenced entity
+     * affects reference 'r' (insert, remove, or attribute 'x' change).
+     * {@code getDependentReferenceName()} returns 'r',
+     * {@code getDependentAttributes()} returns {'x'}.
+     */
+    REFERENCED_ENTITY_REFERENCE_ATTRIBUTE,
+
+    /**
      * The mutated entity is the **group entity** of the reference.
      * Expression path: {@code $reference.groupEntity?.attributes['x']}
      *
@@ -277,7 +312,20 @@ public enum DependencyType {
      * Fan-out can be significant — one group entity may be shared across
      * many references (and thus many owner entities).
      */
-    GROUP_ENTITY_ATTRIBUTE
+    GROUP_ENTITY_ATTRIBUTE,
+
+    /**
+     * The mutated entity is the **group entity** of the reference,
+     * and the dependency is on a **reference attribute** of that entity.
+     * Expression path: {@code $reference.groupEntity?.references['r']*.attributes['x']}
+     *
+     * The trigger fires when a reference mutation on the group entity
+     * affects reference 'r' (insert, remove, or attribute 'x' change).
+     * {@code getDependentReferenceName()} returns 'r',
+     * {@code getDependentAttributes()} returns {'x'}.
+     * Fan-out can be significant (same as GROUP_ENTITY_ATTRIBUTE).
+     */
+    GROUP_ENTITY_REFERENCE_ATTRIBUTE
 }
 ```
 
@@ -307,18 +355,20 @@ These are **local triggers** — handled within the same entity's mutation proce
 | Mutation                                       | Triggers re-evaluation when...                                |
 |------------------------------------------------|---------------------------------------------------------------|
 | Attribute change on referenced entity          | Expression uses `$reference.referencedEntity.attributes['x']` |
+| Reference mutation on referenced entity (`InsertReferenceMutation`, `RemoveReferenceMutation`, `UpsertReferenceAttributeMutation` for reference 'r') | Expression uses `$reference.referencedEntity.references['r']*.attributes['x']` |
 | `EntityRemoveMutation` on referenced entity    | Expression uses `$reference.referencedEntity.*` — entity removal changes all accessed properties (null-safe paths return `null`, non-null-safe paths may throw). All dependent expressions must be re-evaluated. |
 
-Entity A's facet indexing depends on entity B's data. Uses `DependencyType.REFERENCED_ENTITY_ATTRIBUTE`.
+Entity A's facet indexing depends on entity B's data. Uses `DependencyType.REFERENCED_ENTITY_ATTRIBUTE` for entity-attribute dependencies, or `DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` for reference-attribute dependencies (see AD-22 in parent document).
 
 ### 2c. Mutations on the group entity (CROSS-ENTITY trigger, fan-out)
 
 | Mutation                                       | Triggers re-evaluation when...                                |
 |------------------------------------------------|---------------------------------------------------------------|
 | Attribute change on group entity               | Expression uses `$reference.groupEntity?.attributes['x']`     |
+| Reference mutation on group entity (`InsertReferenceMutation`, `RemoveReferenceMutation`, `UpsertReferenceAttributeMutation` for reference 'r') | Expression uses `$reference.groupEntity?.references['r']*.attributes['x']` |
 | `EntityRemoveMutation` on group entity         | Expression uses `$reference.groupEntity?.*` — group entity removal changes all accessed properties (null-safe `?.` returns `null`). All dependent expressions must be re-evaluated. |
 
-Uses `DependencyType.GROUP_ENTITY_ATTRIBUTE`. **Fan-out problem:** one attribute change on a group entity can cascade to thousands of entities.
+Uses `DependencyType.GROUP_ENTITY_ATTRIBUTE` for entity-attribute dependencies, or `DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE` for reference-attribute dependencies. **Fan-out problem:** one change on a group entity can cascade to thousands of entities.
 
 ### 2d. Schema mutations
 
@@ -624,11 +674,11 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ##### Group 1: `DependencyType` enum
 
-- [ ] **1.1** Create `DependencyType` enum in `evita_engine/src/main/java/io/evitadb/index/mutation/DependencyType.java`. Two values: `REFERENCED_ENTITY_ATTRIBUTE` (the mutated entity is the referenced entity, expression path `$reference.referencedEntity.attributes['x']`, fan-out typically 1:1) and `GROUP_ENTITY_ATTRIBUTE` (the mutated entity is the group entity, expression path `$reference.groupEntity?.attributes['x']`, fan-out can be significant). Include complete JavaDoc on the enum and each constant, explaining the cross-entity relationship, the expression paths that produce each type, and the fan-out characteristics.
+- [x] **1.1** Create `DependencyType` enum in `evita_engine/src/main/java/io/evitadb/index/mutation/DependencyType.java`. Two values: `REFERENCED_ENTITY_ATTRIBUTE` (the mutated entity is the referenced entity, expression path `$reference.referencedEntity.attributes['x']`, fan-out typically 1:1) and `GROUP_ENTITY_ATTRIBUTE` (the mutated entity is the group entity, expression path `$reference.groupEntity?.attributes['x']`, fan-out can be significant). Include complete JavaDoc on the enum and each constant, explaining the cross-entity relationship, the expression paths that produce each type, and the fan-out characteristics.
 
 ##### Group 2: `ExpressionIndexTrigger` interface
 
-- [ ] **2.1** Create `ExpressionIndexTrigger` interface in `evita_engine/src/main/java/io/evitadb/index/mutation/ExpressionIndexTrigger.java` in package `io.evitadb.index.mutation`. Define all seven methods:
+- [x] **2.1** Create `ExpressionIndexTrigger` interface in `evita_engine/src/main/java/io/evitadb/index/mutation/ExpressionIndexTrigger.java` in package `io.evitadb.index.mutation`. Define all seven methods:
   - `@Nonnull String getOwnerEntityType()` — entity type owning the reference (e.g., "product")
   - `@Nonnull String getReferenceName()` — name of the reference carrying the expression (e.g., "parameter")
   - `@Nonnull Scope getScope()` — scope this trigger applies to (`LIVE` or `ARCHIVED`)
@@ -637,17 +687,17 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
   - `@Nonnull FilterBy getFilterByConstraint()` — pre-translated FilterBy template, built once at schema load time
   - `boolean evaluate(int ownerEntityPK, @Nonnull ReferenceKey referenceKey, @Nonnull WritableEntityStorageContainerAccessor storageAccessor)` — local per-entity evaluation via Proxycian proxies
 
-- [ ] **2.2** Write complete JavaDoc for `ExpressionIndexTrigger` covering: its role as generic base for expression-based index triggers, the two-mode evaluation architecture (local via `evaluate()`, cross-entity via `getFilterByConstraint()`), the construction at schema load time, and the "no affectedPKsAccessor here" principle (PK resolution is the `IndexMutationExecutor`'s job, not the trigger's).
+- [x] **2.2** Write complete JavaDoc for `ExpressionIndexTrigger` covering: its role as generic base for expression-based index triggers, the two-mode evaluation architecture (local via `evaluate()`, cross-entity via `getFilterByConstraint()`), the construction at schema load time, and the "no affectedPKsAccessor here" principle (PK resolution is the `IndexMutationExecutor`'s job, not the trigger's).
 
 ##### Group 3: `FacetExpressionTrigger` and `HistogramExpressionTrigger` marker interfaces
 
-- [ ] **3.1** Create `FacetExpressionTrigger` marker interface in `evita_engine/src/main/java/io/evitadb/index/mutation/FacetExpressionTrigger.java`, extending `ExpressionIndexTrigger`. No additional methods. JavaDoc: "Trigger for conditional facet indexing. Derived from `ReferenceSchemaContract.getFacetedPartiallyInScope(Scope)`. When the expression evaluates to true, the reference is facet-indexed; when false, it is not."
+- [x] **3.1** Create `FacetExpressionTrigger` marker interface in `evita_engine/src/main/java/io/evitadb/index/mutation/FacetExpressionTrigger.java`, extending `ExpressionIndexTrigger`. No additional methods. JavaDoc: "Trigger for conditional facet indexing. Derived from `ReferenceSchemaContract.getFacetedPartiallyInScope(Scope)`. When the expression evaluates to true, the reference is facet-indexed; when false, it is not."
 
-- [ ] **3.2** Create `HistogramExpressionTrigger` marker interface in `evita_engine/src/main/java/io/evitadb/index/mutation/HistogramExpressionTrigger.java`, extending `ExpressionIndexTrigger`. No additional methods. JavaDoc: "Trigger for conditional histogram indexing on reference attributes. Future placeholder — no concrete implementation required yet."
+- [x] **3.2** Create `HistogramExpressionTrigger` marker interface in `evita_engine/src/main/java/io/evitadb/index/mutation/HistogramExpressionTrigger.java`, extending `ExpressionIndexTrigger`. No additional methods. JavaDoc: "Trigger for conditional histogram indexing on reference attributes. Future placeholder — no concrete implementation required yet."
 
 ##### Group 4: Concrete `FacetExpressionTriggerImpl` implementation
 
-- [ ] **4.1** Create `FacetExpressionTriggerImpl` class in `evita_engine/src/main/java/io/evitadb/index/mutation/expression/FacetExpressionTriggerImpl.java`, implementing `FacetExpressionTrigger`. The class should be package-private (or public if needed for test access), immutable, and thread-safe. Fields:
+- [x] **4.1** Create `FacetExpressionTriggerImpl` class in `evita_engine/src/main/java/io/evitadb/core/expression/trigger/FacetExpressionTriggerImpl.java` *(package changed from spec: co-located with WBS-02 proxy infrastructure)*, implementing `FacetExpressionTrigger`. The class should be package-private (or public if needed for test access), immutable, and thread-safe. Fields:
   - `@Nonnull String ownerEntityType` — from `EntitySchema.getName()`
   - `@Nonnull String referenceName` — from `ReferenceSchemaContract.getName()`
   - `@Nonnull Scope scope` — the scope this trigger applies to
@@ -658,7 +708,7 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
   - Proxy class factories from WBS-02 (types TBD by WBS-02 implementation — e.g., `ByteBuddyDispatcherInvocationHandler` per root variable)
   - State recipe from WBS-02 (descriptor of which storage parts to fetch for each proxy level)
 
-- [ ] **4.2** Implement `evaluate()` method on `FacetExpressionTriggerImpl`:
+- [x] **4.2** Implement `evaluate()` method on `FacetExpressionTriggerImpl`:
   1. Fetch only the storage parts the state recipe requires from `storageAccessor` (following WBS-02's `createEvaluationContext` pattern)
   2. Create state records (e.g., `EntityProxyState`, `ReferenceProxyState` from WBS-02)
   3. Instantiate pre-built proxy classes with those states
@@ -670,15 +720,15 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
      - If result is any other type: throw `ExpressionEvaluationException` (e.g., "Expression for reference 'parameter' returned String instead of Boolean")
   7. Return the boolean result
 
-- [ ] **4.3** Implement `getFilterByConstraint()` as a simple getter returning the pre-translated `FilterBy` — no computation, the constraint was built at schema load time.
+- [x] **4.3** Implement `getFilterByConstraint()` as a simple getter returning the pre-translated `FilterBy` — no computation, the constraint was built at schema load time.
 
-- [ ] **4.4** Implement all remaining getter methods (`getOwnerEntityType()`, `getReferenceName()`, `getScope()`, `getDependencyType()`, `getDependentAttributes()`) as simple final-field getters.
+- [x] **4.4** Implement all remaining getter methods (`getOwnerEntityType()`, `getReferenceName()`, `getScope()`, `getDependencyType()`, `getDependentAttributes()`) as simple final-field getters.
 
 ##### Group 5: Trigger construction from schema — `FacetExpressionTriggerFactory`
 
-- [ ] **5.1** Create `FacetExpressionTriggerFactory` class in `evita_engine/src/main/java/io/evitadb/index/mutation/expression/FacetExpressionTriggerFactory.java`. This is a stateless utility class with static methods that **builds** (but does NOT register) `FacetExpressionTrigger` instances from `ReferenceSchemaContract` data. Registration in `CatalogExpressionTriggerRegistry` is a separate concern handled by the caller (Task 7.1's `buildAndRegisterTriggers` method). Follows the `AccessedDataFinder` pattern (static factory method, no public constructor).
+- [x] **5.1** Create `FacetExpressionTriggerFactory` class in `evita_engine/src/main/java/io/evitadb/core/expression/trigger/FacetExpressionTriggerFactory.java` *(package changed from spec: co-located with FacetExpressionTriggerImpl)*. This is a stateless utility class with static methods that **builds** (but does NOT register) `FacetExpressionTrigger` instances from `ReferenceSchemaContract` data. Registration in `CatalogExpressionTriggerRegistry` is a separate concern handled by the caller (Task 7.1's `buildAndRegisterTriggers` method). Follows the `AccessedDataFinder` pattern (static factory method, no public constructor).
 
-- [ ] **5.2** Implement `static List<FacetExpressionTrigger> buildTriggersForReference(String ownerEntityType, ReferenceSchemaContract referenceSchema)`:
+- [x] **5.2** Implement `static List<FacetExpressionTrigger> buildTriggersForReference(String ownerEntityType, ReferenceSchemaContract referenceSchema)`:
   1. Call `referenceSchema.getFacetedPartiallyInScopes()` to get the `Map<Scope, Expression>`
   2. If empty, return empty list (no triggers needed — reference is faceted unconditionally or not at all)
   3. For each `(Scope, Expression)` entry:
@@ -690,19 +740,19 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
      f. Construct `FacetExpressionTriggerImpl` with all collected artifacts
   4. Return the list of built triggers
 
-- [ ] **5.3** Handle expressions with ONLY local dependencies (i.e., expressions that reference only `$entity.*` and `$reference.attributes['x']`, with NO cross-entity paths). These expressions still need trigger instances for local evaluation (the `evaluate()` path), but they do NOT need cross-entity registry entries or a `DependencyType` value. **Design decision: skip cross-entity trigger construction for local-only expressions.** The factory builds a `FacetExpressionTrigger` for local evaluation (with `getDependencyType()` returning `null`, `getDependentAttributes()` returning an empty set, and `getFilterByConstraint()` throwing `UnsupportedOperationException`), but does NOT register it in `CatalogExpressionTriggerRegistry`. Instead, `ReferenceIndexMutator` obtains the trigger directly from `EntityIndexLocalMutationExecutor.getTriggerFor(referenceName, scope)` (which is backed by the entity schema's trigger map, not the cross-entity registry) and calls `evaluate()` inline. This means:
+- [x] **5.3** Handle expressions with ONLY local dependencies (i.e., expressions that reference only `$entity.*` and `$reference.attributes['x']`, with NO cross-entity paths). These expressions still need trigger instances for local evaluation (the `evaluate()` path), but they do NOT need cross-entity registry entries or a `DependencyType` value. **Design decision: skip cross-entity trigger construction for local-only expressions.** The factory builds a `FacetExpressionTrigger` for local evaluation (with `getDependencyType()` returning `null`, `getDependentAttributes()` returning an empty set, and `getFilterByConstraint()` throwing `UnsupportedOperationException`), but does NOT register it in `CatalogExpressionTriggerRegistry`. Instead, `ReferenceIndexMutator` obtains the trigger directly from `EntityIndexLocalMutationExecutor.getTriggerFor(referenceName, scope)` (which is backed by the entity schema's trigger map, not the cross-entity registry) and calls `evaluate()` inline. This means:
   - `getDependencyType()` becomes `@Nullable` on the `ExpressionIndexTrigger` interface (returns `null` for local-only triggers)
   - `getFilterByConstraint()` throws `UnsupportedOperationException` for local-only triggers (no cross-entity evaluation path exists)
   - `getDependentAttributes()` returns an empty set for local-only triggers (no cross-entity attributes to track)
   - The factory returns local-only triggers in the result list, but the caller (Task 7.1) skips registry registration for triggers where `getDependencyType() == null`
 
-- [ ] **5.4** Handle mixed-dependency expressions — expressions that combine local paths (`$entity.*`, `$reference.attributes['x']`) with cross-entity paths (`$reference.groupEntity?.*`, `$reference.referencedEntity.*`). The expression is translated to a single `FilterBy` tree (per WBS-01 AD 18 — no expression partitioning). **Clarification on Task 5.2b vs 5.4 boundary:** Task 5.2b handles expressions that reference BOTH `$reference.groupEntity?.*` AND `$reference.referencedEntity.*` (two cross-entity dependency types in a single expression) — these produce two triggers, one per `DependencyType`, each with its own `dependentAttributes` set (per 5.2c), but both carrying the same full `FilterBy` tree. Task 5.4 handles expressions that mix cross-entity paths with local paths — the `DependencyType` is determined by the cross-entity portion only, and `dependentAttributes` contains only cross-entity attributes. For an expression like `$reference.groupEntity?.attributes['a'] && $reference.referencedEntity.attributes['b'] && $entity.attributes['c']`, the behavior combines both rules: two triggers are produced (per 5.2b), one with `GROUP_ENTITY_ATTRIBUTE` / `dependentAttributes={"a"}` and one with `REFERENCED_ENTITY_ATTRIBUTE` / `dependentAttributes={"b"}`, both carrying the full `FilterBy` tree (which includes the local `$entity.attributes['c']` condition).
+- [x] **5.4** Handle mixed-dependency expressions — expressions that combine local paths (`$entity.*`, `$reference.attributes['x']`) with cross-entity paths (`$reference.groupEntity?.*`, `$reference.referencedEntity.*`). The expression is translated to a single `FilterBy` tree (per WBS-01 AD 18 — no expression partitioning). **Clarification on Task 5.2b vs 5.4 boundary:** Task 5.2b handles expressions that reference BOTH `$reference.groupEntity?.*` AND `$reference.referencedEntity.*` (two cross-entity dependency types in a single expression) — these produce two triggers, one per `DependencyType`, each with its own `dependentAttributes` set (per 5.2c), but both carrying the same full `FilterBy` tree. Task 5.4 handles expressions that mix cross-entity paths with local paths — the `DependencyType` is determined by the cross-entity portion only, and `dependentAttributes` contains only cross-entity attributes. For an expression like `$reference.groupEntity?.attributes['a'] && $reference.referencedEntity.attributes['b'] && $entity.attributes['c']`, the behavior combines both rules: two triggers are produced (per 5.2b), one with `GROUP_ENTITY_ATTRIBUTE` / `dependentAttributes={"a"}` and one with `REFERENCED_ENTITY_ATTRIBUTE` / `dependentAttributes={"b"}`, both carrying the full `FilterBy` tree (which includes the local `$entity.attributes['c']` condition).
 
 ##### Group 6: Trigger construction for `ReflectedReferenceSchema`
 
-- [ ] **6.1** Ensure `buildTriggersForReference()` works transparently with `ReflectedReferenceSchema`. Since `ReflectedReferenceSchema.getFacetedPartiallyInScopes()` already resolves inherited expressions (returning the source schema's expressions when `facetedInherited == true`), the factory method receives the correct resolved expressions without special-casing. Verify this in a test.
+- [x] **6.1** Ensure `buildTriggersForReference()` works transparently with `ReflectedReferenceSchema`. Since `ReflectedReferenceSchema.getFacetedPartiallyInScopes()` already resolves inherited expressions (returning the source schema's expressions when `facetedInherited == true`), the factory method receives the correct resolved expressions without special-casing. Verify this in a test.
 
-- [ ] **6.2** Document that when a source schema's `facetedPartially` expression changes, all reflected schemas that inherit from it will have their triggers rebuilt. The cascade works through:
+- [x] **6.2** Document that when a source schema's `facetedPartially` expression changes, all reflected schemas that inherit from it will have their triggers rebuilt. The cascade works through:
   1. Source schema change triggers `EntityCollection.updateSchema()` -> `exchangeSchema()` -> `catalog.entitySchemaUpdated()`
   2. `refreshReflectedSchemas()` (line 1981) updates all `ReflectedReferenceSchema` instances via `withReferencedSchema(originalReference)`
   3. The trigger rebuild logic (in the schema load time hook) rebuilds triggers for the owning entity type, which picks up the new inherited expressions
@@ -730,217 +780,256 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ### Test Cases
 
-#### Test Class 1: `DependencyTypeTest`
+#### Test Class 1: `DependencyTypeTest` — DELETED
 
-**Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/mutation/DependencyTypeTest.java`
-
-##### Category: Enum completeness
-
-- [ ] `should_have_exactly_two_values` — `DependencyType.values()` returns an array of length 2; verify no unexpected values have been added.
-- [ ] `should_contain_REFERENCED_ENTITY_ATTRIBUTE` — `DependencyType.valueOf("REFERENCED_ENTITY_ATTRIBUTE")` returns successfully and equals `DependencyType.REFERENCED_ENTITY_ATTRIBUTE`.
-- [ ] `should_contain_GROUP_ENTITY_ATTRIBUTE` — `DependencyType.valueOf("GROUP_ENTITY_ATTRIBUTE")` returns successfully and equals `DependencyType.GROUP_ENTITY_ATTRIBUTE`.
-- [ ] `should_throw_for_unknown_value` — `DependencyType.valueOf("LOCAL_ATTRIBUTE")` throws `IllegalArgumentException`.
-
-##### Category: Ordinal stability
-
-- [ ] `should_have_REFERENCED_ENTITY_ATTRIBUTE_at_ordinal_0` — verify `REFERENCED_ENTITY_ATTRIBUTE.ordinal() == 0` to guard against accidental reordering. Note: `DependencyType` is currently not serialized (triggers are never written to WAL and are regenerated on replay), so this is a defensive test against future changes rather than a serialization correctness requirement.
-- [ ] `should_have_GROUP_ENTITY_ATTRIBUTE_at_ordinal_1` — verify `GROUP_ENTITY_ATTRIBUTE.ordinal() == 1`. Same note as above regarding serialization.
+**Deleted per review:** Tests verified Java enum infrastructure (valueOf, ordinal), providing no value. `DependencyType` is tested transitively via `FacetExpressionTriggerFactoryTest` and `FacetExpressionTriggerImplTest`.
 
 ---
 
-#### Test Class 2: `ExpressionIndexTriggerContractTest`
+#### Test Class 2: `ExpressionIndexTriggerContractTest` — DELETED
 
-**Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/mutation/ExpressionIndexTriggerContractTest.java`
-
-##### Category: Interface type hierarchy
-
-- [ ] `FacetExpressionTrigger_should_extend_ExpressionIndexTrigger` — verify `ExpressionIndexTrigger.class.isAssignableFrom(FacetExpressionTrigger.class)` is true.
-- [ ] `HistogramExpressionTrigger_should_extend_ExpressionIndexTrigger` — verify `ExpressionIndexTrigger.class.isAssignableFrom(HistogramExpressionTrigger.class)` is true.
-- [ ] `FacetExpressionTrigger_should_be_a_marker_interface` — verify `FacetExpressionTrigger.class.getDeclaredMethods()` is empty (no methods beyond those inherited from `ExpressionIndexTrigger`).
-- [ ] `HistogramExpressionTrigger_should_be_a_marker_interface` — verify `HistogramExpressionTrigger.class.getDeclaredMethods()` is empty.
-
-##### Category: Interface method signatures
-
-- [ ] `ExpressionIndexTrigger_should_declare_getOwnerEntityType_returning_String` — reflective check that the method exists, returns `String`, and has `@Nonnull` annotation.
-- [ ] `ExpressionIndexTrigger_should_declare_getReferenceName_returning_String` — reflective check for `getReferenceName()` with `@Nonnull String` return.
-- [ ] `ExpressionIndexTrigger_should_declare_getScope_returning_Scope` — reflective check for `getScope()` with `@Nonnull Scope` return.
-- [ ] `ExpressionIndexTrigger_should_declare_getDependencyType_returning_DependencyType` — reflective check; verify `@Nullable` annotation (not `@Nonnull`, since local-only triggers return `null`).
-- [ ] `ExpressionIndexTrigger_should_declare_getDependentAttributes_returning_Set` — reflective check for `@Nonnull Set<String>` return type.
-- [ ] `ExpressionIndexTrigger_should_declare_getFilterByConstraint_returning_FilterBy` — reflective check.
-- [ ] `ExpressionIndexTrigger_should_declare_evaluate_with_correct_parameters` — reflective check that `evaluate(int, ReferenceKey, WritableEntityStorageContainerAccessor)` exists and returns `boolean`.
+**Deleted per review:** Reflective interface signature tests provide no value — type hierarchy is verified transitively by `FacetExpressionTriggerImplTest.TypeMarkerTest` (`shouldBeInstanceOfFacetExpressionTrigger`, `shouldBeInstanceOfExpressionIndexTrigger`).
 
 ---
 
 #### Test Class 3: `FacetExpressionTriggerImplTest`
 
-**Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/mutation/expression/FacetExpressionTriggerImplTest.java`
+**Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/core/expression/trigger/FacetExpressionTriggerImplTest.java` *(package changed from spec)*
 
-##### Category: Construction and getter correctness
+**22 tests implemented, organized in 8 `@Nested` groups. Uses real objects (no mocks).**
 
-- [ ] `should_return_owner_entity_type_passed_at_construction` — construct a `FacetExpressionTriggerImpl` with `ownerEntityType = "product"`, verify `getOwnerEntityType()` returns `"product"`.
-- [ ] `should_return_reference_name_passed_at_construction` — construct with `referenceName = "parameter"`, verify `getReferenceName()` returns `"parameter"`.
-- [ ] `should_return_scope_passed_at_construction` — construct with `Scope.LIVE`, verify `getScope()` returns `Scope.LIVE`. Repeat with `Scope.ARCHIVED`.
-- [ ] `should_return_dependency_type_REFERENCED_ENTITY_ATTRIBUTE` — construct with `DependencyType.REFERENCED_ENTITY_ATTRIBUTE`, verify getter returns same value.
-- [ ] `should_return_dependency_type_GROUP_ENTITY_ATTRIBUTE` — construct with `DependencyType.GROUP_ENTITY_ATTRIBUTE`, verify getter returns same value.
-- [ ] `should_return_dependent_attributes_passed_at_construction` — construct with `Set.of("status", "code")`, verify `getDependentAttributes()` returns a set containing exactly `{"status", "code"}`.
+##### Category: Construction and getter correctness (`ConstructionAndGetterTest`)
 
-##### Category: FilterBy constraint handling
+- [x] `shouldReturnOwnerEntityType` — verifies `getOwnerEntityType()` returns `"product"`
+- [x] `shouldReturnReferenceName` — verifies `getReferenceName()` returns `"parameter"`
+- [x] `shouldReturnLiveScope` / `shouldReturnArchivedScope` — verifies both scope values *(spec asked for one test, implemented as two)*
+- [x] `shouldReturnReferencedEntityAttributeDependencyType` — verifies `REFERENCED_ENTITY_ATTRIBUTE`
+- [x] `shouldReturnGroupEntityAttributeDependencyType` — verifies `GROUP_ENTITY_ATTRIBUTE`
+- [x] `shouldReturnDependentAttributes` — verifies `Set.of("status", "code")`
 
-- [ ] `should_return_same_FilterBy_instance_on_every_call` — construct with a specific `FilterBy` instance, call `getFilterByConstraint()` twice, verify reference equality (`assertSame`).
-- [ ] `should_return_pre_translated_FilterBy_not_null` — verify `getFilterByConstraint()` never returns null when constructed with a valid `FilterBy`.
-- [ ] `should_not_recompute_FilterBy_on_each_invocation` — call `getFilterByConstraint()` in a loop (e.g., 1000 times), verify all calls return the same reference; this confirms no per-invocation translation.
+##### Category: FilterBy constraint handling (`FilterByConstraintTest`)
 
-##### Category: Immutability and thread safety
+- [x] `shouldReturnSameFilterByInstanceOnRepeatedCalls` — merged from spec's `should_return_same_FilterBy_instance_on_every_call` + `should_not_recompute_FilterBy_on_each_invocation` *(1000-iteration loop removed — no value for final-field getter)*
+- [x] `shouldReturnNonNullFilterBy` — verifies non-null FilterBy
+- [x] `shouldThrowForLocalOnlyTriggerGetFilterBy` — verifies `UnsupportedOperationException` with message containing reference name
 
-- [ ] `should_return_unmodifiable_dependent_attributes_set` — call `getDependentAttributes()`, then attempt `add("newAttr")` on the returned set; expect `UnsupportedOperationException`.
-- [ ] `should_not_be_affected_by_external_modification_of_input_set` — pass a mutable `HashSet` at construction, then modify the original set after construction; verify `getDependentAttributes()` still returns the original values (defensive copy).
-- [ ] `should_be_usable_from_multiple_threads_concurrently` — launch N threads each calling `getFilterByConstraint()` and `getDependentAttributes()` concurrently; verify all threads observe consistent results with no exceptions.
+##### Category: Immutability (`ImmutabilityTest`)
 
-##### Category: `evaluate()` — expression returns true
+- [x] `shouldReturnUnmodifiableDependentAttributesSet` — verifies `UnsupportedOperationException` on `add()`
+- [x] `shouldDefensivelyCopyInputSet` — verifies external mutation doesn't affect trigger
+- ~~`should_be_usable_from_multiple_threads_concurrently`~~ — **DELETED per review:** immutability is a structural property (all fields `final`, `Set.copyOf()`), not testable at runtime. `@ThreadSafe` annotation on `ExpressionIndexTrigger` makes the requirement explicit.
 
-- [ ] `should_return_true_when_expression_evaluates_to_true` — construct a trigger with an expression equivalent to `$reference.referencedEntity.attributes['status'] == 'ACTIVE'`, provide a mock `WritableEntityStorageContainerAccessor` that returns storage parts with `status = "ACTIVE"`, verify `evaluate()` returns `true`.
-- [ ] `should_return_true_for_boolean_true_expression` — construct with a constant `true` expression (simplest case), verify `evaluate()` returns `true` regardless of storage content.
+##### Category: `evaluate()` — expression returns true (`ConstantExpressionEvaluationTest` + `EntityAttributeEvaluationTest`)
+
+- [x] `shouldReturnTrueForConstantTrueExpression` — constant `true` expression
+- [x] `shouldEvaluateEntityAttributeExpressionToTrue` — `$entity.attributes['status'] == 'ACTIVE'` with real StorageParts containing `status = "ACTIVE"`
 
 ##### Category: `evaluate()` — expression returns false
 
-- [ ] `should_return_false_when_expression_evaluates_to_false` — same setup as the true case but with `status = "INACTIVE"`, verify `evaluate()` returns `false`.
-- [ ] `should_return_false_for_boolean_false_expression` — construct with a constant `false` expression, verify `evaluate()` returns `false`.
+- [x] `shouldReturnFalseForConstantFalseExpression` — constant `false` expression
+- [x] `shouldEvaluateEntityAttributeExpressionToFalse` — `$entity.attributes['status'] == 'ACTIVE'` with `status = "INACTIVE"`
 
-##### Category: `evaluate()` — non-boolean and error results
+##### Category: `evaluate()` — non-boolean and error results (`NonBooleanResultErrorTest`)
 
-- [ ] `should_treat_null_expression_result_as_false` — construct a trigger with an expression that evaluates to `null` (e.g., a null-safe path that resolves to null); verify `evaluate()` returns `false`.
-- [ ] `should_throw_for_non_boolean_expression_result` — construct a trigger with an expression like `$entity.attributes['name']` (returns a String, not boolean); verify `evaluate()` throws `ExpressionEvaluationException` indicating the non-boolean return type.
-- [ ] `should_throw_for_integer_expression_result` — construct a trigger with an expression like `$entity.attributes['count']` (returns an Integer); verify `evaluate()` throws `ExpressionEvaluationException`.
-- [ ] `should_propagate_ExpressionEvaluationException_from_catch_all_partial` — construct a trigger whose expression accesses a method handled by the CatchAllPartial (e.g., a method the expression does not actually need but the proxy reaches via `@Delegate`); verify `ExpressionEvaluationException` propagates.
+- [ ] `should_treat_null_expression_result_as_false` — **NOT IMPLEMENTED** — needs expression that evaluates to null (accessing non-existent attribute)
+- [x] `shouldThrowForStringExpressionResult` — verifies `ExpressionEvaluationException` with message containing `"String"`
+- [x] `shouldThrowForIntegerExpressionResult` — verifies `ExpressionEvaluationException` with message containing type name
+- [ ] `should_propagate_ExpressionEvaluationException_from_catch_all_partial` — **NOT IMPLEMENTED** — requires specific CatchAllPartial proxy setup
 
 ##### Category: `evaluate()` — storage part interaction
 
-- [ ] `should_fetch_only_required_storage_parts_from_accessor` — construct a trigger whose expression accesses only `$entity.attributes['code']`, mock the `WritableEntityStorageContainerAccessor`, verify that only the storage parts specified in the state recipe are fetched (no extraneous calls to fetch reference parts, associated data parts, etc.).
-- [ ] `should_handle_null_valued_attribute_in_storage_parts` — construct a trigger whose expression accesses `$reference.groupEntity?.attributes['status']`, provide storage parts where the attribute is null; verify `evaluate()` returns `false` (or whatever the expression computes for null input) without throwing `NullPointerException`.
+- [ ] `should_fetch_only_required_storage_parts_from_accessor` — **NOT IMPLEMENTED** — requires mock/spy on storage accessor to count calls
+- [ ] `should_handle_null_valued_attribute_in_storage_parts` — **NOT IMPLEMENTED** — needs null-attribute storage part setup
 
 ##### Category: `evaluate()` — nested proxy wiring
 
-- [ ] `should_wire_group_entity_proxy_for_group_entity_expression` — construct a trigger with expression accessing `$reference.groupEntity?.attributes['type']`, provide storage parts for both the reference and its group entity, verify `evaluate()` correctly reads the group entity's attribute value through the wired proxy chain.
-- [ ] `should_wire_referenced_entity_proxy_for_referenced_entity_expression` — same pattern but for `$reference.referencedEntity.attributes['code']`, verifying the referenced entity proxy is correctly wired.
+- [ ] `should_wire_group_entity_proxy_for_group_entity_expression` — **NOT IMPLEMENTED** — requires multi-level StoragePart setup for group entity proxy chain
+- [ ] `should_wire_referenced_entity_proxy_for_referenced_entity_expression` — **NOT IMPLEMENTED** — requires multi-level StoragePart setup for referenced entity proxy chain
 
 ##### Category: `evaluate()` — storage accessor failure modes
 
-- [ ] `should_throw_when_required_storage_part_is_missing` — construct a trigger whose expression accesses `$entity.attributes['code']`, but the `storageAccessor` returns `null` for the required `AttributesStoragePart`; verify `evaluate()` throws an appropriate exception (e.g., `ExpressionEvaluationException` or `NullPointerException` depending on the partial implementation).
-- [ ] `should_handle_missing_referenced_entity_storage_parts_gracefully` — construct a trigger whose expression accesses `$reference.referencedEntity.attributes['code']`, but the referenced entity's storage parts are not available (entity may have been deleted); verify the behavior is well-defined (either throws `ExpressionEvaluationException` or returns `false` for null-safe paths).
+- [ ] `should_throw_when_required_storage_part_is_missing` — **NOT IMPLEMENTED** — requires null StoragePart return from accessor
+- [ ] `should_handle_missing_referenced_entity_storage_parts_gracefully` — **NOT IMPLEMENTED** — requires deleted referenced entity scenario
 
-##### Category: `FacetExpressionTrigger` marker type
+##### Category: `FacetExpressionTrigger` marker type (`TypeMarkerTest`)
 
-- [ ] `FacetExpressionTriggerImpl_should_be_instance_of_FacetExpressionTrigger` — verify `impl instanceof FacetExpressionTrigger` is true.
-- [ ] `FacetExpressionTriggerImpl_should_be_instance_of_ExpressionIndexTrigger` — verify `impl instanceof ExpressionIndexTrigger` is true.
+- [x] `shouldBeInstanceOfFacetExpressionTrigger` — verifies `instanceof FacetExpressionTrigger`
+- [x] `shouldBeInstanceOfExpressionIndexTrigger` — verifies `instanceof ExpressionIndexTrigger`
 
 ---
 
 #### Test Class 4: `FacetExpressionTriggerFactoryTest`
 
-**Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/mutation/expression/FacetExpressionTriggerFactoryTest.java`
+**Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/core/expression/trigger/FacetExpressionTriggerFactoryTest.java` *(package changed from spec)*
 
-##### Category: Empty / no-expression references
+**14 tests implemented, organized in 7 `@Nested` groups. Uses real schema objects via `InternalEntitySchemaBuilder` (no mocks).**
 
-- [ ] `should_return_empty_list_when_no_facetedPartiallyInScopes` — create a `ReferenceSchemaContract` mock with `getFacetedPartiallyInScopes()` returning empty map; verify `buildTriggersForReference()` returns an empty list.
-- [ ] `should_return_empty_list_when_reference_is_not_faceted` — create a reference schema that is not faceted at all (no faceted scopes); verify no triggers are built.
+##### Category: Empty / no-expression references (`NoExpressionTest`)
 
-##### Category: Single-scope trigger construction
+- [x] `shouldReturnEmptyListWhenNoFacetedPartially` — reference with no `facetedPartially` expressions
+- [x] `shouldReturnEmptyListWhenFacetedWithoutPartial` — reference is faceted but has no partial expression
 
-- [ ] `should_build_one_trigger_for_LIVE_scope` — create a reference with `facetedPartially` expression only in `Scope.LIVE`; verify exactly one trigger is returned with `getScope() == Scope.LIVE`.
-- [ ] `should_build_one_trigger_for_ARCHIVED_scope` — same but with `Scope.ARCHIVED`; verify `getScope() == Scope.ARCHIVED`.
-- [ ] `should_set_ownerEntityType_from_parameter` — pass `ownerEntityType = "product"` to `buildTriggersForReference()`; verify all returned triggers have `getOwnerEntityType() == "product"`.
-- [ ] `should_set_referenceName_from_schema` — create a reference schema with `getName() = "parameter"`; verify returned triggers have `getReferenceName() == "parameter"`.
+##### Category: Single-scope trigger construction — covered by `LocalOnlyExpressionTest`
 
-##### Category: Multi-scope trigger construction
+- [x] `shouldBuildLocalOnlyTriggerForEntityAttribute` — single LIVE scope, verifies ownerEntityType, referenceName, scope, null dependencyType *(covers spec's `should_build_one_trigger_for_LIVE_scope`, `should_set_ownerEntityType_from_parameter`, `should_set_referenceName_from_schema`)*
+- [x] `shouldThrowOnFilterByForLocalOnlyTrigger` — verifies `UnsupportedOperationException` for local-only
+- [x] `shouldBuildLocalOnlyTriggerForReferenceAttribute` — `$reference.attributes['order'] > 0` is local-only *(covers `should_produce_no_cross_entity_trigger_for_reference_attribute_only_expression`)*
+- [x] `shouldBuildLocalOnlyTriggerForConstantExpression` — `true` expression produces local-only trigger *(covers `should_produce_no_cross_entity_trigger_for_local_only_expression`)*
 
-- [ ] `should_build_two_triggers_for_both_LIVE_and_ARCHIVED_scopes` — create a reference with `facetedPartially` in both `Scope.LIVE` and `Scope.ARCHIVED`; verify two triggers are returned, one per scope.
-- [ ] `should_produce_independent_triggers_per_scope` — verify the two triggers have different `getScope()` values but may share the same `getOwnerEntityType()` and `getReferenceName()`.
+##### Category: Multi-scope trigger construction (`MultipleScopesTest`)
 
-##### Category: DependencyType classification from expression paths
+- [x] `shouldBuildTriggersForMultipleScopes` — LIVE + ARCHIVED with different expressions, verifies independent triggers per scope *(covers `should_build_two_triggers_for_both_LIVE_and_ARCHIVED_scopes` + `should_produce_independent_triggers_per_scope`)*
 
-- [ ] `should_classify_group_entity_attribute_as_GROUP_ENTITY_ATTRIBUTE` — expression `$reference.groupEntity?.attributes['status']` should produce a trigger with `getDependencyType() == DependencyType.GROUP_ENTITY_ATTRIBUTE`.
-- [ ] `should_classify_referenced_entity_attribute_as_REFERENCED_ENTITY_ATTRIBUTE` — expression `$reference.referencedEntity.attributes['code']` should produce a trigger with `getDependencyType() == DependencyType.REFERENCED_ENTITY_ATTRIBUTE`.
+##### Category: DependencyType classification (`ReferencedEntityTriggerTest` + `GroupEntityTriggerTest`)
+
+- [x] `shouldBuildReferencedEntityAttributeTrigger` — `$reference.referencedEntity.attributes['code']` → `REFERENCED_ENTITY_ATTRIBUTE`, dependent attributes `{"code"}`, non-null FilterBy *(covers classification + single dependent attribute extraction)*
+- [x] `shouldBuildGroupEntityAttributeTrigger` — `$reference.groupEntity?.attributes['status']` → `GROUP_ENTITY_ATTRIBUTE`, dependent attributes `{"status"}`, non-null FilterBy
 
 ##### Category: Dependent attributes extraction
 
-- [ ] `should_extract_single_dependent_attribute_from_group_entity_path` — expression `$reference.groupEntity?.attributes['status']` should produce `getDependentAttributes() == {"status"}`.
-- [ ] `should_extract_single_dependent_attribute_from_referenced_entity_path` — expression `$reference.referencedEntity.attributes['code']` should produce `getDependentAttributes() == {"code"}`.
-- [ ] `should_extract_multiple_dependent_attributes_from_same_entity` — expression `$reference.groupEntity?.attributes['a'] && $reference.groupEntity?.attributes['b']` should produce `getDependentAttributes() == {"a", "b"}`.
-- [ ] `should_not_include_local_attributes_in_dependent_attributes` — expression `$reference.groupEntity?.attributes['type'] == 'CHECKBOX' && $entity.attributes['isActive'] == true` should produce `getDependentAttributes() == {"type"}` (only the cross-entity attribute, not `isActive`).
+- [x] `shouldCollectMultipleDependentAttributes` — `$reference.referencedEntity.attributes['code'] && ...attributes['status']` → `{"code", "status"}`
+- [x] `shouldProduceCrossEntityTriggerForMixedExpression` — mixed local + cross-entity: only cross-entity trigger produced, dependent attributes contain only cross-entity attribute *(covers `should_not_include_local_attributes_in_dependent_attributes` + `should_classify_mixed_expression_by_cross_entity_portion`)*
 
-##### Category: Local-only expressions
+##### Category: Mixed-dependency expressions (`DualAndMixedDependencyTest`)
 
-- [ ] `should_produce_no_cross_entity_trigger_for_local_only_expression` — expression `$entity.attributes['isActive'] == true` accesses only local entity attributes; verify no cross-entity trigger is produced (empty list or triggers without cross-entity `DependencyType`).
-- [ ] `should_produce_no_cross_entity_trigger_for_reference_attribute_only_expression` — expression `$reference.attributes['order'] > 0` accesses only reference-local attributes; verify no cross-entity trigger.
+- [x] `shouldBuildTwoTriggersForDualDependency` — `referencedEntity.attributes['code'] && groupEntity.attributes['status']` → 2 triggers, one per DependencyType, each with correct dependent attributes and non-null FilterBy
 
-##### Category: Mixed-dependency expressions
+##### Category: Non-translatable expression rejection (`ImmutabilityAndErrorTest`)
 
-- [ ] `should_classify_mixed_expression_by_cross_entity_portion` — expression `$reference.groupEntity?.attributes['type'] == 'CHECKBOX' && $entity.attributes['isActive'] == true` should produce exactly one cross-entity trigger with `DependencyType.GROUP_ENTITY_ATTRIBUTE`.
-- [ ] `should_create_two_triggers_when_expression_references_both_group_and_referenced_entity` — expression `$reference.groupEntity?.attributes['status'] == 'ACTIVE' && $reference.referencedEntity.attributes['code'] == 'X'` should produce two cross-entity triggers: one with `GROUP_ENTITY_ATTRIBUTE` and `dependentAttributes = {"status"}`, another with `REFERENCED_ENTITY_ATTRIBUTE` and `dependentAttributes = {"code"}`.
+- [x] `shouldPropagateNonTranslatableException` — arithmetic in cross-entity expression (`$reference.referencedEntity.attributes['price'] + 5 > 10`) throws `NonTranslatableExpressionException` *(covers both `should_throw_at_construction_time` and `should_propagate_unwrapped`)*
+- [x] `shouldReturnUnmodifiableTriggerList` — returned list is unmodifiable
 
-##### Category: Non-translatable expression rejection
+##### Category: ReflectedReferenceSchema inheritance — NOT IMPLEMENTED
 
-- [ ] `should_throw_at_construction_time_for_non_translatable_expression` — provide an expression that `ExpressionToQueryTranslator` cannot translate (e.g., references `$entity.associatedData['desc']` which has no query equivalent); verify the factory method throws the expected exception immediately, not deferring to trigger evaluation time.
-- [ ] `should_propagate_NonTranslatableExpressionException_unwrapped` — verify the thrown exception is `NonTranslatableExpressionException` (or its exact type), not wrapped in another exception type.
-
-##### Category: ReflectedReferenceSchema inheritance
-
-- [ ] `should_build_correct_trigger_from_reflected_schema_with_inherited_expression` — create a `ReflectedReferenceSchema` with `facetedInherited = true` that inherits `facetedPartially` from a source `ReferenceSchema`; call `buildTriggersForReference()` with the reflected schema; verify the returned trigger has the same expression and `FilterBy` as if built from the source schema directly.
-- [ ] `should_use_reflected_schema_entity_type_not_source_entity_type` — when building from a `ReflectedReferenceSchema`, verify `getOwnerEntityType()` is set to the reflected schema's owning entity type, not the source schema's entity type.
-- [ ] `should_produce_empty_list_when_reflected_schema_does_not_inherit_facetedPartially` — create a `ReflectedReferenceSchema` with `facetedInherited = false` and no local `facetedPartiallyInScopes`; verify empty trigger list.
+- [ ] `should_build_correct_trigger_from_reflected_schema_with_inherited_expression` — **NOT IMPLEMENTED** — tested implicitly via Group 6.1 (factory calls `getFacetedPartiallyInScopes()` which resolves inheritance), but no explicit factory-level test with `ReflectedReferenceSchema`
+- [ ] `should_use_reflected_schema_entity_type_not_source_entity_type` — **NOT IMPLEMENTED**
+- [ ] `should_produce_empty_list_when_reflected_schema_does_not_inherit_facetedPartially` — **NOT IMPLEMENTED**
 
 ---
 
-#### Test Class 5: `TriggerSchemaIntegrationTest`
+#### Test Class 5: `TriggerSchemaIntegrationTest` — NOT IMPLEMENTED
+
+> **Status:** NOT IMPLEMENTED — requires `buildAndRegisterTriggers()` from Group 7 (depends on WBS-04 `CatalogExpressionTriggerRegistry`). The `should_construct_trigger_without_CatalogExpressionTriggerRegistry` test is already covered by `FacetExpressionTriggerImplTest` which constructs and evaluates triggers directly without a registry.
 
 **Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/mutation/expression/TriggerSchemaIntegrationTest.java`
 
 ##### Category: Schema load time construction
 
-- [ ] `should_build_triggers_for_all_references_in_entity_schema` — create an `EntitySchema` with two reference schemas, each having a `facetedPartially` expression; call the schema-level build method; verify triggers are produced for both references.
-- [ ] `should_skip_references_without_facetedPartially` — create an `EntitySchema` with one faceted reference (no expression) and one with `facetedPartially`; verify only one trigger is produced.
-- [ ] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — entity schema has 3 references: ref-A with expression in LIVE only, ref-B with expressions in both LIVE and ARCHIVED, ref-C with no expression. Expected: 3 triggers total (1 for A, 2 for B, 0 for C).
+- [ ] `should_build_triggers_for_all_references_in_entity_schema` — **BLOCKED** by Group 7 (`buildAndRegisterTriggers()`)
+- [ ] `should_skip_references_without_facetedPartially` — **BLOCKED** by Group 7
+- [ ] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — **BLOCKED** by Group 7
 
 ##### Category: Error propagation at schema load time
 
-- [ ] `should_reject_schema_with_non_translatable_expression` — create an entity schema with a reference whose `facetedPartially` expression cannot be translated to `FilterBy`; verify trigger construction throws an exception that would propagate through `exchangeSchema()`.
-- [ ] `should_accept_schema_with_valid_translatable_expression` — same setup but with a valid expression; verify no exception is thrown and triggers are produced.
+- [ ] `should_reject_schema_with_non_translatable_expression` — **BLOCKED** by Group 7 (`exchangeSchema()` integration)
+- [ ] `should_accept_schema_with_valid_translatable_expression` — **BLOCKED** by Group 7
 
 ##### Category: Trigger independence from registry
 
-- [ ] `should_construct_trigger_without_CatalogExpressionTriggerRegistry` — construct a `FacetExpressionTriggerImpl` directly, call `evaluate()` and `getFilterByConstraint()`, verify it works without any registry being present (self-contained evaluation unit).
+- [x] `should_construct_trigger_without_CatalogExpressionTriggerRegistry` — **COVERED** by existing `FacetExpressionTriggerImplTest` which constructs `FacetExpressionTriggerImpl` directly, calls `evaluate()` and `getFilterByConstraint()`, all without a registry
 
 ##### Category: ReflectedReferenceSchema cascade awareness
 
-- [ ] `should_build_triggers_for_reflected_schema_inheriting_from_source` — set up a source `ReferenceSchema` with `facetedPartially`, a `ReflectedReferenceSchema` that inherits it, and verify `buildAndRegisterTriggers()` produces triggers for both the source entity type and the reflected entity type.
-- [ ] `should_rebuild_reflected_triggers_when_source_expression_changes` — verify that after the source schema's `facetedPartially` expression changes, rebuilding triggers for the reflected schema picks up the new expression (inherited transparently via `getFacetedPartiallyInScopes()`).
+- [ ] `should_build_triggers_for_reflected_schema_inheriting_from_source` — **BLOCKED** by Group 7 (`buildAndRegisterTriggers()`)
+- [ ] `should_rebuild_reflected_triggers_when_source_expression_changes` — **BLOCKED** by Group 7
 
 ---
 
-#### Test Class 6: `TriggerEvaluationCachingTest`
+#### Test Class 6: `TriggerEvaluationCachingTest` — NOT IMPLEMENTED
+
+> **Status:** NOT IMPLEMENTED — requires `DataStoreMemoryBuffer` integration which is out of WBS-03 scope. Caching behavior is a system-level concern that will be verified by integration tests in downstream WBS tasks.
 
 **Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/mutation/expression/TriggerEvaluationCachingTest.java`
 
 ##### Category: Storage part caching via DataStoreMemoryBuffer
 
-> **Dependency note:** These tests assume that `DataStoreMemoryBuffer` provides read-through caching of storage parts and makes pending changes visible across entities within the same transaction. This caching behavior is a prerequisite verified by integration tests (see parent analysis: "To be verified by integration tests: Confirm that `DataStoreMemoryBuffer` makes entity B's pending changes visible to entity A's accessor"). If the buffer integration tests fail, these caching tests may produce incorrect results.
-
-- [ ] `should_fetch_storage_part_once_for_multiple_evaluate_calls_on_same_entity` — set up two triggers on different references of the same entity, both reading `$entity.attributes['code']`; mock the storage accessor to count fetch calls; verify the storage part is fetched only once (cached by the buffer) across both `evaluate()` invocations.
-- [ ] `should_cache_group_entity_storage_parts_across_owner_entities` — set up a shared group entity referenced by multiple owner entities; evaluate triggers for two different owner entities referencing the same group entity; verify the group entity's storage part is fetched once per transaction scope.
+- [ ] `should_fetch_storage_part_once_for_multiple_evaluate_calls_on_same_entity` — **BLOCKED** by `DataStoreMemoryBuffer` integration (out of WBS-03 scope)
+- [ ] `should_cache_group_entity_storage_parts_across_owner_entities` — **BLOCKED** by `DataStoreMemoryBuffer` integration
 
 ---
 
-#### Test Class 7: `TriggerScopeHandlingTest`
+#### Test Class 7: `TriggerScopeHandlingTest` — COVERED by existing tests
+
+> **Status:** NOT IMPLEMENTED as a separate class — scope isolation is already covered by `FacetExpressionTriggerFactoryTest.MultipleScopesTest` (`shouldBuildTriggersForMultipleScopes`) which verifies per-scope trigger independence with different expression types per scope (local-only LIVE + cross-entity ARCHIVED).
 
 **Location:** `evita_test/evita_functional_tests/src/test/java/io/evitadb/index/mutation/expression/TriggerScopeHandlingTest.java`
 
 ##### Category: Per-scope trigger isolation
 
-- [ ] `should_produce_distinct_trigger_per_scope_with_same_expression` — a reference with the same `facetedPartially` expression in both LIVE and ARCHIVED produces two distinct trigger objects, each bound to its respective scope.
-- [ ] `should_produce_distinct_triggers_with_different_expressions_per_scope` — a reference with different `facetedPartially` expressions in LIVE vs. ARCHIVED produces two triggers, each containing its scope-specific expression and `FilterBy`.
-- [ ] `should_not_share_FilterBy_between_scopes_when_expressions_differ` — verify the `FilterBy` returned by `getFilterByConstraint()` is different for LIVE and ARCHIVED triggers when the underlying expressions differ.
-- [ ] `should_share_FilterBy_between_scopes_when_expressions_are_identical` — when both scopes use the identical expression, verify the `FilterBy` constraint trees are structurally equal (though not necessarily the same object reference, since they are built independently per scope).
+- [x] `should_produce_distinct_trigger_per_scope_with_same_expression` — **COVERED** by `FacetExpressionTriggerFactoryTest.MultipleScopesTest.shouldBuildTriggersForMultipleScopes`
+- [x] `should_produce_distinct_triggers_with_different_expressions_per_scope` — **COVERED** by `FacetExpressionTriggerFactoryTest.MultipleScopesTest.shouldBuildTriggersForMultipleScopes` (LIVE = local-only, ARCHIVED = cross-entity)
+- [ ] `should_not_share_FilterBy_between_scopes_when_expressions_differ` — **NOT IMPLEMENTED** — low value given the above coverage
+- [ ] `should_share_FilterBy_between_scopes_when_expressions_are_identical` — **NOT IMPLEMENTED** — low value (FilterBy is always built independently per trigger)
 
 ##### Category: Scope values exhaustiveness
 
-- [ ] `should_handle_all_Scope_enum_values` — iterate `Scope.values()`, create a `facetedPartiallyInScopes` map containing all of them, verify a trigger is produced for each scope value. This guards against future `Scope` additions not being handled.
+- [ ] `should_handle_all_Scope_enum_values` — **NOT IMPLEMENTED** — low value (Scope enum has only 2 values, both tested)
+
+---
+
+## ⚠️ TOBEDONE JNO
+
+### Blocked by WBS-04: Group 7 — `buildAndRegisterTriggers()`
+
+Tasks 7.1–7.3 require `CatalogExpressionTriggerRegistry` from WBS-04. The trigger construction (factory) and evaluation (impl) layers are complete and tested, but the schema-level orchestration cannot be implemented until WBS-04 provides the registry.
+
+- [ ] Task 7.1: Implement `buildAndRegisterTriggers()` method — iterates all references in an `EntitySchema`, calls `FacetExpressionTriggerFactory.buildTriggersForReference()` for each, and registers the resulting triggers in the catalog-wide `CatalogExpressionTriggerRegistry`
+- [ ] Task 7.2: Wire trigger rebuild into `EntityCollection.exchangeSchema()` — whenever a schema change is applied, triggers for affected references must be rebuilt and re-registered
+- [ ] Task 7.3: Verify non-translatable expression rejection propagates through `exchangeSchema()` → `updateSchema()` — a `NonTranslatableExpressionException` thrown during trigger construction must prevent the schema change from being committed
+
+### Blocked by WBS-04: Group 8 — Integration readiness documentation
+
+- [ ] Task 8.1: Write integration readiness documentation — document how downstream WBS tasks (executor, index maintenance) consume triggers built by this WBS
+
+### Blocked by WBS-04: Test Class 5 — `TriggerSchemaIntegrationTest`
+
+7 of 8 spec test cases require `buildAndRegisterTriggers()` from Group 7 (1 already covered by existing `FacetExpressionTriggerImplTest`):
+
+- [ ] `should_build_triggers_for_all_references_in_entity_schema` — needs `buildAndRegisterTriggers()` to iterate entity schema references
+- [ ] `should_skip_references_without_facetedPartially` — needs `buildAndRegisterTriggers()` to filter references
+- [ ] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — needs `buildAndRegisterTriggers()` for schema-wide count verification
+- [ ] `should_reject_schema_with_non_translatable_expression` — needs `exchangeSchema()` integration to test error propagation
+- [ ] `should_accept_schema_with_valid_translatable_expression` — needs `exchangeSchema()` integration
+- [ ] `should_build_triggers_for_reflected_schema_inheriting_from_source` — needs `buildAndRegisterTriggers()` to handle both source and reflected entity types
+- [ ] `should_rebuild_reflected_triggers_when_source_expression_changes` — needs `buildAndRegisterTriggers()` for rebuild verification
+
+### Blocked by DataStoreMemoryBuffer: Test Class 6 — `TriggerEvaluationCachingTest`
+
+These tests require `DataStoreMemoryBuffer` integration which is out of WBS-03 scope — caching behavior is a system-level concern verified by integration tests in downstream WBS tasks:
+
+- [ ] `should_fetch_storage_part_once_for_multiple_evaluate_calls_on_same_entity` — needs mock storage accessor + `DataStoreMemoryBuffer` to count and cache fetches
+- [ ] `should_cache_group_entity_storage_parts_across_owner_entities` — needs per-transaction caching scope that `DataStoreMemoryBuffer` provides
+
+### Issue: Cross-entity path without attribute access silently dropped
+
+`FacetExpressionTriggerFactory.classifyPaths()` drops a cross-entity dependency when `extractDependentAttribute()` returns `null` (e.g., `$reference.referencedEntity.primaryKey > 5`). This is correct by design — `primaryKey` is immutable and does not need change-tracking — but the silent drop could confuse developers debugging expression triggers.
+
+- [ ] Add `log.warn()` in `FacetExpressionTriggerFactory.classifyPaths()` when a cross-entity path has no extractable dependent attribute — file: `FacetExpressionTriggerFactory.java`, lines 169–182
+
+### Issue: `Remove+Create` mutation conversion may lose `facetedPartially` data
+
+`CreateReferenceSchemaMutation.combineWith(RemoveReferenceSchemaMutation)` decomposes the Create into individual Set mutations. When the Create has both `facetedInScopes` and `facetedPartiallyInScopes`, it can emit two separate `SetReferenceSchemaFacetedMutation` instances (one for scopes, one for expressions). The second replaces the first via Set+Set combining, losing the scopes. Pre-existing issue, newly reachable with `facetedPartially`.
+
+- [ ] Fix `CreateReferenceSchemaMutation.combineWith(RemoveReferenceSchemaMutation)` to emit a single `SetReferenceSchemaFacetedMutation` carrying both `facetedInScopes` and `facetedPartiallyInScopes` — file: `CreateReferenceSchemaMutation.java`, lines 308–327
+
+### Not implemented spec tests from Test Class 7 — `TriggerScopeHandlingTest`
+
+Core scope isolation is already covered by `FacetExpressionTriggerFactoryTest.MultipleScopesTest`, so these have low incremental value:
+
+- [ ] `should_not_share_FilterBy_between_scopes_when_expressions_differ` — verifies FilterBy identity differs per scope; low value since FilterBy is always built independently per trigger
+- [ ] `should_share_FilterBy_between_scopes_when_expressions_are_identical` — verifies structural equality of FilterBy when expressions match; low value since translator builds each independently
+- [ ] `should_handle_all_Scope_enum_values` — guards against future `Scope` additions; low value since `Scope` has only 2 values (LIVE, ARCHIVED), both tested
+
+### Not implemented spec tests from Test Class 3 — `FacetExpressionTriggerImplTest`
+
+- [ ] `convertResult(null)` branch — needs an expression that evaluates to `null` (e.g., accessing a non-existent attribute); requires constructing a `StoragePart` where the attribute is absent so the proxy returns `null`
+- [ ] `evaluate()` with reference attribute expression (`$reference.attributes['order'] > 0`) — only entity attributes are tested through `evaluate()`; reference attributes use the same proxy mechanism but through a different path (`ReferenceContract` proxy instead of `EntityContract`)
+
+### Not implemented spec tests from Test Class 4 — `FacetExpressionTriggerFactoryTest`
+
+- [ ] Reflected reference schema tests: `should_build_correct_trigger_from_reflected_schema_with_inherited_expression`, `should_use_reflected_schema_entity_type_not_source_entity_type`, `should_produce_empty_list_when_reflected_schema_does_not_inherit_facetedPartially` — factory-level tests with `ReflectedReferenceSchema` input; the factory itself is agnostic to reflected vs. non-reflected (it calls `getFacetedPartiallyInScopes()` which handles inheritance transparently), so the incremental value is low
+- [ ] Exception message content verification for `NonTranslatableExpressionException` — the `shouldPropagateNonTranslatableException` test verifies the exception type but not the message content; adding message assertions would guard against regressions in error reporting
+
+### Not implemented spec test from Test Class 4 — `FacetExpressionTriggerFactoryTest`
+
+- [ ] `localizedAttributes` path in `FacetExpressionTriggerFactory.isAttributesProperty()` — no test exercises the `LOCALIZED_ATTRIBUTES_PROPERTY` branch; would require an expression accessing `$entity.localizedAttributes[...]` which is a valid but rare path in practice

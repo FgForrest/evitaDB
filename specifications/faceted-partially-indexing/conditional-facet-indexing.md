@@ -41,10 +41,14 @@ all of these. The full set of accessible data paths:
 | `$reference.attributes['x']` | Reference attribute | `ReferencesStoragePart` (reference entry) |
 | `$reference.localizedAttributes['x']` | Reference localized attribute | `ReferencesStoragePart` (reference entry) |
 | `$reference.referencedEntity.*` | Referenced entity's properties | Target entity's storage parts (cross-collection) |
+| `$reference.referencedEntity.references['r']*.attributes['x']` | Reference attribute on the referenced entity's reference 'r' | Target entity's `ReferencesStoragePart` (cross-collection) |
 | `$reference.groupEntity?.*` | Group entity's properties | Group entity's storage parts (cross-collection) |
+| `$reference.groupEntity?.references['r']*.attributes['x']` | Reference attribute on the group entity's reference 'r' | Group entity's `ReferencesStoragePart` (cross-collection) |
 
 Nested paths on referenced/group entity follow the same pattern as `$entity.*` — the
-expression can access any property supported by `EntityContract` on the nested entity.
+expression can access any property supported by `EntityContract` on the nested entity,
+**including its own references and their attributes** (but NOT the entities those references
+point to — that would be a second entity hop).
 
 ### Accessor registrations — already exist
 
@@ -321,6 +325,23 @@ Expressions are limited to **single entity hop** — they can reference data on 
 the reference, the referenced entity, or the group entity, but NOT entities reachable through
 further navigation (e.g., `$reference.referencedEntity.references['x'].referencedEntity...`).
 
+**Clarification — references on the referenced/group entity are in scope:**
+The referenced entity (or group entity) itself may have its own references, and expressions
+**can** access reference attributes on those references. For example:
+
+- `$reference.referencedEntity.references['x']*.attributes['A'] > 1` — valid (reads reference
+  attribute on the referenced entity's reference 'x')
+- `$reference.groupEntity?.references['y']*.attributes['B'] == 'active'` — valid (reads reference
+  attribute on the group entity's reference 'y')
+- `$reference.referencedEntity.references['x'].referencedEntity.attributes['z']` — **invalid**
+  (second entity hop — navigates from the referenced entity through its reference to yet another
+  entity)
+
+The single-hop rule means: from the owner entity, you may navigate to exactly one other entity
+(the referenced entity or group entity). Once there, you may read that entity's own properties
+**including its references and their attributes**, but you may NOT follow those references to
+reach a third entity.
+
 **Rationale:**
 - Without this, we'd face transitive closure explosion (A→B→C→D...)
 - Cycle detection would require graph analysis at evaluation time
@@ -362,6 +383,7 @@ with existing `ReferenceIndexMutator` logic.
 | Mutation                              | Triggers re-evaluation when...                                |
 |---------------------------------------|---------------------------------------------------------------|
 | Attribute change on referenced entity | Expression uses `$reference.referencedEntity.attributes['x']` |
+| Reference mutation on referenced entity (`InsertReferenceMutation`, `RemoveReferenceMutation`, `UpsertReferenceAttributeMutation` for reference 'r') | Expression uses `$reference.referencedEntity.references['r']*.attributes['x']` |
 | `EntityRemoveMutation` on referenced entity | Expression uses `$reference.referencedEntity.*` — entity removal changes all accessed properties (null-safe paths return `null`, non-null-safe paths may throw). All dependent expressions must be re-evaluated. |
 
 Entity A's facet indexing depends on entity B's data.
@@ -371,6 +393,7 @@ Entity A's facet indexing depends on entity B's data.
 | Mutation                              | Triggers re-evaluation when...                                |
 |---------------------------------------|---------------------------------------------------------------|
 | Attribute change on group entity      | Expression uses `$reference.groupEntity?.attributes['x']`     |
+| Reference mutation on group entity (`InsertReferenceMutation`, `RemoveReferenceMutation`, `UpsertReferenceAttributeMutation` for reference 'r') | Expression uses `$reference.groupEntity?.references['r']*.attributes['x']` |
 | `EntityRemoveMutation` on group entity | Expression uses `$reference.groupEntity?.*` — group entity removal changes all accessed properties (null-safe `?.` returns `null`). All dependent expressions must be re-evaluated. |
 
 Example: `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'`
@@ -405,14 +428,28 @@ The re-index mechanism will be addressed in a separate issue.
 
 ```
 Expression depends on:
-├── $entity.attributes['x']          → local trigger (same entity mutation)
-├── $entity.associatedData['x']      → local trigger (same entity mutation)
-├── $entity.parent                   → local trigger (same entity mutation)
-├── $reference.attributes['x']       → local trigger (same reference mutation)
-├── $reference.referencedEntity.*    → cross-entity trigger (referenced entity mutation or removal)
-└── $reference.groupEntity.*         → cross-entity trigger (group entity mutation or removal)
-                                       ↑ THIS IS THE FAN-OUT CASE
+├── $entity.attributes['x']                                     → local trigger (same entity mutation)
+├── $entity.associatedData['x']                                 → local trigger (same entity mutation)
+├── $entity.parent                                              → local trigger (same entity mutation)
+├── $reference.attributes['x']                                  → local trigger (same reference mutation)
+├── $reference.referencedEntity.attributes['x']                 → cross-entity trigger (referenced entity attribute change)
+├── $reference.referencedEntity.references['r']*.attributes['x']→ cross-entity trigger (referenced entity reference mutation)
+├── $reference.groupEntity?.attributes['x']                     → cross-entity trigger (group entity attribute change)
+└── $reference.groupEntity?.references['r']*.attributes['x']    → cross-entity trigger (group entity reference mutation)
+                                                                   ↑ THESE ARE THE FAN-OUT CASES
 ```
+
+**Note on reference-level dependencies:** When the expression accesses
+`$reference.referencedEntity.references['r']*.attributes['x']`, the trigger must fire on
+reference mutations on the referenced entity (insert/remove of reference 'r', or change of
+attribute 'x' on reference 'r') — not just on entity attribute mutations. This requires
+separate `DependencyType` values (`REFERENCED_ENTITY_REFERENCE_ATTRIBUTE`,
+`GROUP_ENTITY_REFERENCE_ATTRIBUTE`) to distinguish entity-attribute dependencies from
+reference-attribute dependencies. The `getDependentAttributes()` for reference-level
+dependencies must encode both the reference name and the attribute name.
+
+The FilterBy translation for such paths produces nested `referenceHaving`:
+`referenceHaving('ownerRef', entityHaving(referenceHaving('r', attributeGreaterThan('x', v))))`.
 
 ### Chosen approach: Post-processing triggers (modeled after `popImplicitMutations`)
 
@@ -665,6 +702,18 @@ public enum DependencyType {
     REFERENCED_ENTITY_ATTRIBUTE,
 
     /**
+     * The mutated entity is the **referenced entity** of the reference,
+     * and the dependency is on a **reference attribute** of that entity.
+     * Expression path: {@code $reference.referencedEntity.references['r']*.attributes['x']}
+     *
+     * The trigger fires when a reference mutation on the referenced entity
+     * affects reference 'r' (insert, remove, or attribute 'x' change).
+     * {@code getDependentReferenceName()} returns 'r',
+     * {@code getDependentAttributes()} returns {'x'}.
+     */
+    REFERENCED_ENTITY_REFERENCE_ATTRIBUTE,
+
+    /**
      * The mutated entity is the **group entity** of the reference.
      * Expression path: {@code $reference.groupEntity?.attributes['x']}
      *
@@ -673,7 +722,20 @@ public enum DependencyType {
      * Fan-out can be significant — one group entity may be shared across
      * many references (and thus many owner entities).
      */
-    GROUP_ENTITY_ATTRIBUTE
+    GROUP_ENTITY_ATTRIBUTE,
+
+    /**
+     * The mutated entity is the **group entity** of the reference,
+     * and the dependency is on a **reference attribute** of that entity.
+     * Expression path: {@code $reference.groupEntity?.references['r']*.attributes['x']}
+     *
+     * The trigger fires when a reference mutation on the group entity
+     * affects reference 'r' (insert, remove, or attribute 'x' change).
+     * {@code getDependentReferenceName()} returns 'r',
+     * {@code getDependentAttributes()} returns {'x'}.
+     * Fan-out can be significant (same as GROUP_ENTITY_ATTRIBUTE).
+     */
+    GROUP_ENTITY_REFERENCE_ATTRIBUTE
 }
 ```
 
@@ -1895,6 +1957,7 @@ None — all resolved.
 | 16 | **Dynamic attribute paths in expressions** — `$entity.attributes[variable]` prevents static analysis                              | Medium   | `AccessedDataFinder` / `ExpressionToQueryTranslator` throws exception at schema load time. Dynamic paths are not supported in `facetedPartially` expressions. |
 | 17 | **Entity removal as cross-entity trigger** — group/referenced entity removal changes expression results                           | Medium   | `EntityRemoveMutation` classified as cross-entity trigger source in Domain 2b/2c. Creates `ReevaluateFacetExpressionMutation` same as attribute changes. |
 | 18 | **ReflectedReferenceSchema inheritance** — reflected references inherit `facetedPartially` from source schema                     | Medium   | Trigger registration processes both direct and reflected schemas. Source expression change cascades trigger rebuild to all inheriting reflected schemas. |
+| 19 | **Reference-level dependencies on referenced/group entity** — expression accesses `$reference.referencedEntity.references['r']*.attributes['x']`, creating a dependency on reference mutations (not entity attributes) on the referenced entity | Medium | New `DependencyType` values (`REFERENCED_ENTITY_REFERENCE_ATTRIBUTE`, `GROUP_ENTITY_REFERENCE_ATTRIBUTE`) with `getDependentReferenceName()` to distinguish from entity-attribute dependencies. Trigger dispatch must watch for `InsertReferenceMutation`, `RemoveReferenceMutation`, `UpsertReferenceAttributeMutation` on the target entity. FilterBy translation produces nested `referenceHaving` inside `entityHaving`/`groupHaving`. See AD-22. |
 
 ---
 
@@ -1944,8 +2007,12 @@ None — all resolved.
    `ConsistencyCheckingLocalMutationExecutor`. Collector calls both sequentially
    (container first, then index).
 
-8. **Single entity hop limitation** — expressions can only reference immediate entity/reference/
-   group/referenced entity data, no multi-hop chains
+8. **Single entity hop limitation** — expressions can navigate from the owner entity to at most
+   one other entity (referenced entity or group entity). Once there, the expression may read
+   that entity's own properties **including its references and their attributes** (e.g.,
+   `$reference.referencedEntity.references['x']*.attributes['A']`), but may NOT follow those
+   references to reach a third entity. This enables expressions that react on reference
+   mutations on the referenced/group entity while keeping the dependency graph bipartite.
 
 9. **Proxycian proxy wrapping** — contract types (`EntityContract`, `ReferenceContract`) are
    implemented via Proxycian-generated proxies that delegate directly to storage part data.
@@ -2042,7 +2109,9 @@ None — all resolved.
     - `ExpressionToQueryTranslator` maps every supported expression node to the corresponding
       evitaDB constraint (e.g., `$entity.attributes['x'] == v` → `attributeEquals("x", v)`,
       `$reference.groupEntity?.attributes['x'] == v` →
-      `referenceHaving("refName", entityGroupHaving(attributeEquals("x", v)))`)
+      `referenceHaving("refName", groupHaving(attributeEquals("x", v)))`,
+      `$reference.referencedEntity.references['r']*.attributes['x'] > v` →
+      `referenceHaving("refName", entityHaving(referenceHaving("r", attributeGreaterThan("x", v))))`)
     - Non-translatable expressions (dynamic attribute paths, direct cross-to-local comparisons,
       unsupported operators) are **rejected at schema time** with a clear error — no per-entity
       fallback exists
@@ -2073,6 +2142,31 @@ None — all resolved.
     `ReferenceSchema` definitions with `facetedPartiallyInScopes` expressions — populating
     `CatalogExpressionTriggerRegistry` via the same process as schema load time trigger
     building.
+
+22. **Referenced/group entity reference attributes in expressions** — expressions may access
+    reference attributes on the referenced entity or group entity via patterns like
+    `$reference.referencedEntity.references['r']*.attributes['x']`. This is within the
+    single-hop boundary (AD-8) because the expression navigates to the referenced entity and
+    reads its own reference data, without following those references to a third entity.
+    Implementation requires:
+    - Two new `DependencyType` values: `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` and
+      `GROUP_ENTITY_REFERENCE_ATTRIBUTE` — distinguishing entity-attribute dependencies from
+      reference-attribute dependencies on the target entity
+    - A new `getDependentReferenceName()` method on `ExpressionIndexTrigger` returning the
+      reference name on the target entity (e.g., `'r'`), or `null` for entity-attribute
+      dependencies
+    - `ExpressionToQueryTranslator` extension: after `.referencedEntity`/`.groupEntity`,
+      recognize `.references['r']` and produce nested
+      `referenceHaving("r", attributeConstraint)` inside `entityHaving(...)` /
+      `groupHaving(...)`
+    - `FacetExpressionTriggerFactory` extension: `detectDependencyType()` must distinguish
+      `.referencedEntity.attributes[...]` from `.referencedEntity.references['r'].attributes[...]`;
+      `extractDependentAttribute()` must correctly identify the reference-level attribute
+    - Cross-entity trigger dispatch must fire on reference mutations
+      (`InsertReferenceMutation`, `RemoveReferenceMutation`, `UpsertReferenceAttributeMutation`)
+      on the target entity, not just entity attribute mutations
+    - The FilterBy translation: `referenceHaving('ownerRef', entityHaving(referenceHaving('r',
+      attributeGreaterThan('x', v))))` — standard nested evitaQL, no new constraint types needed
 
 ### Still open
 
