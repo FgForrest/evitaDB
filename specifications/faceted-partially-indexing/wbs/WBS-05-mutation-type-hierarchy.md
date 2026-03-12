@@ -442,33 +442,33 @@ This separation keeps the two executor families independent — container execut
 
 **Group 1: `MutationContract` root marker interface (evita_api)**
 
-- [ ] Create `MutationContract.java` in `evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/` — empty public interface with no methods, comprehensive JavaDoc explaining its role as a taxonomy root for both external `Mutation` and engine-internal `IndexMutation` types. No `@Immutable`/`@ThreadSafe` annotations needed (no methods to constrain). Must NOT be `sealed` (to allow cross-module extension by `IndexMutation` in `evita_engine`).
+- [x] Create `MutationContract.java` in `evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/` — empty public interface with no methods, comprehensive JavaDoc explaining its role as a taxonomy root for both external `Mutation` and engine-internal `IndexMutation` types. No `@Immutable`/`@ThreadSafe` annotations needed (no methods to constrain). Must NOT be `sealed` (to allow cross-module extension by `IndexMutation` in `evita_engine`).
 
 **Group 2: Modify existing `Mutation` interface (evita_api)**
 
-- [ ] Edit `Mutation.java` at `evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/Mutation.java` — change declaration from `public sealed interface Mutation extends Serializable permits EngineMutation, CatalogBoundMutation` to `public sealed interface Mutation extends MutationContract, Serializable permits EngineMutation, CatalogBoundMutation`. This is a single-line change. The `permits` clause is unchanged. No imports need to be added (same package).
+- [x] Edit `Mutation.java` at `evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/Mutation.java` — change declaration from `public sealed interface Mutation extends Serializable permits EngineMutation, CatalogBoundMutation` to `public sealed interface Mutation extends MutationContract, Serializable permits EngineMutation, CatalogBoundMutation`. This is a single-line change. The `permits` clause is unchanged. No imports need to be added (same package).
 
 **Group 3: `IndexMutation` marker interface (evita_engine)**
 
-- [ ] Create `IndexMutation.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public interface extending `MutationContract` with no methods. JavaDoc must explain: engine-internal, never passed from outside, never written to WAL, regenerated deterministically on replay. Import `io.evitadb.api.requestResponse.mutation.MutationContract`. Entity type is NOT on this interface (carried by the `EntityIndexMutation` envelope).
+- [x] Create `IndexMutation.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public interface extending `MutationContract` with no methods. JavaDoc must explain: engine-internal, never passed from outside, never written to WAL, regenerated deterministically on replay. Import `io.evitadb.api.requestResponse.mutation.MutationContract`. Entity type is NOT on this interface (carried by the `EntityIndexMutation` envelope).
 
 **Group 4: `EntityIndexMutation` transport envelope record (evita_engine)**
 
-- [ ] Create `EntityIndexMutation.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public record with fields `@Nonnull String entityType` and `@Nonnull IndexMutation[] mutations`. Does NOT implement `IndexMutation` or `MutationContract`. JavaDoc must explain the routing/transport role and why it does not implement `IndexMutation`. Must import `javax.annotation.Nonnull`.
+- [x] Create `EntityIndexMutation.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public record with fields `@Nonnull String entityType` and `@Nonnull IndexMutation[] mutations`. Does NOT implement `IndexMutation` or `MutationContract`. JavaDoc must explain the routing/transport role and why it does not implement `IndexMutation`. Must import `javax.annotation.Nonnull`.
 
 **Group 5: `ReevaluateFacetExpressionMutation` concrete leaf record (evita_engine)**
 
-- [ ] Verify `DependencyType` enum availability — this record depends on `DependencyType` from WBS-03. If WBS-03 is not yet implemented, either create a stub `DependencyType` enum (to be replaced by WBS-03's implementation) or defer this task until WBS-03 is complete.
-- [ ] Create `ReevaluateFacetExpressionMutation.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public record implementing `IndexMutation` with fields: `@Nonnull String referenceName`, `int mutatedEntityPK`, `@Nonnull DependencyType dependencyType`, `@Nonnull Scope scope`. JavaDoc must describe that this signals a cross-entity change requiring facet expression re-evaluation, that the source does NOT evaluate the expression or determine add/remove direction, and that PK resolution happens on the target side. Import `io.evitadb.dataType.Scope`.
+- [x] Verify `DependencyType` enum availability — this record depends on `DependencyType` from WBS-03. If WBS-03 is not yet implemented, either create a stub `DependencyType` enum (to be replaced by WBS-03's implementation) or defer this task until WBS-03 is complete.
+- [x] Create `ReevaluateFacetExpressionMutation.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public record implementing `IndexMutation` with fields: `@Nonnull String referenceName`, `int mutatedEntityPK`, `@Nonnull DependencyType dependencyType`, `@Nonnull Scope scope`. JavaDoc must describe that this signals a cross-entity change requiring facet expression re-evaluation, that the source does NOT evaluate the expression or determine add/remove direction, and that PK resolution happens on the target side. Import `io.evitadb.dataType.Scope`.
 
 **Group 6: `IndexImplicitMutations` record (evita_engine)**
 
-- [ ] Create the `IndexImplicitMutations` record as a standalone type in `io.evitadb.index.mutation` (preferred, for consistency with other mutation types in this package and to avoid coupling to `EntityIndexLocalMutationExecutor`). Alternatively, it may be a nested record inside `EntityIndexLocalMutationExecutor` (at `evita_engine/src/main/java/io/evitadb/index/mutation/index/EntityIndexLocalMutationExecutor.java`). The record has a single field: `@Nonnull EntityIndexMutation[] indexMutations`. JavaDoc must explain this is the output record for index executors, analogous to `ImplicitMutations` for container executors.
-- [ ] Add `popIndexImplicitMutations` method signature to `EntityIndexLocalMutationExecutor` — signature: `@Nonnull IndexImplicitMutations popIndexImplicitMutations(@Nonnull List<? extends LocalMutation<?, ?>> inputMutations)`. This is a stub method for now (implementation is WBS-08/WBS-09 scope). The stub should return an empty `IndexImplicitMutations` (with an empty `EntityIndexMutation[]` array). Note: this method is on the concrete class, NOT on `ConsistencyCheckingLocalMutationExecutor` — the two executor families remain independent.
+- [x] Create the `IndexImplicitMutations` record as a standalone type in `io.evitadb.index.mutation` (preferred, for consistency with other mutation types in this package and to avoid coupling to `EntityIndexLocalMutationExecutor`). Alternatively, it may be a nested record inside `EntityIndexLocalMutationExecutor` (at `evita_engine/src/main/java/io/evitadb/index/mutation/index/EntityIndexLocalMutationExecutor.java`). The record has a single field: `@Nonnull EntityIndexMutation[] indexMutations`. JavaDoc must explain this is the output record for index executors, analogous to `ImplicitMutations` for container executors.
+- [x] Add `popIndexImplicitMutations` method signature to `EntityIndexLocalMutationExecutor` — signature: `@Nonnull IndexImplicitMutations popIndexImplicitMutations(@Nonnull List<? extends LocalMutation<?, ?>> inputMutations)`. This is a stub method for now (implementation is WBS-08/WBS-09 scope). The stub should return an empty `IndexImplicitMutations` (with an empty `EntityIndexMutation[]` array). Note: this method is on the concrete class, NOT on `ConsistencyCheckingLocalMutationExecutor` — the two executor families remain independent.
 
 **Group 7: Module system updates (evita_engine)**
 
-- [ ] Evaluate whether `io.evitadb.index.mutation` needs to be added to the `exports` list in `evita_engine/src/main/java/module-info.java`. If `IndexMutation`, `EntityIndexMutation`, or `ReevaluateFacetExpressionMutation` are referenced from other modules (e.g., `evita_store` for persistence or test modules), the export is required. If all consumers are within `evita_engine`, no export is needed. Check cross-module references from WBS-06 (trigger registry) and WBS-09 (dispatch loop in `LocalMutationExecutorCollector` which is in `io.evitadb.core.collection` — same module) to determine. At minimum, `exports io.evitadb.index.mutation;` should be added since `ConsistencyCheckingLocalMutationExecutor` in this package is already imported by `LocalMutationExecutorCollector` (same module, so technically not required, but would be needed if test modules reference the new types directly).
+- [x] Evaluate whether `io.evitadb.index.mutation` needs to be added to the `exports` list in `evita_engine/src/main/java/module-info.java`. If `IndexMutation`, `EntityIndexMutation`, or `ReevaluateFacetExpressionMutation` are referenced from other modules (e.g., `evita_store` for persistence or test modules), the export is required. If all consumers are within `evita_engine`, no export is needed. Check cross-module references from WBS-06 (trigger registry) and WBS-09 (dispatch loop in `LocalMutationExecutorCollector` which is in `io.evitadb.core.collection` — same module) to determine. At minimum, `exports io.evitadb.index.mutation;` should be added since `ConsistencyCheckingLocalMutationExecutor` in this package is already imported by `LocalMutationExecutorCollector` (same module, so technically not required, but would be needed if test modules reference the new types directly). **Result:** No export needed — all consumers are within `evita_engine`.
 
 ### Test Cases
 
@@ -477,264 +477,74 @@ All tests use JUnit 5. Test classes live under
 
 ---
 
-#### Test Class 1: `MutationTypeHierarchyTest`
+#### ~~Test Class 1: `MutationTypeHierarchyTest`~~ — DELETED
 
-Tests that verify the compile-time and runtime type relationships between interfaces in the
-mutation hierarchy. No instances of leaf types are required here — only `Class` object
-reflection.
-
-**Category: type assignability**
-
-- [ ] `mutation_contract_should_be_assignable_from_mutation` — verify
-  `MutationContract.class.isAssignableFrom(Mutation.class)` returns `true`. Ensures the
-  `extends MutationContract` clause on `Mutation` is present.
-- [ ] `mutation_contract_should_be_assignable_from_index_mutation` — verify
-  `MutationContract.class.isAssignableFrom(IndexMutation.class)` returns `true`. Ensures
-  `IndexMutation extends MutationContract` across the module boundary.
-- [ ] `mutation_contract_should_be_assignable_from_reevaluate_facet_expression_mutation` —
-  verify `MutationContract.class.isAssignableFrom(ReevaluateFacetExpressionMutation.class)`
-  returns `true`. Transitive: record -> IndexMutation -> MutationContract.
-- [ ] `index_mutation_should_be_assignable_from_reevaluate_facet_expression_mutation` — verify
-  `IndexMutation.class.isAssignableFrom(ReevaluateFacetExpressionMutation.class)` returns
-  `true`. The concrete leaf implements the marker.
-- [ ] `index_mutation_should_not_be_assignable_from_entity_index_mutation` — verify
-  `IndexMutation.class.isAssignableFrom(EntityIndexMutation.class)` returns `false`. The
-  transport envelope deliberately does NOT implement `IndexMutation`.
-- [ ] `mutation_contract_should_not_be_assignable_from_entity_index_mutation` — verify
-  `MutationContract.class.isAssignableFrom(EntityIndexMutation.class)` returns `false`. The
-  transport envelope is outside the mutation taxonomy entirely.
-- [ ] `mutation_should_not_be_assignable_from_index_mutation` — verify
-  `Mutation.class.isAssignableFrom(IndexMutation.class)` returns `false`. The two branches
-  (`Mutation` and `IndexMutation`) are siblings under `MutationContract`, not parent-child.
-- [ ] `index_mutation_should_not_be_assignable_from_mutation` — verify
-  `IndexMutation.class.isAssignableFrom(Mutation.class)` returns `false`. Confirms the
-  separation is symmetric.
-
-**Category: interface properties**
-
-- [ ] `mutation_contract_should_have_no_declared_methods` — verify
-  `MutationContract.class.getDeclaredMethods().length == 0`. The interface is an empty
-  taxonomy root.
-- [ ] `index_mutation_should_have_no_declared_methods` — verify
-  `IndexMutation.class.getDeclaredMethods().length == 0`. The interface is a pure marker.
-- [ ] `mutation_contract_should_not_be_sealed` — verify
-  `!MutationContract.class.isSealed()`. Must remain unsealed to allow cross-module extension.
-- [ ] `mutation_should_remain_sealed` — verify `Mutation.class.isSealed()`. The sealed
-  `permits` clause must not be removed when adding `extends MutationContract`.
-- [ ] `mutation_sealed_permits_should_be_unchanged` — verify that
-  `Mutation.class.getPermittedSubclasses()` resolves to exactly `EngineMutation` and
-  `CatalogBoundMutation` (order-independent). Adding `extends MutationContract` must not
-  alter the permits clause.
+Deleted during code review. All tests verified Java compile-time type hierarchy guarantees
+(`isAssignableFrom`, `isSealed`, `getDeclaredMethods`) — the compiler already enforces these.
+Tests were fragile (break on any intentional refactoring) and provided no bug-catching value.
 
 ---
 
-#### Test Class 2: `ReevaluateFacetExpressionMutationTest`
+#### ~~Test Class 2: `ReevaluateFacetExpressionMutationTest`~~ — DELETED
 
-Tests for the concrete leaf record `ReevaluateFacetExpressionMutation`.
-
-**Category: record field accessors**
-
-- [ ] `should_return_reference_name_passed_at_construction` — construct with
-  `referenceName = "parameter"` and verify `referenceName()` returns `"parameter"`.
-- [ ] `should_return_mutated_entity_pk_passed_at_construction` — construct with
-  `mutatedEntityPK = 42` and verify `mutatedEntityPK()` returns `42`.
-- [ ] `should_return_dependency_type_passed_at_construction` — construct with
-  `dependencyType = DependencyType.REFERENCED_ENTITY_ATTRIBUTE` and verify
-  `dependencyType()` returns `DependencyType.REFERENCED_ENTITY_ATTRIBUTE`.
-- [ ] `should_return_scope_passed_at_construction` — construct with `scope = Scope.LIVE` and
-  verify `scope()` returns `Scope.LIVE`.
-- [ ] `should_return_archived_scope_when_constructed_with_archived` — construct with
-  `scope = Scope.ARCHIVED` and verify `scope()` returns `Scope.ARCHIVED`.
-- [ ] `should_return_group_entity_attribute_dependency_type` — construct with
-  `dependencyType = DependencyType.GROUP_ENTITY_ATTRIBUTE` and verify
-  `dependencyType()` returns `DependencyType.GROUP_ENTITY_ATTRIBUTE`.
-
-**Category: record equality and hashCode**
-
-- [ ] `should_be_equal_when_all_fields_match` — two instances constructed with identical
-  field values (`"parameter"`, `42`, `DependencyType.REFERENCED_ENTITY_ATTRIBUTE`,
-  `Scope.LIVE`) should be `equals()` to each other and produce the same `hashCode()`.
-- [ ] `should_not_be_equal_when_reference_name_differs` — two instances differing only in
-  `referenceName` should not be `equals()`.
-- [ ] `should_not_be_equal_when_mutated_entity_pk_differs` — two instances differing only in
-  `mutatedEntityPK` should not be `equals()`.
-- [ ] `should_not_be_equal_when_dependency_type_differs` — two instances differing only in
-  `dependencyType` should not be `equals()`.
-- [ ] `should_not_be_equal_when_scope_differs` — two instances differing only in `scope`
-  should not be `equals()`.
-- [ ] `should_produce_meaningful_to_string` — verify `toString()` output contains all field
-  names and values (reference name, PK, dependency type, scope).
-
-**Category: IndexMutation marker**
-
-- [ ] `should_be_instance_of_index_mutation` — verify a constructed instance passes
-  `instanceof IndexMutation`.
-- [ ] `should_be_instance_of_mutation_contract` — verify a constructed instance passes
-  `instanceof MutationContract`.
-- [ ] `should_not_be_instance_of_mutation` — verify a constructed instance does NOT pass
-  `instanceof Mutation`.
-- [ ] `should_not_be_serializable` — verify a constructed instance does NOT pass
-  `instanceof java.io.Serializable`. Index mutations are never serialized/WAL-persisted.
+Deleted during code review. Tests verified Java record auto-generated accessors, `equals`,
+`hashCode`, `toString`, and `instanceof` checks — all guaranteed by the Java language for
+records. No project-specific behavior to test.
 
 ---
 
-#### Test Class 3: `EntityIndexMutationTest`
+#### ~~Test Class 3: `EntityIndexMutationTest`~~ — DELETED
 
-Tests for the transport envelope record `EntityIndexMutation`.
-
-**Category: record field accessors**
-
-- [ ] `should_return_entity_type_passed_at_construction` — construct with
-  `entityType = "product"` and a non-empty `IndexMutation[]` array. Verify
-  `entityType()` returns `"product"`.
-- [ ] `should_return_mutations_array_passed_at_construction` — construct with a known
-  `IndexMutation[]` array containing two `ReevaluateFacetExpressionMutation` instances.
-  Verify `mutations()` returns the same array reference and length.
-- [ ] `should_accept_empty_mutations_array` — construct with `entityType = "category"` and
-  an empty `IndexMutation[0]`. Verify `mutations().length == 0`. (Empty envelope is valid
-  as an edge case.)
-
-**Category: transport envelope identity — NOT an IndexMutation**
-
-- [ ] `should_not_be_instance_of_index_mutation` — verify a constructed
-  `EntityIndexMutation` does NOT pass `instanceof IndexMutation`.
-- [ ] `should_not_be_instance_of_mutation_contract` — verify a constructed
-  `EntityIndexMutation` does NOT pass `instanceof MutationContract`.
-- [ ] `should_not_be_instance_of_mutation` — verify a constructed `EntityIndexMutation` does
-  NOT pass `instanceof Mutation`.
-
-**Category: batching semantics**
-
-- [ ] `should_batch_multiple_mutations_for_same_entity_type` — construct a single
-  `EntityIndexMutation` with `entityType = "product"` and three different
-  `ReevaluateFacetExpressionMutation` instances (different reference names or PKs). Verify
-  all three are accessible via `mutations()`.
-- [ ] `should_allow_distinct_envelopes_for_different_entity_types` — construct two separate
-  `EntityIndexMutation` envelopes for entity types `"product"` and `"category"`, each
-  containing different mutations. Verify `entityType()` and `mutations()` are independent.
-
-**Category: record equality**
-
-- [ ] `should_use_array_identity_in_equals` — Java records use `Object.equals()` for array
-  fields (not deep equality). Two `EntityIndexMutation` instances constructed with different
-  array references but identical contents should NOT be `equals()`. This documents the
-  expected behavior — envelope equality is not needed for correctness.
+Deleted during code review. Tests verified Java record accessors, `instanceof` checks, and
+array identity equality — all Java language guarantees, not project behavior.
 
 ---
 
-#### Test Class 4: `IndexImplicitMutationsTest`
+#### ~~Test Class 4: `IndexImplicitMutationsTest`~~ — DELETED
 
-Tests for the `IndexImplicitMutations` output record.
-
-**Category: record field accessors**
-
-- [ ] `should_return_index_mutations_array_passed_at_construction` — construct with a known
-  `EntityIndexMutation[]` array and verify `indexMutations()` returns the same reference.
-- [ ] `should_accept_empty_index_mutations_array` — construct with an empty
-  `EntityIndexMutation[0]` and verify `indexMutations().length == 0`.
-
-**Category: structural independence from ImplicitMutations**
-
-- [ ] `should_not_share_type_hierarchy_with_implicit_mutations` — verify that
-  `IndexImplicitMutations.class` is NOT assignable from
-  `ConsistencyCheckingLocalMutationExecutor.ImplicitMutations.class` and vice versa. The two
-  output records serve different executor families and must remain independent.
+Deleted during code review. Tests verified Java record accessors and `isAssignableFrom`
+between unrelated types — Java language guarantees, not project behavior.
 
 ---
 
-#### Test Class 5: `ImplicitMutationsBackwardCompatibilityTest`
+#### ~~Test Class 5: `ImplicitMutationsBackwardCompatibilityTest`~~ — DELETED
 
-Tests that the existing `ImplicitMutations` record in `ConsistencyCheckingLocalMutationExecutor`
-is completely unchanged after the WBS-05 modifications.
-
-**Category: backward compatibility**
-
-- [ ] `implicit_mutations_should_have_exactly_two_record_components` — verify via reflection
-  that `ImplicitMutations.class.getRecordComponents().length == 2`.
-- [ ] `implicit_mutations_should_have_local_mutations_component` — verify via reflection
-  that a record component named `localMutations` of type `LocalMutation[].class` exists.
-- [ ] `implicit_mutations_should_have_external_mutations_component` — verify via reflection
-  that a record component named `externalMutations` of type `EntityMutation[].class` exists.
-- [ ] `implicit_mutations_should_remain_nested_in_consistency_checking_executor` — verify
-  `ImplicitMutations.class.getDeclaringClass()` equals
-  `ConsistencyCheckingLocalMutationExecutor.class`. The record must not be extracted to a
-  standalone type.
-- [ ] `implicit_mutations_field_accessors_should_work` — construct an `ImplicitMutations`
-  with known arrays and verify `localMutations()` and `externalMutations()` return them.
+Deleted during code review. Tests verified record component count/names via reflection —
+fragile, breaks on any intentional change, provides no bug-catching value. The existing
+`ImplicitMutations` record was not modified by WBS-05.
 
 ---
 
-#### Test Class 6: `DependencyTypeCompletenessTest`
+#### ~~Test Class 6: `DependencyTypeCompletenessTest`~~ — DELETED
 
-Tests that the `DependencyType` enum referenced by `ReevaluateFacetExpressionMutation` is
-complete and stable. (The enum itself is defined in WBS-03, but WBS-05 depends on it.)
-
-**Category: enum completeness**
-
-- [ ] `should_have_exactly_two_values` — verify
-  `DependencyType.values().length == 2`. Guards against silent additions that could affect
-  dispatch logic.
-- [ ] `should_contain_referenced_entity_attribute` — verify
-  `DependencyType.valueOf("REFERENCED_ENTITY_ATTRIBUTE")` does not throw.
-- [ ] `should_contain_group_entity_attribute` — verify
-  `DependencyType.valueOf("GROUP_ENTITY_ATTRIBUTE")` does not throw.
-
-**Category: usage in ReevaluateFacetExpressionMutation**
-
-- [ ] `should_construct_mutation_with_each_dependency_type` — iterate over all
-  `DependencyType.values()` and verify that each can be used to construct a valid
-  `ReevaluateFacetExpressionMutation` without exceptions.
+Deleted during code review. Tests verified enum constant count and names — breaks on any
+legitimate addition, provides no bug-catching value. `DependencyType` is owned by WBS-03.
 
 ---
 
-#### Test Class 7: `MutationBackwardCompatibilityTest`
+#### ~~Test Class 7: `MutationBackwardCompatibilityTest`~~ — DELETED
 
-Tests located in `evita_test/evita_functional_tests/src/test/java/io/evitadb/api/requestResponse/mutation/`
-to verify that the `Mutation` interface modification has zero impact on existing code.
-
-> **Note:** Unlike Test Classes 1-6 (which are in `io.evitadb.index.mutation`), this test class
-> is placed in `io.evitadb.api.requestResponse.mutation` because it tests `evita_api` types
-> (`Mutation`, `EngineMutation`, `CatalogBoundMutation`) that live in that package.
-
-**Category: Mutation interface contract preservation**
-
-- [ ] `mutation_should_still_extend_serializable` — verify
-  `Serializable.class.isAssignableFrom(Mutation.class)`.
-- [ ] `mutation_should_still_declare_operation_method` — verify via reflection that
-  `Mutation.class` declares a method named `operation` with return type `Operation.class`.
-- [ ] `mutation_should_still_declare_collect_conflict_keys_method` — verify via reflection
-  that `Mutation.class` declares a method named `collectConflictKeys`.
-- [ ] `mutation_sealed_subtypes_should_be_engine_and_catalog_bound` — verify that the
-  permitted subclasses of `Mutation` resolve to exactly `EngineMutation` and
-  `CatalogBoundMutation`. No new permitted subtypes should have been added.
-- [ ] `engine_mutation_should_still_extend_mutation` — verify
-  `Mutation.class.isAssignableFrom(EngineMutation.class)`.
-- [ ] `catalog_bound_mutation_should_still_extend_mutation` — verify
-  `Mutation.class.isAssignableFrom(CatalogBoundMutation.class)`.
-
-**Category: build verification (manual step, not a JUnit test)**
-
-- [ ] `all_files_importing_mutation_should_compile_after_extends_mutation_contract` — this is a
-  **build-time verification step**, not a JUnit test case. Run `mvn compile` on the `evita_api`
-  module after adding `extends MutationContract` to `Mutation` and verify that all files
-  importing `Mutation` continue to compile without changes. The `permits` clause is unchanged
-  (`EngineMutation`, `CatalogBoundMutation`), so no existing implementations need modification.
-  Do not attempt to write a JUnit test that invokes Maven — this is verified by the build itself.
+Deleted during code review. Tests verified sealed permits, `isAssignableFrom`, and method
+existence via reflection — all Java compiler guarantees. The build verification step
+(`mvn compile` on `evita_api`) was performed successfully during implementation.
 
 ---
 
-#### Test Class 8: `PopIndexImplicitMutationsStubTest`
+#### Test Class 8: `PopIndexImplicitMutationsStubTest` — TRIMMED
 
 Tests for the stub `popIndexImplicitMutations` method on `EntityIndexLocalMutationExecutor`.
+Trimmed during code review — removed redundant tests that were subsumed by the kept ones.
 
 **Category: stub behavior**
 
-- [ ] `should_return_empty_index_implicit_mutations_for_empty_input` — call
+- [x] `should_return_empty_index_implicit_mutations_for_empty_input` — call
   `popIndexImplicitMutations(Collections.emptyList())` and verify the returned
   `IndexImplicitMutations` has an empty `indexMutations` array.
-- [ ] `should_return_empty_index_implicit_mutations_for_non_empty_input` — call
+- [x] `should_return_empty_index_implicit_mutations_for_non_empty_input` — call
   `popIndexImplicitMutations(...)` with a list containing arbitrary `LocalMutation` instances
   and verify the returned `IndexImplicitMutations` still has an empty `indexMutations` array.
   (The stub does not process input — real implementation is WBS-08/WBS-09.)
-- [ ] `should_return_non_null_result` — verify the method never returns `null`, consistent
-  with the `@Nonnull` annotation on its return type.
+- ~~`should_return_non_null_result`~~ — removed, subsumed by the two tests above (both
+  implicitly verify non-null by calling `.indexMutations().length` on the result).
+- ~~`should_return_empty_result_on_repeated_calls`~~ — removed, tests trivial idempotency
+  guaranteed by the stateless stub implementation.

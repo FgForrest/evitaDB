@@ -69,6 +69,9 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.QuadriConsumer;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
+import io.evitadb.index.mutation.EntityIndexMutation;
+import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.index.dataAccess.EntityExistingDataFactory;
 import io.evitadb.index.mutation.index.dataAccess.EntityIndexedReferenceSupplier;
 import io.evitadb.index.mutation.index.dataAccess.EntityPriceSupplier;
@@ -222,6 +225,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				.getScope();
 		}
 		return this.memoizedScope;
+	}
+
+	/**
+	 * Returns and clears list of engine-internal index mutations that were detected during processing
+	 * of the given input mutations. This method is the index-executor analogue of
+	 * {@link ConsistencyCheckingLocalMutationExecutor#popImplicitMutations}.
+	 *
+	 * Current implementation is a stub returning an empty result — real detection logic will be
+	 * implemented in WBS-08/WBS-09.
+	 *
+	 * @param inputMutations list of local mutations that were applied
+	 * @return index mutations to dispatch to target collections
+	 */
+	@Nonnull
+	public IndexImplicitMutations popIndexImplicitMutations(
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
+	) {
+		return new IndexImplicitMutations(new EntityIndexMutation[0]);
 	}
 
 	/**
