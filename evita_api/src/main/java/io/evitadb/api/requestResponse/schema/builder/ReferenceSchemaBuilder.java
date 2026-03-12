@@ -54,6 +54,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -299,10 +300,13 @@ public final class ReferenceSchemaBuilder
 		@Nonnull Expression expression
 	) {
 		// compute complete state: current scopes + new scope, current expressions + new entry
-		final EnumSet<Scope> allScopes = EnumSet.copyOf(this.getFacetedInScopes());
+		final Set<Scope> currentFacetedScopes = this.getFacetedInScopes();
+		final EnumSet<Scope> allScopes = currentFacetedScopes.isEmpty()
+			? EnumSet.noneOf(Scope.class) : EnumSet.copyOf(currentFacetedScopes);
 		allScopes.add(scope);
-		final Map<Scope, Expression> allPartially =
-			new EnumMap<>(this.getFacetedPartiallyInScopes());
+		final Map<Scope, Expression> currentPartially = this.getFacetedPartiallyInScopes();
+		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
+			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
 		allPartially.put(scope, expression);
 		final Scope[] completeFacetedScopes = allScopes.toArray(Scope[]::new);
 		final ScopedFacetedPartially[] completePartially =

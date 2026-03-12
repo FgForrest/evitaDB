@@ -305,25 +305,19 @@ public class CreateReferenceSchemaMutation
 											.toArray(ScopedReferenceIndexedComponents[]::new)
 									)
 								),
-								makeMutationIfDifferent(
-									ReferenceSchemaContract.class,
-									createdVersion, existingVersion,
-									ref -> Arrays.stream(Scope.values())
-										.filter(ref::isFacetedInScope)
+								// emit a single mutation carrying both facetedInScopes and facetedPartially
+							(createdVersion.getFacetedInScopes().equals(existingVersion.getFacetedInScopes()) &&
+								createdVersion.getFacetedPartiallyInScopes()
+									.equals(existingVersion.getFacetedPartiallyInScopes()))
+								? null
+								: new SetReferenceSchemaFacetedMutation(
+									this.name,
+									Arrays.stream(Scope.values())
+										.filter(createdVersion::isFacetedInScope)
 										.toArray(Scope[]::new),
-									newValue -> new SetReferenceSchemaFacetedMutation(this.name, newValue)
-								),
-								makeMutationIfDifferent(
-									ReferenceSchemaContract.class,
-									createdVersion, existingVersion,
-									ReferenceSchemaContract::getFacetedPartiallyInScopes,
-									newValue -> new SetReferenceSchemaFacetedMutation(
-										this.name,
-										null,
-										newValue.entrySet().stream()
-											.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
-											.toArray(ScopedFacetedPartially[]::new)
-									)
+									createdVersion.getFacetedPartiallyInScopes().entrySet().stream()
+										.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
+										.toArray(ScopedFacetedPartially[]::new)
 								)
 							),
 							existingVersion.getAttributes()

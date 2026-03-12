@@ -37,6 +37,7 @@ module evita.engine {
 	exports io.evitadb.core.expression.proxy;
 	exports io.evitadb.core.expression.proxy.entity;
 	exports io.evitadb.core.expression.proxy.reference;
+	exports io.evitadb.core.expression.trigger;
 	exports io.evitadb.core.engine;
 	exports io.evitadb.core.executor;
 	exports io.evitadb.core.management;
@@ -82,6 +83,7 @@ module evita.engine {
 	exports io.evitadb.index.relation;
 	exports io.evitadb.index.reference;
 	exports io.evitadb.index.facet;
+	exports io.evitadb.index.mutation;
 	exports io.evitadb.spi.store.catalog.chunk;
 	exports io.evitadb.spi.store.catalog.header;
 	exports io.evitadb.spi.store.catalog.header.model;

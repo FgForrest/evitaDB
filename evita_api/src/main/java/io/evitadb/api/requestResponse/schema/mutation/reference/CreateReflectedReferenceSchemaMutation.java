@@ -114,6 +114,42 @@ public class CreateReflectedReferenceSchemaMutation
 	}
 
 	/**
+	 * Creates a single {@link SetReferenceSchemaFacetedMutation} carrying both faceted scopes and
+	 * facetedPartially expressions if either property differs between created and existing versions.
+	 * Emitting a single mutation avoids the Set+Set combining problem where a second
+	 * SetReferenceSchemaFacetedMutation would replace the first, losing the scopes data.
+	 */
+	@Nullable
+	private LocalEntitySchemaMutation createCombinedFacetedMutation(
+		@Nonnull ReflectedReferenceSchemaContract createdVersion,
+		@Nonnull ReflectedReferenceSchemaContract existingVersion
+	) {
+		final Scope[] createdScopes = createdVersion.isFacetedInherited()
+			? null
+			: Arrays.stream(Scope.values())
+				.filter(createdVersion::isFacetedInScope)
+				.toArray(Scope[]::new);
+		final Scope[] existingScopes = existingVersion.isFacetedInherited()
+			? null
+			: Arrays.stream(Scope.values())
+				.filter(existingVersion::isFacetedInScope)
+				.toArray(Scope[]::new);
+		final boolean scopesEqual = Arrays.equals(createdScopes, existingScopes);
+		final boolean partiallyEqual = createdVersion.getFacetedPartiallyInScopes()
+			.equals(existingVersion.getFacetedPartiallyInScopes());
+		if (scopesEqual && partiallyEqual) {
+			return null;
+		}
+		return new SetReferenceSchemaFacetedMutation(
+			this.name,
+			createdScopes,
+			createdVersion.getFacetedPartiallyInScopes().entrySet().stream()
+				.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
+				.toArray(ScopedFacetedPartially[]::new)
+		);
+	}
+
+	/**
 	 * Creates mutation that sets up a new reflected reference schema using a simple boolean
 	 * flag for faceted configuration.
 	 */
@@ -284,22 +320,8 @@ public class CreateReflectedReferenceSchemaMutation
 											.toArray(ScopedReferenceIndexedComponents[]::new)
 									)
 								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									ref -> ref.isFacetedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isFacetedInScope).toArray(Scope[]::new),
-									newValue -> new SetReferenceSchemaFacetedMutation(this.name, newValue)
-								),
-								makeMutationIfDifferent(
-									createdVersion, existingVersion,
-									ReferenceSchemaContract::getFacetedPartiallyInScopes,
-									newValue -> new SetReferenceSchemaFacetedMutation(
-										this.name,
-										null,
-										newValue.entrySet().stream()
-											.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
-											.toArray(ScopedFacetedPartially[]::new)
-									)
-								)
+								// emit a single mutation carrying both facetedInScopes and facetedPartially
+								createCombinedFacetedMutation(createdVersion, existingVersion)
 							),
 							existingVersion.getAttributes()
 								.values()

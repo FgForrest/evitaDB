@@ -282,6 +282,65 @@ class CreateReferenceSchemaMutationTest {
 		}
 
 		@Test
+		@DisplayName("should emit single SetReferenceSchemaFacetedMutation carrying both scopes and expressions")
+		void shouldEmitSingleFacetedMutationWithBothScopesAndExpressions() {
+			// Create has faceted={LIVE} + facetedPartially={LIVE: expr}
+			// Existing has faceted={} (not faceted) + facetedPartially={}
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"oldDescription", "oldDeprecationNotice",
+				Cardinality.ZERO_OR_MORE, REFERENCE_TYPE, false,
+				GROUP_TYPE, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				new ScopedFacetedPartially[]{
+					new ScopedFacetedPartially(Scope.LIVE, expression)
+				}
+			);
+			// existing schema is NOT faceted — facetedInScopes={}
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(createExistingReferenceSchema(false)));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			// Count SetReferenceSchemaFacetedMutation instances — must be exactly 1
+			final SetReferenceSchemaFacetedMutation[] facetedMutations = Arrays.stream(result.current())
+				.filter(SetReferenceSchemaFacetedMutation.class::isInstance)
+				.map(SetReferenceSchemaFacetedMutation.class::cast)
+				.toArray(SetReferenceSchemaFacetedMutation[]::new);
+			assertEquals(
+				1, facetedMutations.length,
+				"Expected exactly one SetReferenceSchemaFacetedMutation but found " +
+					facetedMutations.length + " — two separate mutations would cause " +
+					"Set+Set combining to lose facetedInScopes"
+			);
+			// The single mutation must carry both facetedInScopes AND facetedPartially
+			final SetReferenceSchemaFacetedMutation facetedMutation = facetedMutations[0];
+			assertNotNull(
+				facetedMutation.getFacetedInScopes(),
+				"facetedInScopes must not be null — null means 'don't change'"
+			);
+			assertArrayEquals(new Scope[]{Scope.LIVE}, facetedMutation.getFacetedInScopes());
+			assertNotNull(
+				facetedMutation.getFacetedPartiallyInScopes(),
+				"facetedPartiallyInScopes must not be null"
+			);
+			assertEquals(1, facetedMutation.getFacetedPartiallyInScopes().length);
+			assertEquals(Scope.LIVE, facetedMutation.getFacetedPartiallyInScopes()[0].scope());
+		}
+
+		@Test
 		@DisplayName("should not combine when removal targets different reference")
 		void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentReference() {
 			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(

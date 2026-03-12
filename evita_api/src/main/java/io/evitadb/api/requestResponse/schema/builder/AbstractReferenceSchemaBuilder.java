@@ -56,6 +56,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Optional.ofNullable;
@@ -150,10 +151,13 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	) {
 		// compute complete state: current faceted scopes + new scope, current expressions + new entry
 		final S current = toInstance();
-		final EnumSet<Scope> allScopes = EnumSet.copyOf(current.getFacetedInScopes());
+		final Set<Scope> currentFacetedScopes = current.getFacetedInScopes();
+		final EnumSet<Scope> allScopes = currentFacetedScopes.isEmpty()
+			? EnumSet.noneOf(Scope.class) : EnumSet.copyOf(currentFacetedScopes);
 		allScopes.add(scope);
-		final Map<Scope, Expression> allPartially =
-			new EnumMap<>(current.getFacetedPartiallyInScopes());
+		final Map<Scope, Expression> currentPartially = current.getFacetedPartiallyInScopes();
+		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
+			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
 		allPartially.put(scope, expression);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
@@ -175,8 +179,9 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 		// compute complete state: current scopes unchanged, current expressions minus cleared scopes
 		final S current = toInstance();
 		final EnumSet<Scope> clearedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		final Map<Scope, Expression> remaining =
-			new EnumMap<>(current.getFacetedPartiallyInScopes());
+		final Map<Scope, Expression> currentPartially = current.getFacetedPartiallyInScopes();
+		final Map<Scope, Expression> remaining = currentPartially.isEmpty()
+			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
 		for (final Scope scope : clearedScopes) {
 			remaining.remove(scope);
 		}

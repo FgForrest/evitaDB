@@ -57,6 +57,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -417,9 +418,13 @@ public final class ReflectedReferenceSchemaBuilder
 			allPartially = new EnumMap<>(Scope.class);
 		} else {
 			// already explicit — accumulate on top of current state
-			allScopes = EnumSet.copyOf(this.getFacetedInScopes());
+			final Set<Scope> currentFacetedScopes = this.getFacetedInScopes();
+			allScopes = currentFacetedScopes.isEmpty()
+				? EnumSet.noneOf(Scope.class) : EnumSet.copyOf(currentFacetedScopes);
 			allScopes.add(scope);
-			allPartially = new EnumMap<>(this.getFacetedPartiallyInScopes());
+			final Map<Scope, Expression> currentPartially = this.getFacetedPartiallyInScopes();
+			allPartially = currentPartially.isEmpty()
+				? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
 		}
 		allPartially.put(scope, expression);
 		final Scope[] completeFacetedScopes = allScopes.toArray(Scope[]::new);
@@ -510,8 +515,9 @@ public final class ReflectedReferenceSchemaBuilder
 			// when inherited, clearing a partial expression should stay inherited
 			// but remove the partial expression for the specified scopes
 			final EnumSet<Scope> clearedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-			final Map<Scope, Expression> remaining =
-				new EnumMap<>(this.getFacetedPartiallyInScopes());
+			final Map<Scope, Expression> currentPartially = this.getFacetedPartiallyInScopes();
+			final Map<Scope, Expression> remaining = currentPartially.isEmpty()
+				? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
 			for (final Scope scope : clearedScopes) {
 				remaining.remove(scope);
 			}
