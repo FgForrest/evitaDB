@@ -186,6 +186,25 @@ class FacetExpressionTriggerImplTest {
 			);
 		}
 
+		@Test
+		@DisplayName("Should return mutated entity type passed at construction")
+		void shouldReturnMutatedEntityTypePassedAtConstruction() {
+			final FacetExpressionTriggerImpl trigger = createCrossEntityTrigger(
+				"true", Scope.LIVE,
+				DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Set.of("code")
+			);
+
+			assertEquals(REFERENCED_ENTITY_TYPE, trigger.getMutatedEntityType());
+		}
+
+		@Test
+		@DisplayName("Should return null mutated entity type for local-only trigger")
+		void shouldReturnNullMutatedEntityTypeForLocalOnlyTrigger() {
+			final FacetExpressionTriggerImpl trigger = createLocalOnlyTrigger("true");
+
+			assertNull(trigger.getMutatedEntityType());
+		}
+
 	}
 
 	@Nested
@@ -557,7 +576,7 @@ class FacetExpressionTriggerImplTest {
 		final FilterBy filterBy = filterBy(attributeEquals("code", "test"));
 		return new FacetExpressionTriggerImpl(
 			ENTITY_TYPE, REFERENCE_NAME, scope,
-			dependencyType, dependentReferenceName, dependentAttributes,
+			REFERENCED_ENTITY_TYPE, dependencyType, dependentReferenceName, dependentAttributes,
 			expression, descriptor, filterBy
 		);
 	}

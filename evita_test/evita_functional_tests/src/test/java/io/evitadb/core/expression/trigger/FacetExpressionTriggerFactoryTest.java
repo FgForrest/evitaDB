@@ -65,6 +65,7 @@ class FacetExpressionTriggerFactoryTest {
 	private static final String ENTITY_TYPE = "product";
 	private static final String REFERENCE_NAME = "parameter";
 	private static final String REFERENCED_ENTITY_TYPE = "parameterType";
+	private static final String GROUP_ENTITY_TYPE = "parameterGroup";
 
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
 		"testCatalog",
@@ -132,6 +133,7 @@ class FacetExpressionTriggerFactoryTest {
 			assertEquals(REFERENCE_NAME, trigger.getReferenceName());
 			assertEquals(Scope.LIVE, trigger.getScope());
 			assertNull(trigger.getDependencyType());
+			assertNull(trigger.getMutatedEntityType());
 			assertTrue(trigger.getDependentAttributes().isEmpty());
 		}
 
@@ -206,6 +208,7 @@ class FacetExpressionTriggerFactoryTest {
 			assertEquals(1, triggers.size());
 			final FacetExpressionTrigger trigger = triggers.get(0);
 			assertEquals(DependencyType.REFERENCED_ENTITY_ATTRIBUTE, trigger.getDependencyType());
+			assertEquals(REFERENCED_ENTITY_TYPE, trigger.getMutatedEntityType());
 			assertEquals(Set.of("code"), trigger.getDependentAttributes());
 			assertNotNull(trigger.getFilterByConstraint());
 		}
@@ -261,7 +264,7 @@ class FacetExpressionTriggerFactoryTest {
 				ExpressionFactory.parse(
 					"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
 				);
-			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithGroupAndExpression(
 				Scope.LIVE, expression
 			);
 
@@ -271,6 +274,7 @@ class FacetExpressionTriggerFactoryTest {
 			assertEquals(1, triggers.size());
 			final FacetExpressionTrigger trigger = triggers.get(0);
 			assertEquals(DependencyType.GROUP_ENTITY_ATTRIBUTE, trigger.getDependencyType());
+			assertEquals(GROUP_ENTITY_TYPE, trigger.getMutatedEntityType());
 			assertEquals(Set.of("status"), trigger.getDependentAttributes());
 			assertNotNull(trigger.getFilterByConstraint());
 		}
@@ -363,7 +367,7 @@ class FacetExpressionTriggerFactoryTest {
 			final Expression expression = ExpressionFactory.parse(
 				"$reference.groupEntity?.references['links'].attributes['weight'] > 0"
 			);
-			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithGroupAndExpression(
 				Scope.LIVE, expression
 			);
 
@@ -386,7 +390,7 @@ class FacetExpressionTriggerFactoryTest {
 				"$reference.groupEntity?.references['links'].attributes['weight'] > 0 " +
 					"&& $reference.groupEntity?.references['links'].attributes['score'] > 5"
 			);
-			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithGroupAndExpression(
 				Scope.LIVE, expression
 			);
 
@@ -409,7 +413,7 @@ class FacetExpressionTriggerFactoryTest {
 				"$reference.groupEntity?.references['links'].attributes['weight'] > 0 " +
 					"&& $reference.groupEntity?.references['metrics'].attributes['score'] > 5"
 			);
-			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithGroupAndExpression(
 				Scope.LIVE, expression
 			);
 
@@ -442,7 +446,7 @@ class FacetExpressionTriggerFactoryTest {
 				"$reference.referencedEntity.attributes['code'] == 'A' " +
 					"&& $reference.groupEntity?.attributes['status'] == 'VISIBLE'"
 			);
-			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithGroupAndExpression(
 				Scope.LIVE, expression
 			);
 
@@ -623,6 +627,28 @@ class FacetExpressionTriggerFactoryTest {
 			builder.withReferenceTo(
 				REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.facetedPartiallyInScope(scope, expression)
+			)
+		);
+	}
+
+	/**
+	 * Builds a reference schema with a group entity type and a single `facetedPartially` expression.
+	 *
+	 * @param scope      the scope to set the expression in
+	 * @param expression the parsed expression
+	 * @return the reference schema contract
+	 */
+	@Nonnull
+	private static ReferenceSchemaContract buildReferenceSchemaWithGroupAndExpression(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		return buildReferenceSchema(builder ->
+			builder.withReferenceTo(
+				REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.withGroupType(GROUP_ENTITY_TYPE)
+					.facetedPartiallyInScope(scope, expression)
 			)
 		);
 	}

@@ -72,6 +72,7 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	@Nonnull private final String ownerEntityType;
 	@Nonnull private final String referenceName;
 	@Nonnull private final Scope scope;
+	@Nullable private final String mutatedEntityType;
 	@Nullable private final DependencyType dependencyType;
 	@Nullable private final String dependentReferenceName;
 	@Nonnull private final Set<String> dependentAttributes;
@@ -85,6 +86,7 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	 * @param ownerEntityType        entity type owning the reference (e.g., "product")
 	 * @param referenceName          name of the reference carrying the expression (e.g., "parameter")
 	 * @param scope                  scope this trigger applies to
+	 * @param mutatedEntityType      entity type whose mutations fire this trigger (e.g., "parameterGroup")
 	 * @param dependencyType         cross-entity dependency classification
 	 * @param dependentReferenceName name of the reference on the target entity whose attributes are read,
 	 *                               or `null` for entity-attribute dependencies
@@ -97,6 +99,7 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		@Nonnull String ownerEntityType,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
+		@Nonnull String mutatedEntityType,
 		@Nonnull DependencyType dependencyType,
 		@Nullable String dependentReferenceName,
 		@Nonnull Set<String> dependentAttributes,
@@ -107,6 +110,7 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		this.ownerEntityType = ownerEntityType;
 		this.referenceName = referenceName;
 		this.scope = scope;
+		this.mutatedEntityType = mutatedEntityType;
 		this.dependencyType = dependencyType;
 		this.dependentReferenceName = dependentReferenceName;
 		this.dependentAttributes = Set.copyOf(dependentAttributes);
@@ -134,6 +138,7 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		this.ownerEntityType = ownerEntityType;
 		this.referenceName = referenceName;
 		this.scope = scope;
+		this.mutatedEntityType = null;
 		this.dependencyType = null;
 		this.dependentReferenceName = null;
 		this.dependentAttributes = Set.of();
@@ -158,6 +163,12 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	@Override
 	public Scope getScope() {
 		return this.scope;
+	}
+
+	@Nullable
+	@Override
+	public String getMutatedEntityType() {
+		return this.mutatedEntityType;
 	}
 
 	@Nullable

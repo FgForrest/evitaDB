@@ -81,6 +81,19 @@ public interface ExpressionIndexTrigger {
 	Scope getScope();
 
 	/**
+	 * Entity type of the mutated entity — the entity type under which this trigger is indexed in the
+	 * `CatalogExpressionTriggerRegistry`'s inverted index. This is NOT the owner entity type but the type of the
+	 * entity whose changes trigger re-evaluation.
+	 *
+	 * For example, if Product (owner) has a reference to ParameterGroup (group entity) with a conditional expression,
+	 * the mutated entity type is "parameterGroup" — changes to ParameterGroup fire this trigger.
+	 *
+	 * Returns `null` for local-only triggers (no cross-entity dependency, not registered in the catalog registry).
+	 */
+	@Nullable
+	String getMutatedEntityType();
+
+	/**
 	 * How the mutated entity relates to the owner entity: {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE},
 	 * {@link DependencyType#GROUP_ENTITY_ATTRIBUTE},
 	 * {@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}, or

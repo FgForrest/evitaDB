@@ -104,7 +104,9 @@ public class FacetExpressionTriggerFactory {
 		for (final Entry<Scope, Expression> entry : expressions.entrySet()) {
 			final Scope scope = entry.getKey();
 			final Expression expression = entry.getValue();
-			buildTriggersForExpression(ownerEntityType, referenceName, scope, expression, triggers);
+			buildTriggersForExpression(
+				ownerEntityType, referenceSchema, referenceName, scope, expression, triggers
+			);
 		}
 
 		return List.copyOf(triggers);
@@ -114,6 +116,7 @@ public class FacetExpressionTriggerFactory {
 	 * Builds triggers for a single (scope, expression) pair and appends them to the collector.
 	 *
 	 * @param ownerEntityType the entity type owning the reference
+	 * @param referenceSchema the reference schema (used to derive the mutated entity type)
 	 * @param referenceName   the reference name
 	 * @param scope           the scope this expression applies to
 	 * @param expression      the parsed expression AST
@@ -121,6 +124,7 @@ public class FacetExpressionTriggerFactory {
 	 */
 	private static void buildTriggersForExpression(
 		@Nonnull String ownerEntityType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
 		@Nonnull Expression expression,
@@ -142,16 +146,47 @@ public class FacetExpressionTriggerFactory {
 			final FilterBy filterBy = ExpressionToQueryTranslator.translate(expression, referenceName);
 			for (final Entry<DependencyKey, Set<String>> depEntry : dependencyAttributes.entrySet()) {
 				final DependencyKey key = depEntry.getKey();
+				final String mutatedEntityType = resolveMutatedEntityType(referenceSchema, key.type());
 				collector.add(
 					new FacetExpressionTriggerImpl(
 						ownerEntityType, referenceName, scope,
-						key.type(), key.referenceName(),
+						mutatedEntityType, key.type(), key.referenceName(),
 						depEntry.getValue(),
 						expression, proxyDescriptor, filterBy
 					)
 				);
 			}
 		}
+	}
+
+	/**
+	 * Resolves the mutated entity type from the reference schema and dependency type. The mutated entity type is the
+	 * entity type whose changes fire the trigger — it is the key under which the trigger is indexed in the registry's
+	 * inverted index.
+	 *
+	 * @param referenceSchema the reference schema carrying the expression
+	 * @param dependencyType  the dependency type classifying the cross-entity relationship
+	 * @return the entity type name of the mutated entity
+	 */
+	@Nonnull
+	private static String resolveMutatedEntityType(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull DependencyType dependencyType
+	) {
+		return switch (dependencyType) {
+			case REFERENCED_ENTITY_ATTRIBUTE, REFERENCED_ENTITY_REFERENCE_ATTRIBUTE ->
+				referenceSchema.getReferencedEntityType();
+			case GROUP_ENTITY_ATTRIBUTE, GROUP_ENTITY_REFERENCE_ATTRIBUTE -> {
+				final String groupType = referenceSchema.getReferencedGroupType();
+				if (groupType == null) {
+					throw new IllegalStateException(
+						"Reference `" + referenceSchema.getName() + "` has a group entity dependency " +
+							"but no referenced group type is defined."
+					);
+				}
+				yield groupType;
+			}
+		};
 	}
 
 	/**
