@@ -104,7 +104,7 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 	 * Response status of the request.
 	 */
 	@Label("Response status")
-	@Description("The status of the response: OK, ERROR, or CANCELLED.")
+	@Description("The status of the response: OK, ERROR, CANCELLED, or TIMEOUT.")
 	@ExportMetricLabel
 	@Nonnull
 	String responseStatus = ResponseStatus.OK.name();
