@@ -30,36 +30,44 @@ import javax.annotation.Nonnull;
 import java.util.OptionalInt;
 
 /**
- * Implementations of this interface represent parts of the {@link Entity} object that
- * are stored as separated records on the disk. Separating {@link Entity} data into several
- * parts allows optimization of the data regarding usual reading scenarios. Separating entity data into the parts should
- * take into an account following perspectives:
+ * Marks {@link StoragePart} implementations that represent a portion of an {@link Entity}'s persistent state.
+ * An entity is decomposed into several independently stored parts so that queries that request only a subset of
+ * entity data (e.g. only prices, only attributes in a specific locale) incur minimal I/O — only the relevant parts
+ * need to be loaded.
  *
- * - what data are usually read together
- * - the data size
- * - bigger data chunks will mean a lot of data will not be used after deserialization due to query constraints
- * - many tiny data chunks will mean more seeks in the data file and each data chunk is accompanied by a cost
- * of dead weight of storage record overhead
+ * When designing the granularity of entity parts the following trade-offs apply:
+ * - parts that are always fetched together should be stored as one part to avoid multiple seeks
+ * - very large parts should be stored separately so that unrelated queries don't pay the deserialization cost
+ * - very many tiny parts increase the per-record overhead of the offset-index file format
+ *
+ * Current concrete implementations include `EntityBodyStoragePart`, `AttributesStoragePart`,
+ * `AssociatedDataStoragePart`, `ReferencesStoragePart`, and `PricesStoragePart`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface EntityStoragePart extends StoragePart {
 
 	/**
-	 * Returns true if contents of the part were really changed.
+	 * Returns `true` if the in-memory state of this part has been modified since it was last loaded from or written
+	 * to persistent storage. The persistence layer uses this flag to decide whether the part needs to be re-serialized
+	 * and written during the next flush.
 	 */
 	boolean isDirty();
 
 	/**
-	 * Returns true if contents of the part are effectively empty and may be removed from the data storage.
+	 * Returns `true` if this part contains no meaningful data and can be omitted from (or removed from) persistent
+	 * storage. For example, an `AttributesStoragePart` that has had all its attributes removed is considered empty
+	 * and should not occupy space in the storage file.
 	 */
 	boolean isEmpty();
 
 	/**
-	 * Returns size in Bytes of the serialized form of the storage part. Might be empty if the storage part was not
-	 * fetched from the storage, but was created and it's waiting for its persistence.
+	 * Returns the size in bytes of the serialized (on-disk) form of this storage part, if known. The value is
+	 * populated when the part is loaded from persistent storage (where the serialized length is available from the
+	 * file offset index record header). When the part has been created purely in memory and not yet written, the
+	 * size is unknown and an empty `OptionalInt` is returned.
 	 *
-	 * @return size in Bytes of the serialized form of the storage part
+	 * @return the serialized size in bytes, or an empty optional when the part has not yet been persisted
 	 */
 	@Nonnull
 	OptionalInt sizeInBytes();

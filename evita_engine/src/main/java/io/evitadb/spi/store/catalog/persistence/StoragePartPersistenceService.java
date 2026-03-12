@@ -35,19 +35,44 @@ import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
 /**
- * Persistent service defines shared contract for services that allow to work with persistent data storage based on
- * file offset index object. There is usually single file for one key EvitaDB object (catalog, entity-collection).
+ * Core CRUD interface for reading, writing, and removing {@link StoragePart} records in a single evitaDB binary data
+ * file. The underlying physical storage is an offset-index file: a sequential, append-only file where each record is
+ * addressed by its byte offset. The offset-index descriptor (captured as {@code S extends StorageDescriptor}) tracks
+ * all live record locations and is re-persisted during every {@link #flush(long)} call.
  *
+ * There is typically one `StoragePartPersistenceService` instance per key evitaDB object:
+ * - one for the catalog data file (accessed via {@link CatalogStoragePartPersistenceService})
+ * - one per entity collection data file (accessed via
+ *   {@link EntityCollectionPersistenceService#getStoragePartPersistenceService()})
+ *
+ * **Read path**: methods like {@link #getStoragePart} first consult the in-progress transaction's memory buffer
+ * (if a transaction is open), then fall back to the persistent offset-index file. This ensures that uncommitted
+ * changes within the same transaction are visible to subsequent reads in that transaction.
+ *
+ * **Write path**: {@link #putStoragePart} and {@link #removeStoragePart} stage changes in the transaction's memory
+ * buffer. Changes are flushed to the offset-index file by calling {@link #flush(long)}, which also returns an
+ * updated {@link StorageDescriptor} for the caller to persist in the catalog bootstrap.
+ *
+ * **Snapshot support**: `copySnapshotTo` writes the complete live data set to an output stream, enabling backup
+ * and catalog duplication.
+ * writes the complete live data set to an output stream, enabling backup and catalog duplication.
+ *
+ * @param <S> the concrete {@link StorageDescriptor} type produced by the underlying offset-index implementation,
+ *            carrying file location metadata that must be stored in the catalog header
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface StoragePartPersistenceService<S extends StorageDescriptor> extends Closeable {
 
 	/**
-	 * Creates a transactional service for StoragePartPersistenceService.
-	 * This method creates a transactional service using the provided transactionId.
+	 * Creates a transactional view of this service that isolates all reads and writes to the given transaction scope.
+	 * Changes written through the returned service are buffered in the transaction's memory layer and are not visible
+	 * to other readers until the transaction is committed and the changes are merged into the main storage file.
 	 *
-	 * @param transactionId The UUID representing the transaction.
-	 * @return The created StoragePartPersistenceService as a transactional service.
+	 * The returned service shares the same underlying persistent file with this instance. Closing the returned service
+	 * does not close the parent service.
+	 *
+	 * @param transactionId the UUID that uniquely identifies the open transaction; used to scope the in-memory buffer
+	 * @return a transactional wrapper around this service bound to the given transaction
 	 */
 	@Nonnull
 	StoragePartPersistenceService<S> createTransactionalService(@Nonnull UUID transactionId);
@@ -79,13 +104,14 @@ public interface StoragePartPersistenceService<S extends StorageDescriptor> exte
 	<T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType);
 
 	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
+	 * Persists the given storage part into the transaction's memory buffer (or directly into the persistent storage
+	 * if no transaction is open). If the part has not yet been assigned a primary key,
+	 * {@link StoragePart#computeUniquePartIdAndSet(KeyCompressor)} is called internally to assign one before writing.
 	 *
-	 * @param catalogVersion catalog version the value is changed in
-	 * @param container      container to be stored
-	 * @param <T>            type of the storage part container
-	 * @return already or newly assigned {@link StoragePart#getStoragePartPK()} - primary key of the storage part
+	 * @param catalogVersion the catalog version in which this change is being made; used to label the written record
+	 * @param container      the storage part to store; its primary key will be computed and set if not already present
+	 * @param <T>            the concrete type of the storage part
+	 * @return the already-assigned or newly-computed {@link StoragePart#getStoragePartPK()} of the stored part
 	 */
 	<T extends StoragePart> long putStoragePart(long catalogVersion, @Nonnull T container);
 

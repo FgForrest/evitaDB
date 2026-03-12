@@ -31,15 +31,25 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**
- * StoragePart is a data container, that can be stored via file offset index to the persistent storage. Each storage
- * part is uniquely determined by {@link #getStoragePartPK()} and the type (e.g. {@link StoragePart#getClass()} implementation class}).
+ * A `StoragePart` is the fundamental unit of persistence in evitaDB's file offset index. Each implementation
+ * represents a self-contained, serializable data container (e.g. an entity body, an attribute index, a price index)
+ * that is read and written as an atomic record in the underlying storage file.
+ *
+ * Uniqueness within a single persistence file is guaranteed by the combination of the concrete implementation class
+ * (which determines the record type discriminator) and the value returned by {@link #getStoragePartPK()}.
+ *
+ * A part that has never been persisted has a `null` primary key. The key is assigned — and set into the part — by
+ * calling {@link #computeUniquePartIdAndSet(KeyCompressor)} during the first write. After that the key is stable and
+ * immutable for the lifetime of the part.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface StoragePart extends Serializable {
 
 	/**
-	 * Returns id unique for the entity part. Id must be unique among all parts of the same type.
+	 * Returns the primary key that uniquely identifies this storage part among all parts of the same type within the
+	 * same persistence file. Returns `null` when the part has been created in memory but has not yet been assigned
+	 * a primary key (i.e., before {@link #computeUniquePartIdAndSet(KeyCompressor)} is called for the first time).
 	 */
 	@Nullable
 	Long getStoragePartPK();
@@ -60,14 +70,26 @@ public interface StoragePart extends Serializable {
 	}
 
 	/**
-	 * Returns TRUE if the storage part is new and has never been stored to persistent storage (yet).
+	 * Returns `true` if this storage part has never been written to persistent storage, i.e. its primary key has not
+	 * yet been assigned by {@link #computeUniquePartIdAndSet(KeyCompressor)}.
 	 */
 	default boolean isNew() {
 		return getStoragePartPK() == null;
 	}
 
 	/**
-	 * Computes new id unique id for the entity part. Id must be unique among all parts of the same type.
+	 * Computes the unique primary key for this storage part and stores it internally so that subsequent calls to
+	 * {@link #getStoragePartPK()} return the computed value. Implementations typically derive the key from fields
+	 * that logically identify the part (e.g. entity primary key, attribute key, index key), optionally using the
+	 * `keyCompressor` to convert complex key objects into compact integer ids before joining the components into a
+	 * single `long` via bit manipulation.
+	 *
+	 * This method is called exactly once by the persistence layer when the part is first written to storage. Calling
+	 * it again with a different result would indicate a logic error — implementations should assert consistency.
+	 *
+	 * @param keyCompressor the compressor used to translate complex key objects into compact integer ids
+	 * @return the computed primary key, identical to the value that will henceforth be returned by
+	 *         {@link #getStoragePartPK()}
 	 */
 	long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor);
 

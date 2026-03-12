@@ -52,11 +52,20 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 
 /**
- * This interface represents a link between {@link io.evitadb.api.EntityCollectionContract} and its persistent storage.
- * The interface contains all methods necessary for fetching or persisting entity collection contents to/from durable
- * storage. The contents represent either the entity records themselves or entity indexes and other auxiliary data
- * structures required to allow fast entity lookups in entity collection.
+ * Persistence service for a single entity collection within a catalog. It provides the full read/write surface for
+ * the data stored in one entity collection data file:
  *
+ * - **Entity bodies**: loading and enriching entities in both domain-object and binary (wire-format) representations
+ * - **Entity indexes**: reconstructing individual {@link io.evitadb.index.EntityIndex} instances from storage parts
+ * - **Bulk operations**: flushing trapped in-memory changes to persistent storage during initial load or WAL replay
+ *
+ * An instance is obtained via {@link CatalogPersistenceService#getOrCreateEntityCollectionPersistenceService} and
+ * lives as long as the owning {@link EntityCollection}. It must be closed with {@link #close()} when the collection
+ * is removed or the catalog shuts down. Unflushed in-memory changes are lost if the service is closed before
+ * {@link #flushTrappedUpdates(long, io.evitadb.core.buffer.TrappedChanges, java.util.function.IntConsumer)} is called.
+ *
+ * @param <S> the concrete {@link StorageDescriptor} type produced by the underlying offset-index implementation
+ * @param <T> the concrete {@link EntityCollectionHeader} type carrying per-collection metadata
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public non-sealed interface EntityCollectionPersistenceService<S extends StorageDescriptor, T extends EntityCollectionHeader> extends RichPersistenceService {
@@ -79,9 +88,21 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	T getEntityCollectionHeader();
 
 	/**
-	 * Reads entity from persistent storage by its primary key.
-	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `fileOffsetIndex`
-	 * is used for reading data from underlying data store.
+	 * Reads entity from persistent storage by its primary key, applying the content requirements expressed in
+	 * `evitaRequest`. Only the storage parts that are required by the request are fetched from the underlying data
+	 * store, so callers should pass the most restrictive request possible to avoid unnecessary I/O.
+	 *
+	 * The returned {@link EntityWithFetchCount} wraps the deserialized entity together with the number of I/O reads
+	 * and bytes consumed during fetching — useful for query-level observability.
+	 *
+	 * @param catalogVersion  the catalog version from which the entity should be read
+	 * @param entityPrimaryKey the primary key of the entity to load
+	 * @param evitaRequest    the client request carrying {@link EntityContentRequire} constraints that control which
+	 *                        entity parts (attributes, references, prices, …) are fetched
+	 * @param entitySchema    the schema of the entity type; used for deserialization and validation
+	 * @param dataStoreReader the low-level storage reader through which individual storage parts are accessed
+	 * @return a wrapper with the deserialized entity and I/O statistics, or `null` when no entity with the given
+	 *         primary key exists in the storage at the specified catalog version
 	 */
 	@Nullable
 	EntityWithFetchCount readEntity(
@@ -115,9 +136,22 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	);
 
 	/**
-	 * Reads entity from persistent storage by its primary key.
-	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `fileOffsetIndex`
-	 * is used for reading data from underlying data store.
+	 * Reads entity from persistent storage by its primary key in binary (wire-format) form. Unlike
+	 * {@link #readEntity} this variant skips full Java deserialization and returns the raw Kryo-serialized bytes
+	 * for each requested entity part wrapped in a {@link BinaryEntity}. This is used by gRPC and other transport
+	 * layers that forward the binary payload directly to the client without materializing domain objects on the
+	 * server side, thereby saving CPU and heap allocation costs.
+	 *
+	 * @param catalogVersion          the catalog version from which the entity should be read
+	 * @param entityPrimaryKey        the primary key of the entity to load
+	 * @param evitaRequest            the client request carrying {@link EntityContentRequire} constraints
+	 * @param entitySchema            the schema of the entity type; used for structural decisions during partial read
+	 * @param session                 the active session, used to resolve locale and other session-scoped settings
+	 * @param entityCollectionFetcher a function that resolves an entity collection by entity type name; used when
+	 *                                referenced entity bodies are requested inline
+	 * @param dataStoreReader         the low-level storage reader for accessing raw storage parts
+	 * @return a wrapper with the binary entity and I/O statistics, or `null` when no entity with the given primary
+	 *         key exists at the specified catalog version
 	 */
 	@Nullable
 	BinaryEntityWithFetchCount readBinaryEntity(
@@ -131,12 +165,26 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	);
 
 	/**
-	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}
-	 * in `evitaRequest`. Passed `fileOffsetIndex` is used for reading data from underlying data store.
-	 * Since entity is immutable object - enriched instance is a new instance based on previous entity that contains
-	 * additional data.
+	 * Loads additional data to an already partially-fetched entity (represented by `entityDecorator`) according to
+	 * the new requirements expressed by the predicate arguments. Because entities are immutable, the result is always
+	 * a freshly created {@link EntityDecorator} that wraps the original entity body together with the newly loaded
+	 * parts.
 	 *
-	 * @throws EntityAlreadyRemovedException when the entity has been already removed
+	 * The predicate parameters describe the *new* (wider) set of content that should be visible after enrichment.
+	 * The implementation fetches only the parts that are not yet loaded in the existing decorator and merges them
+	 * into the result, avoiding redundant I/O.
+	 *
+	 * @param catalogVersion                the catalog version the decorator was originally loaded from
+	 * @param entityDecorator               the already (partially) loaded entity to enrich
+	 * @param newHierarchyPredicate         predicate controlling whether the entity's placement in hierarchy is included
+	 * @param newAttributePredicate         predicate controlling which attribute values should be present after enrichment
+	 * @param newAssociatedDataPredicate    predicate controlling which associated data values should be present
+	 * @param newReferenceContractPredicate predicate controlling which references and their attributes are included
+	 * @param newPricePredicate             predicate controlling which price records are included
+	 * @param dataStoreReader               the low-level storage reader used to fetch missing parts
+	 * @param referenceChunkTransformer     accessor that applies pagination / ordering to reference chunks
+	 * @return the enriched entity together with I/O statistics for the enrichment operation
+	 * @throws EntityAlreadyRemovedException when the entity has been removed between the initial fetch and enrichment
 	 */
 	@Nonnull
 	EntityWithFetchCount enrichEntity(
@@ -152,10 +200,16 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	) throws EntityAlreadyRemovedException;
 
 	/**
-	 * Returns count of entities of certain type in the target storage.
+	 * Returns the count of entity primary key records persisted in the storage at the given catalog version.
 	 *
-	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
-	 * persistent storage and doesn't take transactional memory into an account.
+	 * **Note:** the count may not be accurate — it reflects only data already written to the persistent storage and
+	 * does not account for uncommitted changes held in transactional memory. Use this method for informational
+	 * purposes and capacity estimation, not for precise cardinality queries.
+	 *
+	 * @param catalogVersion  the catalog version to query
+	 * @param dataStoreReader the low-level storage reader for accessing persisted entity bodies
+	 * @return the number of persisted entity body storage parts; may be lower than the true entity count if
+	 *         recently added entities have not yet been flushed to disk
 	 */
 	int countEntities(
 		long catalogVersion,
@@ -163,7 +217,13 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	);
 
 	/**
-	 * Returns TRUE if the storage file is effectively entity - having no active data in it.
+	 * Returns `true` if the entity collection storage file contains no active (non-removed) entity data at the given
+	 * catalog version. An empty collection file may still exist on disk as a placeholder; this method allows callers
+	 * to detect that case without iterating over the full file.
+	 *
+	 * @param catalogVersion  the catalog version to inspect
+	 * @param dataStoreReader the low-level storage reader used to check for active records
+	 * @return `true` if there are no live entity records in the storage at the given version
 	 */
 	boolean isEmpty(
 		long catalogVersion,
@@ -171,12 +231,18 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	);
 
 	/**
-	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}
-	 * in `evitaRequest`. Passed `fileOffsetIndex` is used for reading data from underlying data store.
-	 * Since entity is immutable object - enriched instance is a new instance based on previous entity that contains
-	 * additional data.
+	 * Loads additional data to an already partially-fetched binary entity according to the {@link EntityContentRequire}
+	 * constraints carried in `evitaRequest`. The binary entity stays in its serialized (wire-format) byte representation
+	 * throughout the operation — no full Java deserialization occurs. The result is a new {@link BinaryEntity} that
+	 * merges the previously fetched parts with the newly loaded ones.
 	 *
-	 * @throws EntityAlreadyRemovedException when the entity has been already removed
+	 * @param catalogVersion  the catalog version the binary entity was originally loaded from
+	 * @param entitySchema    the schema of the entity type, used for structural decisions during partial read
+	 * @param entity          the already (partially) loaded binary entity to enrich
+	 * @param evitaRequest    the client request specifying which additional parts should be present after enrichment
+	 * @param dataStoreReader the low-level storage reader for fetching missing binary storage parts
+	 * @return the enriched binary entity together with I/O statistics for the enrichment operation
+	 * @throws EntityAlreadyRemovedException when the entity has been removed between the initial fetch and enrichment
 	 */
 	@Nonnull
 	BinaryEntityWithFetchCount enrichEntity(

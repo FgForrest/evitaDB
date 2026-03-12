@@ -73,10 +73,29 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * This interface represents a link between {@link CatalogContract} and its persistent storage.
- * The interface contains all methods necessary for fetching or persisting catalog header to/from durable
- * storage and access to storages of catalog {@link EntityCollectionContract entity collections}.
+ * Top-level persistence service for a single evitaDB catalog. It is the primary entry point through which the
+ * {@link CatalogContract} engine layer interacts with the underlying durable storage.
  *
+ * Responsibilities of this interface include:
+ * - Reading and writing the {@link io.evitadb.spi.store.catalog.header.model.CatalogHeader} (the root metadata record)
+ * - Managing the catalog-level offset-index file (via {@link #getStoragePartPersistenceService(long)})
+ * - Creating and providing access to per-collection {@link EntityCollectionPersistenceService} instances
+ * - Appending to and reading from the Write-Ahead-Log (WAL) via {@link #appendWalAndDiscard} and the mutation streams
+ * - Creating backups, restoring from backups, and duplicating catalogs
+ * - Reporting catalog version history and point-in-time queries
+ *
+ * Lifecycle: an instance is created by {@link CatalogPersistenceServiceFactory} (loaded via `ServiceLoader`) and
+ * lives as long as the catalog is open. It must be closed with {@link #close()} when the catalog shuts down.
+ * Calling {@link #closeAndDelete()} additionally removes all persistent files from disk.
+ *
+ * The interface is parameterized to allow the storage-module implementation to use its own concrete types for
+ * WAL file references, collection file references, and entity collection headers without exposing those types
+ * to the engine module.
+ *
+ * @param <S> the concrete {@link LogRecordReference} type that identifies WAL file locations
+ * @param <T> the concrete {@link CollectionReference} type that describes entity collection file locations in the
+ *            catalog header
+ * @param <U> the concrete {@link EntityCollectionHeader} type that carries per-collection metadata
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public non-sealed interface CatalogPersistenceService<S extends LogRecordReference, T extends CollectionReference, U extends EntityCollectionHeader> extends RichPersistenceService {
@@ -88,8 +107,27 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
 	String CATALOG_FILE_SUFFIX = ".catalog";
+
+	/**
+	 * File suffix for entity collection data files. Each entity collection is stored in its own file whose name
+	 * contains the camel-cased entity type name, the numeric entity type primary key, and a file rotation index,
+	 * e.g. `Product-1_0.collection`. The rotation index allows multiple generations of the file to coexist on disk
+	 * during compaction or snapshot operations.
+	 */
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
+
+	/**
+	 * Marker file suffix written into a catalog directory when that catalog has been restored from a backup. The
+	 * presence of this file signals that the catalog data must be replayed through the WAL before it can be used,
+	 * since the backup may not include the most recent transactions.
+	 */
 	String RESTORE_FLAG = ".restored";
+
+	/**
+	 * Pre-compiled regex pattern that matches any entity collection file name and extracts the entity type primary
+	 * key (group 1) and the file rotation index (group 2) from the name. Used for bulk discovery of all collection
+	 * files in a catalog directory without knowing the entity types in advance.
+	 */
 	Pattern GENERIC_ENTITY_COLLECTION_PATTERN = Pattern.compile(".*-(\\d+)_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
 
 	/**
@@ -567,20 +605,13 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	) throws EvitaIOException;
 
 	/**
-	 * Verifies the integrity of a system, component, or data structure.
-	 * This method performs an internal check to ensure that the state
-	 * or configuration adheres to expected standards or rules.
+	 * Performs a structural integrity check of the catalog's persistent storage. The check validates that every
+	 * entity collection file referenced by the catalog header is readable, that the internal offset index is
+	 * consistent (no overlapping or missing records), and that checksums embedded in storage records match their
+	 * actual content.
 	 *
-	 * The specific implementation of the integrity verification depends
-	 * on the context in which this method is used. It may include tasks
-	 * such as validating data consistency, ensuring correct initialization,
-	 * or detecting anomalies that could indicate corruption or unexpected
-	 * modifications.
-	 *
-	 * No inputs or return values are required. The method performs its
-	 * operations as a void execution.
-	 *
-	 * Potential exceptions may be thrown if integrity violations are detected.
+	 * An exception is thrown if any integrity violation is detected. The method is intended for offline diagnostics
+	 * and should not be called while the catalog is actively accepting write transactions.
 	 */
 	void verifyIntegrity();
 
