@@ -81,13 +81,24 @@ public interface ExpressionIndexTrigger {
 	Scope getScope();
 
 	/**
-	 * How the mutated entity relates to the owner entity: {@link DependencyType#GROUP_ENTITY_ATTRIBUTE} or
-	 * {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE}. Returns `null` for local-only triggers (expressions
+	 * How the mutated entity relates to the owner entity: {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE},
+	 * {@link DependencyType#GROUP_ENTITY_ATTRIBUTE},
+	 * {@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}, or
+	 * {@link DependencyType#GROUP_ENTITY_REFERENCE_ATTRIBUTE}. Returns `null` for local-only triggers (expressions
 	 * that reference only `$entity.*` and `$reference.attributes['x']`) — these are handled inline in
 	 * `ReferenceIndexMutator` and do not need cross-entity registry entries.
 	 */
 	@Nullable
 	DependencyType getDependencyType();
+
+	/**
+	 * Returns the name of the reference on the target entity (referenced or group) whose attributes this expression
+	 * reads. Non-null only for {@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE} and
+	 * {@link DependencyType#GROUP_ENTITY_REFERENCE_ATTRIBUTE}. Returns `null` for entity-attribute dependencies
+	 * and local-only triggers.
+	 */
+	@Nullable
+	String getDependentReferenceName();
 
 	/**
 	 * Attribute names on the mutated entity (group or referenced) that this expression reads. Used by the detection

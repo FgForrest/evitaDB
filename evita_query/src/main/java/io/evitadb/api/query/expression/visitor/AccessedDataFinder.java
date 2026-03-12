@@ -40,6 +40,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -172,7 +173,9 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 
 	private void visit(@Nonnull ConstantOperand constantOperand) {
 		if (this.currentPath != null) {
-			this.currentPath.add(new ElementPathItem(constantOperand.getValue().toString()));
+			final Serializable value = constantOperand.getValue();
+			// null literal used in element access (e.g., references[null]) — record as "null" string
+			this.currentPath.add(new ElementPathItem(value != null ? value.toString() : "null"));
 		}
 	}
 

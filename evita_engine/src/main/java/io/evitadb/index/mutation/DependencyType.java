@@ -51,6 +51,23 @@ public enum DependencyType {
 	 * The trigger fires when an attribute on the group entity changes (or the entity is removed). Fan-out can be
 	 * significant — one group entity may be shared across many references (and thus many owner entities).
 	 */
-	GROUP_ENTITY_ATTRIBUTE
+	GROUP_ENTITY_ATTRIBUTE,
+
+	/**
+	 * The mutated entity is the **referenced entity** of the reference, and the dependency is on a reference
+	 * attribute of that entity. Expression path: `$reference.referencedEntity.references['r'].attributes['x']`.
+	 *
+	 * The trigger fires when a reference mutation on the referenced entity affects reference 'r' (insert, remove,
+	 * or attribute 'x' change).
+	 */
+	REFERENCED_ENTITY_REFERENCE_ATTRIBUTE,
+
+	/**
+	 * The mutated entity is the **group entity** of the reference, and the dependency is on a reference attribute
+	 * of that entity. Expression path: `$reference.groupEntity?.references['r'].attributes['x']`.
+	 *
+	 * Fan-out can be significant (same as {@link #GROUP_ENTITY_ATTRIBUTE}).
+	 */
+	GROUP_ENTITY_REFERENCE_ATTRIBUTE
 
 }

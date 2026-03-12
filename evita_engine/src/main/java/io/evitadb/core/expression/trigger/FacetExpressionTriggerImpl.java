@@ -44,7 +44,6 @@ import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageCo
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -74,6 +73,7 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	@Nonnull private final String referenceName;
 	@Nonnull private final Scope scope;
 	@Nullable private final DependencyType dependencyType;
+	@Nullable private final String dependentReferenceName;
 	@Nonnull private final Set<String> dependentAttributes;
 	@Nonnull private final Expression expression;
 	@Nonnull private final ExpressionProxyDescriptor proxyDescriptor;
@@ -82,20 +82,23 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	/**
 	 * Creates a new trigger for cross-entity evaluation (non-null {@link DependencyType} and {@link FilterBy}).
 	 *
-	 * @param ownerEntityType    entity type owning the reference (e.g., "product")
-	 * @param referenceName      name of the reference carrying the expression (e.g., "parameter")
-	 * @param scope              scope this trigger applies to
-	 * @param dependencyType     cross-entity dependency classification
-	 * @param dependentAttributes attribute names on the mutated entity that the expression reads
-	 * @param expression         the parsed expression AST
-	 * @param proxyDescriptor    pre-built proxy descriptor from {@link ExpressionProxyFactory}
-	 * @param filterByConstraint pre-translated FilterBy from `ExpressionToQueryTranslator`
+	 * @param ownerEntityType        entity type owning the reference (e.g., "product")
+	 * @param referenceName          name of the reference carrying the expression (e.g., "parameter")
+	 * @param scope                  scope this trigger applies to
+	 * @param dependencyType         cross-entity dependency classification
+	 * @param dependentReferenceName name of the reference on the target entity whose attributes are read,
+	 *                               or `null` for entity-attribute dependencies
+	 * @param dependentAttributes    attribute names on the mutated entity that the expression reads
+	 * @param expression             the parsed expression AST
+	 * @param proxyDescriptor        pre-built proxy descriptor from {@link ExpressionProxyFactory}
+	 * @param filterByConstraint     pre-translated FilterBy from `ExpressionToQueryTranslator`
 	 */
 	public FacetExpressionTriggerImpl(
 		@Nonnull String ownerEntityType,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
 		@Nonnull DependencyType dependencyType,
+		@Nullable String dependentReferenceName,
 		@Nonnull Set<String> dependentAttributes,
 		@Nonnull Expression expression,
 		@Nonnull ExpressionProxyDescriptor proxyDescriptor,
@@ -105,6 +108,7 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		this.referenceName = referenceName;
 		this.scope = scope;
 		this.dependencyType = dependencyType;
+		this.dependentReferenceName = dependentReferenceName;
 		this.dependentAttributes = Set.copyOf(dependentAttributes);
 		this.expression = expression;
 		this.proxyDescriptor = proxyDescriptor;
@@ -131,7 +135,8 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		this.referenceName = referenceName;
 		this.scope = scope;
 		this.dependencyType = null;
-		this.dependentAttributes = Collections.emptySet();
+		this.dependentReferenceName = null;
+		this.dependentAttributes = Set.of();
 		this.expression = expression;
 		this.proxyDescriptor = proxyDescriptor;
 		this.filterByConstraint = null;
@@ -159,6 +164,12 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	@Override
 	public DependencyType getDependencyType() {
 		return this.dependencyType;
+	}
+
+	@Nullable
+	@Override
+	public String getDependentReferenceName() {
+		return this.dependentReferenceName;
 	}
 
 	@Nonnull

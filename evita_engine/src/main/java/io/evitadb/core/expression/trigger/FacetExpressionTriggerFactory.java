@@ -129,8 +129,8 @@ public class FacetExpressionTriggerFactory {
 		final List<List<PathItem>> paths = AccessedDataFinder.findAccessedPaths(expression);
 		final ExpressionProxyDescriptor proxyDescriptor = ExpressionProxyFactory.buildDescriptor(expression);
 
-		// classify paths into dependency types and collect dependent attributes per type
-		final LinkedHashMap<DependencyType, Set<String>> dependencyAttributes = classifyPaths(paths);
+		// classify paths into dependency keys and collect dependent attributes per key
+		final LinkedHashMap<DependencyKey, Set<String>> dependencyAttributes = classifyPaths(paths);
 
 		if (dependencyAttributes.isEmpty()) {
 			// purely local expression — build a local-only trigger (no FilterBy, no DependencyType)
@@ -138,13 +138,15 @@ public class FacetExpressionTriggerFactory {
 				ownerEntityType, referenceName, scope, expression, proxyDescriptor
 			));
 		} else {
-			// cross-entity expression — translate to FilterBy once, reuse for all dependency types
+			// cross-entity expression — translate to FilterBy once, reuse for all dependency keys
 			final FilterBy filterBy = ExpressionToQueryTranslator.translate(expression, referenceName);
-			for (final Entry<DependencyType, Set<String>> depEntry : dependencyAttributes.entrySet()) {
+			for (final Entry<DependencyKey, Set<String>> depEntry : dependencyAttributes.entrySet()) {
+				final DependencyKey key = depEntry.getKey();
 				collector.add(
 					new FacetExpressionTriggerImpl(
 						ownerEntityType, referenceName, scope,
-						depEntry.getKey(), depEntry.getValue(),
+						key.type(), key.referenceName(),
+						depEntry.getValue(),
 						expression, proxyDescriptor, filterBy
 					)
 				);
@@ -153,26 +155,28 @@ public class FacetExpressionTriggerFactory {
 	}
 
 	/**
-	 * Classifies accessed data paths into {@link DependencyType} buckets and collects the dependent
+	 * Classifies accessed data paths into {@link DependencyKey} buckets and collects the dependent
 	 * attribute names for each. Paths that reference only local data (`$entity.*`,
 	 * `$reference.attributes['x']`) are ignored — they do not produce cross-entity dependencies.
 	 *
 	 * @param paths the accessed data paths from {@link AccessedDataFinder#findAccessedPaths}
-	 * @return map from dependency type to the set of dependent attribute names (empty if local-only)
+	 * @return map from dependency key to the set of dependent attribute names (empty if local-only)
 	 */
 	@Nonnull
-	private static LinkedHashMap<DependencyType, Set<String>> classifyPaths(
+	private static LinkedHashMap<DependencyKey, Set<String>> classifyPaths(
 		@Nonnull List<List<PathItem>> paths
 	) {
-		final LinkedHashMap<DependencyType, Set<String>> result = createLinkedHashMap(2);
+		final LinkedHashMap<DependencyKey, Set<String>> result = createLinkedHashMap(2);
 
 		for (final List<PathItem> path : paths) {
 			final DependencyType depType = detectDependencyType(path);
 			if (depType != null) {
-				final String attributeName = extractDependentAttribute(path);
+				final String dependentRefName = extractDependentReferenceName(path);
+				final String attributeName = extractDependentAttribute(path, depType);
 				if (attributeName != null) {
+					final DependencyKey key = new DependencyKey(depType, dependentRefName);
 					result.computeIfAbsent(
-						depType,
+						key,
 						k -> createLinkedHashSet(4)
 					).add(attributeName);
 				}
@@ -186,7 +190,9 @@ public class FacetExpressionTriggerFactory {
 	 * Detects the {@link DependencyType} for a single path. Returns `null` for local-only paths.
 	 *
 	 * A cross-entity path starts with `$reference` (VariablePathItem) followed by either
-	 * `referencedEntity` or `groupEntity` (IdentifierPathItem).
+	 * `referencedEntity` or `groupEntity` (IdentifierPathItem). Position 2 discriminates
+	 * entity-attribute dependencies (`attributes`/`localizedAttributes`) from reference-attribute
+	 * dependencies (`references`).
 	 *
 	 * @param path the accessed data path
 	 * @return the dependency type, or `null` if the path is local-only
@@ -194,7 +200,7 @@ public class FacetExpressionTriggerFactory {
 	@Nullable
 	private static DependencyType detectDependencyType(@Nonnull List<PathItem> path) {
 		// minimum cross-entity path: [$reference, referencedEntity/groupEntity, attributes, attrName]
-		if (path.size() < 2) {
+		if (path.size() < 4) {
 			return null;
 		}
 
@@ -206,10 +212,27 @@ public class FacetExpressionTriggerFactory {
 				&& ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variable.value())
 				&& second instanceof IdentifierPathItem identifier
 		) {
-			if (ReferenceContractAccessor.REFERENCED_ENTITY_PROPERTY.equals(identifier.value())) {
-				return DependencyType.REFERENCED_ENTITY_ATTRIBUTE;
-			} else if (ReferenceContractAccessor.GROUP_ENTITY_PROPERTY.equals(identifier.value())) {
-				return DependencyType.GROUP_ENTITY_ATTRIBUTE;
+			final boolean isReferencedEntity =
+				ReferenceContractAccessor.REFERENCED_ENTITY_PROPERTY.equals(identifier.value());
+			final boolean isGroupEntity =
+				ReferenceContractAccessor.GROUP_ENTITY_PROPERTY.equals(identifier.value());
+
+			if (!isReferencedEntity && !isGroupEntity) {
+				return null;
+			}
+
+			// check position 2 to distinguish entity-attribute from reference-attribute dependency
+			final PathItem third = path.get(2);
+			if (third instanceof IdentifierPathItem thirdIdentifier) {
+				if (isAttributesProperty(thirdIdentifier.value())) {
+					return isReferencedEntity
+						? DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+						: DependencyType.GROUP_ENTITY_ATTRIBUTE;
+				} else if (EntityContractAccessor.REFERENCES_PROPERTY.equals(thirdIdentifier.value())) {
+					return isReferencedEntity
+						? DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE
+						: DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
+				}
 			}
 		}
 
@@ -217,16 +240,28 @@ public class FacetExpressionTriggerFactory {
 	}
 
 	/**
-	 * Extracts the dependent attribute name from a cross-entity path. Searches for an `attributes`
-	 * or `localizedAttributes` identifier followed by an {@link ElementPathItem} containing the
-	 * attribute name.
+	 * Extracts the dependent attribute name from a cross-entity path. Scans from the appropriate
+	 * start position depending on the dependency type:
 	 *
-	 * @param path the accessed data path (must be a cross-entity path)
+	 * - For `REFERENCED_ENTITY_ATTRIBUTE` / `GROUP_ENTITY_ATTRIBUTE`: scan from position 2
+	 *   (immediately after `referencedEntity`/`groupEntity`)
+	 * - For `*_REFERENCE_ATTRIBUTE`: scan from position 4 (after `references['r']`)
+	 *
+	 * @param path    the accessed data path (must be a cross-entity path)
+	 * @param depType the dependency type determining the scan start position
 	 * @return the attribute name, or `null` if no attribute access is found in the path
 	 */
 	@Nullable
-	private static String extractDependentAttribute(@Nonnull List<PathItem> path) {
-		for (int i = 0; i < path.size() - 1; i++) {
+	private static String extractDependentAttribute(
+		@Nonnull List<PathItem> path,
+		@Nonnull DependencyType depType
+	) {
+		final int startIndex;
+		switch (depType) {
+			case REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, GROUP_ENTITY_REFERENCE_ATTRIBUTE -> startIndex = 4;
+			default -> startIndex = 2;
+		}
+		for (int i = startIndex; i < path.size() - 1; i++) {
 			final PathItem item = path.get(i);
 			if (
 				item instanceof IdentifierPathItem identifier
@@ -240,6 +275,27 @@ public class FacetExpressionTriggerFactory {
 	}
 
 	/**
+	 * Extracts the dependent reference name from a cross-entity path. For reference-attribute paths
+	 * (`[$reference, referencedEntity, references, x, ...]`), position 3 is an {@link ElementPathItem}
+	 * containing the reference name. For entity-attribute paths, returns `null`.
+	 *
+	 * @param path the accessed data path
+	 * @return the reference name on the target entity, or `null` if not a reference-attribute path
+	 */
+	@Nullable
+	private static String extractDependentReferenceName(@Nonnull List<PathItem> path) {
+		if (
+			path.size() > 3
+				&& path.get(2) instanceof IdentifierPathItem identifier
+				&& EntityContractAccessor.REFERENCES_PROPERTY.equals(identifier.value())
+				&& path.get(3) instanceof ElementPathItem element
+		) {
+			return element.value();
+		}
+		return null;
+	}
+
+	/**
 	 * Checks whether the given property name refers to an attributes accessor.
 	 *
 	 * @param propertyName the property name to check
@@ -248,6 +304,17 @@ public class FacetExpressionTriggerFactory {
 	private static boolean isAttributesProperty(@Nonnull String propertyName) {
 		return EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(propertyName)
 			|| EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
+	}
+
+	/**
+	 * Composite key for dependency classification that includes both the dependency type and the optional
+	 * reference name on the target entity. This allows an expression that accesses multiple reference names
+	 * on the same target entity to produce separate triggers per reference.
+	 *
+	 * @param type          the dependency type
+	 * @param referenceName the reference name on the target entity, or `null` for entity-attribute deps
+	 */
+	private record DependencyKey(@Nonnull DependencyType type, @Nullable String referenceName) {
 	}
 
 }

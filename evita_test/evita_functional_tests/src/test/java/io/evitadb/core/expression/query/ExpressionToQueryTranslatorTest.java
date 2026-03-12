@@ -25,15 +25,19 @@ package io.evitadb.core.expression.query;
 
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.dataType.expression.Expression;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeGreaterThan;
+import static io.evitadb.api.query.QueryConstraints.attributeIsNotNull;
+import static io.evitadb.api.query.QueryConstraints.attributeIsNull;
 import static io.evitadb.api.query.QueryConstraints.attributeGreaterThanEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
 import static io.evitadb.api.query.QueryConstraints.attributeLessThanEquals;
@@ -44,6 +48,7 @@ import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -887,15 +892,30 @@ class ExpressionToQueryTranslatorTest {
 	}
 
 	@Test
-	@DisplayName("rejects spread access operator in comparison")
+	@DisplayName("rejects null attribute name in $entity.attributes[null]")
+	void shouldRejectNullAttributeNameInEntityAttributePath() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes[null] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("null") || ex.getMessage().contains("Null"),
+			"message should identify null attribute name: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("rejects spread access operator on $entity context")
 	void shouldRejectSpreadAccessOperator() {
 		final NonTranslatableExpressionException ex = assertThrows(
 			NonTranslatableExpressionException.class,
 			() -> translate("$entity.references['categories'].*[$.referencedPrimaryKey] == 1")
 		);
 		assertTrue(
-			ex.getMessage().contains("Spread access") || ex.getMessage().contains(".*["),
-			"message should identify spread access operator: " + ex.getMessage()
+			ex.getMessage().contains("Unsupported data path")
+				|| ex.getMessage().contains("Spread access")
+				|| ex.getMessage().contains("references"),
+			"message should identify unsupported data path: " + ex.getMessage()
 		);
 	}
 
@@ -942,6 +962,119 @@ class ExpressionToQueryTranslatorTest {
 		assertEquals(
 			filterBy(referenceHaving(REF_NAME, entityHaving(attributeEquals("name", "x")))),
 			result
+		);
+	}
+
+	// --- Happy path: referenced entity reference attribute comparisons ---
+
+	@Test
+	@DisplayName("referencedEntity.references['tags'].attributes['visible'] == true -> nested referenceHaving")
+	void shouldTranslateReferencedEntityReferenceAttributeEquals() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].attributes['visible'] == true"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				entityHaving(referenceHaving("tags", attributeEquals("visible", true)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("groupEntity?.references['metrics'].attributes['score'] > 5 -> nested groupHaving referenceHaving")
+	void shouldTranslateGroupEntityReferenceAttributeGreaterThan() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.references['metrics'].attributes['score'] > 5"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				groupHaving(referenceHaving("metrics", attributeGreaterThan("score", 5L)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("referencedEntity.references['tags'].localizedAttributes['label'] == 'x' -> nested referenceHaving")
+	void shouldTranslateReferencedEntityReferenceLocalizedAttributeEquals() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].localizedAttributes['label'] == 'x'"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				entityHaving(referenceHaving("tags", attributeEquals("label", "x")))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("mixed entity attribute and reference attribute in AND -> both under single outer referenceHaving")
+	void shouldTranslateMixedEntityAttributeAndReferenceAttributeInAnd() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.attributes['code'] == 'A' " +
+				"&& $reference.referencedEntity.references['tags'].attributes['visible'] == true"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				entityHaving(attributeEquals("code", "A")),
+				entityHaving(referenceHaving("tags", attributeEquals("visible", true)))
+			))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("two reference-attribute comparisons in AND -> merge under single outer referenceHaving")
+	void shouldMergeReferenceHavingWithNestedReferenceHavingInAnd() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].attributes['visible'] == true " +
+				"&& $reference.referencedEntity.references['tags'].attributes['priority'] > 0"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				entityHaving(referenceHaving("tags", attributeEquals("visible", true))),
+				entityHaving(referenceHaving("tags", attributeGreaterThan("priority", 0L)))
+			))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("spread on referencedEntity references -> same result as non-spread")
+	void shouldTranslateSpreadOnReferencedEntityReferences() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].*[$.attributes['visible']] == true"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				entityHaving(referenceHaving("tags", attributeEquals("visible", true)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("spread on groupEntity references -> same result as non-spread")
+	void shouldTranslateSpreadOnGroupEntityReferences() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.references['metrics'].*[$.attributes['score']] > 5"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				groupHaving(referenceHaving("metrics", attributeGreaterThan("score", 5L)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("spread in unsupported position still rejected")
+	void shouldRejectSpreadInUnsupportedPosition() {
+		assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.references['categories'].*[$.referencedPrimaryKey] == 1")
 		);
 	}
 
@@ -995,6 +1128,190 @@ class ExpressionToQueryTranslatorTest {
 			ex.getMessage().contains("Dynamic") || ex.getMessage().contains("compile-time constant"),
 			"message should identify dynamic path"
 		);
+	}
+
+	// --- Rejection of unsupported paths/variables ---
+
+	@Test
+	@DisplayName("rejects unsupported variable name like $foo")
+	void shouldRejectUnsupportedVariableName() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$foo.attributes['x'] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("Unsupported variable"),
+			"message should mention unsupported variable: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("rejects unsupported entity property like $entity.someOtherProp")
+	void shouldRejectUnsupportedEntityProperty() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.someOtherProp['x'] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("Unsupported data path"),
+			"message should mention unsupported data path: " + ex.getMessage()
+		);
+	}
+
+	// --- Reversed comparison operators (missing) ---
+
+	@Test
+	@DisplayName("100 >= $entity.attributes['price'] -> filterBy(attributeLessThanEquals(\"price\", 100L))")
+	void shouldTranslateReversedOperandOrderForGreaterThanEquals() {
+		// 100 >= price  ===  price <= 100
+		final FilterBy result = translate("100 >= $entity.attributes['price']");
+		assertEquals(
+			filterBy(attributeLessThanEquals("price", 100L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("100 <= $entity.attributes['price'] -> filterBy(attributeGreaterThanEquals(\"price\", 100L))")
+	void shouldTranslateReversedOperandOrderForLessThanEquals() {
+		// 100 <= price  ===  price >= 100
+		final FilterBy result = translate("100 <= $entity.attributes['price']");
+		assertEquals(
+			filterBy(attributeGreaterThanEquals("price", 100L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("100 > $entity.attributes['price'] -> filterBy(attributeLessThan(\"price\", 100L))")
+	void shouldTranslateReversedOperandOrderForGreaterThan() {
+		// 100 > price  ===  price < 100
+		final FilterBy result = translate("100 > $entity.attributes['price']");
+		assertEquals(
+			filterBy(attributeLessThan("price", 100L)),
+			result
+		);
+	}
+
+	// --- Null literal comparison ---
+
+	@Test
+	@DisplayName("$entity.attributes['x'] == null -> filterBy(attributeIsNull(\"x\"))")
+	void shouldTranslateNullLiteralComparisonToAttributeIsNull() {
+		final FilterBy result = translate("$entity.attributes['x'] == null");
+		assertEquals(
+			filterBy(attributeIsNull("x")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("null == $entity.attributes['x'] -> filterBy(attributeIsNull(\"x\")) (reversed)")
+	void shouldTranslateNullLiteralOnLeftSideToAttributeIsNull() {
+		final FilterBy result = translate("null == $entity.attributes['x']");
+		assertEquals(
+			filterBy(attributeIsNull("x")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['x'] != null -> filterBy(attributeIsNotNull(\"x\"))")
+	void shouldTranslateNullLiteralNotEqualsToAttributeIsNotNull() {
+		final FilterBy result = translate("$entity.attributes['x'] != null");
+		assertEquals(
+			filterBy(attributeIsNotNull("x")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['x'] > null -> throws NonTranslatableExpressionException")
+	void shouldRejectNullLiteralWithOrderedComparisonOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['x'] > null")
+		);
+		assertTrue(
+			ex.getMessage().contains("null") || ex.getMessage().contains("Null"),
+			"message should mention null: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("$reference.attributes['x'] == null -> filterBy(referenceHaving(\"refName\", attributeIsNull(\"x\")))")
+	void shouldTranslateReferenceAttributeEqualsNullToAttributeIsNull() {
+		final FilterBy result = translate("$reference.attributes['x'] == null");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeIsNull("x"))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$reference.groupEntity?.attributes['x'] == null -> filterBy(referenceHaving(groupHaving(attributeIsNull)))")
+	void shouldTranslateGroupEntityAttributeEqualsNullToAttributeIsNull() {
+		final FilterBy result = translate("$reference.groupEntity?.attributes['x'] == null");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, groupHaving(attributeIsNull("x")))),
+			result
+		);
+	}
+
+	// --- Error branches in reference-attribute paths ---
+
+	@Test
+	@DisplayName("rejects dynamic reference name variable in referencedEntity references path")
+	void shouldRejectDynamicReferenceNameInReferencedEntityReferenceAttributePath() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate(
+				"$reference.referencedEntity.references[$var].attributes['x'] == 1"
+			)
+		);
+		assertTrue(
+			ex.getMessage().contains("Dynamic reference name")
+				|| ex.getMessage().contains("string literal"),
+			"message should identify dynamic reference name: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("rejects null reference name in referencedEntity references path")
+	void shouldRejectNullReferenceNameInReferencedEntityReferenceAttributePath() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate(
+				"$reference.referencedEntity.references[null].attributes['x'] == 1"
+			)
+		);
+		assertTrue(
+			ex.getMessage().contains("null") || ex.getMessage().contains("Null")
+				|| ex.getMessage().contains("string literal"),
+			"message should identify null reference name: " + ex.getMessage()
+		);
+	}
+
+	// --- Single-element merging optimization ---
+
+	@Test
+	@DisplayName("two reference attributes in AND -> single referenceHaving without outer and() wrapper")
+	void shouldReturnSingleConstraintWithoutAndWrapperAfterMerge() {
+		// When two referenceHaving nodes merge, the result should be a single referenceHaving
+		// at the top level of filterBy, NOT wrapped in an extra and() container.
+		final FilterBy result = translate(
+			"$reference.attributes['a'] == 1 && $reference.attributes['b'] == 2"
+		);
+
+		// Verify the result is referenceHaving(refName, and(eq(a), eq(b)))
+		// and NOT and(referenceHaving(refName, and(eq(a), eq(b))))
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(attributeEquals("a", 1L), attributeEquals("b", 2L)))),
+			result
+		);
+		// Additionally verify the direct child of filterBy is a referenceHaving, not an and()
+		assertEquals(1, result.getChildrenCount());
+		assertInstanceOf(ReferenceHaving.class, result.getChildren()[0]);
 	}
 
 	// --- Helper ---

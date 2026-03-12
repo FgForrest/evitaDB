@@ -69,7 +69,14 @@ import java.util.Set;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link FacetExpressionTriggerImpl} — construction, getters, immutability, and evaluate() behavior.
@@ -153,6 +160,32 @@ class FacetExpressionTriggerImplTest {
 			assertEquals(Set.of("status", "code"), trigger.getDependentAttributes());
 		}
 
+		@Test
+		@DisplayName("Should return REFERENCED_ENTITY_REFERENCE_ATTRIBUTE dependency type")
+		void shouldReturnReferencedEntityReferenceAttributeDependencyType() {
+			final FacetExpressionTriggerImpl trigger = createCrossEntityTrigger(
+				"true", Scope.LIVE,
+				DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, "tags",
+				Set.of("visible")
+			);
+			assertEquals(
+				DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, trigger.getDependencyType()
+			);
+		}
+
+		@Test
+		@DisplayName("Should return GROUP_ENTITY_REFERENCE_ATTRIBUTE dependency type")
+		void shouldReturnGroupEntityReferenceAttributeDependencyType() {
+			final FacetExpressionTriggerImpl trigger = createCrossEntityTrigger(
+				"true", Scope.LIVE,
+				DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE, "categories",
+				Set.of("weight")
+			);
+			assertEquals(
+				DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE, trigger.getDependencyType()
+			);
+		}
+
 	}
 
 	@Nested
@@ -216,6 +249,50 @@ class FacetExpressionTriggerImplTest {
 	}
 
 	@Nested
+	@DisplayName("Dependent reference name")
+	class DependentReferenceNameTest {
+
+		@Test
+		@DisplayName("Should return null dependent reference name for entity attribute dependency")
+		void shouldReturnNullDependentReferenceNameForEntityAttributeDependency() {
+			final FacetExpressionTriggerImpl trigger = createCrossEntityTrigger(
+				"true", Scope.LIVE, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Set.of("code")
+			);
+			assertNull(trigger.getDependentReferenceName());
+		}
+
+		@Test
+		@DisplayName("Should return null dependent reference name for local-only trigger")
+		void shouldReturnNullDependentReferenceNameForLocalOnlyTrigger() {
+			final FacetExpressionTriggerImpl trigger = createLocalOnlyTrigger("true");
+			assertNull(trigger.getDependentReferenceName());
+		}
+
+		@Test
+		@DisplayName("Should return dependent reference name for REFERENCED_ENTITY_REFERENCE_ATTRIBUTE")
+		void shouldReturnDependentReferenceNameForReferencedEntityReferenceAttribute() {
+			final FacetExpressionTriggerImpl trigger = createCrossEntityTrigger(
+				"true", Scope.LIVE,
+				DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, "tags",
+				Set.of("visible")
+			);
+			assertEquals("tags", trigger.getDependentReferenceName());
+		}
+
+		@Test
+		@DisplayName("Should return dependent reference name for GROUP_ENTITY_REFERENCE_ATTRIBUTE")
+		void shouldReturnDependentReferenceNameForGroupEntityReferenceAttribute() {
+			final FacetExpressionTriggerImpl trigger = createCrossEntityTrigger(
+				"true", Scope.LIVE,
+				DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE, "categories",
+				Set.of("weight")
+			);
+			assertEquals("categories", trigger.getDependentReferenceName());
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Immutability")
 	class ImmutabilityTest {
 
@@ -257,6 +334,15 @@ class FacetExpressionTriggerImplTest {
 		@DisplayName("Should return false for constant false expression")
 		void shouldReturnFalseForConstantFalseExpression() {
 			final FacetExpressionTriggerImpl trigger = createLocalOnlyTrigger("false");
+			assertFalse(evaluateWithMinimalSetup(trigger));
+		}
+
+		@Test
+		@DisplayName("Should return false when expression evaluates to null")
+		void shouldReturnFalseWhenExpressionReturnsNull() {
+			// The expression `null` parses to ConstantOperand(null) whose compute() returns null.
+			// The convertResult(null) method should treat null as false.
+			final FacetExpressionTriggerImpl trigger = createLocalOnlyTrigger("null");
 			assertFalse(evaluateWithMinimalSetup(trigger));
 		}
 
@@ -445,12 +531,33 @@ class FacetExpressionTriggerImplTest {
 		@Nonnull DependencyType dependencyType,
 		@Nonnull Set<String> dependentAttributes
 	) {
+		return createCrossEntityTrigger(expressionStr, scope, dependencyType, null, dependentAttributes);
+	}
+
+	/**
+	 * Creates a cross-entity trigger with specified dependency type, reference name, and attributes.
+	 *
+	 * @param expressionStr          the expression string
+	 * @param scope                  the scope
+	 * @param dependencyType         the dependency type
+	 * @param dependentReferenceName the dependent reference name on target entity, or `null`
+	 * @param dependentAttributes    the dependent attribute names
+	 * @return the constructed trigger
+	 */
+	@Nonnull
+	private static FacetExpressionTriggerImpl createCrossEntityTrigger(
+		@Nonnull String expressionStr,
+		@Nonnull Scope scope,
+		@Nonnull DependencyType dependencyType,
+		@Nullable String dependentReferenceName,
+		@Nonnull Set<String> dependentAttributes
+	) {
 		final Expression expression = ExpressionFactory.parse(expressionStr);
 		final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
 		final FilterBy filterBy = filterBy(attributeEquals("code", "test"));
 		return new FacetExpressionTriggerImpl(
 			ENTITY_TYPE, REFERENCE_NAME, scope,
-			dependencyType, dependentAttributes,
+			dependencyType, dependentReferenceName, dependentAttributes,
 			expression, descriptor, filterBy
 		);
 	}

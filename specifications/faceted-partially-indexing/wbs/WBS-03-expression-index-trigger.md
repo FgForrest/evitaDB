@@ -831,7 +831,7 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ##### Category: `evaluate()` — non-boolean and error results (`NonBooleanResultErrorTest`)
 
-- [ ] `should_treat_null_expression_result_as_false` — **NOT IMPLEMENTED** — needs expression that evaluates to null (accessing non-existent attribute)
+- [x] `should_treat_null_expression_result_as_false` — **IMPLEMENTED** as `shouldReturnFalseWhenExpressionReturnsNull` in code-quality-pipeline run (2026-03-12)
 - [x] `shouldThrowForStringExpressionResult` — verifies `ExpressionEvaluationException` with message containing `"String"`
 - [x] `shouldThrowForIntegerExpressionResult` — verifies `ExpressionEvaluationException` with message containing type name
 - [ ] `should_propagate_ExpressionEvaluationException_from_catch_all_partial` — **NOT IMPLEMENTED** — requires specific CatchAllPartial proxy setup
@@ -1022,7 +1022,7 @@ Core scope isolation is already covered by `FacetExpressionTriggerFactoryTest.Mu
 
 ### Not implemented spec tests from Test Class 3 — `FacetExpressionTriggerImplTest`
 
-- [ ] `convertResult(null)` branch — needs an expression that evaluates to `null` (e.g., accessing a non-existent attribute); requires constructing a `StoragePart` where the attribute is absent so the proxy returns `null`
+- [x] `convertResult(null)` branch — **IMPLEMENTED** as `shouldReturnFalseWhenExpressionReturnsNull` in code-quality-pipeline run (2026-03-12)
 - [ ] `evaluate()` with reference attribute expression (`$reference.attributes['order'] > 0`) — only entity attributes are tested through `evaluate()`; reference attributes use the same proxy mechanism but through a different path (`ReferenceContract` proxy instead of `EntityContract`)
 
 ### Not implemented spec tests from Test Class 4 — `FacetExpressionTriggerFactoryTest`
@@ -1032,4 +1032,4 @@ Core scope isolation is already covered by `FacetExpressionTriggerFactoryTest.Mu
 
 ### Not implemented spec test from Test Class 4 — `FacetExpressionTriggerFactoryTest`
 
-- [ ] `localizedAttributes` path in `FacetExpressionTriggerFactory.isAttributesProperty()` — no test exercises the `LOCALIZED_ATTRIBUTES_PROPERTY` branch; would require an expression accessing `$entity.localizedAttributes[...]` which is a valid but rare path in practice
+- [x] `localizedAttributes` path in `FacetExpressionTriggerFactory.isAttributesProperty()` — **IMPLEMENTED** as `shouldBuildReferencedEntityAttributeTriggerForLocalizedAttribute` in code-quality-pipeline run (2026-03-12)

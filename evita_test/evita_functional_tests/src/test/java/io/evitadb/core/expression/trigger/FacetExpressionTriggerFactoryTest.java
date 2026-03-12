@@ -47,7 +47,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link FacetExpressionTriggerFactory} — trigger construction from reference schemas.
@@ -224,6 +228,26 @@ class FacetExpressionTriggerFactoryTest {
 			assertEquals(Set.of("code", "status"), triggers.get(0).getDependentAttributes());
 		}
 
+		@Test
+		@DisplayName("Should build trigger for localized attribute on referenced entity")
+		void shouldBuildReferencedEntityAttributeTriggerForLocalizedAttribute() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.referencedEntity.localizedAttributes['name'] == 'x'"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(DependencyType.REFERENCED_ENTITY_ATTRIBUTE, trigger.getDependencyType());
+			assertEquals(Set.of("name"), trigger.getDependentAttributes());
+			assertNotNull(trigger.getFilterByConstraint());
+		}
+
 	}
 
 	@Nested
@@ -249,6 +273,160 @@ class FacetExpressionTriggerFactoryTest {
 			assertEquals(DependencyType.GROUP_ENTITY_ATTRIBUTE, trigger.getDependencyType());
 			assertEquals(Set.of("status"), trigger.getDependentAttributes());
 			assertNotNull(trigger.getFilterByConstraint());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Cross-entity referenced entity reference attribute triggers")
+	class ReferencedEntityReferenceAttributeTest {
+
+		@Test
+		@DisplayName("Should build REFERENCED_ENTITY_REFERENCE_ATTRIBUTE trigger for reference attribute path")
+		void shouldBuildReferencedEntityReferenceAttributeTrigger() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.referencedEntity.references['tags'].attributes['visible'] == true"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(
+				DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, trigger.getDependencyType()
+			);
+			assertEquals("tags", trigger.getDependentReferenceName());
+			assertEquals(Set.of("visible"), trigger.getDependentAttributes());
+			assertNotNull(trigger.getFilterByConstraint());
+		}
+
+		@Test
+		@DisplayName("Should collect multiple attributes from same reference on referenced entity")
+		void shouldCollectMultipleAttributesFromSameReferenceOnReferencedEntity() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.referencedEntity.references['tags'].attributes['visible'] == true " +
+					"&& $reference.referencedEntity.references['tags'].attributes['priority'] > 0"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			assertEquals(
+				Set.of("visible", "priority"), triggers.get(0).getDependentAttributes()
+			);
+		}
+
+		@Test
+		@DisplayName("Should build separate triggers for different reference names on referenced entity")
+		void shouldBuildSeparateTriggersForDifferentReferenceNamesOnReferencedEntity() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.referencedEntity.references['tags'].attributes['visible'] == true " +
+					"&& $reference.referencedEntity.references['links'].attributes['weight'] > 0"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(2, triggers.size());
+
+			final FacetExpressionTrigger tagsTrigger = triggers.stream()
+				.filter(t -> "tags".equals(t.getDependentReferenceName()))
+				.findFirst().orElseThrow();
+			final FacetExpressionTrigger linksTrigger = triggers.stream()
+				.filter(t -> "links".equals(t.getDependentReferenceName()))
+				.findFirst().orElseThrow();
+
+			assertEquals(Set.of("visible"), tagsTrigger.getDependentAttributes());
+			assertEquals(Set.of("weight"), linksTrigger.getDependentAttributes());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Cross-entity group entity reference attribute triggers")
+	class GroupEntityReferenceAttributeTest {
+
+		@Test
+		@DisplayName("Should build GROUP_ENTITY_REFERENCE_ATTRIBUTE trigger for group entity reference path")
+		void shouldBuildGroupEntityReferenceAttributeTrigger() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.groupEntity?.references['links'].attributes['weight'] > 0"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(
+				DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE, trigger.getDependencyType()
+			);
+			assertEquals("links", trigger.getDependentReferenceName());
+			assertEquals(Set.of("weight"), trigger.getDependentAttributes());
+		}
+
+		@Test
+		@DisplayName("Should collect multiple attributes from same reference on group entity")
+		void shouldCollectMultipleAttributesFromSameReferenceOnGroupEntity() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.groupEntity?.references['links'].attributes['weight'] > 0 " +
+					"&& $reference.groupEntity?.references['links'].attributes['score'] > 5"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(
+				DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE, trigger.getDependencyType()
+			);
+			assertEquals("links", trigger.getDependentReferenceName());
+			assertEquals(Set.of("weight", "score"), trigger.getDependentAttributes());
+		}
+
+		@Test
+		@DisplayName("Should build separate triggers for different reference names on group entity")
+		void shouldBuildSeparateTriggersForDifferentReferenceNamesOnGroupEntity() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.groupEntity?.references['links'].attributes['weight'] > 0 " +
+					"&& $reference.groupEntity?.references['metrics'].attributes['score'] > 5"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(2, triggers.size());
+
+			final FacetExpressionTrigger linksTrigger = triggers.stream()
+				.filter(t -> "links".equals(t.getDependentReferenceName()))
+				.findFirst().orElseThrow();
+			final FacetExpressionTrigger metricsTrigger = triggers.stream()
+				.filter(t -> "metrics".equals(t.getDependentReferenceName()))
+				.findFirst().orElseThrow();
+
+			assertEquals(Set.of("weight"), linksTrigger.getDependentAttributes());
+			assertEquals(Set.of("score"), metricsTrigger.getDependentAttributes());
 		}
 
 	}
@@ -286,6 +464,37 @@ class FacetExpressionTriggerFactoryTest {
 			// both share the same FilterBy (same expression translated once)
 			assertNotNull(refTrigger.getFilterByConstraint());
 			assertNotNull(groupTrigger.getFilterByConstraint());
+		}
+
+		@Test
+		@DisplayName("Should build triggers for mixed entity attribute and reference attribute paths")
+		void shouldBuildTriggersForMixedEntityAndReferenceAttributePaths() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.referencedEntity.attributes['code'] == 'A' " +
+					"&& $reference.referencedEntity.references['tags'].attributes['visible'] == true"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(2, triggers.size());
+
+			final FacetExpressionTrigger entityAttrTrigger = triggers.stream()
+				.filter(t -> t.getDependencyType() == DependencyType.REFERENCED_ENTITY_ATTRIBUTE)
+				.findFirst().orElseThrow();
+			final FacetExpressionTrigger refAttrTrigger = triggers.stream()
+				.filter(
+					t -> t.getDependencyType() == DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE
+				)
+				.findFirst().orElseThrow();
+
+			assertEquals(Set.of("code"), entityAttrTrigger.getDependentAttributes());
+			assertNull(entityAttrTrigger.getDependentReferenceName());
+			assertEquals(Set.of("visible"), refAttrTrigger.getDependentAttributes());
+			assertEquals("tags", refAttrTrigger.getDependentReferenceName());
 		}
 
 		@Test

@@ -139,7 +139,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 */
 	private static void preValidatePaths(@Nonnull Expression expression) {
 		final List<List<PathItem>> paths = AccessedDataFinder.findAccessedPaths(expression);
-		for (List<PathItem> path : paths) {
+		for (final List<PathItem> path : paths) {
 			for (int i = 0; i < path.size() - 1; i++) {
 				final PathItem current = path.get(i);
 				final PathItem next = path.get(i + 1);
@@ -223,6 +223,35 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	}
 
 	/**
+	 * Creates the appropriate null-check constraint for a comparison with a `null` literal.
+	 * Only equality (`==`) and inequality (`!=`) comparisons are supported with null — ordered
+	 * comparisons (`>`, `>=`, `<`, `<=`) are rejected because they have no meaningful semantics
+	 * with null values.
+	 *
+	 * @param comparisonNode the comparison operator node
+	 * @param attributeName  the attribute name extracted from the data path
+	 * @return `attributeIsNull` for `==`, `attributeIsNotNull` for `!=`
+	 * @throws NonTranslatableExpressionException for ordered comparisons with null
+	 */
+	@Nonnull
+	private static FilterConstraint createNullAttributeConstraint(
+		@Nonnull ExpressionNode comparisonNode,
+		@Nonnull String attributeName
+	) {
+		if (comparisonNode instanceof EqualsOperator) {
+			return attributeIsNull(attributeName);
+		} else if (comparisonNode instanceof NotEqualsOperator) {
+			return attributeIsNotNull(attributeName);
+		} else {
+			throw new NonTranslatableExpressionException(
+				"Ordered comparison (`" + comparisonNode.getClass().getSimpleName() +
+					"`) with null literal is not supported. Only equality (`==`) and " +
+					"inequality (`!=`) comparisons can be used with null values."
+			);
+		}
+	}
+
+	/**
 	 * Classifies an {@link ObjectAccessOperator} by walking its access chain to determine the data path
 	 * type and extract the attribute name.
 	 *
@@ -243,17 +272,6 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 			);
 		}
 
-		// reject spread access in the remaining chain (first step is already verified as PropertyAccessStep)
-		ObjectAccessStep checkStep = firstProperty.getNext();
-		while (checkStep != null) {
-			if (checkStep instanceof SpreadAccessStep) {
-				throw new NonTranslatableExpressionException(
-					"Spread access operator (`.*[...]`) cannot be translated to a FilterBy constraint."
-				);
-			}
-			checkStep = checkStep.getNext();
-		}
-
 		final String variableName = extractVariableName(accessOperator);
 		final String firstPropertyName = firstProperty.getPropertyIdentifier();
 
@@ -264,14 +282,14 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 					|| EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(firstPropertyName)
 			) {
 				final String attributeName = extractAttributeName(firstProperty.getNext());
-				return new DataPath(PathType.ENTITY_ATTRIBUTE, attributeName);
+				return new DataPath(PathType.ENTITY_ATTRIBUTE, attributeName, null);
 			} else if (
 				EntityContractAccessor.ASSOCIATED_DATA_PROPERTY.equals(firstPropertyName)
 					|| EntityContractAccessor.LOCALIZED_ASSOCIATED_DATA_PROPERTY.equals(firstPropertyName)
 			) {
 				throw new NonTranslatableExpressionException(
 					"Associated data path `$" + EntityContractAccessor.ENTITY_VARIABLE_NAME + "." +
-						EntityContractAccessor.ASSOCIATED_DATA_PROPERTY +
+						firstPropertyName +
 						"[...]` cannot be translated to a FilterBy constraint. " +
 						"There is no FilterBy equivalent for associated data access."
 				);
@@ -282,7 +300,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 				case ReferenceContractAccessor.ATTRIBUTES_PROPERTY,
 				     ReferenceContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY -> {
 					final String attributeName = extractAttributeName(firstProperty.getNext());
-					return new DataPath(PathType.REFERENCE_ATTRIBUTE, attributeName);
+					return new DataPath(PathType.REFERENCE_ATTRIBUTE, attributeName, null);
 				}
 				case ReferenceContractAccessor.GROUP_ENTITY_PROPERTY -> {
 					return extractEntityAttributePath(firstProperty, PathType.GROUP_ENTITY_ATTRIBUTE);
@@ -326,13 +344,16 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	/**
 	 * Extracts the attribute name from a sub-entity path (e.g., `.groupEntity?.attributes['x']`
 	 * or `.referencedEntity.localizedAttributes['x']`). After the first property, skips an optional
-	 * null-safe step, then verifies that `.attributes` or `.localizedAttributes` follows before
-	 * extracting the attribute name.
+	 * null-safe step, then checks the next property:
+	 *
+	 * - `attributes`/`localizedAttributes` -> entity-attribute dependency (existing behavior)
+	 * - `references` -> reference-attribute dependency: extracts reference name and attribute name
+	 *   from either a non-spread chain or a spread mapping expression
 	 *
 	 * @param firstProperty the property access step preceding the entity navigation
-	 * @param pathType      the path type to assign to the result
-	 * @return the classified data path with the extracted attribute name
-	 * @throws NonTranslatableExpressionException if `.attributes` is not found after the entity property
+	 * @param pathType      the base path type (`REFERENCED_ENTITY_ATTRIBUTE` or `GROUP_ENTITY_ATTRIBUTE`)
+	 * @return the classified data path with the extracted attribute name and optional reference name
+	 * @throws NonTranslatableExpressionException if the path pattern is not recognized
 	 */
 	@Nonnull
 	private static DataPath extractEntityAttributePath(
@@ -340,27 +361,180 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		@Nonnull PathType pathType
 	) {
 		final ObjectAccessStep afterNavigation = skipNullSafe(firstProperty.getNext());
-		if (!(afterNavigation instanceof PropertyAccessStep attrStep)) {
+		if (!(afterNavigation instanceof PropertyAccessStep propertyStep)) {
 			throw new NonTranslatableExpressionException(
-				"Expected `." + EntityContractAccessor.ATTRIBUTES_PROPERTY + "` after `." +
+				"Expected `." + EntityContractAccessor.ATTRIBUTES_PROPERTY + "` or `." +
+					EntityContractAccessor.REFERENCES_PROPERTY + "` after `." +
 					firstProperty.getPropertyIdentifier() + "`, but found `" +
 					(afterNavigation != null ? afterNavigation.getClass().getSimpleName() : "end of chain")
 					+ "`."
 			);
 		}
-		final String attrPropertyName = attrStep.getPropertyIdentifier();
-		if (
-			!EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(attrPropertyName)
-				&& !EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(attrPropertyName)
-		) {
+		final String propertyName = propertyStep.getPropertyIdentifier();
+		if (isAttributesProperty(propertyName)) {
+			// entity-attribute dependency: .referencedEntity.attributes['x']
+			final String attributeName = extractAttributeName(propertyStep.getNext());
+			return new DataPath(pathType, attributeName, null);
+		} else if (EntityContractAccessor.REFERENCES_PROPERTY.equals(propertyName)) {
+			// reference-attribute dependency: .referencedEntity.references['r'].attributes['x']
+			return extractReferenceAttributePath(propertyStep, pathType);
+		} else {
 			throw new NonTranslatableExpressionException(
-				"Expected `." + EntityContractAccessor.ATTRIBUTES_PROPERTY + "` or `." +
-					EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "` after `." +
-					firstProperty.getPropertyIdentifier() + "`, but found `." + attrPropertyName + "`."
+				"Expected `." + EntityContractAccessor.ATTRIBUTES_PROPERTY + "`, `." +
+					EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "`, or `." +
+					EntityContractAccessor.REFERENCES_PROPERTY + "` after `." +
+					firstProperty.getPropertyIdentifier() + "`, but found `." + propertyName + "`."
 			);
 		}
-		final String attributeName = extractAttributeName(attrStep.getNext());
-		return new DataPath(pathType, attributeName);
+	}
+
+	/**
+	 * Extracts the reference name and attribute name from a `.references['r']` chain on a target entity.
+	 * Supports both non-spread variant (`.references['r'].attributes['A']`) and spread variant
+	 * (`.references['r']*.attributes['A']`).
+	 *
+	 * @param referencesStep the `PropertyAccessStep` for `references`
+	 * @param basePathType   the base path type (`REFERENCED_ENTITY_ATTRIBUTE` or `GROUP_ENTITY_ATTRIBUTE`)
+	 * @return the classified data path with reference-attribute path type
+	 */
+	@Nonnull
+	private static DataPath extractReferenceAttributePath(
+		@Nonnull PropertyAccessStep referencesStep,
+		@Nonnull PathType basePathType
+	) {
+		// extract reference name from ElementAccessStep: references['r']
+		final ObjectAccessStep elementStep = referencesStep.getNext();
+		if (!(elementStep instanceof ElementAccessStep refElement)) {
+			throw new NonTranslatableExpressionException(
+				"Expected element access (e.g., ['referenceName']) after `." +
+					EntityContractAccessor.REFERENCES_PROPERTY + "`, but found `" +
+					(elementStep != null ? elementStep.getClass().getSimpleName() : "end of chain") + "`."
+			);
+		}
+		if (!(refElement.getElementIdentifierOperand() instanceof ConstantOperand refNameConst)) {
+			throw new NonTranslatableExpressionException(
+				"Dynamic reference name in `." + EntityContractAccessor.REFERENCES_PROPERTY +
+					"[...]` cannot be translated to a FilterBy constraint. " +
+					"The reference name must be a string literal."
+			);
+		}
+		final Serializable refNameValue = refNameConst.getValue();
+		if (refNameValue == null) {
+			throw new NonTranslatableExpressionException(
+				"Null reference name in `." + EntityContractAccessor.REFERENCES_PROPERTY +
+					"[null]` cannot be translated to a FilterBy constraint. " +
+					"The reference name must be a non-null string literal."
+			);
+		}
+		final String referenceName = refNameValue.toString();
+
+		// after the element access, check for spread or direct property chain
+		final ObjectAccessStep afterElement = refElement.getNext();
+		final String attributeName;
+
+		if (afterElement instanceof SpreadAccessStep spreadStep) {
+			// spread variant: references['r']*.attributes['A']
+			attributeName = extractAttributeFromSpreadMapping(spreadStep);
+		} else {
+			// non-spread variant: references['r'].attributes['A'] (with optional null-safe)
+			final ObjectAccessStep afterNullSafe = skipNullSafe(afterElement);
+			if (!(afterNullSafe instanceof PropertyAccessStep attrStep)) {
+				throw new NonTranslatableExpressionException(
+					"Expected `." + EntityContractAccessor.ATTRIBUTES_PROPERTY + "` after `." +
+						EntityContractAccessor.REFERENCES_PROPERTY + "['" + referenceName +
+						"']`, but found `" +
+						(afterNullSafe != null ? afterNullSafe.getClass().getSimpleName() : "end of chain")
+						+ "`."
+				);
+			}
+			if (!isAttributesProperty(attrStep.getPropertyIdentifier())) {
+				throw new NonTranslatableExpressionException(
+					"Expected `." + EntityContractAccessor.ATTRIBUTES_PROPERTY + "` or `." +
+						EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "` after `." +
+						EntityContractAccessor.REFERENCES_PROPERTY + "['" + referenceName +
+						"']`, but found `." + attrStep.getPropertyIdentifier() + "`."
+				);
+			}
+			attributeName = extractAttributeName(attrStep.getNext());
+		}
+
+		// map base path type to reference-attribute variant
+		final PathType mappedPathType = switch (basePathType) {
+			case REFERENCED_ENTITY_ATTRIBUTE -> PathType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE;
+			case GROUP_ENTITY_ATTRIBUTE -> PathType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
+			default -> throw new NonTranslatableExpressionException(
+				"Unexpected base path type `" + basePathType + "` for reference-attribute path."
+			);
+		};
+
+		return new DataPath(mappedPathType, attributeName, referenceName);
+	}
+
+	/**
+	 * Extracts the attribute name from a {@link SpreadAccessStep}'s mapping expression.
+	 * The mapping expression must be an {@link ObjectAccessOperator} whose operand is
+	 * `VariableOperand(this)` (`$`), with an access chain of
+	 * `PropertyAccessStep("attributes"/"localizedAttributes") -> ElementAccessStep('A')`.
+	 *
+	 * @param spreadStep the spread access step
+	 * @return the extracted attribute name
+	 * @throws NonTranslatableExpressionException if the mapping expression is not a simple attribute access
+	 */
+	@Nonnull
+	private static String extractAttributeFromSpreadMapping(@Nonnull SpreadAccessStep spreadStep) {
+		final ExpressionNode mappingExpr = spreadStep.getMappingExpression();
+		final ExpressionNode unwrapped = unwrap(mappingExpr);
+		if (!(unwrapped instanceof ObjectAccessOperator mappingAccess)) {
+			throw new NonTranslatableExpressionException(
+				"Spread mapping expression must be a simple attribute access (e.g., " +
+					"`$.attributes['name']`), but found `" + unwrapped.getClass().getSimpleName() + "`."
+			);
+		}
+
+		// verify the operand is $ (this)
+		final ExpressionNode[] mappingChildren = mappingAccess.getChildren();
+		Assert.isPremiseValid(
+			mappingChildren != null && mappingChildren.length == 1,
+			"ObjectAccessOperator in spread mapping must have 1 child."
+		);
+		if (
+			!(mappingChildren[0] instanceof VariableOperand thisVar) || !thisVar.isThis()
+		) {
+			throw new NonTranslatableExpressionException(
+				"Spread mapping expression operand must be `$` (this), but found `" +
+					mappingChildren[0].getClass().getSimpleName() + "`."
+			);
+		}
+
+		// walk the access chain: PropertyAccessStep("attributes") -> ElementAccessStep('A')
+		final ObjectAccessStep chainStep = mappingAccess.getAccessChain();
+		if (!(chainStep instanceof PropertyAccessStep attrProp)) {
+			throw new NonTranslatableExpressionException(
+				"Spread mapping access chain must start with `." +
+					EntityContractAccessor.ATTRIBUTES_PROPERTY + "`, but found `" +
+					chainStep.getClass().getSimpleName() + "`."
+			);
+		}
+		if (!isAttributesProperty(attrProp.getPropertyIdentifier())) {
+			throw new NonTranslatableExpressionException(
+				"Spread mapping access chain must start with `." +
+					EntityContractAccessor.ATTRIBUTES_PROPERTY + "` or `." +
+					EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "`, but found `." +
+					attrProp.getPropertyIdentifier() + "`."
+			);
+		}
+		return extractAttributeName(attrProp.getNext());
+	}
+
+	/**
+	 * Checks whether the given property name refers to an attributes accessor.
+	 *
+	 * @param propertyName the property name to check
+	 * @return `true` if the name matches `attributes` or `localizedAttributes`
+	 */
+	private static boolean isAttributesProperty(@Nonnull String propertyName) {
+		return EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(propertyName)
+			|| EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
 	}
 
 	/**
@@ -374,7 +548,15 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	@Nonnull
 	private static String extractAttributeName(@Nullable ObjectAccessStep step) {
 		if (extractElementIdentifier(step) instanceof ConstantOperand constantOperand) {
-			return constantOperand.getValue().toString();
+			final Serializable value = constantOperand.getValue();
+			if (value == null) {
+				throw new NonTranslatableExpressionException(
+					"Null attribute name cannot be translated to a FilterBy constraint. " +
+						"The element access key must be a non-null string literal " +
+						"(e.g., `['myAttribute']`)."
+				);
+			}
+			return value.toString();
 		} else {
 			throw new NonTranslatableExpressionException(
 				"Dynamic attribute path cannot be translated to a FilterBy constraint because the " +
@@ -473,7 +655,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	private static List<FilterConstraint> mergeReferenceHaving(@Nonnull List<FilterConstraint> operands) {
 		// fast path: no merging needed if fewer than 2 ReferenceHaving
 		int refHavingCount = 0;
-		for (FilterConstraint operand : operands) {
+		for (final FilterConstraint operand : operands) {
 			if (operand instanceof ReferenceHaving) {
 				refHavingCount++;
 			}
@@ -486,7 +668,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		final LinkedHashMap<String, List<FilterConstraint>> refGroups = createLinkedHashMap(4);
 		final List<FilterConstraint> merged = new ArrayList<>(operands.size());
 
-		for (FilterConstraint operand : operands) {
+		for (final FilterConstraint operand : operands) {
 			if (operand instanceof ReferenceHaving refHaving) {
 				refGroups.computeIfAbsent(refHaving.getReferenceName(), k -> new ArrayList<>(4))
 					.addAll(Arrays.asList(refHaving.getChildren()));
@@ -495,7 +677,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 			}
 		}
 
-		for (Map.Entry<String, List<FilterConstraint>> entry : refGroups.entrySet()) {
+		for (final Map.Entry<String, List<FilterConstraint>> entry : refGroups.entrySet()) {
 			final List<FilterConstraint> innerConstraints = entry.getValue();
 			if (innerConstraints.size() == 1) {
 				merged.add(referenceHaving(entry.getKey(), innerConstraints.get(0)));
@@ -591,7 +773,16 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 			case ENTITY_ATTRIBUTE -> attributeConstraint;
 			case REFERENCE_ATTRIBUTE -> referenceHaving(this.referenceName, attributeConstraint);
 			case GROUP_ENTITY_ATTRIBUTE -> referenceHaving(this.referenceName, groupHaving(attributeConstraint));
-			case REFERENCED_ENTITY_ATTRIBUTE -> referenceHaving(this.referenceName, entityHaving(attributeConstraint));
+			case REFERENCED_ENTITY_ATTRIBUTE ->
+				referenceHaving(this.referenceName, entityHaving(attributeConstraint));
+			case REFERENCED_ENTITY_REFERENCE_ATTRIBUTE -> referenceHaving(
+				this.referenceName,
+				entityHaving(referenceHaving(dataPath.referenceName(), attributeConstraint))
+			);
+			case GROUP_ENTITY_REFERENCE_ATTRIBUTE -> referenceHaving(
+				this.referenceName,
+				groupHaving(referenceHaving(dataPath.referenceName(), attributeConstraint))
+			);
 		};
 	}
 
@@ -706,8 +897,15 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 
 		final DataPath dataPath = classifyPath(pathOperand);
 		final Serializable value = valueOperand.getValue();
-		final FilterConstraint attributeConstraint =
-			createAttributeConstraint(comparisonNode, dataPath.attributeName(), value, reversed);
+
+		final FilterConstraint attributeConstraint;
+		if (value == null) {
+			// null literal -> attributeIsNull / attributeIsNotNull (equality only)
+			attributeConstraint = createNullAttributeConstraint(comparisonNode, dataPath.attributeName());
+		} else {
+			attributeConstraint =
+				createAttributeConstraint(comparisonNode, dataPath.attributeName(), value, reversed);
+		}
 
 		this.result = wrapForPathType(dataPath, attributeConstraint);
 	}
@@ -733,7 +931,17 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		 * `$reference.referencedEntity.attributes['x']` — referenced entity attribute,
 		 * wrapped in `referenceHaving(entityHaving(...))`.
 		 */
-		REFERENCED_ENTITY_ATTRIBUTE
+		REFERENCED_ENTITY_ATTRIBUTE,
+		/**
+		 * `$reference.referencedEntity.references['r'].attributes['x']` — reference attribute on
+		 * the referenced entity, wrapped in `referenceHaving(entityHaving(referenceHaving('r', ...)))`.
+		 */
+		REFERENCED_ENTITY_REFERENCE_ATTRIBUTE,
+		/**
+		 * `$reference.groupEntity?.references['r'].attributes['x']` — reference attribute on
+		 * the group entity, wrapped in `referenceHaving(groupHaving(referenceHaving('r', ...)))`.
+		 */
+		GROUP_ENTITY_REFERENCE_ATTRIBUTE
 	}
 
 	/**
@@ -741,7 +949,12 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 *
 	 * @param pathType      the type of data path (determines wrapping)
 	 * @param attributeName the attribute name extracted from the element access step
+	 * @param referenceName the reference name on the target entity, or `null` for non-reference-attribute paths
 	 */
-	record DataPath(@Nonnull PathType pathType, @Nonnull String attributeName) {
+	record DataPath(
+		@Nonnull PathType pathType,
+		@Nonnull String attributeName,
+		@Nullable String referenceName
+	) {
 	}
 }
