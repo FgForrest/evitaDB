@@ -483,75 +483,75 @@ Rationale: The `evita_engine` module already depends on `proxycian.bytebuddy` (c
 
 ##### Group 1: State records and shared infrastructure
 
-- [ ] **1.1** Create `EntityProxyState` record -- `evita_engine/.../core/expression/proxy/EntityProxyState.java`. Fields: `EntitySchemaContract schema`, `EntityBodyStoragePart bodyPart` (nullable -- only fetched when `PrimaryKeyPartial` or `ParentPartial` is needed), `AttributesStoragePart[] attributesParts` (nullable -- global + locale-specific, only when `EntityAttributePartial` is needed), `AssociatedDataStoragePart[] associatedDataParts` (nullable -- only when `AssociatedDataPartial` is needed), `ReferencesStoragePart referencesPart` (nullable -- only when `ReferencesPartial` is needed). Must implement `Serializable`.
+- [x] **1.1** Create `EntityProxyState` record -- `evita_engine/.../core/expression/proxy/EntityProxyState.java`. Fields: `EntitySchemaContract schema`, `EntityBodyStoragePart bodyPart` (nullable -- only fetched when `PrimaryKeyPartial` or `ParentPartial` is needed), `AttributesStoragePart[] attributesParts` (nullable -- global + locale-specific, only when `EntityAttributePartial` is needed), `AssociatedDataStoragePart[] associatedDataParts` (nullable -- only when `AssociatedDataPartial` is needed), `ReferencesStoragePart referencesPart` (nullable -- only when `ReferencesPartial` is needed). Must implement `Serializable`.
 
-- [ ] **1.2** Create `ReferenceProxyState` record -- `evita_engine/.../core/expression/proxy/ReferenceProxyState.java`. Fields: `ReferenceSchemaContract referenceSchema`, `ReferenceKey referenceKey`, `int version` (from `Reference.version()` -- used by `ReferenceVersionAndDroppablePartial`), `AttributeValue[] attributes` (reference-level attributes from the `Reference` entry in `ReferencesStoragePart`), `Set<Locale> attributeLocales`, `GroupEntityReference group` (nullable), `SealedEntity referencedEntity` (nullable -- populated by nested proxy when `ReferencedEntityPartial` is active), `SealedEntity groupEntity` (nullable -- populated by nested proxy when `GroupEntityPartial` is active). Must implement `Serializable`.
+- [x] **1.2** Create `ReferenceProxyState` record -- `evita_engine/.../core/expression/proxy/ReferenceProxyState.java`. Fields: `ReferenceSchemaContract referenceSchema`, `ReferenceKey referenceKey`, `int version` (from `Reference.version()` -- used by `ReferenceVersionAndDroppablePartial`), `AttributeValue[] attributes` (reference-level attributes from the `Reference` entry in `ReferencesStoragePart`), `Set<Locale> attributeLocales`, `GroupEntityReference group` (nullable), `SealedEntity referencedEntity` (nullable -- populated by nested proxy when `ReferencedEntityPartial` is active), `SealedEntity groupEntity` (nullable -- populated by nested proxy when `GroupEntityPartial` is active). Must implement `Serializable`.
 
-- [ ] **1.3** Create `CatchAllPartial` class -- `evita_engine/.../core/expression/proxy/CatchAllPartial.java`. Contains a `public static final PredicateMethodClassification` constant named `INSTANCE` that matches all methods (`(method, proxyState) -> true`) and throws `ExpressionEvaluationException` with the method name. Reused by both entity and reference proxy compositions. Also contains an `OBJECT_METHODS` classification that delegates `Object.class` methods (toString, hashCode, equals) to `invokeSuper.call()`, matching the pattern from `ReferencedTypeEntityIndex`. **Ordering within `CatchAllPartial`:** When composing the classification list, `OBJECT_METHODS` must appear **before** `INSTANCE` in the list. ByteBuddy uses first-match semantics, so `OBJECT_METHODS` must have priority over the catch-all `INSTANCE`. The full ordering is: all specific partials first, then `CatchAllPartial.OBJECT_METHODS`, then `CatchAllPartial.INSTANCE` last.
+- [x] **1.3** Create `CatchAllPartial` class -- `evita_engine/.../core/expression/proxy/CatchAllPartial.java`. Contains a `public static final PredicateMethodClassification` constant named `INSTANCE` that matches all methods (`(method, proxyState) -> true`) and throws `ExpressionEvaluationException` with the method name. Reused by both entity and reference proxy compositions. Also contains an `OBJECT_METHODS` classification that delegates `Object.class` methods (toString, hashCode, equals) to `invokeSuper.call()`, matching the pattern from `ReferencedTypeEntityIndex`. **Ordering within `CatchAllPartial`:** When composing the classification list, `OBJECT_METHODS` must appear **before** `INSTANCE` in the list. ByteBuddy uses first-match semantics, so `OBJECT_METHODS` must have priority over the catch-all `INSTANCE`. The full ordering is: all specific partials first, then `CatchAllPartial.OBJECT_METHODS`, then `CatchAllPartial.INSTANCE` last.
 
 ##### Group 2: EntityContract partials
 
-- [ ] **2.1** Create `EntitySchemaPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntitySchemaPartial.java`. `PredicateMethodClassification` matching `getSchema()` and `getType()` on `EntityContract`/`WithEntitySchema`. `getSchema()` returns `EntitySchemaContract` from `EntityProxyState.schema()`. `getType()` returns `schema.getName()`. Note: the proxy's `getSchema()` returns the `EntitySchemaContract` instance as stored in the state -- this may be a non-sealed schema implementation, which differs from `Entity.getSchema()` which typically returns a `SealedEntitySchema`. This is acceptable in the expression evaluation context, as the accessors only call `getAttribute(String)` and similar methods on the schema contract interface.
+- [x] **2.1** Create `EntitySchemaPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntitySchemaPartial.java`. `PredicateMethodClassification` matching `getSchema()` and `getType()` on `EntityContract`/`WithEntitySchema`. `getSchema()` returns `EntitySchemaContract` from `EntityProxyState.schema()`. `getType()` returns `schema.getName()`. Note: the proxy's `getSchema()` returns the `EntitySchemaContract` instance as stored in the state -- this may be a non-sealed schema implementation, which differs from `Entity.getSchema()` which typically returns a `SealedEntitySchema`. This is acceptable in the expression evaluation context, as the accessors only call `getAttribute(String)` and similar methods on the schema contract interface.
 
-- [ ] **2.2** Create `EntityPrimaryKeyPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityPrimaryKeyPartial.java`. `PredicateMethodClassification` matching `getPrimaryKey()` on `EntityContract`. Returns `bodyPart.getPrimaryKey()` from `EntityProxyState`.
+- [x] **2.2** Create `EntityPrimaryKeyPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityPrimaryKeyPartial.java`. `PredicateMethodClassification` matching `getPrimaryKey()` on `EntityContract`. Returns `bodyPart.getPrimaryKey()` from `EntityProxyState`.
 
-- [ ] **2.3** Create `EntityAttributePartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityAttributePartial.java`. Multiple `PredicateMethodClassification` instances covering: `getAttribute(String)` -- delegates to `AttributesStoragePart.findAttribute(AttributeKey)` on the global `AttributesStoragePart` from `EntityProxyState.attributesParts[0]` (binary search on sorted array); `getAttribute(String, Locale)` -- finds locale-specific `AttributesStoragePart` from `attributesParts` array, then delegates to `findAttribute(AttributeKey)` (binary search); `getAttributeSchema(String)` -- delegates to `schema.getAttribute(String)` (returns `Optional`); `getAttributeLocales()` -- returns union of locales from all locale-specific attribute parts; `attributesAvailable()` -- returns `true`; `getAttributeValue(String)` and `getAttributeValue(String, Locale)` -- linear scan returning `Optional<AttributeValue>`; `getAttributeValues()` and `getAttributeValues(String)` -- iterate attribute arrays.
+- [x] **2.3** Create `EntityAttributePartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityAttributePartial.java`. Multiple `PredicateMethodClassification` instances covering: `getAttribute(String)` -- delegates to `AttributesStoragePart.findAttribute(AttributeKey)` on the global `AttributesStoragePart` from `EntityProxyState.attributesParts[0]` (binary search on sorted array); `getAttribute(String, Locale)` -- finds locale-specific `AttributesStoragePart` from `attributesParts` array, then delegates to `findAttribute(AttributeKey)` (binary search); `getAttributeSchema(String)` -- delegates to `schema.getAttribute(String)` (returns `Optional`); `getAttributeLocales()` -- returns union of locales from all locale-specific attribute parts; `attributesAvailable()` -- returns `true`; `getAttributeValue(String)` and `getAttributeValue(String, Locale)` -- linear scan returning `Optional<AttributeValue>`; `getAttributeValues()` and `getAttributeValues(String)` -- iterate attribute arrays.
 
-- [ ] **2.4** Create `EntityAssociatedDataPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityAssociatedDataPartial.java`. `PredicateMethodClassification` instances covering: `getAssociatedData(String)` -- finds matching `AssociatedDataStoragePart` from `EntityProxyState.associatedDataParts`, returns `value.value()`; `getAssociatedData(String, Locale)` -- same with locale matching; `getAssociatedDataSchema(String)` -- delegates to `schema.getAssociatedData(String)`; `getAssociatedDataLocales()` -- returns union of locales from associated data parts; `associatedDataAvailable()` -- returns `true`.
+- [x] **2.4** Create `EntityAssociatedDataPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityAssociatedDataPartial.java`. `PredicateMethodClassification` instances covering: `getAssociatedData(String)` -- finds matching `AssociatedDataStoragePart` from `EntityProxyState.associatedDataParts`, returns `value.value()`; `getAssociatedData(String, Locale)` -- same with locale matching; `getAssociatedDataSchema(String)` -- delegates to `schema.getAssociatedData(String)`; `getAssociatedDataLocales()` -- returns union of locales from associated data parts; `associatedDataAvailable()` -- returns `true`.
 
-- [ ] **2.5** Create `EntityReferencesPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityReferencesPartial.java`. `PredicateMethodClassification` instances covering: `getReferences(String)` -- filters `Reference[]` from `ReferencesStoragePart.getReferences()` by reference name (linear scan, collecting matches into a list); `getReference(String, int)` -- finds specific reference by name + PK; `referencesAvailable()` -- returns `true`.
+- [x] **2.5** Create `EntityReferencesPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityReferencesPartial.java`. `PredicateMethodClassification` instances covering: `getReferences(String)` -- filters `Reference[]` from `ReferencesStoragePart.getReferences()` by reference name (linear scan, collecting matches into a list); `getReference(String, int)` -- finds specific reference by name + PK; `referencesAvailable()` -- returns `true`.
 
-- [ ] **2.6** Create `EntityParentPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityParentPartial.java`. `PredicateMethodClassification` instances covering: `getParent()` -- returns `OptionalInt.of(bodyPart.getParent())` or `OptionalInt.empty()` if null; `parentAvailable()` -- returns `true`; `getParentEntity()` -- returns `Optional` wrapping an `EntityReferenceWithParent` built from the parent PK.
+- [x] **2.6** Create `EntityParentPartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityParentPartial.java`. `PredicateMethodClassification` instances covering: `getParent()` -- returns `OptionalInt.of(bodyPart.getParent())` or `OptionalInt.empty()` if null; `parentAvailable()` -- returns `true`; `getParentEntity()` -- returns `Optional` wrapping an `EntityReferenceWithParent` built from the parent PK.
 
-- [ ] **2.7** Create `EntityVersionAndDroppablePartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityVersionAndDroppablePartial.java`. Always-included `PredicateMethodClassification` matching `version()`, `dropped()`, `getScope()`, `getAllLocales()`, `getLocales()` on `EntityContract`. Returns sensible defaults from `EntityProxyState`: version from `bodyPart.getVersion()`, `dropped()` returns `false` (storage parts exist), `getScope()` from `bodyPart.getScope()`, locales from `bodyPart.getLocales()`. **Note on remaining `EntityContract` methods:** `EntityContract` also inherits `differsFrom(EntityContract)` from `ContentComparator<EntityContract>` and `estimateSize()` -- both are `default` methods on `EntityContract` with working implementations, so they do not need explicit partial handling. The `exists()` method from `Droppable` is also a default method (delegates to `dropped()`). Any other methods from the full `EntityContract` interface surface not covered by selected partials will fall through to `CatchAllPartial`, which throws `ExpressionEvaluationException`.
+- [x] **2.7** Create `EntityVersionAndDroppablePartial` class -- `evita_engine/.../core/expression/proxy/entity/EntityVersionAndDroppablePartial.java`. Always-included `PredicateMethodClassification` matching `version()`, `dropped()`, `getScope()`, `getAllLocales()`, `getLocales()` on `EntityContract`. Returns sensible defaults from `EntityProxyState`: version from `bodyPart.getVersion()`, `dropped()` returns `false` (storage parts exist), `getScope()` from `bodyPart.getScope()`, locales from `bodyPart.getLocales()`. **Note on remaining `EntityContract` methods:** `EntityContract` also inherits `differsFrom(EntityContract)` from `ContentComparator<EntityContract>` and `estimateSize()` -- both are `default` methods on `EntityContract` with working implementations, so they do not need explicit partial handling. The `exists()` method from `Droppable` is also a default method (delegates to `dropped()`). Any other methods from the full `EntityContract` interface surface not covered by selected partials will fall through to `CatchAllPartial`, which throws `ExpressionEvaluationException`.
 
 ##### Group 3: ReferenceContract partials
 
-- [ ] **3.1** Create `ReferenceIdentityPartial` class -- `evita_engine/.../core/expression/proxy/reference/ReferenceIdentityPartial.java`. `PredicateMethodClassification` instances covering: `getReferenceKey()` -- returns `ReferenceProxyState.referenceKey()`; `getReferencedEntityType()` -- returns `referenceSchema.getReferencedEntityType()`; `getReferenceCardinality()` -- returns `referenceSchema.getCardinality()`; `getReferenceSchema()` -- returns `Optional.of(referenceSchema)`; `getReferenceSchemaOrThrow()` -- returns `referenceSchema`. Note: `getReferencedPrimaryKey()` and `getReferenceName()` are default methods on `ReferenceContract` that delegate to `getReferenceKey()` -- no explicit implementation needed.
+- [x] **3.1** Create `ReferenceIdentityPartial` class -- `evita_engine/.../core/expression/proxy/reference/ReferenceIdentityPartial.java`. `PredicateMethodClassification` instances covering: `getReferenceKey()` -- returns `ReferenceProxyState.referenceKey()`; `getReferencedEntityType()` -- returns `referenceSchema.getReferencedEntityType()`; `getReferenceCardinality()` -- returns `referenceSchema.getCardinality()`; `getReferenceSchema()` -- returns `Optional.of(referenceSchema)`; `getReferenceSchemaOrThrow()` -- returns `referenceSchema`. Note: `getReferencedPrimaryKey()` and `getReferenceName()` are default methods on `ReferenceContract` that delegate to `getReferenceKey()` -- no explicit implementation needed.
 
-- [ ] **3.2** Create `ReferenceAttributePartial` class -- `evita_engine/.../core/expression/proxy/reference/ReferenceAttributePartial.java`. `PredicateMethodClassification` instances covering: `getAttribute(String)` -- binary search of `ReferenceProxyState.attributes()` array (using `Arrays.binarySearch()` on the sorted `AttributeValue[]`, consistent with `AttributesStoragePart.findAttribute()`); `getAttribute(String, Locale)` -- same with locale matching; `getAttributeSchema(String)` -- delegates to `referenceSchema.getAttribute(String)`; `getAttributeLocales()` -- returns `ReferenceProxyState.attributeLocales()`; `attributesAvailable()` -- returns `true`.
+- [x] **3.2** Create `ReferenceAttributePartial` class -- `evita_engine/.../core/expression/proxy/reference/ReferenceAttributePartial.java`. `PredicateMethodClassification` instances covering: `getAttribute(String)` -- binary search of `ReferenceProxyState.attributes()` array (using `Arrays.binarySearch()` on the sorted `AttributeValue[]`, consistent with `AttributesStoragePart.findAttribute()`); `getAttribute(String, Locale)` -- same with locale matching; `getAttributeSchema(String)` -- delegates to `referenceSchema.getAttribute(String)`; `getAttributeLocales()` -- returns `ReferenceProxyState.attributeLocales()`; `attributesAvailable()` -- returns `true`.
 
-- [ ] **3.3** Create `GroupReferencePartial` class -- `evita_engine/.../core/expression/proxy/reference/GroupReferencePartial.java`. `PredicateMethodClassification` matching `getGroup()` -- returns `Optional.ofNullable(ReferenceProxyState.group())`.
+- [x] **3.3** Create `GroupReferencePartial` class -- `evita_engine/.../core/expression/proxy/reference/GroupReferencePartial.java`. `PredicateMethodClassification` matching `getGroup()` -- returns `Optional.ofNullable(ReferenceProxyState.group())`.
 
-- [ ] **3.4** Create `ReferencedEntityPartial` class -- `evita_engine/.../core/expression/proxy/reference/ReferencedEntityPartial.java`. `PredicateMethodClassification` matching `getReferencedEntity()` -- returns `Optional.ofNullable(ReferenceProxyState.referencedEntity())`. The `SealedEntity` value is a nested EntityContract proxy, wired at trigger time.
+- [x] **3.4** Create `ReferencedEntityPartial` class -- `evita_engine/.../core/expression/proxy/reference/ReferencedEntityPartial.java`. `PredicateMethodClassification` matching `getReferencedEntity()` -- returns `Optional.ofNullable(ReferenceProxyState.referencedEntity())`. The `SealedEntity` value is a nested EntityContract proxy, wired at trigger time.
 
-- [ ] **3.5** Create `GroupEntityPartial` class -- `evita_engine/.../core/expression/proxy/reference/GroupEntityPartial.java`. `PredicateMethodClassification` matching `getGroupEntity()` -- returns `Optional.ofNullable(ReferenceProxyState.groupEntity())`. The `SealedEntity` value is a nested EntityContract proxy, wired at trigger time.
+- [x] **3.5** Create `GroupEntityPartial` class -- `evita_engine/.../core/expression/proxy/reference/GroupEntityPartial.java`. `PredicateMethodClassification` matching `getGroupEntity()` -- returns `Optional.ofNullable(ReferenceProxyState.groupEntity())`. The `SealedEntity` value is a nested EntityContract proxy, wired at trigger time.
 
-- [ ] **3.6** Create `ReferenceVersionAndDroppablePartial` class -- `evita_engine/.../core/expression/proxy/reference/ReferenceVersionAndDroppablePartial.java`. Always-included `PredicateMethodClassification` matching `version()` and `dropped()` on `ReferenceContract`. `dropped()` returns `false` (the proxy exists because the reference is live). `version()` returns the version from the `Reference` object obtained from `ReferencesStoragePart` (available via `Reference.version()`), rather than a hardcoded default. This avoids masking bugs in tests that verify version values and is consistent with `EntityVersionAndDroppablePartial` which reads from the storage part. The `ReferenceProxyState` record (Task 1.2) should include an `int version` field populated from the `Reference` entry.
+- [x] **3.6** Create `ReferenceVersionAndDroppablePartial` class -- `evita_engine/.../core/expression/proxy/reference/ReferenceVersionAndDroppablePartial.java`. Always-included `PredicateMethodClassification` matching `version()` and `dropped()` on `ReferenceContract`. `dropped()` returns `false` (the proxy exists because the reference is live). `version()` returns the version from the `Reference` object obtained from `ReferencesStoragePart` (available via `Reference.version()`), rather than a hardcoded default. This avoids masking bugs in tests that verify version values and is consistent with `EntityVersionAndDroppablePartial` which reads from the storage part. The `ReferenceProxyState` record (Task 1.2) should include an `int version` field populated from the `Reference` entry.
 
 ##### Group 4: State recipe builder (path-to-partial mapping)
 
-- [ ] **4.1** Create `StoragePartRecipe` record -- `evita_engine/.../core/expression/proxy/StoragePartRecipe.java`. Immutable descriptor of which storage parts to fetch at trigger time. Fields: `boolean needsEntityBody`, `boolean needsGlobalAttributes`, `Set<Locale> neededAttributeLocales` (empty set means "all locales" when the expression accesses localized attributes), `boolean needsReferences`, `Set<String> neededAssociatedDataNames` (set of associated data names extracted from expression paths like `$entity.associatedData['desc']`), `Set<Locale> neededAssociatedDataLocales` (locales for localized associated data -- empty means "all locales" when the expression accesses localized associated data via `$entity.localizedAssociatedData['x']`), `boolean needsPrices` (future), `StoragePartRecipe nestedReferencedEntityRecipe` (nullable -- for `$reference.referencedEntity.*`), `StoragePartRecipe nestedGroupEntityRecipe` (nullable -- for `$reference.groupEntity?.*`). **Associated data locale resolution:** `AccessedDataFinder` produces paths like `$entity.associatedData['desc']` (non-localized) and `$entity.localizedAssociatedData['desc']` (localized). For non-localized paths, the `AssociatedDataKey` is constructed with `locale=null`. For localized paths, the locale is not known at schema load time -- the `ExpressionProxyInstantiator` constructs `AssociatedDataKey` instances at trigger time by combining each name with each locale from `neededAssociatedDataLocales` (or from `EntityBodyStoragePart.getLocales()` when "all locales" is indicated). Each key is then passed to `EntityStoragePartAccessor.getAssociatedDataStoragePart(entityType, pk, AssociatedDataKey)` individually.
+- [x] **4.1** Create `StoragePartRecipe` record -- `evita_engine/.../core/expression/proxy/StoragePartRecipe.java`. Immutable descriptor of which storage parts to fetch at trigger time. Fields: `boolean needsEntityBody`, `boolean needsGlobalAttributes`, `Set<Locale> neededAttributeLocales` (empty set means "all locales" when the expression accesses localized attributes), `boolean needsReferences`, `Set<String> neededAssociatedDataNames` (set of associated data names extracted from expression paths like `$entity.associatedData['desc']`), `Set<Locale> neededAssociatedDataLocales` (locales for localized associated data -- empty means "all locales" when the expression accesses localized associated data via `$entity.localizedAssociatedData['x']`), `boolean needsPrices` (future), `StoragePartRecipe nestedReferencedEntityRecipe` (nullable -- for `$reference.referencedEntity.*`), `StoragePartRecipe nestedGroupEntityRecipe` (nullable -- for `$reference.groupEntity?.*`). **Associated data locale resolution:** `AccessedDataFinder` produces paths like `$entity.associatedData['desc']` (non-localized) and `$entity.localizedAssociatedData['desc']` (localized). For non-localized paths, the `AssociatedDataKey` is constructed with `locale=null`. For localized paths, the locale is not known at schema load time -- the `ExpressionProxyInstantiator` constructs `AssociatedDataKey` instances at trigger time by combining each name with each locale from `neededAssociatedDataLocales` (or from `EntityBodyStoragePart.getLocales()` when "all locales" is indicated). Each key is then passed to `EntityStoragePartAccessor.getAssociatedDataStoragePart(entityType, pk, AssociatedDataKey)` individually.
 
-- [ ] **4.2** Create `PathToPartialMapper` class -- `evita_engine/.../core/expression/proxy/PathToPartialMapper.java`. Takes `List<List<PathItem>>` from `AccessedDataFinder.findAccessedPaths()` and produces: (a) `Set<PredicateMethodClassification>` for EntityContract proxy, (b) `Set<PredicateMethodClassification>` for ReferenceContract proxy, (c) sets for any nested entity proxies, (d) `StoragePartRecipe` for each proxy level. Implements the path-to-partial mapping table from the WBS document. Handles path prefix matching: first item must be a `VariablePathItem` with value `entity` or `reference`; second item is an `IdentifierPathItem` whose value selects the partial (`primaryKey`, `attributes`, `localizedAttributes`, `associatedData`, `localizedAssociatedData`, `references`, `parent`, `referencedPrimaryKey`, `referencedEntity`, `groupEntity`). Implements union logic: multiple paths contributing the same partial type are deduplicated. Always includes `SchemaPartial` + `EntityVersionAndDroppablePartial` + `CatchAllPartial` for entity proxies and `ReferenceIdentityPartial` + `ReferenceVersionAndDroppablePartial` + `CatchAllPartial` for reference proxies. Handles recursive descent for nested entity paths (paths continuing after `referencedEntity` or `groupEntity`).
+- [x] **4.2** Create `PathToPartialMapper` class -- `evita_engine/.../core/expression/proxy/PathToPartialMapper.java`. Takes `List<List<PathItem>>` from `AccessedDataFinder.findAccessedPaths()` and produces: (a) `Set<PredicateMethodClassification>` for EntityContract proxy, (b) `Set<PredicateMethodClassification>` for ReferenceContract proxy, (c) sets for any nested entity proxies, (d) `StoragePartRecipe` for each proxy level. Implements the path-to-partial mapping table from the WBS document. Handles path prefix matching: first item must be a `VariablePathItem` with value `entity` or `reference`; second item is an `IdentifierPathItem` whose value selects the partial (`primaryKey`, `attributes`, `localizedAttributes`, `associatedData`, `localizedAssociatedData`, `references`, `parent`, `referencedPrimaryKey`, `referencedEntity`, `groupEntity`). Implements union logic: multiple paths contributing the same partial type are deduplicated. Always includes `SchemaPartial` + `EntityVersionAndDroppablePartial` + `CatchAllPartial` for entity proxies and `ReferenceIdentityPartial` + `ReferenceVersionAndDroppablePartial` + `CatchAllPartial` for reference proxies. Handles recursive descent for nested entity paths (paths continuing after `referencedEntity` or `groupEntity`).
 
 ##### Group 5: Schema load time proxy class composition
 
-- [ ] **5.1** Create `ExpressionProxyFactory` class -- `evita_engine/.../core/expression/proxy/ExpressionProxyFactory.java`. Main entry point for schema-load-time proxy class preparation. Public method `buildProxyDescriptor(ExpressionNode expression, EntitySchemaContract entitySchema, ReferenceSchemaContract referenceSchema)` that: (1) calls `AccessedDataFinder.findAccessedPaths(expression)`, (2) calls `PathToPartialMapper` to get partials + recipe, (3) composes `ByteBuddyDispatcherInvocationHandler` for each proxy level, (4) calls `ByteBuddyProxyGenerator` to pre-generate proxy classes, (5) returns an `ExpressionProxyDescriptor`.
+- [x] **5.1** Create `ExpressionProxyFactory` class -- `evita_engine/.../core/expression/proxy/ExpressionProxyFactory.java`. Main entry point for schema-load-time proxy class preparation. Public method `buildProxyDescriptor(ExpressionNode expression, EntitySchemaContract entitySchema, ReferenceSchemaContract referenceSchema)` that: (1) calls `AccessedDataFinder.findAccessedPaths(expression)`, (2) calls `PathToPartialMapper` to get partials + recipe, (3) composes `ByteBuddyDispatcherInvocationHandler` for each proxy level, (4) calls `ByteBuddyProxyGenerator` to pre-generate proxy classes, (5) returns an `ExpressionProxyDescriptor`.
 
-- [ ] **5.2** Create `ExpressionProxyDescriptor` record -- `evita_engine/.../core/expression/proxy/ExpressionProxyDescriptor.java`. Immutable output of `ExpressionProxyFactory.buildProxyDescriptor()`. Fields: `ByteBuddyDispatcherInvocationHandler entityHandler` (nullable -- null when expression does not access `$entity`), `ByteBuddyDispatcherInvocationHandler referenceHandler` (nullable -- null when expression does not access `$reference`), `ByteBuddyDispatcherInvocationHandler nestedReferencedEntityHandler` (nullable), `ByteBuddyDispatcherInvocationHandler nestedGroupEntityHandler` (nullable), `StoragePartRecipe entityRecipe` (nullable), `StoragePartRecipe referenceRecipe` (nullable). This descriptor is stored in `FacetExpressionTrigger` and reused at every trigger time invocation.
+- [x] **5.2** Create `ExpressionProxyDescriptor` record -- `evita_engine/.../core/expression/proxy/ExpressionProxyDescriptor.java`. Immutable output of `ExpressionProxyFactory.buildProxyDescriptor()`. Fields: `ByteBuddyDispatcherInvocationHandler entityHandler` (nullable -- null when expression does not access `$entity`), `ByteBuddyDispatcherInvocationHandler referenceHandler` (nullable -- null when expression does not access `$reference`), `ByteBuddyDispatcherInvocationHandler nestedReferencedEntityHandler` (nullable), `ByteBuddyDispatcherInvocationHandler nestedGroupEntityHandler` (nullable), `StoragePartRecipe entityRecipe` (nullable), `StoragePartRecipe referenceRecipe` (nullable). This descriptor is stored in `FacetExpressionTrigger` and reused at every trigger time invocation.
 
 ##### Group 6: Trigger time instantiation
 
-- [ ] **6.1** Create `ExpressionProxyInstantiator` class -- `evita_engine/.../core/expression/proxy/ExpressionProxyInstantiator.java`. Trigger-time factory that uses a pre-built `ExpressionProxyDescriptor` to: (1) fetch storage parts per the `StoragePartRecipe` from `EntityStoragePartAccessor`, (2) build `EntityProxyState` and/or `ReferenceProxyState` records, (3) instantiate pre-built proxy classes via `ByteBuddyProxyGenerator.instantiate()`, (4) wire nested proxies (for `referencedEntity`/`groupEntity` paths, first build the nested entity proxy, then inject it into `ReferenceProxyState`), (5) return the proxy instances. Public method signature: `createProxies(ExpressionProxyDescriptor descriptor, int entityPK, ReferenceContract reference, EntityStoragePartAccessor storageAccessor, EntitySchemaContract entitySchema, ReferenceSchemaContract referenceSchema)` returning a record with `EntityContract entityProxy` (nullable) and `ReferenceContract referenceProxy` (nullable). **Note on nested entity proxies:** The root `entityProxy` is typed as `EntityContract`, but nested entity proxies (for `$reference.referencedEntity.*` and `$reference.groupEntity?.*`) must implement `SealedEntity` (see Task 7.3) since `ReferenceContract.getReferencedEntity()` and `getGroupEntity()` return `Optional<SealedEntity>`. Internally, the instantiator creates the nested proxies as `SealedEntity` instances and stores them in `ReferenceProxyState.referencedEntity` / `ReferenceProxyState.groupEntity` (which are typed as `SealedEntity` per Task 1.2). The upcast from the ByteBuddy-generated proxy to `SealedEntity` is guaranteed because the nested proxy class includes `SealedEntity.class` in its interfaces array.
+- [x] **6.1** Create `ExpressionProxyInstantiator` class -- `evita_engine/.../core/expression/proxy/ExpressionProxyInstantiator.java`. Trigger-time factory that uses a pre-built `ExpressionProxyDescriptor` to: (1) fetch storage parts per the `StoragePartRecipe` from `EntityStoragePartAccessor`, (2) build `EntityProxyState` and/or `ReferenceProxyState` records, (3) instantiate pre-built proxy classes via `ByteBuddyProxyGenerator.instantiate()`, (4) wire nested proxies (for `referencedEntity`/`groupEntity` paths, first build the nested entity proxy, then inject it into `ReferenceProxyState`), (5) return the proxy instances. Public method signature: `createProxies(ExpressionProxyDescriptor descriptor, int entityPK, ReferenceContract reference, EntityStoragePartAccessor storageAccessor, EntitySchemaContract entitySchema, ReferenceSchemaContract referenceSchema)` returning a record with `EntityContract entityProxy` (nullable) and `ReferenceContract referenceProxy` (nullable). **Note on nested entity proxies:** The root `entityProxy` is typed as `EntityContract`, but nested entity proxies (for `$reference.referencedEntity.*` and `$reference.groupEntity?.*`) must implement `SealedEntity` (see Task 7.3) since `ReferenceContract.getReferencedEntity()` and `getGroupEntity()` return `Optional<SealedEntity>`. Internally, the instantiator creates the nested proxies as `SealedEntity` instances and stores them in `ReferenceProxyState.referencedEntity` / `ReferenceProxyState.groupEntity` (which are typed as `SealedEntity` per Task 1.2). The upcast from the ByteBuddy-generated proxy to `SealedEntity` is guaranteed because the nested proxy class includes `SealedEntity.class` in its interfaces array.
 
 - [ ] **6.2** Implement `createEvaluationContext()` method on `FacetExpressionTrigger` (this class does not exist yet; it will be created in WBS-03 but the method signature and delegation to `ExpressionProxyInstantiator` should be designed here). Define the method contract: takes `int entityPK`, `ReferenceKey referenceKey`, `WritableEntityStorageContainerAccessor storageAccessor`; returns `ExpressionEvaluationContext` with bound `$entity` and `$reference` variables. Internally calls `ExpressionProxyInstantiator.createProxies()` and wraps results in an `ExpressionEvaluationContext` implementation with variable bindings. **Relationship with `ExpressionIndexTrigger.evaluate()`:** The parent analysis defines `evaluate(int ownerEntityPK, ReferenceKey referenceKey, WritableEntityStorageContainerAccessor storageAccessor)` on `ExpressionIndexTrigger`. The `evaluate()` method calls `createEvaluationContext()` internally. Both methods take `ReferenceKey` (not `ReferenceContract`), because the caller (e.g., `ReferenceIndexMutator`) has a `ReferenceKey` available from the mutation context. The `createEvaluationContext()` implementation fetches the `Reference` entry from `ReferencesStoragePart` using `ReferencesStoragePart.findReferenceOrThrowException(ReferenceKey)` to obtain the reference's `AttributeValue[]` data needed by `ReferenceAttributePartial`.
 
-- [ ] **6.3** Create `ExpressionVariableContext` class -- `evita_engine/.../core/expression/proxy/ExpressionVariableContext.java`. Implements `ExpressionEvaluationContext`. Holds a `Map<String, Object>` of variable bindings (e.g., `"entity" -> entityProxy`, `"reference" -> referenceProxy`). Methods: `getVariable(String)` returns `Optional.ofNullable(map.get(variableName))` (matching the `@Nonnull Optional<Object>` return type declared by `ExpressionEvaluationContext`); `getVariableNames()` streams the keys; `getThis()` returns `Optional.empty()`; `withThis(Object)` creates a copy with `this` set; `getRandom()` returns a shared `Random` instance.
+- [x] **6.3** Create `ExpressionVariableContext` class -- `evita_engine/.../core/expression/proxy/ExpressionVariableContext.java`. Implements `ExpressionEvaluationContext`. Holds a `Map<String, Object>` of variable bindings (e.g., `"entity" -> entityProxy`, `"reference" -> referenceProxy`). Methods: `getVariable(String)` returns `Optional.ofNullable(map.get(variableName))` (matching the `@Nonnull Optional<Object>` return type declared by `ExpressionEvaluationContext`); `getVariableNames()` streams the keys; `getThis()` returns `Optional.empty()`; `withThis(Object)` creates a copy with `this` set; `getRandom()` returns a shared `Random` instance.
 
 ##### Group 7: Nested entity proxy wiring
 
-- [ ] **7.1** Implement nested entity proxy wiring logic in `ExpressionProxyInstantiator` -- when `StoragePartRecipe.nestedReferencedEntityRecipe()` is non-null: fetch the referenced entity's storage parts using `storageAccessor.getEntityStoragePart(referencedEntityType, referencedPrimaryKey, ...)` and relevant attribute/associated data parts per the nested recipe; build `EntityProxyState` for the referenced entity; instantiate the nested entity proxy class from `ExpressionProxyDescriptor.nestedReferencedEntityHandler()`; pass the resulting proxy as `referencedEntity` field in `ReferenceProxyState`.
+- [x] **7.1** Implement nested entity proxy wiring logic in `ExpressionProxyInstantiator` -- when `StoragePartRecipe.nestedReferencedEntityRecipe()` is non-null: fetch the referenced entity's storage parts using `storageAccessor.getEntityStoragePart(referencedEntityType, referencedPrimaryKey, ...)` and relevant attribute/associated data parts per the nested recipe; build `EntityProxyState` for the referenced entity; instantiate the nested entity proxy class from `ExpressionProxyDescriptor.nestedReferencedEntityHandler()`; pass the resulting proxy as `referencedEntity` field in `ReferenceProxyState`.
 
-- [ ] **7.2** Implement group entity proxy wiring -- same as 7.1 but for `nestedGroupEntityRecipe`. Fetch group entity's storage parts using the group entity type from `ReferenceSchemaContract.getReferencedGroupType()` and the group PK from `GroupEntityReference.getPrimaryKey()`. Handle nullable group (if `reference.getGroup()` is empty, the group entity proxy is null).
+- [x] **7.2** Implement group entity proxy wiring -- same as 7.1 but for `nestedGroupEntityRecipe`. Fetch group entity's storage parts using the group entity type from `ReferenceSchemaContract.getReferencedGroupType()` and the group PK from `GroupEntityReference.getPrimaryKey()`. Handle nullable group (if `reference.getGroup()` is empty, the group entity proxy is null).
 
-- [ ] **7.3** Ensure `SealedEntity` compatibility -- the proxy generated for nested entities must implement `SealedEntity` (since `ReferenceContract.getReferencedEntity()` and `getGroupEntity()` return `Optional<SealedEntity>`). The `ByteBuddyProxyGenerator.instantiate()` call for nested entity proxies must include `SealedEntity.class` in the interfaces array. **`SealedEntity` extends `SealedInstance<SealedEntity, EntityBuilder>`**, which adds three abstract methods not present on `EntityContract`: `openForWrite()`, `withMutations(LocalMutation...)`, and `withMutations(Collection<LocalMutation>)`. These methods have no default implementation and **must be absorbed by `CatchAllPartial`**, which will throw `ExpressionEvaluationException` for any of them. Note that `EntityContract` also extends `ContentComparator<EntityContract>` (adding `differsFrom()`) and inherits `estimateSize()` -- both are default methods on `EntityContract` and will use their default implementations unless intercepted by a partial, so they do not require explicit handling.
+- [x] **7.3** Ensure `SealedEntity` compatibility -- the proxy generated for nested entities must implement `SealedEntity` (since `ReferenceContract.getReferencedEntity()` and `getGroupEntity()` return `Optional<SealedEntity>`). The `ByteBuddyProxyGenerator.instantiate()` call for nested entity proxies must include `SealedEntity.class` in the interfaces array. **`SealedEntity` extends `SealedInstance<SealedEntity, EntityBuilder>`**, which adds three abstract methods not present on `EntityContract`: `openForWrite()`, `withMutations(LocalMutation...)`, and `withMutations(Collection<LocalMutation>)`. These methods have no default implementation and **must be absorbed by `CatchAllPartial`**, which will throw `ExpressionEvaluationException` for any of them. Note that `EntityContract` also extends `ContentComparator<EntityContract>` (adding `differsFrom()`) and inherits `estimateSize()` -- both are default methods on `EntityContract` and will use their default implementations unless intercepted by a partial, so they do not require explicit handling.
 
 ##### Group 8: Module configuration
 
-- [ ] **8.1** Update `evita_engine/src/main/java/module-info.java` -- add `exports io.evitadb.core.expression.proxy` (and sub-packages if needed) so that downstream modules (test modules, future WBS-03 trigger infrastructure) can access the proxy factory.
+- [x] **8.1** Update `evita_engine/src/main/java/module-info.java` -- add `exports io.evitadb.core.expression.proxy` (and sub-packages if needed) so that downstream modules (test modules, future WBS-03 trigger infrastructure) can access the proxy factory.
 
-- [ ] **8.2** Verify Proxycian dependency -- confirm that `proxycian.bytebuddy` module requirement already declared in `module-info.java` (line 120 -- confirmed) covers `ByteBuddyProxyGenerator`, `ByteBuddyDispatcherInvocationHandler`, and `PredicateMethodClassification` imports. No POM changes expected.
+- [x] **8.2** Verify Proxycian dependency -- confirm that `proxycian.bytebuddy` module requirement already declared in `module-info.java` (line 120 -- confirmed) covers `ByteBuddyProxyGenerator`, `ByteBuddyDispatcherInvocationHandler`, and `PredicateMethodClassification` imports. No POM changes expected.
 
 ### Test Cases
 
@@ -563,11 +563,11 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: safety net behavior**
 
-- [ ] `catch_all_throws_expression_evaluation_exception_with_method_name` -- invoke an arbitrary `EntityContract` method on a proxy composed only with `CatchAllPartial`; expect `ExpressionEvaluationException` whose message contains the method name
-- [ ] `catch_all_exception_message_includes_human_readable_context` -- invoke `getAttribute("code")` on a catch-all-only entity proxy; verify the exception public message mentions "not available during expression evaluation"
-- [ ] `catch_all_does_not_intercept_object_methods` -- invoke `toString()`, `hashCode()`, and `equals()` on a catch-all-only proxy; verify they delegate to the default Object implementation (via `invokeSuper`) and do NOT throw `ExpressionEvaluationException`
-- [ ] `catch_all_matches_every_unhandled_method` -- compose a proxy with `EntitySchemaPartial` + `CatchAllPartial`; invoke `getPrimaryKey()` (unhandled); expect `ExpressionEvaluationException`. Then invoke `getSchema()` (handled); expect success
-- [ ] `catch_all_is_last_in_classification_order` -- compose a proxy with `EntityPrimaryKeyPartial` + `CatchAllPartial` where both could theoretically match `getPrimaryKey()`; verify the specific partial wins and returns the correct value (ByteBuddy first-match semantics)
+- [x] `catch_all_throws_expression_evaluation_exception_with_method_name` -- invoke an arbitrary `EntityContract` method on a proxy composed only with `CatchAllPartial`; expect `ExpressionEvaluationException` whose message contains the method name
+- [x] `catch_all_exception_message_includes_human_readable_context` -- invoke `getAttribute("code")` on a catch-all-only entity proxy; verify the exception public message mentions "not available during expression evaluation"
+- [x] `catch_all_does_not_intercept_object_methods` -- invoke `toString()`, `hashCode()`, and `equals()` on a catch-all-only proxy; verify they delegate to the default Object implementation (via `invokeSuper`) and do NOT throw `ExpressionEvaluationException`
+- [x] `catch_all_matches_every_unhandled_method` -- compose a proxy with `EntitySchemaPartial` + `CatchAllPartial`; invoke `getPrimaryKey()` (unhandled); expect `ExpressionEvaluationException`. Then invoke `getSchema()` (handled); expect success
+- [x] `catch_all_is_last_in_classification_order` -- compose a proxy with `EntityPrimaryKeyPartial` + `CatchAllPartial` where both could theoretically match `getPrimaryKey()`; verify the specific partial wins and returns the correct value (ByteBuddy first-match semantics)
 
 ---
 
@@ -575,9 +575,9 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: schema access**
 
-- [ ] `get_schema_returns_entity_schema_from_state` -- create entity proxy with `EntitySchemaPartial`; call `getSchema()`; verify it returns the exact `EntitySchemaContract` instance from `EntityProxyState`
-- [ ] `get_type_returns_schema_name` -- create entity proxy with `EntitySchemaPartial`; call `getType()`; verify it returns `entitySchema.getName()`
-- [ ] `unhandled_methods_throw_when_only_schema_partial_present` -- create entity proxy with only `EntitySchemaPartial` + `CatchAllPartial`; call `getPrimaryKey()`; expect `ExpressionEvaluationException`
+- [x] `get_schema_returns_entity_schema_from_state` -- create entity proxy with `EntitySchemaPartial`; call `getSchema()`; verify it returns the exact `EntitySchemaContract` instance from `EntityProxyState`
+- [x] `get_type_returns_schema_name` -- create entity proxy with `EntitySchemaPartial`; call `getType()`; verify it returns `entitySchema.getName()`
+- [x] `unhandled_methods_throw_when_only_schema_partial_present` -- create entity proxy with only `EntitySchemaPartial` + `CatchAllPartial`; call `getPrimaryKey()`; expect `ExpressionEvaluationException`
 
 ---
 
@@ -585,8 +585,8 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: entity identity**
 
-- [ ] `get_primary_key_returns_value_from_body_storage_part` -- create entity proxy with `EntityPrimaryKeyPartial`; supply `EntityBodyStoragePart` with PK=42; call `getPrimaryKey()`; verify result is 42
-- [ ] `get_primary_key_with_different_values` -- test with PK=0, PK=Integer.MAX_VALUE, and a typical PK; verify each returns correctly
+- [x] `get_primary_key_returns_value_from_body_storage_part` -- create entity proxy with `EntityPrimaryKeyPartial`; supply `EntityBodyStoragePart` with PK=42; call `getPrimaryKey()`; verify result is 42
+- [x] `get_primary_key_with_different_values` -- test with PK=0, PK=Integer.MAX_VALUE, and a typical PK; verify each returns correctly
 
 ---
 
@@ -594,24 +594,24 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: non-localized attribute access**
 
-- [ ] `get_attribute_returns_value_by_binary_search` -- create proxy with `EntityAttributePartial`; supply `AttributesStoragePart` with global attributes `[("code", "ABC"), ("name", "Widget")]`; call `getAttribute("code")`; verify result is `"ABC"` (delegates to `AttributesStoragePart.findAttribute(AttributeKey)` which uses binary search on the sorted array)
-- [ ] `get_attribute_returns_null_for_missing_attribute` -- call `getAttribute("nonExistent")` on a proxy with attributes `[("code", "ABC")]`; verify result is null
-- [ ] `get_attribute_handles_various_value_types` -- supply attributes with `String`, `Integer`, `BigDecimal`, and `Boolean` values; verify each is returned with correct type
+- [x] `get_attribute_returns_value_by_binary_search` -- create proxy with `EntityAttributePartial`; supply `AttributesStoragePart` with global attributes `[("code", "ABC"), ("name", "Widget")]`; call `getAttribute("code")`; verify result is `"ABC"` (delegates to `AttributesStoragePart.findAttribute(AttributeKey)` which uses binary search on the sorted array)
+- [x] `get_attribute_returns_null_for_missing_attribute` -- call `getAttribute("nonExistent")` on a proxy with attributes `[("code", "ABC")]`; verify result is null
+- [x] `get_attribute_handles_various_value_types` -- supply attributes with `String`, `Integer`, `BigDecimal`, and `Boolean` values; verify each is returned with correct type
 
 **Category: localized attribute access**
 
-- [ ] `get_attribute_with_locale_returns_localized_value` -- supply locale-specific `AttributesStoragePart` for `Locale.ENGLISH` with `("name", "Widget")`; call `getAttribute("name", Locale.ENGLISH)`; verify result is `"Widget"`
-- [ ] `get_attribute_with_locale_returns_null_for_wrong_locale` -- supply attributes for `Locale.ENGLISH` only; call `getAttribute("name", Locale.GERMAN)`; verify result is null
-- [ ] `get_attribute_locales_returns_union_of_all_locale_parts` -- supply `AttributesStoragePart` for `Locale.ENGLISH` and `Locale.GERMAN`; call `getAttributeLocales()`; verify result is `{ENGLISH, GERMAN}`
+- [x] `get_attribute_with_locale_returns_localized_value` -- supply locale-specific `AttributesStoragePart` for `Locale.ENGLISH` with `("name", "Widget")`; call `getAttribute("name", Locale.ENGLISH)`; verify result is `"Widget"`
+- [x] `get_attribute_with_locale_returns_null_for_wrong_locale` -- supply attributes for `Locale.ENGLISH` only; call `getAttribute("name", Locale.GERMAN)`; verify result is null
+- [x] `get_attribute_locales_returns_union_of_all_locale_parts` -- supply `AttributesStoragePart` for `Locale.ENGLISH` and `Locale.GERMAN`; call `getAttributeLocales()`; verify result is `{ENGLISH, GERMAN}`
 
 **Category: schema delegation**
 
-- [ ] `get_attribute_schema_delegates_to_entity_schema` -- supply `EntitySchemaContract` mock that has attribute schema for `"code"`; call `getAttributeSchema("code")`; verify it returns the schema from the entity schema
-- [ ] `get_attribute_schema_returns_empty_for_unknown_attribute` -- call `getAttributeSchema("unknown")`; verify `Optional.empty()`
+- [x] `get_attribute_schema_delegates_to_entity_schema` -- supply `EntitySchemaContract` mock that has attribute schema for `"code"`; call `getAttributeSchema("code")`; verify it returns the schema from the entity schema
+- [x] `get_attribute_schema_returns_empty_for_unknown_attribute` -- call `getAttributeSchema("unknown")`; verify `Optional.empty()`
 
 **Category: availability flag**
 
-- [ ] `attributes_available_returns_true` -- call `attributesAvailable()` on a proxy with `EntityAttributePartial`; verify it returns `true`
+- [x] `attributes_available_returns_true` -- call `attributesAvailable()` on a proxy with `EntityAttributePartial`; verify it returns `true`
 
 ---
 
@@ -619,21 +619,21 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: non-localized associated data access**
 
-- [ ] `get_associated_data_returns_value_by_name` -- supply `AssociatedDataStoragePart` with `("description", "A widget")`; call `getAssociatedData("description")`; verify result is `"A widget"`
-- [ ] `get_associated_data_returns_null_for_missing_key` -- call `getAssociatedData("nonExistent")`; verify null
+- [x] `get_associated_data_returns_value_by_name` -- supply `AssociatedDataStoragePart` with `("description", "A widget")`; call `getAssociatedData("description")`; verify result is `"A widget"`
+- [x] `get_associated_data_returns_null_for_missing_key` -- call `getAssociatedData("nonExistent")`; verify null
 
 **Category: localized associated data access**
 
-- [ ] `get_associated_data_with_locale_returns_localized_value` -- supply locale-specific `AssociatedDataStoragePart` for `Locale.ENGLISH`; call `getAssociatedData("description", Locale.ENGLISH)`; verify correct value
-- [ ] `get_associated_data_locales_returns_available_locales` -- supply parts for two locales; call `getAssociatedDataLocales()`; verify both are returned
+- [x] `get_associated_data_with_locale_returns_localized_value` -- supply locale-specific `AssociatedDataStoragePart` for `Locale.ENGLISH`; call `getAssociatedData("description", Locale.ENGLISH)`; verify correct value
+- [x] `get_associated_data_locales_returns_available_locales` -- supply parts for two locales; call `getAssociatedDataLocales()`; verify both are returned
 
 **Category: schema delegation**
 
-- [ ] `get_associated_data_schema_delegates_to_entity_schema` -- call `getAssociatedDataSchema("description")`; verify delegation to `entitySchema.getAssociatedData("description")`
+- [x] `get_associated_data_schema_delegates_to_entity_schema` -- call `getAssociatedDataSchema("description")`; verify delegation to `entitySchema.getAssociatedData("description")`
 
 **Category: availability flag**
 
-- [ ] `associated_data_available_returns_true` -- call `associatedDataAvailable()`; verify `true`
+- [x] `associated_data_available_returns_true` -- call `associatedDataAvailable()`; verify `true`
 
 ---
 
@@ -641,14 +641,14 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: reference retrieval**
 
-- [ ] `get_references_filters_by_name` -- supply `ReferencesStoragePart` containing references `[("brand", 1), ("brand", 2), ("category", 10)]`; call `getReferences("brand")`; verify result has exactly 2 references with PKs 1 and 2
-- [ ] `get_references_returns_empty_collection_for_missing_name` -- call `getReferences("nonExistent")`; verify empty collection
-- [ ] `get_reference_finds_by_name_and_pk` -- call `getReference("brand", 1)`; verify correct reference is returned
-- [ ] `get_reference_returns_empty_for_wrong_pk` -- call `getReference("brand", 999)`; verify `Optional.empty()`
+- [x] `get_references_filters_by_name` -- supply `ReferencesStoragePart` containing references `[("brand", 1), ("brand", 2), ("category", 10)]`; call `getReferences("brand")`; verify result has exactly 2 references with PKs 1 and 2
+- [x] `get_references_returns_empty_collection_for_missing_name` -- call `getReferences("nonExistent")`; verify empty collection
+- [x] `get_reference_finds_by_name_and_pk` -- call `getReference("brand", 1)`; verify correct reference is returned
+- [x] `get_reference_returns_empty_for_wrong_pk` -- call `getReference("brand", 999)`; verify `Optional.empty()`
 
 **Category: availability flag**
 
-- [ ] `references_available_returns_true` -- call `referencesAvailable()`; verify `true`
+- [x] `references_available_returns_true` -- call `referencesAvailable()`; verify `true`
 
 ---
 
@@ -656,9 +656,9 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: parent access**
 
-- [ ] `get_parent_returns_parent_pk_when_present` -- supply `EntityBodyStoragePart` with parent=5; call `getParent()`; verify `OptionalInt.of(5)`
-- [ ] `get_parent_returns_empty_when_null` -- supply `EntityBodyStoragePart` with parent=null; call `getParent()`; verify `OptionalInt.empty()`
-- [ ] `parent_available_returns_true` -- call `parentAvailable()`; verify `true`
+- [x] `get_parent_returns_parent_pk_when_present` -- supply `EntityBodyStoragePart` with parent=5; call `getParent()`; verify `OptionalInt.of(5)`
+- [x] `get_parent_returns_empty_when_null` -- supply `EntityBodyStoragePart` with parent=null; call `getParent()`; verify `OptionalInt.empty()`
+- [x] `parent_available_returns_true` -- call `parentAvailable()`; verify `true`
 
 ---
 
@@ -666,10 +666,10 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: version and lifecycle**
 
-- [ ] `version_returns_body_part_version` -- supply `EntityBodyStoragePart` with version=3; call `version()`; verify result is 3
-- [ ] `dropped_returns_false` -- call `dropped()`; verify `false` (proxy existence implies the entity is live)
-- [ ] `get_scope_returns_body_part_scope` -- supply body part with `Scope.LIVE`; call `getScope()`; verify `Scope.LIVE`
-- [ ] `get_all_locales_returns_body_part_locales` -- supply body part with locales `{ENGLISH, GERMAN}`; call `getAllLocales()`; verify both are present
+- [x] `version_returns_body_part_version` -- supply `EntityBodyStoragePart` with version=3; call `version()`; verify result is 3
+- [x] `dropped_returns_false` -- call `dropped()`; verify `false` (proxy existence implies the entity is live)
+- [x] `get_scope_returns_body_part_scope` -- supply body part with `Scope.LIVE`; call `getScope()`; verify `Scope.LIVE`
+- [x] `get_all_locales_returns_body_part_locales` -- supply body part with locales `{ENGLISH, GERMAN}`; call `getAllLocales()`; verify both are present
 
 ---
 
@@ -677,13 +677,13 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: reference identity**
 
-- [ ] `get_reference_key_returns_key_from_state` -- create reference proxy with `ReferenceIdentityPartial`; supply `ReferenceKey("brand", 42)`; call `getReferenceKey()`; verify result
-- [ ] `get_referenced_primary_key_delegates_to_reference_key` -- call `getReferencedPrimaryKey()` (default method); verify it returns 42 via delegation to `getReferenceKey().primaryKey()`
-- [ ] `get_reference_name_delegates_to_reference_key` -- call `getReferenceName()` (default method); verify it returns `"brand"` via delegation to `getReferenceKey().referenceName()`
-- [ ] `get_referenced_entity_type_returns_schema_value` -- supply `ReferenceSchemaContract` with referenced entity type `"Brand"`; call `getReferencedEntityType()`; verify result
-- [ ] `get_reference_cardinality_returns_schema_value` -- supply schema with `Cardinality.ZERO_OR_MORE`; call `getReferenceCardinality()`; verify result
-- [ ] `get_reference_schema_returns_optional_of_schema` -- call `getReferenceSchema()`; verify `Optional.of(referenceSchema)`
-- [ ] `get_reference_schema_or_throw_returns_schema` -- call `getReferenceSchemaOrThrow()`; verify it returns the same schema instance
+- [x] `get_reference_key_returns_key_from_state` -- create reference proxy with `ReferenceIdentityPartial`; supply `ReferenceKey("brand", 42)`; call `getReferenceKey()`; verify result
+- [x] `get_referenced_primary_key_delegates_to_reference_key` -- call `getReferencedPrimaryKey()` (default method); verify it returns 42 via delegation to `getReferenceKey().primaryKey()`
+- [x] `get_reference_name_delegates_to_reference_key` -- call `getReferenceName()` (default method); verify it returns `"brand"` via delegation to `getReferenceKey().referenceName()`
+- [x] `get_referenced_entity_type_returns_schema_value` -- supply `ReferenceSchemaContract` with referenced entity type `"Brand"`; call `getReferencedEntityType()`; verify result
+- [x] `get_reference_cardinality_returns_schema_value` -- supply schema with `Cardinality.ZERO_OR_MORE`; call `getReferenceCardinality()`; verify result
+- [x] `get_reference_schema_returns_optional_of_schema` -- call `getReferenceSchema()`; verify `Optional.of(referenceSchema)`
+- [x] `get_reference_schema_or_throw_returns_schema` -- call `getReferenceSchemaOrThrow()`; verify it returns the same schema instance
 
 ---
 
@@ -691,12 +691,12 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: reference attribute access**
 
-- [ ] `get_attribute_returns_value_from_reference_attribute_array` -- supply `AttributeValue[]` with `("order", 5)`; call `getAttribute("order")`; verify result is 5
-- [ ] `get_attribute_returns_null_for_missing_attribute` -- call `getAttribute("nonExistent")`; verify null
-- [ ] `get_attribute_with_locale_returns_localized_value` -- supply locale-specific attribute values; call `getAttribute("name", Locale.ENGLISH)`; verify correct value
-- [ ] `get_attribute_schema_delegates_to_reference_schema` -- call `getAttributeSchema("order")`; verify delegation to `referenceSchema.getAttribute("order")`
-- [ ] `get_attribute_locales_returns_locales_from_state` -- supply `attributeLocales = {ENGLISH}`; call `getAttributeLocales()`; verify result
-- [ ] `attributes_available_returns_true` -- verify `attributesAvailable()` returns `true`
+- [x] `get_attribute_returns_value_from_reference_attribute_array` -- supply `AttributeValue[]` with `("order", 5)`; call `getAttribute("order")`; verify result is 5
+- [x] `get_attribute_returns_null_for_missing_attribute` -- call `getAttribute("nonExistent")`; verify null
+- [x] `get_attribute_with_locale_returns_localized_value` -- supply locale-specific attribute values; call `getAttribute("name", Locale.ENGLISH)`; verify correct value
+- [x] `get_attribute_schema_delegates_to_reference_schema` -- call `getAttributeSchema("order")`; verify delegation to `referenceSchema.getAttribute("order")`
+- [x] `get_attribute_locales_returns_locales_from_state` -- supply `attributeLocales = {ENGLISH}`; call `getAttributeLocales()`; verify result
+- [x] `attributes_available_returns_true` -- verify `attributesAvailable()` returns `true`
 
 ---
 
@@ -704,8 +704,8 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: group access**
 
-- [ ] `get_group_returns_group_entity_reference_when_present` -- supply `GroupEntityReference("parameterGroup", 7, 1, false)`; call `getGroup()`; verify `Optional.of(groupRef)`
-- [ ] `get_group_returns_empty_when_null` -- supply null group; call `getGroup()`; verify `Optional.empty()`
+- [x] `get_group_returns_group_entity_reference_when_present` -- supply `GroupEntityReference("parameterGroup", 7, 1, false)`; call `getGroup()`; verify `Optional.of(groupRef)`
+- [x] `get_group_returns_empty_when_null` -- supply null group; call `getGroup()`; verify `Optional.empty()`
 
 ---
 
@@ -713,8 +713,8 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: referenced entity access**
 
-- [ ] `get_referenced_entity_returns_nested_proxy_when_wired` -- wire a nested `SealedEntity` proxy into `ReferenceProxyState.referencedEntity`; call `getReferencedEntity()`; verify `Optional.of(nestedProxy)`
-- [ ] `get_referenced_entity_returns_empty_when_not_wired` -- supply null `referencedEntity`; call `getReferencedEntity()`; verify `Optional.empty()`
+- [x] `get_referenced_entity_returns_nested_proxy_when_wired` -- wire a nested `SealedEntity` proxy into `ReferenceProxyState.referencedEntity`; call `getReferencedEntity()`; verify `Optional.of(nestedProxy)`
+- [x] `get_referenced_entity_returns_empty_when_not_wired` -- supply null `referencedEntity`; call `getReferencedEntity()`; verify `Optional.empty()`
 
 ---
 
@@ -722,8 +722,8 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: group entity access**
 
-- [ ] `get_group_entity_returns_nested_proxy_when_wired` -- wire a nested `SealedEntity` proxy into `ReferenceProxyState.groupEntity`; call `getGroupEntity()`; verify `Optional.of(nestedProxy)`
-- [ ] `get_group_entity_returns_empty_when_not_wired` -- supply null `groupEntity`; call `getGroupEntity()`; verify `Optional.empty()`
+- [x] `get_group_entity_returns_nested_proxy_when_wired` -- wire a nested `SealedEntity` proxy into `ReferenceProxyState.groupEntity`; call `getGroupEntity()`; verify `Optional.of(nestedProxy)`
+- [x] `get_group_entity_returns_empty_when_not_wired` -- supply null `groupEntity`; call `getGroupEntity()`; verify `Optional.empty()`
 
 ---
 
@@ -731,8 +731,8 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: reference lifecycle**
 
-- [ ] `version_returns_value_from_reference` -- call `version()` on reference proxy; verify it returns the version from the `Reference` entry in `ReferencesStoragePart` (e.g., supply a reference with version=3, verify result is 3)
-- [ ] `dropped_returns_false` -- call `dropped()` on reference proxy; verify `false`
+- [x] `version_returns_value_from_reference` -- call `version()` on reference proxy; verify it returns the version from the `Reference` entry in `ReferencesStoragePart` (e.g., supply a reference with version=3, verify result is 3)
+- [x] `dropped_returns_false` -- call `dropped()` on reference proxy; verify `false`
 
 ---
 
@@ -740,37 +740,37 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: single-path mapping**
 
-- [ ] `entity_primary_key_path_maps_to_schema_and_primary_key_partials` -- input path `[$entity, primaryKey]`; verify output includes `SchemaPartial`, `PrimaryKeyPartial`, `EntityVersionAndDroppablePartial`, and `CatchAllPartial`
-- [ ] `entity_attributes_path_maps_to_schema_and_attribute_partials` -- input path `[$entity, attributes, ElementPathItem("code")]`; verify output includes `SchemaPartial` + `EntityAttributePartial`
-- [ ] `entity_localized_attributes_path_maps_to_attribute_partial` -- input path `[$entity, localizedAttributes, ElementPathItem("name")]`; verify output includes `EntityAttributePartial` (same partial as non-localized, just different storage part fetch)
-- [ ] `entity_associated_data_path_maps_to_associated_data_partial` -- input path `[$entity, associatedData, ElementPathItem("desc")]`; verify `AssociatedDataPartial`
-- [ ] `entity_localized_associated_data_path_maps_to_associated_data_partial` -- input path `[$entity, localizedAssociatedData, ElementPathItem("desc")]`; verify `AssociatedDataPartial`
-- [ ] `entity_references_path_maps_to_references_partial` -- input path `[$entity, references, ElementPathItem("brand")]`; verify `ReferencesPartial`
-- [ ] `entity_parent_path_maps_to_parent_partial` -- input path `[$entity, parent]`; verify `ParentPartial`
-- [ ] `reference_primary_key_path_maps_to_identity_partial` -- input path `[$reference, referencedPrimaryKey]`; verify `ReferenceIdentityPartial`
-- [ ] `reference_attributes_path_maps_to_identity_and_attribute_partials` -- input path `[$reference, attributes, ElementPathItem("order")]`; verify `ReferenceIdentityPartial` + `ReferenceAttributePartial`
-- [ ] `reference_referenced_entity_path_triggers_nested_entity_proxy` -- input path `[$reference, referencedEntity, attributes, ElementPathItem("name")]`; verify `ReferenceIdentityPartial` + `ReferencedEntityPartial` for the reference proxy, plus a nested entity proxy descriptor with `SchemaPartial` + `EntityAttributePartial`
-- [ ] `reference_group_entity_path_triggers_nested_entity_proxy` -- input path `[$reference, groupEntity, attributes, ElementPathItem("inputWidgetType")]`; verify `GroupEntityPartial` + nested entity proxy with attribute partial
+- [x] `entity_primary_key_path_maps_to_schema_and_primary_key_partials` -- input path `[$entity, primaryKey]`; verify output includes `SchemaPartial`, `PrimaryKeyPartial`, `EntityVersionAndDroppablePartial`, and `CatchAllPartial`
+- [x] `entity_attributes_path_maps_to_schema_and_attribute_partials` -- input path `[$entity, attributes, ElementPathItem("code")]`; verify output includes `SchemaPartial` + `EntityAttributePartial`
+- [x] `entity_localized_attributes_path_maps_to_attribute_partial` -- input path `[$entity, localizedAttributes, ElementPathItem("name")]`; verify output includes `EntityAttributePartial` (same partial as non-localized, just different storage part fetch)
+- [x] `entity_associated_data_path_maps_to_associated_data_partial` -- input path `[$entity, associatedData, ElementPathItem("desc")]`; verify `AssociatedDataPartial`
+- [x] `entity_localized_associated_data_path_maps_to_associated_data_partial` -- input path `[$entity, localizedAssociatedData, ElementPathItem("desc")]`; verify `AssociatedDataPartial`
+- [x] `entity_references_path_maps_to_references_partial` -- input path `[$entity, references, ElementPathItem("brand")]`; verify `ReferencesPartial`
+- [x] `entity_parent_path_maps_to_parent_partial` -- input path `[$entity, parent]`; verify `ParentPartial`
+- [x] `reference_primary_key_path_maps_to_identity_partial` -- input path `[$reference, referencedPrimaryKey]`; verify `ReferenceIdentityPartial`
+- [x] `reference_attributes_path_maps_to_identity_and_attribute_partials` -- input path `[$reference, attributes, ElementPathItem("order")]`; verify `ReferenceIdentityPartial` + `ReferenceAttributePartial`
+- [x] `reference_referenced_entity_path_triggers_nested_entity_proxy` -- input path `[$reference, referencedEntity, attributes, ElementPathItem("name")]`; verify `ReferenceIdentityPartial` + `ReferencedEntityPartial` for the reference proxy, plus a nested entity proxy descriptor with `SchemaPartial` + `EntityAttributePartial`
+- [x] `reference_group_entity_path_triggers_nested_entity_proxy` -- input path `[$reference, groupEntity, attributes, ElementPathItem("inputWidgetType")]`; verify `GroupEntityPartial` + nested entity proxy with attribute partial
 
 **Category: union logic**
 
-- [ ] `multiple_entity_paths_produce_union_of_partials` -- input paths `[$entity, attributes['code']]` and `[$entity, associatedData['desc']]`; verify single entity proxy with `SchemaPartial` + `EntityAttributePartial` + `AssociatedDataPartial` + `CatchAllPartial` (no duplicates)
-- [ ] `duplicate_partial_types_are_deduplicated` -- input paths `[$entity, attributes['code']]` and `[$entity, attributes['name']]`; verify only one `EntityAttributePartial` instance
-- [ ] `entity_and_reference_paths_produce_separate_proxy_descriptors` -- input paths `[$entity, attributes['code']]` and `[$reference, attributes['order']]`; verify both entity and reference proxy descriptors are produced
+- [x] `multiple_entity_paths_produce_union_of_partials` -- input paths `[$entity, attributes['code']]` and `[$entity, associatedData['desc']]`; verify single entity proxy with `SchemaPartial` + `EntityAttributePartial` + `AssociatedDataPartial` + `CatchAllPartial` (no duplicates)
+- [x] `duplicate_partial_types_are_deduplicated` -- input paths `[$entity, attributes['code']]` and `[$entity, attributes['name']]`; verify only one `EntityAttributePartial` instance
+- [x] `entity_and_reference_paths_produce_separate_proxy_descriptors` -- input paths `[$entity, attributes['code']]` and `[$reference, attributes['order']]`; verify both entity and reference proxy descriptors are produced
 
 **Category: always-included partials**
 
-- [ ] `schema_partial_always_included_for_entity_proxy` -- input any entity path; verify `EntitySchemaPartial` is always in the entity proxy's partial set
-- [ ] `version_and_droppable_partial_always_included_for_entity_proxy` -- verify `EntityVersionAndDroppablePartial` is always present
-- [ ] `identity_partial_always_included_for_reference_proxy` -- input any reference path; verify `ReferenceIdentityPartial` is always present
-- [ ] `version_and_droppable_partial_always_included_for_reference_proxy` -- verify `ReferenceVersionAndDroppablePartial` is always present
-- [ ] `catch_all_always_last_for_entity_proxy` -- verify `CatchAllPartial` is the last classification in the entity proxy composition
-- [ ] `catch_all_always_last_for_reference_proxy` -- verify `CatchAllPartial` is the last classification in the reference proxy composition
+- [x] `schema_partial_always_included_for_entity_proxy` -- input any entity path; verify `EntitySchemaPartial` is always in the entity proxy's partial set
+- [x] `version_and_droppable_partial_always_included_for_entity_proxy` -- verify `EntityVersionAndDroppablePartial` is always present
+- [x] `identity_partial_always_included_for_reference_proxy` -- input any reference path; verify `ReferenceIdentityPartial` is always present
+- [x] `version_and_droppable_partial_always_included_for_reference_proxy` -- verify `ReferenceVersionAndDroppablePartial` is always present
+- [x] `catch_all_always_last_for_entity_proxy` -- verify `CatchAllPartial` is the last classification in the entity proxy composition
+- [x] `catch_all_always_last_for_reference_proxy` -- verify `CatchAllPartial` is the last classification in the reference proxy composition
 
 **Category: edge cases**
 
-- [ ] `empty_path_list_produces_no_proxy_descriptors` -- input empty list; verify no entity or reference proxy is created
-- [ ] `unknown_variable_name_throws_illegal_argument_exception` -- input path with `VariablePathItem("unknown")`; verify it throws `IllegalArgumentException` (expressions are validated at schema load time, so an unknown variable name indicates a bug in path analysis or expression validation and should fail fast)
+- [x] `empty_path_list_produces_no_proxy_descriptors` -- input empty list; verify no entity or reference proxy is created
+- [x] `unknown_variable_name_throws_illegal_argument_exception` -- input path with `VariablePathItem("unknown")`; verify it throws `IllegalArgumentException` (expressions are validated at schema load time, so an unknown variable name indicates a bug in path analysis or expression validation and should fail fast)
 
 ---
 
@@ -778,15 +778,15 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: recipe construction**
 
-- [ ] `primary_key_partial_sets_needs_entity_body_flag` -- verify `needsEntityBody == true` when `PrimaryKeyPartial` is selected
-- [ ] `parent_partial_sets_needs_entity_body_flag` -- verify `needsEntityBody == true` when `ParentPartial` is selected
-- [ ] `attribute_partial_sets_needs_global_attributes_flag` -- verify `needsGlobalAttributes == true` when `EntityAttributePartial` is selected
-- [ ] `localized_attribute_path_sets_needed_attribute_locales` -- verify `neededAttributeLocales` contains the relevant locale(s)
-- [ ] `references_partial_sets_needs_references_flag` -- verify `needsReferences == true`
-- [ ] `associated_data_partial_sets_needed_associated_data` -- verify `neededAssociatedData` contains the relevant keys
-- [ ] `nested_referenced_entity_recipe_is_populated` -- when a `$reference.referencedEntity.*` path is present, verify `nestedReferencedEntityRecipe` is non-null with correct flags
-- [ ] `nested_group_entity_recipe_is_populated` -- same for `$reference.groupEntity?.*`
-- [ ] `recipe_excludes_unnecessary_storage_parts` -- for an expression accessing only `$entity.attributes['code']`, verify `needsReferences == false`, `neededAssociatedData` is empty, and `needsPrices == false`
+- [x] `primary_key_partial_sets_needs_entity_body_flag` -- verify `needsEntityBody == true` when `PrimaryKeyPartial` is selected
+- [x] `parent_partial_sets_needs_entity_body_flag` -- verify `needsEntityBody == true` when `ParentPartial` is selected
+- [x] `attribute_partial_sets_needs_global_attributes_flag` -- verify `needsGlobalAttributes == true` when `EntityAttributePartial` is selected
+- [x] `localized_attribute_path_sets_needed_attribute_locales` -- verify `neededAttributeLocales` contains the relevant locale(s)
+- [x] `references_partial_sets_needs_references_flag` -- verify `needsReferences == true`
+- [x] `associated_data_partial_sets_needed_associated_data` -- verify `neededAssociatedData` contains the relevant keys
+- [x] `nested_referenced_entity_recipe_is_populated` -- when a `$reference.referencedEntity.*` path is present, verify `nestedReferencedEntityRecipe` is non-null with correct flags
+- [x] `nested_group_entity_recipe_is_populated` -- same for `$reference.groupEntity?.*`
+- [x] `recipe_excludes_unnecessary_storage_parts` -- for an expression accessing only `$entity.attributes['code']`, verify `needsReferences == false`, `neededAssociatedData` is empty, and `needsPrices == false`
 
 ---
 
@@ -794,12 +794,12 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: end-to-end proxy class generation**
 
-- [ ] `build_proxy_descriptor_for_simple_attribute_expression` -- parse `$entity.attributes['code'] == 'ABC'`; call `buildProxyDescriptor()`; verify returned `ExpressionProxyDescriptor` has a non-null `entityHandler`, null `referenceHandler`, and correct `entityRecipe`
-- [ ] `build_proxy_descriptor_for_reference_attribute_expression` -- parse `$reference.attributes['order'] > 5`; verify non-null `referenceHandler`, null `entityHandler`
-- [ ] `build_proxy_descriptor_for_mixed_entity_and_reference_expression` -- parse `$entity.attributes['active'] == true && $reference.referencedPrimaryKey > 0`; verify both handlers are non-null
-- [ ] `build_proxy_descriptor_for_nested_group_entity_expression` -- parse `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'`; verify `nestedGroupEntityHandler` is non-null
-- [ ] `build_proxy_descriptor_for_nested_referenced_entity_expression` -- parse `$reference.referencedEntity.attributes['name'] != null`; verify `nestedReferencedEntityHandler` is non-null
-- [ ] `build_proxy_descriptor_caches_proxy_classes_for_same_partial_set` -- call `buildProxyDescriptor()` twice with different expressions that select the same partial set; verify the generated proxy class is the same instance (ByteBuddy caching)
+- [x] `build_proxy_descriptor_for_simple_attribute_expression` -- parse `$entity.attributes['code'] == 'ABC'`; call `buildProxyDescriptor()`; verify returned `ExpressionProxyDescriptor` has a non-null `entityHandler`, null `referenceHandler`, and correct `entityRecipe`
+- [x] `build_proxy_descriptor_for_reference_attribute_expression` -- parse `$reference.attributes['order'] > 5`; verify non-null `referenceHandler`, null `entityHandler`
+- [x] `build_proxy_descriptor_for_mixed_entity_and_reference_expression` -- parse `$entity.attributes['active'] == true && $reference.referencedPrimaryKey > 0`; verify both handlers are non-null
+- [x] `build_proxy_descriptor_for_nested_group_entity_expression` -- parse `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'`; verify `nestedGroupEntityHandler` is non-null
+- [x] `build_proxy_descriptor_for_nested_referenced_entity_expression` -- parse `$reference.referencedEntity.attributes['name'] != null`; verify `nestedReferencedEntityHandler` is non-null
+- [x] `build_proxy_descriptor_caches_proxy_classes_for_same_partial_set` -- call `buildProxyDescriptor()` twice with different expressions that select the same partial set; verify the generated proxy class is the same instance (ByteBuddy caching)
 
 ---
 
@@ -807,22 +807,22 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: proxy instantiation**
 
-- [ ] `create_proxies_instantiates_entity_proxy_from_descriptor` -- supply a pre-built `ExpressionProxyDescriptor` with entity handler + recipe; mock `EntityStoragePartAccessor` to return an `EntityBodyStoragePart` and `AttributesStoragePart`; call `createProxies()`; verify the returned `entityProxy` is non-null and implements `EntityContract`
-- [ ] `create_proxies_instantiates_reference_proxy_from_descriptor` -- same pattern for reference proxy; verify it implements `ReferenceContract`
-- [ ] `create_proxies_returns_null_entity_proxy_when_no_entity_handler` -- supply descriptor with null `entityHandler`; verify `entityProxy` is null
-- [ ] `create_proxies_returns_null_reference_proxy_when_no_reference_handler` -- supply descriptor with null `referenceHandler`; verify `referenceProxy` is null
+- [x] `create_proxies_instantiates_entity_proxy_from_descriptor` -- supply a pre-built `ExpressionProxyDescriptor` with entity handler + recipe; mock `EntityStoragePartAccessor` to return an `EntityBodyStoragePart` and `AttributesStoragePart`; call `createProxies()`; verify the returned `entityProxy` is non-null and implements `EntityContract`
+- [x] `create_proxies_instantiates_reference_proxy_from_descriptor` -- same pattern for reference proxy; verify it implements `ReferenceContract`
+- [x] `create_proxies_returns_null_entity_proxy_when_no_entity_handler` -- supply descriptor with null `entityHandler`; verify `entityProxy` is null
+- [x] `create_proxies_returns_null_reference_proxy_when_no_reference_handler` -- supply descriptor with null `referenceHandler`; verify `referenceProxy` is null
 
 **Category: storage part fetching**
 
-- [ ] `create_proxies_fetches_only_recipe_specified_parts` -- supply a recipe with `needsEntityBody=true, needsGlobalAttributes=true, needsReferences=false`; verify `storageAccessor.getReferencesStoragePart()` is NEVER called while `getEntityStoragePart()` and `getAttributeStoragePart()` ARE called
-- [ ] `create_proxies_fetches_locale_specific_attribute_parts` -- supply recipe with `neededAttributeLocales={ENGLISH, GERMAN}`; verify `getAttributeStoragePart(type, pk, ENGLISH)` and `getAttributeStoragePart(type, pk, GERMAN)` are called
+- [x] `create_proxies_fetches_only_recipe_specified_parts` -- supply a recipe with `needsEntityBody=true, needsGlobalAttributes=true, needsReferences=false`; verify `storageAccessor.getReferencesStoragePart()` is NEVER called while `getEntityStoragePart()` and `getAttributeStoragePart()` ARE called
+- [x] `create_proxies_fetches_locale_specific_attribute_parts` -- supply recipe with `neededAttributeLocales={ENGLISH, GERMAN}`; verify `getAttributeStoragePart(type, pk, ENGLISH)` and `getAttributeStoragePart(type, pk, GERMAN)` are called
 
 **Category: proxy method delegation**
 
-- [ ] `instantiated_entity_proxy_returns_correct_primary_key` -- verify `entityProxy.getPrimaryKey()` returns the PK from the body storage part
-- [ ] `instantiated_entity_proxy_returns_correct_attribute_value` -- verify `entityProxy.getAttribute("code")` returns the value from the attribute storage part
-- [ ] `instantiated_reference_proxy_returns_correct_reference_key` -- verify `referenceProxy.getReferenceKey()` returns the key from state
-- [ ] `instantiated_reference_proxy_throws_for_unhandled_method` -- call an unhandled method (e.g., `estimateSize()`) on the reference proxy; expect `ExpressionEvaluationException`
+- [x] `instantiated_entity_proxy_returns_correct_primary_key` -- verify `entityProxy.getPrimaryKey()` returns the PK from the body storage part
+- [x] `instantiated_entity_proxy_returns_correct_attribute_value` -- verify `entityProxy.getAttribute("code")` returns the value from the attribute storage part
+- [x] `instantiated_reference_proxy_returns_correct_reference_key` -- verify `referenceProxy.getReferenceKey()` returns the key from state
+- [x] `instantiated_reference_proxy_throws_for_unhandled_method` -- call an unhandled method (e.g., `estimateSize()`) on the reference proxy; expect `ExpressionEvaluationException`
 
 ---
 
@@ -830,25 +830,25 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: referenced entity wiring**
 
-- [ ] `referenced_entity_proxy_is_wired_into_reference_proxy` -- for expression `$reference.referencedEntity.attributes['name']`: build descriptor, create proxies; call `referenceProxy.getReferencedEntity()`; verify it returns `Optional` containing a `SealedEntity` proxy; call `getAttribute("name")` on the nested proxy; verify correct value
-- [ ] `referenced_entity_proxy_fetches_its_own_storage_parts` -- verify the nested entity proxy's storage parts are fetched using the referenced entity's type and PK (not the owner entity's)
-- [ ] `referenced_entity_proxy_has_independent_partial_set` -- the nested entity proxy should have its own set of partials determined by what the expression accesses on it; e.g., only `EntityAttributePartial` if only attributes are accessed
+- [x] `referenced_entity_proxy_is_wired_into_reference_proxy` -- for expression `$reference.referencedEntity.attributes['name']`: build descriptor, create proxies; call `referenceProxy.getReferencedEntity()`; verify it returns `Optional` containing a `SealedEntity` proxy; call `getAttribute("name")` on the nested proxy; verify correct value
+- [x] `referenced_entity_proxy_fetches_its_own_storage_parts` -- verify the nested entity proxy's storage parts are fetched using the referenced entity's type and PK (not the owner entity's)
+- [x] `referenced_entity_proxy_has_independent_partial_set` -- the nested entity proxy should have its own set of partials determined by what the expression accesses on it; e.g., only `EntityAttributePartial` if only attributes are accessed
 
 **Category: group entity wiring**
 
-- [ ] `group_entity_proxy_is_wired_into_reference_proxy` -- for expression `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'`: build descriptor, create proxies; call `referenceProxy.getGroupEntity()`; verify it returns `Optional` containing a `SealedEntity` proxy with correct attribute value
-- [ ] `group_entity_proxy_uses_group_entity_type_and_pk` -- verify storage parts are fetched using `referenceSchema.getReferencedGroupType()` and `groupEntityReference.getPrimaryKey()`
-- [ ] `group_entity_proxy_is_null_when_reference_has_no_group` -- when `reference.getGroup()` is empty, verify `getGroupEntity()` returns `Optional.empty()`
+- [x] `group_entity_proxy_is_wired_into_reference_proxy` -- for expression `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'`: build descriptor, create proxies; call `referenceProxy.getGroupEntity()`; verify it returns `Optional` containing a `SealedEntity` proxy with correct attribute value
+- [x] `group_entity_proxy_uses_group_entity_type_and_pk` -- verify storage parts are fetched using `referenceSchema.getReferencedGroupType()` and `groupEntityReference.getPrimaryKey()`
+- [x] `group_entity_proxy_is_null_when_reference_has_no_group` -- when `reference.getGroup()` is empty, verify `getGroupEntity()` returns `Optional.empty()`
 
 **Category: SealedEntity compatibility**
 
-- [ ] `nested_entity_proxy_implements_sealed_entity_interface` -- verify the nested proxy's class implements `SealedEntity`; verify `instanceof SealedEntity` returns true
-- [ ] `nested_entity_proxy_catch_all_handles_sealed_entity_methods` -- call a `SealedEntity`-specific method not covered by partials; expect `ExpressionEvaluationException` from `CatchAllPartial`
+- [x] `nested_entity_proxy_implements_sealed_entity_interface` -- verify the nested proxy's class implements `SealedEntity`; verify `instanceof SealedEntity` returns true
+- [x] `nested_entity_proxy_catch_all_handles_sealed_entity_methods` -- call a `SealedEntity`-specific method not covered by partials; expect `ExpressionEvaluationException` from `CatchAllPartial`
 
 **Category: allocation count**
 
-- [ ] `simple_entity_expression_produces_two_allocations` -- for expression `$entity.attributes['code'] == 'ABC'`, verify exactly 2 new objects are created at trigger time: 1 `EntityProxyState` + 1 entity proxy instance
-- [ ] `wiring_example_produces_four_allocations` -- for expression `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'`, verify exactly 4 new objects at trigger time: 2 state records (EntityProxyState for group entity + ReferenceProxyState) + 2 proxy instances (group entity proxy + reference proxy)
+- [x] `simple_entity_expression_produces_two_allocations` -- for expression `$entity.attributes['code'] == 'ABC'`, verify exactly 2 new objects are created at trigger time: 1 `EntityProxyState` + 1 entity proxy instance
+- [x] `wiring_example_produces_four_allocations` -- for expression `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'`, verify exactly 4 new objects at trigger time: 2 state records (EntityProxyState for group entity + ReferenceProxyState) + 2 proxy instances (group entity proxy + reference proxy)
 
 ---
 
@@ -856,35 +856,35 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: EntityAttributesEvaluationDto delegation**
 
-- [ ] `entity_attributes_dto_delegates_get_attribute_to_proxy` -- wrap entity proxy in `EntityAttributesEvaluationDto`; call `getAttributeSchema("code")` then `getAttribute("code")` through the DTO; verify correct values are returned
-- [ ] `entity_attributes_dto_delegates_get_attribute_locales_to_proxy` -- wrap entity proxy with localized attributes; call `getAttributeLocales()` through the DTO; verify correct locales
-- [ ] `entity_attributes_dto_localized_access_iterates_locales_and_calls_get_attribute_with_locale` -- wrap entity proxy (with attributes for EN and DE) in `EntityAttributesEvaluationDto(proxy, true)`; exercise the `AttributesContractAccessor.get()` flow; verify the accessor calls `getAttribute(name, locale)` for each locale and returns a Map
+- [x] `entity_attributes_dto_delegates_get_attribute_to_proxy` -- wrap entity proxy in `EntityAttributesEvaluationDto`; call `getAttributeSchema("code")` then `getAttribute("code")` through the DTO; verify correct values are returned
+- [x] `entity_attributes_dto_delegates_get_attribute_locales_to_proxy` -- wrap entity proxy with localized attributes; call `getAttributeLocales()` through the DTO; verify correct locales
+- [x] `entity_attributes_dto_localized_access_iterates_locales_and_calls_get_attribute_with_locale` -- wrap entity proxy (with attributes for EN and DE) in `EntityAttributesEvaluationDto(proxy, true)`; exercise the `AttributesContractAccessor.get()` flow; verify the accessor calls `getAttribute(name, locale)` for each locale and returns a Map
 
 **Category: EntityAssociatedDataEvaluationDto delegation**
 
-- [ ] `entity_associated_data_dto_delegates_get_associated_data_to_proxy` -- wrap entity proxy in `EntityAssociatedDataEvaluationDto`; call `getAssociatedData("description")` through the DTO; verify correct value
-- [ ] `entity_associated_data_dto_delegates_get_associated_data_locales_to_proxy` -- verify `getAssociatedDataLocales()` returns locales from the proxy
+- [x] `entity_associated_data_dto_delegates_get_associated_data_to_proxy` -- wrap entity proxy in `EntityAssociatedDataEvaluationDto`; call `getAssociatedData("description")` through the DTO; verify correct value
+- [x] `entity_associated_data_dto_delegates_get_associated_data_locales_to_proxy` -- verify `getAssociatedDataLocales()` returns locales from the proxy
 
 **Category: EntityReferencesEvaluationDto delegation**
 
-- [ ] `entity_references_dto_delegates_get_schema_to_proxy` -- wrap entity proxy in `EntityReferencesEvaluationDto`; call `getSchema()` through the DTO; verify it returns the `EntitySchemaContract` (used by `ReferencesContractAccessor` for cardinality lookup)
-- [ ] `entity_references_dto_delegates_get_references_to_proxy` -- call `getReferences("brand")` through the DTO; verify correct references returned
+- [x] `entity_references_dto_delegates_get_schema_to_proxy` -- wrap entity proxy in `EntityReferencesEvaluationDto`; call `getSchema()` through the DTO; verify it returns the `EntitySchemaContract` (used by `ReferencesContractAccessor` for cardinality lookup)
+- [x] `entity_references_dto_delegates_get_references_to_proxy` -- call `getReferences("brand")` through the DTO; verify correct references returned
 
 **Category: ReferenceAttributesEvaluationDto delegation**
 
-- [ ] `reference_attributes_dto_delegates_get_attribute_to_proxy` -- wrap reference proxy in `ReferenceAttributesEvaluationDto`; call `getAttribute("order")` through the DTO; verify correct value
-- [ ] `reference_attributes_dto_delegates_get_attribute_schema_to_proxy` -- call `getAttributeSchema("order")` through the DTO; verify delegation to reference schema
+- [x] `reference_attributes_dto_delegates_get_attribute_to_proxy` -- wrap reference proxy in `ReferenceAttributesEvaluationDto`; call `getAttribute("order")` through the DTO; verify correct value
+- [x] `reference_attributes_dto_delegates_get_attribute_schema_to_proxy` -- call `getAttributeSchema("order")` through the DTO; verify delegation to reference schema
 
 **Category: full accessor chain integration**
 
-- [ ] `attributes_contract_accessor_works_with_entity_proxy_via_dto` -- create entity proxy -> wrap in `EntityAttributesEvaluationDto` -> pass to `AttributesContractAccessor.get(dto, "code")`; verify the full chain returns the correct attribute value
-- [ ] `attributes_contract_accessor_works_with_reference_proxy_via_dto` -- create reference proxy -> wrap in `ReferenceAttributesEvaluationDto` -> pass to `AttributesContractAccessor.get(dto, "order")`; verify correct value
-- [ ] `references_contract_accessor_works_with_entity_proxy_via_dto` -- create entity proxy -> wrap in `EntityReferencesEvaluationDto` -> pass to `ReferencesContractAccessor.get(dto, "brand")`; verify correct references
-- [ ] `associated_data_contract_accessor_works_with_entity_proxy_via_dto` -- create entity proxy -> wrap in `EntityAssociatedDataEvaluationDto` -> pass to `AssociatedDataContractAccessor.get(dto, "description")`; verify correct value
+- [x] `attributes_contract_accessor_works_with_entity_proxy_via_dto` -- create entity proxy -> wrap in `EntityAttributesEvaluationDto` -> pass to `AttributesContractAccessor.get(dto, "code")`; verify the full chain returns the correct attribute value
+- [x] `attributes_contract_accessor_works_with_reference_proxy_via_dto` -- create reference proxy -> wrap in `ReferenceAttributesEvaluationDto` -> pass to `AttributesContractAccessor.get(dto, "order")`; verify correct value
+- [x] `references_contract_accessor_works_with_entity_proxy_via_dto` -- create entity proxy -> wrap in `EntityReferencesEvaluationDto` -> pass to `ReferencesContractAccessor.get(dto, "brand")`; verify correct references
+- [x] `associated_data_contract_accessor_works_with_entity_proxy_via_dto` -- create entity proxy -> wrap in `EntityAssociatedDataEvaluationDto` -> pass to `AssociatedDataContractAccessor.get(dto, "description")`; verify correct value
 
 **Category: unhandled delegation safety**
 
-- [ ] `dto_delegation_of_unhandled_method_throws_expression_evaluation_exception` -- wrap entity proxy (with only `EntityAttributePartial`) in `EntityReferencesEvaluationDto`; call `getReferences("brand")` through DTO; verify `ExpressionEvaluationException` is thrown by `CatchAllPartial` because `ReferencesPartial` was not included
+- [x] `dto_delegation_of_unhandled_method_throws_expression_evaluation_exception` -- wrap entity proxy (with only `EntityAttributePartial`) in `EntityReferencesEvaluationDto`; call `getReferences("brand")` through DTO; verify `ExpressionEvaluationException` is thrown by `CatchAllPartial` because `ReferencesPartial` was not included
 
 ---
 
@@ -892,19 +892,19 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: variable binding and retrieval**
 
-- [ ] `get_variable_returns_bound_entity_proxy` -- bind `"entity"` -> entityProxy; call `getVariable("entity")`; verify the returned object is the entity proxy
-- [ ] `get_variable_returns_bound_reference_proxy` -- bind `"reference"` -> referenceProxy; verify correct retrieval
-- [ ] `get_variable_returns_null_for_unbound_name` -- call `getVariable("unknown")`; verify null or empty result
-- [ ] `get_variable_names_returns_all_bound_names` -- bind `"entity"` and `"reference"`; call `getVariableNames()`; verify both names are present
+- [x] `get_variable_returns_bound_entity_proxy` -- bind `"entity"` -> entityProxy; call `getVariable("entity")`; verify the returned object is the entity proxy
+- [x] `get_variable_returns_bound_reference_proxy` -- bind `"reference"` -> referenceProxy; verify correct retrieval
+- [x] `get_variable_returns_null_for_unbound_name` -- call `getVariable("unknown")`; verify null or empty result
+- [x] `get_variable_names_returns_all_bound_names` -- bind `"entity"` and `"reference"`; call `getVariableNames()`; verify both names are present
 
 **Category: cloning and immutability**
 
-- [ ] `with_this_creates_copy_with_this_set` -- call `withThis(someObject)`; verify the returned context has `getThis()` returning `someObject` and original context remains unchanged
-- [ ] `get_this_returns_empty_by_default` -- verify `getThis()` returns empty/null on a freshly constructed context
+- [x] `with_this_creates_copy_with_this_set` -- call `withThis(someObject)`; verify the returned context has `getThis()` returning `someObject` and original context remains unchanged
+- [x] `get_this_returns_empty_by_default` -- verify `getThis()` returns empty/null on a freshly constructed context
 
 **Category: random source**
 
-- [ ] `get_random_returns_shared_random_instance` -- call `getRandom()` twice; verify the same `Random` instance is returned
+- [x] `get_random_returns_shared_random_instance` -- call `getRandom()` twice; verify the same `Random` instance is returned
 
 ---
 
@@ -912,13 +912,39 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 **Category: schema load time performance**
 
-- [ ] `proxy_class_generation_is_cached_across_identical_partial_sets` -- generate proxy class for partial set A; generate again for the same set; verify no new class is generated (ByteBuddy cache hit)
+- [x] `proxy_class_generation_is_cached_across_identical_partial_sets` -- generate proxy class for partial set A; generate again for the same set; verify no new class is generated (ByteBuddy cache hit)
 
 **Category: trigger time allocation**
 
-- [ ] `entity_only_expression_allocates_at_most_two_objects` -- instrument or count allocations for `createProxies()` with a simple `$entity.attributes['code']` expression; verify at most 2 new objects (1 state record + 1 proxy)
-- [ ] `reference_with_group_entity_expression_allocates_at_most_four_objects` -- for `$reference.groupEntity?.attributes['x']`; verify at most 4 objects (2 state records + 2 proxies)
+- [x] `entity_only_expression_allocates_at_most_two_objects` -- instrument or count allocations for `createProxies()` with a simple `$entity.attributes['code']` expression; verify at most 2 new objects (1 state record + 1 proxy)
+- [x] `reference_with_group_entity_expression_allocates_at_most_four_objects` -- for `$reference.groupEntity?.attributes['x']`; verify at most 4 objects (2 state records + 2 proxies)
 
 **Category: attribute lookup performance**
 
-- [ ] `binary_search_is_faster_than_hashmap_for_small_attribute_counts` -- benchmark `getAttribute("code")` via `findAttribute(AttributeKey)` binary search on sorted arrays of size 1, 5, 10, 20, 30 attributes vs. HashMap lookup; verify binary search is competitive (informational benchmark, not a hard assertion -- use JUnit `@Tag("performance")` to allow selective execution)
+- [x] `binary_search_is_faster_than_hashmap_for_small_attribute_counts` -- benchmark `getAttribute("code")` via `findAttribute(AttributeKey)` binary search on sorted arrays of size 1, 5, 10, 20, 30 attributes vs. HashMap lookup; verify binary search is competitive (informational benchmark, not a hard assertion -- use JUnit `@Tag("performance")` to allow selective execution)
+
+---
+
+## ⚠️ TOBEDONE JNO — Task Blocked on WBS-03
+
+The following task cannot be implemented within WBS-02 because it depends on infrastructure that will be created in WBS-03 (trigger registry and dispatch).
+
+### ⚠️ Task 6.2: `createEvaluationContext()` on `FacetExpressionTrigger` (blocked on WBS-03)
+
+**Root cause:** `FacetExpressionTrigger` does not exist yet. The WBS-02 description itself states: *"this class does not exist yet; it will be created in WBS-03."* The task asks to design the method signature and delegation to `ExpressionProxyInstantiator`, but since the trigger class, its lifecycle, and its relationship to `ExpressionIndexTrigger` are all defined in WBS-03, implementing this method in isolation would create dead code with no integration point or testable consumer.
+
+**What WBS-02 has delivered that WBS-03 will consume:**
+1. `ExpressionProxyInstantiator.instantiate()` — fully implemented, takes descriptor + schema + PK + accessor, returns `InstantiationResult(entityProxy, referenceProxy)`
+2. `ExpressionVariableContext` — fully implemented, takes variable bindings and implements `ExpressionEvaluationContext`
+3. `ExpressionProxyDescriptor` — fully implemented, stores pre-composed partials + recipes
+4. `ExpressionProxyFactory.buildDescriptor()` — fully implemented, builds descriptors from expression trees
+
+**When WBS-03 creates `FacetExpressionTrigger`, it should:**
+1. Store an `ExpressionProxyDescriptor` (built at schema load time via `ExpressionProxyFactory.buildDescriptor()`)
+2. Implement `createEvaluationContext(int entityPK, ReferenceKey referenceKey, EntityStoragePartAccessor accessor)` by:
+   - Calling `ExpressionProxyInstantiator.instantiate(descriptor, schema, entityPK, referenceSchema, referenceKey, accessor, schemaResolver)`
+   - Wrapping the result in `new ExpressionVariableContext(Map.of("entity", result.entityProxy(), "reference", result.referenceProxy()))`
+3. Implement `evaluate()` by calling `createEvaluationContext()` and then evaluating the expression against the context
+
+**Blocked task:**
+- [ ] **6.2** Implement `createEvaluationContext()` method on `FacetExpressionTrigger`
