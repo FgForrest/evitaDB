@@ -282,7 +282,8 @@ public class SetReferenceSchemaIndexedMutation
 			&& this.name.equals(createMutation.getName())
 			&& this.indexedInScopes != null) {
 			// Absorb into the Create mutation using merge semantics — the Set mutation's
-			// scopes are merged into the Create's existing scopes (matching Set+Set merge)
+			// scopes are merged into the Create's existing scopes (matching Set+Set merge).
+			// Preserve facetedPartiallyInScopes to avoid losing per-scope expressions.
 			final ScopedReferenceIndexType[] mergedScopes =
 				mergeIndexedScopes(createMutation.getIndexedInScopes(), this.indexedInScopes);
 			final ScopedReferenceIndexedComponents[] mergedComponents =
@@ -303,7 +304,8 @@ public class SetReferenceSchemaIndexedMutation
 					createMutation.isReferencedGroupTypeManaged(),
 					mergedScopes,
 					mergedComponents,
-					createMutation.getFacetedInScopes()
+					createMutation.getFacetedInScopes(),
+					createMutation.getFacetedPartiallyInScopes()
 				)
 			);
 		} else {

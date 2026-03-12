@@ -25,12 +25,12 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedR
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +54,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -192,6 +194,40 @@ class ReflectedReferenceSchemaBuilderTest {
 		productBuilder.withReferenceToEntity(
 			"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 			ReferenceSchemaEditor::indexed
+		);
+
+		// create reflected reference and build the schema
+		final EntitySchemaContract schema = createCategorySchemaBuilder()
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategory",
+				whichIs
+			)
+			.toInstance();
+
+		return (ReflectedReferenceSchemaContract) schema
+			.getReference("categoryProducts").orElseThrow();
+	}
+
+	/**
+	 * Builds a reflected reference schema where the **original** reference on the
+	 * product entity is faceted in both `LIVE` and `ARCHIVED` scopes. This setup
+	 * causes the reflected reference to inherit faceted state from the original,
+	 * which is essential for testing the inherited-to-explicit transition behavior.
+	 *
+	 * @param whichIs consumer to configure the reflected reference builder
+	 * @return the built reflected reference schema
+	 */
+	@Nonnull
+	private ReflectedReferenceSchemaContract buildReflectedReferenceWithFacetedOriginal(
+		@Nonnull Consumer<ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder> whichIs
+	) {
+		// create the base reference on product -> category, faceted in LIVE + ARCHIVED
+		final EntitySchemaBuilder productBuilder = new InternalEntitySchemaBuilder(
+			this.catalogSchema, this.productSchema
+		);
+		productBuilder.withReferenceToEntity(
+			"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+			ref -> ref.facetedInScope(Scope.LIVE, Scope.ARCHIVED)
 		);
 
 		// create reflected reference and build the schema
@@ -691,6 +727,233 @@ class ReflectedReferenceSchemaBuilderTest {
 			assertTrue(
 				ref.isIndexedInScope(Scope.LIVE),
 				"Reference should be implicitly indexed when faceted"
+			);
+		}
+
+		@Test
+		@DisplayName("should break inheritance and start from scratch when calling facetedPartiallyInScope")
+		void shouldBreakInheritanceAndStartFromScratchWhenCallingFacetedPartiallyInScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+
+			// original reference is faceted in LIVE + ARCHIVED
+			final ReflectedReferenceSchemaContract ref =
+				buildReflectedReferenceWithFacetedOriginal(
+					whichIs -> whichIs.facetedPartiallyInScope(Scope.LIVE, expression)
+				);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isFacetedInherited(),
+					"Faceted should no longer be inherited"
+				),
+				() -> assertTrue(
+					ref.isFacetedInScope(Scope.LIVE),
+					"LIVE should be faceted (explicitly set)"
+				),
+				() -> assertFalse(
+					ref.isFacetedInScope(Scope.ARCHIVED),
+					"ARCHIVED should NOT be carried over from inherited state"
+				),
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.LIVE),
+					"Partial expression should be present for LIVE"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should break inheritance and start from scratch when calling facetedInScope")
+		void shouldBreakInheritanceAndStartFromScratchWhenCallingFacetedInScope() {
+			// original reference is faceted in LIVE + ARCHIVED
+			final ReflectedReferenceSchemaContract ref =
+				buildReflectedReferenceWithFacetedOriginal(
+					whichIs -> whichIs.facetedInScope(Scope.LIVE)
+				);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isFacetedInherited(),
+					"Faceted should no longer be inherited"
+				),
+				() -> assertTrue(
+					ref.isFacetedInScope(Scope.LIVE),
+					"LIVE should be faceted (explicitly requested)"
+				),
+				() -> assertFalse(
+					ref.isFacetedInScope(Scope.ARCHIVED),
+					"ARCHIVED should NOT be carried over from inherited state"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should clear all explicit settings when calling withFacetedInherited")
+		void shouldClearAllExplicitSettingsWhenCallingWithFacetedInherited() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+
+			// set up explicit faceted scopes and partial expression, then revert to inherited
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.facetedInScope(Scope.LIVE, Scope.ARCHIVED)
+					.facetedPartiallyInScope(Scope.LIVE, expression)
+					.withFacetedInherited()
+			);
+
+			assertAll(
+				() -> assertTrue(
+					ref.isFacetedInherited(),
+					"Faceted should be inherited again"
+				),
+				() -> {
+					final Map<Scope, Expression> partials = ref.getFacetedPartiallyInScopes();
+					assertTrue(
+						partials.isEmpty(),
+						"No leftover partial expressions should remain after reverting to inherited"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should support full round-trip from inherited to explicit and back")
+		void shouldSupportFullRoundTripInheritedToExplicitAndBack() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+
+			final ReflectedReferenceSchemaContract ref =
+				buildReflectedReferenceWithFacetedOriginal(whichIs -> {
+					// step 1: set explicit faceting (breaks inheritance)
+					whichIs
+						.facetedInScope(Scope.LIVE)
+						.facetedPartiallyInScope(Scope.LIVE, expression);
+
+					// step 2: verify explicit state through the builder
+					assertFalse(whichIs.isFacetedInherited(), "Should be explicit after setting faceted");
+
+					// step 3: revert back to inherited
+					whichIs.withFacetedInherited();
+				});
+
+			// final state should be fully inherited with no leftover explicit settings
+			assertAll(
+				() -> assertTrue(
+					ref.isFacetedInherited(),
+					"Faceted should be inherited after round-trip"
+				),
+				() -> {
+					final Map<Scope, Expression> partials = ref.getFacetedPartiallyInScopes();
+					assertTrue(
+						partials.isEmpty(),
+						"No partial expressions should survive the round-trip"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should accumulate scopes across multiple facetedPartiallyInScope calls")
+		void shouldAccumulateScopesAcrossMultipleFacetedPartiallyInScopeCalls() {
+			final Expression liveExpression = ExpressionFactory.parse("1 > 0");
+			final Expression archivedExpression = ExpressionFactory.parse("2 > 1");
+
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.facetedPartiallyInScope(Scope.LIVE, liveExpression)
+					.facetedPartiallyInScope(Scope.ARCHIVED, archivedExpression)
+			);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isFacetedInherited(),
+					"Faceted should not be inherited"
+				),
+				() -> assertTrue(
+					ref.isFacetedInScope(Scope.LIVE),
+					"LIVE should be faceted"
+				),
+				() -> assertTrue(
+					ref.isFacetedInScope(Scope.ARCHIVED),
+					"ARCHIVED should be faceted"
+				),
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.LIVE),
+					"LIVE partial expression should be present"
+				),
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.ARCHIVED),
+					"ARCHIVED partial expression should be present"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `nonFacetedPartially` on an **existing** reflected reference
+		 * preserves the explicitly set faceted scopes instead of resetting them to inherited.
+		 * This tests the update path where the reference already exists in the schema
+		 * and the mutation is applied directly (not absorbed into a Create mutation).
+		 */
+		@Test
+		@DisplayName("should preserve faceted scopes when clearing partial expression on existing reflected ref")
+		void shouldPreserveFacetedScopesWhenClearingPartialExpressionOnExistingRef() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+
+			// Step 1: Build the initial category schema with a reflected reference
+			// that has faceted+partially set
+			final EntitySchemaBuilder productBuilder = new InternalEntitySchemaBuilder(
+				ReflectedReferenceSchemaBuilderTest.this.catalogSchema,
+				ReflectedReferenceSchemaBuilderTest.this.productSchema
+			);
+			productBuilder.withReferenceToEntity(
+				"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				ReferenceSchemaEditor::indexed
+			);
+
+			final EntitySchemaContract initialCategorySchema =
+				createCategorySchemaBuilder()
+					.withReflectedReferenceToEntity(
+						"categoryProducts", Entities.PRODUCT, "productCategory",
+						whichIs -> whichIs
+							.facetedInScope(Scope.LIVE)
+							.facetedPartiallyInScope(Scope.LIVE, expression)
+					)
+					.toInstance();
+
+			// Verify initial state
+			final ReflectedReferenceSchemaContract initialRef =
+				(ReflectedReferenceSchemaContract) initialCategorySchema
+					.getReference("categoryProducts").orElseThrow();
+			assertTrue(initialRef.isFacetedInScope(Scope.LIVE), "Initial ref should be faceted");
+			assertFalse(initialRef.isFacetedInherited(), "Initial ref should NOT inherit faceted");
+
+			// Step 2: Create a new builder from the built schema to simulate an update
+			final EntitySchemaContract updatedSchema =
+				new InternalEntitySchemaBuilder(
+					ReflectedReferenceSchemaBuilderTest.this.catalogSchema,
+					initialCategorySchema
+				)
+					.withReflectedReferenceToEntity(
+						"categoryProducts", Entities.PRODUCT, "productCategory",
+						whichIs -> whichIs.nonFacetedPartially(Scope.LIVE)
+					)
+					.toInstance();
+
+			final ReflectedReferenceSchemaContract updatedRef =
+				(ReflectedReferenceSchemaContract) updatedSchema
+					.getReference("categoryProducts").orElseThrow();
+
+			// The primary assertion: nonFacetedPartially should NOT reset faceted to inherited
+			assertFalse(
+				updatedRef.isFacetedInherited(),
+				"Faceted should NOT be reset to inherited by nonFacetedPartially"
+			);
+			// Only check faceted scope if not inherited (avoids exception when
+			// reflected reference is unavailable in test setup)
+			assertTrue(
+				updatedRef.isFacetedInScope(Scope.LIVE),
+				"Faceted scope should be preserved after clearing partial expression"
+			);
+			assertNull(
+				updatedRef.getFacetedPartiallyInScope(Scope.LIVE),
+				"Partial expression should be cleared"
 			);
 		}
 	}

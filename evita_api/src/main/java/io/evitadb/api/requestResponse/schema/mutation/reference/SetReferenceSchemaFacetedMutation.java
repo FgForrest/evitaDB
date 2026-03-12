@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -145,7 +144,9 @@ public class SetReferenceSchemaFacetedMutation
 				&& this.name.equals(createMutation.getName())
 				&& (this.facetedInScopes != null || this.facetedPartiallyInScopes != null)
 		) {
-			// Absorb into the Create mutation — later non-null value wins
+			// Absorb into the Create mutation using pure replacement semantics.
+			// The mutation always carries the complete state — the builder is responsible
+			// for collecting all scopes and expressions before emitting the mutation.
 			return new MutationCombinationResult<>(
 				new CreateReferenceSchemaMutation(
 					createMutation.getName(),
@@ -158,9 +159,12 @@ public class SetReferenceSchemaFacetedMutation
 					createMutation.isReferencedGroupTypeManaged(),
 					createMutation.getIndexedInScopes(),
 					createMutation.getIndexedComponentsInScopes(),
-					Objects.requireNonNullElse(this.facetedInScopes, createMutation.getFacetedInScopes()),
-					Objects.requireNonNullElse(
-						this.facetedPartiallyInScopes, createMutation.getFacetedPartiallyInScopes())
+					this.facetedInScopes != null
+						? this.facetedInScopes
+						: createMutation.getFacetedInScopes(),
+					this.facetedPartiallyInScopes != null
+						? this.facetedPartiallyInScopes
+						: createMutation.getFacetedPartiallyInScopes()
 				)
 			);
 		} else if (
@@ -168,8 +172,7 @@ public class SetReferenceSchemaFacetedMutation
 				&& this.name.equals(createMutation.getName())
 				&& (this.facetedInScopes != null || this.facetedPartiallyInScopes != null)
 		) {
-			// Absorb into the CreateReflected mutation — later non-null value wins,
-			// null means "don't change" so we fall back to the Create mutation's value
+			// Absorb into the CreateReflected mutation using pure replacement semantics.
 			return new MutationCombinationResult<>(
 				new CreateReflectedReferenceSchemaMutation(
 					createMutation.getName(),
@@ -254,7 +257,7 @@ public class SetReferenceSchemaFacetedMutation
 					newPartially = existingPartially;
 				} else {
 					newPartially = new EnumMap<>(Scope.class);
-					for (Map.Entry<Scope, Expression> entry : existingPartially.entrySet()) {
+					for (final Map.Entry<Scope, Expression> entry : existingPartially.entrySet()) {
 						if (facetedScopes.contains(entry.getKey())) {
 							newPartially.put(entry.getKey(), entry.getValue());
 						}

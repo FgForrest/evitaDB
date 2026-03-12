@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,24 +32,15 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.ConsistencyChecks;
-import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -61,13 +52,12 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Internal {@link ReflectedReferenceSchema} builder used solely from within {@link InternalEntitySchemaBuilder}.
@@ -159,7 +149,7 @@ public final class ReflectedReferenceSchemaBuilder
 	@Override
 	@Nonnull
 	public ReflectedReferenceSchemaBuilder withDescription(@Nullable String description) {
-		return (ReflectedReferenceSchemaBuilder) super.withDescription(description);
+		return super.withDescription(description);
 	}
 
 	@Nonnull
@@ -371,6 +361,15 @@ public final class ReflectedReferenceSchemaBuilder
 	@Nonnull
 	@Override
 	public ReflectedReferenceSchemaBuilder facetedInScope(@Nonnull Scope... inScope) {
+		// breaking inheritance: the mutation carries the complete explicit state from scratch
+		final EnumSet<Scope> newScopeSet = ArrayUtils.toEnumSet(Scope.class, inScope);
+		// when breaking inheritance, facetedPartially starts empty; when already explicit, filter
+		final ScopedFacetedPartially[] filteredPartially;
+		if (isFacetedInherited()) {
+			filteredPartially = ScopedFacetedPartially.EMPTY;
+		} else {
+			filteredPartially = toScopedFacetedPartiallyArray(filterPartiallyToScopes(newScopeSet));
+		}
 		final boolean reflectedReferenceAvailable = isReflectedReferenceAvailable();
 		final boolean indexedInherited = isIndexedInherited();
 		final boolean allInformationPresent = reflectedReferenceAvailable || !indexedInherited;
@@ -380,12 +379,11 @@ public final class ReflectedReferenceSchemaBuilder
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaFacetedMutation(getName(), inScope)
+					new SetReferenceSchemaFacetedMutation(getName(), inScope, filteredPartially)
 				)
 			);
 		} else {
 			// update both indexed and faceted scopes
-			final EnumSet<Scope> includedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
@@ -393,10 +391,69 @@ public final class ReflectedReferenceSchemaBuilder
 					new SetReferenceSchemaIndexedMutation(
 						getName(),
 						Arrays.stream(Scope.values())
-							.filter(scope -> includedScopes.contains(scope) || (allInformationPresent && this.isIndexedInScope(scope)))
+							.filter(scope -> newScopeSet.contains(scope)
+								|| (allInformationPresent && this.isIndexedInScope(scope)))
 							.toArray(Scope[]::new)
 					),
-					new SetReferenceSchemaFacetedMutation(getName(), inScope)
+					new SetReferenceSchemaFacetedMutation(getName(), inScope, filteredPartially)
+				)
+			);
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder facetedPartiallyInScope(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		// compute complete state: when inherited, start from scratch; when explicit, build on top
+		final EnumSet<Scope> allScopes;
+		final Map<Scope, Expression> allPartially;
+		if (isFacetedInherited()) {
+			// breaking inheritance — start from scratch with just this scope
+			allScopes = EnumSet.of(scope);
+			allPartially = new EnumMap<>(Scope.class);
+		} else {
+			// already explicit — accumulate on top of current state
+			allScopes = EnumSet.copyOf(this.getFacetedInScopes());
+			allScopes.add(scope);
+			allPartially = new EnumMap<>(this.getFacetedPartiallyInScopes());
+		}
+		allPartially.put(scope, expression);
+		final Scope[] completeFacetedScopes = allScopes.toArray(Scope[]::new);
+		final ScopedFacetedPartially[] completePartially = toScopedFacetedPartiallyArray(allPartially);
+		final boolean reflectedReferenceAvailable = isReflectedReferenceAvailable();
+		final boolean indexedInherited = isIndexedInherited();
+		final boolean allInformationPresent = reflectedReferenceAvailable || !indexedInherited;
+		if (allInformationPresent && this.isIndexedInScope(scope)) {
+			// scope is already indexed — just emit the faceted mutation
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaFacetedMutation(
+						getName(), completeFacetedScopes, completePartially
+					)
+				)
+			);
+		} else {
+			// auto-promote to indexed before enabling faceting
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaIndexedMutation(
+						getName(),
+						Arrays.stream(Scope.values())
+							.filter(s -> s == scope
+								|| (allInformationPresent && this.isIndexedInScope(s)))
+							.toArray(Scope[]::new)
+					),
+					new SetReferenceSchemaFacetedMutation(
+						getName(), completeFacetedScopes, completePartially
+					)
 				)
 			);
 		}
@@ -413,7 +470,9 @@ public final class ReflectedReferenceSchemaBuilder
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaFacetedMutation(getName(), Scope.NO_SCOPE)
+					new SetReferenceSchemaFacetedMutation(
+						getName(), Scope.NO_SCOPE, ScopedFacetedPartially.EMPTY
+					)
 				)
 			);
 			return this;
@@ -425,21 +484,50 @@ public final class ReflectedReferenceSchemaBuilder
 	public ReflectedReferenceSchemaBuilder nonFaceted(@Nonnull Scope... inScope) {
 		Assert.isTrue(
 			!isFacetedInherited() || isReflectedReferenceAvailable(),
-			() -> new InvalidSchemaMutationException("Cannot update non-indexed scopes on inherited reference schema when the referenced schema is not available!")
+			() -> new InvalidSchemaMutationException(
+				"Cannot update non-indexed scopes on inherited reference schema "
+					+ "when the referenced schema is not available!"
+			)
 		);
 
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		final Scope[] newScopes = getFacetedInScopes().stream()
+		final Scope[] remainingScopes = getFacetedInScopes().stream()
 			.filter(it -> !excludedScopes.contains(it))
 			.toArray(Scope[]::new);
+		return applyNonFacetedMutation(remainingScopes);
+	}
 
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFacetedMutation(getName(), newScopes)
-			)
-		);
+	/**
+	 * Overrides the base implementation to handle reflected reference null semantics.
+	 * For reflected references, passing `null` for `facetedInScopes` means "inherit from
+	 * original" — so we must always pass the current explicit scopes to preserve them.
+	 * When inherited, we pass `null` to keep inheritance intact.
+	 */
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder nonFacetedPartially(@Nonnull Scope... inScope) {
+		if (isFacetedInherited()) {
+			// when inherited, clearing a partial expression should stay inherited
+			// but remove the partial expression for the specified scopes
+			final EnumSet<Scope> clearedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+			final Map<Scope, Expression> remaining =
+				new EnumMap<>(this.getFacetedPartiallyInScopes());
+			for (final Scope scope : clearedScopes) {
+				remaining.remove(scope);
+			}
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaFacetedMutation(
+						getName(), null, toScopedFacetedPartiallyArray(remaining)
+					)
+				)
+			);
+		} else {
+			// when explicit, use the base implementation which reads the complete state
+			super.nonFacetedPartially(inScope);
+		}
 		return this;
 	}
 
@@ -457,7 +545,7 @@ public final class ReflectedReferenceSchemaBuilder
 						.stream()
 						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
 						.toArray(ScopedReferenceIndexType[]::new),
-					(ScopedReferenceIndexedComponents[]) null
+					null
 				)
 			)
 		);
@@ -478,24 +566,8 @@ public final class ReflectedReferenceSchemaBuilder
 		@Nullable Consumer<AttributeSchemaEditor.AttributeSchemaBuilder> whichIs
 	) {
 		final ReflectedReferenceSchema instance = this.toInstanceInternal();
-		final Optional<AttributeSchemaContract> existingAttribute = instance.getDeclaredAttribute(attributeName);
-		final AttributeSchemaBuilder attributeSchemaBuilder =
-			existingAttribute
-				.map(it -> {
-					Assert.isTrue(
-						ofType.equals(it.getType()),
-						() -> new InvalidSchemaMutationException(
-							"Attribute " + attributeName + " has already assigned type " + it.getType() +
-								", cannot change this type to: " + ofType + "!"
-						)
-					);
-					return new AttributeSchemaBuilder(this.entitySchema, it);
-				})
-				.orElseGet(() -> new AttributeSchemaBuilder(this.entitySchema, attributeName, ofType));
-
-		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
-		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
-		checkSortableTraits(attributeName, attributeSchema);
+		final AttributeSchemaContract existingAttribute = instance.getDeclaredAttribute(attributeName).orElse(null);
+		final AttributeSchemaBuildResult result = buildAttributeSchema(attributeName, ofType, existingAttribute, whichIs);
 
 		// check the names in all naming conventions are unique in the catalog schema
 		checkNamesAreUniqueInAllNamingConventions(
@@ -505,10 +577,10 @@ public final class ReflectedReferenceSchemaBuilder
 			instance.isReflectedReferenceAvailable() ?
 				instance.getSortableAttributeCompounds().values() :
 				instance.getDeclaredSortableAttributeCompounds().values(),
-			attributeSchema
+			result.schema()
 		);
 
-		addAttributeMutationsIfChanged(existingAttribute.orElse(null), attributeSchema, attributeSchemaBuilder);
+		addAttributeMutationsIfChanged(existingAttribute, result.schema(), result.builder());
 		return this;
 	}
 

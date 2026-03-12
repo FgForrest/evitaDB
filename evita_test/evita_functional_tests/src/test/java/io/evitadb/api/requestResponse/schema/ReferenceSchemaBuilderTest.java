@@ -757,6 +757,53 @@ class ReferenceSchemaBuilderTest {
 		}
 
 		/**
+		 * Verifies that calling facetedPartiallyInScope for two different scopes retains
+		 * both expressions. Also verifies that facetedPartiallyInScope implicitly enables
+		 * faceting for the specified scope.
+		 */
+		@Test
+		@DisplayName("should retain facetedPartially expressions for multiple scopes")
+		void shouldRetainFacetedPartiallyForMultipleScopes() {
+			final Expression liveExpression = ExpressionFactory.parse("1 > 0");
+			final Expression archivedExpression = ExpressionFactory.parse("2 > 1");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.facetedPartiallyInScope(Scope.LIVE, liveExpression)
+					.facetedPartiallyInScope(Scope.ARCHIVED, archivedExpression)
+			);
+
+			assertAll(
+				// facetedPartiallyInScope should implicitly enable faceted for that scope
+				() -> assertTrue(
+					ref.isFacetedInScope(Scope.LIVE),
+					"facetedPartiallyInScope should implicitly enable faceted for LIVE"
+				),
+				() -> assertTrue(
+					ref.isFacetedInScope(Scope.ARCHIVED),
+					"facetedPartiallyInScope should implicitly enable faceted for ARCHIVED"
+				),
+				// both expressions should be present
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.LIVE),
+					"LIVE expression should not be overwritten by ARCHIVED"
+				),
+				() -> assertNotNull(
+					ref.getFacetedPartiallyInScope(Scope.ARCHIVED),
+					"ARCHIVED expression should be set"
+				),
+				() -> assertEquals(
+					liveExpression.toExpressionString(),
+					ref.getFacetedPartiallyInScope(Scope.LIVE).toExpressionString()
+				),
+				() -> assertEquals(
+					archivedExpression.toExpressionString(),
+					ref.getFacetedPartiallyInScope(Scope.ARCHIVED).toExpressionString()
+				)
+			);
+		}
+
+		/**
 		 * Verifies that nonFacetedPartially clears the partial expression
 		 * for the specified scope.
 		 */

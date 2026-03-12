@@ -23,7 +23,9 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -42,14 +44,21 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSche
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.util.Arrays;
+import java.io.Serializable;
 import java.util.Collection;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.function.Consumer;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Abstract parent for builders that produce {@link ReferenceSchemaContract} or its extensions.
@@ -64,14 +73,13 @@ import java.util.function.Consumer;
 public abstract sealed class AbstractReferenceSchemaBuilder<
 	T extends ReferenceSchemaEditor<T>,
 	S extends ReferenceSchemaContract
->
+	>
 	implements ReferenceSchemaEditor<T>, InternalSchemaBuilderHelper
 	permits ReferenceSchemaBuilder, ReflectedReferenceSchemaBuilder {
 	@Serial private static final long serialVersionUID = -6435272035844056999L;
-
+	@Nonnull protected final S baseSchema;
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
 	@Nonnull protected final EntitySchemaContract entitySchema;
-	@Nonnull protected final S baseSchema;
 	@Nonnull protected final LinkedList<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 	@Nonnull protected MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	protected int lastMutationReflectedInSchema = 0;
@@ -81,8 +89,8 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	 * Constructs a new abstract reference schema builder.
 	 *
 	 * @param catalogSchema the catalog schema context
-	 * @param entitySchema the entity schema context
-	 * @param baseSchema the base schema to build upon
+	 * @param entitySchema  the entity schema context
+	 * @param baseSchema    the base schema to build upon
 	 */
 	AbstractReferenceSchemaBuilder(
 		@Nonnull CatalogSchemaContract catalogSchema,
@@ -122,20 +130,39 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 
 	@Nonnull
 	@Override
+	public T indexedWithComponentsInScope(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceIndexedComponents... components
+	) {
+		this.updatedSchemaDirty = indexedWithComponentsInScope(
+			this.catalogSchema, this.entitySchema, this.mutations,
+			this.updatedSchemaDirty, getName(), getReferenceIndexTypeInScopes(),
+			scope, components
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
 	public T facetedPartiallyInScope(
 		@Nonnull Scope scope,
 		@Nonnull Expression expression
 	) {
+		// compute complete state: current faceted scopes + new scope, current expressions + new entry
+		final S current = toInstance();
+		final EnumSet<Scope> allScopes = EnumSet.copyOf(current.getFacetedInScopes());
+		allScopes.add(scope);
+		final Map<Scope, Expression> allPartially =
+			new EnumMap<>(current.getFacetedPartiallyInScopes());
+		allPartially.put(scope, expression);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaFacetedMutation(
 					getName(),
-					null,
-					new ScopedFacetedPartially[]{
-						new ScopedFacetedPartially(scope, expression)
-					}
+					allScopes.toArray(Scope[]::new),
+					toScopedFacetedPartiallyArray(allPartially)
 				)
 			)
 		);
@@ -145,19 +172,96 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	@Nonnull
 	@Override
 	public T nonFacetedPartially(@Nonnull Scope... inScope) {
-		final ScopedFacetedPartially[] cleared = Arrays.stream(inScope)
-			.map(scope -> new ScopedFacetedPartially(scope, null))
-			.toArray(ScopedFacetedPartially[]::new);
+		// compute complete state: current scopes unchanged, current expressions minus cleared scopes
+		final S current = toInstance();
+		final EnumSet<Scope> clearedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		final Map<Scope, Expression> remaining =
+			new EnumMap<>(current.getFacetedPartiallyInScopes());
+		for (final Scope scope : clearedScopes) {
+			remaining.remove(scope);
+		}
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaFacetedMutation(
-					getName(), null, cleared
+					getName(),
+					current.getFacetedInScopes().toArray(Scope[]::new),
+					toScopedFacetedPartiallyArray(remaining)
 				)
 			)
 		);
 		return (T) this;
+	}
+
+	/**
+	 * Computes the filtered `facetedPartially` array for the given remaining scopes and emits
+	 * a {@link SetReferenceSchemaFacetedMutation}. This is the shared tail of the `nonFaceted`
+	 * methods in both concrete builders.
+	 *
+	 * @param remainingScopes the scopes that should remain faceted after the operation
+	 * @return this builder instance for fluent chaining
+	 */
+	@Nonnull
+	protected T applyNonFacetedMutation(@Nonnull Scope[] remainingScopes) {
+		final EnumSet<Scope> remainingScopeSet = ArrayUtils.toEnumSet(Scope.class, remainingScopes);
+		final ScopedFacetedPartially[] filteredPartially =
+			toScopedFacetedPartiallyArray(filterPartiallyToScopes(remainingScopeSet));
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaFacetedMutation(getName(), remainingScopes, filteredPartially)
+			)
+		);
+		return (T) this;
+	}
+
+	/**
+	 * Filters the current `facetedPartiallyInScopes` map to only retain entries for scopes
+	 * present in the given set.
+	 *
+	 * @param retainedScopes scopes to keep
+	 * @return filtered map containing only entries for retained scopes
+	 */
+	@Nonnull
+	protected Map<Scope, Expression> filterPartiallyToScopes(
+		@Nonnull EnumSet<Scope> retainedScopes
+	) {
+		final Map<Scope, Expression> current = toInstance().getFacetedPartiallyInScopes();
+		if (current.isEmpty()) {
+			return current;
+		}
+		final EnumMap<Scope, Expression> filtered = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Expression> entry : current.entrySet()) {
+			if (retainedScopes.contains(entry.getKey())) {
+				filtered.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return filtered;
+	}
+
+	/**
+	 * Converts a map of per-scope expressions to the array form expected by
+	 * {@link SetReferenceSchemaFacetedMutation}.
+	 *
+	 * @param partiallyMap per-scope expressions (may be empty)
+	 * @return the corresponding array, possibly empty but never null
+	 */
+	@Nonnull
+	protected static ScopedFacetedPartially[] toScopedFacetedPartiallyArray(
+		@Nonnull Map<Scope, Expression> partiallyMap
+	) {
+		if (partiallyMap.isEmpty()) {
+			return ScopedFacetedPartially.EMPTY;
+		}
+		final ScopedFacetedPartially[] result =
+			new ScopedFacetedPartially[partiallyMap.size()];
+		int i = 0;
+		for (final Map.Entry<Scope, Expression> entry : partiallyMap.entrySet()) {
+			result[i++] = new ScopedFacetedPartially(entry.getKey(), entry.getValue());
+		}
+		return result;
 	}
 
 	@Nonnull
@@ -178,20 +282,6 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 			this.catalogSchema, this.entitySchema, this.mutations,
 			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			getIndexedComponentsInScopes(), inScope
-		);
-		return (T) this;
-	}
-
-	@Nonnull
-	@Override
-	public T indexedWithComponentsInScope(
-		@Nonnull Scope scope,
-		@Nonnull ReferenceIndexedComponents... components
-	) {
-		this.updatedSchemaDirty = indexedWithComponentsInScope(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), getReferenceIndexTypeInScopes(),
-			scope, components
 		);
 		return (T) this;
 	}
@@ -257,12 +347,59 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 		return (T) this;
 	}
 
+	@Nonnull
+	public Collection<LocalEntitySchemaMutation> toMutation() {
+		// apply necessary mutation sort
+		sortReferenceAttributeMutationsLast(this.mutations);
+		// and return mutations
+		return this.mutations;
+	}
+
+	/**
+	 * Creates an {@link AttributeSchemaBuilder} from an existing or new attribute definition,
+	 * applies optional consumer-based configuration, and validates sortable traits.
+	 * This method captures the logic shared by both {@link ReferenceSchemaBuilder} and
+	 * {@link ReflectedReferenceSchemaBuilder} in their `withAttribute` methods.
+	 *
+	 * @param attributeName     name of the attribute being defined
+	 * @param ofType            the expected type of the attribute
+	 * @param existingAttribute the previously existing attribute, if any
+	 * @param whichIs           optional consumer to further configure the attribute
+	 * @return the build result containing both the builder and the built schema
+	 */
+	@Nonnull
+	protected AttributeSchemaBuildResult buildAttributeSchema(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> ofType,
+		@Nullable AttributeSchemaContract existingAttribute,
+		@Nullable Consumer<AttributeSchemaEditor.AttributeSchemaBuilder> whichIs
+	) {
+		final AttributeSchemaBuilder attributeSchemaBuilder;
+		if (existingAttribute == null) {
+			attributeSchemaBuilder = new AttributeSchemaBuilder(this.entitySchema, attributeName, ofType);
+		} else {
+			Assert.isTrue(
+				ofType.equals(existingAttribute.getType()),
+				() -> new InvalidSchemaMutationException(
+					"Attribute " + attributeName + " has already assigned type " +
+						existingAttribute.getType() + ", cannot change this type to: " + ofType + "!"
+				)
+			);
+			attributeSchemaBuilder = new AttributeSchemaBuilder(this.entitySchema, existingAttribute);
+		}
+
+		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
+		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
+		checkSortableTraits(attributeName, attributeSchema);
+		return new AttributeSchemaBuildResult(attributeSchemaBuilder, attributeSchema);
+	}
+
 	/**
 	 * Adds attribute mutations to the mutation list when the attribute has actually changed
 	 * compared to its previous version (or is entirely new).
 	 *
-	 * @param existingAttribute the previously existing attribute, if any
-	 * @param attributeSchema the new attribute schema instance
+	 * @param existingAttribute      the previously existing attribute, if any
+	 * @param attributeSchema        the new attribute schema instance
 	 * @param attributeSchemaBuilder the builder that produced the attribute schema
 	 */
 	protected void addAttributeMutationsIfChanged(
@@ -283,14 +420,6 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 				)
 			);
 		}
-	}
-
-	@Nonnull
-	public Collection<LocalEntitySchemaMutation> toMutation() {
-		// apply necessary mutation sort
-		sortReferenceAttributeMutationsLast(this.mutations);
-		// and return mutations
-		return this.mutations;
 	}
 
 	/**
@@ -333,11 +462,24 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	 * and appropriate error message when the mutation unexpectedly removes the schema.
 	 *
 	 * @param currentSchema the current schema state
-	 * @param mutation the mutation to apply
+	 * @param mutation      the mutation to apply
 	 * @return the mutated schema, never null
 	 */
 	@Nonnull
 	protected abstract S mutateSchema(@Nonnull S currentSchema, @Nonnull LocalEntitySchemaMutation mutation);
+
+	/**
+	 * Intermediate result of building an attribute schema — holds the builder (needed for
+	 * mutation generation) together with the built immutable schema instance.
+	 *
+	 * @param builder the attribute schema builder
+	 * @param schema  the built attribute schema instance
+	 */
+	protected record AttributeSchemaBuildResult(
+		@Nonnull AttributeSchemaBuilder builder,
+		@Nonnull AttributeSchemaContract schema
+	) {
+	}
 
 	/**
 	 * The result of building a reference schema. Contains the built reference schema
