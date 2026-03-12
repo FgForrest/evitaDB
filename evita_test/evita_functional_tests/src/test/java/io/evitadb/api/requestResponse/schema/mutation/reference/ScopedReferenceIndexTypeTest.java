@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link ScopedReferenceIndexType} verifying construction, validation,
  * equality, and the empty array constant.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ScopedReferenceIndexType")
 class ScopedReferenceIndexTypeTest {

@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Tests for all boolean operators in the expression language verifying
  * logical computation and possible range determination.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Boolean operators")
 class BoolOperatorTest {

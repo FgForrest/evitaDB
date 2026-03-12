@@ -55,7 +55,7 @@ import static org.mockito.Mockito.when;
  * require type-specific TransactionalLayerProducer parameterization.
  *
  * @param <T> the concrete EntityIndex subtype being tested
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 abstract class AbstractEntityIndexTest<T extends EntityIndex> {
 

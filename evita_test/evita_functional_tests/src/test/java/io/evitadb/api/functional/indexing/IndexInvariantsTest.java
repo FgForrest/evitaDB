@@ -65,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * validates a specific guarantee about how indexes are created, maintained, and cleaned up
  * during entity lifecycle operations.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Index structural invariants")
 class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {

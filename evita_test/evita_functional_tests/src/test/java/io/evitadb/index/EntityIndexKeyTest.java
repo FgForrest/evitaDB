@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link EntityIndexKey} verifying constructor validation, equality/hashCode contract,
  * compareTo ordering, toString formatting, and randomized consistency.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EntityIndexKey functionality")
 class EntityIndexKeyTest implements TimeBoundedTestSupport {

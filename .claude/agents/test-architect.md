@@ -78,7 +78,7 @@ Follow this structure for organizing test files:
 /**
  * Tests for [ClassName] verifying [brief description of what aspects are tested].
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ClassName functionality")
 class ClassNameTest implements EvitaTestSupport {

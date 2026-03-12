@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Tests for {@link EvolutionMode} enum verifying all 9 evolution mode values
  * and enum completeness.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvolutionMode enum")
 class EvolutionModeTest {

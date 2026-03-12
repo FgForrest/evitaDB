@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link GroupCardinalityIndexStoragePartSerializer} verifying correct
  * serialization and deserialization round-trips for the {@link GroupCardinalityIndexStoragePart}.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("GroupCardinalityIndexStoragePartSerializer round-trip")
 class GroupCardinalityIndexStoragePartSerializerTest {

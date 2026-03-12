@@ -36,7 +36,7 @@ import java.util.List;
  * Tests that `extractFieldType` correctly resolves the generic element type
  * from `List&lt;String&gt;` using `field.getGenericType()` instead of `field.getType()`.
  *
- * @author evitaDB contributors
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Entity
 @Data

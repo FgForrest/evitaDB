@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link IntComparator} verifying the ascending and
  * descending comparator implementations for primitive integers.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("IntComparator functionality")
 class IntComparatorTest {

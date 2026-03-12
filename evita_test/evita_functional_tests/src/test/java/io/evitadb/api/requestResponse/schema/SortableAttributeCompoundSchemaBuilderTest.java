@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * attribute element configuration, mutation generation, and
  * reference-level compound creation.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("SortableAttributeCompoundSchemaBuilder")
 class SortableAttributeCompoundSchemaBuilderTest {

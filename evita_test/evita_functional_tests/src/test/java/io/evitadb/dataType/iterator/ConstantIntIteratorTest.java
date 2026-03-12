@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * int iterator contract over a constant array, including correct
  * handling of negative values such as `-1`.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ConstantIntIterator functionality")
 class ConstantIntIteratorTest {

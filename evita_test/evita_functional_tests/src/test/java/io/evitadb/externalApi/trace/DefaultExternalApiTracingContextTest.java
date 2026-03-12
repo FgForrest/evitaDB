@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link DefaultExternalApiTracingContext} verifying that the NOOP implementation directly invokes
  * the provided lambdas without tracing overhead.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DefaultExternalApiTracingContext - NOOP passthrough")
 class DefaultExternalApiTracingContextTest {

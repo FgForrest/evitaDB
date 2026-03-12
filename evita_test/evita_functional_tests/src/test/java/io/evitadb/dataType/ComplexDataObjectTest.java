@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link ComplexDataObject} verifying construction,
  * isEmpty, estimateSize, equality, and toString behavior.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ComplexDataObject functionality")
 class ComplexDataObjectTest {

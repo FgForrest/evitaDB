@@ -50,7 +50,7 @@ import static org.mockito.Mockito.mock;
  * {@link NoTransformer}, {@link PageTransformer},
  * {@link StripTransformer}, and {@link DefaultSlicer}.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Chunk transformers and slicers")
 class ChunkTransformerTest {

@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link HierarchyDirectRelation} verifying construction, applicability, cloning,
  * type resolution, visitor acceptance, and equality contract.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("HierarchyDirectRelation constraint")
 class HierarchyDirectRelationTest {

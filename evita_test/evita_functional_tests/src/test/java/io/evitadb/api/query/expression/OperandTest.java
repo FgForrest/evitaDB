@@ -49,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link ConstantOperand} and {@link VariableOperand} verifying
  * value resolution, range determination, and error handling.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Operands")
 class OperandTest {

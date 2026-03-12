@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link InternallyScheduledTask} annotation verifying its retention policy, target,
  * and documentation metadata.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("InternallyScheduledTask annotation metadata")
 class InternallyScheduledTaskTest {

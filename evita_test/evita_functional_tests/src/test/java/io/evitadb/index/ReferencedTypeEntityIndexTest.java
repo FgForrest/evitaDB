@@ -69,7 +69,7 @@ import static org.mockito.Mockito.when;
  * reference lookup operations, filter attribute cardinality, sort attribute no-ops, throwing stub
  * proxy creation, STM transactional behavior, and generational randomized proof.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReferencedTypeEntityIndex")
 class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTypeEntityIndex>

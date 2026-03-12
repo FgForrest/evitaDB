@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link SinglePriceEntityPrices}, {@link MultiplePriceEntityPrices}, and {@link FullBlownEntityPrices}.
  * Covers factory methods, type transitions, price lookup, inner record handling, and edge cases.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EntityPrices functionality")
 class EntityPricesTest {

@@ -63,7 +63,7 @@ import static org.mockito.Mockito.when;
  * Tests for {@link CatalogIndex} verifying construction, unique attribute management,
  * locale handling, emptiness checks, and STM (Software Transactional Memory) behavior.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @SuppressWarnings("SameParameterValue")
 @DisplayName("CatalogIndex functionality")

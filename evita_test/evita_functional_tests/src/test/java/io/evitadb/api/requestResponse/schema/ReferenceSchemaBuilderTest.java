@@ -71,7 +71,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * group type operations, scope-based indexing and faceting, reference attributes,
  * sortable attribute compounds, and mutation generation.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReferenceSchemaBuilder")
 class ReferenceSchemaBuilderTest {

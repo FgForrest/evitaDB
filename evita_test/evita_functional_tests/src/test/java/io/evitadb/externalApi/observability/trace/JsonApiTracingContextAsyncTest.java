@@ -61,7 +61,7 @@ import static org.mockito.Mockito.mockStatic;
  * for span verification and {@link MockedStatic} for {@link OpenTelemetryTracerSetup} to inject the test tracer
  * provider.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("JsonApiTracingContext - async span lifecycle")
 class JsonApiTracingContextAsyncTest {

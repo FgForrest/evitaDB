@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * implements the {@link Set} contract with lazy initialization
  * of the underlying {@link HashSet} delegate.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("LazyHashSet Set contract tests")
 class LazyHashSetDelegateTest {

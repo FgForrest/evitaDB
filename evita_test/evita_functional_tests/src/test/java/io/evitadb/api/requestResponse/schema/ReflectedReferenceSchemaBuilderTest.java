@@ -70,7 +70,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Prohibited operations (group type, nonIndexed()) are already covered by
  * {@link ReflectedReferenceSchemaEditorTest} and are not duplicated here.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReflectedReferenceSchemaBuilder")
 class ReflectedReferenceSchemaBuilderTest {

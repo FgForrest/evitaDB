@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link ParseContext} verifying argument handling,
  * parse mode management, and data type validation.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ParseContext")
 class ParseContextTest {

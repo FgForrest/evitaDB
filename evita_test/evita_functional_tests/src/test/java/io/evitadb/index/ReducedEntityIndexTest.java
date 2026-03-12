@@ -59,7 +59,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * partitioning assertions, locale removal) and adds tests specific to ReducedEntityIndex:
  * constructor type validation, STM commit/rollback, and generational property-based stress testing.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReducedEntityIndex")
 class ReducedEntityIndexTest extends AbstractReducedEntityIndexTest<ReducedEntityIndex>

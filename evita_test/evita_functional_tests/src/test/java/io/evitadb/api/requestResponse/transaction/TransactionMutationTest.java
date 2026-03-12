@@ -58,7 +58,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * access, CDC capture generation, conflict key collection, equality,
  * and string representation.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("TransactionMutation")
 class TransactionMutationTest implements EvitaTestSupport {

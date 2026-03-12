@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link FacetIncludingChildren} verifying construction, applicability, necessity, suffix behavior,
  * child management, cloning, visitor support, string representation, and equality contract.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("FacetIncludingChildren constraint")
 class FacetIncludingChildrenTest {

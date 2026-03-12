@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * that hold child constraints. Uses concrete implementations ({@link And}, {@link Or}, {@link FilterBy})
  * to test base container behavior.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ConstraintContainer")
 class ConstraintContainerTest {

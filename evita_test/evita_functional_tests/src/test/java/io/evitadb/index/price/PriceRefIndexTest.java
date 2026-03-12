@@ -79,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Tests for {@link PriceRefIndex} verifying catalog attachment, add/remove price delegation,
  * transactional commit/rollback semantics, copy-for-new-catalog, and contract methods.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("PriceRefIndex functionality")
 class PriceRefIndexTest implements TimeBoundedTestSupport {

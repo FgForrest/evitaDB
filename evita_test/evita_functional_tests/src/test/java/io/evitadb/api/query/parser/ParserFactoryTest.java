@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link ParserFactory} verifying parser creation
  * and configuration.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ParserFactory")
 class ParserFactoryTest {

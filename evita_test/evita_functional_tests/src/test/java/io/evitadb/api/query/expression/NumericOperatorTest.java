@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Tests for all numeric operators in the expression language verifying
  * arithmetic computation, range determination, and error handling.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Numeric operators")
 class NumericOperatorTest {

@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * scope-based filtering, uniqueness, sortability operations, BooleanSupplier decider variants,
  * and known bugs in the builder implementations.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Attribute schema builders")
 class AttributeSchemaBuilderTest {

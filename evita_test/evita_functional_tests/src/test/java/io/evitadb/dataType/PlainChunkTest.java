@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * getData behavior, DataChunk interface compliance, and
  * edge cases.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("PlainChunk functionality")
 class PlainChunkTest {

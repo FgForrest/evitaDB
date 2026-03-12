@@ -84,7 +84,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * delegation to super index, storage part creation, transactional commit/rollback semantics,
  * and the generational proof of consistency.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("PriceListAndCurrencyPriceRefIndex functionality")
 class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {

@@ -74,7 +74,7 @@ import static org.mockito.Mockito.mock;
  * bitmap on transitions to/from zero, preventing premature removal when one reference is deleted
  * but others still point to the same group.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReducedGroupEntityIndex cardinality tracking")
 class ReducedGroupEntityIndexTest

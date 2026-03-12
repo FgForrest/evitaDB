@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * collection, iteration, null rejection, default value behavior,
  * and entry semantics.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("WeakConcurrentMap tests")
 class WeakConcurrentMapTest {

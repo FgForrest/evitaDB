@@ -58,7 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link SdkTracerProvider} and verifies exported
  * {@link SpanData} through {@link InMemorySpanExporter}.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName(
 	"ObservabilityTracingBlockReference - OTel span lifecycle"

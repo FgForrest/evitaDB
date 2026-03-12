@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link References} verifying construction,
  * reference lookup, collection queries, and state methods.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("References")
 class ReferencesTest extends AbstractBuilderTest {

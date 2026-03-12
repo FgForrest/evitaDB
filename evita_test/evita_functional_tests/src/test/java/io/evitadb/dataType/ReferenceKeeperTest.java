@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * Tests for {@link ReferenceKeeper} verifying basic operations,
  * lambda usage, and generic type compatibility.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReferenceKeeper functionality")
 class ReferenceKeeperTest {

@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link RepresentativeReferenceKey} verifying construction, delegation, equality,
  * hashing, natural ordering, generic comparator, and string formatting.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("RepresentativeReferenceKey")
 class RepresentativeReferenceKeyTest {

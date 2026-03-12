@@ -56,7 +56,7 @@ import static org.mockito.Mockito.when;
  * a fresh instance of their specific reduced index subtype.
  *
  * @param <T> the concrete AbstractReducedEntityIndex subtype being tested
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 abstract class AbstractReducedEntityIndexTest<T extends AbstractReducedEntityIndex>
 	extends AbstractEntityIndexTest<T> {

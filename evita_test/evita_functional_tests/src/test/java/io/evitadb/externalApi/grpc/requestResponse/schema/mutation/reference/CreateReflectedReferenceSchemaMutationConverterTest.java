@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * Tests for {@link CreateReflectedReferenceSchemaMutationConverter} verifying gRPC
  * round-trip conversion of reflected reference mutations including facetedPartially.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("CreateReflectedReferenceSchemaMutationConverter (gRPC)")
 class CreateReflectedReferenceSchemaMutationConverterTest {

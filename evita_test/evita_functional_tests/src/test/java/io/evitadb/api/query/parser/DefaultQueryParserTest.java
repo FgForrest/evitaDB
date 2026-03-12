@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * queries, constraint lists, and values with various argument
  * passing strategies.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DefaultQueryParser")
 class DefaultQueryParserTest {

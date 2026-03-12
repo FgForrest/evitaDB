@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * contract and the empty primitive int iterator behavior:
  * always exhausted, always throws on `nextInt()`.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EmptyIntIterator functionality")
 class EmptyIntIteratorTest {

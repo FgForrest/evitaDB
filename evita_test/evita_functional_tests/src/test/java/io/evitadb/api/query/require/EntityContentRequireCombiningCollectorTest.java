@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link EntityContentRequireCombiningCollector} verifying stream collector contract, supplier, accumulator,
  * combiner, finisher, and integration with stream operations.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EntityContentRequireCombiningCollector")
 class EntityContentRequireCombiningCollectorTest {

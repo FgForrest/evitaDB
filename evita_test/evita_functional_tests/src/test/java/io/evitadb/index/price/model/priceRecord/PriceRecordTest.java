@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * equality/hashCode contracts, comparison ordering, relatesTo semantics,
  * and serialization behavior.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Price record model classes")
 class PriceRecordTest {

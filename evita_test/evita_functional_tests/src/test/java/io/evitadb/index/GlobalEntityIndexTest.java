@@ -62,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * STM commit/rollback, proxy stub creation, PriceSuperIndex isEmpty integration,
  * and generational property-based stress testing.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("GlobalEntityIndex")
 class GlobalEntityIndexTest extends AbstractEntityIndexTest<GlobalEntityIndex>
