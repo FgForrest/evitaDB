@@ -92,7 +92,8 @@ variable
     ;
 
 literal
-    : STRING # stringValueToken
+    : NULL # nullValueToken
+    | STRING # stringValueToken
     | INT # intValueToken
     | FLOAT # floatValueToken
     | BOOLEAN # booleanValueToken
@@ -124,6 +125,7 @@ XOR : '^' ;
 AND : '&&' ;
 OR : '||' ;
 
+NULL : 'null' ;
 INT : '-'? [0-9]+ ;
 FLOAT : '-'? [0-9]* '.' [0-9]+ ;
 BOOLEAN

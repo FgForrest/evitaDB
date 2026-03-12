@@ -403,6 +403,18 @@ public class EvitaELBaseListener implements EvitaELListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterNullValueToken(EvitaELParser.NullValueTokenContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitNullValueToken(EvitaELParser.NullValueTokenContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterStringValueToken(EvitaELParser.StringValueTokenContext ctx) { }
 	/**
 	 * {@inheritDoc}

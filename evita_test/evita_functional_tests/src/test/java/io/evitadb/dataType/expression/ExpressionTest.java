@@ -200,7 +200,17 @@ public class ExpressionTest {
 	        /* 100 */ Arguments.of("$obj.mapWithPrimitiveValues.*[max($, 7)]", Map.of("obj", new TestObject()), Map.of("a", BigDecimal.valueOf(7L), "b", BigDecimal.valueOf(7L), "c", BigDecimal.valueOf(7L), "d", BigDecimal.valueOf(8L)), BigDecimalNumberRange.INFINITE),
 	        /* 101 */ Arguments.of("$obj.mapWithPrimitiveValues.entries.*[$.key]", Map.of("obj", new TestObject()), List.of("a", "b", "c", "d"), BigDecimalNumberRange.INFINITE),
 	        /* 102 */ Arguments.of("$obj.mapWithPrimitiveValues.entries.*[$.value]", Map.of("obj", new TestObject()), List.of(5, 6, 7, 8), BigDecimalNumberRange.INFINITE),
-	        /* 103 */ Arguments.of("$obj.mapWithPrimitiveValues.entries.*[min($.value, 6)]", Map.of("obj", new TestObject()), List.of(BigDecimal.valueOf(5L), BigDecimal.valueOf(6L), BigDecimal.valueOf(6L), BigDecimal.valueOf(6L)), BigDecimalNumberRange.INFINITE)
+	        /* 103 */ Arguments.of("$obj.mapWithPrimitiveValues.entries.*[min($.value, 6)]", Map.of("obj", new TestObject()), List.of(BigDecimal.valueOf(5L), BigDecimal.valueOf(6L), BigDecimal.valueOf(6L), BigDecimal.valueOf(6L)), BigDecimalNumberRange.INFINITE),
+			/* Null literal */
+			/* 104 */ Arguments.of("null == null", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			/* 105 */ Arguments.of("null != null", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			/* 106 */ Arguments.of("null == 5", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			/* 107 */ Arguments.of("5 == null", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			/* 108 */ Arguments.of("null != 5", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			/* 109 */ Arguments.of("5 != null", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			/* 110 */ Arguments.of("null == 'abc'", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			/* 111 */ Arguments.of("null == $var", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
+			/* 112 */ Arguments.of("$var == null", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE)
 		);
 	}
 
@@ -211,7 +221,12 @@ public class ExpressionTest {
 			Arguments.of("$obj.optionalList[0]", Map.of("obj", new TestObject())),
 			Arguments.of("$obj.optionalMap['b']", Map.of("obj", new TestObject())),
 			Arguments.of("$obj.optionalNested.map['c'].list[0]", Map.of("obj", new TestObject())),
-			Arguments.of("$obj.mapWithMissingValues['b'].list[0]", Map.of("obj", new TestObject()))
+			Arguments.of("$obj.mapWithMissingValues['b'].list[0]", Map.of("obj", new TestObject())),
+			/* Null with comparison operators */
+			Arguments.of("null > 5", Map.of()),
+			Arguments.of("null < 5", Map.of()),
+			Arguments.of("null >= 5", Map.of()),
+			Arguments.of("null <= 5", Map.of())
 		);
 	}
 

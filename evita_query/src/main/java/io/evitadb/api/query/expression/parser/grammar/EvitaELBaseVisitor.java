@@ -244,6 +244,13 @@ public class EvitaELBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public T visitNullValueToken(EvitaELParser.NullValueTokenContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
 	@Override public T visitStringValueToken(EvitaELParser.StringValueTokenContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}

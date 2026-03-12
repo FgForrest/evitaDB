@@ -24,7 +24,7 @@
 package io.evitadb.api.query.expression.bool;
 
 
-import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
@@ -72,12 +72,12 @@ public class GreaterThanOperator implements BooleanOperator {
 		final Serializable value1 = this.leftOperator.compute(context);
 		Assert.isTrue(
 			value1 instanceof Comparable,
-			() -> new ParserException("Greater than function operand must be comparable!")
+			() -> new ExpressionEvaluationException("Greater than function operand must be comparable!")
 		);
 		final Serializable value2 = this.rightOperator.compute(context);
 		Assert.isTrue(
 			value2 instanceof Comparable,
-			() -> new ParserException("Greater than function operand must be comparable!")
+			() -> new ExpressionEvaluationException("Greater than function operand must be comparable!")
 		);
 		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked

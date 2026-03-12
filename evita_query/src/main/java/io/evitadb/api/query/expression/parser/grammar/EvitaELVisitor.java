@@ -232,6 +232,13 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitVariable(EvitaELParser.VariableContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code nullValueToken}
+	 * labeled alternative in {@link EvitaELParser#literal}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitNullValueToken(EvitaELParser.NullValueTokenContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code stringValueToken}
 	 * labeled alternative in {@link EvitaELParser#literal}.
 	 * @param ctx the parse tree

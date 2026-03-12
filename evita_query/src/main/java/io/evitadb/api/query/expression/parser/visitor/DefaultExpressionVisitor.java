@@ -344,6 +344,11 @@ public class DefaultExpressionVisitor extends EvitaELBaseVisitor<ExpressionNode>
 	}
 
 	@Override
+	public ExpressionNode visitNullValueToken(NullValueTokenContext ctx) {
+		return new ConstantOperand(null);
+	}
+
+	@Override
 	public ExpressionNode visitStringValueToken(StringValueTokenContext ctx) {
 		return new ConstantOperand(StringUtils.translateEscapes(ctx.getText().substring(1, ctx.getText().length() - 1)));
 	}

@@ -384,6 +384,18 @@ public interface EvitaELListener extends ParseTreeListener {
 	 */
 	void exitVariable(EvitaELParser.VariableContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code nullValueToken}
+	 * labeled alternative in {@link EvitaELParser#literal}.
+	 * @param ctx the parse tree
+	 */
+	void enterNullValueToken(EvitaELParser.NullValueTokenContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code nullValueToken}
+	 * labeled alternative in {@link EvitaELParser#literal}.
+	 * @param ctx the parse tree
+	 */
+	void exitNullValueToken(EvitaELParser.NullValueTokenContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code stringValueToken}
 	 * labeled alternative in {@link EvitaELParser#literal}.
 	 * @param ctx the parse tree
