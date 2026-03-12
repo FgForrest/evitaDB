@@ -30,10 +30,10 @@ import javax.annotation.Nonnull;
 import java.util.OptionalInt;
 
 /**
- * Implementations of this interface represents parts of the {@link Entity} object that
+ * Implementations of this interface represent parts of the {@link Entity} object that
  * are stored as separated records on the disk. Separating {@link Entity} data into several
  * parts allows optimization of the data regarding usual reading scenarios. Separating entity data into the parts should
- * take into an account following prospectives:
+ * take into an account following perspectives:
  *
  * - what data are usually read together
  * - the data size

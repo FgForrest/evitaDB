@@ -25,7 +25,6 @@ package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -63,8 +62,8 @@ import java.util.function.UnaryOperator;
  * - non-localized (i.e. shared / global) attributes
  * - localized attributes for each language
  *
- * When entity is fetched in certain language - two containers are loaded from persistent storage - one for global attributes
- * and second for localized attributes in requested language.
+ * When entity is fetched in certain language - two containers are loaded from persistent storage - one for global
+ * attributes and second for localized attributes in requested language.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -78,11 +77,11 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	/**
 	 * Entity id that is necessary to compute unique part id on new container creation.
 	 */
-	@Getter private final Integer entityPrimaryKey;
+	@Nonnull @Getter private final Integer entityPrimaryKey;
 	/**
 	 * Contains key for attribute set lookup.
 	 */
-	@Getter private final EntityAttributesSetKey attributeSetKey;
+	@Nonnull @Getter private final EntityAttributesSetKey attributeSetKey;
 	/**
 	 * Contains information about size of this container in bytes.
 	 */
@@ -92,9 +91,10 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 */
 	@Nullable @Getter private Long storagePartPK;
 	/**
-	 * See {@link Attributes#getAttributeValues()}. Attributes are sorted in ascending order according to {@link AttributeKey}.
+	 * See {@link Attributes#getAttributeValues()}. Attributes are sorted in ascending order according to
+	 * {@link AttributeKey}.
 	 */
-	@Getter private AttributeValue[] attributes = EMPTY_ATTRIBUTE_VALUES;
+	@Nonnull @Getter private AttributeValue[] attributes = EMPTY_ATTRIBUTE_VALUES;
 	/**
 	 * Contains true if anything changed in this container.
 	 */
@@ -108,7 +108,10 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 * @throws CompressionKeyUnknownException when key is not recognized by {@link KeyCompressor}
 	 */
 	@Nonnull
-	public static OptionalLong computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAttributesSetKey attributeSetKey) throws CompressionKeyUnknownException {
+	public static OptionalLong computeUniquePartId(
+		@Nonnull KeyCompressor keyCompressor,
+		@Nonnull EntityAttributesSetKey attributeSetKey
+	) throws CompressionKeyUnknownException {
 		final OptionalInt id = keyCompressor.getIdIfExists(
 			new AttributesSetKey(attributeSetKey.locale())
 		);
@@ -124,6 +127,9 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 		}
 	}
 
+	/**
+	 * Creates a new global (non-localized) attributes storage part for the given entity.
+	 */
 	public AttributesStoragePart(int entityPrimaryKey) {
 		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
@@ -131,14 +137,26 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 		this.sizeInBytes = -1;
 	}
 
-	public AttributesStoragePart(int entityPrimaryKey, Locale locale) {
+	/**
+	 * Creates a new localized attributes storage part for the given entity and locale.
+	 */
+	public AttributesStoragePart(int entityPrimaryKey, @Nonnull Locale locale) {
 		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
 		this.sizeInBytes = -1;
 	}
 
-	public AttributesStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull Locale locale, @Nonnull AttributeValue[] attributes, int sizeInBytes) {
+	/**
+	 * Creates an attributes storage part loaded from persistent storage.
+	 */
+	public AttributesStoragePart(
+		long storagePartPK,
+		int entityPrimaryKey,
+		@Nonnull Locale locale,
+		@Nonnull AttributeValue[] attributes,
+		int sizeInBytes
+	) {
 		this.storagePartPK = storagePartPK;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
@@ -175,7 +193,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	}
 
 	/**
-	 * Adds new or replaces existing attribute with new {@link AttributeValue}.
+	 * Finds an attribute by its key in the current sorted attribute array.
 	 */
 	@Nullable
 	public AttributeValue findAttribute(@Nonnull AttributeKey attributeKey) {
@@ -198,9 +216,15 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 			AttributeValue.createEmptyComparableAttributeValue(attributeKey),
 			attributeValue -> {
 				final AttributeValue mutatedAttribute = mutator.apply(attributeValue);
-				final Serializable valueAlignedToSchema = EvitaDataTypes.toTargetType(mutatedAttribute.value(), attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces());
-				final AttributeValue attributeToUpsert = valueAlignedToSchema == mutatedAttribute.value() || valueAlignedToSchema == null ?
-					mutatedAttribute : new AttributeValue(mutatedAttribute, valueAlignedToSchema);
+				final Serializable valueAlignedToSchema = EvitaDataTypes.toTargetType(
+					mutatedAttribute.value(),
+					attributeDefinition.getType(),
+					attributeDefinition.getIndexedDecimalPlaces()
+				);
+				final AttributeValue attributeToUpsert =
+					valueAlignedToSchema == mutatedAttribute.value() || valueAlignedToSchema == null
+						? mutatedAttribute
+						: new AttributeValue(mutatedAttribute, valueAlignedToSchema);
 				if (attributeValue == null || attributeValue.differsFrom(mutatedAttribute)) {
 					this.dirty = true;
 					return attributeToUpsert;
@@ -214,7 +238,12 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 
 	@Override
 	public boolean isEmpty() {
-		return this.attributes.length == 0 || Arrays.stream(this.attributes).noneMatch(Droppable::exists);
+		for (final AttributeValue attribute : this.attributes) {
+			if (attribute.exists()) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	@Nonnull
@@ -240,13 +269,17 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 
 		@Override
 		public int compareTo(@Nonnull EntityAttributesSetKey o) {
-			return ComparatorUtils.compareLocale(this.locale, o.locale, () -> Integer.compare(this.entityPrimaryKey, o.entityPrimaryKey));
+			return ComparatorUtils.compareLocale(
+				this.locale, o.locale,
+				() -> Integer.compare(this.entityPrimaryKey, o.entityPrimaryKey)
+			);
 		}
 
 	}
 
 	/**
-	 * This key is registered in {@link KeyCompressor} to retrieve id that is part of the {@link AttributesStoragePart#getStoragePartPK()}.
+	 * This key is registered in {@link KeyCompressor} to retrieve id that is part of the
+	 * {@link AttributesStoragePart#getStoragePartPK()}.
 	 * Key can be shared among attribute sets of different entities, but is single for all global attributes and single
 	 * for attribute sets in certain language. Together with entityPrimaryKey composes part id unique among all other
 	 * attribute set part types.
