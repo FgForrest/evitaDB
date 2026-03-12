@@ -24,7 +24,6 @@
 package io.evitadb.api.query.expression;
 
 import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
-import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -72,14 +71,14 @@ class OperandTest {
 		}
 
 		@Test
-		@DisplayName(
-			"should throw ParserException for null value"
-		)
-		void shouldThrowForNullValue() {
-			assertThrows(
-				ParserException.class,
-				() -> new ConstantOperand(null)
-			);
+		@DisplayName("should accept null value and return null on compute")
+		void shouldAcceptNullValue() {
+			final ConstantOperand operand = new ConstantOperand(null);
+			final ExpressionEvaluationContext context =
+				new MultiVariableEvaluationContext(42, Map.of());
+
+			assertNull(operand.compute(context));
+			assertNull(operand.getValue());
 		}
 
 		@Test

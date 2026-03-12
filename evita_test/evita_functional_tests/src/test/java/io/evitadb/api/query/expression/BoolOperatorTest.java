@@ -35,6 +35,7 @@ import io.evitadb.api.query.expression.bool.NotEqualsOperator;
 import io.evitadb.api.query.expression.bool.XorOperator;
 import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -487,8 +488,8 @@ class BoolOperatorTest {
 					new VariableOperand(null), num(5)
 				);
 
-			final ParserException exception = assertThrows(
-				ParserException.class,
+			final ExpressionEvaluationException exception = assertThrows(
+				ExpressionEvaluationException.class,
 				() -> op.compute(CONTEXT)
 			);
 			assertEquals(
