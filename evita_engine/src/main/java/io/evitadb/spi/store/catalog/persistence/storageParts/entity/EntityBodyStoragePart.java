@@ -80,7 +80,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	/**
 	 * See {@link Entity#getScope()}.
 	 */
-	@Getter private Scope scope;
+	@Nonnull @Getter private Scope scope;
 	/**
 	 * See {@link Entity#getParent()}.
 	 */
@@ -103,6 +103,9 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	@Getter
 	private boolean markedForRemoval;
 
+	/**
+	 * Creates a new entity body storage part for the given primary key.
+	 */
 	public EntityBodyStoragePart(int primaryKey) {
 		this.primaryKey = primaryKey;
 		this.scope = Scope.LIVE;
@@ -114,6 +117,9 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		this.sizeInBytes = -1;
 	}
 
+	/**
+	 * Creates an entity body storage part loaded from persistent storage.
+	 */
 	public EntityBodyStoragePart(
 		int version,
 		@Nonnull Integer primaryKey,
@@ -258,7 +264,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	/**
 	 * Method registers new {@link AssociatedDataKey} referenced by this entity.
 	 *
-	 * @return TRUE if the locales of the entity have been changed
+	 * @return TRUE if the entity locales have been changed
 	 */
 	public boolean addAssociatedDataKey(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.associatedDataKeys.add(associatedDataKey)) {
@@ -275,7 +281,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	/**
 	 * Method unregisters {@link AssociatedDataKey} as being referenced by this entity.
 	 *
-	 * @return TRUE if the locales of the entity have been changed
+	 * @return TRUE if the entity locales have been changed
 	 */
 	public boolean removeAssociatedDataKey(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.associatedDataKeys.remove(associatedDataKey)) {

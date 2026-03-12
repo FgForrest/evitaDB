@@ -63,11 +63,11 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	/**
 	 * Entity id that is necessary to compute unique part id on new container creation.
 	 */
-	@Getter private final Integer entityPrimaryKey;
+	@Nonnull @Getter private final Integer entityPrimaryKey;
 	/**
 	 * See {@link AssociatedDataValue#key()}.
 	 */
-	@Getter private final EntityAssociatedDataKey associatedDataKey;
+	@Nonnull @Getter private final EntityAssociatedDataKey associatedDataKey;
 	/**
 	 * Contains information about size of this container in bytes.
 	 */
@@ -79,7 +79,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	/**
 	 * See {@link AssociatedDataValue#value()}.
 	 */
-	@Getter private AssociatedDataValue value;
+	@Nullable @Getter private AssociatedDataValue value;
 	/**
 	 * Contains true if anything changed in this container.
 	 */
@@ -91,7 +91,10 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	 * - int key assigned by {@link KeyCompressor} for its {@link AssociatedDataKey}
 	 */
 	@Nonnull
-	public static OptionalLong computeUniquePartId(@Nonnull KeyCompressor keyCompressor, @Nonnull EntityAssociatedDataKey key) {
+	public static OptionalLong computeUniquePartId(
+		@Nonnull KeyCompressor keyCompressor,
+		@Nonnull EntityAssociatedDataKey key
+	) {
 		final OptionalInt id = keyCompressor.getIdIfExists(
 			new AssociatedDataKey(
 				key.associatedDataName(), key.locale()
@@ -109,21 +112,39 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 		}
 	}
 
+	/**
+	 * Creates a new empty associated data storage part for the given entity and associated data key.
+	 */
 	public AssociatedDataStoragePart(int entityPrimaryKey, @Nonnull AssociatedDataKey associatedDataKey) {
 		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
-		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataKey.associatedDataName(), associatedDataKey.locale());
+		this.associatedDataKey = new EntityAssociatedDataKey(
+			entityPrimaryKey, associatedDataKey.associatedDataName(), associatedDataKey.locale()
+		);
 		this.sizeInBytes = -1;
 	}
 
-	public AssociatedDataStoragePart(long storagePartPK, int entityPrimaryKey, @Nonnull AssociatedDataValue associatedDataValue, int sizeInBytes) {
+	/**
+	 * Creates an associated data storage part loaded from persistent storage.
+	 */
+	public AssociatedDataStoragePart(
+		long storagePartPK,
+		int entityPrimaryKey,
+		@Nonnull AssociatedDataValue associatedDataValue,
+		int sizeInBytes
+	) {
 		this.storagePartPK = storagePartPK;
 		this.entityPrimaryKey = entityPrimaryKey;
-		this.associatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, associatedDataValue.key().associatedDataName(), associatedDataValue.key().locale());
+		this.associatedDataKey = new EntityAssociatedDataKey(
+			entityPrimaryKey,
+			associatedDataValue.key().associatedDataName(),
+			associatedDataValue.key().locale()
+		);
 		this.value = associatedDataValue;
 		this.sizeInBytes = sizeInBytes;
 	}
 
+	@Nonnull
 	@Override
 	public EntityAssociatedDataKey getStoragePartSourceKey() {
 		return this.associatedDataKey;
@@ -159,7 +180,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	/**
 	 * Replaces existing value with different content.
 	 */
-	public void replaceAssociatedData(AssociatedDataValue newValue) {
+	public void replaceAssociatedData(@Nullable AssociatedDataValue newValue) {
 		if ((this.value == null && newValue != null) || (this.value != null && this.value.differsFrom(newValue))) {
 			this.value = newValue;
 			this.dirty = true;
