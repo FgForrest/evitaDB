@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,9 +52,9 @@ class MockEntityIndexCreator<K extends IndexKey, T extends Index<K>> implements 
 		return this.index;
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public T getIndexByPrimaryKey(int indexPrimaryKey) {
+	public T getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
 		return this.index;
 	}
 

@@ -2443,10 +2443,13 @@ public final class Catalog
 				Catalog.this.archiveCatalogIndex : Catalog.this.catalogIndex;
 		}
 
-		@Nonnull
+		/**
+		 * Catalog indexes are not addressable by storage primary key — always returns null.
+		 */
+		@Nullable
 		@Override
-		public CatalogIndex getIndexByPrimaryKey(int indexPrimaryKey) {
-			throw new UnsupportedOperationException("Catalog index doesn't support retrieval by primary key!");
+		public CatalogIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+			return null;
 		}
 
 		/**

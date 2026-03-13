@@ -41,6 +41,11 @@ import io.evitadb.api.requestResponse.mutation.MutationContract;
  * wrapping {@link EntityIndexMutation} transport envelope, which routes the mutations to the correct
  * `EntityCollection`.
  *
+ * **Implementation constraint:** all implementations **must** be final classes or records. The
+ * {@link IndexMutationExecutorRegistry} dispatches mutations using exact `Class` identity matching
+ * via `Map.get(mutation.getClass())` — it does NOT traverse the class hierarchy. A non-final
+ * implementation whose subclass is not separately registered would silently fail to dispatch.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public interface IndexMutation extends MutationContract {

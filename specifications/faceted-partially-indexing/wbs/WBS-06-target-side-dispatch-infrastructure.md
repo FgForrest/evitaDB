@@ -12,15 +12,15 @@ Three collaborating abstractions form the dispatch path:
 2. **`IndexMutationExecutor<M>`** — a stateless strategy interface: one implementation per concrete `IndexMutation` type, performing the full processing pipeline (resolve affected PKs, evaluate expression, apply index changes).
 3. **`IndexMutationExecutorRegistry`** — a static singleton mapping `Class<? extends IndexMutation>` to the corresponding `IndexMutationExecutor<?>`, with a single `dispatch(mutation, target)` entry point.
 
-Together these create a thin, zero-allocation dispatch path: `EntityCollection` iterates `IndexMutation` instances and calls `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)`. No container executor is instantiated, no switch/case logic lives in the collection, and no transactional reinstantiation occurs.
+Together these create a thin, zero-allocation dispatch path: `EntityCollection` iterates `IndexMutation` instances and calls `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`. The `entityIndexCreator` field (private inner class `EntityIndexMaintainer`) implements both `IndexMaintainer` and `IndexMutationTarget`, isolating callers from the full `EntityCollection` API surface. No container executor is instantiated, no switch/case logic lives in the collection, and no transactional reinstantiation occurs.
 
 ## Scope
 
 ### In Scope
 
 - `IndexMutationTarget` role interface (6 methods) in package `io.evitadb.index.mutation` (evita_engine).
-- `EntityCollection implements IndexMutationTarget` — delegation of all 6 methods to existing collection internals.
-- `applyIndexMutations(EntityIndexMutation)` method on `EntityCollection` — the thin dispatch loop.
+- `EntityIndexMaintainer` (private inner class of `EntityCollection`) implements `IndexMutationTarget` — delegation of all 6 methods to enclosing `EntityCollection` internals, providing API surface isolation.
+- `applyIndexMutations(EntityIndexMutation)` method on `EntityCollection` — the thin dispatch loop passing `this.entityIndexCreator` as `IndexMutationTarget`.
 - `IndexMutationExecutor<M extends IndexMutation>` strategy interface.
 - `IndexMutationExecutorRegistry` class — static singleton, immutable executor map, `dispatch()` method.
 - Wiring the initial executor entry: `ReevaluateFacetExpressionMutation.class` mapped to `ReevaluateFacetExpressionExecutor` instance.
@@ -59,8 +59,10 @@ Executors need access to the target collection's indexes and schema but must not
  * trigger access, and query-based filter evaluation — prevents executors from reaching
  * into collection internals (mutations, persistence, cache, etc.).
  *
- * {@link EntityCollection} implements this interface, so the dispatcher simply
- * passes {@code this} to the executor — zero extra allocations.
+ * Implemented by the private {@code EntityIndexMaintainer} inner class within
+ * {@link EntityCollection}. This inner class also implements
+ * {@code IndexMaintainer<EntityIndexKey, EntityIndex>}, providing dual-role
+ * isolation: callers cannot cast the target back to {@code EntityCollection}.
  */
 public interface IndexMutationTarget {
 
@@ -124,35 +126,38 @@ public interface IndexMutationTarget {
 }
 ```
 
-### `EntityCollection implements IndexMutationTarget` — delegation table
+### `EntityIndexMaintainer implements IndexMutationTarget` — delegation table
 
-`EntityCollection` implements this interface directly, so the dispatcher passes `this` to the executor — zero extra allocations. Each method delegates to an existing method already present on the collection:
+The private inner class `EntityIndexMaintainer` implements this interface. The dispatcher passes `this.entityIndexCreator` to the executor — zero extra allocations (the field already exists). Each method delegates to the enclosing `EntityCollection`'s internals:
 
 | Interface method | Delegates to |
 |---|---|
-| `getOrCreateIndex(key)` | `this.entityIndexCreator.getOrCreateIndex(key)` |
-| `getIndexIfExists(key)` | `this.entityIndexCreator.getIndexIfExists(key)` |
-| `getIndexByPrimaryKeyIfExists(pk)` | existing `getIndexByPrimaryKeyIfExists(pk)` (already present on EntityCollection) |
-| `getEntitySchema()` | `this.getInternalSchema()` |
+| `getOrCreateIndex(key)` | index creation logic within `EntityIndexMaintainer` (same as `IndexMaintainer` contract) |
+| `getIndexIfExists(key)` | `EntityCollection.this.getIndexByKeyIfExists(key)` |
+| `getIndexByPrimaryKeyIfExists(pk)` | `EntityCollection.this.getIndexByPrimaryKeyIfExists(pk)` |
+| `getEntitySchema()` | `EntityCollection.this.getInternalSchema()` |
 | `getTrigger(refName, depType, scope)` | lookup in cached trigger map built from `ReferenceSchema` at schema load time |
 | `evaluateFilter(filterBy)` | thin delegation to query evaluation infrastructure against `GlobalEntityIndex` |
 
+**Isolation rationale:** `EntityCollection` does NOT implement `IndexMutationTarget` directly. Passing `EntityCollection` itself would be one cast away from accessing internal methods (mutations, persistence, cache) that executors should never see. Passing the inner class instance prevents this — callers cannot cast it to `EntityCollection`.
+
 ### `applyIndexMutations()` — thin dispatch loop
 
-The target collection is a thin dispatcher: it receives an `EntityIndexMutation` containing concrete `IndexMutation` instances and dispatches each one to the appropriate `IndexMutationExecutor` via the static singleton registry, passing `this` (typed as `IndexMutationTarget`) as the collection context.
+The target collection is a thin dispatcher: it receives an `EntityIndexMutation` containing concrete `IndexMutation` instances and dispatches each one to the appropriate `IndexMutationExecutor` via the static singleton registry, passing `this.entityIndexCreator` (which implements `IndexMutationTarget`) as the collection context.
 
 ```java
-// EntityCollection implements IndexMutationTarget
+// EntityCollection — dispatches via entityIndexCreator (implements IndexMutationTarget)
 
 /**
  * Dispatches {@link IndexMutation} instances to their registered
- * {@link IndexMutationExecutor}. Passes {@code this} as {@link IndexMutationTarget}
- * so executors can access indexes, schema, triggers, and query evaluation
- * without seeing the full collection API surface.
+ * {@link IndexMutationExecutor}. Passes {@code this.entityIndexCreator}
+ * (which implements {@link IndexMutationTarget}) so executors can access
+ * indexes, schema, triggers, and query evaluation without seeing the full
+ * {@link EntityCollection} API surface.
  */
 void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation) {
     for (IndexMutation mutation : entityIndexMutation.mutations()) {
-        IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this);
+        IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
     }
 }
 ```
@@ -263,7 +268,7 @@ public class IndexMutationExecutorRegistry {
 ### Handler hierarchy diagram (visual summary — see AD 12 below for detailed prose description)
 
 ```
-IndexMutationTarget (role interface — implemented by EntityCollection)
+IndexMutationTarget (role interface — implemented by EntityIndexMaintainer inner class)
   getOrCreateIndex(), getIndexIfExists(), getIndexByPrimaryKeyIfExists(), getEntitySchema()
   getTrigger(referenceName, dependencyType, scope)  <- trigger access for FilterBy retrieval
   evaluateFilter(FilterBy)                          <- query-based expression evaluation
@@ -284,16 +289,17 @@ IndexMutationExecutorRegistry (static singleton — INSTANCE)
 
 ### Architectural decisions
 
-**AD 6 — Thin dispatch path:** `EntityCollection implements IndexMutationTarget` (role interface limiting access to index lookup, schema retrieval, trigger access, and query evaluation). `applyIndexMutations()` iterates the `IndexMutation` instances nested in `EntityIndexMutation` and delegates each to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)`. Zero allocations — `this` is the target. No container executor is created.
+**AD 6 — Thin dispatch path:** `EntityIndexMaintainer` (private inner class of `EntityCollection`) implements `IndexMutationTarget` (role interface limiting access to index lookup, schema retrieval, trigger access, and query evaluation). `applyIndexMutations()` iterates the `IndexMutation` instances nested in `EntityIndexMutation` and delegates each to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`. Zero allocations — `entityIndexCreator` already exists as a field. No container executor is created. Callers cannot cast the target back to `EntityCollection`.
 
 **AD 12 — Registry-based executor dispatch — stateless static singleton:** Clear separation of concerns across four layers:
 
-1. **`IndexMutationTarget`** — role interface implemented by `EntityCollection`. Limits executor access to index lookup (`getOrCreateIndex`, `getIndexIfExists`, `getIndexByPrimaryKeyIfExists`), schema retrieval (`getEntitySchema`), trigger access (`getTrigger` — for `FilterBy` constraint retrieval), and query-based filter evaluation (`evaluateFilter` — for index-based expression evaluation). Executors never see the full collection API. Zero allocations — `EntityCollection` passes `this`.
+1. **`IndexProvider<K, T>`** — shared super-interface declaring `getOrCreateIndex(K)`, `getIndexIfExists(K)`, and `getIndexByPrimaryKeyIfExists(int)`. Extended by both `IndexMaintainer` (which adds `removeIndex` and a default throwing `getIndexByPrimaryKey`) and `IndexMutationTarget`. Eliminates duplicate method declarations across the two interfaces.
+1. **`IndexMutationTarget extends IndexProvider<EntityIndexKey, EntityIndex>`** — role interface implemented by the private `EntityIndexMaintainer` inner class (not `EntityCollection` directly). Adds executor-specific operations: schema retrieval (`getEntitySchema`), trigger access (`getTrigger` — for `FilterBy` constraint retrieval), and query-based filter evaluation (`evaluateFilter` — for index-based expression evaluation). Executors never see the full collection API. Zero allocations — `EntityCollection` passes `this.entityIndexCreator` (which already exists as a field). Callers cannot cast the target back to `EntityCollection`.
 2. **`ExpressionIndexTrigger`** — generic base interface for expression-driven index triggers. Subtypes: `FacetExpressionTrigger` (conditional facet indexing), `HistogramExpressionTrigger` (conditional histogram indexing, future). Two evaluation modes: `evaluate()` for local triggers (per-entity, Proxycian proxies), `getFilterByConstraint()` for cross-entity triggers (full expression as `FilterBy` template, parameterized at trigger time, evaluated against indexes).
 3. **`IndexMutationExecutorRegistry`** — static singleton mapping concrete `IndexMutation` types (`ReevaluateFacetExpressionMutation`) to stateless `IndexMutationExecutor<M>` singletons (`ReevaluateFacetExpressionExecutor`). Both the registry and its executors hold no instance state — they survive `EntityCollection` transactional copy without reinstantiation. Extensible — new mutation types require only a new mutation record + executor class + registry entry.
 4. **`CatalogExpressionTriggerRegistry`** — catalog-level inverted index. Maps `(mutatedEntityType, dependencyType)` to `List<ExpressionIndexTrigger>`. Inverts the ownership: expression defined in schema A, indexed under schema B. Rebuilt on schema changes (`rebuildForEntityType()` returns new instance — immutability principle).
 
-**AD 17 — `IndexMutationExecutorRegistry` lifecycle — static singleton:** The registry is a `static final` field with an immutable executor map. Executors are stateless singletons that receive all collection context via `IndexMutationTarget` (a role interface implemented by `EntityCollection`). This avoids reinstantiation during `EntityCollection.createCopyWithMergedTransactionalMemory()` — the registry and its executors are never fields on `EntityCollection`, just a static constant accessed at dispatch time. `EntityCollection` accesses it as `IndexMutationExecutorRegistry.INSTANCE`.
+**AD 17 — `IndexMutationExecutorRegistry` lifecycle — static singleton:** The registry is a `static final` field with an immutable executor map. Executors are stateless singletons that receive all collection context via `IndexMutationTarget` (extends `IndexProvider` — implemented by the `EntityIndexMaintainer` inner class). This avoids reinstantiation during `EntityCollection.createCopyWithMergedTransactionalMemory()` — the registry and its executors are never fields on `EntityCollection`, just a static constant accessed at dispatch time. `EntityCollection` accesses it as `IndexMutationExecutorRegistry.INSTANCE`.
 
 ### Extensibility model
 
@@ -303,28 +309,30 @@ Adding a new mutation type requires exactly three artifacts — no changes to di
 2. **New stateless executor class** — implementing `IndexMutationExecutor<NewMutation>`.
 3. **One registry entry** — add the `NewMutation.class -> new NewExecutor()` mapping to the `Map.of(...)` in `IndexMutationExecutorRegistry.INSTANCE`.
 
-The dispatch loop in `EntityCollection.applyIndexMutations()`, the `IndexMutationTarget` interface, and the `IndexMutationExecutorRegistry.dispatch()` method remain unchanged.
+The dispatch loop in `EntityCollection.applyIndexMutations()`, the `IndexMutationTarget` interface, the `EntityIndexMaintainer` implementation, and the `IndexMutationExecutorRegistry.dispatch()` method remain unchanged.
 
 ## Key Interfaces
 
 | Interface / Class | Package | Responsibility |
 |---|---|---|
-| `IndexMutationTarget` | `io.evitadb.index.mutation` | Role interface: 6 methods giving executors a narrow view of `EntityCollection` (index lookup, schema, trigger access, filter evaluation) |
+| `IndexProvider<K, T>` | `io.evitadb.index` | Shared super-interface: 3 index lookup methods (`getOrCreateIndex`, `getIndexIfExists`, `getIndexByPrimaryKeyIfExists`) — extended by both `IndexMaintainer` and `IndexMutationTarget` |
+| `IndexMaintainer<K, T>` | `io.evitadb.index` | Extends `IndexProvider`: adds `removeIndex` + default throwing `getIndexByPrimaryKey` |
+| `IndexMutationTarget` | `io.evitadb.index.mutation` | Extends `IndexProvider<EntityIndexKey, EntityIndex>`: 3 executor-specific methods (`getEntitySchema`, `getTrigger`, `evaluateFilter`) |
 | `IndexMutationExecutor<M>` | `io.evitadb.index.mutation` | Stateless strategy: single `execute(M, IndexMutationTarget)` method, one impl per mutation type |
 | `IndexMutationExecutorRegistry` | `io.evitadb.index.mutation` | Static singleton: maps `Class<? extends IndexMutation>` to `IndexMutationExecutor<?>`, provides `dispatch()` |
-| `EntityCollection` (modified) | `io.evitadb.core.collection` | Implements `IndexMutationTarget`; adds `applyIndexMutations()` dispatch loop |
+| `EntityCollection` (modified) | `io.evitadb.core.collection` | `EntityIndexMaintainer` inner class implements both `IndexMaintainer` and `IndexMutationTarget`; adds `applyIndexMutations()` dispatch loop |
 
 ## Acceptance Criteria
 
-1. **`IndexMutationTarget` interface** exists in `io.evitadb.index.mutation` with all 6 methods: `getOrCreateIndex`, `getIndexIfExists`, `getIndexByPrimaryKeyIfExists`, `getEntitySchema`, `getTrigger`, `evaluateFilter`.
-2. **`EntityCollection` implements `IndexMutationTarget`** — each method delegates to the corresponding existing collection internal (see delegation table). No new fields are required.
+1. **`IndexProvider<K, T>` interface** exists in `io.evitadb.index` with 3 methods: `getOrCreateIndex`, `getIndexIfExists`, `getIndexByPrimaryKeyIfExists`. **`IndexMutationTarget` interface** exists in `io.evitadb.index.mutation`, extends `IndexProvider<EntityIndexKey, EntityIndex>`, and declares 3 additional methods: `getEntitySchema`, `getTrigger`, `evaluateFilter`. **`IndexMaintainer<K, T>`** extends `IndexProvider<K, T>` with a default throwing `getIndexByPrimaryKey` and abstract `removeIndex`.
+2. **`EntityIndexMaintainer` (private inner class of `EntityCollection`) implements `IndexMutationTarget`** — each method delegates to the enclosing `EntityCollection`'s internals (see delegation table). `EntityCollection` does NOT implement `IndexMutationTarget` directly — this ensures API surface isolation. No new fields are required.
 3. **`IndexMutationExecutor<M>` interface** exists with `void execute(@Nonnull M mutation, @Nonnull IndexMutationTarget target)`.
 4. **`IndexMutationExecutorRegistry`** class exists as a static singleton (`static final INSTANCE`) with:
    - Private constructor accepting an immutable map.
    - `dispatch(M, IndexMutationTarget)` method performing unchecked cast lookup and delegation.
    - Initial entry mapping `ReevaluateFacetExpressionMutation.class` to a `ReevaluateFacetExpressionExecutor` instance.
-5. **`applyIndexMutations(EntityIndexMutation)`** method on `EntityCollection` iterates all `IndexMutation` instances and calls `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)`.
-6. **Zero allocations** in the dispatch path — `EntityCollection` passes `this` as `IndexMutationTarget`; no wrapper objects created.
+5. **`applyIndexMutations(EntityIndexMutation)`** method on `EntityCollection` iterates all `IndexMutation` instances and calls `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`.
+6. **Zero allocations** in the dispatch path — `EntityCollection` passes `this.entityIndexCreator` (which already exists as a field and implements `IndexMutationTarget`); no wrapper objects created.
 7. **Static singleton survives transactional copy** — the registry is never a field on `EntityCollection`, so `createCopyWithMergedTransactionalMemory()` does not trigger reinstantiation.
 8. **Compilation** — all new types compile cleanly within the `evita_engine` module with no circular dependencies.
 9. **JavaDoc** — all public types and methods have comprehensive JavaDoc explaining their role in the dispatch pipeline.
@@ -346,7 +354,7 @@ The dispatch loop in `EntityCollection.applyIndexMutations()`, the `IndexMutatio
 **`EntityCollection` — class declaration and interfaces:**
 - Path: `evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java`
 - Declaration (line 180): `public final class EntityCollection implements TransactionalLayerProducer<DataStoreChanges, EntityCollection>, EntityCollectionContract, DataStoreReader, CatalogRelatedDataStructure<EntityCollection>`
-- Adding `IndexMutationTarget` to the `implements` clause is a straightforward 1-line change — no conflicts with existing interfaces
+- `EntityCollection` does NOT implement `IndexMutationTarget` — the inner class `EntityIndexMaintainer` implements it instead, providing API surface isolation
 
 **`EntityCollection` — existing methods that `IndexMutationTarget` delegates to:**
 
@@ -359,13 +367,17 @@ The dispatch loop in `EntityCollection.applyIndexMutations()`, the `IndexMutatio
 | `getTrigger(...)` | **Does not exist yet** — must be implemented when `ExpressionIndexTrigger` and `CatalogExpressionTriggerRegistry` are available (downstream WBS). Stub returns `null`. | N/A | N/A |
 | `evaluateFilter(FilterBy)` | **Does not exist yet** — must be implemented using the existing query planning infrastructure | N/A | See below |
 
-**`EntityCollection.EntityIndexMaintainer` — inner class (line 2692):**
-- `private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>`
-- `getOrCreateIndex(EntityIndexKey)` at line 2699 — creates `GlobalEntityIndex`, `ReferencedTypeEntityIndex`, `ReducedEntityIndex`, or `ReducedGroupEntityIndex` based on `EntityIndexType`
-- `getIndexIfExists(EntityIndexKey)` at line 2767 — delegates to `EntityCollection.this.getIndexByKeyIfExists(entityIndexKey)`
-- `getIndexByPrimaryKey(int)` at line 2776 — retrieves by PK, throws if not found
-- `removeIndex(EntityIndexKey)` at line 2809
-- The `entityIndexCreator` field (line 199) is `private final EntityIndexMaintainer entityIndexCreator = new EntityIndexMaintainer()`
+**`EntityCollection.EntityIndexMaintainer` — inner class:**
+- `private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>, IndexMutationTarget`
+- `getOrCreateIndex(EntityIndexKey)` — creates `GlobalEntityIndex`, `ReferencedTypeEntityIndex`, `ReducedEntityIndex`, or `ReducedGroupEntityIndex` based on `EntityIndexType`
+- `getIndexIfExists(EntityIndexKey)` — delegates to `EntityCollection.this.getIndexByKeyIfExists(entityIndexKey)`
+- `getIndexByPrimaryKeyIfExists(int)` — delegates to `EntityCollection.this.getIndexByPrimaryKeyIfExists(pk)` (satisfies both `IndexProvider` and the default `getIndexByPrimaryKey` on `IndexMaintainer`)
+- `getIndexByPrimaryKey(int)` — inherited default from `IndexMaintainer`, delegates to `getIndexByPrimaryKeyIfExists` and throws if null
+- `removeIndex(EntityIndexKey)` — removes from both key and PK maps
+- `getEntitySchema()` — delegates to `EntityCollection.this.getInternalSchema()`
+- `getTrigger(...)` — stub returning `null` (pending trigger infrastructure)
+- `evaluateFilter(FilterBy)` — throws `UnsupportedOperationException` (pending session context from WBS-10)
+- The `entityIndexCreator` field is `private final EntityIndexMaintainer entityIndexCreator = new EntityIndexMaintainer()`
 
 **`EntityIndex` — abstract base class:**
 - Path: `evita_engine/src/main/java/io/evitadb/index/EntityIndex.java`
@@ -406,11 +418,15 @@ The dispatch loop in `EntityCollection.applyIndexMutations()`, the `IndexMutatio
 - Accessed via `EntityIndexKey(EntityIndexType.GLOBAL, scope)` (no discriminator, null)
 - `EntityCollection.getGlobalIndex()` at line 1452 — asserts existence and casts
 
-**`IndexMaintainer<K, T>` — existing role interface pattern:**
+**`IndexProvider<K, T>` — shared super-interface for index lookup:**
+- Path: `evita_engine/src/main/java/io/evitadb/index/IndexProvider.java`
+- Methods: `getOrCreateIndex(K)`, `getIndexIfExists(K)`, `getIndexByPrimaryKeyIfExists(int)` — all nullable/read-oriented
+- Extended by both `IndexMaintainer<K, T>` and `IndexMutationTarget` — eliminates duplicate method declarations
+
+**`IndexMaintainer<K, T> extends IndexProvider<K, T>` — index maintenance role interface:**
 - Path: `evita_engine/src/main/java/io/evitadb/index/IndexMaintainer.java`
-- Methods: `getOrCreateIndex(K)`, `getIndexIfExists(K)`, `getIndexByPrimaryKey(int)`, `removeIndex(K)`
+- Adds: `removeIndex(K)` (abstract) + `getIndexByPrimaryKey(int)` (default — delegates to `getIndexByPrimaryKeyIfExists` and throws if null)
 - `EntityCollection.EntityIndexMaintainer` implements `IndexMaintainer<EntityIndexKey, EntityIndex>`
-- This is the closest existing pattern to `IndexMutationTarget` — a role interface providing narrow access to index operations
 
 **Query evaluation infrastructure — how to implement `evaluateFilter(FilterBy)`:**
 - `QueryPlanningContext` (line 97 of `QueryPlanningContext.java`) requires: `Catalog`, `EntityCollection`, `EvitaSession`, `EvitaRequest`, indexes map, indexesByPk map, `CacheSupervisor`
@@ -447,63 +463,59 @@ The dispatch loop in `EntityCollection.applyIndexMutations()`, the `IndexMutatio
 
 **Group 1: `IndexMutationTarget` role interface**
 
-- [ ] Create `IndexMutationTarget.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public interface with 6 methods:
+- [x] Create `IndexMutationTarget.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public interface with 6 methods:
   - `@Nonnull EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey key)` — for executors creating new indexes
   - `@Nullable EntityIndex getIndexIfExists(@Nonnull EntityIndexKey key)` — primary index lookup
   - `@Nullable EntityIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey)` — resolve storage PKs from `ReferencedTypeEntityIndex.getAllReferenceIndexes(int)`
   - `@Nonnull EntitySchema getEntitySchema()` — current entity schema for reference schema lookup
   - `@Nullable ExpressionIndexTrigger getTrigger(@Nonnull String referenceName, @Nonnull DependencyType dependencyType, @Nonnull Scope scope)` — trigger access for `FilterBy` retrieval (returns `null` when no conditional expression is defined)
   - `@Nonnull Bitmap evaluateFilter(@Nonnull FilterBy filterBy)` — evaluates a `FilterBy` constraint against current indexes and returns matching entity PK bitmap
-- [ ] Add comprehensive JavaDoc to the interface and each method — explain the role interface pattern (limits executor access, zero allocations since `EntityCollection` passes `this`), reference the delegation table, explain why executors should not see the full `EntityCollection` API surface
-- [ ] Import types: `io.evitadb.index.EntityIndex`, `io.evitadb.index.EntityIndexKey`, `io.evitadb.api.requestResponse.schema.dto.EntitySchema`, `io.evitadb.index.bitmap.Bitmap`, `io.evitadb.api.query.filter.FilterBy`, `io.evitadb.dataType.Scope`, `javax.annotation.Nonnull`, `javax.annotation.Nullable`
-- [ ] **Implementation order note:** `ExpressionIndexTrigger` and `DependencyType` are defined in WBS-03. **Implement WBS-03 before WBS-06** to ensure these types are available. This eliminates the need for temporary stubs or deferred methods — the interface can include all 6 methods from the start. If WBS-03 is not yet complete, defer the `getTrigger()` method until it is, and start with 5 methods.
+- [x] Add comprehensive JavaDoc to the interface and each method — explain the role interface pattern (limits executor access, zero allocations since `EntityCollection` passes `this.entityIndexCreator`), reference the delegation table, explain why executors should not see the full `EntityCollection` API surface
+- [x] Import types: `io.evitadb.index.EntityIndex`, `io.evitadb.index.EntityIndexKey`, `io.evitadb.api.requestResponse.schema.dto.EntitySchema`, `io.evitadb.index.bitmap.Bitmap`, `io.evitadb.api.query.filter.FilterBy`, `io.evitadb.dataType.Scope`, `javax.annotation.Nonnull`, `javax.annotation.Nullable`
+- [x] **Implementation order note:** `ExpressionIndexTrigger` and `DependencyType` are defined in WBS-03. **Implement WBS-03 before WBS-06** to ensure these types are available. This eliminates the need for temporary stubs or deferred methods — the interface can include all 6 methods from the start. If WBS-03 is not yet complete, defer the `getTrigger()` method until it is, and start with 5 methods.
 
-**Group 2: `EntityCollection implements IndexMutationTarget`**
+**Group 2: `EntityIndexMaintainer implements IndexMutationTarget`**
 
-- [ ] Modify `EntityCollection.java` class declaration (line 180) to add `IndexMutationTarget` to the `implements` clause: `public final class EntityCollection implements TransactionalLayerProducer<DataStoreChanges, EntityCollection>, EntityCollectionContract, DataStoreReader, CatalogRelatedDataStructure<EntityCollection>, IndexMutationTarget`
-- [ ] Add import: `import io.evitadb.index.mutation.IndexMutationTarget;`
-- [ ] Implement `getOrCreateIndex(EntityIndexKey)` — one-liner delegation: `return this.entityIndexCreator.getOrCreateIndex(key);`
-- [ ] Implement `getIndexIfExists(EntityIndexKey)` — one-liner delegation: `return this.getIndexByKeyIfExists(key);` (delegates to existing method at line 1436)
-- [ ] Implement `getIndexByPrimaryKeyIfExists(int)` — already exists as a public method at line 1444 with the exact signature `@Nullable public EntityIndex getIndexByPrimaryKeyIfExists(int entityIndexPrimaryKey)`. The interface method is already satisfied by this existing method — no new code needed, just ensure the method is annotated with `@Override`.
-- [ ] Implement `getEntitySchema()` — one-liner delegation: `return this.getInternalSchema();`
-- [ ] Implement `getTrigger(String, DependencyType, Scope)` — initial stub returning `null` until the trigger infrastructure (downstream WBS) is available. Add a `// TODO` comment referencing the trigger WBS task.
-- [ ] Implement `evaluateFilter(FilterBy)` — delegate to the existing query evaluation infrastructure. **Recommended approach:** use `FilterByVisitor.createFormulaForTheFilter()` (static method at ~line 340 of `FilterByVisitor.java`), which accepts a `QueryPlanningContext`, `FilterBy`, `List<EntityIndex>`, and additional parameters, creates a `FilterByVisitor` internally, executes the filter constraint, and returns a `Formula`. Then call `formula.compute()` to obtain the `Bitmap`. The implementation steps:
-  1. Construct a minimal `EvitaRequest` using `EvitaRequest.fromQuery(Query.query(collection(entityType), filterBy))` — only the `FilterBy` and entity type are needed, no `OrderBy` or `Require`
-  2. Create a `QueryPlanningContext` using `EntityCollection.createQueryContext()` (line ~1480) — this method already accepts an `EvitaRequest` and builds the context from the collection's existing fields (`this.catalog`, `this.indexes`, `this.indexesByPrimaryKey`, `this.cacheSupervisor`). For the `EvitaSession` parameter, use the catalog's internal session or create a minimal read-only session via `this.catalog.createReadOnlySession()` (the session is only needed for schema access and is not used for transactional state in the filter evaluation path)
-  3. Call `FilterByVisitor.createFormulaForTheFilter(queryContext, filterBy, List.of(globalEntityIndex), ...)` — pass the `GlobalEntityIndex` as the single target index
-  4. Call `formula.compute()` to get the resulting `Bitmap`
-  This is the most complex delegation — the key challenge is constructing the `QueryPlanningContext` with a valid session. Since `EntityCollection` already holds references to `this.catalog`, `this.cacheSupervisor`, and the index maps, all required constructor arguments are available.
-- [ ] Add JavaDoc to each implemented method referencing the delegation target and explaining the role interface contract
-- [ ] No new fields are required on `EntityCollection` — all delegations use existing fields (`entityIndexCreator`, `dataStoreBuffer`, `indexes`, `catalog`, `schema`)
+- [x] Modify the `EntityIndexMaintainer` private inner class declaration to add `IndexMutationTarget` to its `implements` clause: `private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>, IndexMutationTarget`
+- [x] `EntityCollection` does NOT implement `IndexMutationTarget` — the inner class provides API surface isolation (callers cannot cast the target back to `EntityCollection`)
+- [x] `getOrCreateIndex(EntityIndexKey)` — already implemented (satisfies both `IndexMaintainer` and `IndexMutationTarget`)
+- [x] `getIndexIfExists(EntityIndexKey)` — already implemented (satisfies both `IndexMaintainer` and `IndexMutationTarget`)
+- [x] Implement `getIndexByPrimaryKeyIfExists(int)` — one-liner delegation: `return EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);`
+- [x] Implement `getEntitySchema()` — one-liner delegation: `return EntityCollection.this.getInternalSchema();`
+- [x] Implement `getTrigger(String, DependencyType, Scope)` — initial stub returning `null` until the trigger infrastructure (downstream WBS) is available.
+- [ ] Implement `evaluateFilter(FilterBy)` — delegate to the enclosing `EntityCollection`'s query evaluation infrastructure. **Recommended approach:** use `FilterByVisitor.createFormulaForTheFilter()` (static method at ~line 340 of `FilterByVisitor.java`), which accepts a `QueryPlanningContext`, `FilterBy`, `List<EntityIndex>`, and additional parameters, creates a `FilterByVisitor` internally, executes the filter constraint, and returns a `Formula`. Then call `formula.compute()` to obtain the `Bitmap`.
+  This is the most complex delegation — the key challenge is constructing the `QueryPlanningContext` with a valid session. Since the enclosing `EntityCollection` holds references to `this.catalog`, `this.cacheSupervisor`, and the index maps, all required constructor arguments are available through `EntityCollection.this.*`.
+- [x] Add JavaDoc to the inner class and each new method explaining the dual-role pattern and delegation targets
+- [x] No new fields are required on `EntityCollection` — all delegations use existing fields via `EntityCollection.this.*`
 
 **Group 3: `IndexMutationExecutor<M>` strategy interface**
 
-- [ ] Create `IndexMutationExecutor.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public interface with generic type parameter `<M extends IndexMutation>` and single method: `void execute(@Nonnull M mutation, @Nonnull IndexMutationTarget target)`
-- [ ] Add comprehensive JavaDoc — explain: stateless strategy, one implementation per concrete `IndexMutation` type, three-phase processing pipeline (resolve PKs, evaluate expression, apply index changes), stateless singletons receiving collection context via `IndexMutationTarget`, registered in `IndexMutationExecutorRegistry`
-- [ ] Import types: `io.evitadb.index.mutation.IndexMutation` (from WBS-05), `javax.annotation.Nonnull`
+- [x] Create `IndexMutationExecutor.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — public interface with generic type parameter `<M extends IndexMutation>` and single method: `void execute(@Nonnull M mutation, @Nonnull IndexMutationTarget target)`
+- [x] Add comprehensive JavaDoc — explain: stateless strategy, one implementation per concrete `IndexMutation` type, three-phase processing pipeline (resolve PKs, evaluate expression, apply index changes), stateless singletons receiving collection context via `IndexMutationTarget`, registered in `IndexMutationExecutorRegistry`
+- [x] Import types: `io.evitadb.index.mutation.IndexMutation` (from WBS-05), `javax.annotation.Nonnull`
 
 **Group 4: `IndexMutationExecutorRegistry` static singleton**
 
-- [ ] Create `IndexMutationExecutorRegistry.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — **public** class (must be accessible from `EntityCollection` in `io.evitadb.core.collection`, which is a different package within the same module) with:
+- [x] Create `IndexMutationExecutorRegistry.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` — **public** class (must be accessible from `EntityCollection` in `io.evitadb.core.collection`, which is a different package within the same module) with:
   - `public static final IndexMutationExecutorRegistry INSTANCE` — initialized with `Map.of(...)` containing initial entries
-  - Private constructor accepting `@Nonnull Map<Class<? extends IndexMutation>, IndexMutationExecutor<?>> executors` — stores `Map.copyOf(executors)` for immutability
+  - Package-private constructor accepting `@Nonnull Map<Class<? extends IndexMutation>, IndexMutationExecutor<?>> executors` — stores `Map.copyOf(executors)` for immutability (package-private instead of private to allow test registry construction)
   - `public <M extends IndexMutation> void dispatch(@Nonnull M mutation, @Nonnull IndexMutationTarget target)` method — lookup executor by `mutation.getClass()`, unchecked cast with `@SuppressWarnings("unchecked")`, `Assert.notNull(executor, ...)` for fail-fast, then `executor.execute(mutation, target)`
   - Initial map entry: `ReevaluateFacetExpressionMutation.class -> new ReevaluateFacetExpressionExecutor()`. Note: `ReevaluateFacetExpressionExecutor` is defined in a downstream WBS (WBS-07). If WBS-07 is not yet complete, leave the map entry commented out with a `// TODO: add when WBS-07 is implemented` reference — consistent with the implementation order strategy described in Group 1.
-- [ ] Add comprehensive JavaDoc — explain: static singleton lifecycle, immutable executor map, survives `EntityCollection.createCopyWithMergedTransactionalMemory()`, extensibility model (new mutation type = new record + new executor + one registry entry)
-- [ ] Import types: `io.evitadb.index.mutation.IndexMutation` (from WBS-05), `io.evitadb.utils.Assert`, `javax.annotation.Nonnull`, `java.util.Map`
+- [x] Add comprehensive JavaDoc — explain: static singleton lifecycle, immutable executor map, survives `EntityCollection.createCopyWithMergedTransactionalMemory()`, extensibility model (new mutation type = new record + new executor + one registry entry)
+- [x] Import types: `io.evitadb.index.mutation.IndexMutation` (from WBS-05), `io.evitadb.utils.Assert`, `javax.annotation.Nonnull`, `java.util.Map`
 
 **Group 5: `applyIndexMutations()` dispatch method on `EntityCollection`**
 
-- [ ] Add method `void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation)` to `EntityCollection` — iterates `entityIndexMutation.mutations()` and calls `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)` for each one
-- [ ] Add import: `import io.evitadb.index.mutation.EntityIndexMutation;` (from WBS-05), `import io.evitadb.index.mutation.IndexMutationExecutorRegistry;`
-- [ ] Add JavaDoc explaining: this is the thin dispatch loop, passes `this` as `IndexMutationTarget`, zero allocations, no switch/case logic
-- [ ] This method is called by the dispatch infrastructure in `LocalMutationExecutorCollector` (WBS-09) — it is not called from within `EntityCollection` itself. The method must be `public` because `LocalMutationExecutorCollector` is in package `io.evitadb.index.mutation.storagePart`, which is a different package from `EntityCollection`'s `io.evitadb.core.collection`.
+- [x] Add method `void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation)` to `EntityCollection` — iterates `entityIndexMutation.mutations()` and calls `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)` for each one
+- [x] Add import: `import io.evitadb.index.mutation.EntityIndexMutation;` (from WBS-05), `import io.evitadb.index.mutation.IndexMutationExecutorRegistry;`
+- [x] Add JavaDoc explaining: this is the thin dispatch loop, passes `this.entityIndexCreator` as `IndexMutationTarget`, zero allocations, no switch/case logic
+- [x] This method is called by the dispatch infrastructure in `LocalMutationExecutorCollector` (WBS-09) — it is not called from within `EntityCollection` itself. The method must be `public` because `LocalMutationExecutorCollector` is in package `io.evitadb.index.mutation.storagePart`, which is a different package from `EntityCollection`'s `io.evitadb.core.collection`.
 
 **Group 6: Compilation verification**
 
-- [ ] Verify all new types compile cleanly within the `evita_engine` module — run `mvn compile -pl evita_engine` (or via IntelliJ MCP build)
-- [ ] Verify no circular dependencies between `io.evitadb.index.mutation` (new types) and `io.evitadb.core.collection` (EntityCollection) — `IndexMutationTarget` is in `io.evitadb.index.mutation`, `EntityCollection` implements it from `io.evitadb.core.collection`. `IndexMutationExecutorRegistry` is in `io.evitadb.index.mutation` and is accessed statically from `EntityCollection`. This is a one-directional dependency: `core.collection` -> `index.mutation`. No circular dependency.
-- [ ] Verify that `EntityCollection.createCopyWithMergedTransactionalMemory()` (line 1665) does not need changes — the registry is a static singleton, not a field, so it is never copied.
+- [x] Verify all new types compile cleanly within the `evita_engine` module — run `mvn compile -pl evita_engine` (or via IntelliJ MCP build)
+- [x] Verify no circular dependencies between `io.evitadb.index.mutation` (new types) and `io.evitadb.core.collection` (EntityCollection) — `IndexMutationTarget` is in `io.evitadb.index.mutation`, `EntityCollection` implements it from `io.evitadb.core.collection`. `IndexMutationExecutorRegistry` is in `io.evitadb.index.mutation` and is accessed statically from `EntityCollection`. This is a one-directional dependency: `core.collection` -> `index.mutation`. No circular dependency.
+- [x] Verify that `EntityCollection.createCopyWithMergedTransactionalMemory()` (line 1665) does not need changes — the registry is a static singleton, not a field, so it is never copied.
 
 ### Test Cases
 
@@ -513,11 +525,14 @@ Test location: `evita_test/evita_functional_tests/src/test/java/io/evitadb/index
 
 #### Test Class: `IndexMutationTargetTest`
 
+> **Implementation note:** The originally planned `IndexMutationTargetContractTest` (reflection-based interface method/annotation tests) was created, evaluated during code quality review, and **deleted** — these tests duplicate what the compiler already enforces and provide no long-term regression protection. The subsequent `EntityCollectionIndexMutationTargetTest` was also **deleted** during a second code quality review — its tests verified type hierarchy relationships (via reflection on private fields) that the compiler already enforces, providing zero regression value.
+
 **Category: Interface contract verification**
 
-- [ ] `should_declare_expected_methods` — verify `IndexMutationTarget` interface declares at least the 6 expected public abstract methods (`getOrCreateIndex`, `getIndexIfExists`, `getIndexByPrimaryKeyIfExists`, `getEntitySchema`, `getTrigger`, `evaluateFilter`) by name. Do NOT assert an exact method count — future legitimate additions (e.g., a 7th method) would break a hard count assertion. If `getTrigger` is deferred, adjust the expected set accordingly.
-- [ ] `should_be_assignable_from_entity_collection` — verify `IndexMutationTarget.class.isAssignableFrom(EntityCollection.class)` returns `true`, confirming `EntityCollection` implements the role interface.
-- [ ] `should_declare_nonnull_and_nullable_annotations_on_methods` — reflectively verify nullability annotations on the interface methods: `@Nonnull` on parameters and return types where specified, `@Nullable` on return types for `getIndexIfExists`, `getIndexByPrimaryKeyIfExists`, and `getTrigger`. These annotation checks are valuable because the compiler does not enforce annotation semantics. Note: reflection-based return type assertions (e.g., that `getEntitySchema()` returns `EntitySchema`) duplicate what the compiler enforces and are optional.
+- [x] `should_declare_expected_methods` — **Deleted** — reflection-based method existence checks duplicate compiler enforcement; the compiler will fail if any method is missing from the interface or the implementing class.
+- [x] `should_NOT_be_assignable_from_entity_collection` — **Deleted** — compiler already enforces this (if `EntityCollection` implemented `IndexMutationTarget`, it would be visible in the class declaration); reflection-based type hierarchy assertion with zero regression value.
+- [x] `entityIndexCreator_should_implement_both_interfaces` — **Deleted** — compiler enforces that the field type implements both interfaces (the `applyIndexMutations` method passes `this.entityIndexCreator` where `IndexMutationTarget` is expected — any type mismatch would be a compile error). Reflection on private fields tests implementation details, not behavior.
+- [x] `should_declare_nonnull_and_nullable_annotations_on_methods` — **Deleted** — reflection-based annotation checks duplicate what the source code already declares; annotations don't change at runtime and are better validated by static analysis tools or code review.
 
 **Category: `EntityCollection` delegation correctness**
 
@@ -527,13 +542,13 @@ Test location: `evita_test/evita_functional_tests/src/test/java/io/evitadb/index
 - [ ] `getIndexByPrimaryKeyIfExists_should_return_existing_index` — create an index with a known storage PK, then call `getIndexByPrimaryKeyIfExists(pk)` via the `IndexMutationTarget` interface; verify the returned index matches.
 - [ ] `getIndexByPrimaryKeyIfExists_should_return_null_for_unknown_pk` — call `getIndexByPrimaryKeyIfExists(9999)` for a PK that has no corresponding index; verify `null` is returned.
 - [ ] `getEntitySchema_should_delegate_to_getInternalSchema` — call `getEntitySchema()` via `IndexMutationTarget` interface; verify the result is identical (same object reference) to calling `getInternalSchema()` directly on the `EntityCollection`.
-- [ ] `getTrigger_should_return_null_when_no_trigger_infrastructure_exists` — call `getTrigger("someReference", dependencyType, Scope.LIVE)` on the initial stub implementation; verify `null` is returned (stub behavior until trigger WBS is integrated).
+- [x] `getTrigger_should_return_null_when_no_trigger_infrastructure_exists` — **Deleted** — tests a stub that returns `null`; will be replaced by real trigger tests when trigger infrastructure is wired (downstream WBS). Testing that `return null` returns `null` has no regression value.
 - [ ] `evaluateFilter_should_return_bitmap_for_valid_filter` — set up an `EntityCollection` with a `GlobalEntityIndex` containing known entity PKs, call `evaluateFilter(filterBy)` with a `FilterBy` that matches a subset; verify the returned `Bitmap` contains exactly the expected PKs.
 - [ ] `evaluateFilter_should_return_empty_bitmap_when_no_entities_match` — call `evaluateFilter(filterBy)` with a `FilterBy` that matches no entities; verify the returned `Bitmap` is empty.
 
 **Category: Zero-allocation verification**
 
-- [ ] `entity_collection_passes_this_as_target` — verify that when `EntityCollection` dispatches mutations, the `IndexMutationTarget` reference received by the executor is the same object as the `EntityCollection` itself (identity check via `assertSame`). Confirms zero wrapper allocation.
+- [ ] `entity_collection_passes_entityIndexCreator_as_target` — verify that when `EntityCollection` dispatches mutations, the `IndexMutationTarget` reference received by the executor is the `entityIndexCreator` field (identity check via `assertSame`). Confirms zero wrapper allocation and proper API surface isolation.
 
 ---
 
@@ -541,68 +556,152 @@ Test location: `evita_test/evita_functional_tests/src/test/java/io/evitadb/index
 
 **Category: Singleton lifecycle**
 
-- [ ] `INSTANCE_should_not_be_null` — verify `IndexMutationExecutorRegistry.INSTANCE` is not `null`.
-- [ ] `INSTANCE_should_be_same_reference_across_multiple_accesses` — access `IndexMutationExecutorRegistry.INSTANCE` multiple times and verify `assertSame` — confirms true singleton identity.
-- [ ] `INSTANCE_should_survive_entity_collection_transactional_copy` — **Note:** this test requires significant infrastructure setup (catalog, persistence service, cache supervisor, etc.) to construct an `EntityCollection` and call `createCopyWithMergedTransactionalMemory()`. Consider implementing this as an integration test rather than a unit test. Alternatively, the simpler `registry_should_not_be_a_field_on_entity_collection` test below provides equivalent validation of the static singleton design with far less setup.
-- [ ] `registry_should_not_be_a_field_on_entity_collection` — reflectively verify that `EntityCollection` has no instance field of type `IndexMutationExecutorRegistry`. Confirms the registry is accessed only statically. This is the primary validation of the static singleton lifecycle — if the registry is not a field, it cannot be affected by transactional copies.
+- [x] `INSTANCE_should_not_be_null` — **Deleted** — trivially tautological; the field is initialized at class load time with `new IndexMutationExecutorRegistry(Map.of())`. If null, every test and the entire runtime would fail.
+- [x] `INSTANCE_should_be_same_reference_across_multiple_accesses` — **Deleted** during code quality review — trivially true for `static final` fields; the JVM guarantees identity for class constants.
+- [ ] `INSTANCE_should_survive_entity_collection_transactional_copy` — **Not implemented** — requires heavyweight `EntityCollection` setup with catalog, persistence service, cache supervisor. The registry is a `static final` singleton — survival is guaranteed by the JVM class loading model.
+- [x] `registry_should_not_be_a_field_on_entity_collection` — **Deleted** — architectural reflection assertion on an unrelated class; no runtime regression value, brittle on harmless refactorings.
 
 **Category: Executor map immutability**
 
-- [ ] `executor_map_should_be_unmodifiable` — reflectively access the internal `executors` map field; verify that attempting to `put()` a new entry throws `UnsupportedOperationException`. Confirms `Map.copyOf()` immutability.
-- [ ] `executor_map_should_contain_ReevaluateFacetExpressionMutation_entry` — verify that dispatching a `ReevaluateFacetExpressionMutation` does not throw (i.e., a registered executor exists). Alternatively, reflectively verify the map contains the expected key.
+- [x] `executor_map_should_be_unmodifiable` — **Deleted** — tests `Map.copyOf()` Java stdlib behavior via reflection on a private field; not application logic.
+- [ ] `executor_map_should_contain_ReevaluateFacetExpressionMutation_entry` — **Not implemented** — `INSTANCE` map is currently empty because `ReevaluateFacetExpressionExecutor` (WBS-07) does not exist yet. Will be testable when WBS-07 registers the entry.
 
 **Category: Dispatch correctness**
 
-- [ ] `dispatch_should_route_to_correct_executor_for_registered_mutation` — create a test `IndexMutation` subtype and a counting `IndexMutationExecutor` stub; build a test registry containing the mapping; call `dispatch(testMutation, mockTarget)`; verify the stub executor's `execute()` was called exactly once with the correct mutation and target arguments.
-- [ ] `dispatch_should_pass_exact_mutation_instance_to_executor` — dispatch a specific mutation instance; verify the executor receives the same object reference (identity check), not a copy.
-- [ ] `dispatch_should_pass_exact_target_instance_to_executor` — dispatch with a specific `IndexMutationTarget` mock; verify the executor receives the same target reference (identity check).
-- [ ] `dispatch_should_throw_for_unregistered_mutation_type` — call `dispatch()` with a mutation whose class has no registered executor; verify an exception is thrown with a message containing the unregistered class name. Confirms the `Assert.notNull` fail-fast behavior.
-- [ ] `dispatch_should_handle_multiple_registered_mutation_types` — build a registry with two different mutation type entries; dispatch each type and verify each routes to its own executor independently without cross-contamination.
+- [x] `dispatch_should_route_to_correct_executor_for_registered_mutation` — **Implemented** in `IndexMutationExecutorRegistryTest.shouldRouteToCorrectExecutorForRegisteredMutation()`.
+- [x] `dispatch_should_pass_exact_mutation_instance_to_executor` — **Implemented** in `IndexMutationExecutorRegistryTest.shouldPassExactMutationInstanceToExecutor()`.
+- [x] `dispatch_should_pass_exact_target_instance_to_executor` — **Implemented** in `IndexMutationExecutorRegistryTest.shouldPassExactTargetInstanceToExecutor()`.
+- [x] `dispatch_should_throw_for_unregistered_mutation_type` — **Implemented** in `IndexMutationExecutorRegistryTest.shouldThrowForUnregisteredMutationType()` — verifies `EvitaInvalidUsageException` with class name in message.
+- [x] `dispatch_should_handle_multiple_registered_mutation_types` — **Implemented** in `IndexMutationExecutorRegistryTest.shouldHandleMultipleRegisteredMutationTypes()` — uses `TestMutationA` and `TestMutationB`.
 
 **Category: Type safety**
 
-- [ ] `dispatch_should_perform_unchecked_cast_without_ClassCastException` — dispatch a `ReevaluateFacetExpressionMutation` to its registered `ReevaluateFacetExpressionExecutor`; verify no `ClassCastException` is thrown, confirming the `@SuppressWarnings("unchecked")` cast is type-safe at runtime.
+- [x] `dispatch_should_perform_unchecked_cast_without_ClassCastException` — **Deleted** — marginal value; the design guarantees type safety by construction (map key is the class, value's generic parameter matches). The dispatch correctness tests already exercise the cast path with real mutations.
 
 ---
 
 #### Test Class: `IndexMutationExecutorTest`
 
+> **Implementation note:** The originally planned `IndexMutationExecutorContractTest` was created, evaluated during code quality review, and **deleted** — these tests verify JVM lambda semantics and basic interface method signatures, which are guaranteed by the Java compiler and provide no regression protection. The `CountingExecutor` in `IndexMutationExecutorRegistryTest` already exercises the executor interface behavior in the context of actual dispatch.
+
 **Category: Interface contract**
 
-- [ ] `should_declare_single_execute_method` — reflectively verify `IndexMutationExecutor` interface declares exactly one method named `execute` with parameters `(IndexMutation subtype, IndexMutationTarget)`.
-- [ ] `should_be_a_functional_interface` — verify `IndexMutationExecutor` has exactly one abstract method, making it eligible as a functional interface (even if not annotated with `@FunctionalInterface`).
+- [x] `should_declare_single_execute_method` — **Deleted** — reflective method verification duplicates compiler enforcement.
+- [x] `should_be_a_functional_interface` — **Deleted** — functional interface eligibility is a JVM-level guarantee for single-abstract-method interfaces; testing it adds no value.
 
 **Category: Stateless executor behavior**
 
-- [ ] `test_executor_should_receive_mutation_and_target` — create a test implementation of `IndexMutationExecutor<TestMutation>`; call `execute(mutation, target)` with known arguments; verify both arguments are received correctly inside the executor.
-- [ ] `test_executor_should_be_reusable_across_multiple_invocations` — invoke the same executor instance with different mutation/target pairs; verify each invocation receives the correct arguments. Confirms stateless, singleton-safe behavior.
-- [ ] `test_executor_should_be_reusable_across_different_targets` — invoke the same executor instance with the same mutation type but different `IndexMutationTarget` mocks; verify each call receives the correct target. Confirms no target state is cached.
+- [x] `test_executor_should_receive_mutation_and_target` — **Covered** by `IndexMutationExecutorRegistryTest.DispatchCorrectness.shouldPassExactMutationInstanceToExecutor()` and `shouldPassExactTargetInstanceToExecutor()` — the `CountingExecutor` in the registry test verifies that mutations and targets are received correctly.
+- [x] `test_executor_should_be_reusable_across_multiple_invocations` — **Covered** by `IndexMutationExecutorRegistryTest.DispatchCorrectness.shouldHandleMultipleRegisteredMutationTypes()` — the same `CountingExecutor` instance receives multiple dispatches.
+- [x] `test_executor_should_be_reusable_across_different_targets` — **Covered** by the same test infrastructure — the `CountingExecutor` accumulates both mutations and targets across invocations.
 
 ---
 
 #### Test Class: `ApplyIndexMutationsTest`
 
+> **Implementation note:** The entire test class was **deleted** during code quality review. The Mockito partial mock of `EntityCollection` (using `CALLS_REAL_METHODS`) with a null `entityIndexCreator` field is fundamentally broken — tests only "pass" because the loop body either never executes (empty array) or throws before accessing the null target (unregistered mutation). The `applyIndexMutations()` method is a trivial 3-line for-each loop; its dispatch correctness is already verified by `IndexMutationExecutorRegistryTest`. Real end-to-end dispatch tests require WBS-07.
+
 **Category: Dispatch loop behavior**
 
-- [ ] `should_dispatch_all_mutations_in_entity_index_mutation` — create an `EntityIndexMutation` containing 3 `IndexMutation` instances; call `applyIndexMutations(entityIndexMutation)` on `EntityCollection`; verify the registry's `dispatch()` is invoked exactly 3 times, once per mutation (requires a spy or counting executor).
-- [ ] `should_dispatch_mutations_in_iteration_order` — create an `EntityIndexMutation` with mutations [A, B, C]; call `applyIndexMutations()`; verify the executor receives them in the order A, B, C. Confirms iteration-order preservation.
-- [ ] `should_handle_entity_index_mutation_with_single_mutation` — create an `EntityIndexMutation` with exactly 1 `IndexMutation`; call `applyIndexMutations()`; verify dispatch is called exactly once.
-- [ ] `should_handle_entity_index_mutation_with_empty_mutation_list` — create an `EntityIndexMutation` with zero `IndexMutation` instances; call `applyIndexMutations()`; verify dispatch is never called and no exception is thrown.
-- [ ] `should_pass_this_as_IndexMutationTarget_to_each_dispatch` — register a capturing executor; call `applyIndexMutations()` on an `EntityCollection`; verify the `IndexMutationTarget` argument passed to each `dispatch()` call is the same `EntityCollection` instance (identity check via `assertSame`).
+- [ ] `should_dispatch_all_mutations_in_entity_index_mutation` — requires a real `EntityCollection` with registered executors in `INSTANCE` map (currently empty — WBS-07 dependency). Cannot be tested until `ReevaluateFacetExpressionExecutor` is registered.
+- [ ] `should_dispatch_mutations_in_iteration_order` — same prerequisite as above.
+- [ ] `should_handle_entity_index_mutation_with_single_mutation` — same prerequisite as above.
+- [x] `should_handle_entity_index_mutation_with_empty_mutation_list` — **Deleted** — tests Java for-each semantics (iterating empty array does nothing); the Mockito partial mock of `EntityCollection` with null `entityIndexCreator` is fragile and only "works" because the loop body never executes.
+- [ ] `should_pass_this_as_IndexMutationTarget_to_each_dispatch` — requires registered executors (WBS-07 dependency).
 
 **Category: Error propagation**
 
-- [ ] `should_propagate_exception_from_dispatch_on_unregistered_type` — create an `EntityIndexMutation` containing a mutation type with no registered executor; call `applyIndexMutations()`; verify the exception from `Assert.notNull` in `dispatch()` propagates up unchanged.
-- [ ] `should_stop_dispatching_after_first_failure` — create an `EntityIndexMutation` with [registered, unregistered, registered] mutations; call `applyIndexMutations()`; verify the first mutation is dispatched, the second throws, and the third is never dispatched (fail-fast, no swallowing).
+- [x] `should_propagate_exception_from_dispatch_on_unregistered_type` — **Deleted** — tests a transient state (empty registry); will start *failing* when WBS-07 registers the executor. The Mockito partial mock with null `entityIndexCreator` only works because `dispatch()` throws before accessing the null target. Already covered by `IndexMutationExecutorRegistryTest.shouldThrowForUnregisteredMutationType()`.
+- [x] `should_stop_dispatching_after_first_failure` — **Deleted** during code quality review — this test verifies standard Java for-loop exception semantics (loop terminates on uncaught exception), which is guaranteed by the JVM. The loop body is a single method call with no try/catch, making this behavior obvious from the code.
 
 ---
 
 #### Test Class: `IndexMutationTargetEvaluateFilterTest`
 
+> **Implementation note:** `evaluateFilter(FilterBy)` is currently stubbed with `UnsupportedOperationException` — it requires `EvitaSession` context which is not available through the `IndexMutationTarget` interface. The `EntityCollectionIndexMutationTargetTest` (including the `EvaluateFilterStub` nested class) was **deleted** during code quality review — testing that a stub throws `UnsupportedOperationException` has no long-term regression value. All filter evaluation tests below are deferred until WBS-10 provides session context.
+
 **Category: Filter evaluation delegation**
 
-- [ ] `should_evaluate_simple_attribute_equals_filter` — set up an `EntityCollection` with entities having indexed attributes in `GlobalEntityIndex`; call `evaluateFilter(filterBy(attributeEquals("code", "ABC")))`; verify the returned `Bitmap` contains only the PKs of entities matching the attribute value.
-- [ ] `should_evaluate_conjunctive_filter` — set up entities with multiple indexed attributes; call `evaluateFilter(filterBy(and(attributeEquals("a", 1), attributeEquals("b", 2))))`; verify the bitmap contains only entities satisfying both conditions.
-- [ ] `should_return_all_pks_for_filter_matching_all_entities` — set up entities and call `evaluateFilter()` with a filter that matches every entity; verify the returned bitmap size equals the total entity count.
-- [ ] `should_return_empty_bitmap_for_filter_matching_no_entities` — call `evaluateFilter()` with an impossible filter condition; verify the returned bitmap is empty (size 0).
-- [ ] `should_evaluate_against_GlobalEntityIndex` — verify the filter evaluation operates against the `GlobalEntityIndex` specifically, not against `ReducedEntityIndex` or `ReferencedTypeEntityIndex`. This can be validated by ensuring that entities present in `GlobalEntityIndex` but absent from reduced indexes still appear in the result.
+- [ ] `should_evaluate_simple_attribute_equals_filter` — deferred until `evaluateFilter` is implemented (requires `EvitaSession` context from WBS-10).
+- [ ] `should_evaluate_conjunctive_filter` — deferred until `evaluateFilter` is implemented.
+- [ ] `should_return_all_pks_for_filter_matching_all_entities` — deferred until `evaluateFilter` is implemented.
+- [ ] `should_return_empty_bitmap_for_filter_matching_no_entities` — deferred until `evaluateFilter` is implemented.
+- [ ] `should_evaluate_against_GlobalEntityIndex` — deferred until `evaluateFilter` is implemented.
+
+---
+
+## ⚠️ TOBEDONE JNO — Unsolved Issues Blocking Remaining Implementation & Tests
+
+The following issues cannot be resolved within WBS-06 scope because they depend on downstream WBS deliverables or require design decisions outside the dispatch infrastructure.
+
+### ⚠️ Issue 1: `evaluateFilter(FilterBy)` requires `EvitaSession` context (blocks 7 tests)
+
+**Root cause:** `QueryPlanningContext` constructor mandates an `EvitaSession` parameter (used for schema access and query context). `EntityCollection` does not hold a session reference — sessions are transient, created per-request by the catalog. The `IndexMutationTarget` interface has no mechanism to carry session context. Creating a minimal/internal session was considered but deemed risky — it would bypass the normal session lifecycle and could introduce subtle bugs in the query evaluation path.
+
+**Current state:** Method exists on `IndexMutationTarget` and is implemented by `EntityIndexMaintainer` (inner class), throws `UnsupportedOperationException` at runtime.
+
+**Required changes (in downstream WBS):**
+1. Determine how session context reaches the dispatch path — either pass through `applyIndexMutations()`, set a thread-local, or extend `IndexMutationTarget` with a session-aware evaluation method
+2. Implement the delegation: construct minimal `EvitaRequest`, create `QueryPlanningContext`, run `FilterByVisitor.createFormulaForTheFilter()` against `GlobalEntityIndex`, call `formula.compute()`
+
+**Unblocked by:** WBS-10 (dispatch path wiring)
+
+**Blocked tests:**
+- [ ] `evaluateFilter_should_return_bitmap_for_valid_filter`
+- [ ] `evaluateFilter_should_return_empty_bitmap_when_no_entities_match`
+- [ ] `should_evaluate_simple_attribute_equals_filter`
+- [ ] `should_evaluate_conjunctive_filter`
+- [ ] `should_return_all_pks_for_filter_matching_all_entities`
+- [ ] `should_return_empty_bitmap_for_filter_matching_no_entities`
+- [ ] `should_evaluate_against_GlobalEntityIndex`
+
+### ⚠️ Issue 2: `ReevaluateFacetExpressionExecutor` does not exist yet (blocks 5 tests)
+
+**Root cause:** `ReevaluateFacetExpressionExecutor` is the concrete executor for `ReevaluateFacetExpressionMutation`, defined in WBS-07. The registry `INSTANCE` map is empty — the entry is commented out because the class doesn't exist. This cascades to all dispatch loop tests that need at least one registered executor.
+
+**Current state:** `IndexMutationExecutorRegistry.INSTANCE` initialized with `Map.of()` (no entries).
+
+**Required changes (in WBS-07):**
+1. Implement `ReevaluateFacetExpressionExecutor implements IndexMutationExecutor<ReevaluateFacetExpressionMutation>`
+2. Uncomment the `Map.of(ReevaluateFacetExpressionMutation.class, new ReevaluateFacetExpressionExecutor())` entry in `IndexMutationExecutorRegistry.INSTANCE`
+
+**Unblocked by:** WBS-07 (concrete executor implementation)
+
+**Blocked tests:**
+- [ ] `executor_map_should_contain_ReevaluateFacetExpressionMutation_entry`
+- [ ] `should_dispatch_all_mutations_in_entity_index_mutation`
+- [ ] `should_dispatch_mutations_in_iteration_order`
+- [ ] `should_handle_entity_index_mutation_with_single_mutation`
+- [ ] `should_pass_this_as_IndexMutationTarget_to_each_dispatch`
+
+### ⚠️ Issue 3: `getTrigger()` stub returns `null` — trigger wiring not yet available
+
+**Root cause:** `CatalogExpressionTriggerRegistry` is implemented at the catalog level, but `EntityCollection` does not yet have a wired reference to resolve triggers for its entity type. The trigger lookup requires catalog-level context that is not propagated to the collection.
+
+**Current state:** `EntityCollection.getTrigger(String, DependencyType, Scope)` always returns `null`.
+
+**Required changes (in downstream WBS):**
+1. Wire `CatalogExpressionTriggerRegistry` into `EntityCollection` (or into the dispatch path via `IndexMutationTarget`)
+2. Replace `return null` with actual trigger lookup
+
+**Unblocked by:** Downstream WBS that integrates `CatalogExpressionTriggerRegistry` into the dispatch path
+
+### ⚠️ Issue 4: Delegation correctness tests require heavyweight `EntityCollection` setup (blocks 8 tests)
+
+**Root cause:** Testing one-liner delegations like `return this.entityIndexCreator.getOrCreateIndex(key)` requires constructing a full `EntityCollection` with catalog, persistence service, cache supervisor, data store buffer, and schema. The broader evitaDB integration test suite already exercises these methods through real query/mutation flows. `Mockito.mock(EntityCollection.class, CALLS_REAL_METHODS)` cannot reach into private field delegation targets.
+
+**Blocked tests:**
+- [ ] `getOrCreateIndex_should_delegate_to_entityIndexCreator`
+- [ ] `getIndexIfExists_should_delegate_to_getIndexByKeyIfExists`
+- [ ] `getIndexIfExists_should_return_null_for_nonexistent_key`
+- [ ] `getIndexByPrimaryKeyIfExists_should_return_existing_index`
+- [ ] `getIndexByPrimaryKeyIfExists_should_return_null_for_unknown_pk`
+- [ ] `getEntitySchema_should_delegate_to_getInternalSchema`
+- [ ] `entity_collection_passes_entityIndexCreator_as_target`
+- [ ] `INSTANCE_should_survive_entity_collection_transactional_copy`
+
+### ℹ️ Design deviation: `IndexMutationExecutorRegistry` constructor is package-private
+
+**Spec says:** private constructor. **Implementation uses:** package-private (no access modifier).
+
+**Reason:** Tests in `evita_test/evita_functional_tests` construct test registries with custom executor maps (e.g., `new IndexMutationExecutorRegistry(Map.of(TestMutationA.class, executor))`). A private constructor would require reflection in tests. Package-private is the minimal widening — the class is in `io.evitadb.index.mutation`, which is not exported outside the module.

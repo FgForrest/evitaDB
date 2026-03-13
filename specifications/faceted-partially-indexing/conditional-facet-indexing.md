@@ -1042,8 +1042,10 @@ the full `EntityCollection` surface. A limited role interface restricts the blas
  * trigger access, and query-based filter evaluation — prevents executors from reaching
  * into collection internals (mutations, persistence, cache, etc.).
  *
- * {@link EntityCollection} implements this interface, so the dispatcher simply
- * passes {@code this} to the executor — zero extra allocations.
+ * Implemented by the private {@code EntityIndexMaintainer} inner class within
+ * {@link EntityCollection}. This inner class also implements
+ * {@code IndexMaintainer<EntityIndexKey, EntityIndex>}, providing dual-role
+ * isolation: callers cannot cast the target back to {@code EntityCollection}.
  */
 public interface IndexMutationTarget {
 
@@ -1107,37 +1109,44 @@ public interface IndexMutationTarget {
 }
 ```
 
-`EntityCollection implements IndexMutationTarget` — each method delegates to an existing
-method already present on the collection:
+`EntityCollection.EntityIndexMaintainer implements IndexMutationTarget` — each method
+delegates to the enclosing `EntityCollection`'s internals:
 
 | Interface method | Delegates to |
 |---|---|
-| `getOrCreateIndex(key)` | `this.entityIndexCreator.getOrCreateIndex(key)` |
-| `getIndexIfExists(key)` | `this.entityIndexCreator.getIndexIfExists(key)` |
-| `getIndexByPrimaryKeyIfExists(pk)` | existing `getIndexByPrimaryKeyIfExists(pk)` (line 1444) |
-| `getEntitySchema()` | `this.getInternalSchema()` |
+| `getOrCreateIndex(key)` | index creation logic within `EntityIndexMaintainer` (same as `IndexMaintainer` contract) |
+| `getIndexIfExists(key)` | `EntityCollection.this.getIndexByKeyIfExists(key)` |
+| `getIndexByPrimaryKeyIfExists(pk)` | `EntityCollection.this.getIndexByPrimaryKeyIfExists(pk)` |
+| `getEntitySchema()` | `EntityCollection.this.getInternalSchema()` |
 | `getTrigger(refName, depType, scope)` | lookup in cached trigger map built from `ReferenceSchema` at schema load time |
 | `evaluateFilter(filterBy)` | thin delegation to query evaluation infrastructure against `GlobalEntityIndex` |
+
+**Isolation rationale:** `EntityCollection` does NOT implement `IndexMutationTarget` directly.
+The private inner class `EntityIndexMaintainer` implements both `IndexMaintainer` and
+`IndexMutationTarget`. Passing `EntityCollection` itself would be one cast away from
+accessing internal methods (mutations, persistence, cache) that executors should never see.
+Passing the inner class instance prevents this — callers cannot cast it to `EntityCollection`.
 
 #### Processing inside target `EntityCollection`
 
 The target collection is a **thin dispatcher** — it receives an `EntityIndexMutation`
 containing concrete `IndexMutation` instances and dispatches each one to the appropriate
-`IndexMutationExecutor` via the static singleton registry, passing `this` (typed as
-`IndexMutationTarget`) as the collection context.
+`IndexMutationExecutor` via the static singleton registry, passing `this.entityIndexCreator`
+(which implements `IndexMutationTarget`) as the collection context.
 
 ```java
-// EntityCollection implements IndexMutationTarget
+// EntityCollection — dispatches via entityIndexCreator (implements IndexMutationTarget)
 
 /**
  * Dispatches {@link IndexMutation} instances to their registered
- * {@link IndexMutationExecutor}. Passes {@code this} as {@link IndexMutationTarget}
- * so executors can access indexes, schema, triggers, and query evaluation
- * without seeing the full collection API surface.
+ * {@link IndexMutationExecutor}. Passes {@code this.entityIndexCreator}
+ * (which implements {@link IndexMutationTarget}) so executors can access
+ * indexes, schema, triggers, and query evaluation without seeing the full
+ * {@link EntityCollection} API surface.
  */
 void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation) {
     for (IndexMutation mutation : entityIndexMutation.mutations()) {
-        IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this);
+        IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
     }
 }
 ```
@@ -1658,8 +1667,8 @@ The processing pipeline splits cleanly between source and target:
 
 **Target** (`EntityCollection.applyIndexMutations()`):
 1. Iterates nested `IndexMutation` instances
-2. Dispatches each to `IndexMutationExecutorRegistry.INSTANCE`, passing `this`
-   (typed as `IndexMutationTarget`)
+2. Dispatches each to `IndexMutationExecutorRegistry.INSTANCE`, passing
+   `this.entityIndexCreator` (which implements `IndexMutationTarget`)
 
 **Executor** (`ReevaluateFacetExpressionExecutor`):
 1. Receives `IndexMutationTarget` — accesses indexes, schema, triggers, and query evaluation
@@ -1782,8 +1791,16 @@ which construct is unsupported and why.
 ##### Full handler hierarchy
 
 ```
-IndexMutationTarget (role interface — implemented by EntityCollection)
-  getOrCreateIndex(), getIndexIfExists(), getIndexByPrimaryKeyIfExists(), getEntitySchema()
+IndexProvider<K, T> (shared index lookup super-type)
+  getOrCreateIndex(K), getIndexIfExists(K), getIndexByPrimaryKeyIfExists(int)
+
+IndexMaintainer<K, T> extends IndexProvider<K, T> (mutative index operations)
+  getIndexByPrimaryKey(int)   ← default method, delegates to getIndexByPrimaryKeyIfExists + throws
+  removeIndex(K)
+
+IndexMutationTarget extends IndexProvider<EntityIndexKey, EntityIndex>
+  (role interface — implemented by EntityIndexMaintainer inner class)
+  getEntitySchema()
   getTrigger(referenceName, dependencyType, scope)  ← trigger access for FilterBy retrieval
   evaluateFilter(FilterBy)                          ← query-based expression evaluation
 
@@ -1828,8 +1845,8 @@ IndexMutationExecutorRegistry (static singleton — INSTANCE)
 - [x] **Trigger/Handler separation** — registry-based dispatch with clear responsibilities:
   `ExpressionIndexTrigger` (generic base) → `FacetExpressionTrigger` (evaluation + FilterBy),
   `IndexMutationExecutorRegistry` (static singleton — maps `ReevaluateFacetExpressionMutation`
-  to `ReevaluateFacetExpressionExecutor`), `EntityCollection implements IndexMutationTarget`
-  (role interface — thin dispatcher passes `this`, provides trigger access and query evaluation),
+  to `ReevaluateFacetExpressionExecutor`), `EntityIndexMaintainer implements IndexMutationTarget`
+  (role interface — thin dispatcher passes `entityIndexCreator`, provides trigger access and query evaluation),
   `CatalogExpressionTriggerRegistry` (cross-schema wiring).
 - [x] **Cross-schema wiring** — `CatalogExpressionTriggerRegistry` inverts the ownership:
   schema A (Product) defines the expression, but the registry indexes it under schema B's
@@ -1992,12 +2009,13 @@ None — all resolved.
    storage PKs → `ReducedGroupEntityIndex`/`ReducedEntityIndex` → `getAllPrimaryKeys()` →
    owner entity PKs. Facet PK and group PK are recovered from `EntityIndexKey` discriminators.
 
-6. **Thin dispatch path** — `EntityCollection implements IndexMutationTarget` (role interface
-   limiting access to index lookup, schema retrieval, trigger access, and query evaluation).
-   `applyIndexMutations()` iterates the `IndexMutation` instances nested in
-   `EntityIndexMutation` and delegates each to
-   `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)`. Zero allocations —
-   `this` is the target. No container executor is created.
+6. **Thin dispatch path** — `EntityIndexMaintainer` (private inner class of `EntityCollection`)
+   implements `IndexMutationTarget` (role interface limiting access to index lookup, schema
+   retrieval, trigger access, and query evaluation). `applyIndexMutations()` iterates the
+   `IndexMutation` instances nested in `EntityIndexMutation` and delegates each to
+   `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`.
+   Zero allocations — `entityIndexCreator` already exists as a field. No container executor
+   is created. Callers cannot cast the target back to `EntityCollection`.
 
 7. **Separate implicit mutation records per executor** — each executor produces its own
    dedicated record. `ContainerizedLocalMutationExecutor` returns `ImplicitMutations`
@@ -2032,12 +2050,17 @@ None — all resolved.
 
 12. **Registry-based executor dispatch — stateless static singleton** — clear separation
     of concerns across four layers:
-    - `IndexMutationTarget` — role interface implemented by `EntityCollection`. Limits
-      executor access to index lookup (`getOrCreateIndex`, `getIndexIfExists`,
-      `getIndexByPrimaryKeyIfExists`), schema retrieval (`getEntitySchema`), trigger
-      access (`getTrigger` — for `FilterBy` constraint retrieval), and query-based filter
-      evaluation (`evaluateFilter` — for index-based expression evaluation). Executors
-      never see the full collection API. Zero allocations — `EntityCollection` passes `this`.
+    - `IndexProvider<K, T>` — shared super-interface for index lookup. Declares
+      `getOrCreateIndex(K)`, `getIndexIfExists(K)`, and `getIndexByPrimaryKeyIfExists(int)`.
+      Extended by both `IndexMaintainer` and `IndexMutationTarget` — eliminates duplicate
+      method declarations and provides a single point of truth for the shared signatures.
+    - `IndexMutationTarget extends IndexProvider<EntityIndexKey, EntityIndex>` — role interface
+      implemented by the private `EntityIndexMaintainer` inner class within `EntityCollection`.
+      Adds executor-specific operations: schema retrieval (`getEntitySchema`), trigger access
+      (`getTrigger` — for `FilterBy` constraint retrieval), and query-based filter evaluation
+      (`evaluateFilter` — for index-based expression evaluation). Executors never see the full
+      collection API — `EntityCollection` passes `this.entityIndexCreator` (which implements
+      `IndexMutationTarget`), not `this`.
     - `ExpressionIndexTrigger` — generic base interface for expression-driven index triggers.
       Subtypes: `FacetExpressionTrigger` (conditional facet indexing),
       `HistogramExpressionTrigger` (conditional histogram indexing, future).
@@ -2094,8 +2117,8 @@ None — all resolved.
 
 17. **`IndexMutationExecutorRegistry` lifecycle — static singleton** — the registry is a
     `static final` field with an immutable executor map. Executors are stateless singletons
-    that receive all collection context via `IndexMutationTarget` (a role interface
-    implemented by `EntityCollection`). This avoids reinstantiation during
+    that receive all collection context via `IndexMutationTarget` (extends `IndexProvider` —
+    implemented by the `EntityIndexMaintainer` inner class within `EntityCollection`). This avoids reinstantiation during
     `EntityCollection.createCopyWithMergedTransactionalMemory()` — the registry and its
     executors are never fields on `EntityCollection`, just a static constant accessed at
     dispatch time. `EntityCollection` accesses it as `IndexMutationExecutorRegistry.INSTANCE`.

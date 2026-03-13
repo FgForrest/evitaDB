@@ -109,3 +109,6 @@ fabric.properties
 /evita_test/evita_functional_tests/evita-server-certificates/*
 /evita_test/evita_functional_tests/export/*
 /evita_test/evita_functional_tests/data/*
+
+# JDTLS
+*/**/.factorypath

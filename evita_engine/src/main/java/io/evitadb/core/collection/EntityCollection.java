@@ -35,6 +35,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -48,6 +49,13 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.DependencyType;
+import io.evitadb.index.mutation.EntityIndexMutation;
+import io.evitadb.index.mutation.ExpressionIndexTrigger;
+import io.evitadb.index.mutation.IndexMutation;
+import io.evitadb.index.mutation.IndexMutationExecutor;
+import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
+import io.evitadb.index.mutation.IndexMutationTarget;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
@@ -115,6 +123,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.*;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
@@ -1438,7 +1447,9 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Returns entity index by its key. If such index doesn't exist, NULL is returned.
+	 * Returns entity index by its storage primary key, or null if not found. Used to resolve `int[]` storage PKs
+	 * returned by `ReferencedTypeEntityIndex.getAllReferenceIndexes(int)` into actual `ReducedGroupEntityIndex` /
+	 * `ReducedEntityIndex` instances.
 	 */
 	@Nullable
 	public EntityIndex getIndexByPrimaryKeyIfExists(int entityIndexPrimaryKey) {
@@ -1485,6 +1496,23 @@ public final class EntityCollection implements
 				return ofNullable((GlobalEntityIndex) it);
 			})
 			.orElse(empty());
+	}
+
+
+	/**
+	 * Dispatches {@link IndexMutation} instances to their registered {@link IndexMutationExecutor}. Passes the
+	 * {@link EntityIndexMaintainer} (which implements {@link IndexMutationTarget}) so executors can access indexes,
+	 * schema, triggers, and query evaluation without seeing the full {@link EntityCollection} API surface.
+	 *
+	 * Zero allocations — `entityIndexCreator` is the target (already exists as a field).
+	 * No switch/case or orchestration logic in the collection.
+	 *
+	 * @param entityIndexMutation transport envelope containing mutations to dispatch
+	 */
+	public void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation) {
+		for (final IndexMutation mutation : entityIndexMutation.mutations()) {
+			IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
+		}
 	}
 
 	/**
@@ -2687,9 +2715,17 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * This implementation just manipulates with the set of EntityIndex in entity collection.
+	 * This implementation manipulates the set of {@link EntityIndex} instances in the entity collection and
+	 * provides a narrow {@link IndexMutationTarget} view for {@link IndexMutationExecutor} implementations.
+	 *
+	 * Implements both {@link IndexMaintainer} (used by {@link EntityIndexLocalMutationExecutor} for index
+	 * creation/removal during entity mutation processing) and {@link IndexMutationTarget} (used by
+	 * {@link IndexMutationExecutor} implementations for cross-entity trigger dispatch). Both interfaces share
+	 * a common {@link IndexProvider} super-type for index lookup methods. This dual role isolates callers from
+	 * the full {@link EntityCollection} API surface — passing the entire collection would be one cast away from
+	 * accessing internal methods that should not be visible to mutation executors.
 	 */
-	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex> {
+	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>, IndexMutationTarget {
 
 		/**
 		 * Returns entity index by its key. If such index doesn't exist, it is automatically created.
@@ -2769,20 +2805,6 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Retrieves an existing index by its unique primary key.
-		 */
-		@Nonnull
-		@Override
-		public EntityIndex getIndexByPrimaryKey(int indexPrimaryKey) {
-			final EntityIndex index = EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
-			Assert.isPremiseValid(
-				index != null,
-				() -> new GenericEvitaInternalError("Entity index for primary key " + indexPrimaryKey + " doesn't exists!")
-			);
-			return index;
-		}
-
-		/**
 		 * Ensures that the reference index prerequisites are satisfied before proceeding.
 		 * Verifies the existence of a global index and the presence of the specified reference in the entity schema.
 		 *
@@ -2809,7 +2831,7 @@ public final class EntityCollection implements
 		public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
 			final EntityIndex removedIndex = EntityCollection.this.dataStoreBuffer.removeIndex(
 				entityIndexKey, eik -> {
-					final EntityIndex index = EntityCollection.this.indexes.remove(eik);
+					final EntityIndex index = Objects.requireNonNull(EntityCollection.this.indexes.remove(eik));
 					final EntityIndex indexByPk = EntityCollection.this.indexesByPrimaryKey.remove(index.getPrimaryKey());
 					Assert.isPremiseValid(
 						index == indexByPk,
@@ -2826,6 +2848,64 @@ public final class EntityCollection implements
 				ofNullable(getTransactionalLayerMaintainer())
 					.ifPresent(removedIndex::removeTransactionalMemoryOfReferencedProducers);
 			}
+		}
+
+		/**
+		 * Returns entity index by its storage primary key, or null if not found. Used to resolve `int[]` storage PKs
+		 * returned by `ReferencedTypeEntityIndex.getAllReferenceIndexes(int)` into actual `ReducedGroupEntityIndex` /
+		 * `ReducedEntityIndex` instances. Satisfies both {@link IndexProvider#getIndexByPrimaryKeyIfExists(int)} and
+		 * the inherited contract on {@link IndexMaintainer} (where the throwing
+		 * {@link IndexMaintainer#getIndexByPrimaryKey(int)} default delegates to this method).
+		 */
+		@Nullable
+		@Override
+		public EntityIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+			return EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
+		}
+
+		/**
+		 * Returns the current entity schema for this collection. Used by mutation executors to look up
+		 * `ReferenceSchemaContract` for the reference being modified.
+		 */
+		@Nonnull
+		@Override
+		public EntitySchema getEntitySchema() {
+			return EntityCollection.this.getInternalSchema();
+		}
+
+		/**
+		 * Returns the expression trigger for the given reference name, dependency type, and scope. Currently returns
+		 * `null` — trigger infrastructure will be integrated in a downstream WBS when
+		 * `CatalogExpressionTriggerRegistry` is wired into the dispatch path.
+		 */
+		@Nullable
+		@Override
+		public ExpressionIndexTrigger getTrigger(
+			@Nonnull String referenceName,
+			@Nonnull DependencyType dependencyType,
+			@Nonnull Scope scope
+		) {
+			// trigger infrastructure will be integrated in a downstream WBS
+			return null;
+		}
+
+		/**
+		 * Evaluates a {@link FilterBy} constraint against this collection's current indexes and returns the matching
+		 * entity PK bitmap.
+		 *
+		 * **Not yet implemented** — requires an `EvitaSession` to create a `QueryPlanningContext`, but the
+		 * `IndexMutationTarget` interface does not carry session context. The full implementation will be provided
+		 * when the dispatch path (WBS-10) wires the session into the mutation processing chain.
+		 *
+		 * @throws UnsupportedOperationException always — pending session context integration
+		 */
+		@Nonnull
+		@Override
+		public Bitmap evaluateFilter(@Nonnull FilterBy filterBy) {
+			throw new UnsupportedOperationException(
+				"evaluateFilter requires EvitaSession context — will be implemented when the dispatch path " +
+					"is fully wired in WBS-10."
+			);
 		}
 
 	}

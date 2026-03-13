@@ -25,9 +25,9 @@ consistent before cross-entity triggers read it.
 - Calling `applyIndexMutations(EntityIndexMutation)` on each target `EntityCollection`
 - Implementing `applyIndexMutations()` on `EntityCollection` as a thin dispatcher that iterates
   nested `IndexMutation` instances and dispatches each to
-  `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)`
-- Ensuring the `EntityCollection` implements `IndexMutationTarget` so it can be passed to
-  executors
+  `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`
+- Ensuring the `EntityIndexMaintainer` inner class implements `IndexMutationTarget` so the
+  `entityIndexCreator` field can be passed to executors (providing API surface isolation)
 - Ensuring correct ordering: Step 5a (container) completes fully before Step 5b (index) begins
 - Ensuring the `level` counter in `LocalMutationExecutorCollector` correctly tracks nesting
   depth when cross-entity triggers are processed (level N for owner entity, level N+1 for
@@ -186,21 +186,22 @@ This separation keeps the two executor families independent — container execut
 
 The target collection is a **thin dispatcher** — it receives an `EntityIndexMutation`
 containing concrete `IndexMutation` instances and dispatches each one to the appropriate
-`IndexMutationExecutor` via the static singleton registry, passing `this` (typed as
-`IndexMutationTarget`) as the collection context.
+`IndexMutationExecutor` via the static singleton registry, passing `this.entityIndexCreator`
+(which implements `IndexMutationTarget`) as the collection context.
 
 ```java
-// EntityCollection implements IndexMutationTarget
+// EntityCollection — dispatches via entityIndexCreator (implements IndexMutationTarget)
 
 /**
  * Dispatches {@link IndexMutation} instances to their registered
- * {@link IndexMutationExecutor}. Passes {@code this} as {@link IndexMutationTarget}
- * so executors can access indexes, schema, triggers, and query evaluation
- * without seeing the full collection API surface.
+ * {@link IndexMutationExecutor}. Passes {@code this.entityIndexCreator}
+ * (which implements {@link IndexMutationTarget}) so executors can access
+ * indexes, schema, triggers, and query evaluation without seeing the full
+ * {@link EntityCollection} API surface.
  */
 void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation) {
     for (IndexMutation mutation : entityIndexMutation.mutations()) {
-        IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this);
+        IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
     }
 }
 ```
@@ -306,7 +307,7 @@ This means index mutations:
 |--------------------------------------------|-----------------|---------------------------------------------------------------|
 | `LocalMutationExecutorCollector`           | `evita_engine`  | Modified: adds Step 5b dispatch loop after Step 5a            |
 | `EntityCollection`                         | `evita_engine`  | Modified: adds `applyIndexMutations()` thin dispatcher        |
-| `IndexMutationTarget`                      | `evita_engine`  | Implemented by `EntityCollection` — passed to executors       |
+| `IndexMutationTarget`                      | `evita_engine`  | Extends `IndexProvider` — implemented by `EntityIndexMaintainer` inner class, passed to executors |
 | `EntityIndexLocalMutationExecutor`         | `evita_engine`  | Called: `popIndexImplicitMutations()` consumed by Step 5b     |
 | `IndexMutationExecutorRegistry`            | `evita_engine`  | Called: `dispatch(mutation, target)` from thin dispatcher     |
 | `EntityIndexMutation`                      | `evita_engine`  | Transport envelope routed by Step 5b loop                     |
@@ -323,8 +324,8 @@ This means index mutations:
 1. `LocalMutationExecutorCollector` calls `entityIndexUpdater.popIndexImplicitMutations(localMutations)` after the existing `popImplicitMutations()` loop completes.
 2. The returned `IndexImplicitMutations.indexMutations()` array is iterated, and each `EntityIndexMutation` is routed to the correct target `EntityCollection` via `catalog.getCollectionForEntityOrThrowException(indexMutation.entityType())`.
 3. `applyIndexMutations(EntityIndexMutation)` is called on each target collection.
-4. `EntityCollection.applyIndexMutations()` iterates `entityIndexMutation.mutations()` and dispatches each `IndexMutation` to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)`.
-5. `EntityCollection` implements `IndexMutationTarget` and passes `this` as the target parameter to executors.
+4. `EntityCollection.applyIndexMutations()` iterates `entityIndexMutation.mutations()` and dispatches each `IndexMutation` to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`.
+5. `EntityIndexMaintainer` (inner class) implements `IndexMutationTarget` — `entityIndexCreator` is passed as the target parameter to executors, providing API surface isolation.
 6. Step 5a (container implicit mutations) completes fully before Step 5b (index trigger mutations) begins — verified by code structure and integration test.
 7. The `level` counter correctly tracks nesting depth: owner entity at level N, cross-entity triggers at level N+1.
 8. Empty `indexMutations` arrays (no triggers fired) result in no routing calls — the loop simply does not execute.
@@ -346,7 +347,7 @@ This means index mutations:
 - **Null safety:** `popIndexImplicitMutations()` must never return null — it returns an `IndexImplicitMutations` with an empty array if no triggers fired. The collector should not need a null check.
 - **Performance consideration:** The Step 5b loop is expected to be lightweight in the common case (no triggers registered, empty array). The `popIndexImplicitMutations()` method should return an empty singleton when no triggers match, avoiding allocation.
 - **Registry pattern in `applyIndexMutations()`:** The thin dispatcher on `EntityCollection` uses `IndexMutationExecutorRegistry.INSTANCE` (a static singleton). This avoids reinstantiation when `EntityCollection` creates transactional copies. New mutation types can be added without modifying existing code — just register a new mutation record + executor class.
-- **Module placement:** `LocalMutationExecutorCollector` is in `io.evitadb.core.collection` (`evita_engine`). `EntityCollection` is in the same package. `applyIndexMutations()` can be package-private. The `IndexMutationTarget` interface and `IndexMutationExecutorRegistry` are in `io.evitadb.index.mutation` (`evita_engine`).
+- **Module placement:** `LocalMutationExecutorCollector` is in `io.evitadb.core.collection` (`evita_engine`). `EntityCollection` is in the same package. `applyIndexMutations()` can be package-private. The `IndexMutationTarget` interface and `IndexMutationExecutorRegistry` are in `io.evitadb.index.mutation` (`evita_engine`). `IndexMutationTarget` is implemented by the `EntityIndexMaintainer` inner class (not `EntityCollection` directly) — callers cannot cast the target back to `EntityCollection`.
 - **`ServerEntityMutation` cast is NOT needed for Step 5b:** In Step 5a, external mutations are cast to `ServerEntityMutation` before calling `applyMutations()`. In Step 5b, `EntityIndexMutation` is a plain record — no casting or wrapping is needed. The routing is simpler: get collection, call `applyIndexMutations()`.
 
 ## Phase Placeholders
@@ -439,7 +440,7 @@ Only after ALL external mutations from Step 5a complete (line 280) does control 
 - Storage state is fully consistent when Step 5b evaluates triggers
 - Any index triggers generated at level N+1 (during nested external mutations) are dispatched within that nested scope — they do NOT bubble up to level N
 
-**Important: Step 5b dispatch routes `EntityIndexMutation` to target collections via `applyIndexMutations()`, which does NOT call `applyMutations()` and does NOT participate in the `level` counter.** The `applyIndexMutations()` method is a thin dispatcher — it iterates `IndexMutation` instances and dispatches each to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)`. No nesting, no storage changes, no WAL, no implicit mutation generation.
+**Important: Step 5b dispatch routes `EntityIndexMutation` to target collections via `applyIndexMutations()`, which does NOT call `applyMutations()` and does NOT participate in the `level` counter.** The `applyIndexMutations()` method is a thin dispatcher — it iterates `IndexMutation` instances and dispatches each to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`. No nesting, no storage changes, no WAL, no implicit mutation generation.
 
 If in the future `applyIndexMutations()` were to produce further cross-entity triggers (cascade), they would need their own nesting mechanism. For the current design, this is not needed — `ReevaluateFacetExpressionExecutor` only reads indexes and performs bitmap add/remove, it does not generate further mutations.
 
@@ -479,12 +480,12 @@ However, Step 5b uses `applyIndexMutations()` on the TARGET collection, which cr
 - `applyMutations()` (the package-private overload at line 2442) is already package-private
 - `applyIndexMutations()` can be package-private (same visibility as `applyMutations()`)
 - `EntityCollection` currently implements `TransactionalLayerProducer`, `EntityCollectionContract`, `DataStoreReader`, `CatalogRelatedDataStructure`
-- Adding `implements IndexMutationTarget` requires the interface to be accessible from `evita_engine` module — both `EntityCollection` and the proposed `IndexMutationTarget` are in `evita_engine`, so module visibility is fine
-- `IndexMutationTarget` will be in `io.evitadb.index.mutation` package (per WBS-06) — `EntityCollection` already imports from this package
+- `EntityCollection` does NOT implement `IndexMutationTarget` — the `EntityIndexMaintainer` private inner class implements it instead (providing API surface isolation)
+- `IndexMutationTarget` is in `io.evitadb.index.mutation` package (per WBS-06) — `EntityCollection` already imports from this package
 
-##### `IndexMutationTarget` and `IndexMutationExecutorRegistry` — not yet created
+##### `IndexMutationTarget` and `IndexMutationExecutorRegistry` — created by WBS-06
 
-Neither `IndexMutationTarget` nor `IndexMutationExecutorRegistry` exist in the Java codebase. They exist only in WBS documentation. They will be created by WBS-06 (target-side dispatch infrastructure). This WBS (WBS-10) depends on WBS-06 providing these types before `applyIndexMutations()` can dispatch to executors.
+Both `IndexMutationTarget` and `IndexMutationExecutorRegistry` were created by WBS-06 (target-side dispatch infrastructure). `IndexMutationTarget` is implemented by the `EntityIndexMaintainer` private inner class (not `EntityCollection` directly). This WBS (WBS-10) depends on WBS-06 providing these types before `applyIndexMutations()` can dispatch to executors.
 
 **Optional implementation note — stub strategy:** If WBS-06 is not yet implemented when WBS-10 is being coded, `applyIndexMutations()` can be implemented as a thin method that iterates `entityIndexMutation.mutations()` but does nothing with each mutation (no dispatch call). Once WBS-06 delivers the registry and executor, the dispatch call is added. Alternatively, the method can log a warning or throw an `UnsupportedOperationException` as a temporary placeholder. If WBS tasks are implemented in dependency order, this paragraph is not needed.
 
@@ -527,26 +528,28 @@ The `entityIndexUpdater` parameter (type `EntityIndexLocalMutationExecutor`) is 
 
 ##### Group 2: `applyIndexMutations()` on `EntityCollection`
 
-- [ ] **2.1** Add a package-private method `void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation)` to `EntityCollection`. This is a thin dispatcher that iterates `entityIndexMutation.mutations()` and dispatches each `IndexMutation` to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this)`. If WBS-06 is not yet implemented, implement as a stub that iterates mutations but does not dispatch (add a `// TODO: dispatch via IndexMutationExecutorRegistry when WBS-06 is complete` comment).
+- [ ] **2.1** Add a package-private method `void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation)` to `EntityCollection`. This is a thin dispatcher that iterates `entityIndexMutation.mutations()` and dispatches each `IndexMutation` to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`. If WBS-06 is not yet implemented, implement as a stub that iterates mutations but does not dispatch (add a `// TODO: dispatch via IndexMutationExecutorRegistry when WBS-06 is complete` comment).
 
 - [ ] **2.2** Add comprehensive JavaDoc to `applyIndexMutations()` explaining:
   - This method dispatches engine-internal `IndexMutation` instances to their registered `IndexMutationExecutor`
-  - It passes `this` typed as `IndexMutationTarget` so executors can access indexes, schema, triggers, and query evaluation without seeing the full collection API surface
+  - It passes `this.entityIndexCreator` (which implements `IndexMutationTarget`) so executors can access indexes, schema, triggers, and query evaluation without seeing the full collection API surface
   - Unlike `applyMutations()`, this method creates no executors, no storage changes, no WAL entries, no schema evolution, no conflict keys, no entity return
   - The method is intentionally thin — all real work happens in the executor
   - Called by `LocalMutationExecutorCollector` during Step 5b dispatch
 
 - [ ] **2.3** Add `import io.evitadb.index.mutation.EntityIndexMutation` and `import io.evitadb.index.mutation.IndexMutation` to `EntityCollection`.
 
-##### Group 3: `EntityCollection` implements `IndexMutationTarget`
+##### Group 3: `EntityIndexMaintainer` implements `IndexMutationTarget` (completed by WBS-06)
 
-- [ ] **3.1** Once WBS-06 delivers the `IndexMutationTarget` interface, add `implements IndexMutationTarget` to the `EntityCollection` class declaration (line 180-184). If WBS-06 is not yet implemented, defer this task — the `applyIndexMutations()` method can exist without the interface marker, and the interface implementation can be added later.
+- [x] **3.1** WBS-06 added `IndexMutationTarget` to the `EntityIndexMaintainer` inner class (not `EntityCollection` directly). This provides API surface isolation — callers cannot cast the target back to `EntityCollection`.
 
-- [ ] **3.2** Implement any methods required by `IndexMutationTarget` on `EntityCollection`. Per WBS-06 design, `IndexMutationTarget` exposes only what executors need: access to entity indexes, entity schema, and trigger registry. The exact methods depend on WBS-06's final interface design. Likely methods include:
-  - `@Nullable EntityIndex getIndexIfExists(EntityIndexKey)` — wraps existing `this.indexes.get(key)` (returns null if not found)
-  - `@Nonnull EntityIndex getOrCreateIndex(EntityIndexKey)` — wraps existing index lookup with creation semantics
-  - `EntitySchema getInternalSchema()` — already exists (private, may need visibility change or delegation)
-  - Access to `CatalogExpressionTriggerRegistry` — via `this.catalog.getExpressionTriggerRegistry()`
+- [x] **3.2** All `IndexMutationTarget` methods are implemented on `EntityIndexMaintainer`:
+  - `getOrCreateIndex(EntityIndexKey)` — already implemented (shared with `IndexMaintainer` contract)
+  - `getIndexIfExists(EntityIndexKey)` — already implemented (shared with `IndexMaintainer` contract)
+  - `getIndexByPrimaryKeyIfExists(int)` — delegates to `EntityCollection.this.getIndexByPrimaryKeyIfExists(pk)`
+  - `getEntitySchema()` — delegates to `EntityCollection.this.getInternalSchema()`
+  - `getTrigger(String, DependencyType, Scope)` — stub returning `null` (pending trigger infrastructure)
+  - `evaluateFilter(FilterBy)` — throws `UnsupportedOperationException` (pending session context)
 
 ##### Group 4: Nesting and level behavior verification
 
@@ -714,12 +717,12 @@ logic.
   `ReevaluateFacetExpressionMutation` records). Call `applyIndexMutations()` on an
   `EntityCollection` instance. Verify that `IndexMutationExecutorRegistry.INSTANCE.dispatch()`
   is called exactly three times — once per `IndexMutation` — with the correct mutation and
-  `this` (the collection as `IndexMutationTarget`) as arguments.
+  the `entityIndexCreator` field (as `IndexMutationTarget`) as arguments.
 
-- [ ] `applyIndexMutations_passes_collection_as_indexMutationTarget`
+- [ ] `applyIndexMutations_passes_entityIndexCreator_as_indexMutationTarget`
   Call `applyIndexMutations()` on an `EntityCollection`. Capture the second argument passed to
-  `IndexMutationExecutorRegistry.INSTANCE.dispatch()`. Verify it is the same `EntityCollection`
-  instance cast to `IndexMutationTarget`.
+  `IndexMutationExecutorRegistry.INSTANCE.dispatch()`. Verify it is the `entityIndexCreator`
+  field (implementing `IndexMutationTarget`), NOT the `EntityCollection` instance itself.
 
 - [ ] `applyIndexMutations_with_empty_mutations_array_dispatches_nothing`
   Create an `EntityIndexMutation` with an empty `mutations()` array. Call
