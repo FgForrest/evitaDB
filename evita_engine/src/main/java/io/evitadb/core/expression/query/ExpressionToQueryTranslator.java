@@ -252,6 +252,35 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	}
 
 	/**
+	 * Creates a parent existence constraint for a comparison with a `null` literal on
+	 * the `$entity.parentEntity` path. Only equality (`==`) and inequality (`!=`) comparisons
+	 * are supported — equality with null means "has no parent" (negated hierarchy), while
+	 * inequality with null means "has a parent" (hierarchy root self).
+	 *
+	 * @param comparisonNode the comparison operator node
+	 * @return `not(hierarchyWithinRootSelf())` for `==`, `hierarchyWithinRootSelf()` for `!=`
+	 * @throws NonTranslatableExpressionException for ordered comparisons with parentEntity
+	 */
+	@Nonnull
+	private static FilterConstraint createParentExistenceConstraint(
+		@Nonnull ExpressionNode comparisonNode
+	) {
+		if (comparisonNode instanceof EqualsOperator) {
+			return not(hierarchyWithinRootSelf());
+		} else if (comparisonNode instanceof NotEqualsOperator) {
+			return hierarchyWithinRootSelf();
+		} else {
+			throw new NonTranslatableExpressionException(
+				"Ordered comparison (`" + comparisonNode.getClass().getSimpleName() +
+					"`) with `$" + EntityContractAccessor.ENTITY_VARIABLE_NAME + "." +
+					EntityContractAccessor.PARENT_ENTITY_PROPERTY +
+					"` is not supported. Only equality (`==`) and inequality (`!=`) " +
+					"comparisons with null can be used with parent entity checks."
+			);
+		}
+	}
+
+	/**
 	 * Classifies an {@link ObjectAccessOperator} by walking its access chain to determine the data path
 	 * type and extract the attribute name.
 	 *
@@ -283,6 +312,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 			) {
 				final String attributeName = extractAttributeName(firstProperty.getNext());
 				return new DataPath(PathType.ENTITY_ATTRIBUTE, attributeName, null);
+			} else if (EntityContractAccessor.PARENT_ENTITY_PROPERTY.equals(firstPropertyName)) {
+				return new DataPath(PathType.ENTITY_PARENT, EntityContractAccessor.PARENT_ENTITY_PROPERTY, null);
 			} else if (
 				EntityContractAccessor.ASSOCIATED_DATA_PROPERTY.equals(firstPropertyName)
 					|| EntityContractAccessor.LOCALIZED_ASSOCIATED_DATA_PROPERTY.equals(firstPropertyName)
@@ -330,8 +361,9 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 			"Unsupported data path starting with property `" + firstPropertyName + "`. " +
 				"For `$" + EntityContractAccessor.ENTITY_VARIABLE_NAME + "`, expected `" +
 				EntityContractAccessor.ATTRIBUTES_PROPERTY + "`, `" +
-				EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "`, or `" +
-				EntityContractAccessor.ASSOCIATED_DATA_PROPERTY + "`. " +
+				EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "`, `" +
+				EntityContractAccessor.ASSOCIATED_DATA_PROPERTY + "`, or `" +
+				EntityContractAccessor.PARENT_ENTITY_PROPERTY + "`. " +
 				"For `$" + ReferenceContractAccessor.REFERENCE_VARIABLE_NAME + "`, expected `" +
 				ReferenceContractAccessor.ATTRIBUTES_PROPERTY + "`, `" +
 				ReferenceContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "`, `" +
@@ -770,7 +802,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		@Nonnull FilterConstraint attributeConstraint
 	) {
 		return switch (dataPath.pathType()) {
-			case ENTITY_ATTRIBUTE -> attributeConstraint;
+			case ENTITY_ATTRIBUTE, ENTITY_PARENT -> attributeConstraint;
 			case REFERENCE_ATTRIBUTE -> referenceHaving(this.referenceName, attributeConstraint);
 			case GROUP_ENTITY_ATTRIBUTE -> referenceHaving(this.referenceName, groupHaving(attributeConstraint));
 			case REFERENCED_ENTITY_ATTRIBUTE ->
@@ -898,6 +930,20 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		final DataPath dataPath = classifyPath(pathOperand);
 		final Serializable value = valueOperand.getValue();
 
+		// parent entity path requires special handling — only null comparisons are allowed
+		if (dataPath.pathType() == PathType.ENTITY_PARENT) {
+			if (value != null) {
+				throw new NonTranslatableExpressionException(
+					"Comparison of `$" + EntityContractAccessor.ENTITY_VARIABLE_NAME + "." +
+						EntityContractAccessor.PARENT_ENTITY_PROPERTY +
+						"` with a non-null value is not supported. Only null comparisons " +
+						"(e.g., `$entity.parentEntity != null`) can be translated to FilterBy constraints."
+				);
+			}
+			this.result = createParentExistenceConstraint(comparisonNode);
+			return;
+		}
+
 		final FilterConstraint attributeConstraint;
 		if (value == null) {
 			// null literal -> attributeIsNull / attributeIsNotNull (equality only)
@@ -941,7 +987,11 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		 * `$reference.groupEntity?.references['r'].attributes['x']` — reference attribute on
 		 * the group entity, wrapped in `referenceHaving(groupHaving(referenceHaving('r', ...)))`.
 		 */
-		GROUP_ENTITY_REFERENCE_ATTRIBUTE
+		GROUP_ENTITY_REFERENCE_ATTRIBUTE,
+		/**
+		 * `$entity.parentEntity` — parent existence check, no wrapping needed.
+		 */
+		ENTITY_PARENT
 	}
 
 	/**

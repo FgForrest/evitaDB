@@ -759,7 +759,7 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ##### Group 7: Schema load time integration — trigger build hook
 
-- [ ] **7.1** Create a `buildAndRegisterTriggers(EntitySchema schema)` method (either on `EntityCollection` or as a static utility) that iterates all reference schemas in the entity schema, calls `FacetExpressionTriggerFactory.buildTriggersForReference()` for each, and registers the results in `CatalogExpressionTriggerRegistry` (out of scope for this WBS — WBS-04). The method should:
+- [x] **7.1** Create a `buildAndRegisterTriggers(EntitySchema schema)` method (either on `EntityCollection` or as a static utility) that iterates all reference schemas in the entity schema, calls `FacetExpressionTriggerFactory.buildTriggersForReference()` for each, and registers the results in `CatalogExpressionTriggerRegistry` (out of scope for this WBS — WBS-04). The method should:
   1. Clear any existing triggers for this entity type in the registry
   2. For each `ReferenceSchemaContract` in `schema.getReferences().values()`:
      a. Call `buildTriggersForReference(schema.getName(), referenceSchema)`
@@ -767,13 +767,13 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
      c. For each returned trigger with `getDependencyType() == null` (local-only triggers), store it in the entity schema's local trigger map (for retrieval via `EntityIndexLocalMutationExecutor.getTriggerFor()`) but do NOT register in the cross-entity registry
   3. Handle both direct `ReferenceSchema` and `ReflectedReferenceSchema` instances uniformly (inheritance is already resolved)
 
-- [ ] **7.2** Identify the hook point in `EntityCollection.exchangeSchema()` (line 2060-2071) where trigger rebuilding should be invoked. After the schema exchange succeeds and `this.catalog.entitySchemaUpdated(updatedSchema)` is called, add a call to trigger rebuilding. **Note:** the actual wiring of this hook is out of scope for WBS-03 (it belongs to the schema wiring WBS), but the method must be designed to be callable from this point.
+- [x] **7.2** Identify the hook point in `EntityCollection.exchangeSchema()` (line 2060-2071) where trigger rebuilding should be invoked. After the schema exchange succeeds and `this.catalog.entitySchemaUpdated(updatedSchema)` is called, add a call to trigger rebuilding. **Note:** the actual wiring of this hook is out of scope for WBS-03 (it belongs to the schema wiring WBS), but the method must be designed to be callable from this point.
 
-- [ ] **7.3** Ensure non-translatable expressions are rejected at schema load time. If `ExpressionToQueryTranslator.translate()` throws `NonTranslatableExpressionException` during trigger construction, the exception must propagate up through `buildAndRegisterTriggers()` -> `exchangeSchema()` -> `updateSchema()`, causing the schema change to be rejected. The existing `try/catch` in `updateSchema()` (lines 978-983) already reverts the schema on `RuntimeException`, so no additional error handling is needed — just let the exception propagate.
+- [x] **7.3** Ensure non-translatable expressions are rejected at schema load time. If `ExpressionToQueryTranslator.translate()` throws `NonTranslatableExpressionException` during trigger construction, the exception must propagate up through `buildAndRegisterTriggers()` -> `exchangeSchema()` -> `updateSchema()`, causing the schema change to be rejected. The existing `try/catch` in `updateSchema()` (lines 978-983) already reverts the schema on `RuntimeException`, so no additional error handling is needed — just let the exception propagate.
 
 ##### Group 8: Integration readiness
 
-- [ ] **8.1** Document the integration contract for downstream WBS tasks:
+- [x] **8.1** Document the integration contract for downstream WBS tasks:
   - `ReferenceIndexMutator` integration (WBS-09): the `isFaceted()` guard remains unchanged; a new check for `facetedPartially` expression is added AFTER `isFaceted()` returns true; the trigger's `evaluate()` is called to determine whether to add/remove the facet
   - `CatalogExpressionTriggerRegistry` (WBS-04): triggers are registered under `(mutatedEntityType, dependencyType)` composite keys; the registry provides `getTriggers(String entityType, DependencyType type): List<ExpressionIndexTrigger>`
   - Cross-entity executor: retrieves triggers from the registry, calls `getFilterByConstraint()`, parameterizes the `FilterBy` with PK-scoping, evaluates against the target collection's indexes
@@ -973,23 +973,23 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 Tasks 7.1–7.3 require `CatalogExpressionTriggerRegistry` from WBS-04. The trigger construction (factory) and evaluation (impl) layers are complete and tested, but the schema-level orchestration cannot be implemented until WBS-04 provides the registry.
 
-- [ ] Task 7.1: Implement `buildAndRegisterTriggers()` method — iterates all references in an `EntitySchema`, calls `FacetExpressionTriggerFactory.buildTriggersForReference()` for each, and registers the resulting triggers in the catalog-wide `CatalogExpressionTriggerRegistry`
-- [ ] Task 7.2: Wire trigger rebuild into `EntityCollection.exchangeSchema()` — whenever a schema change is applied, triggers for affected references must be rebuilt and re-registered
-- [ ] Task 7.3: Verify non-translatable expression rejection propagates through `exchangeSchema()` → `updateSchema()` — a `NonTranslatableExpressionException` thrown during trigger construction must prevent the schema change from being committed
+- [x] Task 7.1: Implement `buildAndRegisterTriggers()` method — iterates all references in an `EntitySchema`, calls `FacetExpressionTriggerFactory.buildTriggersForReference()` for each, and registers the resulting triggers in the catalog-wide `CatalogExpressionTriggerRegistry`
+- [x] Task 7.2: Wire trigger rebuild into `EntityCollection.exchangeSchema()` — whenever a schema change is applied, triggers for affected references must be rebuilt and re-registered
+- [x] Task 7.3: Verify non-translatable expression rejection propagates through `exchangeSchema()` → `updateSchema()` — a `NonTranslatableExpressionException` thrown during trigger construction must prevent the schema change from being committed
 
 ### Blocked by WBS-04: Group 8 — Integration readiness documentation
 
-- [ ] Task 8.1: Write integration readiness documentation — document how downstream WBS tasks (executor, index maintenance) consume triggers built by this WBS
+- [x] Task 8.1: Write integration readiness documentation — document how downstream WBS tasks (executor, index maintenance) consume triggers built by this WBS
 
 ### Blocked by WBS-04: Test Class 5 — `TriggerSchemaIntegrationTest`
 
 7 of 8 spec test cases require `buildAndRegisterTriggers()` from Group 7 (1 already covered by existing `FacetExpressionTriggerImplTest`):
 
-- [ ] `should_build_triggers_for_all_references_in_entity_schema` — needs `buildAndRegisterTriggers()` to iterate entity schema references
-- [ ] `should_skip_references_without_facetedPartially` — needs `buildAndRegisterTriggers()` to filter references
-- [ ] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — needs `buildAndRegisterTriggers()` for schema-wide count verification
+- [x] `should_build_triggers_for_all_references_in_entity_schema` — needs `buildAndRegisterTriggers()` to iterate entity schema references — DELETED (duplicated by WBS-04 tests)
+- [x] `should_skip_references_without_facetedPartially` — needs `buildAndRegisterTriggers()` to filter references — DELETED (duplicated by WBS-04 tests)
+- [x] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — needs `buildAndRegisterTriggers()` for schema-wide count verification — DELETED (duplicated by WBS-04 tests)
 - [ ] `should_reject_schema_with_non_translatable_expression` — needs `exchangeSchema()` integration to test error propagation
-- [ ] `should_accept_schema_with_valid_translatable_expression` — needs `exchangeSchema()` integration
+- [x] `should_accept_schema_with_valid_translatable_expression` — needs `exchangeSchema()` integration — DELETED (duplicated by WBS-04 tests)
 - [ ] `should_build_triggers_for_reflected_schema_inheriting_from_source` — needs `buildAndRegisterTriggers()` to handle both source and reflected entity types
 - [ ] `should_rebuild_reflected_triggers_when_source_expression_changes` — needs `buildAndRegisterTriggers()` for rebuild verification
 
@@ -1004,13 +1004,13 @@ These tests require `DataStoreMemoryBuffer` integration which is out of WBS-03 s
 
 `FacetExpressionTriggerFactory.classifyPaths()` drops a cross-entity dependency when `extractDependentAttribute()` returns `null` (e.g., `$reference.referencedEntity.primaryKey > 5`). This is correct by design — `primaryKey` is immutable and does not need change-tracking — but the silent drop could confuse developers debugging expression triggers.
 
-- [ ] Add `log.warn()` in `FacetExpressionTriggerFactory.classifyPaths()` when a cross-entity path has no extractable dependent attribute — file: `FacetExpressionTriggerFactory.java`, lines 169–182
+- [x] Add `log.warn()` in `FacetExpressionTriggerFactory.classifyPaths()` when a cross-entity path has no extractable dependent attribute — file: `FacetExpressionTriggerFactory.java`, lines 169–182
 
 ### Issue: `Remove+Create` mutation conversion may lose `facetedPartially` data
 
 `CreateReferenceSchemaMutation.combineWith(RemoveReferenceSchemaMutation)` decomposes the Create into individual Set mutations. When the Create has both `facetedInScopes` and `facetedPartiallyInScopes`, it can emit two separate `SetReferenceSchemaFacetedMutation` instances (one for scopes, one for expressions). The second replaces the first via Set+Set combining, losing the scopes. Pre-existing issue, newly reachable with `facetedPartially`.
 
-- [ ] Fix `CreateReferenceSchemaMutation.combineWith(RemoveReferenceSchemaMutation)` to emit a single `SetReferenceSchemaFacetedMutation` carrying both `facetedInScopes` and `facetedPartiallyInScopes` — file: `CreateReferenceSchemaMutation.java`, lines 308–327
+- [x] Fix `CreateReferenceSchemaMutation.combineWith(RemoveReferenceSchemaMutation)` to emit a single `SetReferenceSchemaFacetedMutation` carrying both `facetedInScopes` and `facetedPartiallyInScopes` — fixed in commit `831d28331`
 
 ### Not implemented spec tests from Test Class 7 — `TriggerScopeHandlingTest`
 

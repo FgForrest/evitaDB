@@ -44,6 +44,7 @@ import static io.evitadb.api.query.QueryConstraints.attributeLessThanEquals;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.groupHaving;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRootSelf;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
@@ -1248,12 +1249,42 @@ class ExpressionToQueryTranslatorTest {
 		);
 	}
 
+	/**
+	 * Verifies that a reference attribute not-equals-null comparison translates
+	 * to {@code referenceHaving(attributeIsNotNull(...))}.
+	 */
+	@Test
+	@DisplayName("$reference.attributes['priority'] != null -> filterBy(referenceHaving(\"refName\", attributeIsNotNull(\"priority\")))")
+	void shouldTranslateReferenceAttributeNotEqualsNullToAttributeIsNotNull() {
+		final FilterBy result = translate("$reference.attributes['priority'] != null");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeIsNotNull("priority"))),
+			result
+		);
+	}
+
 	@Test
 	@DisplayName("$reference.groupEntity?.attributes['x'] == null -> filterBy(referenceHaving(groupHaving(attributeIsNull)))")
 	void shouldTranslateGroupEntityAttributeEqualsNullToAttributeIsNull() {
 		final FilterBy result = translate("$reference.groupEntity?.attributes['x'] == null");
 		assertEquals(
 			filterBy(referenceHaving(REF_NAME, groupHaving(attributeIsNull("x")))),
+			result
+		);
+	}
+
+	/**
+	 * Verifies that a conjunction of a null-check with a value comparison translates
+	 * to {@code and(attributeIsNotNull(...), attributeEquals(...))}.
+	 */
+	@Test
+	@DisplayName("$entity.attributes['status'] != null && ... == 'ACTIVE' -> filterBy(and(attributeIsNotNull, attributeEquals))")
+	void shouldTranslateNullCheckCombinedWithValueComparison() {
+		final FilterBy result = translate(
+			"$entity.attributes['status'] != null && $entity.attributes['status'] == 'ACTIVE'"
+		);
+		assertEquals(
+			filterBy(and(attributeIsNotNull("status"), attributeEquals("status", "ACTIVE"))),
 			result
 		);
 	}
@@ -1292,7 +1323,67 @@ class ExpressionToQueryTranslatorTest {
 		);
 	}
 
-	// --- Single-element merging optimization ---
+	// --- Happy path: parent entity existence checks ---
+
+	@Test
+	@DisplayName("$entity.parentEntity != null -> filterBy(hierarchyWithinRootSelf())")
+	void shouldTranslateParentEntityNotEqualsNullToHierarchyWithinRootSelf() {
+		final FilterBy result = translate("$entity.parentEntity != null");
+		assertEquals(
+			filterBy(hierarchyWithinRootSelf()),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.parentEntity == null -> filterBy(not(hierarchyWithinRootSelf()))")
+	void shouldTranslateParentEntityEqualsNullToNotHierarchyWithinRootSelf() {
+		final FilterBy result = translate("$entity.parentEntity == null");
+		assertEquals(
+			filterBy(not(hierarchyWithinRootSelf())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.parentEntity > null -> throws NonTranslatableExpressionException")
+	void shouldRejectOrderedComparisonOnParentEntity() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.parentEntity > null")
+		);
+		assertTrue(
+			ex.getMessage().contains("parentEntity") || ex.getMessage().contains("Ordered"),
+			"message should mention parentEntity or ordered comparison: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.parentEntity != 42 -> throws NonTranslatableExpressionException")
+	void shouldRejectParentEntityComparedToNonNullValue() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.parentEntity != 42")
+		);
+		assertTrue(
+			ex.getMessage().contains("parentEntity") || ex.getMessage().contains("non-null"),
+			"message should mention parentEntity or non-null: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.parentEntity != null && $entity.attributes['status'] == 'ACTIVE' -> filterBy(and(hierarchyWithinRootSelf(), attributeEquals))")
+	void shouldTranslateParentEntityInConjunctionWithAttribute() {
+		final FilterBy result = translate(
+			"$entity.parentEntity != null && $entity.attributes['status'] == 'ACTIVE'"
+		);
+		assertEquals(
+			filterBy(and(hierarchyWithinRootSelf(), attributeEquals("status", "ACTIVE"))),
+			result
+		);
+	}
+
+		// --- Single-element merging optimization ---
 
 	@Test
 	@DisplayName("two reference attributes in AND -> single referenceHaving without outer and() wrapper")

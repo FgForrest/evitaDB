@@ -41,6 +41,7 @@ import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.mutation.FacetExpressionTrigger;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -76,6 +77,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class FacetExpressionTriggerFactory {
 
@@ -214,6 +216,12 @@ public class FacetExpressionTriggerFactory {
 						key,
 						k -> createLinkedHashSet(4)
 					).add(attributeName);
+				} else {
+					log.warn(
+						"Cross-entity path for dependency type `{}` on reference `{}` has no extractable " +
+							"dependent attribute. The path will be ignored for trigger attribute-level indexing.",
+						depType, dependentRefName
+					);
 				}
 			}
 		}

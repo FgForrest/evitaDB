@@ -444,7 +444,7 @@ All in `evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java` (s
 
 - [x] Implement comparison operator translation — for each of `EqualsOperator`, `GreaterThanOperator`, `GreaterThanEqualsOperator`, `LesserThanOperator`, `LesserThanEqualsOperator`: extract the `ObjectAccessOperator` operand (data path) and `ConstantOperand` operand (literal value), determine the data path type, and produce the corresponding attribute constraint. Handle either operand order (path on left or right). When the `ConstantOperand` value is `null`, dispatch to null-check handling (see below).
 
-- [ ] Implement null-check translation — when a comparison operator has a `null` `ConstantOperand`, produce the appropriate null-check constraint based on path type:
+- [x] Implement null-check translation — when a comparison operator has a `null` `ConstantOperand`, produce the appropriate null-check constraint based on path type:
   - `$entity.attributes['x'] == null` -> `attributeIsNull("x")`
   - `$entity.attributes['x'] != null` -> `attributeIsNotNull("x")`
   - `$entity.parent == null` -> `not(hierarchyWithinRootSelf())`
@@ -511,15 +511,15 @@ Expressions are parsed via `ExpressionFactory.parse(String)` and translated via 
 - [x] `translates_reference_attribute_not_equals` — `$reference.attributes['priority'] != 0` translates to `filterBy(referenceHaving("refName", not(attributeEquals("priority", 0))))`
 
 **Happy path — attribute null checks:**
-- [ ] `translates_entity_attribute_equals_null_to_attribute_is_null` — `$entity.attributes['status'] == null` translates to `filterBy(attributeIsNull("status"))`
-- [ ] `translates_entity_attribute_not_equals_null_to_attribute_is_not_null` — `$entity.attributes['status'] != null` translates to `filterBy(attributeIsNotNull("status"))`
-- [ ] `translates_reference_attribute_equals_null_to_attribute_is_null` — `$reference.attributes['priority'] == null` translates to `filterBy(referenceHaving("refName", attributeIsNull("priority")))`
-- [ ] `translates_reference_attribute_not_equals_null_to_attribute_is_not_null` — `$reference.attributes['priority'] != null` translates to `filterBy(referenceHaving("refName", attributeIsNotNull("priority")))`
-- [ ] `translates_null_check_combined_with_value_comparison` — `$entity.attributes['status'] != null && $entity.attributes['status'] == 'ACTIVE'` translates to `filterBy(and(attributeIsNotNull("status"), attributeEquals("status", "ACTIVE")))`
+- [x] `translates_entity_attribute_equals_null_to_attribute_is_null` — `$entity.attributes['status'] == null` translates to `filterBy(attributeIsNull("status"))`
+- [x] `translates_entity_attribute_not_equals_null_to_attribute_is_not_null` — `$entity.attributes['status'] != null` translates to `filterBy(attributeIsNotNull("status"))`
+- [x] `translates_reference_attribute_equals_null_to_attribute_is_null` — `$reference.attributes['priority'] == null` translates to `filterBy(referenceHaving("refName", attributeIsNull("priority")))`
+- [x] `translates_reference_attribute_not_equals_null_to_attribute_is_not_null` — `$reference.attributes['priority'] != null` translates to `filterBy(referenceHaving("refName", attributeIsNotNull("priority")))`
+- [x] `translates_null_check_combined_with_value_comparison` — `$entity.attributes['status'] != null && $entity.attributes['status'] == 'ACTIVE'` translates to `filterBy(and(attributeIsNotNull("status"), attributeEquals("status", "ACTIVE")))`
 
 **Happy path — parent existence check:**
-- [ ] `translates_entity_parent_not_equals_null_to_hierarchy_within_root_self` — `$entity.parent != null` translates to `filterBy(hierarchyWithinRootSelf())`
-- [ ] `translates_entity_parent_equals_null_to_not_hierarchy_within_root_self` — `$entity.parent == null` translates to `filterBy(not(hierarchyWithinRootSelf()))` (entity has no parent)
+- [x] `translates_entity_parent_not_equals_null_to_hierarchy_within_root_self` — `$entity.parent != null` translates to `filterBy(hierarchyWithinRootSelf())`
+- [x] `translates_entity_parent_equals_null_to_not_hierarchy_within_root_self` — `$entity.parent == null` translates to `filterBy(not(hierarchyWithinRootSelf()))` (entity has no parent)
 
 **Happy path — reference attribute comparisons:**
 - [x] `translates_reference_attribute_equals` — `$reference.attributes['priority'] == 1` translates to `filterBy(referenceHaving("refName", attributeEquals("priority", 1)))`
@@ -646,11 +646,11 @@ The following 7 test cases cannot be implemented because they require changes ou
 5. Update `ExpressionToQueryTranslator.translateComparison()` to detect null values and dispatch to `attributeIsNull()`/`attributeIsNotNull()` constraints
 
 **Blocked tests:**
-- [ ] `translates_entity_attribute_equals_null_to_attribute_is_null`
-- [ ] `translates_entity_attribute_not_equals_null_to_attribute_is_not_null`
-- [ ] `translates_reference_attribute_equals_null_to_attribute_is_null`
-- [ ] `translates_reference_attribute_not_equals_null_to_attribute_is_not_null`
-- [ ] `translates_null_check_combined_with_value_comparison`
+- [x] `translates_entity_attribute_equals_null_to_attribute_is_null`
+- [x] `translates_entity_attribute_not_equals_null_to_attribute_is_not_null`
+- [x] `translates_reference_attribute_equals_null_to_attribute_is_null`
+- [x] `translates_reference_attribute_not_equals_null_to_attribute_is_not_null`
+- [x] `translates_null_check_combined_with_value_comparison`
 
 ### ⚠️ Issue 2: No `$entity.parent` property in EntityContractAccessor (blocks 2 tests)
 
@@ -665,5 +665,5 @@ The following 7 test cases cannot be implemented because they require changes ou
 6. Update `wrapForPathType()` to map `ENTITY_PARENT` existence to `hierarchyWithinRootSelf()` / `not(hierarchyWithinRootSelf())`
 
 **Blocked tests:**
-- [ ] `translates_entity_parent_not_equals_null_to_hierarchy_within_root_self`
-- [ ] `translates_entity_parent_equals_null_to_not_hierarchy_within_root_self`
+- [x] `translates_entity_parent_not_equals_null_to_hierarchy_within_root_self`
+- [x] `translates_entity_parent_equals_null_to_not_hierarchy_within_root_self`

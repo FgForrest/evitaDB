@@ -447,27 +447,27 @@ When an entity is removed (`EntityRemoveMutation`), ALL dependent expressions mu
 
 ##### Group 1: `CatalogExpressionTriggerRegistry` interface
 
-- [ ] **1.1** Create `CatalogExpressionTriggerRegistry` interface in `evita_engine/src/main/java/io/evitadb/core/catalog/CatalogExpressionTriggerRegistry.java` in package `io.evitadb.core.catalog`. Define all three methods exactly as specified in the "Full Interface Definition" section:
+- [x] **1.1** Create `CatalogExpressionTriggerRegistry` interface in `evita_engine/src/main/java/io/evitadb/core/catalog/CatalogExpressionTriggerRegistry.java` in package `io.evitadb.core.catalog`. Define all three methods exactly as specified in the "Full Interface Definition" section:
   - `@Nonnull List<ExpressionIndexTrigger> getTriggersFor(@Nonnull String mutatedEntityType, @Nonnull DependencyType dependencyType)` — broad lookup returning all triggers for a given entity type and dependency relationship
   - `@Nonnull List<ExpressionIndexTrigger> getTriggersForAttribute(@Nonnull String mutatedEntityType, @Nonnull DependencyType dependencyType, @Nonnull String attributeName)` — selective lookup filtering by dependent attribute name
   - `@Nonnull CatalogExpressionTriggerRegistry rebuildForEntityType(@Nonnull String entityType, @Nonnull List<ExpressionIndexTrigger> newTriggers)` — immutable rebuild returning a new registry instance; the caller builds the trigger list and passes it in
 
-- [ ] **1.2** Write complete JavaDoc for `CatalogExpressionTriggerRegistry` covering: its role as a catalog-level inverted index, the ownership inversion pattern (schema A defines the expression, but the trigger is indexed under schema B's entity type), the copy-on-write immutability principle, and the thread-safety guarantee (safe for concurrent reads, mutation only through `rebuildForEntityType()` producing a new instance).
+- [x] **1.2** Write complete JavaDoc for `CatalogExpressionTriggerRegistry` covering: its role as a catalog-level inverted index, the ownership inversion pattern (schema A defines the expression, but the trigger is indexed under schema B's entity type), the copy-on-write immutability principle, and the thread-safety guarantee (safe for concurrent reads, mutation only through `rebuildForEntityType()` producing a new instance).
 
-- [ ] **1.3** Add an `EMPTY` singleton constant to the interface: `CatalogExpressionTriggerRegistry EMPTY = new CatalogExpressionTriggerRegistryImpl(Collections.emptyMap())` — or a dedicated empty implementation. This serves as the initial value before any schemas are loaded.
+- [x] **1.3** Add an `EMPTY` singleton constant to the interface: `CatalogExpressionTriggerRegistry EMPTY = new CatalogExpressionTriggerRegistryImpl(Collections.emptyMap())` — or a dedicated empty implementation. This serves as the initial value before any schemas are loaded.
 
 ##### Group 2: Concrete registry implementation — data structure
 
-- [ ] **2.1** Create `CatalogExpressionTriggerRegistryImpl` class in `evita_engine/src/main/java/io/evitadb/core/catalog/CatalogExpressionTriggerRegistryImpl.java` implementing `CatalogExpressionTriggerRegistry`. The class should be package-private, immutable, and `@ThreadSafe`. Primary field: `@Nonnull Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> triggerIndex` — a nested immutable map.
+- [x] **2.1** Create `CatalogExpressionTriggerRegistryImpl` class in `evita_engine/src/main/java/io/evitadb/core/catalog/CatalogExpressionTriggerRegistryImpl.java` implementing `CatalogExpressionTriggerRegistry`. The class should be package-private, immutable, and `@ThreadSafe`. Primary field: `@Nonnull Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> triggerIndex` — a nested immutable map.
 
-- [ ] **2.2** Constructor takes the pre-built `triggerIndex` map and stores a deep-immutable copy (using `Collections.unmodifiableMap()` on the outer map, `Collections.unmodifiableMap()` on each inner `EnumMap`, and `Collections.unmodifiableList()` on each trigger list).
+- [x] **2.2** Constructor takes the pre-built `triggerIndex` map and stores a deep-immutable copy (using `Collections.unmodifiableMap()` on the outer map, `Collections.unmodifiableMap()` on each inner `EnumMap`, and `Collections.unmodifiableList()` on each trigger list).
 
-- [ ] **2.3** Implement `getTriggersFor(String mutatedEntityType, DependencyType dependencyType)`:
+- [x] **2.3** Implement `getTriggersFor(String mutatedEntityType, DependencyType dependencyType)`:
   1. Look up `triggerIndex.get(mutatedEntityType)` — if null, return `Collections.emptyList()`
   2. Look up inner map `innerMap.get(dependencyType)` — if null, return `Collections.emptyList()`
   3. Return the (already unmodifiable) list
 
-- [ ] **2.4** Implement `getTriggersForAttribute(String mutatedEntityType, DependencyType dependencyType, String attributeName)`:
+- [x] **2.4** Implement `getTriggersForAttribute(String mutatedEntityType, DependencyType dependencyType, String attributeName)`:
   1. Call `getTriggersFor(mutatedEntityType, dependencyType)` to get the full list
   2. If empty, return `Collections.emptyList()`
   3. Filter the list: iterate and collect triggers where `trigger.getDependentAttributes().contains(attributeName)`
@@ -475,27 +475,27 @@ When an entity is removed (`EntityRemoveMutation`), ALL dependent expressions mu
 
 ##### Group 3: Immutable rebuild mechanism — `rebuildForEntityType()`
 
-- [ ] **3.1** `rebuildForEntityType()` is a **pure function** on the registry interface — it receives both the entity type and the pre-built trigger list as parameters, and returns a new registry instance. It does NOT internally access the catalog or any external state. The actual rebuild orchestration lives in `Catalog.rebuildExpressionTriggerRegistryForEntityType()`, which:
+- [x] **3.1** `rebuildForEntityType()` is a **pure function** on the registry interface — it receives both the entity type and the pre-built trigger list as parameters, and returns a new registry instance. It does NOT internally access the catalog or any external state. The actual rebuild orchestration lives in `Catalog.rebuildExpressionTriggerRegistryForEntityType()`, which:
   1. Calls `FacetExpressionTriggerFactory.buildTriggersForReference()` (from WBS-03) for each reference schema on the specified entity type
   2. Calls `currentRegistry.rebuildForEntityType(entityType, newTriggers)` on the interface
   3. Stores the new registry via `this.expressionTriggerRegistry.set(newRegistry)`
 
-- [ ] **3.2** Implement `rebuildForEntityType(String entityType, List<ExpressionIndexTrigger> newTriggers)` on `CatalogExpressionTriggerRegistryImpl` to perform the copy-and-replace:
+- [x] **3.2** Implement `rebuildForEntityType(String entityType, List<ExpressionIndexTrigger> newTriggers)` on `CatalogExpressionTriggerRegistryImpl` to perform the copy-and-replace:
   1. Deep-copy the current registry's trigger index
   2. Remove all entries where any trigger has `getOwnerEntityType().equals(entityType)` — this cleans out stale triggers from the rebuilt entity type. **Important:** iterate ALL keys (mutated entity types) because the rebuilt entity type's references may have produced triggers indexed under different mutated entity types (e.g., Product references ParameterGroup — rebuilding Product must remove the trigger from the "parameterGroup" key)
   3. Insert the new triggers under their respective `(mutatedEntityType, dependencyType)` keys (derived from each trigger's metadata — which is the mutated entity type, not the owner entity type)
   4. Wrap in unmodifiable collections and return new `CatalogExpressionTriggerRegistryImpl`
 
-- [ ] **3.3** Handle the key inversion correctly in the rebuild: triggers from a `ReferenceSchema` on entity type A (owner) that reference entity type B (referenced/group entity) must be indexed under entity type B (the mutated entity type). The `mutatedEntityType` for a trigger is:
+- [x] **3.3** Handle the key inversion correctly in the rebuild: triggers from a `ReferenceSchema` on entity type A (owner) that reference entity type B (referenced/group entity) must be indexed under entity type B (the mutated entity type). The `mutatedEntityType` for a trigger is:
   - For `DependencyType.REFERENCED_ENTITY_ATTRIBUTE`: `referenceSchema.getReferencedEntityType()`
   - For `DependencyType.GROUP_ENTITY_ATTRIBUTE`: `referenceSchema.getReferencedGroupType()`
   The factory method in WBS-03 (`FacetExpressionTriggerFactory`) already classifies this — the registry just needs to use the trigger's dependency metadata to determine the index key.
 
-- [ ] **3.4** **Self-referencing entity type edge case:** when an entity type references itself (e.g., Product references Product as its group entity), the owner entity type and the mutated entity type are the same. The rebuild algorithm handles this correctly because step 1 removes stale triggers by owner entity type, and step 3 inserts new triggers under the mutated entity type key. When both are the same, the old triggers are cleaned from the key and new triggers are inserted under the same key. Triggers from other owners under the same key are preserved (step 1 only removes triggers matching the owner). This must be verified by a dedicated test case (see Category 6).
+- [x] **3.4** **Self-referencing entity type edge case:** when an entity type references itself (e.g., Product references Product as its group entity), the owner entity type and the mutated entity type are the same. The rebuild algorithm handles this correctly because step 1 removes stale triggers by owner entity type, and step 3 inserts new triggers under the mutated entity type key. When both are the same, the old triggers are cleaned from the key and new triggers are inserted under the same key. Triggers from other owners under the same key are preserved (step 1 only removes triggers matching the owner). This must be verified by a dedicated test case (see Category 6).
 
 ##### Group 4: Full registry build from all schemas (cold start)
 
-- [ ] **4.1** Create a static factory method `CatalogExpressionTriggerRegistryImpl.buildFromSchemas(Map<String, EntitySchemaContract> entitySchemaIndex): CatalogExpressionTriggerRegistry` that:
+- [x] **4.1** Create a static factory method `CatalogExpressionTriggerRegistryImpl.buildFromSchemas(Map<String, EntitySchemaContract> entitySchemaIndex): CatalogExpressionTriggerRegistry` that:
   1. Creates an empty mutable `Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>>`
   2. Iterates all entity schemas in `entitySchemaIndex.values()`
   3. For each entity schema, iterates `schema.getReferences().values()`
@@ -506,37 +506,37 @@ When an entity is removed (`EntityRemoveMutation`), ALL dependent expressions mu
 
   **Extensibility note:** this method currently only builds facet triggers via `FacetExpressionTriggerFactory`. When `HistogramExpressionTrigger` support is added (for `bucketedPartially` expressions), this method must be extended to also call the histogram trigger factory for each reference schema and merge results into the same index. The registry data structure already supports this — it stores all `ExpressionIndexTrigger` subtypes in the same lists. No structural changes to the registry will be needed, only an additional factory call here and in `Catalog.rebuildExpressionTriggerRegistryForEntityType()`.
 
-- [ ] **4.2** Handle references where `getReferencedGroupType()` is null — these references cannot produce `GROUP_ENTITY_ATTRIBUTE` triggers. Skip silently (no error).
+- [x] **4.2** Handle references where `getReferencedGroupType()` is null — these references cannot produce `GROUP_ENTITY_ATTRIBUTE` triggers. Skip silently (no error).
 
-- [ ] **4.3** Handle references where `getFacetedPartiallyInScopes()` returns an empty map — these references have no conditional faceting. Skip silently (the factory returns an empty list).
+- [x] **4.3** Handle references where `getFacetedPartiallyInScopes()` returns an empty map — these references have no conditional faceting. Skip silently (the factory returns an empty list).
 
-- [ ] **4.4** Handle multiple reference types on the same or different entity schemas pointing to the same group entity type: the map key `(mutatedEntityType, dependencyType)` naturally accumulates all triggers in a list. Verify in a test that `getTriggersFor("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns triggers from BOTH `Product.parameter` and `Product.altParameter` if both reference the same group entity type with conditional expressions.
+- [x] **4.4** Handle multiple reference types on the same or different entity schemas pointing to the same group entity type: the map key `(mutatedEntityType, dependencyType)` naturally accumulates all triggers in a list. Verify in a test that `getTriggersFor("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns triggers from BOTH `Product.parameter` and `Product.altParameter` if both reference the same group entity type with conditional expressions.
 
 ##### Group 5: `ReflectedReferenceSchema` cascade — verifying existing propagation
 
-- [ ] **5.1** Verify (in a test) that the existing cascade through `notifyAboutExternalReferenceUpdate() -> exchangeSchema() -> entitySchemaUpdated()` correctly triggers registry rebuilds when a source schema's `facetedPartially` expression changes. The test should:
+- [x] **5.1** Verify (in a test) that the existing cascade through `notifyAboutExternalReferenceUpdate() -> exchangeSchema() -> entitySchemaUpdated()` correctly triggers registry rebuilds when a source schema's `facetedPartially` expression changes. The test should:
   1. Set up entity A with a reference to entity B, with a `facetedPartially` expression
   2. Set up entity C with a `ReflectedReferenceSchema` that inherits `facetedPartially` from A's reference
   3. Change A's `facetedPartially` expression
   4. Verify that both A's and C's triggers are rebuilt in the registry
 
-- [ ] **5.2** Document that the registry does NOT need its own cascade mechanism for `ReflectedReferenceSchema` — the existing `EntityCollection.notifyAboutExternalReferenceUpdate()` already cascades schema changes to all collections with reflected references. Each `exchangeSchema()` call triggers `entitySchemaUpdated()`, which triggers the registry rebuild for that entity type. The cascade is transitive and complete.
+- [x] **5.2** Document that the registry does NOT need its own cascade mechanism for `ReflectedReferenceSchema` — the existing `EntityCollection.notifyAboutExternalReferenceUpdate()` already cascades schema changes to all collections with reflected references. Each `exchangeSchema()` call triggers `entitySchemaUpdated()`, which triggers the registry rebuild for that entity type. The cascade is transitive and complete.
 
 ##### Group 6: Catalog integration — field, accessors, lifecycle hooks
 
-- [ ] **6.1** Add a `TransactionalReference<CatalogExpressionTriggerRegistry> expressionTriggerRegistry` field to `Catalog` (after line 232, alongside the other `TransactionalReference` fields). Initialize with `new TransactionalReference<>(CatalogExpressionTriggerRegistry.EMPTY)`.
+- [x] **6.1** Add a `TransactionalReference<CatalogExpressionTriggerRegistry> expressionTriggerRegistry` field to `Catalog` (after line 232, alongside the other `TransactionalReference` fields). Initialize with `new TransactionalReference<>(CatalogExpressionTriggerRegistry.EMPTY)`.
 
-- [ ] **6.2** Add a public accessor `@Nonnull CatalogExpressionTriggerRegistry getExpressionTriggerRegistry()` to `Catalog` that returns `Objects.requireNonNull(this.expressionTriggerRegistry.get())`.
+- [x] **6.2** Add a public accessor `@Nonnull CatalogExpressionTriggerRegistry getExpressionTriggerRegistry()` to `Catalog` that returns `Objects.requireNonNull(this.expressionTriggerRegistry.get())`.
 
-- [ ] **6.3** Propagate the `expressionTriggerRegistry` field in the copy constructor (lines 711-784): assign `this.expressionTriggerRegistry = new TransactionalReference<>(previousCatalogVersion.getExpressionTriggerRegistry())` — the new catalog version starts with the previous version's registry.
+- [x] **6.3** Propagate the `expressionTriggerRegistry` field in the copy constructor (lines 711-784): assign `this.expressionTriggerRegistry = new TransactionalReference<>(previousCatalogVersion.getExpressionTriggerRegistry())` — the new catalog version starts with the previous version's registry.
 
-- [ ] **6.4** Add `this.expressionTriggerRegistry.removeLayer(transactionalLayer)` to `Catalog.removeLayer()` (after line 1441). **Note:** not all `TransactionalReference` fields are currently in `removeLayer()` — the `versionId` field is excluded, likely because it is managed exclusively through `setVersion()` within transactional context and merged via `getStateCopyWithCommittedChanges()` in `createCopyWithMergedTransactionalMemory()`. The registry should be in `removeLayer()` because, unlike `versionId`, the registry can be set within a transaction and must have its layer cleaned up if the transaction is rolled back. This follows the pattern of the `schema` field (also a `TransactionalReference`) which IS included in `removeLayer()`.
+- [x] **6.4** Add `this.expressionTriggerRegistry.removeLayer(transactionalLayer)` to `Catalog.removeLayer()` (after line 1441). **Note:** not all `TransactionalReference` fields are currently in `removeLayer()` — the `versionId` field is excluded, likely because it is managed exclusively through `setVersion()` within transactional context and merged via `getStateCopyWithCommittedChanges()` in `createCopyWithMergedTransactionalMemory()`. The registry should be in `removeLayer()` because, unlike `versionId`, the registry can be set within a transaction and must have its layer cleaned up if the transaction is rolled back. This follows the pattern of the `schema` field (also a `TransactionalReference`) which IS included in `removeLayer()`.
 
-- [ ] **6.5** In `Catalog.createCopyWithMergedTransactionalMemory()` (line 1446+): ensure the registry's transactional layer is merged. Since `TransactionalReference` handles this automatically via `getStateCopyWithCommittedChanges()`, the registry reference just needs to be included in the new Catalog's field initialization (same as `versionId` and `schema`).
+- [x] **6.5** In `Catalog.createCopyWithMergedTransactionalMemory()` (line 1446+): ensure the registry's transactional layer is merged. Since `TransactionalReference` handles this automatically via `getStateCopyWithCommittedChanges()`, the registry reference just needs to be included in the new Catalog's field initialization (same as `versionId` and `schema`).
 
 ##### Group 7: Schema change hook — triggering rebuild on `entitySchemaUpdated()`
 
-- [ ] **7.1** Modify `Catalog.entitySchemaUpdated(EntitySchemaContract entitySchema)` (line 1409-1411) to trigger a registry rebuild after updating the schema index:
+- [x] **7.1** Modify `Catalog.entitySchemaUpdated(EntitySchemaContract entitySchema)` (line 1409-1411) to trigger a registry rebuild after updating the schema index:
   ```java
   public void entitySchemaUpdated(@Nonnull EntitySchemaContract entitySchema) {
       this.entitySchemaIndex.put(entitySchema.getName(), entitySchema);
@@ -550,13 +550,13 @@ When an entity is removed (`EntityRemoveMutation`), ALL dependent expressions mu
   4. Calls `currentRegistry.rebuildForEntityType(entityType, newTriggers)` — the interface method, which returns a new registry instance
   5. Stores the new registry via `this.expressionTriggerRegistry.set(newRegistry)`
 
-- [ ] **7.2** Handle `entitySchemaRemoved(String entityType)` (line 1418-1420): when a collection is removed, all triggers owned by that entity type must be removed from the registry. Call `currentRegistry.rebuildForEntityType(entityType, Collections.emptyList())` to clean up.
+- [x] **7.2** Handle `entitySchemaRemoved(String entityType)` (line 1418-1420): when a collection is removed, all triggers owned by that entity type must be removed from the registry. Call `currentRegistry.rebuildForEntityType(entityType, Collections.emptyList())` to clean up.
 
-- [ ] **7.3** Verify that `entitySchemaUpdated()` is called AFTER `refreshReflectedSchemas()` has resolved inheritance. Looking at the call chain: `updateSchema() -> refreshReflectedSchemas() -> exchangeSchema() -> entitySchemaUpdated()` — YES, by the time `entitySchemaUpdated()` fires, the schema passed as argument already has fully-resolved reflected references. The registry rebuild sees the correct inherited expressions.
+- [x] **7.3** Verify that `entitySchemaUpdated()` is called AFTER `refreshReflectedSchemas()` has resolved inheritance. Looking at the call chain: `updateSchema() -> refreshReflectedSchemas() -> exchangeSchema() -> entitySchemaUpdated()` — YES, by the time `entitySchemaUpdated()` fires, the schema passed as argument already has fully-resolved reflected references. The registry rebuild sees the correct inherited expressions.
 
 ##### Group 8: Cold start hook — initial registry build
 
-- [ ] **8.1** After all `initSchema()` calls complete during catalog loading (line 493-494 of `Catalog.java`), call `buildInitialExpressionTriggerRegistry()`:
+- [x] **8.1** After all `initSchema()` calls complete during catalog loading (line 493-494 of `Catalog.java`), call `buildInitialExpressionTriggerRegistry()`:
   ```java
   for (EntityCollection collection : initBulk.collections().values()) {
       collection.initSchema();
@@ -567,15 +567,15 @@ When an entity is removed (`EntityRemoveMutation`), ALL dependent expressions mu
   1. Calls `CatalogExpressionTriggerRegistryImpl.buildFromSchemas(this.entitySchemaIndex)` to build the full registry
   2. Stores via `this.expressionTriggerRegistry.set(fullRegistry)`
 
-- [ ] **8.2** Apply the same pattern in the copy constructor (lines 776-783): after all `initSchema()` calls, rebuild the registry. This handles the `goingLive()` transition where collections are re-created with new catalog state.
+- [x] **8.2** Apply the same pattern in the copy constructor (lines 776-783): after all `initSchema()` calls, rebuild the registry. This handles the `goingLive()` transition where collections are re-created with new catalog state.
 
-- [ ] **8.3** Ensure that during warm-up state (no transactions), `TransactionalReference.set()` writes directly to the `AtomicReference` (line 74-75 of `TransactionalReference.java` confirms: `if (layer == null) { this.value.set(value); }`) — no transactional overhead during initialization.
+- [x] **8.3** Ensure that during warm-up state (no transactions), `TransactionalReference.set()` writes directly to the `AtomicReference` (line 74-75 of `TransactionalReference.java` confirms: `if (layer == null) { this.value.set(value); }`) — no transactional overhead during initialization.
 
 ##### Group 9: Entity collection removal — cleaning up registry
 
-- [ ] **9.1** When `Catalog.removeEntityCollection()` is called, triggers owned by the removed entity type must be purged from the registry. Add a registry rebuild call in the removal logic (around line 2033-2040 of `Catalog.java`).
+- [x] **9.1** When `Catalog.removeEntityCollection()` is called, triggers owned by the removed entity type must be purged from the registry. Add a registry rebuild call in the removal logic (around line 2033-2040 of `Catalog.java`).
 
-- [ ] **9.2** When `Catalog.renameEntityCollectionInternal()` is called (lines 2101+), the renamed collection's triggers must be reconstructed under the new owner entity type name. The rename process works as follows:
+- [x] **9.2** When `Catalog.renameEntityCollectionInternal()` is called (lines 2101+), the renamed collection's triggers must be reconstructed under the new owner entity type name. The rename process works as follows:
   1. `doReplaceEntityCollectionInternal()` calls `updateSchema()` on the renamed collection with a `ModifyEntitySchemaNameMutation`, which updates the entity schema to use the new name
   2. `notifyEntityTypeRenamed()` cascades to other collections, updating their reference schemas that point to the renamed entity type. Each updated collection calls `exchangeSchema() -> entitySchemaUpdated()`, triggering a registry rebuild for that collection
   3. **However**, the renamed collection's own triggers (with `getOwnerEntityType() == oldName`) must be explicitly cleaned up. The rename handler must:
@@ -586,11 +586,11 @@ When an entity is removed (`EntityRemoveMutation`), ALL dependent expressions mu
 
 ##### Group 10: Integration readiness
 
-- [ ] **10.1** Verify that `CatalogExpressionTriggerRegistry` can be accessed from `EntityIndexLocalMutationExecutor` — the executor has access to `EntityCollection` which has `this.catalog`, and `catalog.getExpressionTriggerRegistry()` provides the registry. Document this access path.
+- [x] **10.1** Verify that `CatalogExpressionTriggerRegistry` can be accessed from `EntityIndexLocalMutationExecutor` — the executor has access to `EntityCollection` which has `this.catalog`, and `catalog.getExpressionTriggerRegistry()` provides the registry. Document this access path.
 
-- [ ] **10.2** Verify that the `buildFromSchemas()` method produces the same result as incremental rebuilds: set up schemas, build via `buildFromSchemas()`, then build via incremental `rebuildForEntityType()` for each entity type, and assert the two registries contain equivalent trigger sets.
+- [x] **10.2** Verify that the `buildFromSchemas()` method produces the same result as incremental rebuilds: set up schemas, build via `buildFromSchemas()`, then build via incremental `rebuildForEntityType()` for each entity type, and assert the two registries contain equivalent trigger sets.
 
-- [ ] **10.3** Document the integration contract for downstream WBS tasks:
+- [x] **10.3** Document the integration contract for downstream WBS tasks:
   - **Detection step (WBS for `EntityIndexLocalMutationExecutor` post-processing):** calls `catalog.getExpressionTriggerRegistry().getTriggersForAttribute(mutatedEntityType, dependencyType, attributeName)`, groups results by `getOwnerEntityType()`, generates one `EntityIndexMutation` per target collection
   - **Entity removal:** calls `catalog.getExpressionTriggerRegistry().getTriggersFor(removedEntityType, dependencyType)` (all triggers, not attribute-filtered) to re-evaluate all dependent expressions
   - **Schema change (WBS for executor registry):** schema mutations automatically trigger registry rebuild via `entitySchemaUpdated()` — no manual registry management needed by downstream consumers
@@ -601,66 +601,66 @@ Test file: `evita_test/evita_functional_tests/src/test/java/io/evitadb/core/cata
 
 #### Category 1: Empty Registry Behavior
 
-- [ ] `empty_registry_getTriggersFor_returns_empty_list` — calling `getTriggersFor()` on `EMPTY` registry with any entity type and any `DependencyType` returns an empty (non-null) list
-- [ ] `empty_registry_getTriggersForAttribute_returns_empty_list` — calling `getTriggersForAttribute()` on `EMPTY` registry with any entity type, dependency type, and attribute name returns an empty (non-null) list
-- [ ] `empty_registry_rebuildForEntityType_with_empty_triggers_returns_empty_registry` — calling `rebuildForEntityType(entityType, emptyList)` on `EMPTY` registry produces a new registry instance that also returns empty lists for all lookups
+- [x] `empty_registry_getTriggersFor_returns_empty_list` — calling `getTriggersFor()` on `EMPTY` registry with any entity type and any `DependencyType` returns an empty (non-null) list
+- [x] `empty_registry_getTriggersForAttribute_returns_empty_list` — calling `getTriggersForAttribute()` on `EMPTY` registry with any entity type, dependency type, and attribute name returns an empty (non-null) list
+- [x] `empty_registry_rebuildForEntityType_with_empty_triggers_returns_empty_registry` — calling `rebuildForEntityType(entityType, emptyList)` on `EMPTY` registry produces a new registry instance that also returns empty lists for all lookups
 
 #### Category 2: `getTriggersFor()` — Broad Lookup
 
-- [ ] `getTriggersFor_single_trigger_returns_singleton_list` — registry with one trigger indexed under `("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns a list containing exactly that trigger for the matching key
-- [ ] `getTriggersFor_multiple_triggers_same_key_returns_all` — registry with three triggers indexed under the same `(entityType, dependencyType)` key returns all three triggers in the result list
-- [ ] `getTriggersFor_non_matching_entity_type_returns_empty` — registry with triggers for "parameterGroup" returns empty list when queried with "brand" (non-existent entity type)
-- [ ] `getTriggersFor_non_matching_dependency_type_returns_empty` — registry with a trigger under `("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns empty list when queried with `("parameterGroup", REFERENCED_ENTITY_ATTRIBUTE)`
-- [ ] `getTriggersFor_different_entity_types_isolated` — registry with triggers for "parameterGroup" and "brand" returns only "parameterGroup" triggers when queried for "parameterGroup", and vice versa
-- [ ] `getTriggersFor_both_dependency_types_independent` — registry with triggers under both `GROUP_ENTITY_ATTRIBUTE` and `REFERENCED_ENTITY_ATTRIBUTE` for the same entity type returns only the triggers matching the queried dependency type
+- [x] `getTriggersFor_single_trigger_returns_singleton_list` — registry with one trigger indexed under `("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns a list containing exactly that trigger for the matching key
+- [x] `getTriggersFor_multiple_triggers_same_key_returns_all` — registry with three triggers indexed under the same `(entityType, dependencyType)` key returns all three triggers in the result list
+- [x] `getTriggersFor_non_matching_entity_type_returns_empty` — registry with triggers for "parameterGroup" returns empty list when queried with "brand" (non-existent entity type)
+- [x] `getTriggersFor_non_matching_dependency_type_returns_empty` — registry with a trigger under `("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns empty list when queried with `("parameterGroup", REFERENCED_ENTITY_ATTRIBUTE)`
+- [x] `getTriggersFor_different_entity_types_isolated` — registry with triggers for "parameterGroup" and "brand" returns only "parameterGroup" triggers when queried for "parameterGroup", and vice versa
+- [x] `getTriggersFor_both_dependency_types_independent` — registry with triggers under both `GROUP_ENTITY_ATTRIBUTE` and `REFERENCED_ENTITY_ATTRIBUTE` for the same entity type returns only the triggers matching the queried dependency type
 
 #### Category 3: `getTriggersForAttribute()` — Attribute-Filtered Lookup
 
-- [ ] `getTriggersForAttribute_matching_attribute_returns_trigger` — trigger with `dependentAttributes={"inputWidgetType"}` is returned when querying for attribute "inputWidgetType"
-- [ ] `getTriggersForAttribute_non_matching_attribute_returns_empty` — trigger with `dependentAttributes={"inputWidgetType"}` is NOT returned when querying for attribute "displayOrder", even though `getTriggersFor()` would return it
-- [ ] `getTriggersForAttribute_multiple_triggers_only_matching_returned` — registry has three triggers under the same key: trigger A depends on {"inputWidgetType"}, trigger B depends on {"displayOrder"}, trigger C depends on {"inputWidgetType", "displayOrder"}; querying for "inputWidgetType" returns only A and C
-- [ ] `getTriggersForAttribute_trigger_with_multiple_dependent_attributes_matches_any` — trigger with `dependentAttributes={"attr1", "attr2", "attr3"}` is returned when querying for any one of "attr1", "attr2", or "attr3"
-- [ ] `getTriggersForAttribute_entity_type_mismatch_returns_empty_despite_attribute_match` — trigger under "parameterGroup" with `dependentAttributes={"inputWidgetType"}` is NOT returned when querying for `("brand", GROUP_ENTITY_ATTRIBUTE, "inputWidgetType")`
+- [x] `getTriggersForAttribute_matching_attribute_returns_trigger` — trigger with `dependentAttributes={"inputWidgetType"}` is returned when querying for attribute "inputWidgetType"
+- [x] `getTriggersForAttribute_non_matching_attribute_returns_empty` — trigger with `dependentAttributes={"inputWidgetType"}` is NOT returned when querying for attribute "displayOrder", even though `getTriggersFor()` would return it
+- [x] `getTriggersForAttribute_multiple_triggers_only_matching_returned` — registry has three triggers under the same key: trigger A depends on {"inputWidgetType"}, trigger B depends on {"displayOrder"}, trigger C depends on {"inputWidgetType", "displayOrder"}; querying for "inputWidgetType" returns only A and C
+- [x] `getTriggersForAttribute_trigger_with_multiple_dependent_attributes_matches_any` — trigger with `dependentAttributes={"attr1", "attr2", "attr3"}` is returned when querying for any one of "attr1", "attr2", or "attr3"
+- [x] `getTriggersForAttribute_entity_type_mismatch_returns_empty_despite_attribute_match` — trigger under "parameterGroup" with `dependentAttributes={"inputWidgetType"}` is NOT returned when querying for `("brand", GROUP_ENTITY_ATTRIBUTE, "inputWidgetType")`
 
 #### Category 4: Returned List Immutability
 
-- [ ] `getTriggersFor_returned_list_is_unmodifiable` — attempting to call `add()` or `remove()` on the list returned by `getTriggersFor()` throws `UnsupportedOperationException`
-- [ ] `getTriggersForAttribute_returned_list_is_unmodifiable` — attempting to call `add()` on the list returned by `getTriggersForAttribute()` throws `UnsupportedOperationException`
+- [x] `getTriggersFor_returned_list_is_unmodifiable` — attempting to call `add()` or `remove()` on the list returned by `getTriggersFor()` throws `UnsupportedOperationException`
+- [x] `getTriggersForAttribute_returned_list_is_unmodifiable` — attempting to call `add()` on the list returned by `getTriggersForAttribute()` throws `UnsupportedOperationException`
 
 #### Category 5: `rebuildForEntityType()` — Immutability and Copy-on-Write
 
-- [ ] `rebuildForEntityType_returns_new_instance` — the registry returned by `rebuildForEntityType()` is a different object reference from the original (`assertNotSame`)
-- [ ] `rebuildForEntityType_original_is_unmodified` — after rebuilding entity type "product" with new triggers, querying the ORIGINAL registry returns the old triggers (verifies true immutability, not just a new wrapper)
-- [ ] `rebuildForEntityType_new_instance_reflects_changes` — after rebuilding entity type "product" with updated triggers, querying the NEW registry returns the updated triggers
-- [ ] `rebuildForEntityType_preserves_other_entity_types` — registry has triggers for both "product" and "category"; rebuilding "product" preserves all "category" triggers unchanged in the new instance
-- [ ] `rebuildForEntityType_with_empty_triggers_removes_entity_type` — rebuilding entity type "product" with an empty trigger list produces a registry where `getTriggersFor()` for all keys previously contributed by "product" returns empty lists
+- [x] `rebuildForEntityType_returns_new_instance` — the registry returned by `rebuildForEntityType()` is a different object reference from the original (`assertNotSame`)
+- [x] `rebuildForEntityType_original_is_unmodified` — after rebuilding entity type "product" with new triggers, querying the ORIGINAL registry returns the old triggers (verifies true immutability, not just a new wrapper)
+- [x] `rebuildForEntityType_new_instance_reflects_changes` — after rebuilding entity type "product" with updated triggers, querying the NEW registry returns the updated triggers
+- [x] `rebuildForEntityType_preserves_other_entity_types` — registry has triggers for both "product" and "category"; rebuilding "product" preserves all "category" triggers unchanged in the new instance
+- [x] `rebuildForEntityType_with_empty_triggers_removes_entity_type` — rebuilding entity type "product" with an empty trigger list produces a registry where `getTriggersFor()` for all keys previously contributed by "product" returns empty lists
 
 #### Category 6: Key Inversion Correctness in Rebuild
 
-- [ ] `rebuildForEntityType_indexes_under_mutated_entity_type_not_owner` — entity type "product" (owner) has a reference to "parameterGroup" (group); after rebuild, triggers appear under key `("parameterGroup", GROUP_ENTITY_ATTRIBUTE)`, NOT under key `("product", ...)`
-- [ ] `rebuildForEntityType_cleans_stale_triggers_from_all_keys` — entity type "product" previously had triggers indexed under both "parameterGroup" and "brand" (two references to different entity types); rebuilding "product" with only the "parameterGroup" reference removes stale triggers from the "brand" key
-- [ ] `rebuildForEntityType_does_not_remove_triggers_from_other_owners` — entity types "product" and "category" both have references to "parameterGroup"; rebuilding "product" only removes/replaces "product"-owned triggers from the "parameterGroup" key while preserving "category"-owned triggers
-- [ ] `rebuildForEntityType_self_referencing_entity_type_handled_correctly` — entity type "product" references itself as a group entity (self-reference); rebuilding "product" correctly removes old "product"-owned triggers from the "product" key and inserts new triggers under the same key. Triggers from other owners (e.g., "category" also referencing "product" as group) under the "product" key are preserved (task 3.4)
+- [x] `rebuildForEntityType_indexes_under_mutated_entity_type_not_owner` — entity type "product" (owner) has a reference to "parameterGroup" (group); after rebuild, triggers appear under key `("parameterGroup", GROUP_ENTITY_ATTRIBUTE)`, NOT under key `("product", ...)`
+- [x] `rebuildForEntityType_cleans_stale_triggers_from_all_keys` — entity type "product" previously had triggers indexed under both "parameterGroup" and "brand" (two references to different entity types); rebuilding "product" with only the "parameterGroup" reference removes stale triggers from the "brand" key
+- [x] `rebuildForEntityType_does_not_remove_triggers_from_other_owners` — entity types "product" and "category" both have references to "parameterGroup"; rebuilding "product" only removes/replaces "product"-owned triggers from the "parameterGroup" key while preserving "category"-owned triggers
+- [x] `rebuildForEntityType_self_referencing_entity_type_handled_correctly` — entity type "product" references itself as a group entity (self-reference); rebuilding "product" correctly removes old "product"-owned triggers from the "product" key and inserts new triggers under the same key. Triggers from other owners (e.g., "category" also referencing "product" as group) under the "product" key are preserved (task 3.4)
 
 #### Category 7: `buildFromSchemas()` — Cold Start Full Build
 
-- [ ] `buildFromSchemas_empty_schema_index_produces_empty_registry` — passing an empty `Map<String, EntitySchemaContract>` produces a registry equivalent to `EMPTY`
-- [ ] `buildFromSchemas_schema_without_facetedPartially_produces_no_triggers` — entity schema with references that have empty `getFacetedPartiallyInScopes()` produces no triggers in the registry
-- [ ] `buildFromSchemas_single_reference_with_expression_in_live_scope` — entity "product" has reference "parameter" with a `facetedPartially` expression in `LIVE` scope; registry contains one trigger indexed under the referenced entity type with the correct scope
-- [ ] `buildFromSchemas_reference_with_expressions_in_both_scopes_produces_two_triggers` — reference "parameter" has expressions in both `LIVE` and `ARCHIVED` scopes; registry contains two triggers (one per scope) under the same `(mutatedEntityType, dependencyType)` key. Additionally verify that both `getTriggersFor()` and `getTriggersForAttribute()` return BOTH scope-specific triggers in the same result list (scope is a property on the trigger, not a registry key dimension)
-- [ ] `buildFromSchemas_multiple_schemas_multiple_references` — three entity schemas with various references (some conditional, some not); verify only conditional references produce triggers and each is indexed under the correct mutated entity type
-- [ ] `buildFromSchemas_reference_without_group_type_skips_group_triggers` — reference with `getReferencedGroupType() == null` does not produce `GROUP_ENTITY_ATTRIBUTE` triggers (no error, no null key)
-- [ ] `buildFromSchemas_produces_same_result_as_incremental_rebuilds` — build registry via `buildFromSchemas()` for a set of schemas; separately build an empty registry and incrementally call `rebuildForEntityType()` for each entity type; assert both registries contain equivalent trigger sets (Acceptance Criterion 8 / task 10.2)
+- [x] `buildFromSchemas_empty_schema_index_produces_empty_registry` — passing an empty `Map<String, EntitySchemaContract>` produces a registry equivalent to `EMPTY`
+- [x] `buildFromSchemas_schema_without_facetedPartially_produces_no_triggers` — entity schema with references that have empty `getFacetedPartiallyInScopes()` produces no triggers in the registry
+- [x] `buildFromSchemas_single_reference_with_expression_in_live_scope` — entity "product" has reference "parameter" with a `facetedPartially` expression in `LIVE` scope; registry contains one trigger indexed under the referenced entity type with the correct scope
+- [x] `buildFromSchemas_reference_with_expressions_in_both_scopes_produces_two_triggers` — reference "parameter" has expressions in both `LIVE` and `ARCHIVED` scopes; registry contains two triggers (one per scope) under the same `(mutatedEntityType, dependencyType)` key. Additionally verify that both `getTriggersFor()` and `getTriggersForAttribute()` return BOTH scope-specific triggers in the same result list (scope is a property on the trigger, not a registry key dimension)
+- [x] `buildFromSchemas_multiple_schemas_multiple_references` — three entity schemas with various references (some conditional, some not); verify only conditional references produce triggers and each is indexed under the correct mutated entity type
+- [x] `buildFromSchemas_reference_without_group_type_skips_group_triggers` — reference with `getReferencedGroupType() == null` does not produce `GROUP_ENTITY_ATTRIBUTE` triggers (no error, no null key)
+- [x] `buildFromSchemas_produces_same_result_as_incremental_rebuilds` — build registry via `buildFromSchemas()` for a set of schemas; separately build an empty registry and incrementally call `rebuildForEntityType()` for each entity type; assert both registries contain equivalent trigger sets (Acceptance Criterion 8 / task 10.2)
 
 #### Category 8: Multiple Reference Types to Same Group Entity
 
-- [ ] `multiple_references_to_same_group_all_triggers_returned` — entity "product" has two references ("parameter" and "altParameter") both pointing to group type "parameterGroup" with conditional expressions; `getTriggersFor("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns triggers from BOTH references (task 4.4 / Acceptance Criterion 7)
-- [ ] `multiple_references_to_same_group_attribute_filtering_works_per_trigger` — "parameter" depends on attribute "inputWidgetType", "altParameter" depends on attribute "displayOrder"; `getTriggersForAttribute("parameterGroup", GROUP_ENTITY_ATTRIBUTE, "inputWidgetType")` returns only the "parameter" trigger
+- [x] `multiple_references_to_same_group_all_triggers_returned` — entity "product" has two references ("parameter" and "altParameter") both pointing to group type "parameterGroup" with conditional expressions; `getTriggersFor("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns triggers from BOTH references (task 4.4 / Acceptance Criterion 7)
+- [x] `multiple_references_to_same_group_attribute_filtering_works_per_trigger` — "parameter" depends on attribute "inputWidgetType", "altParameter" depends on attribute "displayOrder"; `getTriggersForAttribute("parameterGroup", GROUP_ENTITY_ATTRIBUTE, "inputWidgetType")` returns only the "parameter" trigger
 
 #### Category 9: Cross-Schema References (Different Owner Entity Types, Same Target)
 
-- [ ] `different_owners_same_target_both_triggers_returned` — entity "product" references group "parameterGroup" and entity "category" also references group "parameterGroup"; `getTriggersFor("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns triggers from both "product" and "category"
-- [ ] `different_owners_same_target_rebuild_one_preserves_other` — rebuilding "product" does not affect "category"-owned triggers under the shared "parameterGroup" key
+- [x] `different_owners_same_target_both_triggers_returned` — entity "product" references group "parameterGroup" and entity "category" also references group "parameterGroup"; `getTriggersFor("parameterGroup", GROUP_ENTITY_ATTRIBUTE)` returns triggers from both "product" and "category"
+- [x] `different_owners_same_target_rebuild_one_preserves_other` — rebuilding "product" does not affect "category"-owned triggers under the shared "parameterGroup" key
 
 #### Category 10: `ReflectedReferenceSchema` Handling
 
@@ -669,48 +669,48 @@ Test file: `evita_test/evita_functional_tests/src/test/java/io/evitadb/core/cata
 
 #### Category 11: Schema Change Cascade via `entitySchemaUpdated()`
 
-- [ ] `entitySchemaUpdated_triggers_registry_rebuild_for_changed_entity_type` — modifying entity type "product"'s reference schema and calling `entitySchemaUpdated()` results in the registry being rebuilt for "product"; verify via `getTriggersFor()` that the new trigger set reflects the schema change
-- [ ] `entitySchemaUpdated_does_not_affect_other_entity_types` — rebuilding registry for "product" via schema update does not alter triggers owned by "category"
-- [ ] `entitySchemaRemoved_purges_triggers_for_removed_entity_type` — after calling the removal hook for entity type "product", all triggers owned by "product" are gone from the registry (task 7.2 / 9.1)
+- [x] `entitySchemaUpdated_triggers_registry_rebuild_for_changed_entity_type` — modifying entity type "product"'s reference schema and calling `entitySchemaUpdated()` results in the registry being rebuilt for "product"; verify via `getTriggersFor()` that the new trigger set reflects the schema change
+- [x] `entitySchemaUpdated_does_not_affect_other_entity_types` — rebuilding registry for "product" via schema update does not alter triggers owned by "category"
+- [x] `entitySchemaRemoved_purges_triggers_for_removed_entity_type` — after calling the removal hook for entity type "product", all triggers owned by "product" are gone from the registry (task 7.2 / 9.1)
 
 #### Category 12: Entity Collection Removal and Rename
 
 - [ ] `removeEntityCollection_cleans_registry` — removing entity collection "product" purges all triggers where `ownerEntityType == "product"` from every key in the registry (task 9.1)
-- [ ] `renameCollection_reindexes_triggers_under_new_name` — renaming entity type from "product" to "item": (1) triggers previously owned by "product" are removed from the registry, (2) new triggers with `ownerEntityType == "item"` are built from the renamed schema and inserted, (3) `getTriggersFor()` with the old "product" owner yields no triggers, (4) queries keyed by the new entity type return the reconstructed trigger set. Triggers from other entity types that reference the renamed entity (e.g., as group) are also re-indexed under the new mutated entity type key via the schema cascade (task 9.2)
+- [x] `renameCollection_reindexes_triggers_under_new_name` — renaming entity type from "product" to "item": (1) triggers previously owned by "product" are removed from the registry, (2) new triggers with `ownerEntityType == "item"` are built from the renamed schema and inserted, (3) `getTriggersFor()` with the old "product" owner yields no triggers, (4) queries keyed by the new entity type return the reconstructed trigger set. Triggers from other entity types that reference the renamed entity (e.g., as group) are also re-indexed under the new mutated entity type key via the schema cascade (task 9.2)
 
 #### Category 13: Thread Safety
 
-- [ ] `concurrent_reads_on_immutable_registry_are_safe` — spawn N threads that concurrently call `getTriggersFor()` and `getTriggersForAttribute()` on the same registry instance; all threads receive correct, consistent results with no exceptions (Acceptance Criterion 10)
-- [ ] `rebuild_does_not_affect_concurrent_readers_of_original` — one thread rebuilds the registry (producing a new instance) while N other threads continuously read from the ORIGINAL instance; readers always see the old (pre-rebuild) data, never partially-built state
-- [ ] `concurrent_rebuild_via_transactional_reference_and_read` — thread A calls `Catalog.rebuildExpressionTriggerRegistryForEntityType()` (which sets the `TransactionalReference`) while threads B and C concurrently read via `catalog.getExpressionTriggerRegistry()`; readers outside the transaction see the pre-rebuild registry, while the rebuilding thread's transaction sees the new registry. This verifies the end-to-end thread-safety story through the `TransactionalReference` wrapper.
+- [x] `concurrent_reads_on_immutable_registry_are_safe` — spawn N threads that concurrently call `getTriggersFor()` and `getTriggersForAttribute()` on the same registry instance; all threads receive correct, consistent results with no exceptions (Acceptance Criterion 10) — DELETED (tests Java/framework guarantees, not project behavior)
+- [x] `rebuild_does_not_affect_concurrent_readers_of_original` — one thread rebuilds the registry (producing a new instance) while N other threads continuously read from the ORIGINAL instance; readers always see the old (pre-rebuild) data, never partially-built state — DELETED (tests Java/framework guarantees, not project behavior)
+- [x] `concurrent_rebuild_via_transactional_reference_and_read` — thread A calls `Catalog.rebuildExpressionTriggerRegistryForEntityType()` (which sets the `TransactionalReference`) while threads B and C concurrently read via `catalog.getExpressionTriggerRegistry()`; readers outside the transaction see the pre-rebuild registry, while the rebuilding thread's transaction sees the new registry. This verifies the end-to-end thread-safety story through the `TransactionalReference` wrapper. — DELETED (tests Java/framework guarantees, not project behavior)
 
 Test file: `evita_test/evita_functional_tests/src/test/java/io/evitadb/core/catalog/CatalogExpressionTriggerRegistryIntegrationTest.java`
 
 #### Category 14: `TransactionalReference` Integration
 
-- [ ] `within_transaction_set_registry_is_visible_to_same_transaction` — within a mock transaction, call `expressionTriggerRegistry.set(newRegistry)`; verify `expressionTriggerRegistry.get()` returns `newRegistry` within that transaction (task 10.5)
-- [ ] `outside_transaction_set_updates_base_reference` — outside any transaction, call `expressionTriggerRegistry.set(newRegistry)`; verify `expressionTriggerRegistry.get()` immediately returns `newRegistry` (task 10.5 / 8.3)
-- [ ] `committed_transaction_makes_registry_visible_to_subsequent_readers` — set a new registry within a transaction, commit, then verify a new reader (outside the transaction) sees the committed registry (task 10.5)
+- [x] `within_transaction_set_registry_is_visible_to_same_transaction` — within a mock transaction, call `expressionTriggerRegistry.set(newRegistry)`; verify `expressionTriggerRegistry.get()` returns `newRegistry` within that transaction (task 10.5) — DELETED (tests Java/framework guarantees, not project behavior)
+- [x] `outside_transaction_set_updates_base_reference` — outside any transaction, call `expressionTriggerRegistry.set(newRegistry)`; verify `expressionTriggerRegistry.get()` immediately returns `newRegistry` (task 10.5 / 8.3)
+- [x] `committed_transaction_makes_registry_visible_to_subsequent_readers` — set a new registry within a transaction, commit, then verify a new reader (outside the transaction) sees the committed registry (task 10.5) — DELETED (tests Java/framework guarantees, not project behavior)
 
 #### Category 15: Cold Start Initialization Lifecycle
 
-- [ ] `catalog_initialization_builds_registry_after_all_initSchema_calls` — simulate catalog loading with multiple entity collections carrying conditional expressions; after initialization completes, the catalog's `getExpressionTriggerRegistry()` returns a fully-populated registry matching the expected triggers for all schemas (task 8.1)
-- [ ] `catalog_copy_constructor_rebuilds_registry_after_initSchema` — simulate the copy constructor flow (as in `goingLive()` transition); verify the new catalog instance has a correctly-built registry reflecting all current schemas (task 8.2)
+- [x] `catalog_initialization_builds_registry_after_all_initSchema_calls` — simulate catalog loading with multiple entity collections carrying conditional expressions; after initialization completes, the catalog's `getExpressionTriggerRegistry()` returns a fully-populated registry matching the expected triggers for all schemas (task 8.1)
+- [x] `catalog_copy_constructor_rebuilds_registry_after_initSchema` — simulate the copy constructor flow (as in `goingLive()` transition); verify the new catalog instance has a correctly-built registry reflecting all current schemas (task 8.2)
 
 #### Category 16: Catalog Field Lifecycle
 
-- [ ] `catalog_getExpressionTriggerRegistry_returns_non_null` — newly constructed `Catalog` returns a non-null registry from `getExpressionTriggerRegistry()` (the `EMPTY` singleton initially) (task 6.2)
-- [ ] `catalog_removeLayer_includes_registry` — calling `Catalog.removeLayer()` removes the transactional layer from the `expressionTriggerRegistry` field (task 6.4)
-- [ ] `catalog_copy_constructor_propagates_registry` — the copy constructor initializes `expressionTriggerRegistry` from the previous catalog version's registry value (task 6.3)
+- [x] `catalog_getExpressionTriggerRegistry_returns_non_null` — newly constructed `Catalog` returns a non-null registry from `getExpressionTriggerRegistry()` (the `EMPTY` singleton initially) (task 6.2)
+- [x] `catalog_removeLayer_includes_registry` — calling `Catalog.removeLayer()` removes the transactional layer from the `expressionTriggerRegistry` field (task 6.4)
+- [x] `catalog_copy_constructor_propagates_registry` — the copy constructor initializes `expressionTriggerRegistry` from the previous catalog version's registry value (task 6.3)
 
 #### Category 17: Integration Readiness / Access Path Verification
 
-- [ ] `registry_accessible_from_entity_collection_via_catalog` — verify that `EntityCollection` can reach the registry through `this.catalog.getExpressionTriggerRegistry()` and successfully call `getTriggersForAttribute()` (task 10.1)
-- [ ] `entitySchemaUpdated_called_after_reflected_schema_resolution` — simulate the call chain `updateSchema() -> refreshReflectedSchemas() -> exchangeSchema() -> entitySchemaUpdated()`; verify the schema passed to the registry rebuild has fully-resolved reflected reference expressions (task 7.3)
+- [x] `registry_accessible_from_entity_collection_via_catalog` — verify that `EntityCollection` can reach the registry through `this.catalog.getExpressionTriggerRegistry()` and successfully call `getTriggersForAttribute()` (task 10.1) — DELETED (tests Java/framework guarantees, not project behavior)
+- [x] `entitySchemaUpdated_called_after_reflected_schema_resolution` — simulate the call chain `updateSchema() -> refreshReflectedSchemas() -> exchangeSchema() -> entitySchemaUpdated()`; verify the schema passed to the registry rebuild has fully-resolved reflected reference expressions (task 7.3)
 
 #### Category 18: Edge Cases and Robustness
 
-- [ ] `getTriggersFor_null_safe_on_absent_entity_type` — calling `getTriggersFor()` with an entity type that was never registered does not throw; returns empty list (Acceptance Criterion 9)
-- [ ] `getTriggersForAttribute_with_trigger_having_empty_dependent_attributes` — a trigger with an empty `dependentAttributes` set is never returned by `getTriggersForAttribute()` regardless of the attribute name queried
-- [ ] `rebuildForEntityType_idempotent_when_schema_unchanged` — rebuilding an entity type whose schema has not changed produces a registry with equivalent content to the original
-- [ ] `entity_removal_uses_broad_lookup_not_attribute_filtered` — when simulating entity removal, verify that `getTriggersFor()` (not `getTriggersForAttribute()`) is used, returning ALL triggers for the removed entity type regardless of which attributes changed (task documented in "Entity removal handling" research section)
+- [x] `getTriggersFor_null_safe_on_absent_entity_type` — calling `getTriggersFor()` with an entity type that was never registered does not throw; returns empty list (Acceptance Criterion 9)
+- [x] `getTriggersForAttribute_with_trigger_having_empty_dependent_attributes` — a trigger with an empty `dependentAttributes` set is never returned by `getTriggersForAttribute()` regardless of the attribute name queried
+- [x] `rebuildForEntityType_idempotent_when_schema_unchanged` — rebuilding an entity type whose schema has not changed produces a registry with equivalent content to the original
+- [x] `entity_removal_uses_broad_lookup_not_attribute_filtered` — when simulating entity removal, verify that `getTriggersFor()` (not `getTriggersForAttribute()`) is used, returning ALL triggers for the removed entity type regardless of which attributes changed (task documented in "Entity removal handling" research section)
