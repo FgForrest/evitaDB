@@ -664,8 +664,8 @@ Test file: `evita_test/evita_functional_tests/src/test/java/io/evitadb/core/cata
 
 #### Category 10: `ReflectedReferenceSchema` Handling
 
-- [ ] `reflected_reference_inheriting_expression_produces_trigger` — entity A defines reference to B with `facetedPartially`; entity C has a `ReflectedReferenceSchema` that inherits `facetedPartially` from A's reference (after `withReferencedSchema()` resolution); `buildFromSchemas()` produces triggers for BOTH A's direct reference and C's reflected reference
-- [ ] `reflected_reference_with_own_expression_uses_own_not_inherited` — entity C has a `ReflectedReferenceSchema` with `facetedInherited == false` and its own `facetedPartiallyInScopes` expression; the trigger built for C uses C's own expression, not A's
+- [x] `reflected_reference_inheriting_expression_produces_trigger` — entity A defines reference to B with `facetedPartially`; entity C has a `ReflectedReferenceSchema` that inherits `facetedPartially` from A's reference (after `withReferencedSchema()` resolution); `buildFromSchemas()` produces triggers for BOTH A's direct reference and C's reflected reference — DELETED (factory is agnostic to reflected vs. non-reflected schemas; tests schema inheritance, not registry logic)
+- [x] `reflected_reference_with_own_expression_uses_own_not_inherited` — entity C has a `ReflectedReferenceSchema` with `facetedInherited == false` and its own `facetedPartiallyInScopes` expression; the trigger built for C uses C's own expression, not A's — DELETED (factory is agnostic to reflected vs. non-reflected schemas; tests schema inheritance, not registry logic)
 
 #### Category 11: Schema Change Cascade via `entitySchemaUpdated()`
 
@@ -675,7 +675,7 @@ Test file: `evita_test/evita_functional_tests/src/test/java/io/evitadb/core/cata
 
 #### Category 12: Entity Collection Removal and Rename
 
-- [ ] `removeEntityCollection_cleans_registry` — removing entity collection "product" purges all triggers where `ownerEntityType == "product"` from every key in the registry (task 9.1)
+- [x] `removeEntityCollection_cleans_registry` — removing entity collection "product" purges all triggers where `ownerEntityType == "product"` from every key in the registry (task 9.1) — DELETED (duplicated by shouldRemoveEntityTypeTriggersWhenRebuiltWithEmptyList which tests the same rebuildForEntityType call)
 - [x] `renameCollection_reindexes_triggers_under_new_name` — renaming entity type from "product" to "item": (1) triggers previously owned by "product" are removed from the registry, (2) new triggers with `ownerEntityType == "item"` are built from the renamed schema and inserted, (3) `getTriggersFor()` with the old "product" owner yields no triggers, (4) queries keyed by the new entity type return the reconstructed trigger set. Triggers from other entity types that reference the renamed entity (e.g., as group) are also re-indexed under the new mutated entity type key via the schema cascade (task 9.2)
 
 #### Category 13: Thread Safety

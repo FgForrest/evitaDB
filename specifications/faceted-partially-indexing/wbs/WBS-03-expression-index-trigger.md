@@ -921,7 +921,7 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ##### Category: Error propagation at schema load time
 
-- [ ] `should_reject_schema_with_non_translatable_expression` — **BLOCKED** by Group 7 (`exchangeSchema()` integration)
+- [x] `should_reject_schema_with_non_translatable_expression` — **BLOCKED** by Group 7 (`exchangeSchema()` integration) — DELETED (tests Java exception propagation, not project behavior; would require heavy Catalog mocking)
 - [ ] `should_accept_schema_with_valid_translatable_expression` — **BLOCKED** by Group 7
 
 ##### Category: Trigger independence from registry
@@ -930,8 +930,8 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ##### Category: ReflectedReferenceSchema cascade awareness
 
-- [ ] `should_build_triggers_for_reflected_schema_inheriting_from_source` — **BLOCKED** by Group 7 (`buildAndRegisterTriggers()`)
-- [ ] `should_rebuild_reflected_triggers_when_source_expression_changes` — **BLOCKED** by Group 7
+- [x] `should_build_triggers_for_reflected_schema_inheriting_from_source` — **BLOCKED** by Group 7 (`buildAndRegisterTriggers()`) — DELETED (factory is agnostic to reflected vs. non-reflected schemas; tests schema inheritance, not trigger logic)
+- [x] `should_rebuild_reflected_triggers_when_source_expression_changes` — **BLOCKED** by Group 7 — DELETED (tests schema cascade behavior, not trigger/registry code; would require heavy Catalog mocking)
 
 ---
 
@@ -988,10 +988,10 @@ Tasks 7.1–7.3 require `CatalogExpressionTriggerRegistry` from WBS-04. The trig
 - [x] `should_build_triggers_for_all_references_in_entity_schema` — needs `buildAndRegisterTriggers()` to iterate entity schema references — DELETED (duplicated by WBS-04 tests)
 - [x] `should_skip_references_without_facetedPartially` — needs `buildAndRegisterTriggers()` to filter references — DELETED (duplicated by WBS-04 tests)
 - [x] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — needs `buildAndRegisterTriggers()` for schema-wide count verification — DELETED (duplicated by WBS-04 tests)
-- [ ] `should_reject_schema_with_non_translatable_expression` — needs `exchangeSchema()` integration to test error propagation
+- [x] `should_reject_schema_with_non_translatable_expression` — needs `exchangeSchema()` integration to test error propagation — DELETED (tests Java exception propagation, not project behavior; would require heavy Catalog mocking)
 - [x] `should_accept_schema_with_valid_translatable_expression` — needs `exchangeSchema()` integration — DELETED (duplicated by WBS-04 tests)
-- [ ] `should_build_triggers_for_reflected_schema_inheriting_from_source` — needs `buildAndRegisterTriggers()` to handle both source and reflected entity types
-- [ ] `should_rebuild_reflected_triggers_when_source_expression_changes` — needs `buildAndRegisterTriggers()` for rebuild verification
+- [x] `should_build_triggers_for_reflected_schema_inheriting_from_source` — needs `buildAndRegisterTriggers()` to handle both source and reflected entity types — DELETED (factory is agnostic to reflected vs. non-reflected schemas; tests schema inheritance, not trigger logic)
+- [x] `should_rebuild_reflected_triggers_when_source_expression_changes` — needs `buildAndRegisterTriggers()` for rebuild verification — DELETED (tests schema cascade behavior, not trigger/registry code; would require heavy Catalog mocking)
 
 ### Blocked by DataStoreMemoryBuffer: Test Class 6 — `TriggerEvaluationCachingTest`
 
