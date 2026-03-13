@@ -676,4 +676,98 @@ class FacetReferenceIndexTest implements TimeBoundedTestSupport {
 			assertTrue(result.contains("GROUP 5"));
 		}
 	}
+
+	/**
+	 * Tests for {@link FacetReferenceIndex#getGroupIdForFacet(int)} covering
+	 * grouped facets, ungrouped facets, missing facets, multi-group scenarios,
+	 * and group reassignment.
+	 */
+	@Nested
+	@DisplayName("getGroupIdForFacet lookup")
+	class GetGroupIdForFacetTest {
+
+		@Test
+		@DisplayName("returns group id when facet exists in a group")
+		void shouldReturnGroupIdWhenFacetExistsInGroup() {
+			final FacetReferenceIndex index = new FacetReferenceIndex("ref");
+			index.addFacet(10, 5, 100);
+
+			final Integer result = index.getGroupIdForFacet(10);
+
+			assertEquals(5, result);
+		}
+
+		@Test
+		@DisplayName("returns null when facet is ungrouped")
+		void shouldReturnNullWhenFacetIsUngrouped() {
+			final FacetReferenceIndex index = new FacetReferenceIndex("ref");
+			index.addFacet(10, null, 100);
+
+			final Integer result = index.getGroupIdForFacet(10);
+
+			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("returns null when facet does not exist at all")
+		void shouldReturnNullWhenFacetDoesNotExist() {
+			final FacetReferenceIndex index = new FacetReferenceIndex("ref");
+
+			final Integer result = index.getGroupIdForFacet(999);
+
+			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("returns first group id when facet belongs to multiple groups")
+		void shouldReturnFirstGroupWithMultipleGroups() {
+			final FacetReferenceIndex index = new FacetReferenceIndex("ref");
+			index.addFacet(10, 5, 100);
+			index.addFacet(10, 7, 200);
+
+			final Integer result = index.getGroupIdForFacet(10);
+
+			// facetToGroupIndex stores sorted int[], so the smallest group id comes first
+			assertEquals(5, result);
+		}
+
+		/**
+		 * Verifies that after removing all facets from a group via `removeFacet`, `getGroupIdForFacet`
+		 * returns null for that facet (the facet-to-group mapping is cleaned up).
+		 */
+		@Test
+		@DisplayName("returns null after all members removed from group")
+		void shouldReturnNullAfterAllMembersRemovedFromGroup() {
+			final FacetReferenceIndex index = new FacetReferenceIndex("ref");
+			index.addFacet(10, 5, 100);
+			index.addFacet(10, 5, 200);
+
+			assertEquals(5, index.getGroupIdForFacet(10));
+
+			// remove all entity PKs from the group
+			index.removeFacet(10, 5, 100);
+			index.removeFacet(10, 5, 200);
+
+			// facet 10 should no longer be mapped to any group
+			assertNull(
+				index.getGroupIdForFacet(10),
+				"getGroupIdForFacet should return null after all facet members removed"
+			);
+		}
+
+		@Test
+		@DisplayName("reflects group reassignment after remove and re-add")
+		void shouldReflectGroupReassignment() {
+			final FacetReferenceIndex index = new FacetReferenceIndex("ref");
+			index.addFacet(10, 5, 100);
+			assertEquals(5, index.getGroupIdForFacet(10));
+
+			index.removeFacet(10, 5, 100);
+			index.addFacet(10, 8, 100);
+
+			final Integer result = index.getGroupIdForFacet(10);
+
+			assertEquals(8, result);
+		}
+	}
 }

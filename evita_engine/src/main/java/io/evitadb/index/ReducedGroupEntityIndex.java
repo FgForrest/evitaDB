@@ -43,6 +43,7 @@ import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -58,6 +59,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -276,6 +278,36 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex {
 		);
 	}
 
+	/**
+	 * Returns the set of referenced entity primary keys (facet PKs) tracked within this group index. Each key in
+	 * the returned set represents a distinct facet entity within the group, and maps to a bitmap of owner entity PKs
+	 * that reference it.
+	 *
+	 * Used by ReevaluateFacetExpressionExecutor during {@link DependencyType#GROUP_ENTITY_ATTRIBUTE} resolution
+	 * to recover facet PKs from the group index (the discriminator carries the group PK, not the facet PK).
+	 *
+	 * @return unmodifiable set of referenced entity primary keys within this group
+	 */
+	@Nonnull
+	public Set<Integer> getReferencedEntityPrimaryKeys() {
+		return Collections.unmodifiableSet(this.referencedPrimaryKeysIndex.keySet());
+	}
+
+	/**
+	 * Returns the bitmap of owner entity PKs that reference the given entity (facet) within this group, or `null`
+	 * if the referenced entity PK is not tracked in this group index.
+	 *
+	 * Used by ReevaluateFacetExpressionExecutor to obtain per-facet owner PK
+	 * bitmaps during {@link DependencyType#GROUP_ENTITY_ATTRIBUTE} resolution.
+	 *
+	 * @param referencedEntityPK the primary key of the referenced entity (facet PK)
+	 * @return bitmap of owner entity PKs, or `null` if not found
+	 */
+	@Nullable
+	public Bitmap getOwnerPKsForReferencedEntity(int referencedEntityPK) {
+		return this.referencedPrimaryKeysIndex.get(referencedEntityPK);
+	}
+
 	@Nonnull
 	@Override
 	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
@@ -391,7 +423,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex {
 		if (bitmap.isEmpty()) {
 			final TransactionalBitmap removedBitmap = this.referencedPrimaryKeysIndex.remove(referencedEntityPrimaryKey);
 			final TransactionalLayerMaintainer transactionalLayer = Transaction.getTransactionalLayerMaintainer();
-			if (transactionalLayer != null) {
+			if (transactionalLayer != null && removedBitmap != null) {
 				removedBitmap.removeLayer(transactionalLayer);
 			}
 		}

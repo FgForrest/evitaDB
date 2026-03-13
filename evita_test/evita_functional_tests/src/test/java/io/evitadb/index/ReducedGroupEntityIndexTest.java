@@ -1190,6 +1190,74 @@ class ReducedGroupEntityIndexTest
 	}
 
 	/**
+	 * Tests for the referenced-entity accessor methods
+	 * {@link ReducedGroupEntityIndex#getReferencedEntityPrimaryKeys()} and
+	 * {@link ReducedGroupEntityIndex#getOwnerPKsForReferencedEntity(int)}.
+	 */
+	@Nested
+	@DisplayName("Referenced entity accessor methods")
+	class ReferencedEntityAccessorTest {
+
+		@Test
+		@DisplayName("should return empty set for a freshly created index")
+		void shouldReturnEmptySetForFreshIndex() {
+			final Set<Integer> referencedPks = ReducedGroupEntityIndexTest.this.index.getReferencedEntityPrimaryKeys();
+			assertNotNull(referencedPks);
+			assertTrue(referencedPks.isEmpty());
+		}
+
+		@Test
+		@DisplayName("should return all facet PKs present in the group")
+		void shouldReturnAllFacetPKsInGroup() {
+			// entity PK=10 references category PK=1, entity PK=20 references category PK=2
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 2);
+
+			final Set<Integer> referencedPks = ReducedGroupEntityIndexTest.this.index.getReferencedEntityPrimaryKeys();
+			assertEquals(2, referencedPks.size());
+			assertTrue(referencedPks.contains(1));
+			assertTrue(referencedPks.contains(2));
+		}
+
+		@Test
+		@DisplayName("should return correct owner PK bitmap for a given referenced entity PK")
+		void shouldReturnCorrectOwnerPKBitmap() {
+			// two entities (PK=10, PK=20) both reference the same category PK=1
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 1);
+
+			final Bitmap ownerBitmap = ReducedGroupEntityIndexTest.this.index.getOwnerPKsForReferencedEntity(1);
+			assertNotNull(ownerBitmap);
+			assertEquals(2, ownerBitmap.size());
+			assertTrue(ownerBitmap.contains(10));
+			assertTrue(ownerBitmap.contains(20));
+		}
+
+		@Test
+		@DisplayName("should return null for an unknown referenced entity PK")
+		void shouldReturnNullForUnknownFacetPK() {
+			assertNull(ReducedGroupEntityIndexTest.this.index.getOwnerPKsForReferencedEntity(999));
+		}
+
+		@Test
+		@DisplayName("should reflect insertions and removals in referenced entity PK set")
+		void shouldReflectInsertionsAndRemovals() {
+			// insert entity PK=10 referencing category PK=1
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+
+			final Set<Integer> afterInsert = ReducedGroupEntityIndexTest.this.index.getReferencedEntityPrimaryKeys();
+			assertTrue(afterInsert.contains(1));
+
+			// remove the only reference — referenced PK=1 should disappear
+			ReducedGroupEntityIndexTest.this.index.removePrimaryKey(10, 1);
+
+			final Set<Integer> afterRemoval = ReducedGroupEntityIndexTest.this.index.getReferencedEntityPrimaryKeys();
+			assertFalse(afterRemoval.contains(1));
+		}
+
+	}
+
+	/**
 	 * State carried between generations in the generational proof test.
 	 *
 	 * @param expectedPkPairs    maps entityPk to set of referencedPks (each unique pair = 1 cardinality)

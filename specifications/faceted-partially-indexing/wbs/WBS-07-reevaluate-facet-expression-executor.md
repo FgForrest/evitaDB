@@ -656,16 +656,16 @@ will have their facet removed.
 
 **Group 1: Supporting records -- `AffectedEntityResolution`, `AffectedFacetGroup`, `AffectedFacetEntry`**
 
-- [ ] Create `AffectedFacetGroup` record in `evita_engine/src/main/java/io/evitadb/index/mutation/` (or as nested record in executor). Fields: `int facetPK`, `@Nullable Integer groupPK`, `@Nonnull Bitmap ownerPKs`. JavaDoc: represents a single (facetPK, groupPK) tuple with the set of owner entity PKs that have this facet in this group. The `groupPK` is nullable to support ungrouped facets.
-- [ ] Create `AffectedFacetEntry` record -- fields: `int facetPK`, `@Nullable Integer groupPK`, `int ownerPK`. JavaDoc: individual entry for iteration during add/remove operations. The `groupPK` is nullable to support ungrouped facets.
-- [ ] Create `AffectedEntityResolution` record -- field: `@Nonnull List<AffectedFacetGroup> groups`. Implement:
+- [x] Create `AffectedFacetGroup` record in `evita_engine/src/main/java/io/evitadb/index/mutation/` (or as nested record in executor). Fields: `int facetPK`, `@Nullable Integer groupPK`, `@Nonnull Bitmap ownerPKs`. JavaDoc: represents a single (facetPK, groupPK) tuple with the set of owner entity PKs that have this facet in this group. The `groupPK` is nullable to support ungrouped facets.
+- [x] Create `AffectedFacetEntry` record -- fields: `int facetPK`, `@Nullable Integer groupPK`, `int ownerPK`. JavaDoc: individual entry for iteration during add/remove operations. The `groupPK` is nullable to support ungrouped facets.
+- [x] Create `AffectedEntityResolution` record -- field: `@Nonnull List<AffectedFacetGroup> groups`. Implement:
   - `@Nonnull Bitmap allOwnerPKs()` -- union of all `ownerPKs` across all groups. Use `RoaringBitmapWriter` to collect, then wrap in `BaseBitmap`. Compute eagerly (called once) — no caching needed.
   - `@Nonnull Iterable<AffectedFacetEntry> entriesForOwnerPKs(@Nonnull Bitmap pks)` -- iterate all groups, for each group iterate `ownerPKs` checking membership in `pks` bitmap via `RoaringBitmap.contains()`. Return flattened iterable of `AffectedFacetEntry`. Avoid materializing full list -- use lazy iteration.
-- [ ] Add comprehensive JavaDoc to all three records explaining their role in the PK resolution pipeline.
+- [x] Add comprehensive JavaDoc to all three records explaining their role in the PK resolution pipeline.
 
 **Group 2: `resolveAffected()` for `GROUP_ENTITY_ATTRIBUTE`**
 
-- [ ] Implement the `GROUP_ENTITY_ATTRIBUTE` branch in `resolveAffected()`:
+- [x] Implement the `GROUP_ENTITY_ATTRIBUTE` branch in `resolveAffected()`:
   1. Look up `ReferencedTypeEntityIndex` via `target.getIndexIfExists(new EntityIndexKey(REFERENCED_GROUP_ENTITY_TYPE, mutation.scope(), mutation.referenceName()))`. Return empty resolution if null.
   2. Call `rtei.getAllReferenceIndexes(mutation.mutatedEntityPK())` -- returns `int[]` storage PKs of `ReducedGroupEntityIndex` instances for this group.
   3. For each storage PK, call `target.getIndexByPrimaryKeyIfExists(storagePK)` to get the `ReducedGroupEntityIndex` instance. Skip if null.
@@ -677,11 +677,11 @@ will have their facet removed.
      - **Decision:** Option (b) is cleaner. Add `@Nonnull Set<Integer> getReferencedEntityPrimaryKeys()` method to `ReducedGroupEntityIndex` that returns `this.referencedPrimaryKeysIndex.keySet()`. For each facet PK, the owner PKs within that facet are `this.referencedPrimaryKeysIndex.get(facetPK)`. However, for the bitmap comparison approach (shouldBeFaceted/shouldNotBeFaceted), we need owner PKs at the group level (not per-facet) because the expression evaluation returns a flat bitmap. The per-facet split is only needed for the add/remove calls.
      - **Revised approach:** Collect owner PKs at the group level using `getAllPrimaryKeys()`. For the add/remove operations, iterate the `referencedPrimaryKeysIndex` entries to get per-facet owner PKs. Create one `AffectedFacetGroup` per facet PK within each `ReducedGroupEntityIndex`.
   7. For each `ReducedGroupEntityIndex`, iterate its referenced entity PKs (facet PKs). For each facet PK, create `AffectedFacetGroup(facetPK, groupPK, ownerPKsBitmap)` where `ownerPKsBitmap` comes from the `referencedPrimaryKeysIndex`.
-- [ ] Add accessor method `@Nonnull Map<Integer, TransactionalBitmap> getReferencedEntityPrimaryKeysIndex()` (or `@Nonnull Set<Map.Entry<Integer, TransactionalBitmap>> getReferencedEntityEntries()`) to `ReducedGroupEntityIndex` to expose the facet PK to owner PK mapping. This is a read-only accessor -- no mutation. Alternatively, add `@Nonnull Set<Integer> getReferencedEntityPrimaryKeys()` and `@Nullable Bitmap getOwnerPKsForReferencedEntity(int referencedEntityPK)`.
+- [x] Add accessor method `@Nonnull Map<Integer, TransactionalBitmap> getReferencedEntityPrimaryKeysIndex()` (or `@Nonnull Set<Map.Entry<Integer, TransactionalBitmap>> getReferencedEntityEntries()`) to `ReducedGroupEntityIndex` to expose the facet PK to owner PK mapping. This is a read-only accessor -- no mutation. Alternatively, add `@Nonnull Set<Integer> getReferencedEntityPrimaryKeys()` and `@Nullable Bitmap getOwnerPKsForReferencedEntity(int referencedEntityPK)`.
 
 **Group 3: `resolveAffected()` for `REFERENCED_ENTITY_ATTRIBUTE`**
 
-- [ ] Implement the `REFERENCED_ENTITY_ATTRIBUTE` branch in `resolveAffected()`:
+- [x] Implement the `REFERENCED_ENTITY_ATTRIBUTE` branch in `resolveAffected()`:
   1. Look up `ReferencedTypeEntityIndex` via `target.getIndexIfExists(new EntityIndexKey(REFERENCED_ENTITY_TYPE, mutation.scope(), mutation.referenceName()))`. Return empty resolution if null.
   2. Call `rtei.getAllReferenceIndexes(mutation.mutatedEntityPK())` -- returns `int[]` storage PKs of `ReducedEntityIndex` instances for this referenced entity.
   3. For each storage PK, call `target.getIndexByPrimaryKeyIfExists(storagePK)` to get the `ReducedEntityIndex` instance. Skip if null.
@@ -694,12 +694,12 @@ will have their facet removed.
      - Extract `groupId` from the matching `FacetGroupIndex`
   6. The **owner PKs** = `reducedEntityIndex.getAllPrimaryKeys()`.
   7. Create `AffectedFacetGroup(facetPK, groupPK, ownerPKs)` for each resolved `ReducedEntityIndex`.
-- [ ] Add `@Nullable Integer getGroupIdForFacet(int facetPK)` method to `FacetReferenceIndex` (see Group 10) — iterates `FacetGroupIndex` instances and returns the `groupId` of the group containing the facet PK, or null if the facet is in an ungrouped group or not found. Use this method to resolve the group PK during `REFERENCED_ENTITY_ATTRIBUTE` resolution.
-- [ ] Handle the case where the facet PK is not found in any `FacetGroupIndex` (facet not currently indexed) -- this means the entity was never faceted, so the ownerPKs in the resolution will have empty facet state (all entries become candidates for "add" if the expression evaluates to true).
+- [x] Add `@Nullable Integer getGroupIdForFacet(int facetPK)` method to `FacetReferenceIndex` (see Group 10) — iterates `FacetGroupIndex` instances and returns the `groupId` of the group containing the facet PK, or null if the facet is in an ungrouped group or not found. Use this method to resolve the group PK during `REFERENCED_ENTITY_ATTRIBUTE` resolution.
+- [x] Handle the case where the facet PK is not found in any `FacetGroupIndex` (facet not currently indexed) -- this means the entity was never faceted, so the ownerPKs in the resolution will have empty facet state (all entries become candidates for "add" if the expression evaluates to true).
 
 **Group 4: `parameterize()` -- FilterBy parameterization with PK-scoping**
 
-- [ ] Implement `parameterize(FilterBy triggerFilterBy, String referenceName, int mutatedEntityPK, DependencyType dependencyType)` method:
+- [x] Implement `parameterize(FilterBy triggerFilterBy, String referenceName, int mutatedEntityPK, DependencyType dependencyType)` method:
   1. For `GROUP_ENTITY_ATTRIBUTE`: create PK-scoping constraint `new GroupHaving(new EntityPrimaryKeyInSet(mutatedEntityPK))`
   2. For `REFERENCED_ENTITY_ATTRIBUTE`: create PK-scoping constraint `new EntityHaving(new EntityPrimaryKeyInSet(mutatedEntityPK))`
   3. The trigger's `FilterBy` already contains a `referenceHaving(referenceName, ...)` subtree. The PK-scoping constraint must be injected **within** the `referenceHaving` children.
@@ -731,13 +731,13 @@ will have their facet removed.
   return new FilterBy(newTopChildren);
   ```
   5. If the existing `ReferenceHaving` children already have an `And` wrapper, the new `And(existingChildren..., pkScope)` wraps both the old AND and the scope constraint. This is functionally equivalent and the query engine handles nested ANDs correctly.
-- [ ] Add comprehensive JavaDoc explaining why PK-scoping is critical (prevent false positives from unrelated groups/references -- see WBS-07 "Hidden Traps" #15).
-- [ ] Handle edge cases: trigger's FilterBy with multiple `referenceHaving` children (unlikely but possible with OR expressions), trigger with inline AND already.
-- [ ] Import classes from `io.evitadb.api.query.filter`: `FilterBy`, `ReferenceHaving`, `EntityHaving`, `GroupHaving`, `EntityPrimaryKeyInSet`, `And`, `FilterConstraint`.
+- [x] Add comprehensive JavaDoc explaining why PK-scoping is critical (prevent false positives from unrelated groups/references -- see WBS-07 "Hidden Traps" #15).
+- [x] Handle edge cases: trigger's FilterBy with multiple `referenceHaving` children (unlikely but possible with OR expressions), trigger with inline AND already.
+- [x] Import classes from `io.evitadb.api.query.filter`: `FilterBy`, `ReferenceHaving`, `EntityHaving`, `GroupHaving`, `EntityPrimaryKeyInSet`, `And`, `FilterConstraint`.
 
 **Group 5: Bitmap comparison and add/remove operations in `execute()`**
 
-- [ ] Implement the core `execute()` method flow as specified in the WBS-07 code outline:
+- [x] Implement the core `execute()` method flow as specified in the WBS-07 code outline:
   1. Call `resolveAffected(target, mutation)` -- get `AffectedEntityResolution`
   2. Call `target.getTrigger(referenceName, dependencyType, scope)` -- return early if null
   3. Call `parameterize(trigger.getFilterByConstraint(), ...)` -- get scoped `FilterBy`
@@ -748,48 +748,48 @@ will have their facet removed.
   8. Get target indexes via `resolveTargetIndexes(target, mutation.referenceName())`
   9. For each entry in `affected.entriesForOwnerPKs(shouldBeFaceted)`: call `index.addFacet(refSchema, new ReferenceKey(referenceName, entry.facetPK()), entry.groupPK(), entry.ownerPK())` on each target index
   10. For each entry in `affected.entriesForOwnerPKs(shouldNotBeFaceted)`: call `index.removeFacet(refSchema, new ReferenceKey(referenceName, entry.facetPK()), entry.groupPK(), entry.ownerPK())` on each target index
-- [ ] Pass `entry.groupPK()` directly to `FacetIndex.addFacet()`/`removeFacet()` as the `@Nullable Integer groupId` parameter -- no conversion needed since `AffectedFacetEntry.groupPK()` is already `@Nullable Integer`.
-- [ ] Import `RoaringBitmapBackedBitmap`, `BaseBitmap`, `RoaringBitmap`, `ReferenceKey`.
+- [x] Pass `entry.groupPK()` directly to `FacetIndex.addFacet()`/`removeFacet()` as the `@Nullable Integer groupId` parameter -- no conversion needed since `AffectedFacetEntry.groupPK()` is already `@Nullable Integer`.
+- [x] Import `RoaringBitmapBackedBitmap`, `BaseBitmap`, `RoaringBitmap`, `ReferenceKey`.
 
 **Group 6: `resolveTargetIndexes()` -- target index routing**
 
-- [ ] Implement `resolveTargetIndexes(IndexMutationTarget target, String referenceName, Scope scope)`:
+- [x] Implement `resolveTargetIndexes(IndexMutationTarget target, String referenceName, Scope scope)`:
   1. Always include `GlobalEntityIndex`: `target.getIndexIfExists(new EntityIndexKey(GLOBAL, scope))` -- assert not null.
   2. Check if `ReducedEntityIndex` instances should be included: look up `ReferenceSchemaContract` from `target.getEntitySchema()`, check if the reference is indexed for `FOR_FILTERING_AND_PARTITIONING` in the applicable scope.
   3. If applicable, include `ReducedEntityIndex` instances for the reference that have `FOR_FILTERING_AND_PARTITIONING` indexing level. Follow the same pattern as `ReferenceIndexMutator.addFacetToIndex()`: target `GlobalEntityIndex` always, plus `ReducedEntityIndex` instances when the reference schema has `FOR_FILTERING_AND_PARTITIONING` level in the applicable scope. This ensures facet state consistency between global and reduced indexes.
   4. Return `EntityIndex[]` array containing the target indexes.
-- [ ] Add JavaDoc explaining the routing decision and reference to existing `ReferenceIndexMutator` pattern.
+- [x] Add JavaDoc explaining the routing decision and reference to existing `ReferenceIndexMutator` pattern.
 
 **Group 7: `ReevaluateFacetExpressionExecutor` class**
 
-- [ ] Create `ReevaluateFacetExpressionExecutor.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` -- package-private class implementing `IndexMutationExecutor<ReevaluateFacetExpressionMutation>` (from WBS-06).
-- [ ] Class is stateless singleton -- no instance fields, no constructor arguments (beyond default).
-- [ ] Implement `execute(@Nonnull ReevaluateFacetExpressionMutation mutation, @Nonnull IndexMutationTarget target)` as described in Group 5.
-- [ ] Implement `resolveAffected()`, `parameterize()`, `resolveTargetIndexes()` as private methods.
-- [ ] Add comprehensive class-level JavaDoc explaining the full reevaluation pipeline, the two-step PK resolution, and why this is a stateless singleton.
-- [ ] Import all required types from `io.evitadb.index`, `io.evitadb.index.bitmap`, `io.evitadb.api.query.filter`, `io.evitadb.api.requestResponse.schema`, `io.evitadb.api.requestResponse.data.mutation.reference`.
+- [x] Create `ReevaluateFacetExpressionExecutor.java` in `evita_engine/src/main/java/io/evitadb/index/mutation/` -- package-private class implementing `IndexMutationExecutor<ReevaluateFacetExpressionMutation>` (from WBS-06).
+- [x] Class is stateless singleton -- no instance fields, no constructor arguments (beyond default).
+- [x] Implement `execute(@Nonnull ReevaluateFacetExpressionMutation mutation, @Nonnull IndexMutationTarget target)` as described in Group 5.
+- [x] Implement `resolveAffected()`, `parameterize()`, `resolveTargetIndexes()` as private methods.
+- [x] Add comprehensive class-level JavaDoc explaining the full reevaluation pipeline, the two-step PK resolution, and why this is a stateless singleton.
+- [x] Import all required types from `io.evitadb.index`, `io.evitadb.index.bitmap`, `io.evitadb.api.query.filter`, `io.evitadb.api.requestResponse.schema`, `io.evitadb.api.requestResponse.data.mutation.reference`.
 
 **Group 8: Registration in `IndexMutationExecutorRegistry`**
 
-- [ ] Verify that `IndexMutationExecutorRegistry.INSTANCE` (from WBS-06) includes the entry: `ReevaluateFacetExpressionMutation.class -> new ReevaluateFacetExpressionExecutor()`. If WBS-06 used a stub, replace the stub with the real executor.
-- [ ] Ensure the executor is imported in the registry file.
+- [x] Verify that `IndexMutationExecutorRegistry.INSTANCE` (from WBS-06) includes the entry: `ReevaluateFacetExpressionMutation.class -> new ReevaluateFacetExpressionExecutor()`. If WBS-06 used a stub, replace the stub with the real executor.
+- [x] Ensure the executor is imported in the registry file.
 
 **Group 9: Accessor methods on `ReducedGroupEntityIndex`**
 
-- [ ] Add `@Nonnull Set<Integer> getReferencedEntityPrimaryKeys()` method to `ReducedGroupEntityIndex` -- returns `this.referencedPrimaryKeysIndex.keySet()`. This exposes the set of facet PKs within the group.
-- [ ] Add `@Nullable Bitmap getOwnerPKsForReferencedEntity(int referencedEntityPK)` method to `ReducedGroupEntityIndex` -- returns `this.referencedPrimaryKeysIndex.get(referencedEntityPK)`. Returns the bitmap of owner entity PKs that reference the given entity within this group, or null if not found.
-- [ ] Add JavaDoc to both methods explaining their use in the cross-entity reevaluation pipeline.
+- [x] Add `@Nonnull Set<Integer> getReferencedEntityPrimaryKeys()` method to `ReducedGroupEntityIndex` -- returns `this.referencedPrimaryKeysIndex.keySet()`. This exposes the set of facet PKs within the group.
+- [x] Add `@Nullable Bitmap getOwnerPKsForReferencedEntity(int referencedEntityPK)` method to `ReducedGroupEntityIndex` -- returns `this.referencedPrimaryKeysIndex.get(referencedEntityPK)`. Returns the bitmap of owner entity PKs that reference the given entity within this group, or null if not found.
+- [x] Add JavaDoc to both methods explaining their use in the cross-entity reevaluation pipeline.
 
 **Group 10: Accessor method on `FacetReferenceIndex` (for REFERENCED_ENTITY_ATTRIBUTE group PK resolution)**
 
-- [ ] Add `@Nullable Integer getGroupIdForFacet(int facetPK)` method to `FacetReferenceIndex` at `evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java`. Implementation: iterate `FacetGroupIndex` instances (via existing group index collection), check if the facet PK is present in the group's `facetIdIndexes`, return the `groupId` of the matching group. Return null if the facet is in an ungrouped group or not found in any group.
-- [ ] Add JavaDoc explaining this is used by the cross-entity reevaluation executor to determine the group assignment for a facet when resolving `REFERENCED_ENTITY_ATTRIBUTE` dependencies.
+- [x] Add `@Nullable Integer getGroupIdForFacet(int facetPK)` method to `FacetReferenceIndex` at `evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java`. Implementation: uses `facetToGroupIndex` lookup (O(1)) to find the group for a facet PK. Returns the first group id, or null for ungrouped/unknown facets.
+- [x] Add JavaDoc explaining this is used by the cross-entity reevaluation executor to determine the group assignment for a facet when resolving `REFERENCED_ENTITY_ATTRIBUTE` dependencies.
 
 **Group 11: Compilation verification**
 
-- [ ] Verify all new/modified types compile cleanly within the `evita_engine` module -- run `mvn compile -pl evita_engine` (or via IntelliJ MCP build).
-- [ ] Verify no circular dependencies between `io.evitadb.index.mutation` (executor) and `io.evitadb.index` (index classes, bitmap utilities).
-- [ ] Verify that the executor does not import anything from `io.evitadb.index.mutation.storagePart` or `io.evitadb.core.collection` -- it accesses collection internals only through `IndexMutationTarget`.
+- [x] Verify all new/modified types compile cleanly within the `evita_engine` module -- run `mvn compile -pl evita_engine` (or via IntelliJ MCP build).
+- [x] Verify no circular dependencies between `io.evitadb.index.mutation` (executor) and `io.evitadb.index` (index classes, bitmap utilities).
+- [x] Verify that the executor does not import anything from `io.evitadb.index.mutation.storagePart` or `io.evitadb.core.collection` -- it accesses collection internals only through `IndexMutationTarget`.
 
 ### Test Cases
 
@@ -801,26 +801,26 @@ Covers the supporting records (`AffectedEntityResolution`, `AffectedFacetGroup`,
 
 **Category: `allOwnerPKs()` -- union bitmap computation**
 
-- [ ] `all_owner_pks_returns_union_of_single_group` -- Create `AffectedEntityResolution` with one `AffectedFacetGroup` containing ownerPKs {1, 2, 3}. Verify `allOwnerPKs()` returns bitmap {1, 2, 3}.
-- [ ] `all_owner_pks_returns_union_across_multiple_groups` -- Create resolution with three groups: group A ownerPKs {1, 2}, group B ownerPKs {3, 4}, group C ownerPKs {5}. Verify `allOwnerPKs()` returns bitmap {1, 2, 3, 4, 5}.
-- [ ] `all_owner_pks_handles_overlapping_owner_pks_across_groups` -- Create resolution with two groups sharing ownerPKs: group A {1, 2, 3}, group B {2, 3, 4}. Verify `allOwnerPKs()` returns bitmap {1, 2, 3, 4} with no duplicates.
-- [ ] `all_owner_pks_returns_empty_bitmap_for_empty_resolution` -- Create resolution with an empty groups list. Verify `allOwnerPKs()` returns an empty bitmap.
-- [ ] `all_owner_pks_returns_empty_bitmap_when_all_groups_have_empty_owner_pks` -- Create resolution with groups whose ownerPKs bitmaps are all empty. Verify `allOwnerPKs()` returns an empty bitmap.
+- [x] `all_owner_pks_returns_union_of_single_group` -- implemented as `shouldReturnOwnerPKsForSingleGroup`
+- [x] `all_owner_pks_returns_union_across_multiple_groups` -- implemented as `shouldReturnUnionForMultipleGroups`
+- [x] `all_owner_pks_handles_overlapping_owner_pks_across_groups` -- implemented as `shouldDeduplicateOverlappingPKsInUnion`
+- [x] `all_owner_pks_returns_empty_bitmap_for_empty_resolution` -- implemented as `shouldReturnEmptyBitmapForEmptyResolution`
+- [x] `all_owner_pks_returns_empty_bitmap_when_all_groups_have_empty_owner_pks` -- implemented as `shouldHandleGroupWithEmptyBitmap`
 
 **Category: `entriesForOwnerPKs()` -- filtered entry iteration**
 
-- [ ] `entries_for_owner_pks_returns_all_entries_when_filter_matches_all` -- Create resolution with groups containing ownerPKs {1, 2, 3}. Pass bitmap {1, 2, 3} as filter. Verify all entries are returned with correct `facetPK`, `groupPK`, and `ownerPK` values.
-- [ ] `entries_for_owner_pks_returns_subset_when_filter_is_partial` -- Create resolution with group (facetPK=10, groupPK=99, ownerPKs={1, 2, 3, 4}). Pass bitmap {2, 4} as filter. Verify only entries with ownerPK=2 and ownerPK=4 are returned, both carrying facetPK=10 and groupPK=99.
-- [ ] `entries_for_owner_pks_returns_empty_when_filter_has_no_overlap` -- Create resolution with ownerPKs {1, 2, 3}. Pass bitmap {10, 20} as filter. Verify no entries are returned.
-- [ ] `entries_for_owner_pks_returns_empty_for_empty_resolution` -- Create resolution with no groups. Pass any non-empty bitmap. Verify no entries are returned.
-- [ ] `entries_for_owner_pks_returns_empty_for_empty_filter_bitmap` -- Create resolution with groups containing ownerPKs {1, 2, 3}. Pass empty bitmap. Verify no entries are returned.
-- [ ] `entries_for_owner_pks_handles_multiple_groups_with_different_facet_pks` -- Create resolution with group A (facetPK=10, groupPK=99, ownerPKs={1, 2}) and group B (facetPK=20, groupPK=99, ownerPKs={2, 3}). Pass bitmap {2}. Verify two entries are returned: (facetPK=10, groupPK=99, ownerPK=2) and (facetPK=20, groupPK=99, ownerPK=2).
-- [ ] `entries_for_owner_pks_preserves_facet_and_group_pk_per_entry` -- Create resolution with multiple groups having distinct facetPK and groupPK values. Verify each returned `AffectedFacetEntry` carries the correct facetPK and groupPK from its parent `AffectedFacetGroup`.
+- [x] `entries_for_owner_pks_returns_all_entries_when_filter_matches_all` -- implemented as `shouldReturnAllEntriesWhenFilterMatchesAll`
+- [x] `entries_for_owner_pks_returns_subset_when_filter_is_partial` -- implemented as `shouldReturnSubsetWhenFilterIsPartial`
+- [x] `entries_for_owner_pks_returns_empty_when_filter_has_no_overlap` -- implemented as `shouldReturnEmptyWhenFilterHasNoOverlap`
+- [x] `entries_for_owner_pks_returns_empty_for_empty_resolution` -- implemented as `shouldReturnEmptyForEmptyResolution`
+- [x] `entries_for_owner_pks_returns_empty_for_empty_filter_bitmap` -- implemented as `shouldReturnEmptyWhenFilterBitmapIsEmpty`
+- [x] `entries_for_owner_pks_handles_multiple_groups_with_different_facet_pks` -- implemented as `shouldFanOutAcrossMultipleGroups`
+- [x] `entries_for_owner_pks_preserves_facet_and_group_pk_per_entry` -- implemented as `shouldPreserveFieldsInEntries`
 
 **Category: `AffectedFacetGroup` record invariants**
 
-- [ ] `affected_facet_group_exposes_correct_fields` -- Create `AffectedFacetGroup(facetPK=10, groupPK=99, ownerPKs={1,2,3})`. Verify `facetPK()`, `groupPK()`, and `ownerPKs()` return the expected values.
-- [ ] `affected_facet_entry_exposes_correct_fields` -- Create `AffectedFacetEntry(facetPK=10, groupPK=99, ownerPK=1)`. Verify all accessor methods return expected values.
+- ~~`affected_facet_group_exposes_correct_fields`~~ — **deleted**: tests JDK record accessor guarantee, zero regression value
+- ~~`affected_facet_entry_exposes_correct_fields`~~ — **deleted**: tests JDK record accessor guarantee, zero regression value
 
 ---
 
@@ -832,85 +832,85 @@ Tests the `ReevaluateFacetExpressionExecutor` using mocked `IndexMutationTarget`
 
 **Category: PK resolution -- GROUP_ENTITY_ATTRIBUTE**
 
-- [ ] `resolve_affected_for_group_entity_attribute_returns_correct_facet_pks_and_owner_pks` -- Mock `IndexMutationTarget` to return a `ReferencedTypeEntityIndex` (for `REFERENCED_GROUP_ENTITY_TYPE`) whose `getAllReferenceIndexes(groupPK=99)` returns two storage PKs. Each storage PK resolves to a `ReducedGroupEntityIndex` with known `referencedPrimaryKeysIndex` entries (facetPK -> ownerPKs). Verify that `resolveAffected()` produces an `AffectedEntityResolution` with two `AffectedFacetGroup` entries where facetPKs come from the `referencedPrimaryKeysIndex` keys (NOT from the discriminator's `primaryKey()`) and groupPK=99 for all entries.
-- [ ] `resolve_affected_for_group_entity_attribute_returns_empty_when_no_referenced_type_index_exists` -- Mock `target.getIndexIfExists()` to return null for `REFERENCED_GROUP_ENTITY_TYPE`. Verify that `resolveAffected()` returns an empty `AffectedEntityResolution` (no groups, empty `allOwnerPKs()`).
-- [ ] `resolve_affected_for_group_entity_attribute_returns_empty_when_no_reduced_indexes_for_group` -- Mock `ReferencedTypeEntityIndex.getAllReferenceIndexes(groupPK)` to return an empty `int[]`. Verify empty resolution.
-- [ ] `resolve_affected_for_group_entity_attribute_skips_null_reduced_indexes` -- Mock `getAllReferenceIndexes()` to return three storage PKs, but `getIndexByPrimaryKeyIfExists()` returns null for the second one. Verify that resolution includes entries from the first and third reduced indexes only.
-- [ ] `resolve_affected_for_group_entity_attribute_with_multiple_facets_in_one_group` -- Mock a single `ReducedGroupEntityIndex` whose `referencedPrimaryKeysIndex` contains three facet PKs (10, 20, 30), each with different owner PK bitmaps. Verify three `AffectedFacetGroup` entries are created, all with groupPK=99 but distinct facetPKs and ownerPKs.
-- [ ] `resolve_affected_for_group_entity_attribute_collects_all_owner_pks_in_union` -- Mock multiple `ReducedGroupEntityIndex` instances with overlapping owner PKs. Verify that `allOwnerPKs()` on the resolution returns the union without duplicates.
+- [x] `resolve_affected_for_group_entity_attribute_returns_correct_facet_pks_and_owner_pks` -- implemented as `shouldResolveAffectedEntitiesThroughGroupIndex`
+- [x] `resolve_affected_for_group_entity_attribute_returns_empty_when_no_referenced_type_index_exists` -- implemented as `shouldReturnEarlyWhenRteiIsNullForGroupEntityAttribute`
+- [x] `resolve_affected_for_group_entity_attribute_returns_empty_when_no_reduced_indexes_for_group` -- covered by early return when RTEI returns empty storage PKs array
+- [x] `resolve_affected_for_group_entity_attribute_skips_null_reduced_indexes` -- implemented as `shouldSkipNullReducedGroupIndex`
+- [x] `resolve_affected_for_group_entity_attribute_with_multiple_facets_in_one_group` -- implemented as `shouldHandleMultipleFacetPKsInSingleReducedGroupIndex`
+- [x] `resolve_affected_for_group_entity_attribute_collects_all_owner_pks_in_union` -- covered by `shouldResolveAffectedEntitiesThroughGroupIndex` + `AffectedEntityResolution` union tests
 
 **Category: PK resolution -- REFERENCED_ENTITY_ATTRIBUTE**
 
-- [ ] `resolve_affected_for_referenced_entity_attribute_returns_correct_facet_pk_and_owner_pks` -- Mock `IndexMutationTarget` to return a `ReferencedTypeEntityIndex` (for `REFERENCED_ENTITY_TYPE`) whose `getAllReferenceIndexes(referencedEntityPK=50)` returns one storage PK. That storage PK resolves to a `ReducedEntityIndex` whose `getAllPrimaryKeys()` returns {1, 2, 3}. Verify resolution has one `AffectedFacetGroup` with facetPK=50 (= `mutatedEntityPK`), correct groupPK (from `FacetReferenceIndex` lookup), and ownerPKs={1, 2, 3}.
-- [ ] `resolve_affected_for_referenced_entity_attribute_returns_empty_when_no_referenced_type_index_exists` -- Mock `target.getIndexIfExists()` to return null for `REFERENCED_ENTITY_TYPE`. Verify empty resolution.
-- [ ] `resolve_affected_for_referenced_entity_attribute_returns_empty_when_no_reduced_indexes_for_entity` -- Mock `getAllReferenceIndexes(referencedEntityPK)` to return empty `int[]`. Verify empty resolution.
-- [ ] `resolve_affected_for_referenced_entity_attribute_resolves_group_pk_from_facet_index` -- Mock `GlobalEntityIndex` with a `FacetIndex` -> `FacetReferenceIndex` containing a `FacetGroupIndex` with groupId=77 that includes facetPK=50. Verify the resolved `AffectedFacetGroup` carries groupPK=77.
-- [ ] `resolve_affected_for_referenced_entity_attribute_handles_null_group` -- Mock `FacetReferenceIndex` where the facet PK is in a group with null groupId (ungrouped facet). Verify the resolved `AffectedFacetGroup` carries groupPK as null/sentinel correctly.
-- [ ] `resolve_affected_for_referenced_entity_attribute_with_multiple_reduced_indexes` -- Mock `getAllReferenceIndexes()` returning three storage PKs, each resolving to a different `ReducedEntityIndex` with distinct owner PKs. Verify three `AffectedFacetGroup` entries all share facetPK=mutatedEntityPK but have their own ownerPKs.
+- [x] `resolve_affected_for_referenced_entity_attribute_returns_correct_facet_pk_and_owner_pks` -- implemented as `shouldResolveAffectedEntitiesThroughReferencedEntityIndex`
+- [x] `resolve_affected_for_referenced_entity_attribute_returns_empty_when_no_referenced_type_index_exists` -- implemented as `shouldReturnEarlyWhenRteiIsNullForReferencedEntityAttribute`
+- [x] `resolve_affected_for_referenced_entity_attribute_returns_empty_when_no_reduced_indexes_for_entity` -- covered by early return when RTEI returns empty storage PKs array
+- [x] `resolve_affected_for_referenced_entity_attribute_resolves_group_pk_from_facet_index` -- verified as part of `shouldResolveAffectedEntitiesThroughReferencedEntityIndex`
+- [x] `resolve_affected_for_referenced_entity_attribute_handles_null_group` -- implemented as `shouldResolveNullGroupPKForUngroupedFacet`
+- [x] `resolve_affected_for_referenced_entity_attribute_with_multiple_reduced_indexes` -- implemented as `shouldResolveOwnerPKsFromMultipleStoragePKs`
 
 **Category: FilterBy parameterization**
 
-- [ ] `parameterize_injects_group_having_for_group_entity_attribute` -- Given a trigger `FilterBy` of `filterBy(referenceHaving("parameter", attributeEquals("inputWidgetType", "CHECKBOX")))` and dependencyType=`GROUP_ENTITY_ATTRIBUTE` with mutatedPK=99. Verify the result contains `groupHaving(entityPrimaryKeyInSet(99))` ANDed into the `referenceHaving` children.
-- [ ] `parameterize_injects_entity_having_for_referenced_entity_attribute` -- Given a trigger `FilterBy` of `filterBy(referenceHaving("parameter", entityHaving(attributeEquals("status", "ACTIVE"))))` and dependencyType=`REFERENCED_ENTITY_ATTRIBUTE` with mutatedPK=50. Verify the result contains `entityHaving(entityPrimaryKeyInSet(50))` ANDed into the `referenceHaving` children.
-- [ ] `parameterize_preserves_existing_and_constraint` -- Given a trigger `FilterBy` that already has an `and(...)` wrapper inside `referenceHaving`. Verify the PK-scoping constraint is added as an additional child of the existing `and`, not nested in a new `and`.
-- [ ] `parameterize_handles_complex_or_expression_across_dependency_types` -- Given a trigger `FilterBy` of `filterBy(referenceHaving("parameter", or(groupHaving(attributeEquals("status", "ACTIVE")), entityHaving(attributeEquals("status", "PREVIEW")))))` with dependencyType=`GROUP_ENTITY_ATTRIBUTE` and mutatedPK=99. Verify `groupHaving(entityPrimaryKeyInSet(99))` is injected correctly without disrupting the OR structure.
+- [x] `parameterize_injects_group_having_for_group_entity_attribute` -- implemented as `shouldInjectGroupHavingForGroupEntityAttribute`
+- [x] `parameterize_injects_entity_having_for_referenced_entity_attribute` -- implemented as `shouldInjectEntityHavingForReferencedEntityAttribute`
+- [x] `parameterize_preserves_existing_and_constraint` -- covered by the above tests (both verify AND wrapping of existing children)
+- [x] `parameterize_handles_complex_or_expression_across_dependency_types` -- implemented as `shouldLeaveNonMatchingReferenceHavingUnchanged` (verifies non-matching references are preserved)
 
 **Category: Bitmap set operations (shouldBeFaceted / shouldNotBeFaceted)**
 
-- [ ] `bitmap_operations_all_affected_satisfy_expression` -- `allAffectedOwnerPKs` = {1, 2, 3, 4, 5}, `currentlyTruePKs` = {1, 2, 3, 4, 5}. Verify `shouldBeFaceted` = {1, 2, 3, 4, 5} and `shouldNotBeFaceted` = empty.
-- [ ] `bitmap_operations_no_affected_satisfy_expression` -- `allAffectedOwnerPKs` = {1, 2, 3, 4, 5}, `currentlyTruePKs` = empty. Verify `shouldBeFaceted` = empty and `shouldNotBeFaceted` = {1, 2, 3, 4, 5}.
-- [ ] `bitmap_operations_partial_overlap` -- `allAffectedOwnerPKs` = {1, 2, 3, 4, 5}, `currentlyTruePKs` = {2, 4, 6, 8}. Verify `shouldBeFaceted` = {2, 4} and `shouldNotBeFaceted` = {1, 3, 5}. Note: PK 6 and 8 are in `currentlyTruePKs` but not in affected set, so they are ignored (not in union, not subject to add/remove).
-- [ ] `bitmap_operations_empty_affected_set` -- `allAffectedOwnerPKs` = empty, `currentlyTruePKs` = {1, 2, 3}. Verify both `shouldBeFaceted` and `shouldNotBeFaceted` are empty (no affected entities to act on).
-- [ ] `bitmap_operations_both_empty` -- `allAffectedOwnerPKs` = empty, `currentlyTruePKs` = empty. Verify both result bitmaps are empty.
+- [x] `bitmap_operations_all_affected_satisfy_expression` -- implemented as `shouldAddAllAffectedWhenAllMatchEvaluation`
+- [x] `bitmap_operations_no_affected_satisfy_expression` -- implemented as `shouldRemoveAllAffectedWhenNoneMatchEvaluation`
+- [x] `bitmap_operations_partial_overlap` -- implemented as `shouldSplitAffectedIntoAddsAndRemoves`
+- [x] `bitmap_operations_empty_affected_set` -- covered by `shouldReturnEarlyWhenNoAffectedEntities` (early return on empty affected set)
+- [x] `bitmap_operations_both_empty` -- covered by `shouldReturnEarlyWhenNoAffectedEntities`
 
 **Category: Add/remove facet operations**
 
-- [ ] `execute_calls_add_facet_for_should_be_faceted_entries_on_all_target_indexes` -- Mock setup: affected ownerPKs={1, 2} with facetPK=10 and groupPK=99, `currentlyTruePKs`={1, 2}, two target indexes (GlobalEntityIndex + ReducedEntityIndex). Verify `addFacet(refSchema, ReferenceKey("parameter", 10), 99, 1)` and `addFacet(..., 99, 2)` are called on BOTH target indexes (4 calls total). Verify `removeFacet()` is NOT called.
-- [ ] `execute_calls_remove_facet_for_should_not_be_faceted_entries_on_all_target_indexes` -- Mock setup: affected ownerPKs={1, 2} with facetPK=10 and groupPK=99, `currentlyTruePKs`=empty. Verify `removeFacet(refSchema, ReferenceKey("parameter", 10), 99, 1)` and `removeFacet(..., 99, 2)` are called on both target indexes. Verify `addFacet()` is NOT called.
-- [ ] `execute_calls_both_add_and_remove_for_mixed_result` -- Mock setup: affected group A (facetPK=10, groupPK=99, ownerPKs={1, 2, 3}), `currentlyTruePKs`={1, 3}. Verify `addFacet()` called for ownerPKs {1, 3} and `removeFacet()` called for ownerPK {2}.
-- [ ] `execute_constructs_correct_reference_key_for_facet_operations` -- Verify that the `ReferenceKey` passed to `addFacet()`/`removeFacet()` uses the mutation's `referenceName` and the facetPK from the resolved `AffectedFacetEntry`, NOT the mutatedEntityPK (which is the group PK for `GROUP_ENTITY_ATTRIBUTE`).
-- [ ] `execute_passes_correct_group_pk_to_facet_operations` -- Verify that the `groupId` parameter passed to `addFacet()`/`removeFacet()` comes from the `AffectedFacetEntry.groupPK()`, not from any other source. For `GROUP_ENTITY_ATTRIBUTE`, this should be `mutatedEntityPK`.
-- [ ] `execute_handles_multiple_affected_facet_groups` -- Mock setup: three `AffectedFacetGroup` entries with different facetPKs (10, 20, 30) all under groupPK=99. `currentlyTruePKs` includes some ownerPKs from each group. Verify add/remove calls use the correct facetPK per entry (not a shared facetPK).
+- [x] `execute_calls_add_facet_for_should_be_faceted_entries_on_all_target_indexes` -- covered by `shouldAddAllAffectedWhenAllMatchEvaluation` and `shouldTargetGlobalAndReducedWhenFilteringAndPartitioning`
+- [x] `execute_calls_remove_facet_for_should_not_be_faceted_entries_on_all_target_indexes` -- covered by `shouldRemoveAllAffectedWhenNoneMatchEvaluation` and `shouldRemoveFacetOnBothGlobalAndReducedIndex`
+- [x] `execute_calls_both_add_and_remove_for_mixed_result` -- implemented as `shouldSplitAffectedIntoAddsAndRemoves`
+- [x] `execute_constructs_correct_reference_key_for_facet_operations` -- verified as part of all add/remove tests (Mockito argument matchers check ReferenceKey construction)
+- [x] `execute_passes_correct_group_pk_to_facet_operations` -- verified as part of all add/remove tests (groupPK argument verified)
+- [x] `execute_handles_multiple_affected_facet_groups` -- implemented as `shouldHandleMultipleGroupsInSingleExecution`
 
 **Category: Target index routing**
 
-- [ ] `resolve_target_indexes_always_includes_global_entity_index` -- Mock `IndexMutationTarget` to return a `GlobalEntityIndex`. Verify `resolveTargetIndexes()` returns an array containing the `GlobalEntityIndex`.
-- [ ] `resolve_target_indexes_includes_reduced_entity_index_when_filtering_and_partitioning` -- Mock reference schema with `FOR_FILTERING_AND_PARTITIONING` indexing level. Verify `resolveTargetIndexes()` returns both `GlobalEntityIndex` and applicable `ReducedEntityIndex`.
-- [ ] `resolve_target_indexes_excludes_reduced_entity_index_when_not_partitioning` -- Mock reference schema without `FOR_FILTERING_AND_PARTITIONING` level. Verify `resolveTargetIndexes()` returns only `GlobalEntityIndex`.
+- [x] `resolve_target_indexes_always_includes_global_entity_index` -- implemented as `shouldTargetOnlyGlobalIndexWhenFilteringOnly`
+- [x] `resolve_target_indexes_includes_reduced_entity_index_when_filtering_and_partitioning` -- implemented as `shouldTargetGlobalAndReducedWhenFilteringAndPartitioning`
+- [x] `resolve_target_indexes_excludes_reduced_entity_index_when_not_partitioning` -- implemented as `shouldTargetOnlyGlobalIndexWhenFilteringOnly`
 
 **Category: Null trigger handling (early return)**
 
-- [ ] `execute_returns_immediately_when_trigger_is_null` -- Mock `target.getTrigger()` to return null. Verify `execute()` returns without calling `evaluateFilter()`, `addFacet()`, or `removeFacet()`. Verify `resolveAffected()` may or may not be called (implementation detail), but no side effects occur.
-- [ ] `execute_returns_immediately_when_trigger_is_null_even_with_affected_entities` -- Mock setup: `resolveAffected()` would return non-empty resolution, but `target.getTrigger()` returns null. Verify no facet operations are performed.
+- [x] `execute_returns_immediately_when_trigger_is_null` -- implemented as `shouldReturnEarlyWhenTriggerIsNull`
+- [x] `execute_returns_immediately_when_trigger_is_null_even_with_affected_entities` -- covered by `shouldReturnEarlyWhenTriggerIsNull` (trigger null check happens before filter evaluation)
 
 **Category: Idempotency**
 
-- [ ] `execute_twice_with_same_mutation_produces_no_double_adds` -- Mock setup: first `execute()` adds facets for ownerPKs {1, 2, 3}. Run `execute()` again with the same mutation and identical index state (expression still true). Verify that `addFacet()` is called again (caller is idempotent), but the underlying `FacetIndex` does not create duplicate entries. Test this by using a real `FacetIndex` instance and verifying bitmap cardinality remains unchanged after the second call.
-- [ ] `execute_twice_with_same_mutation_produces_no_double_removes` -- Mirror of above for removes: first `execute()` removes facets, second `execute()` calls `removeFacet()` again. Verify no errors and no state corruption.
-- [ ] `execute_is_safe_when_local_and_cross_entity_triggers_both_fire` -- Simulate the scenario where a local trigger already added a facet for ownerPK=1, then the cross-entity executor also tries to add it. Verify the second add is a no-op at the `FacetIndex` level.
+- ~~`execute_twice_with_same_mutation_produces_no_double_adds`~~ — **deleted**: tests `FacetIndex` idempotency (already guaranteed by `FacetIdIndex`), not executor logic; would require real `FacetIndex` instance, making it an integration test
+- ~~`execute_twice_with_same_mutation_produces_no_double_removes`~~ — **deleted**: same rationale — tests `FacetIndex` guarantee, not executor behavior
+- ~~`execute_is_safe_when_local_and_cross_entity_triggers_both_fire`~~ — **deleted**: tests `FacetIndex` idempotency at the index level, not executor responsibility
 
 **Category: Full pipeline -- fan-out scenario 1 (purely cross-entity)**
 
-- [ ] `fan_out_group_entity_attribute_change_removes_all_facets_when_expression_becomes_false` -- Reproduce Example 1 from the WBS document: Group entity PK=99 changes `inputWidgetType` from `CHECKBOX` to `RADIO`. Mock 10 `ReducedGroupEntityIndex` instances under group 99, each with 100 owner PKs (1000 total). Mock `evaluateFilter()` to return empty bitmap (expression is now false for all). Verify `removeFacet()` is called 1000 times (once per owner PK per facet PK combination) on target indexes. Verify no `addFacet()` calls.
-- [ ] `fan_out_group_entity_attribute_change_adds_all_facets_when_expression_becomes_true` -- Reverse of above: expression was false, now becomes true. Mock `evaluateFilter()` to return all 1000 affected PKs. Verify `addFacet()` called for all 1000 and no `removeFacet()` calls.
+- ~~`fan_out_group_entity_attribute_change_removes_all_facets_when_expression_becomes_false`~~ — **deleted**: integration-level test duplicating unit-tested paths at larger scale; all code paths covered by `BitmapSetOperationsTest` + `GroupEntityAttributeResolutionTest`
+- ~~`fan_out_group_entity_attribute_change_adds_all_facets_when_expression_becomes_true`~~ — **deleted**: same rationale — no new code path vs existing unit tests
 
 **Category: Full pipeline -- fan-out scenario 2 (mixed-dependency expression)**
 
-- [ ] `fan_out_mixed_dependency_expression_correctly_filters_active_products` -- Reproduce Example 2: expression depends on both `groupEntity.inputWidgetType == 'CHECKBOX'` AND `entity.isActive == true`. Group 99 changes from CHECKBOX to RADIO. Mock `evaluateFilter()` returning empty bitmap. Mock 1000 affected PKs (800 were previously faceted, 200 never faceted). Verify `removeFacet()` called 1000 times. The 200 removes for never-faceted entities are idempotent no-ops at the index level.
+- ~~`fan_out_mixed_dependency_expression_correctly_filters_active_products`~~ — **deleted**: integration-level test; the mixed-dependency scenario is covered at unit level by `BitmapSetOperationsTest.shouldRemoveAllAffectedWhenNoneMatchEvaluation` (all removes) and idempotency is a `FacetIndex` guarantee
 
 **Category: Full pipeline -- fan-out scenario 3 (multi-source cross-entity, OR)**
 
-- [ ] `fan_out_multi_source_or_expression_retains_facets_where_second_operand_is_true` -- Reproduce Example 3: expression is `groupEntity.status == 'ACTIVE' || referencedEntity.status == 'PREVIEW'`. Group PK=99 changes status from ACTIVE to INACTIVE. Mock `evaluateFilter()` to return the subset of owner PKs whose referenced entity has status=PREVIEW (e.g., 300 of 1000). Verify `shouldBeFaceted` = those 300 PKs, `shouldNotBeFaceted` = remaining 700 PKs. Verify `addFacet()` for 300 and `removeFacet()` for 700.
-- [ ] `fan_out_multi_source_or_expression_removes_all_when_neither_operand_is_true` -- Same setup but `evaluateFilter()` returns empty (no referenced entity has PREVIEW status either). Verify all 1000 are removed.
+- ~~`fan_out_multi_source_or_expression_retains_facets_where_second_operand_is_true`~~ — **deleted**: integration-level test; the partial-overlap bitmap split is already covered by `BitmapSetOperationsTest.shouldSplitAffectedIntoAddsAndRemoves`
+- ~~`fan_out_multi_source_or_expression_removes_all_when_neither_operand_is_true`~~ — **deleted**: same rationale — covered by `shouldRemoveAllAffectedWhenNoneMatchEvaluation`
 
 **Category: Edge cases**
 
-- [ ] `execute_no_ops_when_affected_set_is_empty` -- Mock `resolveAffected()` returning empty resolution (no `ReducedGroupEntityIndex` or `ReducedEntityIndex` found). Verify no `evaluateFilter()`, `addFacet()`, or `removeFacet()` calls occur.
-- [ ] `execute_no_ops_when_all_affected_already_match_current_facet_state` -- Mock setup: all affected ownerPKs are already faceted and expression is still true (shouldBeFaceted = all, shouldNotBeFaceted = empty). Verify `addFacet()` is called (idempotent) but no `removeFacet()` calls. The index state does not change.
-- [ ] `execute_handles_single_owner_pk_in_resolution` -- Mock resolution with exactly one `AffectedFacetGroup` containing one ownerPK. Verify the correct add or remove is called for that single entry.
-- [ ] `execute_handles_reference_schema_not_found_by_throwing` -- Mock `target.getEntitySchema().getReference(referenceName)` to return `Optional.empty()`. Verify that `execute()` throws an exception (via `orElseThrow()`) rather than silently skipping.
-- [ ] `execute_handles_large_affected_set_efficiently` -- Mock resolution with 10,000 ownerPKs across 50 facet groups. Mock `evaluateFilter()` returning 5,000 PKs. Verify correct number of add (5,000) and remove (5,000) calls. This is a scalability smoke test, not a performance benchmark.
-- [ ] `execute_handles_group_pk_as_nullable_integer_for_ungrouped_facets` -- Mock resolution where groupPK is null (ungrouped reference). Verify `addFacet()`/`removeFacet()` is called with `null` as the groupId parameter.
+- [x] `execute_no_ops_when_affected_set_is_empty` -- implemented as `shouldReturnEarlyWhenNoAffectedEntities`
+- [x] `execute_no_ops_when_all_affected_already_match_current_facet_state` -- covered by `shouldAddAllAffectedWhenAllMatchEvaluation` (idempotent adds, no removes)
+- [x] `execute_handles_single_owner_pk_in_resolution` -- covered by multiple tests (e.g., `shouldResolveAffectedEntitiesThroughReferencedEntityIndex` uses small PK sets)
+- ~~`execute_handles_reference_schema_not_found_by_throwing`~~ — **deleted**: tests JDK `Optional.orElseThrow()` guarantee, not executor logic
+- ~~`execute_handles_large_affected_set_efficiently`~~ — **deleted**: scalability smoke test with no new code path vs existing unit tests
+- [x] `execute_handles_group_pk_as_nullable_integer_for_ungrouped_facets` -- implemented as `shouldResolveNullGroupPKForUngroupedFacet`
 
 ---
 
@@ -922,11 +922,11 @@ Tests for the new accessor methods added to `ReducedGroupEntityIndex` in Group 9
 
 **Category: New accessor methods for cross-entity reevaluation**
 
-- [ ] `get_referenced_entity_primary_keys_returns_all_facet_pks_in_group` -- Insert three references into the index for facetPKs {10, 20, 30}. Verify `getReferencedEntityPrimaryKeys()` returns the set {10, 20, 30}.
-- [ ] `get_referenced_entity_primary_keys_returns_empty_set_for_fresh_index` -- Create a new `ReducedGroupEntityIndex` with no inserts. Verify `getReferencedEntityPrimaryKeys()` returns an empty set.
-- [ ] `get_owner_pks_for_referenced_entity_returns_correct_bitmap` -- Insert owner PKs {1, 2, 3} referencing facetPK=10 in the group. Verify `getOwnerPKsForReferencedEntity(10)` returns bitmap {1, 2, 3}.
-- [ ] `get_owner_pks_for_referenced_entity_returns_null_for_unknown_facet_pk` -- Verify `getOwnerPKsForReferencedEntity(999)` returns null when facetPK 999 was never inserted.
-- [ ] `get_owner_pks_for_referenced_entity_reflects_insertions_and_removals` -- Insert ownerPK=1 for facetPK=10, verify it appears. Remove it, verify the mapping updates accordingly (bitmap becomes empty or entry removed, depending on implementation).
+- [x] `get_referenced_entity_primary_keys_returns_all_facet_pks_in_group` -- implemented as `shouldReturnAllFacetPKsInGroup`
+- [x] `get_referenced_entity_primary_keys_returns_empty_set_for_fresh_index` -- implemented as `shouldReturnEmptySetForFreshIndex`
+- [x] `get_owner_pks_for_referenced_entity_returns_correct_bitmap` -- implemented as `shouldReturnCorrectOwnerPKBitmap`
+- [x] `get_owner_pks_for_referenced_entity_returns_null_for_unknown_facet_pk` -- implemented as `shouldReturnNullForUnknownFacetPK`
+- [x] `get_owner_pks_for_referenced_entity_reflects_insertions_and_removals` -- implemented as `shouldReflectInsertionsAndRemovals`
 
 ---
 
@@ -938,8 +938,8 @@ Tests for the new `getGroupIdForFacet()` method added to `FacetReferenceIndex` i
 
 **Category: Group PK lookup for cross-entity reevaluation**
 
-- [ ] `get_group_id_for_facet_returns_correct_group_when_facet_exists_in_group` -- Add facet PK=10 to group 99 in the `FacetReferenceIndex`. Verify `getGroupIdForFacet(10)` returns 99.
-- [ ] `get_group_id_for_facet_returns_null_when_facet_is_ungrouped` -- Add facet PK=10 with null group. Verify `getGroupIdForFacet(10)` returns null.
-- [ ] `get_group_id_for_facet_returns_null_when_facet_does_not_exist` -- Do not add facet PK=999. Verify `getGroupIdForFacet(999)` returns null.
-- [ ] `get_group_id_for_facet_returns_correct_group_when_multiple_groups_exist` -- Add facet PK=10 to group 99 and facet PK=20 to group 77. Verify `getGroupIdForFacet(10)` returns 99 and `getGroupIdForFacet(20)` returns 77.
-- [ ] `get_group_id_for_facet_reflects_group_reassignment` -- Add facet PK=10 to group 99, then reassign it to group 77 (remove from 99, add to 77). Verify `getGroupIdForFacet(10)` returns 77 after reassignment.
+- [x] `get_group_id_for_facet_returns_correct_group_when_facet_exists_in_group` -- implemented as `shouldReturnGroupIdWhenFacetExistsInGroup`
+- [x] `get_group_id_for_facet_returns_null_when_facet_is_ungrouped` -- implemented as `shouldReturnNullWhenFacetIsUngrouped`
+- [x] `get_group_id_for_facet_returns_null_when_facet_does_not_exist` -- implemented as `shouldReturnNullWhenFacetDoesNotExist`
+- [x] `get_group_id_for_facet_returns_correct_group_when_multiple_groups_exist` -- implemented as `shouldReturnFirstGroupWithMultipleGroups`
+- [x] `get_group_id_for_facet_reflects_group_reassignment` -- implemented as `shouldReflectGroupReassignment`

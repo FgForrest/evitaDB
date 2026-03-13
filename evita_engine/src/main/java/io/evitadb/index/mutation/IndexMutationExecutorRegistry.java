@@ -50,7 +50,7 @@ public class IndexMutationExecutorRegistry {
 	 */
 	public static final IndexMutationExecutorRegistry INSTANCE = new IndexMutationExecutorRegistry(
 		Map.of(
-			// ReevaluateFacetExpressionMutation.class, new ReevaluateFacetExpressionExecutor()
+			ReevaluateFacetExpressionMutation.class, new ReevaluateFacetExpressionExecutor()
 		)
 	);
 
