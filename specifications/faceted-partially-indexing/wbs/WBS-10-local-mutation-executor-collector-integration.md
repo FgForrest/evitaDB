@@ -492,9 +492,8 @@ Both `IndexMutationTarget` and `IndexMutationExecutorRegistry` were created by W
 ##### `EntityIndexLocalMutationExecutor.popIndexImplicitMutations()` — consumed by Step 5b
 
 Per WBS-08 research, this method will be added to `EntityIndexLocalMutationExecutor` (line 114 of `EntityIndexLocalMutationExecutor.java`). It returns `IndexImplicitMutations` (a record containing `EntityIndexMutation[]`). The method:
-1. Detects which attributes changed during the mutation batch
-2. Compares old vs. new values (old-value caching happens during `applyMutation()`)
-3. Consults `CatalogExpressionTriggerRegistry` for matching triggers
+1. Iterates `inputMutations` to find `AttributeMutation` instances
+2. For each mutated attribute name, consults `CatalogExpressionTriggerRegistry` for matching triggers
 4. Creates `ReevaluateFacetExpressionMutation` instances grouped by target entity type
 
 The `IndexImplicitMutations` record and `EMPTY_INDEX_IMPLICIT_MUTATIONS` singleton are defined per WBS-05/WBS-08. When no triggers match, the empty singleton is returned, making the Step 5b loop a no-op.

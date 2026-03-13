@@ -121,7 +121,8 @@ abstract class AbstractMutatorTestBase {
 			false,
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
-			}
+			},
+			null
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);
@@ -131,8 +132,8 @@ abstract class AbstractMutatorTestBase {
 		Mockito.when(productCollection.getEntityTypePrimaryKey()).thenReturn(1);
 	}
 
-	private EntitySchema unwrap(SealedEntitySchema entitySchema) {
-		return (EntitySchema) ((EntitySchemaDecorator)entitySchema).getDelegate();
+	private static EntitySchema unwrap(SealedEntitySchema entitySchema) {
+		return ((EntitySchemaDecorator)entitySchema).getDelegate();
 	}
 
 	protected abstract void alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder schemaBuilder);

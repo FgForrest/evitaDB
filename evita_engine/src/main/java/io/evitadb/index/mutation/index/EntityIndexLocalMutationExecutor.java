@@ -63,6 +63,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
+import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -70,8 +71,12 @@ import io.evitadb.function.QuadriConsumer;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
+import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.mutation.EntityIndexMutation;
+import io.evitadb.index.mutation.ExpressionIndexTrigger;
 import io.evitadb.index.mutation.IndexImplicitMutations;
+import io.evitadb.index.mutation.IndexMutation;
+import io.evitadb.index.mutation.ReevaluateFacetExpressionMutation;
 import io.evitadb.index.mutation.index.dataAccess.EntityExistingDataFactory;
 import io.evitadb.index.mutation.index.dataAccess.EntityIndexedReferenceSupplier;
 import io.evitadb.index.mutation.index.dataAccess.EntityPriceSupplier;
@@ -116,6 +121,19 @@ import static java.util.Optional.of;
  */
 public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
+	 * Shared empty instance returned when no cross-entity triggers fire.
+	 */
+	private static final IndexImplicitMutations EMPTY_INDEX_IMPLICIT_MUTATIONS =
+		new IndexImplicitMutations(new EntityIndexMutation[0]);
+	/**
+	 * Cross-entity attribute dependency types to iterate when consulting the trigger registry.
+	 * Only entity-level attribute dependencies are relevant for source-side detection.
+	 */
+	private static final DependencyType[] CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES = {
+		DependencyType.REFERENCED_ENTITY_ATTRIBUTE,
+		DependencyType.GROUP_ENTITY_ATTRIBUTE
+	};
+	/**
 	 * The {@link EntitySchemaContract#getName()} of the entity type.
 	 */
 	private final String entityType;
@@ -158,6 +176,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final Supplier<Entity> fullEntitySupplier;
 	/**
+	 * Supplier that provides the catalog-level trigger registry for cross-entity expression triggers.
+	 * When non-null, enables source-side detection of attribute changes that affect facet indexing in
+	 * other entity collections. Null in test scenarios or when the feature is disabled — in that case
+	 * {@link #popIndexImplicitMutations} returns an empty result.
+	 */
+	@Nullable private final Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier;
+	/**
 	 * Memoized factory that allows to retrieve existing attribute values from the current storage part.
 	 */
 	private EntityStoragePartExistingDataFactory storagePartExistingDataFactory;
@@ -194,7 +219,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull IntSupplier priceInternalIdSupplier,
 		boolean undoOnError,
-		@Nonnull Supplier<Entity> fullEntitySupplier
+		@Nonnull Supplier<Entity> fullEntitySupplier,
+		@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -206,6 +232,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.undoActions = undoOnError ? new LinkedList<>() : null;
 		this.undoActionsAppender = undoOnError ? this.undoActions::add : null;
 		this.fullEntitySupplier = fullEntitySupplier;
+		this.triggerRegistrySupplier = triggerRegistrySupplier;
 	}
 
 	/**
@@ -228,12 +255,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns and clears list of engine-internal index mutations that were detected during processing
-	 * of the given input mutations. This method is the index-executor analogue of
+	 * Returns list of engine-internal index mutations that were detected during processing of the given
+	 * input mutations. This method is the index-executor analogue of
 	 * {@link ConsistencyCheckingLocalMutationExecutor#popImplicitMutations}.
 	 *
-	 * Current implementation is a stub returning an empty result — real detection logic will be
-	 * implemented in WBS-08/WBS-09.
+	 * Iterates `inputMutations` to find {@link AttributeMutation} instances, consults the
+	 * {@link CatalogExpressionTriggerRegistry} for each mutated attribute name, and produces
+	 * {@link ReevaluateFacetExpressionMutation} envelopes for cross-entity dispatch. For entity
+	 * removals, all registered triggers fire without per-attribute filtering.
+	 *
+	 * No old-vs-new value comparison is performed — any attribute mutation on a trigger-registered
+	 * attribute fires the trigger. This is safe over-firing: the target-side executor performs
+	 * idempotent operations, so unnecessary triggers result in a no-op rather than incorrect state.
 	 *
 	 * @param inputMutations list of local mutations that were applied
 	 * @return index mutations to dispatch to target collections
@@ -242,7 +275,149 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	public IndexImplicitMutations popIndexImplicitMutations(
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
 	) {
-		return new IndexImplicitMutations(new EntityIndexMutation[0]);
+		// early return if no registry
+		if (this.triggerRegistrySupplier == null) {
+			return EMPTY_INDEX_IMPLICIT_MUTATIONS;
+		}
+		final CatalogExpressionTriggerRegistry registry = this.triggerRegistrySupplier.get();
+		if (registry == null) {
+			return EMPTY_INDEX_IMPLICIT_MUTATIONS;
+		}
+		final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.NEW);
+
+		// branch: entity removal fires all entity-level attribute triggers without per-attribute comparison
+		if (this.containerAccessor.isEntityRemovedEntirely()) {
+			return buildRemovalMutations(registry, entityPK);
+		}
+
+		// branch: attribute change path — iterate input mutations directly
+		return buildAttributeChangeMutations(registry, entityPK, inputMutations);
+	}
+
+	/**
+	 * Builds {@link IndexImplicitMutations} for the attribute change path. Iterates `inputMutations`
+	 * to find {@link AttributeMutation} instances, extracts attribute names, and consults the trigger
+	 * registry for each unique attribute name. Duplicate attribute names within the batch are
+	 * deduplicated — a single trigger firing is sufficient regardless of how many mutations touch the
+	 * same attribute.
+	 *
+	 * @param registry       the trigger registry to consult
+	 * @param entityPK       the primary key of the mutated entity
+	 * @param inputMutations the list of applied local mutations
+	 * @return index mutations to dispatch, or {@link #EMPTY_INDEX_IMPLICIT_MUTATIONS} if no triggers fire
+	 */
+	@Nonnull
+	private IndexImplicitMutations buildAttributeChangeMutations(
+		@Nonnull CatalogExpressionTriggerRegistry registry,
+		int entityPK,
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
+	) {
+		Map<String, List<IndexMutation>> mutationsByTargetType = null;
+		// track already-processed attribute names to avoid duplicate trigger firings within a batch
+		Set<String> processedAttributes = null;
+
+		for (final LocalMutation<?, ?> mutation : inputMutations) {
+			if (!(mutation instanceof AttributeMutation attributeMutation)) {
+				continue;
+			}
+			final String attributeName = attributeMutation.getAttributeKey().attributeName();
+
+			// deduplicate: skip if this attribute name was already processed in this batch
+			if (processedAttributes != null && processedAttributes.contains(attributeName)) {
+				continue;
+			}
+
+			// consult registry for each cross-entity attribute dependency type
+			for (final DependencyType dependencyType : CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES) {
+				final List<ExpressionIndexTrigger> triggers =
+					registry.getTriggersForAttribute(this.entityType, dependencyType, attributeName);
+				for (final ExpressionIndexTrigger trigger : triggers) {
+					if (mutationsByTargetType == null) {
+						mutationsByTargetType = CollectionUtils.createHashMap(4);
+					}
+					mutationsByTargetType
+						.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4))
+						.add(
+							new ReevaluateFacetExpressionMutation(
+								trigger.getReferenceName(),
+								entityPK,
+								dependencyType,
+								trigger.getScope()
+							)
+						);
+				}
+			}
+
+			if (processedAttributes == null) {
+				processedAttributes = CollectionUtils.createHashSet(8);
+			}
+			processedAttributes.add(attributeName);
+		}
+
+		return groupByTargetEntityType(mutationsByTargetType);
+	}
+
+	/**
+	 * Builds {@link IndexImplicitMutations} for the entity removal path. Entity removal changes all
+	 * properties to null, so all triggers in {@link #CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES} for the
+	 * entity type fire unconditionally without per-attribute filtering or old-vs-new comparison.
+	 *
+	 * @param registry the trigger registry to consult
+	 * @param entityPK the primary key of the removed entity
+	 * @return index mutations to dispatch, or {@link #EMPTY_INDEX_IMPLICIT_MUTATIONS} if no triggers
+	 */
+	@Nonnull
+	private IndexImplicitMutations buildRemovalMutations(
+		@Nonnull CatalogExpressionTriggerRegistry registry,
+		int entityPK
+	) {
+		Map<String, List<IndexMutation>> mutationsByTargetType = null;
+
+		for (final DependencyType dependencyType : CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES) {
+			final List<ExpressionIndexTrigger> triggers =
+				registry.getTriggersFor(this.entityType, dependencyType);
+			for (final ExpressionIndexTrigger trigger : triggers) {
+				if (mutationsByTargetType == null) {
+					mutationsByTargetType = CollectionUtils.createHashMap(4);
+				}
+				mutationsByTargetType
+					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4))
+					.add(
+						new ReevaluateFacetExpressionMutation(
+							trigger.getReferenceName(),
+							entityPK,
+							dependencyType,
+							trigger.getScope()
+						)
+					);
+			}
+		}
+
+		return groupByTargetEntityType(mutationsByTargetType);
+	}
+
+	/**
+	 * Converts a map of mutations-per-target-type into an {@link IndexImplicitMutations} result.
+	 *
+	 * @param mutationsByTargetType map of target entity type to list of index mutations, or null if empty
+	 * @return the envelope result, or {@link #EMPTY_INDEX_IMPLICIT_MUTATIONS} if null/empty
+	 */
+	@Nonnull
+	private static IndexImplicitMutations groupByTargetEntityType(
+		@Nullable Map<String, List<IndexMutation>> mutationsByTargetType
+	) {
+		if (mutationsByTargetType == null || mutationsByTargetType.isEmpty()) {
+			return EMPTY_INDEX_IMPLICIT_MUTATIONS;
+		}
+		final EntityIndexMutation[] envelopes = new EntityIndexMutation[mutationsByTargetType.size()];
+		int i = 0;
+		for (final Map.Entry<String, List<IndexMutation>> entry : mutationsByTargetType.entrySet()) {
+			envelopes[i++] = new EntityIndexMutation(
+				entry.getKey(),
+				entry.getValue().toArray(IndexMutation[]::new)
+			);
+		}
+		return new IndexImplicitMutations(envelopes);
 	}
 
 	/**

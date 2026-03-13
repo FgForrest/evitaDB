@@ -52,6 +52,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueI
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -76,6 +77,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("AttributeIndexMutator — attribute index operations")
 class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
 	};
@@ -88,6 +90,13 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	private AttributeAndCompoundSchemaProvider productAttributeSchemaProvider;
 	private final AtomicInteger priceIdSequence = new AtomicInteger(1);
 
+	/**
+	 * Finds the index of `id` in the given array, or returns -1 if not found.
+	 *
+	 * @param ids the array to search
+	 * @param id  the value to find
+	 * @return index of the value, or -1
+	 */
 	private static int findInArray(int[] ids, int id) {
 		for (int i = 0; i < ids.length; i++) {
 			int examinedId = ids[i];
@@ -116,6 +125,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should insert new unique, filter, and global-unique attributes into index")
 	void shouldInsertNewAttribute() {
 		executeAttributeUpsert(
 			this.executor,
@@ -178,6 +188,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should insert new attribute with automatic type conversion")
 	void shouldInsertNewAttributeWithAutomaticConversion() {
 		executeAttributeUpsert(
 			this.executor,
@@ -203,6 +214,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should update existing attribute values in unique, filter, and global-unique indices")
 	void shouldInsertAndThenUpdateNewAttribute() {
 		shouldInsertNewAttribute();
 
@@ -288,6 +300,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should update simple value to array value in filter index")
 	void shouldInsertSimpleAndThenUpdateWithArrayAttribute() {
 		final AttributeKey charArrayAttr = new AttributeKey(ATTRIBUTE_CHAR_ARRAY);
 		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(ATTRIBUTE_CHAR_ARRAY, Character[].class, false);
@@ -331,6 +344,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should replace array attribute values in filter index")
 	void shouldInsertAndThenUpdateNewArrayAttribute() {
 		final AttributeKey charArrayAttr = new AttributeKey(ATTRIBUTE_CHAR_ARRAY);
 		final AttributeSchema charArraySchema = AttributeSchema._internalBuild(ATTRIBUTE_CHAR_ARRAY, Character[].class, false);
@@ -375,6 +389,14 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.FILTER, ATTRIBUTE_CHAR_ARRAY);
 	}
 
+	/**
+	 * Creates an {@link ExistingAttributeValueSupplier} for the given schema and entity PK,
+	 * backed by the test's container accessor.
+	 *
+	 * @param entitySchema     the entity schema providing attribute definitions
+	 * @param entityPrimaryKey the primary key of the entity whose attributes to supply
+	 * @return a supplier that retrieves existing attribute values from test storage
+	 */
 	@Nonnull
 	ExistingAttributeValueSupplier getEntityAttributeValueSupplier(
 		@Nonnull EntitySchema entitySchema,
@@ -386,6 +408,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should reject duplicate unique code value for a different entity")
 	void shouldFailToUseUniqueCodeTwice() {
 		shouldInsertNewAttribute();
 
@@ -401,7 +424,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						() -> this.productSchema,
 						this.priceIdSequence::incrementAndGet,
 						false,
-						UNSUPPORTED_OPERATION
+						UNSUPPORTED_OPERATION,
+						null
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -426,7 +450,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						() -> this.productSchema,
 						this.priceIdSequence::incrementAndGet,
 						false,
-						UNSUPPORTED_OPERATION
+						UNSUPPORTED_OPERATION,
+						null
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -441,6 +466,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should allow reuse of a freed unique code value by another entity")
 	void shouldReuseUniqueCode() {
 		shouldInsertAndThenUpdateNewAttribute();
 		this.productIndex.resetDirty();
@@ -455,7 +481,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				() -> this.productSchema,
 				this.priceIdSequence::incrementAndGet,
 				false,
-				UNSUPPORTED_OPERATION
+				UNSUPPORTED_OPERATION,
+				null
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -475,7 +502,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				() -> this.productSchema,
 				this.priceIdSequence::incrementAndGet,
 				false,
-				UNSUPPORTED_OPERATION
+				UNSUPPORTED_OPERATION,
+				null
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -519,6 +547,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should remove attribute from unique, filter, and global-unique indices")
 	void shouldRemoveAttribute() {
 		shouldInsertNewAttribute();
 		this.productIndex.resetDirty();
@@ -576,6 +605,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
+	@DisplayName("Should apply delta to numeric attribute and update filter and sort indices")
 	void shouldApplyDeltaToAttribute() {
 		final AttributeKey attrVariantCount = new AttributeKey(ATTRIBUTE_VARIANT_COUNT);
 		final AttributeSchema variantSchema = AttributeSchema._internalBuild(ATTRIBUTE_VARIANT_COUNT, Integer.class, false);
@@ -598,7 +628,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				() -> this.productSchema,
 				this.priceIdSequence::incrementAndGet,
 				false,
-				UNSUPPORTED_OPERATION
+				UNSUPPORTED_OPERATION,
+				null
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -640,7 +671,15 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.SORT, ATTRIBUTE_VARIANT_COUNT);
 	}
 
-	private void assertContainsChangedPart(
+	/**
+	 * Asserts that the trapped changes contain a storage part of the given type for the specified
+	 * non-localized attribute.
+	 *
+	 * @param trappedChanges tracked storage part modifications
+	 * @param type           expected attribute index type (UNIQUE, FILTER, SORT, etc.)
+	 * @param attributeName  expected attribute name
+	 */
+	private static void assertContainsChangedPart(
 		@Nonnull TrappedChanges trappedChanges,
 		@Nonnull AttributeIndexType type,
 		@Nonnull String attributeName
@@ -648,7 +687,16 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertContainsChangedPart(trappedChanges, type, attributeName, null);
 	}
 
-	private void assertContainsChangedPart(
+	/**
+	 * Asserts that the trapped changes contain a storage part of the given type for the specified
+	 * attribute, optionally scoped to a locale.
+	 *
+	 * @param trappedChanges tracked storage part modifications
+	 * @param type           expected attribute index type (UNIQUE, FILTER, SORT, etc.)
+	 * @param attributeName  expected attribute name
+	 * @param locale         locale scope (null for non-localized attributes)
+	 */
+	private static void assertContainsChangedPart(
 		@Nonnull TrappedChanges trappedChanges,
 		@Nonnull AttributeIndexType type,
 		@Nonnull String attributeName,
@@ -677,6 +725,13 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		fail("Expected " + type + " storage part for attribute " + attributeName + " was not found!");
 	}
 
+	/**
+	 * Asserts that the trapped changes contain a {@link GlobalUniqueIndexStoragePart} for the
+	 * specified attribute name.
+	 *
+	 * @param trappedChanges tracked storage part modifications
+	 * @param attributeName  expected global attribute name
+	 */
 	private static void assertContainsChangedPart(
 		@Nonnull TrappedChanges trappedChanges,
 		@Nonnull String attributeName

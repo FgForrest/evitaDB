@@ -490,8 +490,7 @@ Trigger registration must account for inherited expressions:
 A post-processing step in `EntityIndexLocalMutationExecutor` consults the
 `CatalogExpressionTriggerRegistry`, keyed by the MUTATED entity's type, to find which OTHER
 entity schemas have `facetedPartially` expressions depending on this entity's data. For each
-matching trigger, the source executor checks that the relevant attribute value actually changed
-(old value ≠ new value) and creates a `ReevaluateFacetExpressionMutation` wrapped in an
+matching trigger, the source executor creates a `ReevaluateFacetExpressionMutation` wrapped in an
 `EntityIndexMutation` that carries the target schema type. The source does NOT evaluate the
 expression and does NOT determine the add/remove direction — it only detects that a relevant
 change occurred. These mutations are then sent to the appropriate `EntityCollection` for
@@ -1194,8 +1193,7 @@ Group entity G (parameterGroup "Color", PK=99) changes `inputWidgetType` from `'
 **Source executor** (ParameterGroup's `EntityIndexLocalMutationExecutor`):
 
 1. Detects that attribute `inputWidgetType` changed on entity PK 99
-2. Checks old value (`'CHECKBOX'`) ≠ new value (`'RADIO'`) — actual change confirmed
-3. Consults `CatalogExpressionTriggerRegistry` — finds a trigger for Product/"parameter"
+2. Consults `CatalogExpressionTriggerRegistry` — finds a trigger for Product/"parameter"
    depending on `GROUP_ENTITY_ATTRIBUTE` / `inputWidgetType`
 4. Creates a `ReevaluateFacetExpressionMutation` (does NOT evaluate the expression or
    determine add/remove direction):
@@ -1657,10 +1655,9 @@ class IndexMutationExecutorRegistry {
 The processing pipeline splits cleanly between source and target:
 
 **Source** (`EntityIndexLocalMutationExecutor.popIndexImplicitMutations()`):
-1. Detects which attributes changed in the current mutation batch
-2. For each changed attribute, checks that the old value ≠ new value — if equal, skips
-   (optimizes for no-change scenarios, same pattern as existing attribute index updates)
-3. Consults `CatalogExpressionTriggerRegistry` — finds matching triggers
+1. Iterates `inputMutations` to find `AttributeMutation` instances (no old-value caching needed)
+2. For each mutated attribute name, consults `CatalogExpressionTriggerRegistry` — finds matching
+   triggers. No old-vs-new comparison is performed (safe over-firing; target-side idempotency).
 4. For each matching trigger, creates a `ReevaluateFacetExpressionMutation`. The source
    does NOT evaluate the expression and does NOT determine the add/remove direction.
 5. Groups mutations by target entity type, wraps in `EntityIndexMutation`

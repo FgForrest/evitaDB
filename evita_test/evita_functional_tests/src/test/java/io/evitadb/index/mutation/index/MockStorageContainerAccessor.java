@@ -61,7 +61,7 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 
 	@Override
 	public boolean isEntityRemovedEntirely() {
-		return this.entityStorageContainer.isMarkedForRemoval();
+		return this.entityStorageContainer != null && this.entityStorageContainer.isMarkedForRemoval();
 	}
 
 	@Override

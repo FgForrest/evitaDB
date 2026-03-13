@@ -2499,7 +2499,8 @@ public final class EntityCollection implements
 			this::getInternalSchema,
 			this::nextInternalPriceId,
 			undoOnError,
-			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity()
+			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity(),
+			() -> this.catalog.getExpressionTriggerRegistry()
 		);
 
 		return localMutationExecutorCollector.execute(

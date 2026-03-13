@@ -302,17 +302,20 @@ record ImplicitMutations(
 - The `level` counter in `LocalMutationExecutorCollector` handles nesting — implicit mutations
   can themselves trigger further implicit mutations. The same nesting mechanism applies to
   index implicit mutations.
-- **Localized attribute over-firing:** The registry lookup in step 3.3c uses
-  `attributeKey.attributeName()`, discarding the `Locale` component of the `AttributeKey`.
-  This means if the same attribute name has different values in different locales, a change in
-  locale `en` will also fire triggers whose expressions only reference locale `cs`. This is
-  intentional over-firing that is safe because the target-side executor performs idempotent
-  index operations — re-evaluating an expression that did not actually change results in a
-  no-op. Precise per-locale filtering would require the trigger to declare which locales it
-  reads, which adds complexity not warranted at this stage. The old-value cache DOES use the
-  full `AttributeKey` (including locale) as the map key, so the old-vs-new comparison is
-  locale-correct — only actual value changes fire triggers. The over-firing only occurs when
-  multiple locales of the same attribute name are registered as trigger sources.
+- **No old-vs-new value comparison:** The implementation iterates `inputMutations` to find
+  `AttributeMutation` instances and fires triggers for every mutated attribute name registered
+  in the trigger registry. No old-value caching or old==new comparison is performed — this is
+  intentional safe over-firing. The `ExistingAttributeValueSupplier` already provides old values
+  during `applyMutation()` (before `ContainerizedLocalMutationExecutor` updates storage), but
+  storing those values in a separate cache would duplicate infrastructure that already exists.
+  The target-side executor performs idempotent operations, so unnecessary triggers result in a
+  no-op rather than incorrect state. Duplicate attribute names within a batch are deduplicated.
+- **Localized attribute over-firing:** The registry lookup uses `attributeKey.attributeName()`,
+  discarding the `Locale` component. This means if the same attribute name has different values
+  in different locales, a change in locale `en` will also fire triggers whose expressions only
+  reference locale `cs`. This is intentional over-firing that is safe due to target-side
+  idempotency. Precise per-locale filtering would require the trigger to declare which locales
+  it reads, which adds complexity not warranted at this stage.
 
 ## Phase Placeholders
 
@@ -350,18 +353,9 @@ for (LocalMutation<?, ?> localMutation : localMutations) {
 
 **Key insight:** When `entityIndexUpdater.applyMutation()` runs for an `AttributeMutation`, the `ContainerizedLocalMutationExecutor` has NOT yet applied that mutation to its storage parts. Therefore, `getStoragePartExistingDataFactory().getEntityAttributeValueSupplier().getAttributeValue(key)` returns the **old** value at that moment.
 
-However, by the time `popIndexImplicitMutations()` would be called (after ALL mutations and after `popImplicitMutations()`), the storage parts already contain the **new** values. Therefore, the old-value caching must happen DURING `applyMutation()`, not during `popIndexImplicitMutations()`.
+However, by the time `popIndexImplicitMutations()` would be called (after ALL mutations and after `popImplicitMutations()`), the storage parts already contain the **new** values.
 
-**Approach for old-value caching:** During `EntityIndexLocalMutationExecutor.applyMutation()`, when processing an `AttributeMutation`, capture the old value from `getStoragePartExistingDataFactory().getEntityAttributeValueSupplier().getAttributeValue(key)` and store it in a map (`Map<AttributeKey, Serializable>` or `Map<String, Serializable>` for attribute names only). This map is consulted in `popIndexImplicitMutations()` to compare old vs. new values.
-
-The new value can be obtained from the mutation itself:
-- `UpsertAttributeMutation.getAttributeValue()` — the new value
-- `RemoveAttributeMutation` — the new value is null (attribute removed)
-- `ApplyDeltaAttributeMutation.getAttributeValue()` — the delta value (the new absolute value can be computed, but for trigger purposes, any delta implies a change — including delta=0, which is safe over-firing handled idempotently by the target-side executor)
-
-For the old != new check, the simplest approach is:
-1. During `applyMutation()` for `AttributeMutation`: capture old value from storage, store `(attributeName, oldValue)` in a map
-2. During `popIndexImplicitMutations()`: for each captured attribute name, compare old value with the new value. The new value is available from the mutation (for `UpsertAttributeMutation`) or is `null` (for `RemoveAttributeMutation`)
+**Chosen approach — no old-value caching:** Rather than caching old values during `applyMutation()` and comparing with new values in `popIndexImplicitMutations()`, the implementation iterates the `inputMutations` list passed to `popIndexImplicitMutations()` directly. Any `AttributeMutation` in the list indicates that the attribute was touched; the trigger fires without old-vs-new comparison. This avoids introducing a redundant `Map<AttributeKey, Serializable>` cache — the `ExistingAttributeValueSupplier` already provides old values via the same `containerAccessor`, and creating a parallel data structure would duplicate that infrastructure. The tradeoff is safe over-firing: triggers may fire even when the net change is a no-op (e.g., upsert with the same value, or two mutations that revert to the original). This is acceptable because the target-side executor performs idempotent operations.
 
 ##### `prepare()` and `EntityRemoveMutation` handling
 
@@ -453,68 +447,43 @@ For the source-side detection, the same `existingValueSupplier.getAttributeValue
 
 ##### Group 1: Registry access from executor — constructor parameter
 
-- [ ] **1.1** Add a new field `@Nullable private final Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier` to `EntityIndexLocalMutationExecutor` (after line 156, alongside `fullEntitySupplier`). Use `@Nullable` because in test scenarios or when the feature is disabled, the supplier may not be provided. When null, `popIndexImplicitMutations()` returns an empty `IndexImplicitMutations`. JavaDoc must explain the field's purpose and why it is nullable.
+- [x] **1.1** Add a new field `@Nullable private final Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier` to `EntityIndexLocalMutationExecutor` (after line 156, alongside `fullEntitySupplier`). Use `@Nullable` because in test scenarios or when the feature is disabled, the supplier may not be provided. When null, `popIndexImplicitMutations()` returns an empty `IndexImplicitMutations`. JavaDoc must explain the field's purpose and why it is nullable.
 
-- [ ] **1.2** Add the `@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier` parameter to the constructor (after `fullEntitySupplier`, line 194). Assign it to the field. No validation needed (null is allowed).
+- [x] **1.2** Add the `@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier` parameter to the constructor (after `fullEntitySupplier`, line 194). Assign it to the field. No validation needed (null is allowed).
 
-- [ ] **1.3** Update the constructor call in `EntityCollection.applyMutations()` (line 2466-2475) to pass a new argument: `() -> this.catalog.getExpressionTriggerRegistry()`. The lambda captures `this.catalog` which is already available. This follows the existing `Supplier<EntitySchema> schemaAccessor` pattern.
+- [x] **1.3** Update the constructor call in `EntityCollection.applyMutations()` (line 2466-2475) to pass a new argument: `() -> this.catalog.getExpressionTriggerRegistry()`. The lambda captures `this.catalog` which is already available. This follows the existing `Supplier<EntitySchema> schemaAccessor` pattern.
 
-- [ ] **1.4** Update all existing test usages of the `EntityIndexLocalMutationExecutor` constructor to pass `null` for the new parameter (or a mock supplier in tests that exercise the trigger logic). Search for `new EntityIndexLocalMutationExecutor(` across the test modules to find all call sites.
+- [x] **1.4** Update all existing test usages of the `EntityIndexLocalMutationExecutor` constructor to pass `null` for the new parameter (or a mock supplier in tests that exercise the trigger logic). Search for `new EntityIndexLocalMutationExecutor(` across the test modules to find all call sites.
 
-##### Group 2: Old-value caching during `applyMutation()`
+##### Group 2: ~~Old-value caching during `applyMutation()`~~ (Removed)
 
-- [ ] **2.1** Add a new field `@Nullable private Map<AttributeKey, Serializable> cachedOldAttributeValues` to `EntityIndexLocalMutationExecutor` (after `memoizedScope`, line 184). Lazily initialized. The map stores `AttributeKey -> oldValue` pairs captured during `applyMutation()` for entity-level attributes. Value is `null` when the attribute did not exist before the mutation.
-
-- [ ] **2.2** In `EntityIndexLocalMutationExecutor.applyMutation()`, within the `AttributeMutation` branch (line 326-348), add old-value capture BEFORE the existing index update logic:
-  ```java
-  } else if (localMutation instanceof AttributeMutation attributeMutation) {
-      // NEW: capture old value for trigger detection (before index update)
-      if (this.triggerRegistrySupplier != null) {
-          captureOldAttributeValue(attributeMutation.getAttributeKey());
-      }
-      // existing code follows...
-  ```
-  The capture must happen BEFORE `getStoragePartExistingDataFactory().getEntityAttributeValueSupplier()` is called for index updates, because both read from the same storage part accessor. Since the storage hasn't been mutated yet (storage mutation happens after index mutation in the loop), the old value is still available.
-
-- [ ] **2.3** Implement `private void captureOldAttributeValue(@Nonnull AttributeKey attributeKey)`:
-  1. If `this.cachedOldAttributeValues == null`, create `new HashMap<>(8)` (use `CollectionUtils.createHashMap(8)` per code style)
-  2. Use `putIfAbsent` to avoid overwriting an already-captured old value (in case the same attribute is mutated multiple times in one batch — only the original old value matters)
-  3. Retrieve old value via `getStoragePartExistingDataFactory().getEntityAttributeValueSupplier().getAttributeValue(attributeKey)` — map `Optional<AttributeValue>` to `attributeValue.value()` (the `Serializable` payload), or store a sentinel `null` if the attribute did not exist
-
-- [ ] **2.4** Handle the sentinel value for "attribute did not exist" — since `HashMap` cannot distinguish between "key mapped to null" and "key not present", use `containsKey` check in `captureOldAttributeValue()` before `putIfAbsent`, or use a private sentinel object `private static final Serializable ATTRIBUTE_DID_NOT_EXIST = new Serializable() {}` and store it when the attribute was absent. In `popIndexImplicitMutations()`, treat the sentinel as `null` for comparison purposes.
-
-  **Simplification note:** In practice, `ExistingAttributeValueSupplier.getAttributeValue()` already filters out dropped attributes (via `Droppable::exists`), so `Optional.empty()` means "attribute did not exist or was dropped." The `AttributeValue.value()` field is `@Nullable` in the record definition, but non-dropped attributes typically have non-null values. A simpler implementation may use `null` in the map to mean "absent" and rely on the fact that existing attribute values are non-null `Serializable` — however, since the `@Nullable` annotation on `AttributeValue.value()` does not guarantee this, the sentinel approach is the safer choice. Implementers may simplify if analysis of all mutation paths confirms non-null values for non-dropped attributes.
+> **Design change:** Old-value caching was removed during implementation. The `ExistingAttributeValueSupplier` already provides old values via the same `containerAccessor`, so a parallel `Map<AttributeKey, Serializable>` cache would duplicate existing infrastructure. Instead, `popIndexImplicitMutations()` iterates the `inputMutations` list directly to find `AttributeMutation` instances and fires triggers for any mutated attribute name — no old-vs-new comparison. This is safe over-firing handled idempotently by the target-side executor. No changes to `applyMutation()` are needed for trigger detection.
 
 ##### Group 3: `popIndexImplicitMutations()` implementation
 
-- [ ] **3.1** The `IndexImplicitMutations` record and the stub `popIndexImplicitMutations()` method are created by **WBS-05** (Group 6). This task assumes they already exist. Add a static constant for the empty case (if not already present from WBS-05): `private static final IndexImplicitMutations EMPTY_INDEX_IMPLICIT_MUTATIONS = new IndexImplicitMutations(new EntityIndexMutation[0]);`
+- [x] **3.1** The `IndexImplicitMutations` record and the stub `popIndexImplicitMutations()` method are created by **WBS-05** (Group 6). This task assumes they already exist. Add a static constant for the empty case (if not already present from WBS-05): `private static final IndexImplicitMutations EMPTY_INDEX_IMPLICIT_MUTATIONS = new IndexImplicitMutations(new EntityIndexMutation[0]);`
 
-- [ ] **3.2** Implement `@Nonnull public IndexImplicitMutations popIndexImplicitMutations(@Nonnull List<? extends LocalMutation<?, ?>> inputMutations)`:
+- [x] **3.2** Implement `@Nonnull public IndexImplicitMutations popIndexImplicitMutations(@Nonnull List<? extends LocalMutation<?, ?>> inputMutations)`:
   1. **Early return if no registry:** If `this.triggerRegistrySupplier == null`, return `EMPTY_INDEX_IMPLICIT_MUTATIONS`
   2. **Get registry:** `final CatalogExpressionTriggerRegistry registry = this.triggerRegistrySupplier.get()`
   3. **Determine entity PK:** `final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.NEW)`
   4. **Branch on removal vs. attribute change** (mutually exclusive — only one branch runs):
      - If `this.containerAccessor.isEntityRemovedEntirely()` — entity removal path (Group 4).
-       This branch bypasses the per-attribute old-vs-new scanning entirely. Entity removal
-       changes ALL properties, so the removal path fires ALL registered triggers for the
-       entity type without consulting `cachedOldAttributeValues` or scanning `inputMutations`.
-     - Otherwise — attribute change path (this group, step 3.3). Only runs for non-removal
-       mutations where specific attributes were modified.
-  5. **Clear cached old values** at the end: `this.cachedOldAttributeValues = null` (reset for potential reuse)
+       This branch fires ALL registered triggers for the entity type unconditionally.
+     - Otherwise — attribute change path (this group, step 3.3). Iterates `inputMutations`
+       to find `AttributeMutation` instances.
 
-- [ ] **3.3** Attribute change path within `popIndexImplicitMutations()`:
-  1. If `this.cachedOldAttributeValues == null` or empty, return `EMPTY_INDEX_IMPLICIT_MUTATIONS` (no attributes were mutated)
-  2. Create a mutable `Map<String, List<IndexMutation>> mutationsByTargetType` (keyed by target entity type)
-  3. For each entry `(attributeKey, oldValue)` in `this.cachedOldAttributeValues`:
-     a. Determine the new value: scan `inputMutations` for the matching entity-level `AttributeMutation` (note: `ReferenceAttributeMutation` is wrapped in `ReferenceMutation` and falls under a different branch in `applyMutation()`, so it never appears in `cachedOldAttributeValues` and is not scanned here). For `UpsertAttributeMutation`, get `getAttributeValue()`; for `RemoveAttributeMutation`, new value is null; for `ApplyDeltaAttributeMutation`, any delta implies a change (skip the old==new check). Note: for `EntityRemoveMutation`, the `inputMutations` list is the computed list from `computeLocalMutationsForEntityRemoval()` containing `RemoveAttributeMutation` instances, but this code path never runs for removals — the removal branch (Group 4) handles that case.
-     b. Compare old and new values: `if (Objects.equals(oldValue, newValue)) continue;` — the old==new optimization
-     c. Query registry: `registry.getTriggersForAttribute(this.entityType, dependencyType, attributeKey.attributeName())` — call for EACH `DependencyType` value (`REFERENCED_ENTITY_ATTRIBUTE`, `GROUP_ENTITY_ATTRIBUTE`)
-     d. For each returned trigger, create a `ReevaluateFacetExpressionMutation(trigger.getReferenceName(), entityPK, trigger.getDependencyType(), trigger.getScope())`
-     e. Add to `mutationsByTargetType` grouped by `trigger.getOwnerEntityType()`
-  4. Convert `mutationsByTargetType` to `EntityIndexMutation[]` — one envelope per target entity type, containing all mutations for that target
-  5. Return `new IndexImplicitMutations(envelopes)`
+- [x] **3.3** Attribute change path within `popIndexImplicitMutations()`:
+  1. Iterate `inputMutations`, filtering for `AttributeMutation` instances
+  2. For each `AttributeMutation`, extract `attributeKey.attributeName()`
+  3. Deduplicate: track processed attribute names in a `Set<String>` to avoid firing the same trigger multiple times when the batch contains multiple mutations on the same attribute
+  4. Query registry: `registry.getTriggersForAttribute(this.entityType, dependencyType, attributeName)` — call for EACH `DependencyType` value (`REFERENCED_ENTITY_ATTRIBUTE`, `GROUP_ENTITY_ATTRIBUTE`)
+  5. For each returned trigger, create a `ReevaluateFacetExpressionMutation(trigger.getReferenceName(), entityPK, trigger.getDependencyType(), trigger.getScope())`
+  6. Add to `Map<String, List<IndexMutation>> mutationsByTargetType` grouped by `trigger.getOwnerEntityType()`
+  7. Convert to `EntityIndexMutation[]` — one envelope per target entity type
+  8. Return `new IndexImplicitMutations(envelopes)`, or `EMPTY_INDEX_IMPLICIT_MUTATIONS` if no triggers fired
 
-- [ ] **3.4** Implement the grouping-and-wrapping helper method `@Nonnull private EntityIndexMutation[] groupByTargetEntityType(@Nonnull Map<String, List<IndexMutation>> mutationsByTargetType)`:
+- [x] **3.4** Implement the grouping-and-wrapping helper method `@Nonnull private EntityIndexMutation[] groupByTargetEntityType(@Nonnull Map<String, List<IndexMutation>> mutationsByTargetType)`:
   1. If map is empty, return empty array
   2. Allocate `EntityIndexMutation[]` of size `mutationsByTargetType.size()`
   3. For each entry, create `new EntityIndexMutation(targetEntityType, mutations.toArray(IndexMutation[]::new))`
@@ -522,7 +491,7 @@ For the source-side detection, the same `existingValueSupplier.getAttributeValue
 
 ##### Group 4: `EntityRemoveMutation` trigger path
 
-- [ ] **4.1** In the removal branch of `popIndexImplicitMutations()`:
+- [x] **4.1** In the removal branch of `popIndexImplicitMutations()`:
   1. Create `Map<String, List<IndexMutation>> mutationsByTargetType`
   2. Query registry with `registry.getTriggersFor(this.entityType, DependencyType.REFERENCED_ENTITY_ATTRIBUTE)` — all triggers, no attribute filter (entity removal changes ALL properties)
   3. Query registry with `registry.getTriggersFor(this.entityType, DependencyType.GROUP_ENTITY_ATTRIBUTE)` — same for group entity dependency
@@ -530,7 +499,7 @@ For the source-side detection, the same `existingValueSupplier.getAttributeValue
   5. Group by `trigger.getOwnerEntityType()` and wrap in `EntityIndexMutation` envelopes using the helper from 3.4
   6. Return the result
 
-- [ ] **4.2** Ensure no duplicate triggers when the same trigger appears under both dependency types — the registry keys by `(entityType, dependencyType)` so each query returns a distinct set. However, if the same expression depends on both `referencedEntity` and `groupEntity` of the same entity type (unlikely but possible), the registry would have separate trigger entries. This is correct — each fires independently, and the target-side executor handles de-duplication naturally (idempotent operations).
+- [x] **4.2** Ensure no duplicate triggers when the same trigger appears under both dependency types — the registry keys by `(entityType, dependencyType)` so each query returns a distinct set. However, if the same expression depends on both `referencedEntity` and `groupEntity` of the same entity type (unlikely but possible), the registry would have separate trigger entries. This is correct — each fires independently, and the target-side executor handles de-duplication naturally (idempotent operations).
 
 ##### Group 5: Dispatch contract for `LocalMutationExecutorCollector` (implementation in WBS-10)
 
@@ -539,7 +508,7 @@ For the source-side detection, the same `existingValueSupplier.getAttributeValue
 > that WBS-08's `popIndexImplicitMutations()` output is well-defined for WBS-10 consumption.
 > The code snippet below is illustrative — it shows how WBS-10 will consume the output.
 
-- [ ] **5.1** Verify that the `popIndexImplicitMutations()` return type (`IndexImplicitMutations`) and its `indexMutations()` array provide everything WBS-10 needs for dispatch. The expected dispatch pattern (implemented by WBS-10):
+- [x] **5.1** Verify that the `popIndexImplicitMutations()` return type (`IndexImplicitMutations`) and its `indexMutations()` array provide everything WBS-10 needs for dispatch. The expected dispatch pattern (implemented by WBS-10):
   ```java
   // Step 5b: index trigger mutations (implemented by WBS-10)
   final IndexImplicitMutations indexImplicit =
@@ -552,29 +521,27 @@ For the source-side detection, the same `existingValueSupplier.getAttributeValue
   }
   ```
 
-- [ ] **5.2** The `EntityCollection.applyIndexMutations(EntityIndexMutation)` method does not exist yet — it will be created in **WBS-10** (which also owns the `IndexMutationTarget` interface and executor registry wiring). If WBS-10 is not yet implemented and compilation requires a call target, WBS-10 should provide a stub `applyIndexMutations()` method on `EntityCollection`.
+- [x] **5.2** The `EntityCollection.applyIndexMutations(EntityIndexMutation)` method does not exist yet — it will be created in **WBS-10** (which also owns the `IndexMutationTarget` interface and executor registry wiring). If WBS-10 is not yet implemented and compilation requires a call target, WBS-10 should provide a stub `applyIndexMutations()` method on `EntityCollection`.
 
-- [ ] **5.3** Verify that `EntityIndexMutation.entityType()` correctly identifies the target collection for routing. This is a WBS-05 contract verified here.
+- [x] **5.3** Verify that `EntityIndexMutation.entityType()` correctly identifies the target collection for routing. This is a WBS-05 contract verified here.
 
-- [ ] **5.4** Document the ordering constraint for WBS-10: `popIndexImplicitMutations()` must be called AFTER `popImplicitMutations()` (container first, then index triggers). The `level` counter does not need changes. If `applyIndexMutations()` on the target collection triggers further mutations on other entities, those will be at `level + 1` and handled by the existing nesting mechanism.
+- [x] **5.4** Document the ordering constraint for WBS-10: `popIndexImplicitMutations()` must be called AFTER `popImplicitMutations()` (container first, then index triggers). The `level` counter does not need changes. If `applyIndexMutations()` on the target collection triggers further mutations on other entities, those will be at `level + 1` and handled by the existing nesting mechanism.
 
 ##### Group 6: Scope handling
 
-- [ ] **6.1** The `ReevaluateFacetExpressionMutation` carries a `Scope` field. The scope comes from the trigger (which is derived from `ReferenceSchema.facetedPartiallyInScopes()` — a `Map<Scope, Expression>`). Each trigger is scope-specific. The executor gets the scope from the trigger, not from the current entity.
+- [x] **6.1** The `ReevaluateFacetExpressionMutation` carries a `Scope` field. The scope comes from the trigger (which is derived from `ReferenceSchema.facetedPartiallyInScopes()` — a `Map<Scope, Expression>`). Each trigger is scope-specific. The executor gets the scope from the trigger, not from the current entity.
 
-- [ ] **6.2** Verify that `getScope()` on the executor (line 214) returns the correct scope for the mutated entity. This scope is NOT used for the trigger mutation — the trigger's own scope is used. Document this distinction in comments.
+- [x] **6.2** Verify that `getScope()` on the executor (line 214) returns the correct scope for the mutated entity. This scope is NOT used for the trigger mutation — the trigger's own scope is used. Document this distinction in comments.
 
 ##### Group 7: Edge cases
 
-- [ ] **7.1** Handle the case where `inputMutations` contains multiple `UpsertAttributeMutation` for the same attribute key (unlikely in a single mutation batch but technically possible). The old-value cache uses `putIfAbsent` (Group 2.3), so only the first old value is captured. The new value should be taken from the LAST mutation for that attribute key in the list. Implement this by scanning `inputMutations` in forward order and keeping the last `AttributeMutation` per key.
+- [x] **7.1** Handle the case where `inputMutations` contains multiple `AttributeMutation` for the same attribute name (unlikely in a single mutation batch but technically possible). The implementation deduplicates by tracking processed attribute names in a `Set<String>`. Only the first occurrence of an attribute name fires triggers — subsequent mutations on the same attribute in the batch are skipped. This is correct because a single trigger firing is sufficient regardless of how many mutations touch the same attribute.
 
-  **Alternative approach:** Instead of scanning `inputMutations` for the new value, read the post-mutation value directly from `getStoragePartExistingDataFactory().getEntityAttributeValueSupplier().getAttributeValue(attributeKey)`. By the time `popIndexImplicitMutations()` runs, all mutations have been applied to storage, so this returns the new value. This eliminates the mutation list scanning and naturally handles the multiple-mutations-per-key case. The implementer should evaluate which approach is simpler and more robust — the storage-read approach avoids edge cases with mutation scanning but couples the new-value retrieval to the storage accessor's timing guarantees.
+- [x] **7.2** Handle `ReferenceAttributeMutation` — attributes on references (e.g., `$reference.attributes['x']`). These are NOT cross-entity triggers — they are local mutations on the owning entity's reference data. The cross-entity triggers only fire for entity-level attributes on referenced/group entities. Verify that `ReferenceAttributeMutation` is NOT captured in the old-value cache. In the `applyMutation()` method, `ReferenceAttributeMutation` falls under the `ReferenceMutation` branch (line 307), NOT the `AttributeMutation` branch (line 326), so it is naturally excluded.
 
-- [ ] **7.2** Handle `ReferenceAttributeMutation` — attributes on references (e.g., `$reference.attributes['x']`). These are NOT cross-entity triggers — they are local mutations on the owning entity's reference data. The cross-entity triggers only fire for entity-level attributes on referenced/group entities. Verify that `ReferenceAttributeMutation` is NOT captured in the old-value cache. In the `applyMutation()` method, `ReferenceAttributeMutation` falls under the `ReferenceMutation` branch (line 307), NOT the `AttributeMutation` branch (line 326), so it is naturally excluded.
+- [x] **7.3** Handle `SetEntityScopeMutation` — when an entity changes scope, this does NOT trigger cross-entity re-evaluation (scope changes affect the local entity's indexing, not cross-entity expressions). No action needed — scope mutations are handled in a separate branch (line 351) and do not produce attribute changes.
 
-- [ ] **7.3** Handle `SetEntityScopeMutation` — when an entity changes scope, this does NOT trigger cross-entity re-evaluation (scope changes affect the local entity's indexing, not cross-entity expressions). No action needed — scope mutations are handled in a separate branch (line 351) and do not produce attribute changes.
-
-- [ ] **7.4** Handle empty trigger registry — when no expressions depend on the mutated entity type, both `getTriggersFor()` and `getTriggersForAttribute()` return empty lists. The method returns `EMPTY_INDEX_IMPLICIT_MUTATIONS`. No error or logging needed.
+- [x] **7.4** Handle empty trigger registry — when no expressions depend on the mutated entity type, both `getTriggersFor()` and `getTriggersForAttribute()` return empty lists. The method returns `EMPTY_INDEX_IMPLICIT_MUTATIONS`. No error or logging needed.
 
 ### Test Cases
 
@@ -591,7 +558,7 @@ Triggers returned by the mock registry target entity type `"product"` with refer
 
 ##### Category 1: Attribute change detection — basic trigger firing
 
-- [ ] `pop_index_implicit_mutations_returns_mutation_when_attribute_value_changes` —
+- [x] `pop_index_implicit_mutations_returns_mutation_when_attribute_value_changes` —
   Pre-load attribute `inputWidgetType` with old value `"CHECKBOX"`. Apply
   `UpsertAttributeMutation("inputWidgetType", "RADIO")`. Registry has a
   `GROUP_ENTITY_ATTRIBUTE` trigger for `("parameterGroup", "inputWidgetType")` targeting
@@ -601,32 +568,32 @@ Triggers returned by the mock registry target entity type `"product"` with refer
   `mutatedEntityPK = entityPK`, `dependencyType = GROUP_ENTITY_ATTRIBUTE`, and
   `scope = LIVE`.
 
-- [ ] `pop_index_implicit_mutations_returns_mutation_for_referenced_entity_attribute` —
+- [x] `pop_index_implicit_mutations_returns_mutation_for_referenced_entity_attribute` —
   Pre-load attribute `status` with old value `"ACTIVE"`. Apply
   `UpsertAttributeMutation("status", "INACTIVE")`. Registry has a
   `REFERENCED_ENTITY_ATTRIBUTE` trigger for `("parameterGroup", "status")` targeting
   `"product"/"parameter"`. Call `popIndexImplicitMutations()`. Expect: one
   `ReevaluateFacetExpressionMutation` with `dependencyType = REFERENCED_ENTITY_ATTRIBUTE`.
 
-- [ ] `pop_index_implicit_mutations_fires_for_attribute_removal` —
+- [x] `pop_index_implicit_mutations_fires_for_attribute_removal` —
   Pre-load attribute `inputWidgetType` with old value `"CHECKBOX"`. Apply
   `RemoveAttributeMutation("inputWidgetType")`. Registry has a matching trigger. Call
   `popIndexImplicitMutations()`. Expect: one `ReevaluateFacetExpressionMutation` (old was
   `"CHECKBOX"`, new is `null` — values differ).
 
-- [ ] `pop_index_implicit_mutations_fires_for_attribute_creation` —
+- [x] `pop_index_implicit_mutations_fires_for_attribute_creation` —
   No pre-existing attribute `inputWidgetType` (old value is `null`). Apply
   `UpsertAttributeMutation("inputWidgetType", "CHECKBOX")`. Registry has a matching trigger.
   Call `popIndexImplicitMutations()`. Expect: one `ReevaluateFacetExpressionMutation` (old was
   `null`, new is `"CHECKBOX"` — values differ).
 
-- [ ] `pop_index_implicit_mutations_fires_for_delta_attribute_mutation` —
+- [x] `pop_index_implicit_mutations_fires_for_delta_attribute_mutation` —
   Pre-load numeric attribute `priority` with old value `5`. Apply
   `ApplyDeltaAttributeMutation("priority", 3)`. Registry has a matching trigger. Call
   `popIndexImplicitMutations()`. Expect: trigger fires (any delta implies a change; the
   old-new comparison is skipped or always returns "changed" for delta mutations).
 
-- [ ] `pop_index_implicit_mutations_fires_for_zero_delta_attribute_mutation` —
+- [x] `pop_index_implicit_mutations_fires_for_zero_delta_attribute_mutation` —
   Pre-load numeric attribute `priority` with old value `5`. Apply
   `ApplyDeltaAttributeMutation("priority", 0)`. Registry has a matching trigger. Call
   `popIndexImplicitMutations()`. Expect: trigger fires. **Design decision:** A delta of 0
@@ -657,24 +624,24 @@ Triggers returned by the mock registry target entity type `"product"` with refer
 
 ##### Category 3: Registry consultation
 
-- [ ] `pop_index_implicit_mutations_returns_empty_when_no_triggers_registered` —
+- [x] `pop_index_implicit_mutations_returns_empty_when_no_triggers_registered` —
   Pre-load and change attribute `inputWidgetType`. Registry returns empty list for all
   queries against `"parameterGroup"`. Call `popIndexImplicitMutations()`. Expect: empty
   `IndexImplicitMutations`.
 
-- [ ] `pop_index_implicit_mutations_queries_registry_for_both_dependency_types` —
+- [x] `pop_index_implicit_mutations_queries_registry_for_both_dependency_types` —
   Pre-load and change attribute `status`. Registry has triggers under BOTH
   `REFERENCED_ENTITY_ATTRIBUTE` and `GROUP_ENTITY_ATTRIBUTE` for `("parameterGroup",
   "status")`. Call `popIndexImplicitMutations()`. Expect: `ReevaluateFacetExpressionMutation`
   instances for BOTH dependency types.
 
-- [ ] `pop_index_implicit_mutations_queries_registry_with_correct_attribute_name` —
+- [x] `pop_index_implicit_mutations_queries_registry_with_correct_attribute_name` —
   Pre-load and change attributes `inputWidgetType` and `status`. Registry has a trigger ONLY
   for `inputWidgetType`, NOT for `status`. Call `popIndexImplicitMutations()`. Expect: only
   ONE `ReevaluateFacetExpressionMutation` (for `inputWidgetType`); the irrelevant attribute
   `status` produces no trigger.
 
-- [ ] `pop_index_implicit_mutations_fires_triggers_for_multiple_changed_attributes` —
+- [x] `pop_index_implicit_mutations_fires_triggers_for_multiple_changed_attributes` —
   Pre-load attributes `inputWidgetType` (old value `"CHECKBOX"`) and `status` (old value
   `"ACTIVE"`). Apply `UpsertAttributeMutation("inputWidgetType", "RADIO")` and
   `UpsertAttributeMutation("status", "INACTIVE")`. Registry has matching triggers for BOTH
@@ -683,99 +650,104 @@ Triggers returned by the mock registry target entity type `"product"` with refer
 
 ##### Category 4: `ReevaluateFacetExpressionMutation` creation correctness
 
-- [ ] `pop_index_implicit_mutations_creates_mutation_with_correct_reference_name` —
+- [x] `pop_index_implicit_mutations_creates_mutation_with_correct_reference_name` —
   Trigger specifies `referenceName = "parameter"`. Verify the produced
   `ReevaluateFacetExpressionMutation` carries `referenceName = "parameter"`.
+  **Covered by:** `shouldReturnMutationWhenAttributeValueChanges` (asserts referenceName).
 
-- [ ] `pop_index_implicit_mutations_creates_mutation_with_correct_entity_pk` —
+- [x] `pop_index_implicit_mutations_creates_mutation_with_correct_entity_pk` —
   Executor is constructed with entity PK = 99. Verify the produced
   `ReevaluateFacetExpressionMutation` carries `mutatedEntityPK = 99`.
+  **Covered by:** `shouldReturnMutationWhenAttributeValueChanges` (asserts mutatedEntityPK)
+  and `shouldCarryCorrectEntityPkInRemovalMutations` (uses custom PK=42).
 
-- [ ] `pop_index_implicit_mutations_creates_mutation_with_scope_from_trigger` —
+- [x] `pop_index_implicit_mutations_creates_mutation_with_scope_from_trigger` —
   Trigger specifies `scope = ARCHIVED`. Verify the produced mutation carries
   `scope = ARCHIVED` (NOT the executor's own entity scope). This confirms the scope comes from
   the trigger, not from the mutated entity.
+  **Covered by:** `shouldUseScopeFromTriggerNotEntity` (asserts ARCHIVED scope from trigger).
 
-- [ ] `pop_index_implicit_mutations_creates_mutation_with_dependency_type_from_trigger` —
+- [x] `pop_index_implicit_mutations_creates_mutation_with_dependency_type_from_trigger` —
   Trigger specifies `dependencyType = GROUP_ENTITY_ATTRIBUTE`. Verify the produced mutation
   carries `dependencyType = GROUP_ENTITY_ATTRIBUTE`.
+  **Covered by:** `shouldReturnMutationWhenAttributeValueChanges` (asserts dependencyType).
 
 ##### Category 5: Grouping by target entity type
 
-- [ ] `pop_index_implicit_mutations_groups_mutations_into_single_envelope_per_target` —
+- [x] `pop_index_implicit_mutations_groups_mutations_into_single_envelope_per_target` —
   Registry returns TWO triggers for the same target `"product"` (e.g., two references
   `"parameter"` and `"brand"` on Product both depend on the same source entity type). Apply
   one attribute change. Call `popIndexImplicitMutations()`. Expect: ONE `EntityIndexMutation`
   with `entityType = "product"` containing TWO `ReevaluateFacetExpressionMutation` instances.
 
-- [ ] `pop_index_implicit_mutations_creates_separate_envelopes_for_different_targets` —
+- [x] `pop_index_implicit_mutations_creates_separate_envelopes_for_different_targets` —
   Registry returns triggers for TWO different targets: `"product"` and `"offer"`. Apply one
   attribute change. Call `popIndexImplicitMutations()`. Expect: TWO `EntityIndexMutation`
   envelopes — one with `entityType = "product"`, one with `entityType = "offer"`.
 
-- [ ] `pop_index_implicit_mutations_creates_correct_envelope_entity_type` —
+- [x] `pop_index_implicit_mutations_creates_correct_envelope_entity_type` —
   Verify that each `EntityIndexMutation.entityType()` matches `trigger.getOwnerEntityType()`,
   NOT the source entity's type.
 
 ##### Category 6: `EntityIndexMutation` wrapping
 
-- [ ] `pop_index_implicit_mutations_wraps_mutations_in_entity_index_mutation` —
+- [x] `pop_index_implicit_mutations_wraps_mutations_in_entity_index_mutation` —
   Apply attribute change with a matching trigger. Verify the returned
   `IndexImplicitMutations.indexMutations()` is a non-empty `EntityIndexMutation[]` and each
   envelope's `mutations()` array contains `IndexMutation` instances that are
   `ReevaluateFacetExpressionMutation`.
 
-- [ ] `pop_index_implicit_mutations_returns_empty_array_when_no_changes` —
+- [x] `pop_index_implicit_mutations_returns_empty_array_when_no_changes` —
   Apply NO attribute mutations (e.g., only an `AssociatedDataMutation`). Call
   `popIndexImplicitMutations()`. Expect: `IndexImplicitMutations` with an empty
   `indexMutations` array.
 
 ##### Category 7: Entity removal as trigger source
 
-- [ ] `pop_index_implicit_mutations_fires_all_triggers_on_entity_removal` —
+- [x] `pop_index_implicit_mutations_fires_all_triggers_on_entity_removal` —
   Mark entity as removed (`containerAccessor.isEntityRemovedEntirely() == true`). Registry
   has triggers under BOTH `REFERENCED_ENTITY_ATTRIBUTE` and `GROUP_ENTITY_ATTRIBUTE` for
   `"parameterGroup"`. Call `popIndexImplicitMutations()`. Expect:
   `ReevaluateFacetExpressionMutation` instances for ALL triggers under BOTH dependency types,
   WITHOUT attribute-name filtering.
 
-- [ ] `pop_index_implicit_mutations_removal_fires_without_old_new_comparison` —
+- [x] `pop_index_implicit_mutations_removal_fires_without_old_new_comparison` —
   Mark entity as removed. Registry has triggers. No old-value cache is populated (removal does
   not need per-attribute old-new comparison). Call `popIndexImplicitMutations()`. Expect:
   triggers fire unconditionally (entity removal changes all properties to `null`).
 
-- [ ] `pop_index_implicit_mutations_removal_groups_by_target_entity_type` —
+- [x] `pop_index_implicit_mutations_removal_groups_by_target_entity_type` —
   Mark entity as removed. Registry returns triggers for TWO different target entity types
   (`"product"` and `"offer"`). Call `popIndexImplicitMutations()`. Expect: TWO
   `EntityIndexMutation` envelopes with correct target types.
 
-- [ ] `pop_index_implicit_mutations_removal_carries_correct_entity_pk` —
+- [x] `pop_index_implicit_mutations_removal_carries_correct_entity_pk` —
   Executor PK = 42. Mark entity as removed. Verify produced
   `ReevaluateFacetExpressionMutation` carries `mutatedEntityPK = 42`.
 
-- [ ] `pop_index_implicit_mutations_removal_returns_empty_when_no_triggers` —
+- [x] `pop_index_implicit_mutations_removal_returns_empty_when_no_triggers` —
   Mark entity as removed. Registry returns empty lists for all dependency types. Call
   `popIndexImplicitMutations()`. Expect: empty `IndexImplicitMutations`.
 
 ##### Category 8: Null registry supplier
 
-- [ ] `pop_index_implicit_mutations_returns_empty_with_null_supplier` —
+- [x] `pop_index_implicit_mutations_returns_empty_with_null_supplier` —
   Construct executor with `null` trigger registry supplier. Apply attribute mutations. Call
   `popIndexImplicitMutations()`. Expect: empty `IndexImplicitMutations`, no NPE.
 
-- [ ] `pop_index_implicit_mutations_removal_returns_empty_with_null_supplier` —
+- [x] `pop_index_implicit_mutations_removal_returns_empty_with_null_supplier` —
   Construct executor with `null` trigger registry supplier. Mark entity as removed. Call
   `popIndexImplicitMutations()`. Expect: empty `IndexImplicitMutations`, no NPE.
 
 ##### Category 9: Multiple triggers per attribute
 
-- [ ] `pop_index_implicit_mutations_fires_multiple_triggers_for_same_attribute` —
+- [x] `pop_index_implicit_mutations_fires_multiple_triggers_for_same_attribute` —
   Registry returns THREE triggers for `("parameterGroup", GROUP_ENTITY_ATTRIBUTE,
   "inputWidgetType")` — e.g., three different references on `"product"` all depend on the
   same attribute. Apply one attribute change. Expect: three
   `ReevaluateFacetExpressionMutation` instances in the result.
 
-- [ ] `pop_index_implicit_mutations_fires_triggers_from_both_dependency_types_independently` —
+- [x] `pop_index_implicit_mutations_fires_triggers_from_both_dependency_types_independently` —
   Expression depends on both `referencedEntity.attributes['status']` AND
   `groupEntity?.attributes['status']` — registry has entries for BOTH
   `REFERENCED_ENTITY_ATTRIBUTE` and `GROUP_ENTITY_ATTRIBUTE` under
@@ -784,13 +756,13 @@ Triggers returned by the mock registry target entity type `"product"` with refer
 
 ##### Category 10: Scope handling
 
-- [ ] `pop_index_implicit_mutations_creates_separate_mutations_for_different_scopes` —
+- [x] `pop_index_implicit_mutations_creates_separate_mutations_for_different_scopes` —
   Registry returns two triggers for the same reference `"parameter"` but with different scopes
   (`LIVE` and `ARCHIVED`). Apply attribute change. Expect: TWO
   `ReevaluateFacetExpressionMutation` instances with `scope = LIVE` and `scope = ARCHIVED`
   respectively.
 
-- [ ] `pop_index_implicit_mutations_scope_comes_from_trigger_not_entity` —
+- [x] `pop_index_implicit_mutations_scope_comes_from_trigger_not_entity` —
   Entity is in `LIVE` scope. Trigger specifies `scope = ARCHIVED`. Apply attribute change.
   Expect: produced mutation carries `scope = ARCHIVED` (trigger's scope), NOT `LIVE` (entity's
   scope).
@@ -827,29 +799,29 @@ Triggers returned by the mock registry target entity type `"product"` with refer
 
 ##### Category 12: Edge cases — mutation type filtering
 
-- [ ] `pop_index_implicit_mutations_ignores_reference_attribute_mutations` —
+- [x] `pop_index_implicit_mutations_ignores_reference_attribute_mutations` —
   Apply `ReferenceAttributeMutation` (attribute on a reference, not an entity-level
   attribute). Registry has triggers. Call `popIndexImplicitMutations()`. Expect: empty result.
   `ReferenceAttributeMutation` falls under the `ReferenceMutation` branch in
   `applyMutation()`, NOT the `AttributeMutation` branch, so no old-value caching occurs.
 
-- [ ] `pop_index_implicit_mutations_ignores_associated_data_mutations` —
+- [x] `pop_index_implicit_mutations_ignores_associated_data_mutations` —
   Apply `AssociatedDataMutation`. Call `popIndexImplicitMutations()`. Expect: empty result
   (associated data mutations do not trigger cross-entity re-evaluation).
 
-- [ ] `pop_index_implicit_mutations_ignores_price_mutations` —
+- [x] `pop_index_implicit_mutations_ignores_price_mutations` —
   Apply `UpsertPriceMutation`. Call `popIndexImplicitMutations()`. Expect: empty result
   (price mutations are not cross-entity attribute triggers).
 
-- [ ] `pop_index_implicit_mutations_ignores_parent_mutations` —
+- [x] `pop_index_implicit_mutations_ignores_parent_mutations` —
   Apply `SetParentMutation`. Call `popIndexImplicitMutations()`. Expect: empty result
   (parent mutations are not cross-entity attribute triggers).
 
-- [ ] `pop_index_implicit_mutations_ignores_scope_mutations` —
+- [x] `pop_index_implicit_mutations_ignores_scope_mutations` —
   Apply `SetEntityScopeMutation`. Call `popIndexImplicitMutations()`. Expect: empty result
   (scope changes do not trigger cross-entity re-evaluation).
 
-- [ ] `pop_index_implicit_mutations_handles_localized_attribute_key` —
+- [x] `pop_index_implicit_mutations_handles_localized_attribute_key` —
   Pre-load localized attribute `name` (locale = `en`) with old value `"Widget"`. Apply
   `UpsertAttributeMutation` with `AttributeKey("name", Locale.ENGLISH)` and new value
   `"Gadget"`. Registry has a trigger matching attribute name `"name"`. Expect: trigger fires.
@@ -899,3 +871,68 @@ and a mock `ContainerizedLocalMutationExecutor`. The mock index executor's
   Verify that `EntityIndexMutation` envelopes produced by `popIndexImplicitMutations()` are
   NOT added to `entityMutations` list and are NOT written to WAL. Only the root-level
   `EntityMutation` is recorded.
+
+---
+
+## ⚠️ TOBEDONE JNO — Unchecked Test Cases and Their Disposition
+
+The following test cases remain unchecked. They fall into three categories: tests invalidated by
+a design change, tests invalidated by the removal of old-value caching, and tests belonging to
+WBS-10 scope.
+
+### ❌ Category 2: Old == new optimization — invalidated by design (3 tests)
+
+**Root cause:** The implementation intentionally does NOT perform old-vs-new value comparison.
+Any `AttributeMutation` in the input list fires the corresponding triggers unconditionally (safe
+over-firing). The target-side executor is idempotent, so unnecessary triggers result in a no-op
+rather than incorrect state. This design was chosen to avoid duplicating the
+`ExistingAttributeValueSupplier` infrastructure into a parallel `Map<AttributeKey, Serializable>`
+cache. See "Implementation Notes — No old-vs-new value comparison" in this spec.
+
+**Disposition:** These tests describe behavior that the implementation explicitly does NOT
+implement. They should be **removed or marked as N/A** — the existing
+`shouldFireForZeroDeltaAttributeMutation` test documents the safe over-firing behavior.
+
+**Affected tests:**
+- [ ] `pop_index_implicit_mutations_skips_when_upsert_value_equals_existing`
+- [ ] `pop_index_implicit_mutations_skips_when_removing_nonexistent_attribute`
+- [ ] `pop_index_implicit_mutations_compares_by_value_equality_not_identity`
+
+### ❌ Category 11: Old-value caching correctness — invalidated by design (4 tests)
+
+**Root cause:** Same design change as Category 2. The implementation does NOT cache old attribute
+values during `applyMutation()`. The `popIndexImplicitMutations()` method iterates the
+`inputMutations` list directly, checking for `instanceof AttributeMutation` — it never reads
+old or new attribute values. Therefore tests about old-value caching timing, `putIfAbsent`
+semantics, net-change-equals-original detection, and cache clearing are all moot.
+
+**Disposition:** These tests should be **removed or marked as N/A**. The relevant behaviors are
+already covered:
+- Deduplication within a batch: `shouldDeduplicateMultipleMutationsOnSameAttribute`
+- Batch isolation between pops: `shouldNotCarryOverStateBetweenPops`
+
+**Affected tests:**
+- [ ] `pop_index_implicit_mutations_caches_old_value_before_index_update`
+- [ ] `pop_index_implicit_mutations_handles_multiple_mutations_same_attribute`
+- [ ] `pop_index_implicit_mutations_multiple_mutations_same_attr_final_equals_original`
+- [ ] `pop_index_implicit_mutations_clears_cached_values_after_pop`
+
+### ⏳ Category 13: Dispatch ordering and routing — WBS-10 scope (7 tests)
+
+**Root cause:** These tests verify the integration between `LocalMutationExecutorCollector` and
+`EntityIndexLocalMutationExecutor.popIndexImplicitMutations()`. The actual dispatch loop
+(`popIndexImplicitMutations()` call site, routing to target collections, WAL exclusion) is
+implemented by **WBS-10**, not WBS-08. WBS-08 only provides the `popIndexImplicitMutations()`
+method; WBS-10 consumes its output.
+
+**Disposition:** These tests should be **implemented as part of WBS-10**. The test class
+`LocalMutationExecutorCollectorIndexDispatchTest` is a WBS-10 deliverable.
+
+**Affected tests:**
+- [ ] `execute_calls_pop_index_implicit_mutations_after_pop_implicit_mutations`
+- [ ] `execute_calls_pop_index_implicit_mutations_before_consistency_check`
+- [ ] `execute_routes_entity_index_mutation_to_correct_target_collection`
+- [ ] `execute_routes_multiple_envelopes_to_respective_collections`
+- [ ] `execute_handles_empty_index_implicit_mutations`
+- [ ] `execute_dispatches_index_mutations_for_entity_removal`
+- [ ] `execute_index_mutations_are_not_written_to_wal`
