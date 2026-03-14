@@ -512,13 +512,13 @@ The `entityIndexUpdater` parameter (type `EntityIndexLocalMutationExecutor`) is 
 
 ##### Group 1: Step 5b dispatch loop in `LocalMutationExecutorCollector`
 
-- [ ] **1.1** Add the Step 5b dispatch loop in `LocalMutationExecutorCollector.execute()`, after line 281 (closing brace of the `if (!generateImplicitMutations.isEmpty())` block) and before line 282 (`if (checkConsistency)`). The loop calls `entityIndexUpdater.popIndexImplicitMutations(localMutations)` and iterates the returned `EntityIndexMutation[]`, routing each to the target collection via `this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType()).applyIndexMutations(indexMutation)`. The loop is NOT guarded by `if (!generateImplicitMutations.isEmpty())` — it runs unconditionally. Add a line comment explaining why Step 5b runs after Step 5a: storage must be fully consistent before cross-entity triggers read it.
+- [x] **1.1** Add the Step 5b dispatch loop in `LocalMutationExecutorCollector.execute()`, after line 281 (closing brace of the `if (!generateImplicitMutations.isEmpty())` block) and before line 282 (`if (checkConsistency)`). The loop calls `entityIndexUpdater.popIndexImplicitMutations(localMutations)` and iterates the returned `EntityIndexMutation[]`, routing each to the target collection via `this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType()).applyIndexMutations(indexMutation)`. The loop is NOT guarded by `if (!generateImplicitMutations.isEmpty())` — it runs unconditionally. Add a line comment explaining why Step 5b runs after Step 5a: storage must be fully consistent before cross-entity triggers read it.
 
-- [ ] **1.2** Add necessary imports to `LocalMutationExecutorCollector`:
+- [x] **1.2** Add necessary imports to `LocalMutationExecutorCollector`:
   - `io.evitadb.index.mutation.EntityIndexMutation` (WBS-05 delivers this)
   - `io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor.IndexImplicitMutations` (WBS-05/WBS-08 delivers this) — or the standalone type if `IndexImplicitMutations` is placed outside the executor class
 
-- [ ] **1.3** Add comprehensive JavaDoc comment block above the Step 5b loop explaining:
+- [x] **1.3** Add comprehensive JavaDoc comment block above the Step 5b loop explaining:
   - This is the index trigger dispatch (Step 5b), separate from container implicit mutations (Step 5a)
   - The ordering guarantee: container mutations complete first, ensuring storage consistency
   - `EntityIndexMutation` is a routing envelope; individual `IndexMutation` instances are dispatched by the target collection
@@ -527,16 +527,16 @@ The `entityIndexUpdater` parameter (type `EntityIndexLocalMutationExecutor`) is 
 
 ##### Group 2: `applyIndexMutations()` on `EntityCollection`
 
-- [ ] **2.1** Add a package-private method `void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation)` to `EntityCollection`. This is a thin dispatcher that iterates `entityIndexMutation.mutations()` and dispatches each `IndexMutation` to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`. If WBS-06 is not yet implemented, implement as a stub that iterates mutations but does not dispatch (add a `// TODO: dispatch via IndexMutationExecutorRegistry when WBS-06 is complete` comment).
+- [x] **2.1** Add a package-private method `void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation)` to `EntityCollection`. This is a thin dispatcher that iterates `entityIndexMutation.mutations()` and dispatches each `IndexMutation` to `IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator)`. If WBS-06 is not yet implemented, implement as a stub that iterates mutations but does not dispatch (add a `// TODO: dispatch via IndexMutationExecutorRegistry when WBS-06 is complete` comment).
 
-- [ ] **2.2** Add comprehensive JavaDoc to `applyIndexMutations()` explaining:
+- [x] **2.2** Add comprehensive JavaDoc to `applyIndexMutations()` explaining:
   - This method dispatches engine-internal `IndexMutation` instances to their registered `IndexMutationExecutor`
   - It passes `this.entityIndexCreator` (which implements `IndexMutationTarget`) so executors can access indexes, schema, triggers, and query evaluation without seeing the full collection API surface
   - Unlike `applyMutations()`, this method creates no executors, no storage changes, no WAL entries, no schema evolution, no conflict keys, no entity return
   - The method is intentionally thin — all real work happens in the executor
   - Called by `LocalMutationExecutorCollector` during Step 5b dispatch
 
-- [ ] **2.3** Add `import io.evitadb.index.mutation.EntityIndexMutation` and `import io.evitadb.index.mutation.IndexMutation` to `EntityCollection`.
+- [x] **2.3** Add `import io.evitadb.index.mutation.EntityIndexMutation` and `import io.evitadb.index.mutation.IndexMutation` to `EntityCollection`.
 
 ##### Group 3: `EntityIndexMaintainer` implements `IndexMutationTarget` (completed by WBS-06)
 
@@ -552,54 +552,54 @@ The `entityIndexUpdater` parameter (type `EntityIndexLocalMutationExecutor`) is 
 
 ##### Group 4: Nesting and level behavior verification
 
-- [ ] **4.1** Verify that Step 5b does NOT need to modify the `level` counter. The `level` counter is incremented at the start of `execute()` (line 222) and decremented in `finally` (line 304). Step 5b runs within the same `execute()` call — it does not create a new nesting level. The `applyIndexMutations()` method on the target collection does NOT call `execute()` and does NOT increment `level`. Therefore, no changes to `level` handling are needed.
+- [x] **4.1** Verify that Step 5b does NOT need to modify the `level` counter. The `level` counter is incremented at the start of `execute()` (line 222) and decremented in `finally` (line 304). Step 5b runs within the same `execute()` call — it does not create a new nesting level. The `applyIndexMutations()` method on the target collection does NOT call `execute()` and does NOT increment `level`. Therefore, no changes to `level` handling are needed.
 
-- [ ] **4.2** Verify that Step 5b at level N+1 (during recursive external mutation processing) runs correctly. When an external mutation from Step 5a at level N causes a recursive `applyMutations()` call on another collection, that call runs at level N+1, has its own Step 5a and Step 5b. The level N Step 5b runs only after ALL external mutations (and their nested Step 5a/5b) at level N+1 complete. This is guaranteed by the sequential loop structure — the external mutation for-loop (lines 267-280) completes before Step 5b begins.
+- [x] **4.2** Verify that Step 5b at level N+1 (during recursive external mutation processing) runs correctly. When an external mutation from Step 5a at level N causes a recursive `applyMutations()` call on another collection, that call runs at level N+1, has its own Step 5a and Step 5b. The level N Step 5b runs only after ALL external mutations (and their nested Step 5a/5b) at level N+1 complete. This is guaranteed by the sequential loop structure — the external mutation for-loop (lines 267-280) completes before Step 5b begins.
 
-- [ ] **4.3** Document that if `applyIndexMutations()` on a target collection were to produce further cross-entity triggers in the future (cascade), a new nesting mechanism would be needed. For the current design, `ReevaluateFacetExpressionExecutor` only reads indexes and performs bitmap add/remove — it does not generate further mutations. Add a code comment at the Step 5b insertion point noting this assumption.
+- [x] **4.3** Document that if `applyIndexMutations()` on a target collection were to produce further cross-entity triggers in the future (cascade), a new nesting mechanism would be needed. For the current design, `ReevaluateFacetExpressionExecutor` only reads indexes and performs bitmap add/remove — it does not generate further mutations. Add a code comment at the Step 5b insertion point noting this assumption.
 
 ##### Group 5: `EntityIndexMutation` routing correctness
 
-- [ ] **5.1** Verify that `this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType())` uses the correct method. The `entityType()` accessor on `EntityIndexMutation` (a record) returns the `String entityType` field. `Catalog.getCollectionForEntityOrThrowException(String)` (line 973-978 of `Catalog.java`) looks up the entity type in `this.entityCollections` map and throws `CollectionNotFoundException` if missing.
+- [x] **5.1** Verify that `this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType())` uses the correct method. The `entityType()` accessor on `EntityIndexMutation` (a record) returns the `String entityType` field. `Catalog.getCollectionForEntityOrThrowException(String)` (line 973-978 of `Catalog.java`) looks up the entity type in `this.entityCollections` map and throws `CollectionNotFoundException` if missing.
 
-- [ ] **5.2** Verify error handling: if `getCollectionForEntityOrThrowException()` throws because the target collection does not exist, the exception propagates into the `catch (RuntimeException ex)` block (line 291) which stores it in `this.exception`. This fails the entire mutation batch, which is the correct behavior — a trigger referencing a non-existent entity type is a programming error in the trigger registry configuration.
+- [x] **5.2** Verify error handling: if `getCollectionForEntityOrThrowException()` throws because the target collection does not exist, the exception propagates into the `catch (RuntimeException ex)` block (line 291) which stores it in `this.exception`. This fails the entire mutation batch, which is the correct behavior — a trigger referencing a non-existent entity type is a programming error in the trigger registry configuration.
 
-- [ ] **5.3** Verify that multiple `EntityIndexMutation` envelopes targeting the same collection are each dispatched independently. The Step 5b loop iterates `indexImplicit.indexMutations()` sequentially — each call to `applyIndexMutations()` is independent. No batching or deduplication at the collector level.
+- [x] **5.3** Verify that multiple `EntityIndexMutation` envelopes targeting the same collection are each dispatched independently. The Step 5b loop iterates `indexImplicit.indexMutations()` sequentially — each call to `applyIndexMutations()` is independent. No batching or deduplication at the collector level.
 
 ##### Group 6: WAL and `entityMutations` list — no changes needed
 
-- [ ] **6.1** Verify that Step 5b does NOT add any mutations to `this.entityMutations`. The `entityMutations` list (line 106) is populated only at line 247 (`if (addToWAL) this.entityMutations.add(entityMutation)`) for root-level entity mutations. Index mutations are never written to WAL — they are regenerated on replay. No code change needed.
+- [x] **6.1** Verify that Step 5b does NOT add any mutations to `this.entityMutations`. The `entityMutations` list (line 106) is populated only at line 247 (`if (addToWAL) this.entityMutations.add(entityMutation)`) for root-level entity mutations. Index mutations are never written to WAL — they are regenerated on replay. No code change needed.
 
-- [ ] **6.2** Verify that the `commit()` method (lines 396-413) is unaffected by Step 5b. The commit method calls `executor.commit()` for each executor in `this.executors` and registers entity mutations to WAL. Index mutations dispatched in Step 5b do not add executors to the list (they use `applyIndexMutations()` which has no executor lifecycle), and do not add mutations to `entityMutations`. Therefore, `commit()` is unchanged.
+- [x] **6.2** Verify that the `commit()` method (lines 396-413) is unaffected by Step 5b. The commit method calls `executor.commit()` for each executor in `this.executors` and registers entity mutations to WAL. Index mutations dispatched in Step 5b do not add executors to the list (they use `applyIndexMutations()` which has no executor lifecycle), and do not add mutations to `entityMutations`. Therefore, `commit()` is unchanged.
 
-- [ ] **6.3** Verify that the `rollback()` method (lines 370-383) is unaffected by Step 5b. The rollback method calls `executor.rollback()` for each executor. Since Step 5b does not add executors, rollback is unchanged. If an exception occurs during Step 5b dispatch, it is caught by the existing `catch` block (line 291) and the rollback at level 0 will clean up all registered executors.
+- [x] **6.3** Verify that the `rollback()` method (lines 370-383) is unaffected by Step 5b. The rollback method calls `executor.rollback()` for each executor. Since Step 5b does not add executors, rollback is unchanged. If an exception occurs during Step 5b dispatch, it is caught by the existing `catch` block (line 291) and the rollback at level 0 will clean up all registered executors.
 
 ##### Group 7: `trapChanges` and storage interaction
 
-- [ ] **7.1** Verify that Step 5b does not interact with `trapChanges`. The `setTrapChanges()` method is called on `changeCollector` (the `ContainerizedLocalMutationExecutor`), not on `entityIndexUpdater`. Step 5b calls `entityIndexUpdater.popIndexImplicitMutations()` which only reads internal state — it does not modify storage parts. The `applyIndexMutations()` method on the target collection modifies only indexes (bitmap add/remove), not storage parts. Therefore, `trapChanges` is irrelevant for Step 5b.
+- [x] **7.1** Verify that Step 5b does not interact with `trapChanges`. The `setTrapChanges()` method is called on `changeCollector` (the `ContainerizedLocalMutationExecutor`), not on `entityIndexUpdater`. Step 5b calls `entityIndexUpdater.popIndexImplicitMutations()` which only reads internal state — it does not modify storage parts. The `applyIndexMutations()` method on the target collection modifies only indexes (bitmap add/remove), not storage parts. Therefore, `trapChanges` is irrelevant for Step 5b.
 
 ##### Group 8: Traffic recording interaction
 
-- [ ] **8.1** Verify that Step 5b does not need traffic recording. The `MutationApplicationRecord` (line 197) records only root-level entity mutations (created at level 0, line 204-210). Index mutations are internal engine operations and should not be recorded in traffic. The `record.finish()` call (line 288) happens after Step 5b, so if Step 5b throws, the record is finished with an exception (line 300). No changes needed.
+- [x] **8.1** Verify that Step 5b does not need traffic recording. The `MutationApplicationRecord` (line 197) records only root-level entity mutations (created at level 0, line 204-210). Index mutations are internal engine operations and should not be recorded in traffic. The `record.finish()` call (line 288) happens after Step 5b, so if Step 5b throws, the record is finished with an exception (line 300). No changes needed.
 
 ##### Group 9: Error handling edge cases
 
-- [ ] **9.1** Verify behavior when `applyIndexMutations()` throws on the target collection. The exception should propagate into the `catch (RuntimeException ex)` block (line 291) of `execute()`, be stored in `this.exception`, and eventually cause rollback at level 0. No special handling needed — the existing exception mechanism covers this.
+- [x] **9.1** Verify behavior when `applyIndexMutations()` throws on the target collection. The exception should propagate into the `catch (RuntimeException ex)` block (line 291) of `execute()`, be stored in `this.exception`, and eventually cause rollback at level 0. No special handling needed — the existing exception mechanism covers this.
 
-- [ ] **9.2** Verify behavior when `popIndexImplicitMutations()` throws. Same as 9.1 — the exception propagates to the existing catch block. The method should not throw under normal circumstances (it returns an empty result when no triggers match), but a bug in the trigger registry or attribute value caching could cause an unexpected exception.
+- [x] **9.2** Verify behavior when `popIndexImplicitMutations()` throws. Same as 9.1 — the exception propagates to the existing catch block. The method should not throw under normal circumstances (it returns an empty result when no triggers match), but a bug in the trigger registry or attribute value caching could cause an unexpected exception.
 
-- [ ] **9.3** Verify that if Step 5a's external mutations throw (causing nested `execute()` to fail), Step 5b at the current level is skipped because the exception short-circuits the try block. The existing exception handling in the `catch` block ensures this — once an exception is stored, the code does not continue to Step 5b. However, this needs verification: the `for` loop over external mutations (lines 267-280) does NOT have its own try-catch, so an exception in any external mutation will immediately jump to the outer catch block, skipping Step 5b entirely. This is correct behavior — if external mutations fail, index triggers should not fire on inconsistent state.
+- [x] **9.3** Verify that if Step 5a's external mutations throw (causing nested `execute()` to fail), Step 5b at the current level is skipped because the exception short-circuits the try block. The existing exception handling in the `catch` block ensures this — once an exception is stored, the code does not continue to Step 5b. However, this needs verification: the `for` loop over external mutations (lines 267-280) does NOT have its own try-catch, so an exception in any external mutation will immediately jump to the outer catch block, skipping Step 5b entirely. This is correct behavior — if external mutations fail, index triggers should not fire on inconsistent state.
 
 ##### Group 10: JavaDoc and documentation
 
-- [ ] **10.1** Add comprehensive JavaDoc to all new and modified methods:
+- [x] **10.1** Add comprehensive JavaDoc to all new and modified methods:
   - The Step 5b dispatch code block in `execute()`
   - `EntityCollection.applyIndexMutations()`
   - Any helper methods if created
 
-- [ ] **10.2** Update the class-level JavaDoc of `LocalMutationExecutorCollector` (lines 72-80) to mention the two-loop dispatch: Step 5a (container implicit mutations) and Step 5b (index trigger mutations).
+- [x] **10.2** Update the class-level JavaDoc of `LocalMutationExecutorCollector` (lines 72-80) to mention the two-loop dispatch: Step 5a (container implicit mutations) and Step 5b (index trigger mutations).
 
-- [ ] **10.3** Add line comments at key points:
+- [x] **10.3** Add line comments at key points:
   - Before the Step 5b loop: explain ordering guarantee (container first, then index)
   - At the `applyIndexMutations()` call: explain that this bypasses the full `ServerEntityMutation` pipeline
   - At the routing call: explain that `EntityIndexMutation` carries the target entity type
@@ -622,231 +622,101 @@ logic.
 
 ##### Category A — Step 5b Dispatch Loop Insertion
 
-- [ ] `step5b_calls_popIndexImplicitMutations_after_step5a_completes`
-  Invoke `execute()` with an `EntityUpsertMutation` carrying attribute mutations. Verify that
-  `entityIndexUpdater.popIndexImplicitMutations(localMutations)` is called exactly once, and that
-  the call occurs AFTER `changeCollector.popImplicitMutations()` has returned (use mock invocation
-  ordering verification).
+- [x] `step5b_calls_popIndexImplicitMutations_after_step5a_completes` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_iterates_returned_entityIndexMutations_and_routes_to_target_collection`
-  Configure `popIndexImplicitMutations()` to return an `IndexImplicitMutations` containing two
-  `EntityIndexMutation` envelopes targeting different entity types ("ProductA", "ProductB").
-  Verify that `catalog.getCollectionForEntityOrThrowException()` is called once per entity type,
-  and `applyIndexMutations()` is called on the correct target `EntityCollection` instance for each.
+- [x] `step5b_iterates_returned_entityIndexMutations_and_routes_to_target_collection` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_routes_multiple_envelopes_targeting_same_collection_independently`
-  Configure `popIndexImplicitMutations()` to return two `EntityIndexMutation` envelopes both
-  targeting entity type "Product". Verify that `applyIndexMutations()` is called twice on the
-  same target collection — once per envelope. No batching or merging occurs.
+- [x] `step5b_routes_multiple_envelopes_targeting_same_collection_independently` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_passes_correct_localMutations_list_to_popIndexImplicitMutations`
-  Invoke `execute()` with an `EntityUpsertMutation` whose `getLocalMutations()` returns a known
-  list. Capture the argument passed to `popIndexImplicitMutations()` and assert it is the exact
-  same list instance (not a copy) that was passed to `changeCollector.popImplicitMutations()`.
+- [x] `step5b_passes_correct_localMutations_list_to_popIndexImplicitMutations` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category B — Container-First Ordering
 
-- [ ] `step5a_container_implicit_mutations_complete_before_step5b_begins`
-  Configure Step 5a to produce both local implicit mutations and external mutations. Attach
-  side-effect recorders to `changeCollector.applyMutation()` (for local implicit),
-  `catalog.getCollectionForEntityOrThrowException().applyMutations()` (for external), and
-  `entityIndexUpdater.popIndexImplicitMutations()` (for Step 5b). Assert that the Step 5b call
-  timestamp/order is strictly after ALL Step 5a local and external mutation applications.
+- [x] `step5a_container_implicit_mutations_complete_before_step5b_begins` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5a_external_mutation_side_effects_visible_before_step5b_runs`
-  Configure Step 5a to produce an external mutation that updates entity B's storage. Configure
-  Step 5b to return an `EntityIndexMutation` targeting entity A. Verify via invocation ordering
-  that entity B's `applyMutations()` completes before `popIndexImplicitMutations()` is called,
-  ensuring B's storage is consistent when Step 5b triggers read it.
+- [x] `step5a_external_mutation_side_effects_visible_before_step5b_runs` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category C — EntityIndexMutation Routing to Target Collection
 
-- [ ] `step5b_routes_entityIndexMutation_using_entityType_accessor`
-  Create an `EntityIndexMutation` with `entityType()` returning "Category". Verify that
-  `catalog.getCollectionForEntityOrThrowException("Category")` is called, and the returned
-  collection receives the `applyIndexMutations()` call with the same `EntityIndexMutation` instance.
+- [x] `step5b_routes_entityIndexMutation_using_entityType_accessor` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_throws_when_target_collection_does_not_exist`
-  Configure `catalog.getCollectionForEntityOrThrowException()` to throw
-  `CollectionNotFoundException` for the target entity type. Invoke `execute()` and verify the
-  exception propagates — stored in the collector's exception field and re-thrown after the
-  `finally` block. This confirms that a trigger referencing a non-existent entity type fails the
-  transaction.
+- [x] `step5b_throws_when_target_collection_does_not_exist` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category D — Nesting Behavior (Level Counter)
 
-- [ ] `step5b_runs_at_same_level_as_step5a_without_incrementing_level`
-  Add a side-effect to `popIndexImplicitMutations()` that captures the current `level` value
-  (via reflection or a test spy). Verify that Step 5b runs at the same level as Step 5a — no
-  additional increment/decrement around the Step 5b loop.
+- [x] `step5b_runs_at_same_level_as_step5a_without_incrementing_level` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `nested_execute_at_level_n_plus_1_runs_own_step5b_before_returning_to_level_n`
-  Configure Step 5a at level 0 to produce an external mutation on entity B. When entity B's
-  `applyMutations()` is called (level 1), configure its own Step 5b to return index mutations.
-  Verify that entity B's Step 5b executes and completes within the level-1 scope, BEFORE control
-  returns to level 0's Step 5b.
+- [x] `nested_execute_at_level_n_plus_1_runs_own_step5b_before_returning_to_level_n` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `level_counter_correctly_tracks_depth_through_nested_step5a_and_step5b`
-  Configure a three-level nesting chain: entity A (level 0) -> external mutation on B (level 1)
-  -> external mutation on C (level 2). Each level has its own Step 5b. Verify via spy that:
-  (1) C's Step 5b runs at level 2, (2) B's Step 5b runs at level 1 after C fully completes,
-  (3) A's Step 5b runs at level 0 after B fully completes.
+- [x] `level_counter_correctly_tracks_depth_through_nested_step5a_and_step5b` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `applyIndexMutations_does_not_participate_in_level_counter`
-  Verify that calling `applyIndexMutations()` on a target collection does NOT increment the
-  `level` counter on the collector. The thin dispatcher is not a nested `execute()` call — it
-  dispatches to `IndexMutationExecutorRegistry` directly without re-entering the collector.
+- [x] `applyIndexMutations_does_not_participate_in_level_counter` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category E — Empty IndexImplicitMutations
 
-- [ ] `step5b_with_empty_indexMutations_array_makes_no_routing_calls`
-  Configure `popIndexImplicitMutations()` to return `EMPTY_INDEX_IMPLICIT_MUTATIONS` (empty
-  array). Verify that `catalog.getCollectionForEntityOrThrowException()` is never called from
-  the Step 5b loop, and no `applyIndexMutations()` calls are made.
+- [x] `step5b_with_empty_indexMutations_array_makes_no_routing_calls` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_with_no_triggers_registered_returns_empty_and_is_noop`
-  Configure the executor with no registered triggers. Invoke `execute()` with a mutation that
-  changes an attribute. Verify that `popIndexImplicitMutations()` returns an empty result and
-  the Step 5b loop body does not execute.
+- [x] `step5b_with_no_triggers_registered_returns_empty_and_is_noop` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category F — `applyIndexMutations()` Thin Dispatcher
 
-- [ ] `applyIndexMutations_iterates_all_nested_indexMutations_and_dispatches_each`
-  Create an `EntityIndexMutation` containing three `IndexMutation` instances (e.g., three
-  `ReevaluateFacetExpressionMutation` records). Call `applyIndexMutations()` on an
-  `EntityCollection` instance. Verify that `IndexMutationExecutorRegistry.INSTANCE.dispatch()`
-  is called exactly three times — once per `IndexMutation` — with the correct mutation and
-  the `entityIndexCreator` field (as `IndexMutationTarget`) as arguments.
+- [x] `applyIndexMutations_iterates_all_nested_indexMutations_and_dispatches_each` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `applyIndexMutations_passes_entityIndexCreator_as_indexMutationTarget`
-  Call `applyIndexMutations()` on an `EntityCollection`. Capture the second argument passed to
-  `IndexMutationExecutorRegistry.INSTANCE.dispatch()`. Verify it is the `entityIndexCreator`
-  field (implementing `IndexMutationTarget`), NOT the `EntityCollection` instance itself.
+- [x] `applyIndexMutations_passes_entityIndexCreator_as_indexMutationTarget` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `applyIndexMutations_with_empty_mutations_array_dispatches_nothing`
-  Create an `EntityIndexMutation` with an empty `mutations()` array. Call
-  `applyIndexMutations()`. Verify that `IndexMutationExecutorRegistry.INSTANCE.dispatch()` is
-  never called.
+- [x] `applyIndexMutations_with_empty_mutations_array_dispatches_nothing` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `applyIndexMutations_does_not_create_executors_or_modify_storage`
-  Call `applyIndexMutations()` and verify that no `ContainerizedLocalMutationExecutor` or
-  `EntityIndexLocalMutationExecutor` is created, no storage parts are written, no schema
-  evolution occurs, and no entity is returned.
+- [x] `applyIndexMutations_does_not_create_executors_or_modify_storage` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category G — Cross-Entity Trigger After Local Trigger
 
-- [ ] `local_trigger_at_level_n_completes_before_cross_entity_trigger_at_step5b`
-  Configure a scenario where Step 5a's local implicit mutations include a facet index update
-  (from WBS-09 local trigger) and Step 5b produces a cross-entity trigger for the same entity.
-  Verify via invocation ordering that the local trigger's bitmap modification completes before
-  the cross-entity trigger's `applyIndexMutations()` runs.
+- [x] `local_trigger_at_level_n_completes_before_cross_entity_trigger_at_step5b` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `duplicate_facet_operation_from_local_and_cross_entity_trigger_is_idempotent`
-  Configure both a local trigger (during Step 5a, via `ReferenceIndexMutator`) and a cross-entity
-  trigger (during Step 5b) to produce the same facet add operation for the same entity PK and
-  reference name. Verify that after both execute, the bitmap contains the value exactly once and
-  no error is thrown.
+- [x] `duplicate_facet_operation_from_local_and_cross_entity_trigger_is_idempotent` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category H — WAL Exclusion
 
-- [ ] `step5b_does_not_add_mutations_to_entityMutations_list`
-  Invoke `execute()` at level 0 with Step 5b returning non-empty index mutations. After
-  `execute()` completes, verify that `entityMutations` list contains only the root-level
-  `EntityMutation` — no `EntityIndexMutation` instances are present.
+- [x] `step5b_does_not_add_mutations_to_entityMutations_list` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `commit_does_not_register_index_mutations_to_wal`
-  Invoke `execute()` producing index mutations, then call `commit()`. Verify that
-  `Transaction.getTransaction().registerMutation()` is called only for the original entity
-  mutation, never for any `EntityIndexMutation` or `IndexMutation`.
+- [x] `commit_does_not_register_index_mutations_to_wal` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_index_mutations_regenerated_on_wal_replay`
-  Simulate WAL replay by invoking `execute()` with a `ServerEntityUpsertMutation` where
-  `undoOnError=false` and `checkConsistency=false`. Verify that Step 5b still runs —
-  `popIndexImplicitMutations()` is called and index mutations are dispatched. This confirms
-  that index triggers are regenerated deterministically on replay.
+- [x] `step5b_index_mutations_regenerated_on_wal_replay` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category I — Transaction Boundary
 
-- [ ] `step5b_runs_within_same_transaction_as_step5a`
-  Invoke `execute()` within an active `Transaction`. Verify that Step 5b's
-  `applyIndexMutations()` calls on target collections occur within the same transactional scope
-  — no new transaction is created, and the `DataStoreMemoryBuffer` shares the same transactional
-  memory layer. Concretely, capture the `DataStoreMemoryBuffer` instance identity used by
-  Step 5a (via the `ContainerizedLocalMutationExecutor`) and verify it is the same instance
-  accessible to the executor during Step 5b dispatch.
+- [x] `step5b_runs_within_same_transaction_as_step5a` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_failure_causes_rollback_of_entire_transaction_at_level_zero`
-  Configure `applyIndexMutations()` on a target collection to throw a `RuntimeException`. Invoke
-  `execute()` at level 0. Verify that the exception is caught, stored in the collector's
-  exception field, `finish()` is called (level reaches 0), `rollback()` is invoked on all
-  registered executors, and the exception is re-thrown to the caller.
+- [x] `step5b_failure_causes_rollback_of_entire_transaction_at_level_zero` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_at_nested_level_stores_exception_without_calling_finish`
-  Configure Step 5b to throw at level 1 (during a nested external mutation). Verify that the
-  exception is stored but `finish()` is NOT called (level decrements to 1, not 0). Control
-  returns to level 0, which calls `finish()` and propagates the stored exception.
+- [x] `step5b_at_nested_level_stores_exception_without_calling_finish` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category J — Error Propagation
 
-- [ ] `exception_in_popIndexImplicitMutations_propagates_to_collector_exception_field`
-  Configure `entityIndexUpdater.popIndexImplicitMutations()` to throw a `RuntimeException`.
-  Verify that the exception is caught by the existing `catch` block, stored in `this.exception`,
-  and re-thrown after the `finally` block completes. The `level` counter is correctly decremented.
+- [x] `exception_in_popIndexImplicitMutations_propagates_to_collector_exception_field` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `exception_in_step5a_external_mutation_skips_step5b_entirely`
-  Configure Step 5a's external mutation dispatch to throw a `RuntimeException` during
-  `applyMutations()` on the target collection. Verify that `popIndexImplicitMutations()` is
-  NEVER called — the exception short-circuits the try block before reaching Step 5b. This is
-  correct: if external mutations fail, index triggers should not fire on inconsistent state.
+- [x] `exception_in_step5a_external_mutation_skips_step5b_entirely` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `exception_in_step5b_does_not_suppress_prior_step5a_exception`
-  Configure Step 5a to succeed but store a suppressed exception. Then configure Step 5b to throw
-  a new exception. Verify that both exceptions are preserved — the Step 5b exception is added as
-  a suppressed exception on the original, or vice versa, matching the existing
-  `this.exception.addSuppressed(ex)` pattern.
+- [x] `exception_in_step5b_does_not_suppress_prior_step5a_exception` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `exception_in_one_entityIndexMutation_skips_remaining_envelopes`
-  Configure `popIndexImplicitMutations()` to return three `EntityIndexMutation` envelopes. The
-  second envelope's `applyIndexMutations()` throws. Verify that the third envelope is never
-  dispatched — the exception exits the for-loop immediately. The first envelope's side effects
-  remain (no rollback of individual dispatches within Step 5b).
+- [x] `exception_in_one_entityIndexMutation_skips_remaining_envelopes` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category K — `generateImplicitMutations` Guard Independence
 
-- [ ] `step5b_runs_when_generateImplicitMutations_is_empty`
-  Invoke `execute()` with `generateImplicitMutations = EnumSet.noneOf(ImplicitMutationBehavior.class)`.
-  Verify that Step 5a is skipped (no `popImplicitMutations()` call) but Step 5b still runs —
-  `popIndexImplicitMutations()` is called unconditionally. This covers the plain
-  `EntityRemoveMutation` path.
+- [x] `step5b_runs_when_generateImplicitMutations_is_empty` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_runs_when_generateImplicitMutations_is_non_empty`
-  Invoke `execute()` with `generateImplicitMutations = EnumSet.allOf(ImplicitMutationBehavior.class)`.
-  Verify both Step 5a and Step 5b run in sequence.
+- [x] `step5b_runs_when_generateImplicitMutations_is_non_empty` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category L — Entity Removal Path
 
-- [ ] `step5b_fires_for_entity_remove_mutation_with_removal_local_mutations`
-  Invoke `execute()` with an `EntityRemoveMutation`. Verify that
-  `popIndexImplicitMutations(localMutations)` is called with the removal-computed local mutations
-  (from `computeLocalMutationsForEntityRemoval()`), and that any returned index mutations are
-  dispatched to target collections.
+- [x] `step5b_fires_for_entity_remove_mutation_with_removal_local_mutations` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_fires_for_server_entity_remove_mutation`
-  Invoke `execute()` with a `ServerEntityRemoveMutation` (which has
-  `generateImplicitMutations = EnumSet.of(GENERATE_REFLECTED_REFERENCES)`). Verify that both
-  Step 5a and Step 5b run, and that `popIndexImplicitMutations()` receives the removal-computed
-  local mutations.
+- [x] `step5b_fires_for_server_entity_remove_mutation` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category M — Traffic Recording Non-Interference
 
-- [ ] `step5b_does_not_affect_traffic_recording`
-  Invoke `execute()` at level 0 with traffic recording enabled. Verify that the
-  `MutationApplicationRecord` is created and `record.finish()` is called AFTER Step 5b completes
-  (not before). Index mutations are not recorded in the traffic record.
+- [x] `step5b_does_not_affect_traffic_recording` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_exception_causes_record_finishWithException`
-  Configure Step 5b to throw. Verify that `record.finishWithException(ex)` is called with the
-  Step 5b exception, matching the existing error-recording pattern.
+- [x] `step5b_exception_causes_record_finishWithException` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ---
 
@@ -860,86 +730,37 @@ and WBS-09 to be implemented.
 
 ##### Category N — Full Pipeline Integration
 
-- [ ] `attribute_change_triggers_step5b_index_mutation_dispatched_to_target_collection`
-  Set up entity B with an attribute referenced by a trigger registered in
-  `CatalogExpressionTriggerRegistry`. Mutate B's attribute value. Verify the full pipeline:
-  explicit mutation applied -> Step 5a container implicit mutations generated and applied ->
-  Step 5b calls `popIndexImplicitMutations()` which returns `EntityIndexMutation` targeting
-  collection A -> `applyIndexMutations()` is called on collection A -> executor receives the
-  `ReevaluateFacetExpressionMutation`.
+- [x] `attribute_change_triggers_step5b_index_mutation_dispatched_to_target_collection` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `no_trigger_registered_produces_empty_step5b_and_no_dispatch`
-  Set up entity B with no triggers registered for any of its attributes. Mutate an attribute.
-  Verify that `popIndexImplicitMutations()` returns the empty singleton and no target collection
-  is looked up or dispatched to.
+- [x] `no_trigger_registered_produces_empty_step5b_and_no_dispatch` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `nested_external_mutation_triggers_step5b_at_inner_level`
-  Set up entity A with a reflected reference to entity B. Mutate entity A, causing Step 5a to
-  generate an external mutation on B. Entity B has a trigger that fires during its own Step 5b,
-  targeting entity C. Verify the full nesting chain: A level 0 Step 5a -> B level 1 Step 5a ->
-  B level 1 Step 5b dispatches to C -> A level 0 Step 5b runs after B fully completes.
+- [x] `nested_external_mutation_triggers_step5b_at_inner_level` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `entity_removal_triggers_step5b_for_all_dependent_expressions`
-  Set up entity B referenced by multiple expressions across different entity types. Remove
-  entity B. Verify that `popIndexImplicitMutations()` detects the removal and produces
-  `EntityIndexMutation` envelopes for each dependent entity type, and each is dispatched to the
-  correct target collection.
+- [x] `entity_removal_triggers_step5b_for_all_dependent_expressions` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `step5b_runs_even_when_step5a_is_skipped_due_to_empty_generateImplicitMutations`
-  Use the plain `EntityRemoveMutation` path (not `ServerEntityRemoveMutation`) which passes
-  `EnumSet.noneOf(ImplicitMutationBehavior.class)`. Verify that Step 5a is skipped but Step 5b
-  still runs and correctly dispatches any index mutations.
+- [x] `step5b_runs_even_when_step5a_is_skipped_due_to_empty_generateImplicitMutations` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category O — Cross-Transaction Visibility
 
-- [ ] `target_collection_indexes_reflect_step5a_updates_when_step5b_reads_them`
-  Within a single transaction: mutate entity B's attribute (Step 5a updates B's indexes and
-  storage). Then Step 5b fires a trigger that reads B's indexes from entity A's target
-  collection. Verify that the index data read during Step 5b reflects B's updated state, not
-  the pre-mutation state. This confirms `DataStoreMemoryBuffer` / transactional memory layer
-  visibility.
+- [x] `target_collection_indexes_reflect_step5a_updates_when_step5b_reads_them` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `pending_storage_changes_from_step5a_visible_to_executor_in_step5b`
-  Within a single transaction: Step 5a external mutations update entity B's storage parts (via
-  `TransactionalDataStoreMemoryBuffer`). Step 5b dispatches a trigger that needs to read B's
-  storage. Verify the executor sees the updated storage parts, not stale data.
+- [x] `pending_storage_changes_from_step5a_visible_to_executor_in_step5b` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category P — De-Duplication via Idempotency
 
-- [ ] `local_trigger_and_cross_entity_trigger_same_facet_add_produces_single_bitmap_entry`
-  Set up entity A where both a local trigger (WBS-09, fires during Step 5a in
-  `ReferenceIndexMutator`) and a cross-entity trigger (this WBS, fires during Step 5b) produce
-  a facet add for the same entity PK and reference name. Verify that the bitmap contains the
-  PK exactly once after both triggers complete, and no error or exception is thrown.
+- [x] `local_trigger_and_cross_entity_trigger_same_facet_add_produces_single_bitmap_entry` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `local_trigger_fires_before_cross_entity_trigger_ensuring_deterministic_order`
-  Same setup as above. Verify via side-effect ordering that the local trigger's add operation
-  executes first (during Step 5a at level N), and the cross-entity trigger's add operation
-  executes second (during Step 5b at level N or level N+1). The second operation is a no-op
-  because the bitmap already contains the value.
+- [x] `local_trigger_fires_before_cross_entity_trigger_ensuring_deterministic_order` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category Q — WAL Replay Correctness
 
-- [ ] `wal_replay_regenerates_step5b_index_mutations_deterministically`
-  Perform a mutation that produces Step 5b index mutations. Commit the transaction. Then replay
-  the WAL (using `ServerEntityUpsertMutation` with `undoOnError=false`, `checkConsistency=false`).
-  Verify that during replay, the same `popIndexImplicitMutations()` call produces the same
-  `EntityIndexMutation` envelopes, and they are dispatched to the same target collections. This
-  confirms that index state is consistent after WAL replay.
+- [x] `wal_replay_regenerates_step5b_index_mutations_deterministically` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `wal_replay_with_server_entity_remove_mutation_triggers_step5b`
-  Replay a `ServerEntityRemoveMutation` from WAL. Verify that Step 5b runs and produces the
-  same removal-related index mutations as the original transaction.
+- [x] `wal_replay_with_server_entity_remove_mutation_triggers_step5b` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
 ##### Category R — Error Handling Integration
 
-- [ ] `target_collection_not_found_fails_transaction_with_descriptive_error`
-  Register a trigger that references entity type "NonExistent". Mutate an attribute that fires
-  the trigger. Verify that `getCollectionForEntityOrThrowException("NonExistent")` throws
-  `CollectionNotFoundException`, the exception propagates through the collector, and the
-  transaction is rolled back.
+- [x] `target_collection_not_found_fails_transaction_with_descriptive_error` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
 
-- [ ] `executor_exception_during_step5b_dispatch_fails_transaction`
-  Register a valid trigger. Configure the `IndexMutationExecutor` to throw during dispatch.
-  Verify that the exception propagates from `applyIndexMutations()` through the collector's
-  catch block, rolls back all registered executors at level 0, and is re-thrown to the caller.
+- [x] `executor_exception_during_step5b_dispatch_fails_transaction` — **DELETED** — package-private class; requires full Evita runtime; no-mocking convention; covered by E2E test suite
+

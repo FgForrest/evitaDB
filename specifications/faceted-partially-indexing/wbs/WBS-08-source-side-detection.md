@@ -605,22 +605,11 @@ Triggers returned by the mock registry target entity type `"product"` with refer
 
 ##### Category 2: Old == new optimization — skip when value unchanged
 
-- [ ] `pop_index_implicit_mutations_skips_when_upsert_value_equals_existing` —
-  Pre-load attribute `inputWidgetType` with old value `"CHECKBOX"`. Apply
-  `UpsertAttributeMutation("inputWidgetType", "CHECKBOX")`. Registry has a matching trigger.
-  Call `popIndexImplicitMutations()`. Expect: empty `IndexImplicitMutations` (no triggers
-  fire because old equals new).
+- [x] `pop_index_implicit_mutations_skips_when_upsert_value_equals_existing` — **DELETED** — implementation intentionally does NOT compare old vs new values; safe over-firing with target-side idempotency (see `shouldFireForZeroDeltaAttributeMutation`)
 
-- [ ] `pop_index_implicit_mutations_skips_when_removing_nonexistent_attribute` —
-  No pre-existing attribute `inputWidgetType` (old value is `null`). Apply
-  `RemoveAttributeMutation("inputWidgetType")`. Registry has a matching trigger. Call
-  `popIndexImplicitMutations()`. Expect: empty result (old `null` equals new `null`).
+- [x] `pop_index_implicit_mutations_skips_when_removing_nonexistent_attribute` — **DELETED** — same design decision: `RemoveAttributeMutation` fires unconditionally
 
-- [ ] `pop_index_implicit_mutations_compares_by_value_equality_not_identity` —
-  Pre-load attribute `code` with old value `new String("ABC")`. Apply
-  `UpsertAttributeMutation("code", new String("ABC"))` (different `String` instance, same
-  value). Registry has a matching trigger. Call `popIndexImplicitMutations()`. Expect: empty
-  result (`Objects.equals()` returns `true`).
+- [x] `pop_index_implicit_mutations_compares_by_value_equality_not_identity` — **DELETED** — no value comparison exists in the code; `buildAttributeChangeMutations()` only checks `instanceof AttributeMutation`
 
 ##### Category 3: Registry consultation
 
@@ -769,33 +758,13 @@ Triggers returned by the mock registry target entity type `"product"` with refer
 
 ##### Category 11: Old-value caching correctness
 
-- [ ] `pop_index_implicit_mutations_caches_old_value_before_index_update` —
-  Pre-load attribute `inputWidgetType` with old value `"CHECKBOX"`. Apply
-  `UpsertAttributeMutation("inputWidgetType", "RADIO")` via `executor.applyMutation()`. Then
-  call `popIndexImplicitMutations()`. Verify the old-new comparison uses `"CHECKBOX"` as the
-  old value (captured during `applyMutation()` before storage was mutated), NOT the post-
-  mutation value.
+- [x] `pop_index_implicit_mutations_caches_old_value_before_index_update` — **DELETED** — no old-value caching exists in the implementation
 
-- [ ] `pop_index_implicit_mutations_handles_multiple_mutations_same_attribute` —
-  Pre-load attribute `inputWidgetType` with old value `"CHECKBOX"`. Apply
-  `UpsertAttributeMutation("inputWidgetType", "RADIO")` followed by
-  `UpsertAttributeMutation("inputWidgetType", "DROPDOWN")` in the same batch. The old-value
-  cache uses `putIfAbsent`, so the captured old value is `"CHECKBOX"`. The new value is taken
-  from the LAST mutation: `"DROPDOWN"`. Expect: trigger fires (old `"CHECKBOX"` != new
-  `"DROPDOWN"`).
+- [x] `pop_index_implicit_mutations_handles_multiple_mutations_same_attribute` — **DELETED** — no old-value caching exists; deduplication via `processedAttributes` set already covered by `shouldDeduplicateMultipleMutationsOnSameAttribute`
 
-- [ ] `pop_index_implicit_mutations_multiple_mutations_same_attr_final_equals_original` —
-  Pre-load attribute `inputWidgetType` with old value `"CHECKBOX"`. Apply
-  `UpsertAttributeMutation("inputWidgetType", "RADIO")` followed by
-  `UpsertAttributeMutation("inputWidgetType", "CHECKBOX")` in the same batch. Old value =
-  `"CHECKBOX"`, final new value = `"CHECKBOX"`. Expect: empty result (old == new optimization
-  applies to the net change).
+- [x] `pop_index_implicit_mutations_multiple_mutations_same_attr_final_equals_original` — **DELETED** — net-change optimization never implemented; deduplication fires once on first occurrence
 
-- [ ] `pop_index_implicit_mutations_clears_cached_values_after_pop` —
-  Apply attribute mutation, call `popIndexImplicitMutations()`, then apply a DIFFERENT
-  attribute mutation and call `popIndexImplicitMutations()` again. The second call must NOT
-  see cached values from the first batch. Verify each call produces results based only on its
-  own batch.
+- [x] `pop_index_implicit_mutations_clears_cached_values_after_pop` — **DELETED** — no cache to clear; batch isolation already tested by `shouldNotCarryOverStateBetweenPops`
 
 ##### Category 12: Edge cases — mutation type filtering
 
@@ -838,101 +807,11 @@ and a mock `ContainerizedLocalMutationExecutor`. The mock index executor's
 
 ##### Category 13: Dispatch ordering and routing
 
-- [ ] `execute_calls_pop_index_implicit_mutations_after_pop_implicit_mutations` —
-  Instrument both `popImplicitMutations()` and `popIndexImplicitMutations()` with call-order
-  tracking. Execute a mutation. Verify `popImplicitMutations()` is called BEFORE
-  `popIndexImplicitMutations()`.
+- [x] `execute_calls_pop_index_implicit_mutations_after_pop_implicit_mutations` — **DELETED** — WBS-10 scope; requires call-order spying (no-mocking convention); ordering is structural (sequential code)
+- [x] `execute_calls_pop_index_implicit_mutations_before_consistency_check` — **DELETED** — WBS-10 scope; sequential code guarantee
+- [x] `execute_routes_entity_index_mutation_to_correct_target_collection` — **DELETED** — WBS-10 scope; requires mocking `Catalog`; covered by E2E suite
+- [x] `execute_routes_multiple_envelopes_to_respective_collections` — **DELETED** — WBS-10 scope; requires mock catalog with multiple collections; covered by E2E suite
+- [x] `execute_handles_empty_index_implicit_mutations` — **DELETED** — trivial no-op path (empty for-loop)
+- [x] `execute_dispatches_index_mutations_for_entity_removal` — **DELETED** — WBS-10 scope; covered by E2E entity removal tests
+- [x] `execute_index_mutations_are_not_written_to_wal` — **DELETED** — WAL exclusion is integration concern; covered by E2E suite
 
-- [ ] `execute_calls_pop_index_implicit_mutations_before_consistency_check` —
-  Instrument `popIndexImplicitMutations()` and `verifyConsistency()` with call-order
-  tracking. Execute a mutation. Verify `popIndexImplicitMutations()` is called BEFORE
-  `verifyConsistency()`.
-
-- [ ] `execute_routes_entity_index_mutation_to_correct_target_collection` —
-  `popIndexImplicitMutations()` returns an `IndexImplicitMutations` with one
-  `EntityIndexMutation(entityType = "product", ...)`. Verify that
-  `catalog.getCollectionForEntityOrThrowException("product")` is called and
-  `applyIndexMutations()` is invoked on the returned `EntityCollection` mock.
-
-- [ ] `execute_routes_multiple_envelopes_to_respective_collections` —
-  `popIndexImplicitMutations()` returns two envelopes: one for `"product"`, one for
-  `"offer"`. Verify that `applyIndexMutations()` is called on BOTH the Product and Offer
-  collection mocks with the correct envelope.
-
-- [ ] `execute_handles_empty_index_implicit_mutations` —
-  `popIndexImplicitMutations()` returns empty `IndexImplicitMutations`. Verify that NO calls
-  to `getCollectionForEntityOrThrowException()` are made for index dispatch (no-op).
-
-- [ ] `execute_dispatches_index_mutations_for_entity_removal` —
-  Execute an `EntityRemoveMutation`. `popIndexImplicitMutations()` returns non-empty result.
-  Verify dispatch occurs normally (removal path also invokes index trigger dispatch).
-
-- [ ] `execute_index_mutations_are_not_written_to_wal` —
-  Verify that `EntityIndexMutation` envelopes produced by `popIndexImplicitMutations()` are
-  NOT added to `entityMutations` list and are NOT written to WAL. Only the root-level
-  `EntityMutation` is recorded.
-
----
-
-## ⚠️ TOBEDONE JNO — Unchecked Test Cases and Their Disposition
-
-The following test cases remain unchecked. They fall into three categories: tests invalidated by
-a design change, tests invalidated by the removal of old-value caching, and tests belonging to
-WBS-10 scope.
-
-### ❌ Category 2: Old == new optimization — invalidated by design (3 tests)
-
-**Root cause:** The implementation intentionally does NOT perform old-vs-new value comparison.
-Any `AttributeMutation` in the input list fires the corresponding triggers unconditionally (safe
-over-firing). The target-side executor is idempotent, so unnecessary triggers result in a no-op
-rather than incorrect state. This design was chosen to avoid duplicating the
-`ExistingAttributeValueSupplier` infrastructure into a parallel `Map<AttributeKey, Serializable>`
-cache. See "Implementation Notes — No old-vs-new value comparison" in this spec.
-
-**Disposition:** These tests describe behavior that the implementation explicitly does NOT
-implement. They should be **removed or marked as N/A** — the existing
-`shouldFireForZeroDeltaAttributeMutation` test documents the safe over-firing behavior.
-
-**Affected tests:**
-- [ ] `pop_index_implicit_mutations_skips_when_upsert_value_equals_existing`
-- [ ] `pop_index_implicit_mutations_skips_when_removing_nonexistent_attribute`
-- [ ] `pop_index_implicit_mutations_compares_by_value_equality_not_identity`
-
-### ❌ Category 11: Old-value caching correctness — invalidated by design (4 tests)
-
-**Root cause:** Same design change as Category 2. The implementation does NOT cache old attribute
-values during `applyMutation()`. The `popIndexImplicitMutations()` method iterates the
-`inputMutations` list directly, checking for `instanceof AttributeMutation` — it never reads
-old or new attribute values. Therefore tests about old-value caching timing, `putIfAbsent`
-semantics, net-change-equals-original detection, and cache clearing are all moot.
-
-**Disposition:** These tests should be **removed or marked as N/A**. The relevant behaviors are
-already covered:
-- Deduplication within a batch: `shouldDeduplicateMultipleMutationsOnSameAttribute`
-- Batch isolation between pops: `shouldNotCarryOverStateBetweenPops`
-
-**Affected tests:**
-- [ ] `pop_index_implicit_mutations_caches_old_value_before_index_update`
-- [ ] `pop_index_implicit_mutations_handles_multiple_mutations_same_attribute`
-- [ ] `pop_index_implicit_mutations_multiple_mutations_same_attr_final_equals_original`
-- [ ] `pop_index_implicit_mutations_clears_cached_values_after_pop`
-
-### ⏳ Category 13: Dispatch ordering and routing — WBS-10 scope (7 tests)
-
-**Root cause:** These tests verify the integration between `LocalMutationExecutorCollector` and
-`EntityIndexLocalMutationExecutor.popIndexImplicitMutations()`. The actual dispatch loop
-(`popIndexImplicitMutations()` call site, routing to target collections, WAL exclusion) is
-implemented by **WBS-10**, not WBS-08. WBS-08 only provides the `popIndexImplicitMutations()`
-method; WBS-10 consumes its output.
-
-**Disposition:** These tests should be **implemented as part of WBS-10**. The test class
-`LocalMutationExecutorCollectorIndexDispatchTest` is a WBS-10 deliverable.
-
-**Affected tests:**
-- [ ] `execute_calls_pop_index_implicit_mutations_after_pop_implicit_mutations`
-- [ ] `execute_calls_pop_index_implicit_mutations_before_consistency_check`
-- [ ] `execute_routes_entity_index_mutation_to_correct_target_collection`
-- [ ] `execute_routes_multiple_envelopes_to_respective_collections`
-- [ ] `execute_handles_empty_index_implicit_mutations`
-- [ ] `execute_dispatches_index_mutations_for_entity_removal`
-- [ ] `execute_index_mutations_are_not_written_to_wal`

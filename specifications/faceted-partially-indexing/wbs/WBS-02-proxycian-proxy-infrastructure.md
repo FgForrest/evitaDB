@@ -923,28 +923,3 @@ Test classes live in `evita_engine/src/test/java/io/evitadb/core/expression/prox
 
 - [x] `binary_search_is_faster_than_hashmap_for_small_attribute_counts` -- benchmark `getAttribute("code")` via `findAttribute(AttributeKey)` binary search on sorted arrays of size 1, 5, 10, 20, 30 attributes vs. HashMap lookup; verify binary search is competitive (informational benchmark, not a hard assertion -- use JUnit `@Tag("performance")` to allow selective execution)
 
----
-
-## ⚠️ TOBEDONE JNO — Task Blocked on WBS-03
-
-The following task cannot be implemented within WBS-02 because it depends on infrastructure that will be created in WBS-03 (trigger registry and dispatch).
-
-### ⚠️ Task 6.2: `createEvaluationContext()` on `FacetExpressionTrigger` (blocked on WBS-03)
-
-**Root cause:** `FacetExpressionTrigger` does not exist yet. The WBS-02 description itself states: *"this class does not exist yet; it will be created in WBS-03."* The task asks to design the method signature and delegation to `ExpressionProxyInstantiator`, but since the trigger class, its lifecycle, and its relationship to `ExpressionIndexTrigger` are all defined in WBS-03, implementing this method in isolation would create dead code with no integration point or testable consumer.
-
-**What WBS-02 has delivered that WBS-03 will consume:**
-1. `ExpressionProxyInstantiator.instantiate()` — fully implemented, takes descriptor + schema + PK + accessor, returns `InstantiationResult(entityProxy, referenceProxy)`
-2. `ExpressionVariableContext` — fully implemented, takes variable bindings and implements `ExpressionEvaluationContext`
-3. `ExpressionProxyDescriptor` — fully implemented, stores pre-composed partials + recipes
-4. `ExpressionProxyFactory.buildDescriptor()` — fully implemented, builds descriptors from expression trees
-
-**When WBS-03 creates `FacetExpressionTrigger`, it should:**
-1. Store an `ExpressionProxyDescriptor` (built at schema load time via `ExpressionProxyFactory.buildDescriptor()`)
-2. Implement `createEvaluationContext(int entityPK, ReferenceKey referenceKey, EntityStoragePartAccessor accessor)` by:
-   - Calling `ExpressionProxyInstantiator.instantiate(descriptor, schema, entityPK, referenceSchema, referenceKey, accessor, schemaResolver)`
-   - Wrapping the result in `new ExpressionVariableContext(Map.of("entity", result.entityProxy(), "reference", result.referenceProxy()))`
-3. Implement `evaluate()` by calling `createEvaluationContext()` and then evaluating the expression against the context
-
-**Blocked task:**
-- [x] **6.2** Implement `createEvaluationContext()` method on `FacetExpressionTrigger` (implemented inline in evaluate() method rather than as a separate method)

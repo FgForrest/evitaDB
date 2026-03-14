@@ -77,7 +77,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -1019,6 +1022,121 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			final FacetExpressionTrigger result = executor.getTriggerFor(REFERENCE_NAME, Scope.LIVE);
 
 			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("Should return trigger from supplier when installed")
+		void shouldReturnTriggerFromSupplierWhenInstalled() {
+			final MockStorageContainerAccessor accessor = new MockStorageContainerAccessor();
+			final TestFacetTrigger expectedTrigger = new TestFacetTrigger();
+			final EntityIndexLocalMutationExecutor executor = createExecutorWithTriggerSupplier(
+				accessor, null, (name, scope) -> expectedTrigger
+			);
+
+			final FacetExpressionTrigger result = executor.getTriggerFor("brand", Scope.LIVE);
+
+			assertNotNull(result);
+			assertSame(expectedTrigger, result);
+		}
+
+		@Test
+		@DisplayName("Should delegate to supplier on each call for same reference and scope")
+		void shouldDelegateToSupplierOnEachCallForSameReferenceAndScope() {
+			final MockStorageContainerAccessor accessor = new MockStorageContainerAccessor();
+			final AtomicInteger counter = new AtomicInteger(0);
+			final TestFacetTrigger trigger = new TestFacetTrigger();
+			final EntityIndexLocalMutationExecutor executor = createExecutorWithTriggerSupplier(
+				accessor, null, (name, scope) -> {
+					counter.incrementAndGet();
+					return trigger;
+				}
+			);
+
+			final FacetExpressionTrigger first = executor.getTriggerFor(REFERENCE_NAME, Scope.LIVE);
+			final FacetExpressionTrigger second = executor.getTriggerFor(REFERENCE_NAME, Scope.LIVE);
+
+			assertSame(trigger, first);
+			assertSame(trigger, second);
+			// no memoization at executor level — supplier is called on every invocation
+			assertEquals(2, counter.get());
+		}
+
+		@Test
+		@DisplayName("Should delegate to supplier independently per reference and scope")
+		void shouldDelegateToSupplierIndependentlyPerReferenceAndScope() {
+			final MockStorageContainerAccessor accessor = new MockStorageContainerAccessor();
+			final AtomicInteger counter = new AtomicInteger(0);
+			final TestFacetTrigger trigger = new TestFacetTrigger();
+			final EntityIndexLocalMutationExecutor executor = createExecutorWithTriggerSupplier(
+				accessor, null, (name, scope) -> {
+					counter.incrementAndGet();
+					return trigger;
+				}
+			);
+
+			executor.getTriggerFor(REFERENCE_NAME, Scope.LIVE);
+			executor.getTriggerFor("brand", Scope.LIVE);
+			executor.getTriggerFor(REFERENCE_NAME, Scope.ARCHIVED);
+
+			// each distinct (referenceName, scope) pair invokes the supplier separately
+			assertEquals(3, counter.get());
+		}
+
+		@Test
+		@DisplayName("Should return null when trigger supplier returns null for given reference")
+		void shouldReturnNullWhenTriggerSupplierReturnsNullForGivenReference() {
+			final MockStorageContainerAccessor accessor = new MockStorageContainerAccessor();
+			final EntityIndexLocalMutationExecutor executor = createExecutorWithTriggerSupplier(
+				accessor, null, (name, scope) -> null
+			);
+
+			final FacetExpressionTrigger result = executor.getTriggerFor("brand", Scope.LIVE);
+
+			assertNull(result);
+			// hasFacetExpressionTriggers is true because the supplier itself is non-null
+			assertTrue(executor.hasFacetExpressionTriggers());
+		}
+
+		@Test
+		@DisplayName("Should report no facet expression triggers when supplier is null")
+		void shouldReportNoFacetExpressionTriggersWhenSupplierIsNull() {
+			final MockStorageContainerAccessor accessor = new MockStorageContainerAccessor();
+			final EntityIndexLocalMutationExecutor executor = createExecutorWithTriggerSupplier(
+				accessor, null, null
+			);
+
+			assertFalse(executor.hasFacetExpressionTriggers());
+			assertNull(executor.getTriggerFor(REFERENCE_NAME, Scope.LIVE));
+		}
+
+		@Test
+		@DisplayName("Should not re-evaluate when no trigger is defined for reference")
+		void shouldNotReEvaluateWhenNoTriggerDefinedForReference() {
+			final MockStorageContainerAccessor accessor = new MockStorageContainerAccessor();
+			// supplier returns null — no expression defined for any reference/scope combination
+			final AtomicInteger supplierCallCount = new AtomicInteger(0);
+			final EntityIndexLocalMutationExecutor executor = createExecutorWithTriggerSupplier(
+				accessor, null, (name, scope) -> {
+					supplierCallCount.incrementAndGet();
+					return null;
+				}
+			);
+
+			// hasFacetExpressionTriggers returns true (supplier is non-null), but getTriggerFor returns null
+			assertTrue(executor.hasFacetExpressionTriggers());
+
+			// apply an attribute mutation — this would normally trigger re-evaluation
+			// but since getTriggerFor returns null, the re-evaluation path in
+			// ReferenceIndexMutator.reEvaluateFacetExpressions skips evaluation (line: cachedTrigger == null)
+			final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
+			executor.applyMutation(mutation);
+
+			// verify the mutation was processed without errors (no NPE, no evaluation attempted)
+			// the source-side detection still works independently via the registry supplier
+			final IndexImplicitMutations result = executor.popIndexImplicitMutations(List.of(mutation));
+
+			// no cross-entity mutations because registrySupplier is null
+			assertEquals(0, result.indexMutations().length);
 		}
 
 	}

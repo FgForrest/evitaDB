@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation;
 
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -162,6 +164,28 @@ class IndexMutationExecutorRegistryTest {
 		assertEquals(1, executorB.receivedMutations.size());
 		assertEquals(1, executorA.receivedMutations.get(0).id());
 		assertEquals(2, executorB.receivedMutations.get(0).id());
+	}
+
+	/**
+	 * Verifies that the `INSTANCE` singleton contains an executor mapping for
+	 * {@link ReevaluateFacetExpressionMutation}. Dispatching a minimal mutation with a mock target that
+	 * returns `null` indexes causes the executor to short-circuit (no affected entities), proving the
+	 * mapping is present without requiring a fully wired collection. This guards against accidental
+	 * removal of the registration entry.
+	 */
+	@Test
+	@DisplayName("INSTANCE singleton should contain ReevaluateFacetExpressionMutation executor")
+	void shouldContainReevaluateFacetExpressionMutationEntry() {
+		final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
+			"testRef", 1, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.DEFAULT_SCOPE
+		);
+		final IndexMutationTarget target = Mockito.mock(IndexMutationTarget.class);
+
+		// dispatch must not throw — the executor is registered and the null-returning mock target
+		// causes it to short-circuit on empty affected-entity resolution
+		assertDoesNotThrow(
+			() -> IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, target)
+		);
 	}
 
 }

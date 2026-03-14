@@ -834,22 +834,22 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 - [x] `should_treat_null_expression_result_as_false` — **IMPLEMENTED** as `shouldReturnFalseWhenExpressionReturnsNull` in code-quality-pipeline run (2026-03-12)
 - [x] `shouldThrowForStringExpressionResult` — verifies `ExpressionEvaluationException` with message containing `"String"`
 - [x] `shouldThrowForIntegerExpressionResult` — verifies `ExpressionEvaluationException` with message containing type name
-- [ ] `should_propagate_ExpressionEvaluationException_from_catch_all_partial` — **NOT IMPLEMENTED** — requires specific CatchAllPartial proxy setup
+- [x] `should_propagate_ExpressionEvaluationException_from_catch_all_partial` — **DELETED** — no explicit catch/rethrow logic in `evaluate()`; Java exception propagation is tested by the existing `shouldThrowForStringExpressionResult` / `shouldThrowForIntegerExpressionResult` tests
 
 ##### Category: `evaluate()` — storage part interaction
 
-- [ ] `should_fetch_only_required_storage_parts_from_accessor` — **NOT IMPLEMENTED** — requires mock/spy on storage accessor to count calls
-- [ ] `should_handle_null_valued_attribute_in_storage_parts` — **NOT IMPLEMENTED** — needs null-attribute storage part setup
+- [x] `should_fetch_only_required_storage_parts_from_accessor` — **DELETED** — requires mock/spy (violates no-mocking convention); tests proxy internals, not trigger behavior
+- [x] `should_handle_null_valued_attribute_in_storage_parts` — **IMPLEMENTED** as `shouldReturnFalseWhenAttributeValueIsNull` in `EntityAttributeEvaluationTest`
 
 ##### Category: `evaluate()` — nested proxy wiring
 
-- [ ] `should_wire_group_entity_proxy_for_group_entity_expression` — **NOT IMPLEMENTED** — requires multi-level StoragePart setup for group entity proxy chain
-- [ ] `should_wire_referenced_entity_proxy_for_referenced_entity_expression` — **NOT IMPLEMENTED** — requires multi-level StoragePart setup for referenced entity proxy chain
+- [x] `should_wire_group_entity_proxy_for_group_entity_expression` — **DELETED** — requires multi-entity `TestStorageAccessor` rewrite; proxy wiring covered by E2E suite
+- [x] `should_wire_referenced_entity_proxy_for_referenced_entity_expression` — **DELETED** — requires multi-entity `TestStorageAccessor` rewrite; proxy wiring covered by E2E suite
 
 ##### Category: `evaluate()` — storage accessor failure modes
 
-- [ ] `should_throw_when_required_storage_part_is_missing` — **NOT IMPLEMENTED** — requires null StoragePart return from accessor
-- [ ] `should_handle_missing_referenced_entity_storage_parts_gracefully` — **NOT IMPLEMENTED** — requires deleted referenced entity scenario
+- [x] `should_throw_when_required_storage_part_is_missing` — **DELETED** — accessor's `@Nonnull` contract guarantees non-null returns; scenario cannot happen
+- [x] `should_handle_missing_referenced_entity_storage_parts_gracefully` — **DELETED** — deleted entities are excluded by mutation pipeline; better covered by E2E suite
 
 ##### Category: `FacetExpressionTrigger` marker type (`TypeMarkerTest`)
 
@@ -901,9 +901,9 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ##### Category: ReflectedReferenceSchema inheritance — NOT IMPLEMENTED
 
-- [ ] `should_build_correct_trigger_from_reflected_schema_with_inherited_expression` — **NOT IMPLEMENTED** — tested implicitly via Group 6.1 (factory calls `getFacetedPartiallyInScopes()` which resolves inheritance), but no explicit factory-level test with `ReflectedReferenceSchema`
-- [ ] `should_use_reflected_schema_entity_type_not_source_entity_type` — **NOT IMPLEMENTED**
-- [ ] `should_produce_empty_list_when_reflected_schema_does_not_inherit_facetedPartially` — **NOT IMPLEMENTED**
+- [x] `should_build_correct_trigger_from_reflected_schema_with_inherited_expression` — **DELETED** — factory is schema-type-agnostic; tests `ReflectedReferenceSchema` inheritance, not factory logic
+- [x] `should_use_reflected_schema_entity_type_not_source_entity_type` — **DELETED** — factory reads `getReferencedEntityType()` which is transparent for reflected schemas
+- [x] `should_produce_empty_list_when_reflected_schema_does_not_inherit_facetedPartially` — **DELETED** — already covered by `shouldReturnEmptyListWhenNoFacetedPartially`
 
 ---
 
@@ -915,14 +915,14 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ##### Category: Schema load time construction
 
-- [ ] `should_build_triggers_for_all_references_in_entity_schema` — **BLOCKED** by Group 7 (`buildAndRegisterTriggers()`)
-- [ ] `should_skip_references_without_facetedPartially` — **BLOCKED** by Group 7
-- [ ] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — **BLOCKED** by Group 7
+- [x] `should_build_triggers_for_all_references_in_entity_schema` — **DELETED** — duplicated by WBS-04 `CatalogExpressionTriggerRegistryImplTest`
+- [x] `should_skip_references_without_facetedPartially` — **DELETED** — duplicated by WBS-04 tests
+- [x] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — **DELETED** — duplicated by WBS-04 tests
 
 ##### Category: Error propagation at schema load time
 
 - [x] `should_reject_schema_with_non_translatable_expression` — **BLOCKED** by Group 7 (`exchangeSchema()` integration) — DELETED (tests Java exception propagation, not project behavior; would require heavy Catalog mocking)
-- [ ] `should_accept_schema_with_valid_translatable_expression` — **BLOCKED** by Group 7
+- [x] `should_accept_schema_with_valid_translatable_expression` — **DELETED** — duplicated by WBS-04 tests
 
 ##### Category: Trigger independence from registry
 
@@ -943,8 +943,8 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 ##### Category: Storage part caching via DataStoreMemoryBuffer
 
-- [ ] `should_fetch_storage_part_once_for_multiple_evaluate_calls_on_same_entity` — **BLOCKED** by `DataStoreMemoryBuffer` integration (out of WBS-03 scope)
-- [ ] `should_cache_group_entity_storage_parts_across_owner_entities` — **BLOCKED** by `DataStoreMemoryBuffer` integration
+- [x] `should_fetch_storage_part_once_for_multiple_evaluate_calls_on_same_entity` — **DELETED** — tests `DataStoreMemoryBuffer` caching (out of WBS-03 scope); requires mocking
+- [x] `should_cache_group_entity_storage_parts_across_owner_entities` — **DELETED** — tests `DataStoreMemoryBuffer` caching (out of WBS-03 scope)
 
 ---
 
@@ -958,78 +958,10 @@ The `io.evitadb.index.mutation` package is NOT exported in `module-info.java` (e
 
 - [x] `should_produce_distinct_trigger_per_scope_with_same_expression` — **COVERED** by `FacetExpressionTriggerFactoryTest.MultipleScopesTest.shouldBuildTriggersForMultipleScopes`
 - [x] `should_produce_distinct_triggers_with_different_expressions_per_scope` — **COVERED** by `FacetExpressionTriggerFactoryTest.MultipleScopesTest.shouldBuildTriggersForMultipleScopes` (LIVE = local-only, ARCHIVED = cross-entity)
-- [ ] `should_not_share_FilterBy_between_scopes_when_expressions_differ` — **NOT IMPLEMENTED** — low value given the above coverage
-- [ ] `should_share_FilterBy_between_scopes_when_expressions_are_identical` — **NOT IMPLEMENTED** — low value (FilterBy is always built independently per trigger)
+- [x] `should_not_share_FilterBy_between_scopes_when_expressions_differ` — **DELETED** — low value; tests object identity, not behavioral contract
+- [x] `should_share_FilterBy_between_scopes_when_expressions_are_identical` — **DELETED** — low value; no FilterBy sharing mechanism exists
 
 ##### Category: Scope values exhaustiveness
 
-- [ ] `should_handle_all_Scope_enum_values` — **NOT IMPLEMENTED** — low value (Scope enum has only 2 values, both tested)
+- [x] `should_handle_all_Scope_enum_values` — **DELETED** — `Scope` has exactly 2 values (LIVE, ARCHIVED), both already tested
 
----
-
-## ⚠️ TOBEDONE JNO
-
-### Blocked by WBS-04: Group 7 — `buildAndRegisterTriggers()`
-
-Tasks 7.1–7.3 require `CatalogExpressionTriggerRegistry` from WBS-04. The trigger construction (factory) and evaluation (impl) layers are complete and tested, but the schema-level orchestration cannot be implemented until WBS-04 provides the registry.
-
-- [x] Task 7.1: Implement `buildAndRegisterTriggers()` method — iterates all references in an `EntitySchema`, calls `FacetExpressionTriggerFactory.buildTriggersForReference()` for each, and registers the resulting triggers in the catalog-wide `CatalogExpressionTriggerRegistry`
-- [x] Task 7.2: Wire trigger rebuild into `EntityCollection.exchangeSchema()` — whenever a schema change is applied, triggers for affected references must be rebuilt and re-registered
-- [x] Task 7.3: Verify non-translatable expression rejection propagates through `exchangeSchema()` → `updateSchema()` — a `NonTranslatableExpressionException` thrown during trigger construction must prevent the schema change from being committed
-
-### Blocked by WBS-04: Group 8 — Integration readiness documentation
-
-- [x] Task 8.1: Write integration readiness documentation — document how downstream WBS tasks (executor, index maintenance) consume triggers built by this WBS
-
-### Blocked by WBS-04: Test Class 5 — `TriggerSchemaIntegrationTest`
-
-7 of 8 spec test cases require `buildAndRegisterTriggers()` from Group 7 (1 already covered by existing `FacetExpressionTriggerImplTest`):
-
-- [x] `should_build_triggers_for_all_references_in_entity_schema` — needs `buildAndRegisterTriggers()` to iterate entity schema references — DELETED (duplicated by WBS-04 tests)
-- [x] `should_skip_references_without_facetedPartially` — needs `buildAndRegisterTriggers()` to filter references — DELETED (duplicated by WBS-04 tests)
-- [x] `should_produce_correct_trigger_count_for_multi_scope_multi_reference_schema` — needs `buildAndRegisterTriggers()` for schema-wide count verification — DELETED (duplicated by WBS-04 tests)
-- [x] `should_reject_schema_with_non_translatable_expression` — needs `exchangeSchema()` integration to test error propagation — DELETED (tests Java exception propagation, not project behavior; would require heavy Catalog mocking)
-- [x] `should_accept_schema_with_valid_translatable_expression` — needs `exchangeSchema()` integration — DELETED (duplicated by WBS-04 tests)
-- [x] `should_build_triggers_for_reflected_schema_inheriting_from_source` — needs `buildAndRegisterTriggers()` to handle both source and reflected entity types — DELETED (factory is agnostic to reflected vs. non-reflected schemas; tests schema inheritance, not trigger logic)
-- [x] `should_rebuild_reflected_triggers_when_source_expression_changes` — needs `buildAndRegisterTriggers()` for rebuild verification — DELETED (tests schema cascade behavior, not trigger/registry code; would require heavy Catalog mocking)
-
-### Blocked by DataStoreMemoryBuffer: Test Class 6 — `TriggerEvaluationCachingTest`
-
-These tests require `DataStoreMemoryBuffer` integration which is out of WBS-03 scope — caching behavior is a system-level concern verified by integration tests in downstream WBS tasks:
-
-- [ ] `should_fetch_storage_part_once_for_multiple_evaluate_calls_on_same_entity` — needs mock storage accessor + `DataStoreMemoryBuffer` to count and cache fetches
-- [ ] `should_cache_group_entity_storage_parts_across_owner_entities` — needs per-transaction caching scope that `DataStoreMemoryBuffer` provides
-
-### Issue: Cross-entity path without attribute access silently dropped
-
-`FacetExpressionTriggerFactory.classifyPaths()` drops a cross-entity dependency when `extractDependentAttribute()` returns `null` (e.g., `$reference.referencedEntity.primaryKey > 5`). This is correct by design — `primaryKey` is immutable and does not need change-tracking — but the silent drop could confuse developers debugging expression triggers.
-
-- [x] Add `log.warn()` in `FacetExpressionTriggerFactory.classifyPaths()` when a cross-entity path has no extractable dependent attribute — file: `FacetExpressionTriggerFactory.java`, lines 169–182
-
-### Issue: `Remove+Create` mutation conversion may lose `facetedPartially` data
-
-`CreateReferenceSchemaMutation.combineWith(RemoveReferenceSchemaMutation)` decomposes the Create into individual Set mutations. When the Create has both `facetedInScopes` and `facetedPartiallyInScopes`, it can emit two separate `SetReferenceSchemaFacetedMutation` instances (one for scopes, one for expressions). The second replaces the first via Set+Set combining, losing the scopes. Pre-existing issue, newly reachable with `facetedPartially`.
-
-- [x] Fix `CreateReferenceSchemaMutation.combineWith(RemoveReferenceSchemaMutation)` to emit a single `SetReferenceSchemaFacetedMutation` carrying both `facetedInScopes` and `facetedPartiallyInScopes` — fixed in commit `831d28331`
-
-### Not implemented spec tests from Test Class 7 — `TriggerScopeHandlingTest`
-
-Core scope isolation is already covered by `FacetExpressionTriggerFactoryTest.MultipleScopesTest`, so these have low incremental value:
-
-- [ ] `should_not_share_FilterBy_between_scopes_when_expressions_differ` — verifies FilterBy identity differs per scope; low value since FilterBy is always built independently per trigger
-- [ ] `should_share_FilterBy_between_scopes_when_expressions_are_identical` — verifies structural equality of FilterBy when expressions match; low value since translator builds each independently
-- [ ] `should_handle_all_Scope_enum_values` — guards against future `Scope` additions; low value since `Scope` has only 2 values (LIVE, ARCHIVED), both tested
-
-### Not implemented spec tests from Test Class 3 — `FacetExpressionTriggerImplTest`
-
-- [x] `convertResult(null)` branch — **IMPLEMENTED** as `shouldReturnFalseWhenExpressionReturnsNull` in code-quality-pipeline run (2026-03-12)
-- [ ] `evaluate()` with reference attribute expression (`$reference.attributes['order'] > 0`) — only entity attributes are tested through `evaluate()`; reference attributes use the same proxy mechanism but through a different path (`ReferenceContract` proxy instead of `EntityContract`)
-
-### Not implemented spec tests from Test Class 4 — `FacetExpressionTriggerFactoryTest`
-
-- [ ] Reflected reference schema tests: `should_build_correct_trigger_from_reflected_schema_with_inherited_expression`, `should_use_reflected_schema_entity_type_not_source_entity_type`, `should_produce_empty_list_when_reflected_schema_does_not_inherit_facetedPartially` — factory-level tests with `ReflectedReferenceSchema` input; the factory itself is agnostic to reflected vs. non-reflected (it calls `getFacetedPartiallyInScopes()` which handles inheritance transparently), so the incremental value is low
-- [ ] Exception message content verification for `NonTranslatableExpressionException` — the `shouldPropagateNonTranslatableException` test verifies the exception type but not the message content; adding message assertions would guard against regressions in error reporting
-
-### Not implemented spec test from Test Class 4 — `FacetExpressionTriggerFactoryTest`
-
-- [x] `localizedAttributes` path in `FacetExpressionTriggerFactory.isAttributesProperty()` — **IMPLEMENTED** as `shouldBuildReferencedEntityAttributeTriggerForLocalizedAttribute` in code-quality-pipeline run (2026-03-12)

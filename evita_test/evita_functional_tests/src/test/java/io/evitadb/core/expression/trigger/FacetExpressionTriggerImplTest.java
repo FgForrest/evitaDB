@@ -411,6 +411,29 @@ class FacetExpressionTriggerImplTest {
 			assertFalse(result);
 		}
 
+		@Test
+		@DisplayName("Should return false when attribute value is null (never set)")
+		void shouldReturnFalseWhenAttributeValueIsNull() {
+			final EntitySchemaContract schema = buildSchemaWithAttribute("status", String.class);
+			final Expression expression = ExpressionFactory.parse(
+				"$entity.attributes['status'] == 'ACTIVE'"
+			);
+			final ExpressionProxyDescriptor descriptor =
+				ExpressionProxyFactory.buildDescriptor(expression);
+			final FacetExpressionTriggerImpl trigger = new FacetExpressionTriggerImpl(
+				ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE,
+				Set.of(), Set.of(), Set.of(), false, expression, descriptor
+			);
+
+			// accessor returns empty AttributesStoragePart — 'status' exists in schema but has no value
+			final TestStorageAccessor accessor = new TestStorageAccessor(ENTITY_PK);
+			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_PK);
+
+			// null attribute value compared to 'ACTIVE' must not NPE — should evaluate to false
+			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema);
+			assertFalse(result);
+		}
+
 	}
 
 	@Nested
