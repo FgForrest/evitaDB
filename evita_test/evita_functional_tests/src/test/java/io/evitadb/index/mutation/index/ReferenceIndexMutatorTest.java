@@ -33,9 +33,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
@@ -48,6 +48,7 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
 import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.test.Entities;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -60,10 +61,13 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * This test verifies contract of {@link ReferenceIndexMutator} class.
+ * Tests for {@link ReferenceIndexMutator} verifying correct reference insertion into entity indexes
+ * and proper indexing of reference attributes (unique, filterable, sortable) into both reduced entity
+ * indexes and referenced-type entity indexes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("ReferenceIndexMutator — reference index operations")
 class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_BRAND_CODE = "brandCode";
 	private static final String ATTRIBUTE_BRAND_EAN = "brandEan";
@@ -71,8 +75,10 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
 	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
 	};
-	private final EntityIndex entityIndex = new GlobalEntityIndex(1, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
-	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(
+	@Nonnull private final EntityIndex entityIndex = new GlobalEntityIndex(
+		1, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL)
+	);
+	@Nonnull private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(
 		1,
 		this.productSchema.getName(),
 		new EntityIndexKey(
@@ -83,12 +89,12 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	);
 
 	@Override
-	protected void alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder schema) {
+	protected void alterCatalogSchema(@Nonnull CatalogSchemaEditor.CatalogSchemaBuilder schema) {
 		// do nothing
 	}
 
 	@Override
-	protected void alterProductSchema(EntitySchemaEditor.EntitySchemaBuilder schema) {
+	protected void alterProductSchema(@Nonnull EntitySchemaEditor.EntitySchemaBuilder schema) {
 		schema.withReferenceTo(
 			Entities.BRAND,
 			Entities.BRAND,
@@ -96,75 +102,144 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 			thatIs -> {
 				thatIs.withAttribute(ATTRIBUTE_BRAND_CODE, String.class, AttributeSchemaEditor::unique);
 				thatIs.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, AttributeSchemaEditor::filterable);
-				thatIs.withAttribute(ATTRIBUTE_VARIANT_COUNT, Integer.class, whichIs -> whichIs.sortable().filterable());
+				thatIs.withAttribute(
+					ATTRIBUTE_VARIANT_COUNT, Integer.class, whichIs -> whichIs.sortable().filterable()
+				);
 				thatIs.withAttribute(ATTRIBUTE_CHAR_ARRAY, Character[].class, AttributeSchemaEditor::filterable);
 			});
 	}
 
+	/**
+	 * Verifies that inserting a new reference correctly registers the entity primary key in both
+	 * the reduced entity index (per-reference) and the referenced-type entity index.
+	 */
 	@Test
+	@DisplayName("Should register entity in reference and type indexes on reference insert")
 	void shouldInsertNewReference() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(referenceKey);
-		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, rrk));
+		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(
+			2, this.productSchema.getName(),
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, rrk)
+		);
 		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 		referenceInsert(
-			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, referenceKey, null,
+			1, this.productSchema, referenceSchema, this.executor,
+			this.entityIndex, this.referenceTypesIndex, referenceIndex,
+			referenceKey, null,
 			getEntityAttributeValueSupplierFactory(this.productSchema, 1), DO_NOTHING_CONSUMER
 		);
+
 		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
 	}
 
+	/**
+	 * Verifies that reference attributes (unique, filterable, sortable) are correctly indexed into
+	 * both the reduced entity index and the referenced-type entity index after a reference insert
+	 * followed by attribute mutations.
+	 */
 	@Test
+	@DisplayName("Should index unique, filterable and sortable reference attributes")
 	void shouldIndexAttributes() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
-		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey(referenceKey)));
-		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(this.productSchema, 1);
-		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
+		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(
+			2, this.productSchema.getName(),
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE,
+				new RepresentativeReferenceKey(referenceKey)
+			)
+		);
+		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory =
+			getEntityAttributeValueSupplierFactory(this.productSchema, 1);
+		final ReferenceSchema referenceSchema =
+			this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 
 		referenceInsert(
-			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, referenceKey, null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
+			1, this.productSchema, referenceSchema, this.executor,
+			this.entityIndex, this.referenceTypesIndex, referenceIndex,
+			referenceKey, null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
 		);
-		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
+		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(
+			referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55)
+		);
 		attributeUpdate(
 			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
-			referenceIndex,
-			referenceIndex,
-			referenceSchema, referenceMutation.getReferenceKey(), referenceMutation.getAttributeMutation()
+			referenceIndex, referenceIndex,
+			referenceSchema, referenceMutation.getReferenceKey(),
+			referenceMutation.getAttributeMutation()
 		);
-		final ReferenceAttributeMutation a = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_CODE), "A"));
+		final ReferenceAttributeMutation a = new ReferenceAttributeMutation(
+			referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_CODE), "A")
+		);
 		attributeUpdate(
 			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
-			referenceIndex,
-			referenceIndex,
+			referenceIndex, referenceIndex,
 			referenceSchema, a.getReferenceKey(), a.getAttributeMutation()
 		);
-		final ReferenceAttributeMutation referenceMutation1 = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_EAN), "EAN-001"));
+		final ReferenceAttributeMutation referenceMutation1 = new ReferenceAttributeMutation(
+			referenceKey,
+			new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_EAN), "EAN-001")
+		);
 		attributeUpdate(
 			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
-			referenceIndex,
-			referenceIndex,
-			referenceSchema, referenceMutation1.getReferenceKey(), referenceMutation1.getAttributeMutation()
+			referenceIndex, referenceIndex,
+			referenceSchema, referenceMutation1.getReferenceKey(),
+			referenceMutation1.getAttributeMutation()
 		);
 
-		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());
+		assertArrayEquals(
+			new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray()
+		);
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
 
 		final ReferenceSchema brandReferenceSchema = ReferenceSchema._internalBuild(
 			Entities.BRAND, Entities.BRAND, true, Cardinality.ZERO_OR_MORE, null, false,
-			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(
-				Scope.LIVE, ReferenceIndexType.FOR_FILTERING)}, new Scope[]{Scope.DEFAULT_SCOPE}
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			},
+			new Scope[]{Scope.DEFAULT_SCOPE}
 		);
-		AttributeSchemaContract brandCodeSchema = AttributeSchema._internalBuild(ATTRIBUTE_BRAND_CODE, String.class, false);
-		AttributeSchemaContract brandEanSchema = AttributeSchema._internalBuild(ATTRIBUTE_BRAND_EAN, String.class, false);
-		assertEquals(2, this.referenceTypesIndex.getUniqueIndex(brandReferenceSchema, brandCodeSchema, null).getRecordIdByUniqueValue("A"));
-		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getFilterIndex(brandReferenceSchema, brandEanSchema, null).getRecordsEqualTo("EAN-001").getArray());
-		assertEquals(1, referenceIndex.getUniqueIndex(brandReferenceSchema, brandCodeSchema, null).getRecordIdByUniqueValue("A"));
-		assertArrayEquals(new int[]{1}, referenceIndex.getFilterIndex(brandReferenceSchema, brandEanSchema, null).getRecordsEqualTo("EAN-001").getArray());
+		final AttributeSchemaContract brandCodeSchema =
+			AttributeSchema._internalBuild(ATTRIBUTE_BRAND_CODE, String.class, false);
+		final AttributeSchemaContract brandEanSchema =
+			AttributeSchema._internalBuild(ATTRIBUTE_BRAND_EAN, String.class, false);
+		assertEquals(
+			2,
+			this.referenceTypesIndex
+				.getUniqueIndex(brandReferenceSchema, brandCodeSchema, null)
+				.getRecordIdByUniqueValue("A")
+		);
+		assertArrayEquals(
+			new int[]{2},
+			this.referenceTypesIndex
+				.getFilterIndex(brandReferenceSchema, brandEanSchema, null)
+				.getRecordsEqualTo("EAN-001").getArray()
+		);
+		assertEquals(
+			1,
+			referenceIndex
+				.getUniqueIndex(brandReferenceSchema, brandCodeSchema, null)
+				.getRecordIdByUniqueValue("A")
+		);
+		assertArrayEquals(
+			new int[]{1},
+			referenceIndex
+				.getFilterIndex(brandReferenceSchema, brandEanSchema, null)
+				.getRecordsEqualTo("EAN-001").getArray()
+		);
 	}
 
+	/**
+	 * Creates an {@link ExistingDataSupplierFactory} backed by entity storage parts for the given
+	 * entity schema and primary key. Used to supply existing attribute data during index mutations.
+	 *
+	 * @param entitySchema    the entity schema describing the entity structure
+	 * @param entityPrimaryKey the primary key of the entity whose data is being supplied
+	 * @return a factory instance providing existing data suppliers for the entity
+	 */
 	@Nonnull
-	ExistingDataSupplierFactory getEntityAttributeValueSupplierFactory(
+	private ExistingDataSupplierFactory getEntityAttributeValueSupplierFactory(
 		@Nonnull EntitySchema entitySchema,
 		int entityPrimaryKey
 	) {

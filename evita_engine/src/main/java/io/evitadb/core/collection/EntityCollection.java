@@ -34,6 +34,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
@@ -107,6 +108,7 @@ import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
@@ -1507,11 +1509,25 @@ public final class EntityCollection implements
 	 * Zero allocations — `entityIndexCreator` is the target (already exists as a field).
 	 * No switch/case or orchestration logic in the collection.
 	 *
+	 * The session is temporarily set on the `entityIndexCreator` for the duration of the dispatch so that
+	 * `evaluateFilter()` can create a `QueryPlanningContext`. The session reference is cleared in a `finally`
+	 * block to prevent leaking beyond the dispatch scope.
+	 *
 	 * @param entityIndexMutation transport envelope containing mutations to dispatch
+	 * @param session             active session for query evaluation during dispatch, may be null during WAL replay
+	 *                            when no session context is available
 	 */
-	public void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation) {
-		for (final IndexMutation mutation : entityIndexMutation.mutations()) {
-			IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
+	public void applyIndexMutations(
+		@Nonnull EntityIndexMutation entityIndexMutation,
+		@Nullable EvitaSessionContract session
+	) {
+		this.entityIndexCreator.setSession(session);
+		try {
+			for (final IndexMutation mutation : entityIndexMutation.mutations()) {
+				IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
+			}
+		} finally {
+			this.entityIndexCreator.setSession(null);
 		}
 	}
 
@@ -2491,6 +2507,7 @@ public final class EntityCollection implements
 			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation
 		);
+		final String entityType = getInternalSchema().getName();
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
 			changeCollector,
 			entityPrimaryKey,
@@ -2500,7 +2517,9 @@ public final class EntityCollection implements
 			this::nextInternalPriceId,
 			undoOnError,
 			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity(),
-			() -> this.catalog.getExpressionTriggerRegistry()
+			() -> this.catalog.getExpressionTriggerRegistry(),
+			(referenceName, scope) -> this.catalog.getExpressionTriggerRegistry()
+				.getLocalTrigger(entityType, referenceName, scope)
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -2729,6 +2748,24 @@ public final class EntityCollection implements
 	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>, IndexMutationTarget {
 
 		/**
+		 * Active session for query evaluation during cross-entity trigger dispatch. Set temporarily by
+		 * `applyIndexMutations()` for the duration of the dispatch and cleared in a `finally` block.
+		 * May be null during WAL replay when no session context is available.
+		 */
+		@Nullable
+		private EvitaSessionContract session;
+
+		/**
+		 * Sets the active session for query evaluation. Called by `applyIndexMutations()` before dispatch
+		 * and cleared after dispatch completes.
+		 *
+		 * @param session the active session, or null to clear
+		 */
+		void setSession(@Nullable EvitaSessionContract session) {
+			this.session = session;
+		}
+
+		/**
 		 * Returns entity index by its key. If such index doesn't exist, it is automatically created.
 		 */
 		@Nonnull
@@ -2891,22 +2928,56 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Evaluates a {@link FilterBy} constraint against this collection's current indexes and returns the matching
-		 * entity PK bitmap.
+		 * Evaluates a {@link FilterBy} constraint against this collection's `GlobalEntityIndex` for the specified
+		 * scope and returns the matching entity PK bitmap. Uses the full query planning infrastructure
+		 * (`FilterByVisitor` + `Formula`) to evaluate the filter.
 		 *
-		 * **Not yet implemented** — requires an `EvitaSession` to create a `QueryPlanningContext`, but the
-		 * `IndexMutationTarget` interface does not carry session context. The full implementation will be provided
-		 * when the dispatch path (WBS-10) wires the session into the mutation processing chain.
+		 * Requires `session` to be set via `setSession()` before dispatch — called exclusively from within
+		 * `applyIndexMutations()` which sets and clears the session around the dispatch loop.
 		 *
-		 * @throws UnsupportedOperationException always — pending session context integration
+		 * @param filterBy the filter constraint to evaluate (typically a parameterized expression from a trigger)
+		 * @param scope    the scope whose `GlobalEntityIndex` should be queried
+		 * @return bitmap of entity primary keys matching the filter, never null (may be empty)
+		 * @throws GenericEvitaInternalError if no session is available (indicates incorrect dispatch wiring)
 		 */
 		@Nonnull
 		@Override
-		public Bitmap evaluateFilter(@Nonnull FilterBy filterBy) {
-			throw new UnsupportedOperationException(
-				"evaluateFilter requires EvitaSession context — will be implemented when the dispatch path " +
-					"is fully wired in WBS-10."
+		public Bitmap evaluateFilter(@Nonnull FilterBy filterBy, @Nonnull Scope scope) {
+			Assert.notNull(
+				this.session,
+				"evaluateFilter requires an active session — ensure applyIndexMutations() sets the session " +
+					"before dispatch."
 			);
+			// inject EntityScope into the filter so that EvitaRequest.getScopes() returns the correct scope;
+			// without this, nested constraint processing (e.g., ReferenceHaving translator) would default to
+			// LIVE scope and look up wrong indexes when evaluating ARCHIVED entities
+			final FilterConstraint[] originalChildren = filterBy.getChildren();
+			final FilterConstraint[] scopedChildren = new FilterConstraint[originalChildren.length + 1];
+			scopedChildren[0] = scope(scope);
+			System.arraycopy(originalChildren, 0, scopedChildren, 1, originalChildren.length);
+			final FilterBy scopedFilterBy = new FilterBy(scopedChildren);
+
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				Query.query(
+					collection(EntityCollection.this.getEntityType()),
+					scopedFilterBy
+				),
+				OffsetDateTime.now(),
+				EntityReference.class,
+				null
+			);
+			final QueryPlanningContext queryContext = EntityCollection.this.createQueryContext(
+				evitaRequest, this.session
+			);
+			final Set<Scope> requestedScopes = EnumSet.of(scope);
+			final Formula formula = FilterByVisitor.createFormulaForTheFilter(
+				queryContext,
+				requestedScopes,
+				scopedFilterBy,
+				EntityCollection.this.getEntityType(),
+				() -> "Evaluating conditional facet expression"
+			);
+			return formula.compute();
 		}
 
 	}

@@ -176,7 +176,7 @@ class ReevaluateFacetExpressionExecutor
 		);
 
 		// 4. Evaluate against current indexes — PKs where expression is TRUE now
-		final Bitmap currentlyTruePKs = target.evaluateFilter(parameterizedFilter);
+		final Bitmap currentlyTruePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
 
 		// 5. Determine adds and removes via bitmap set operations
 		final Bitmap shouldBeFaceted = RoaringBitmapBackedBitmap.and(

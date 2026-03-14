@@ -61,7 +61,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -103,6 +105,14 @@ class CatalogExpressionTriggerRegistryImplTest {
 			);
 
 			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("Should return null from getLocalTrigger on empty registry")
+		void shouldReturnNullFromGetLocalTriggerOnEmptyRegistry() {
+			assertNull(CatalogExpressionTriggerRegistry.EMPTY.getLocalTrigger(
+				PRODUCT, PARAMETER_REF, Scope.LIVE
+			));
 		}
 
 		@Test
@@ -578,13 +588,13 @@ class CatalogExpressionTriggerRegistryImplTest {
 	class LocalOnlyTriggerHandlingTest {
 
 		@Test
-		@DisplayName("Should silently skip local-only triggers in rebuild")
-		void shouldSilentlySkipLocalOnlyTriggersInRebuild() {
+		@DisplayName("Should silently skip local-only triggers in cross-entity index")
+		void shouldSilentlySkipLocalOnlyTriggersInCrossEntityIndex() {
 			// create a local-only trigger (mutatedEntityType=null, dependencyType=null)
 			final Expression expression = ExpressionFactory.parse("true");
 			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
 			final FacetExpressionTriggerImpl localOnlyTrigger = new FacetExpressionTriggerImpl(
-				PRODUCT, PARAMETER_REF, Scope.LIVE, expression, descriptor
+				PRODUCT, PARAMETER_REF, Scope.LIVE, Set.of(), Set.of(), Set.of(), false, expression, descriptor
 			);
 
 			// rebuild empty registry with local-only trigger
@@ -593,7 +603,7 @@ class CatalogExpressionTriggerRegistryImplTest {
 					PRODUCT, List.of(localOnlyTrigger)
 				);
 
-			// local-only trigger should not appear under any lookup
+			// local-only trigger should not appear under any cross-entity lookup
 			assertTrue(rebuilt.getTriggersFor(
 				PRODUCT, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
 			).isEmpty());
@@ -607,8 +617,9 @@ class CatalogExpressionTriggerRegistryImplTest {
 				PARAMETER_GROUP, DependencyType.GROUP_ENTITY_ATTRIBUTE
 			).isEmpty());
 
-			// the returned registry should be the EMPTY singleton since no triggers were inserted
-			assertSame(CatalogExpressionTriggerRegistry.EMPTY, rebuilt);
+			// but the local-only trigger should be available via getLocalTrigger
+			assertNotNull(rebuilt.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE));
+			assertEquals(PRODUCT, rebuilt.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE).getOwnerEntityType());
 		}
 
 		@Test
@@ -639,6 +650,141 @@ class CatalogExpressionTriggerRegistryImplTest {
 					PRODUCT, List.of(inconsistentTrigger)
 				)
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Local trigger lookup via getLocalTrigger")
+	class LocalTriggerLookupTest {
+
+		@Test
+		@DisplayName("Should return null from getLocalTrigger on empty registry")
+		void shouldReturnNullFromGetLocalTriggerOnEmptyRegistry() {
+			assertNull(CatalogExpressionTriggerRegistry.EMPTY.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE));
+		}
+
+		@Test
+		@DisplayName("Should return local trigger for local-only expression built from schema")
+		void shouldReturnLocalTriggerForLocalOnlyExpression() {
+			// expression uses only $reference.attributes (local-only, no cross-entity dependency)
+			final EntitySchemaContract schema = buildEntitySchema(PRODUCT, builder ->
+				builder.withReferenceTo(PARAMETER_REF, PARAMETER_TYPE, Cardinality.ZERO_OR_MORE, whichIs -> whichIs
+					.withAttribute("priority", Integer.class)
+					.facetedPartiallyInScope(Scope.LIVE, ExpressionFactory.parse("$reference.attributes['priority'] > 5"))
+				)
+			);
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(schema);
+
+			final FacetExpressionTrigger trigger = registry.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE);
+
+			assertNotNull(trigger);
+			assertEquals(PRODUCT, trigger.getOwnerEntityType());
+			assertEquals(PARAMETER_REF, trigger.getReferenceName());
+			assertEquals(Scope.LIVE, trigger.getScope());
+		}
+
+		@Test
+		@DisplayName("Should return local trigger for cross-entity expression built from schema")
+		void shouldReturnLocalTriggerForCrossEntityExpression() {
+			final EntitySchemaContract schema = buildEntitySchemaWithGroupRef(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'"
+			);
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(schema);
+
+			// cross-entity triggers should also be available as local triggers for inline evaluation
+			final FacetExpressionTrigger trigger = registry.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE);
+
+			assertNotNull(trigger);
+			assertEquals(PRODUCT, trigger.getOwnerEntityType());
+			assertEquals(PARAMETER_REF, trigger.getReferenceName());
+		}
+
+		@Test
+		@DisplayName("Should return null for non-existent reference name")
+		void shouldReturnNullForNonExistentReferenceName() {
+			final EntitySchemaContract schema = buildEntitySchemaWithGroupRef(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'"
+			);
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(schema);
+
+			assertNull(registry.getLocalTrigger(PRODUCT, "nonExistentRef", Scope.LIVE));
+		}
+
+		@Test
+		@DisplayName("Should return null for non-existent owner entity type")
+		void shouldReturnNullForNonExistentOwnerEntityType() {
+			final EntitySchemaContract schema = buildEntitySchemaWithGroupRef(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'"
+			);
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(schema);
+
+			assertNull(registry.getLocalTrigger("unknownEntity", PARAMETER_REF, Scope.LIVE));
+		}
+
+		@Test
+		@DisplayName("Should return null for non-matching scope")
+		void shouldReturnNullForNonMatchingScope() {
+			final EntitySchemaContract schema = buildEntitySchemaWithGroupRef(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'"
+			);
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(schema);
+
+			// expression was registered for LIVE scope only
+			assertNull(registry.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.ARCHIVED));
+		}
+
+		@Test
+		@DisplayName("Should rebuild local triggers when schema changes")
+		void shouldRebuildLocalTriggersOnSchemaChange() {
+			// build initial registry with product having a group expression
+			final EntitySchemaContract schema = buildEntitySchemaWithGroupRef(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'"
+			);
+			final CatalogExpressionTriggerRegistry original = buildRegistryFromSchemas(schema);
+
+			assertNotNull(original.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE));
+
+			// rebuild with empty triggers for product (simulating schema removal)
+			final CatalogExpressionTriggerRegistry rebuilt =
+				original.rebuildForEntityType(PRODUCT, List.of());
+
+			// original should still have the local trigger (immutability)
+			assertNotNull(original.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE));
+			// rebuilt should NOT have the local trigger
+			assertNull(rebuilt.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE));
+		}
+
+		@Test
+		@DisplayName("Should deduplicate local triggers for multiple dependency types")
+		void shouldDeduplicateLocalTriggersForMultipleDependencyTypes() {
+			// expression references both groupEntity and referencedEntity — produces 2 cross-entity triggers
+			final EntitySchemaContract schema = buildEntitySchema(PRODUCT, builder ->
+				builder.withReferenceTo(PARAMETER_REF, PARAMETER_TYPE, Cardinality.ZERO_OR_MORE, whichIs -> whichIs
+					.withGroupType(PARAMETER_GROUP)
+					.facetedPartiallyInScope(
+						Scope.LIVE,
+						ExpressionFactory.parse(
+							"$reference.groupEntity?.attributes['type'] == 'X' " +
+								"&& $reference.referencedEntity.attributes['active'] == true"
+						)
+					)
+				)
+			);
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(schema);
+
+			// should have exactly one local trigger despite multiple DependencyType triggers
+			final FacetExpressionTrigger trigger = registry.getLocalTrigger(PRODUCT, PARAMETER_REF, Scope.LIVE);
+
+			assertNotNull(trigger);
+			assertEquals(PRODUCT, trigger.getOwnerEntityType());
+			assertEquals(PARAMETER_REF, trigger.getReferenceName());
+			assertEquals(Scope.LIVE, trigger.getScope());
 		}
 
 	}

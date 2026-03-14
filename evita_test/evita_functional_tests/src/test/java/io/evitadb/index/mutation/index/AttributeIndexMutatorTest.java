@@ -108,12 +108,12 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Override
-	protected void alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder schema) {
+	protected void alterCatalogSchema(@Nonnull CatalogSchemaEditor.CatalogSchemaBuilder schema) {
 		schema.withAttribute(ATTRIBUTE_GLOBAL_CODE, String.class, GlobalAttributeSchemaEditor::uniqueGlobally);
 	}
 
 	@Override
-	protected void alterProductSchema(EntitySchemaEditor.EntitySchemaBuilder schema) {
+	protected void alterProductSchema(@Nonnull EntitySchemaEditor.EntitySchemaBuilder schema) {
 		schema.withAttribute(ATTRIBUTE_VARIANT_COUNT, Integer.class, whichIs -> whichIs.sortable().filterable());
 		schema.withAttribute(ATTRIBUTE_CHAR_ARRAY, Character[].class, AttributeSchemaEditor::filterable);
 		schema.withGlobalAttribute(ATTRIBUTE_GLOBAL_CODE);
@@ -425,6 +425,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.priceIdSequence::incrementAndGet,
 						false,
 						UNSUPPORTED_OPERATION,
+						null,
 						null
 					),
 					null,
@@ -451,6 +452,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.priceIdSequence::incrementAndGet,
 						false,
 						UNSUPPORTED_OPERATION,
+						null,
 						null
 					),
 					null,
@@ -482,6 +484,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.priceIdSequence::incrementAndGet,
 				false,
 				UNSUPPORTED_OPERATION,
+				null,
 				null
 			),
 			null,
@@ -503,6 +506,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.priceIdSequence::incrementAndGet,
 				false,
 				UNSUPPORTED_OPERATION,
+				null,
 				null
 			),
 			null,
@@ -629,6 +633,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.priceIdSequence::incrementAndGet,
 				false,
 				UNSUPPORTED_OPERATION,
+				null,
 				null
 			),
 			null,

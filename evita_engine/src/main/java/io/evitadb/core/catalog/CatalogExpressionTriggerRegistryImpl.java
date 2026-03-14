@@ -26,11 +26,13 @@ package io.evitadb.core.catalog;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.expression.trigger.FacetExpressionTriggerFactory;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.mutation.ExpressionIndexTrigger;
 import io.evitadb.index.mutation.FacetExpressionTrigger;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,15 +63,26 @@ class CatalogExpressionTriggerRegistryImpl implements CatalogExpressionTriggerRe
 	 */
 	@Nonnull
 	private final Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> triggerIndex;
+	/**
+	 * Nested immutable map for local trigger lookup: owner entity type -> reference name -> scope -> trigger.
+	 * Stores one trigger per `(ownerEntityType, referenceName, scope)` triple for inline expression evaluation
+	 * in `ReferenceIndexMutator`. Both local-only and cross-entity triggers are stored here — they all share
+	 * the same `evaluate()` method. When multiple cross-entity triggers exist for the same triple (one per
+	 * {@link DependencyType}), only the first is kept since they are functionally equivalent for evaluation.
+	 */
+	@Nonnull
+	private final Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> localTriggerIndex;
 
 	/**
-	 * Creates a new registry from a pre-built trigger index. The constructor stores a deep-immutable defensive copy:
-	 * the outer map, each inner `EnumMap`, and each trigger list are wrapped as unmodifiable.
+	 * Creates a new registry from pre-built trigger indexes. The constructor stores deep-immutable defensive copies:
+	 * all outer maps, inner maps, and trigger lists are wrapped as unmodifiable.
 	 *
-	 * @param triggerIndex the mutable trigger index to copy and freeze
+	 * @param triggerIndex      the mutable cross-entity trigger index to copy and freeze
+	 * @param localTriggerIndex the mutable local trigger index to copy and freeze
 	 */
 	CatalogExpressionTriggerRegistryImpl(
-		@Nonnull Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> triggerIndex
+		@Nonnull Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> triggerIndex,
+		@Nonnull Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> localTriggerIndex
 	) {
 		if (triggerIndex.isEmpty()) {
 			this.triggerIndex = Collections.emptyMap();
@@ -87,6 +100,27 @@ class CatalogExpressionTriggerRegistryImpl implements CatalogExpressionTriggerRe
 				frozen.put(outerEntry.getKey(), Collections.unmodifiableMap(frozenInner));
 			}
 			this.triggerIndex = Collections.unmodifiableMap(frozen);
+		}
+		if (localTriggerIndex.isEmpty()) {
+			this.localTriggerIndex = Collections.emptyMap();
+		} else {
+			final Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> frozen =
+				createHashMap(localTriggerIndex.size());
+			for (
+				final Entry<String, Map<String, Map<Scope, FacetExpressionTrigger>>> outerEntry :
+				localTriggerIndex.entrySet()
+			) {
+				final Map<String, Map<Scope, FacetExpressionTrigger>> refMap = outerEntry.getValue();
+				final Map<String, Map<Scope, FacetExpressionTrigger>> frozenRefMap = createHashMap(refMap.size());
+				for (final Entry<String, Map<Scope, FacetExpressionTrigger>> refEntry : refMap.entrySet()) {
+					frozenRefMap.put(
+						refEntry.getKey(),
+						Collections.unmodifiableMap(new EnumMap<>(refEntry.getValue()))
+					);
+				}
+				frozen.put(outerEntry.getKey(), Collections.unmodifiableMap(frozenRefMap));
+			}
+			this.localTriggerIndex = Collections.unmodifiableMap(frozen);
 		}
 	}
 
@@ -107,6 +141,8 @@ class CatalogExpressionTriggerRegistryImpl implements CatalogExpressionTriggerRe
 	) {
 		final Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> mutableIndex =
 			createHashMap(entitySchemaIndex.size());
+		final Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> mutableLocalIndex =
+			createHashMap(entitySchemaIndex.size());
 
 		for (final EntitySchemaContract entitySchema : entitySchemaIndex.values()) {
 			final String ownerEntityType = entitySchema.getName();
@@ -115,14 +151,15 @@ class CatalogExpressionTriggerRegistryImpl implements CatalogExpressionTriggerRe
 					FacetExpressionTriggerFactory.buildTriggersForReference(ownerEntityType, referenceSchema);
 				for (final FacetExpressionTrigger trigger : triggers) {
 					insertTrigger(mutableIndex, trigger);
+					insertLocalTrigger(mutableLocalIndex, trigger);
 				}
 			}
 		}
 
-		if (mutableIndex.isEmpty()) {
+		if (mutableIndex.isEmpty() && mutableLocalIndex.isEmpty()) {
 			return CatalogExpressionTriggerRegistry.EMPTY;
 		}
-		return new CatalogExpressionTriggerRegistryImpl(mutableIndex);
+		return new CatalogExpressionTriggerRegistryImpl(mutableIndex, mutableLocalIndex);
 	}
 
 	@Nonnull
@@ -160,28 +197,69 @@ class CatalogExpressionTriggerRegistryImpl implements CatalogExpressionTriggerRe
 		return filtered.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(filtered);
 	}
 
+	@Nullable
+	@Override
+	public FacetExpressionTrigger getLocalTrigger(
+		@Nonnull String ownerEntityType,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope
+	) {
+		final Map<String, Map<Scope, FacetExpressionTrigger>> byRef = this.localTriggerIndex.get(ownerEntityType);
+		if (byRef == null) {
+			return null;
+		}
+		final Map<Scope, FacetExpressionTrigger> byScope = byRef.get(referenceName);
+		if (byScope == null) {
+			return null;
+		}
+		return byScope.get(scope);
+	}
+
+	/**
+	 * Returns the total number of triggers across all entity types and dependency types.
+	 * Used for cold start logging.
+	 *
+	 * @return the total trigger count
+	 */
+	int getTriggerCount() {
+		int count = 0;
+		for (final Map<DependencyType, List<ExpressionIndexTrigger>> innerMap : this.triggerIndex.values()) {
+			for (final List<ExpressionIndexTrigger> triggers : innerMap.values()) {
+				count += triggers.size();
+			}
+		}
+		return count;
+	}
+
 	@Nonnull
 	@Override
 	public CatalogExpressionTriggerRegistry rebuildForEntityType(
 		@Nonnull String entityType,
 		@Nonnull List<ExpressionIndexTrigger> newTriggers
 	) {
-		// deep-copy the current index into a mutable structure
+		// deep-copy both indexes into mutable structures
 		final Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> mutableIndex =
 			deepCopyIndex(this.triggerIndex);
+		final Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> mutableLocalIndex =
+			deepCopyLocalIndex(this.localTriggerIndex);
 
 		// remove all triggers owned by the specified entity type from ALL keys
 		removeTriggersOwnedBy(mutableIndex, entityType);
+		// local index is keyed by ownerEntityType at the top level — simple removal
+		mutableLocalIndex.remove(entityType);
 
-		// insert new triggers under their respective (mutatedEntityType, dependencyType) keys
+		// insert new triggers under their respective keys in both indexes
 		for (final ExpressionIndexTrigger trigger : newTriggers) {
 			insertTrigger(mutableIndex, trigger);
+			if (trigger instanceof FacetExpressionTrigger facetTrigger) {
+				insertLocalTrigger(mutableLocalIndex, facetTrigger);
+			}
 		}
 
-		if (mutableIndex.isEmpty()) {
+		if (mutableIndex.isEmpty() && mutableLocalIndex.isEmpty()) {
 			return CatalogExpressionTriggerRegistry.EMPTY;
 		}
-		return new CatalogExpressionTriggerRegistryImpl(mutableIndex);
+		return new CatalogExpressionTriggerRegistryImpl(mutableIndex, mutableLocalIndex);
 	}
 
 	/**
@@ -242,12 +320,13 @@ class CatalogExpressionTriggerRegistryImpl implements CatalogExpressionTriggerRe
 	}
 
 	/**
-	 * Inserts a single trigger into the mutable index under its `(mutatedEntityType, dependencyType)` key.
-	 * The mutated entity type and dependency type are derived from the trigger itself.
+	 * Inserts a single trigger into the mutable cross-entity index under its `(mutatedEntityType, dependencyType)`
+	 * key. The mutated entity type and dependency type are derived from the trigger itself.
 	 *
 	 * If both `mutatedEntityType` and `dependencyType` are null, the trigger is local-only and is silently
-	 * skipped. If exactly one is null, an {@link IllegalStateException} is thrown because this indicates
-	 * an inconsistent trigger construction.
+	 * skipped (local-only triggers are stored only in the local trigger index via {@link #insertLocalTrigger}).
+	 * If exactly one is null, an {@link IllegalStateException} is thrown because this indicates an inconsistent
+	 * trigger construction.
 	 *
 	 * @param mutableIndex the mutable index to insert into
 	 * @param trigger      the trigger to insert
@@ -277,6 +356,46 @@ class CatalogExpressionTriggerRegistryImpl implements CatalogExpressionTriggerRe
 			.computeIfAbsent(mutatedEntityType, k -> new EnumMap<>(DependencyType.class))
 			.computeIfAbsent(dependencyType, k -> new ArrayList<>(4))
 			.add(trigger);
+	}
+
+	/**
+	 * Inserts a facet trigger into the mutable local index under its `(ownerEntityType, referenceName, scope)` key.
+	 * Uses `putIfAbsent` semantics so that when multiple cross-entity triggers exist for the same triple (one per
+	 * {@link DependencyType}), only the first is stored — they are all functionally equivalent for `evaluate()`.
+	 *
+	 * @param mutableLocalIndex the mutable local index to insert into
+	 * @param trigger           the facet trigger to insert
+	 */
+	private static void insertLocalTrigger(
+		@Nonnull Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> mutableLocalIndex,
+		@Nonnull FacetExpressionTrigger trigger
+	) {
+		mutableLocalIndex
+			.computeIfAbsent(trigger.getOwnerEntityType(), k -> createHashMap(4))
+			.computeIfAbsent(trigger.getReferenceName(), k -> new EnumMap<>(Scope.class))
+			.putIfAbsent(trigger.getScope(), trigger);
+	}
+
+	/**
+	 * Creates a deep mutable copy of the local trigger index. Each inner map is independently mutable.
+	 *
+	 * @param source the immutable source local index
+	 * @return a fully mutable deep copy
+	 */
+	@Nonnull
+	private static Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> deepCopyLocalIndex(
+		@Nonnull Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> source
+	) {
+		final Map<String, Map<String, Map<Scope, FacetExpressionTrigger>>> copy = createHashMap(source.size());
+		for (final Entry<String, Map<String, Map<Scope, FacetExpressionTrigger>>> outerEntry : source.entrySet()) {
+			final Map<String, Map<Scope, FacetExpressionTrigger>> refMap = outerEntry.getValue();
+			final Map<String, Map<Scope, FacetExpressionTrigger>> refCopy = createHashMap(refMap.size());
+			for (final Entry<String, Map<Scope, FacetExpressionTrigger>> refEntry : refMap.entrySet()) {
+				refCopy.put(refEntry.getKey(), new EnumMap<>(refEntry.getValue()));
+			}
+			copy.put(outerEntry.getKey(), refCopy);
+		}
+		return copy;
 	}
 
 }

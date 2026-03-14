@@ -74,6 +74,7 @@ import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
 import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.ExpressionIndexTrigger;
+import io.evitadb.index.mutation.FacetExpressionTrigger;
 import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateFacetExpressionMutation;
@@ -101,7 +102,9 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -183,6 +186,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nullable private final Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier;
 	/**
+	 * Supplier that provides local {@link FacetExpressionTrigger} instances for inline expression evaluation
+	 * within `ReferenceIndexMutator`. When called with (referenceName, scope), returns the pre-built trigger
+	 * for that reference/scope pair, or `null` if no expression is defined. Null supplier means no local
+	 * expression evaluation is performed (backward-compatible default).
+	 */
+	@Nullable private final BiFunction<String, Scope, FacetExpressionTrigger> localFacetTriggerSupplier;
+	/**
 	 * Memoized factory that allows to retrieve existing attribute values from the current storage part.
 	 */
 	private EntityStoragePartExistingDataFactory storagePartExistingDataFactory;
@@ -220,7 +230,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull IntSupplier priceInternalIdSupplier,
 		boolean undoOnError,
 		@Nonnull Supplier<Entity> fullEntitySupplier,
-		@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier
+		@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier,
+		@Nullable BiFunction<String, Scope, FacetExpressionTrigger> localFacetTriggerSupplier
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -233,6 +244,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.undoActionsAppender = undoOnError ? this.undoActions::add : null;
 		this.fullEntitySupplier = fullEntitySupplier;
 		this.triggerRegistrySupplier = triggerRegistrySupplier;
+		this.localFacetTriggerSupplier = localFacetTriggerSupplier;
 	}
 
 	/**
@@ -252,6 +264,53 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				.getScope();
 		}
 		return this.memoizedScope;
+	}
+
+	/**
+	 * Returns `true` if facet expression triggers are installed, meaning that mutations should
+	 * re-evaluate facet indexing expressions. The supplier is set at construction time and its
+	 * presence signals that the catalog uses conditional facet indexing. When this method returns
+	 * `false`, all `reEvaluateFacetExpressions` calls can be skipped because no expressions exist
+	 * to evaluate.
+	 *
+	 * @return `true` if facet expression re-evaluation is enabled
+	 */
+	public boolean hasFacetExpressionTriggers() {
+		return this.localFacetTriggerSupplier != null;
+	}
+
+	/**
+	 * Returns the local {@link FacetExpressionTrigger} for the given reference name and scope, or `null` if no
+	 * expression is defined for that combination. Delegates directly to the underlying supplier — the lookup is
+	 * O(1) (three map gets in {@link CatalogExpressionTriggerRegistry#getLocalTrigger}).
+	 *
+	 * Callers that iterate sorted references should cache the result themselves across consecutive references
+	 * of the same type (see `reEvaluateFacetExpressions` and `indexAllFacets` in {@link ReferenceIndexMutator}).
+	 *
+	 * @param referenceName the name of the reference to look up
+	 * @param scope         the scope to look up
+	 * @return the trigger, or `null` if no expression is defined or the trigger supplier is not installed
+	 */
+	@Nullable
+	public FacetExpressionTrigger getTriggerFor(@Nonnull String referenceName, @Nonnull Scope scope) {
+		return this.localFacetTriggerSupplier == null
+			? null
+			: this.localFacetTriggerSupplier.apply(referenceName, scope);
+	}
+
+	/**
+	 * Returns a schema resolver function that maps entity type names to their schemas. Used by
+	 * {@link ExpressionIndexTrigger#evaluate} for resolving entity schemas during expression evaluation.
+	 *
+	 * Note: the returned resolver always returns this executor's own entity schema regardless of the
+	 * entity type argument. This is sufficient for local triggers where the owner entity type matches,
+	 * but not for cross-entity expressions that reference other entity types.
+	 *
+	 * @return a function resolving entity type name to entity schema
+	 */
+	@Nonnull
+	public Function<String, EntitySchemaContract> getSchemaResolver() {
+		return entityType -> this.schemaAccessor.get();
 	}
 
 	/**
@@ -500,6 +559,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			}
 		} else if (localMutation instanceof ParentMutation parentMutation) {
 			updateHierarchyPlacement(parentMutation, globalIndex);
+			// re-evaluate facet expressions that depend on $entity.parentEntity
+			if (hasFacetExpressionTriggers()) {
+				final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+				ReferenceIndexMutator.reEvaluateFacetExpressions(
+					globalIndex, this, entityPK,
+					FacetExpressionTrigger::usesParent
+				);
+			}
 		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
 			final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
 			final ReferenceSchemaContract referenceSchema =
@@ -518,6 +585,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
 					crossRefConsumer, crossRefPredicate, presenceExpected
 				);
+				// re-evaluate facet expressions that depend on reference attributes
+				if (hasFacetExpressionTriggers() && referenceMutation instanceof ReferenceAttributeMutation ram) {
+					final String mutatedAttrName = ram.getAttributeKey().attributeName();
+					final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+					final String mutatedRefName = referenceKey.referenceName();
+					ReferenceIndexMutator.reEvaluateFacetExpressions(
+						globalIndex, this, entityPK,
+						trigger -> mutatedRefName.equals(trigger.getReferenceName())
+							&& trigger.getLocalReferenceAttributes().contains(mutatedAttrName)
+					);
+				}
 			}
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
 			final ExistingAttributeValueSupplier entityAttributeValueSupplier =
@@ -542,8 +620,25 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
 				attrConsumer, Droppable::exists, true
 			);
-		} else if (localMutation instanceof AssociatedDataMutation) {
-			// do nothing, associated data doesn't affect entity index directly
+			// re-evaluate facet expressions that depend on this entity attribute
+			if (hasFacetExpressionTriggers()) {
+				final String mutatedAttrName = attributeMutation.getAttributeKey().attributeName();
+				final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+				ReferenceIndexMutator.reEvaluateFacetExpressions(
+					globalIndex, this, entityPK,
+					trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
+				);
+			}
+		} else if (localMutation instanceof AssociatedDataMutation associatedDataMutation) {
+			// re-evaluate facet expressions that depend on this associated data
+			if (hasFacetExpressionTriggers()) {
+				final String mutatedDataName = associatedDataMutation.getAssociatedDataKey().associatedDataName();
+				final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+				ReferenceIndexMutator.reEvaluateFacetExpressions(
+					globalIndex, this, entityPK,
+					trigger -> trigger.getLocalAssociatedData().contains(mutatedDataName)
+				);
+			}
 		} else if (localMutation instanceof SetEntityScopeMutation setEntityScopeMutation) {
 			final Entity entity = this.fullEntitySupplier.get();
 			if (entity.getScope() == setEntityScopeMutation.getScope()) {

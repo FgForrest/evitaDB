@@ -48,8 +48,9 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
-import io.evitadb.index.facet.FacetIndexContract;
+import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
+import io.evitadb.index.mutation.FacetExpressionTrigger;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor.RepresentativeReferenceKeys;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
@@ -1134,10 +1135,18 @@ public interface ReferenceIndexMutator {
 			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
 				isFaceted(referenceKey, referenceSchema, scope, executor)
 		) {
-			index.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> index.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey));
+			// evaluate facet expression if one exists — skip facet add when expression returns false
+			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+			final boolean shouldBeIndexed = trigger == null || trigger.evaluate(
+				entityPrimaryKey, referenceKey,
+				executor.getContainerAccessor(), executor.getSchemaResolver()
+			);
+			if (shouldBeIndexed) {
+				index.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> index.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey));
+				}
 			}
 		}
 	}
@@ -1179,40 +1188,32 @@ public interface ReferenceIndexMutator {
 			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
 				isFaceted(referenceKey, referenceSchema, scope, executor)
 		) {
-			final ReferenceContract existingReference = executor.getReferencesStoragePart()
-				.findReferenceOrThrowException(referenceKey);
-			final Optional<Integer> existingGroupId = existingReference.getGroup()
-				.filter(Droppable::exists)
-				.map(EntityReferenceContract::getPrimaryKey);
-
-			final Integer oldGroupId = existingGroupId.orElse(null);
-			// only remove from the old group if the facet is actually present there — during
-			// cross-reference propagation the direct processing path may have already inserted
-			// the facet with the new group, making the storage-derived old group stale
-			if (isFacetPresentInGroup(index, referenceKey, oldGroupId)) {
-				index.removeFacet(
-					referenceSchema,
-					referenceKey,
-					oldGroupId,
-					entityPrimaryKey
+			// evaluate facet expression if one exists — apply decision matrix for group change
+			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+			if (trigger != null) {
+				final boolean nowFaceted = trigger.evaluate(
+					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver()
+				);
+				applyFacetDecisionMatrix(
+					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+				);
+			} else {
+				// no expression — unconditionally move the facet to the new group
+				applyFacetDecisionMatrix(
+					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, true, null
 				);
 			}
-			index.addFacet(
-				referenceSchema,
-				referenceKey,
-				groupId,
-				entityPrimaryKey
-			);
 		}
 	}
 
 	/**
-	 * Checks whether a specific facet (identified by `referenceKey`) is present in the given `groupId` bucket
-	 * of the `index`'s facet index. Returns `true` if the facet exists in the specified group, `false` otherwise.
+	 * Checks whether a specific **entity** (identified by `entityPrimaryKey`) has its facet entry
+	 * (identified by `referenceKey`) in the given `groupId` bucket of the `index`'s facet index.
+	 * Returns `true` only if the entity PK is present in the bitmap of that facet within the specified group.
 	 *
-	 * For grouped facets (non-null `groupId`), delegates to {@link FacetIndexContract#isFacetInGroup}.
-	 * For ungrouped facets (null `groupId`), checks the not-grouped bucket via
-	 * {@link FacetReferenceIndex#getNotGroupedFacets()}.
+	 * For grouped facets (non-null `groupId`), iterates the grouped facet indexes to find the matching group,
+	 * then checks the facet's bitmap for the entity PK. For ungrouped facets (null `groupId`), checks the
+	 * not-grouped bucket via {@link FacetReferenceIndex#getNotGroupedFacets()}.
 	 *
 	 * This guard is necessary because index mutations are applied **before** storage mutations
 	 * (see `LocalMutationExecutorCollector.execute`). When a facet's group changes via
@@ -1230,29 +1231,236 @@ public interface ReferenceIndexMutator {
 	 * {@link #removeFacetInIndexInternal}) use this check to silently skip the removal when the facet
 	 * is not present in the expected group bucket.
 	 *
-	 * @param index        the entity index to check
-	 * @param referenceKey the reference key identifying the facet
-	 * @param groupId      the group to check in, or `null` for ungrouped facets
-	 * @return `true` if the facet is present in the specified group bucket
+	 * @param index            the entity index to check
+	 * @param referenceKey     the reference key identifying the facet
+	 * @param groupId          the group to check in, or `null` for ungrouped facets
+	 * @param entityPrimaryKey the primary key of the entity whose membership is being verified
+	 * @return `true` if the entity PK is present in the facet's bitmap within the specified group bucket
 	 */
 	private static boolean isFacetPresentInGroup(
 		@Nonnull EntityIndex index,
 		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId
+		@Nullable Integer groupId,
+		int entityPrimaryKey
 	) {
-		if (groupId != null) {
-			return index.isFacetInGroup(
-				referenceKey.referenceName(), groupId, referenceKey.primaryKey()
-			);
-		}
-		// for ungrouped facets, check the not-grouped bucket directly
 		final FacetReferenceIndex facetRefIndex = index.getFacetingEntities().get(referenceKey.referenceName());
 		if (facetRefIndex == null) {
 			return false;
 		}
+		if (groupId != null) {
+			for (final FacetGroupIndex groupIndex : facetRefIndex.getGroupedFacets()) {
+				if (groupIndex.getGroupId() == groupId) {
+					final FacetIdIndex facetIdIndex = groupIndex.getFacetIdIndex(referenceKey.primaryKey());
+					return facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey);
+				}
+			}
+			return false;
+		}
+		// for ungrouped facets, check the not-grouped bucket directly
 		final FacetGroupIndex notGrouped = facetRefIndex.getNotGroupedFacets();
-		return notGrouped != null
-			&& notGrouped.getFacetIdIndex(referenceKey.primaryKey()) != null;
+		if (notGrouped == null) {
+			return false;
+		}
+		final FacetIdIndex facetIdIndex = notGrouped.getFacetIdIndex(referenceKey.primaryKey());
+		return facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey);
+	}
+
+	/**
+	 * Determines whether the given entity was previously faceted for the specified reference in the given index.
+	 * Checks both ungrouped and grouped facet buckets. This is used by the re-evaluation decision matrix:
+	 *
+	 * - `was=true, now=false` -> remove from facet index
+	 * - `was=false, now=true` -> add to facet index
+	 * - otherwise -> no-op
+	 *
+	 * @param index            the entity index to check
+	 * @param referenceKey     the reference key identifying the facet
+	 * @param entityPrimaryKey the entity primary key to look for in the facet bitmap
+	 * @return `true` if the entity PK is present in any facet bucket for the given reference
+	 */
+	private static boolean wasFaceted(
+		@Nonnull EntityIndex index,
+		@Nonnull ReferenceKey referenceKey,
+		int entityPrimaryKey
+	) {
+		final FacetReferenceIndex facetRefIndex = index.getFacetingEntities().get(referenceKey.referenceName());
+		if (facetRefIndex == null) {
+			return false;
+		}
+		// check ungrouped bucket
+		final FacetGroupIndex notGrouped = facetRefIndex.getNotGroupedFacets();
+		if (notGrouped != null) {
+			final FacetIdIndex facetIdIndex = notGrouped.getFacetIdIndex(referenceKey.primaryKey());
+			if (facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey)) {
+				return true;
+			}
+		}
+		// check grouped buckets
+		for (final FacetGroupIndex groupIndex : facetRefIndex.getGroupedFacets()) {
+			final FacetIdIndex facetIdIndex = groupIndex.getFacetIdIndex(referenceKey.primaryKey());
+			if (facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Removes the entity from the facet index for the given reference, regardless of which group it is currently in.
+	 * Scans both the ungrouped bucket and all grouped buckets to find and remove the entity. This is necessary during
+	 * group transitions with expression evaluation, where the old group is not known from the storage part (it may
+	 * have already been updated).
+	 *
+	 * @param index              the entity index containing the facet data
+	 * @param referenceSchema    the schema of the reference
+	 * @param referenceKey       the reference key identifying the facet
+	 * @param entityPrimaryKey   the entity PK to remove
+	 */
+	private static void removeFromCurrentGroup(
+		@Nonnull EntityIndex index,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		int entityPrimaryKey
+	) {
+		final FacetReferenceIndex facetRefIndex = index.getFacetingEntities().get(referenceKey.referenceName());
+		if (facetRefIndex == null) {
+			return;
+		}
+		// check ungrouped bucket
+		final FacetGroupIndex notGrouped = facetRefIndex.getNotGroupedFacets();
+		if (notGrouped != null) {
+			final FacetIdIndex facetIdIndex = notGrouped.getFacetIdIndex(referenceKey.primaryKey());
+			if (facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey)) {
+				index.removeFacet(referenceSchema, referenceKey, null, entityPrimaryKey);
+				return;
+			}
+		}
+		// check grouped buckets
+		for (final FacetGroupIndex groupIndex : facetRefIndex.getGroupedFacets()) {
+			final FacetIdIndex facetIdIndex = groupIndex.getFacetIdIndex(referenceKey.primaryKey());
+			if (facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey)) {
+				index.removeFacet(referenceSchema, referenceKey, groupIndex.getGroupId(), entityPrimaryKey);
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Applies the facet was/now decision matrix, handling both facet presence changes **and** group transitions
+	 * in a single method. Every facet operation inherently involves a group (or `null` for ungrouped), and every
+	 * group change may affect whether the facet should exist at all — so both concerns are handled together.
+	 *
+	 * Decision matrix:
+	 *
+	 * | Was faceted? | Now faceted? | In target group? | Action                              |
+	 * |--------------|--------------|------------------|-------------------------------------|
+	 * | yes          | no           | —                | Remove from current group           |
+	 * | no           | yes          | —                | Add with target group               |
+	 * | yes          | yes          | yes              | no-op                               |
+	 * | yes          | yes          | no               | Move (remove current + add target)  |
+	 * | no           | no           | —                | no-op                               |
+	 *
+	 * @param index              the target entity index
+	 * @param referenceSchema    the reference schema
+	 * @param referenceKey       the reference key
+	 * @param targetGroupId      the group the facet should end up in (null for ungrouped)
+	 * @param entityPrimaryKey   the entity PK
+	 * @param nowFaceted         result of the expression evaluation
+	 * @param undoActionConsumer if non-null, receives undo operations (supported for add/remove, not for move)
+	 */
+	static void applyFacetDecisionMatrix(
+		@Nonnull EntityIndex index,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer targetGroupId,
+		int entityPrimaryKey,
+		boolean nowFaceted,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		final boolean wasFaceted = wasFaceted(index, referenceKey, entityPrimaryKey);
+		if (wasFaceted && !nowFaceted) {
+			// was faceted, now not — remove from whichever group it currently resides in
+			removeFromCurrentGroup(index, referenceSchema, referenceKey, entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey)
+				);
+			}
+		} else if (!wasFaceted && nowFaceted) {
+			// was not faceted, now is — add under target group
+			index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> index.removeFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey)
+				);
+			}
+		} else if (wasFaceted && !isFacetPresentInGroup(index, referenceKey, targetGroupId, entityPrimaryKey)) {
+			// was faceted, still faceted, but in a different group — move to target group
+			removeFromCurrentGroup(index, referenceSchema, referenceKey, entityPrimaryKey);
+			index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey);
+		}
+		// was==now and already in target group → no-op
+	}
+
+	/**
+	 * Re-evaluates facet expressions for all references of the owning entity on a single entity index (global or
+	 * reduced). Called after a non-reference mutation (entity attribute, associated data, parent change) modifies data
+	 * that a facet expression may depend on.
+	 *
+	 * For each existing reference whose schema marks it as faceted in the index's scope:
+	 *
+	 * 1. obtains the trigger via `executor.getTriggerFor(referenceName, scope)`
+	 * 2. checks whether the trigger depends on the changed data (via `triggerRelevancePredicate`)
+	 * 3. if relevant, evaluates the expression and applies the was/now decision matrix
+	 *
+	 * @param index                      the target entity index (global or reduced)
+	 * @param executor                   the mutation executor; provides references storage and schema access
+	 * @param entityPrimaryKey           the primary key of the entity owning the references
+	 * @param triggerRelevancePredicate  predicate that returns `true` when a trigger depends on the changed data
+	 */
+	static void reEvaluateFacetExpressions(
+		@Nonnull EntityIndex index,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		int entityPrimaryKey,
+		@Nonnull Predicate<FacetExpressionTrigger> triggerRelevancePredicate
+	) {
+		final Scope scope = index.getIndexKey().scope();
+		final ReferencesStoragePart referencesStoragePart = executor.getReferencesStoragePart();
+
+		ReferenceSchemaContract cachedSchema = null;
+		FacetExpressionTrigger cachedTrigger = null;
+		boolean cachedTriggerResolved = false;
+		for (final ReferenceContract reference : referencesStoragePart.getReferences()) {
+			if (!reference.exists()) {
+				continue;
+			}
+			final ReferenceKey referenceKey = reference.getReferenceKey();
+			// cache schema and trigger lookups across consecutive references of the same type
+			// (references are sorted by name in storage part)
+			if (cachedSchema == null || !cachedSchema.getName().equals(referenceKey.referenceName())) {
+				cachedSchema = executor.getEntitySchema()
+					.getReferenceOrThrowException(referenceKey.referenceName());
+				cachedTriggerResolved = false;
+			}
+			if (!cachedSchema.isFacetedInScope(scope)) {
+				continue;
+			}
+			if (!cachedTriggerResolved) {
+				cachedTrigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+				cachedTriggerResolved = true;
+			}
+			if (cachedTrigger == null || !triggerRelevancePredicate.test(cachedTrigger)) {
+				continue;
+			}
+			final boolean nowFaceted = cachedTrigger.evaluate(
+				entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver()
+			);
+			final Integer groupId = reference.getGroup()
+				.filter(Droppable::exists)
+				.map(GroupEntityReference::getPrimaryKey)
+				.orElse(null);
+			applyFacetDecisionMatrix(index, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null);
+		}
 	}
 
 	/**
@@ -1286,10 +1494,24 @@ public interface ReferenceIndexMutator {
 			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
 				isFaceted(referenceKey, referenceSchema, scope, executor)
 		) {
-			final ReferenceContract existingReference = executor.getReferencesStoragePart()
-				.findReferenceOrThrowException(referenceKey);
-
-			removeFacetInIndexInternal(index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer);
+			// when expression is defined, only remove if the entity was actually faceted
+			// (expression may have evaluated to false at insert time, so no facet was ever added)
+			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+			if (trigger != null) {
+				if (wasFaceted(index, referenceKey, entityPrimaryKey)) {
+					final ReferenceContract existingReference = executor.getReferencesStoragePart()
+						.findReferenceOrThrowException(referenceKey);
+					removeFacetInIndexInternal(
+						index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer
+					);
+				}
+			} else {
+				final ReferenceContract existingReference = executor.getReferencesStoragePart()
+					.findReferenceOrThrowException(referenceKey);
+				removeFacetInIndexInternal(
+					index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer
+				);
+			}
 		}
 	}
 
@@ -1329,31 +1551,27 @@ public interface ReferenceIndexMutator {
 			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
 				isFaceted(referenceKey, referenceSchema, scope, executor)
 		) {
-			final ReferenceContract existingReference = executor.getReferencesStoragePart()
-				.findReferenceOrThrowException(referenceKey);
-			isPremiseValid(
-				existingReference.getGroup().filter(Droppable::exists).isPresent(),
-				"Group is expected to be non-null when RemoveReferenceGroupMutation is about to be executed."
-			);
-			final int groupId = existingReference.getGroup().map(GroupEntityReference::getPrimaryKey).orElseThrow();
-
-			// only remove from the old group if the facet is actually present there — during
-			// cross-reference propagation the direct processing path may have already moved
-			// the facet, making the storage-derived group stale
-			if (isFacetPresentInGroup(index, referenceKey, groupId)) {
-				index.removeFacet(
-					referenceSchema,
-					referenceKey,
-					groupId,
-					entityPrimaryKey
+			// evaluate facet expression if one exists — apply decision matrix for group removal
+			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+			if (trigger != null) {
+				final boolean nowFaceted = trigger.evaluate(
+					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver()
+				);
+				applyFacetDecisionMatrix(
+					index, referenceSchema, referenceKey, null, entityPrimaryKey, nowFaceted, null
+				);
+			} else {
+				// no expression — unconditionally move the facet to ungrouped
+				final ReferenceContract existingReference = executor.getReferencesStoragePart()
+					.findReferenceOrThrowException(referenceKey);
+				isPremiseValid(
+					existingReference.getGroup().filter(Droppable::exists).isPresent(),
+					"Group is expected to be non-null when RemoveReferenceGroupMutation is about to be executed."
+				);
+				applyFacetDecisionMatrix(
+					index, referenceSchema, referenceKey, null, entityPrimaryKey, true, null
 				);
 			}
-			index.addFacet(
-				referenceSchema,
-				referenceKey,
-				null,
-				entityPrimaryKey
-			);
 		}
 	}
 
@@ -1621,9 +1839,9 @@ public interface ReferenceIndexMutator {
 	 * Indexes all faceted references of the owning entity into `targetIndex`. Only references that are currently
 	 * stored (not dropped) and whose schema marks them as faceted in the index's scope are processed.
 	 *
-	 * To avoid redundant schema lookups the method takes advantage of the fact that references in
-	 * {@link ReferencesStoragePart} are stored sorted by reference name — the schema is re-fetched only when the
-	 * reference name changes between iterations.
+	 * To avoid redundant schema and trigger lookups the method takes advantage of the fact that references in
+	 * {@link ReferencesStoragePart} are stored sorted by reference name — both the schema and the expression trigger
+	 * are re-fetched only when the reference name changes between iterations.
 	 *
 	 * This method is called from {@link #indexAllExistingData} when an entity is first inserted into a reduced index.
 	 *
@@ -1646,17 +1864,30 @@ public interface ReferenceIndexMutator {
 			final ReferencesStoragePart referencesStorageContainer = executor.getReferencesStoragePart();
 
 			ReferenceSchemaContract referenceKeySchema = null;
+			FacetExpressionTrigger cachedTrigger = null;
+			boolean cachedTriggerResolved = false;
 			for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
 				final ReferenceKey referenceKey = reference.getReferenceKey();
 				final Optional<GroupEntityReference> groupReference = reference.getGroup();
 
 				// we gain advantage of sorted references in the storage container to avoid unnecessary schema lookups
-				referenceKeySchema =
-					referenceKeySchema == null ||
-						!referenceKeySchema.getName().equals(referenceKey.referenceName())
-						? getReferenceSchemaFor(referenceKey, referenceSchema, executor)
-						: referenceKeySchema;
+				if (referenceKeySchema == null ||
+					!referenceKeySchema.getName().equals(referenceKey.referenceName())) {
+					referenceKeySchema = getReferenceSchemaFor(referenceKey, referenceSchema, executor);
+					cachedTriggerResolved = false;
+				}
 				if (reference.exists() && referenceKeySchema.isFacetedInScope(scope)) {
+					// cache trigger lookup across consecutive references of the same type
+					if (!cachedTriggerResolved) {
+						cachedTrigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+						cachedTriggerResolved = true;
+					}
+					if (cachedTrigger != null && !cachedTrigger.evaluate(
+						entityPrimaryKey, referenceKey, executor.getContainerAccessor(),
+						executor.getSchemaResolver()
+					)) {
+						continue;
+					}
 					final Integer groupId = groupReference
 						.filter(Droppable::exists)
 						.map(GroupEntityReference::getPrimaryKey)
@@ -1885,7 +2116,8 @@ public interface ReferenceIndexMutator {
 						!referenceKeySchema.getName().equals(referenceKey.referenceName())
 						? getReferenceSchemaFor(referenceKey, referenceSchema, executor)
 						: referenceKeySchema;
-				if (reference.exists() && referenceKeySchema.isFacetedInScope(scope)) {
+				if (reference.exists() && referenceKeySchema.isFacetedInScope(scope)
+					&& wasFaceted(targetIndex, referenceKey, entityPrimaryKey)) {
 					removeFacetInIndexInternal(
 						targetIndex, referenceSchema, entityPrimaryKey, reference, undoActionConsumer
 					);
@@ -1925,7 +2157,7 @@ public interface ReferenceIndexMutator {
 		// only remove from the group if the facet is actually present there — during
 		// cross-reference propagation the direct processing path may have already moved
 		// the facet, making the storage-derived group stale
-		if (isFacetPresentInGroup(index, referenceKey, groupId)) {
+		if (isFacetPresentInGroup(index, referenceKey, groupId, entityPrimaryKey)) {
 			index.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(

@@ -52,11 +52,13 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.ExpressionIndexTrigger;
+import io.evitadb.index.mutation.FacetExpressionTrigger;
 import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateFacetExpressionMutation;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -70,10 +72,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -269,7 +273,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			sequencer::getAndIncrement,
 			false,
 			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
-			registrySupplier
+			registrySupplier,
+			null
 		);
 	}
 
@@ -997,6 +1002,27 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		assertEquals(0, result.indexMutations().length);
 	}
 
+	// --- Trigger lookup ---
+
+	@Nested
+	@DisplayName("Trigger lookup via getTriggerFor")
+	class TriggerLookupTest {
+
+		@Test
+		@DisplayName("Should return null when no local trigger supplier is installed")
+		void shouldReturnNullWhenNoLocalTriggerSupplierInstalled() {
+			final MockStorageContainerAccessor accessor = new MockStorageContainerAccessor();
+			final EntityIndexLocalMutationExecutor executor = createExecutorWithTriggerSupplier(
+				accessor, null, null
+			);
+
+			final FacetExpressionTrigger result = executor.getTriggerFor(REFERENCE_NAME, Scope.LIVE);
+
+			assertNull(result);
+		}
+
+	}
+
 	@Test
 	@DisplayName("Should handle localized attribute key (locale does not prevent matching)")
 	void shouldHandleLocalizedAttributeKey() {
@@ -1028,6 +1054,106 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			(ReevaluateFacetExpressionMutation) result.indexMutations()[0].mutations()[0];
 		assertEquals(REFERENCE_NAME, facetMutation.referenceName());
 		assertEquals(ENTITY_PK, facetMutation.mutatedEntityPK());
+	}
+
+	/**
+	 * Creates a minimal {@link EntityIndexLocalMutationExecutor} with explicit control over both
+	 * the trigger registry supplier and the local facet trigger supplier. This allows testing
+	 * the `getTriggerFor()` memoization path independently of the source-side detection logic.
+	 *
+	 * @param containerAccessor      pre-configured storage accessor
+	 * @param registrySupplier       trigger registry supplier, or null
+	 * @param localTriggerSupplier   local facet trigger supplier, or null to test the null-supplier path
+	 * @return a new executor
+	 */
+	@Nonnull
+	private static EntityIndexLocalMutationExecutor createExecutorWithTriggerSupplier(
+		@Nonnull MockStorageContainerAccessor containerAccessor,
+		@Nullable Supplier<CatalogExpressionTriggerRegistry> registrySupplier,
+		@Nullable BiFunction<String, Scope, FacetExpressionTrigger> localTriggerSupplier
+	) {
+		final EntitySchema schema = buildSourceSchema();
+		final GlobalEntityIndex globalIndex = new GlobalEntityIndex(
+			1, SOURCE_ENTITY_TYPE, new EntityIndexKey(EntityIndexType.GLOBAL)
+		);
+		final CatalogIndex catalogIndex = new CatalogIndex(Scope.LIVE);
+		final AtomicInteger sequencer = new AtomicInteger(1);
+		return new EntityIndexLocalMutationExecutor(
+			containerAccessor, ENTITY_PK,
+			new MockEntityIndexCreator<>(globalIndex),
+			new MockEntityIndexCreator<>(catalogIndex),
+			() -> schema,
+			sequencer::getAndIncrement,
+			false,
+			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
+			registrySupplier,
+			localTriggerSupplier
+		);
+	}
+
+	/**
+	 * Minimal {@link FacetExpressionTrigger} implementation for trigger lookup tests.
+	 * Provides identity-based equality so `assertSame` can verify memoization.
+	 */
+	private static final class TestFacetTrigger implements FacetExpressionTrigger {
+
+		@Nonnull
+		@Override
+		public String getOwnerEntityType() {
+			return TARGET_ENTITY_TYPE;
+		}
+
+		@Nonnull
+		@Override
+		public String getReferenceName() {
+			return REFERENCE_NAME;
+		}
+
+		@Nonnull
+		@Override
+		public Scope getScope() {
+			return Scope.LIVE;
+		}
+
+		@Nullable
+		@Override
+		public String getMutatedEntityType() {
+			return null;
+		}
+
+		@Nullable
+		@Override
+		public DependencyType getDependencyType() {
+			return null;
+		}
+
+		@Nullable
+		@Override
+		public String getDependentReferenceName() {
+			return null;
+		}
+
+		@Nonnull
+		@Override
+		public Set<String> getDependentAttributes() {
+			return Set.of();
+		}
+
+		@Nonnull
+		@Override
+		public FilterBy getFilterByConstraint() {
+			throw new UnsupportedOperationException("Not needed for trigger lookup tests.");
+		}
+
+		@Override
+		public boolean evaluate(
+			int ownerEntityPK,
+			@Nonnull ReferenceKey referenceKey,
+			@Nonnull WritableEntityStorageContainerAccessor storageAccessor,
+			@Nonnull Function<String, EntitySchemaContract> schemaResolver
+		) {
+			throw new UnsupportedOperationException("Not needed for trigger lookup tests.");
+		}
 	}
 
 }

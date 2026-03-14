@@ -1917,11 +1917,26 @@ public final class Catalog
 	 * Builds the initial expression trigger registry by scanning all entity schemas in the schema index.
 	 * Called after all `initSchema()` calls complete during catalog loading (cold start) or in the copy
 	 * constructor when schemas are re-initialized (e.g., during `goingLive()` transition).
+	 *
+	 * Must be called **before** WAL replay or client mutations begin — the registry must be fully populated
+	 * so that source-side detection in `ReferenceIndexMutator` can look up cross-entity triggers. At call time,
+	 * the `entitySchemaIndex` contains schemas with fully resolved reflected reference inheritance (i.e.,
+	 * `ReflectedReferenceSchema` instances have already inherited `facetedPartiallyInScopes` from their source
+	 * references via `initSchema()` -> `withReferencedSchema()`).
 	 */
 	private void buildInitialExpressionTriggerRegistry() {
-		this.expressionTriggerRegistry.set(
-			CatalogExpressionTriggerRegistryImpl.buildFromSchemas(this.entitySchemaIndex)
-		);
+		final CatalogExpressionTriggerRegistry registry =
+			CatalogExpressionTriggerRegistryImpl.buildFromSchemas(this.entitySchemaIndex);
+		this.expressionTriggerRegistry.set(registry);
+		if (registry instanceof CatalogExpressionTriggerRegistryImpl impl) {
+			final int triggerCount = impl.getTriggerCount();
+			if (triggerCount > 0) {
+				log.info(
+					"Expression trigger registry initialized with {} triggers for catalog '{}'.",
+					triggerCount, this.getName()
+				);
+			}
+		}
 	}
 
 	/*

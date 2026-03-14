@@ -378,7 +378,7 @@ class FacetExpressionTriggerImplTest {
 			final Expression expression = ExpressionFactory.parse("$entity.attributes['status'] == 'ACTIVE'");
 			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
 			final FacetExpressionTriggerImpl trigger = new FacetExpressionTriggerImpl(
-				ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE, expression, descriptor
+				ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE, Set.of(), Set.of(), Set.of(), false, expression, descriptor
 			);
 
 			final TestStorageAccessor accessor = new TestStorageAccessor(ENTITY_PK);
@@ -398,7 +398,7 @@ class FacetExpressionTriggerImplTest {
 			final Expression expression = ExpressionFactory.parse("$entity.attributes['status'] == 'ACTIVE'");
 			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
 			final FacetExpressionTriggerImpl trigger = new FacetExpressionTriggerImpl(
-				ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE, expression, descriptor
+				ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE, Set.of(), Set.of(), Set.of(), false, expression, descriptor
 			);
 
 			final TestStorageAccessor accessor = new TestStorageAccessor(ENTITY_PK);
@@ -577,6 +577,7 @@ class FacetExpressionTriggerImplTest {
 		return new FacetExpressionTriggerImpl(
 			ENTITY_TYPE, REFERENCE_NAME, scope,
 			REFERENCED_ENTITY_TYPE, dependencyType, dependentReferenceName, dependentAttributes,
+			Set.of(), Set.of(), Set.of(), false,
 			expression, descriptor, filterBy
 		);
 	}
@@ -592,7 +593,7 @@ class FacetExpressionTriggerImplTest {
 		final Expression expression = ExpressionFactory.parse(expressionStr);
 		final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
 		return new FacetExpressionTriggerImpl(
-			ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE, expression, descriptor
+			ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE, Set.of(), Set.of(), Set.of(), false, expression, descriptor
 		);
 	}
 

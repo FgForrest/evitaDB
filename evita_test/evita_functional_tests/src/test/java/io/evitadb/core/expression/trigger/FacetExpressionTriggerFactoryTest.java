@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -605,6 +606,159 @@ class FacetExpressionTriggerFactoryTest {
 					ENTITY_TYPE, refSchema
 				)
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Local dependency extraction")
+	class LocalDependencyExtractionTest {
+
+		@Test
+		@DisplayName("Should extract entity attributes from local expression")
+		void shouldExtractEntityAttributesFromLocalExpression() {
+			final Expression expression =
+				ExpressionFactory.parse("$entity.attributes['status'] == 'ACTIVE'");
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(Set.of("status"), trigger.getLocalEntityAttributes());
+			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());
+			assertTrue(trigger.getLocalAssociatedData().isEmpty());
+			assertFalse(trigger.usesParent());
+		}
+
+		@Test
+		@DisplayName("Should extract reference attributes from local expression")
+		void shouldExtractReferenceAttributesFromLocalExpression() {
+			final Expression expression =
+				ExpressionFactory.parse("$reference.attributes['order'] > 0");
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(Set.of("order"), trigger.getLocalReferenceAttributes());
+			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
+			assertTrue(trigger.getLocalAssociatedData().isEmpty());
+			assertFalse(trigger.usesParent());
+		}
+
+		@Test
+		@DisplayName("Should extract associated data from local expression")
+		void shouldExtractAssociatedDataFromLocalExpression() {
+			final Expression expression =
+				ExpressionFactory.parse("$entity.associatedData['description'] != null");
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(Set.of("description"), trigger.getLocalAssociatedData());
+			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
+			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());
+			assertFalse(trigger.usesParent());
+		}
+
+		@Test
+		@DisplayName("Should detect parent entity usage")
+		void shouldDetectParentEntityUsage() {
+			final Expression expression =
+				ExpressionFactory.parse("$entity.parentEntity != null");
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertTrue(trigger.usesParent());
+			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
+			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());
+			assertTrue(trigger.getLocalAssociatedData().isEmpty());
+		}
+
+		@Test
+		@DisplayName("Should extract multiple local dependencies from combined expression")
+		void shouldExtractMultipleLocalDependencies() {
+			final Expression expression = ExpressionFactory.parse(
+				"$entity.attributes['status'] == 'ACTIVE' " +
+					"&& $reference.attributes['order'] > 0 " +
+					"&& $entity.associatedData['description'] != null " +
+					"&& $entity.parentEntity != null"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(Set.of("status"), trigger.getLocalEntityAttributes());
+			assertEquals(Set.of("order"), trigger.getLocalReferenceAttributes());
+			assertEquals(Set.of("description"), trigger.getLocalAssociatedData());
+			assertTrue(trigger.usesParent());
+		}
+
+		@Test
+		@DisplayName("Should populate local deps on cross-entity triggers")
+		void shouldPopulateLocalDepsOnCrossEntityTriggers() {
+			final Expression expression = ExpressionFactory.parse(
+				"$entity.attributes['status'] == 'ACTIVE' " +
+					"&& $reference.referencedEntity.attributes['code'] == 'A'"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			// mixed expression produces only cross-entity trigger(s)
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertEquals(DependencyType.REFERENCED_ENTITY_ATTRIBUTE, trigger.getDependencyType());
+			// but local deps are still populated
+			assertEquals(Set.of("status"), trigger.getLocalEntityAttributes());
+		}
+
+		@Test
+		@DisplayName("Should return empty local deps for purely cross-entity expression")
+		void shouldReturnEmptyLocalDepsForPurelyCrossEntityExpression() {
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.referencedEntity.attributes['code'] == 'A'"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithExpression(
+				Scope.LIVE, expression
+			);
+
+			final List<FacetExpressionTrigger> triggers =
+				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
+
+			assertEquals(1, triggers.size());
+			final FacetExpressionTrigger trigger = triggers.get(0);
+			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
+			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());
+			assertTrue(trigger.getLocalAssociatedData().isEmpty());
+			assertFalse(trigger.usesParent());
 		}
 
 	}

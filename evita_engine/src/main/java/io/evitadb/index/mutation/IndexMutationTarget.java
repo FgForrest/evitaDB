@@ -93,16 +93,19 @@ public interface IndexMutationTarget extends IndexProvider<EntityIndexKey, Entit
 	);
 
 	/**
-	 * Evaluates a {@link FilterBy} constraint against this collection's current indexes and returns the
-	 * matching entity PK bitmap. Used by executors to determine which entities currently satisfy the
-	 * expression.
+	 * Evaluates a {@link FilterBy} constraint against this collection's `GlobalEntityIndex` for the specified scope
+	 * and returns the matching entity PK bitmap. Used by executors to determine which entities currently satisfy the
+	 * conditional facet expression.
 	 *
-	 * Delegates to the collection's existing query evaluation infrastructure against `GlobalEntityIndex`.
+	 * Delegates to the collection's existing query evaluation infrastructure (`FilterByVisitor` + `Formula`).
+	 * Requires an active session to be set on the implementation before dispatch (see
+	 * `EntityCollection.applyIndexMutations()`).
 	 *
 	 * @param filterBy the filter constraint to evaluate
+	 * @param scope    the scope whose `GlobalEntityIndex` should be queried
 	 * @return bitmap of entity primary keys matching the filter, never null (may be empty)
 	 */
 	@Nonnull
-	Bitmap evaluateFilter(@Nonnull FilterBy filterBy);
+	Bitmap evaluateFilter(@Nonnull FilterBy filterBy, @Nonnull Scope scope);
 
 }

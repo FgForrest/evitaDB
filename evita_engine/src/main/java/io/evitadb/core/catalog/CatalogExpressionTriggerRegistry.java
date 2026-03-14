@@ -23,10 +23,13 @@
 
 package io.evitadb.core.catalog;
 
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.mutation.ExpressionIndexTrigger;
+import io.evitadb.index.mutation.FacetExpressionTrigger;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.Collections;
 import java.util.List;
@@ -77,7 +80,7 @@ public interface CatalogExpressionTriggerRegistry {
 	 * Empty registry singleton — the initial value before any schemas are loaded.
 	 */
 	CatalogExpressionTriggerRegistry EMPTY =
-		new CatalogExpressionTriggerRegistryImpl(Collections.emptyMap());
+		new CatalogExpressionTriggerRegistryImpl(Collections.emptyMap(), Collections.emptyMap());
 
 	/**
 	 * Finds all triggers that depend on the given entity type with the specified dependency relationship.
@@ -112,6 +115,28 @@ public interface CatalogExpressionTriggerRegistry {
 		@Nonnull String mutatedEntityType,
 		@Nonnull DependencyType dependencyType,
 		@Nonnull String attributeName
+	);
+
+	/**
+	 * Returns the pre-built local {@link FacetExpressionTrigger} for inline expression evaluation within
+	 * `ReferenceIndexMutator`. The trigger is used to decide whether a facet should be indexed when a reference
+	 * is added, removed, or re-evaluated due to attribute changes on the owner entity.
+	 *
+	 * Both local-only triggers (`dependencyType == null`) and cross-entity triggers are eligible — they all
+	 * share the same `evaluate()` method. When multiple cross-entity triggers exist for the same
+	 * `(ownerEntityType, referenceName, scope)` triple (one per {@link DependencyType}), only the first is stored
+	 * since they are functionally equivalent for evaluation.
+	 *
+	 * @param ownerEntityType the entity type that owns the reference (e.g., "product")
+	 * @param referenceName   the reference name carrying the `facetedPartially` expression (e.g., "parameter")
+	 * @param scope           the scope the trigger applies to
+	 * @return the trigger for inline evaluation, or `null` if no `facetedPartially` expression is defined
+	 */
+	@Nullable
+	FacetExpressionTrigger getLocalTrigger(
+		@Nonnull String ownerEntityType,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope
 	);
 
 	/**

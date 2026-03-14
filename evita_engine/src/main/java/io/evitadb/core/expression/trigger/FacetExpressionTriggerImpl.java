@@ -76,6 +76,10 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	@Nullable private final DependencyType dependencyType;
 	@Nullable private final String dependentReferenceName;
 	@Nonnull private final Set<String> dependentAttributes;
+	@Nonnull private final Set<String> localEntityAttributes;
+	@Nonnull private final Set<String> localReferenceAttributes;
+	@Nonnull private final Set<String> localAssociatedData;
+	private final boolean usesParent;
 	@Nonnull private final Expression expression;
 	@Nonnull private final ExpressionProxyDescriptor proxyDescriptor;
 	@Nullable private final FilterBy filterByConstraint;
@@ -83,17 +87,21 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	/**
 	 * Creates a new trigger for cross-entity evaluation (non-null {@link DependencyType} and {@link FilterBy}).
 	 *
-	 * @param ownerEntityType        entity type owning the reference (e.g., "product")
-	 * @param referenceName          name of the reference carrying the expression (e.g., "parameter")
-	 * @param scope                  scope this trigger applies to
-	 * @param mutatedEntityType      entity type whose mutations fire this trigger (e.g., "parameterGroup")
-	 * @param dependencyType         cross-entity dependency classification
-	 * @param dependentReferenceName name of the reference on the target entity whose attributes are read,
-	 *                               or `null` for entity-attribute dependencies
-	 * @param dependentAttributes    attribute names on the mutated entity that the expression reads
-	 * @param expression             the parsed expression AST
-	 * @param proxyDescriptor        pre-built proxy descriptor from {@link ExpressionProxyFactory}
-	 * @param filterByConstraint     pre-translated FilterBy from `ExpressionToQueryTranslator`
+	 * @param ownerEntityType          entity type owning the reference (e.g., "product")
+	 * @param referenceName            name of the reference carrying the expression (e.g., "parameter")
+	 * @param scope                    scope this trigger applies to
+	 * @param mutatedEntityType        entity type whose mutations fire this trigger (e.g., "parameterGroup")
+	 * @param dependencyType           cross-entity dependency classification
+	 * @param dependentReferenceName   name of the reference on the target entity whose attributes are read,
+	 *                                 or `null` for entity-attribute dependencies
+	 * @param dependentAttributes      attribute names on the mutated entity that the expression reads
+	 * @param localEntityAttributes    entity-level attribute names the expression reads locally
+	 * @param localReferenceAttributes reference-level attribute names the expression reads locally
+	 * @param localAssociatedData      associated data names the expression reads locally
+	 * @param usesParent               whether the expression reads the entity's parent
+	 * @param expression               the parsed expression AST
+	 * @param proxyDescriptor          pre-built proxy descriptor from {@link ExpressionProxyFactory}
+	 * @param filterByConstraint       pre-translated FilterBy from `ExpressionToQueryTranslator`
 	 */
 	public FacetExpressionTriggerImpl(
 		@Nonnull String ownerEntityType,
@@ -103,6 +111,10 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		@Nonnull DependencyType dependencyType,
 		@Nullable String dependentReferenceName,
 		@Nonnull Set<String> dependentAttributes,
+		@Nonnull Set<String> localEntityAttributes,
+		@Nonnull Set<String> localReferenceAttributes,
+		@Nonnull Set<String> localAssociatedData,
+		boolean usesParent,
 		@Nonnull Expression expression,
 		@Nonnull ExpressionProxyDescriptor proxyDescriptor,
 		@Nonnull FilterBy filterByConstraint
@@ -114,6 +126,10 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		this.dependencyType = dependencyType;
 		this.dependentReferenceName = dependentReferenceName;
 		this.dependentAttributes = Set.copyOf(dependentAttributes);
+		this.localEntityAttributes = Set.copyOf(localEntityAttributes);
+		this.localReferenceAttributes = Set.copyOf(localReferenceAttributes);
+		this.localAssociatedData = Set.copyOf(localAssociatedData);
+		this.usesParent = usesParent;
 		this.expression = expression;
 		this.proxyDescriptor = proxyDescriptor;
 		this.filterByConstraint = filterByConstraint;
@@ -122,16 +138,24 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	/**
 	 * Creates a new trigger for local-only evaluation (null {@link DependencyType}, no {@link FilterBy}).
 	 *
-	 * @param ownerEntityType entity type owning the reference (e.g., "product")
-	 * @param referenceName   name of the reference carrying the expression (e.g., "parameter")
-	 * @param scope           scope this trigger applies to
-	 * @param expression      the parsed expression AST
-	 * @param proxyDescriptor pre-built proxy descriptor from {@link ExpressionProxyFactory}
+	 * @param ownerEntityType          entity type owning the reference (e.g., "product")
+	 * @param referenceName            name of the reference carrying the expression (e.g., "parameter")
+	 * @param scope                    scope this trigger applies to
+	 * @param localEntityAttributes    entity-level attribute names the expression reads locally
+	 * @param localReferenceAttributes reference-level attribute names the expression reads locally
+	 * @param localAssociatedData      associated data names the expression reads locally
+	 * @param usesParent               whether the expression reads the entity's parent
+	 * @param expression               the parsed expression AST
+	 * @param proxyDescriptor          pre-built proxy descriptor from {@link ExpressionProxyFactory}
 	 */
 	public FacetExpressionTriggerImpl(
 		@Nonnull String ownerEntityType,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
+		@Nonnull Set<String> localEntityAttributes,
+		@Nonnull Set<String> localReferenceAttributes,
+		@Nonnull Set<String> localAssociatedData,
+		boolean usesParent,
 		@Nonnull Expression expression,
 		@Nonnull ExpressionProxyDescriptor proxyDescriptor
 	) {
@@ -142,6 +166,10 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		this.dependencyType = null;
 		this.dependentReferenceName = null;
 		this.dependentAttributes = Set.of();
+		this.localEntityAttributes = Set.copyOf(localEntityAttributes);
+		this.localReferenceAttributes = Set.copyOf(localReferenceAttributes);
+		this.localAssociatedData = Set.copyOf(localAssociatedData);
+		this.usesParent = usesParent;
 		this.expression = expression;
 		this.proxyDescriptor = proxyDescriptor;
 		this.filterByConstraint = null;
@@ -187,6 +215,29 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 	@Override
 	public Set<String> getDependentAttributes() {
 		return this.dependentAttributes;
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getLocalEntityAttributes() {
+		return this.localEntityAttributes;
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getLocalReferenceAttributes() {
+		return this.localReferenceAttributes;
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getLocalAssociatedData() {
+		return this.localAssociatedData;
+	}
+
+	@Override
+	public boolean usesParent() {
+		return this.usesParent;
 	}
 
 	@Nonnull

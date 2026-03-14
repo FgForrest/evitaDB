@@ -55,21 +55,27 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * This class contains shared variables and logic for mutation specific tests in this package.
+ * Abstract base class providing shared test infrastructure for {@link EntityIndexLocalMutationExecutor}
+ * related tests. Sets up a mock catalog environment with a sample product schema, catalog index,
+ * global entity index, and a fully configured mutation executor instance.
+ *
+ * Subclasses customize the catalog and product schemas via the
+ * {@link #alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder)} and
+ * {@link #alterProductSchema(EntitySchemaEditor.EntitySchemaBuilder)} template methods.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 abstract class AbstractMutatorTestBase {
 	protected static final String ENTITY_NAME = "product";
-	protected final Catalog catalog;
-	protected final CatalogIndex catalogIndex;
-	protected final CatalogSchema catalogSchema;
-	protected final MockStorageContainerAccessor containerAccessor = new MockStorageContainerAccessor();
-	protected final DataGenerator dataGenerator = new DataGenerator();
-	protected final EntityIndexLocalMutationExecutor executor;
-	protected final GlobalEntityIndex productIndex;
-	protected final EntitySchema productSchema;
-	protected final SealedCatalogSchema sealedCatalogSchema;
+	@Nonnull protected final Catalog catalog;
+	@Nonnull protected final CatalogIndex catalogIndex;
+	@Nonnull protected final CatalogSchema catalogSchema;
+	@Nonnull protected final MockStorageContainerAccessor containerAccessor = new MockStorageContainerAccessor();
+	@Nonnull protected final DataGenerator dataGenerator = new DataGenerator();
+	@Nonnull protected final EntityIndexLocalMutationExecutor executor;
+	@Nonnull protected final GlobalEntityIndex productIndex;
+	@Nonnull protected final EntitySchema productSchema;
+	@Nonnull protected final SealedCatalogSchema sealedCatalogSchema;
 
 	{
 		this.catalog = Mockito.mock(Catalog.class);
@@ -122,6 +128,7 @@ abstract class AbstractMutatorTestBase {
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
 			},
+			null,
 			null
 		);
 
@@ -132,12 +139,29 @@ abstract class AbstractMutatorTestBase {
 		Mockito.when(productCollection.getEntityTypePrimaryKey()).thenReturn(1);
 	}
 
-	private static EntitySchema unwrap(SealedEntitySchema entitySchema) {
-		return ((EntitySchemaDecorator)entitySchema).getDelegate();
+	/**
+	 * Unwraps a {@link SealedEntitySchema} decorator to obtain the underlying {@link EntitySchema} DTO.
+	 *
+	 * @param entitySchema the sealed entity schema to unwrap
+	 * @return the underlying entity schema DTO
+	 */
+	@Nonnull
+	private static EntitySchema unwrap(@Nonnull SealedEntitySchema entitySchema) {
+		return ((EntitySchemaDecorator) entitySchema).getDelegate();
 	}
 
-	protected abstract void alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder schemaBuilder);
+	/**
+	 * Template method allowing subclasses to customize the catalog schema before it is built.
+	 *
+	 * @param schemaBuilder the catalog schema builder to modify
+	 */
+	protected abstract void alterCatalogSchema(@Nonnull CatalogSchemaEditor.CatalogSchemaBuilder schemaBuilder);
 
-	protected abstract void alterProductSchema(EntitySchemaEditor.EntitySchemaBuilder schemaBuilder);
+	/**
+	 * Template method allowing subclasses to customize the product entity schema before it is built.
+	 *
+	 * @param schemaBuilder the entity schema builder to modify
+	 */
+	protected abstract void alterProductSchema(@Nonnull EntitySchemaEditor.EntitySchemaBuilder schemaBuilder);
 
 }

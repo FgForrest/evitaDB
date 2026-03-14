@@ -31,71 +31,78 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.facet.FacetGroupIndex;
+import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link ReevaluateFacetExpressionExecutor} verifying the full execute pipeline: affected entity resolution,
  * FilterBy parameterization, bitmap set operations (add/remove split), and target index routing (global vs. reduced).
+ *
+ * Uses real production index instances ({@link GlobalEntityIndex}, {@link ReferencedTypeEntityIndex},
+ * {@link ReducedGroupEntityIndex}) and test doubles ({@link TestIndexMutationTarget},
+ * {@link TestExpressionIndexTrigger}) instead of Mockito mocks — state-based assertions verify the actual facet
+ * index contents after execution.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ReevaluateFacetExpressionExecutor")
 class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 
+	private static final String ENTITY_TYPE = "product";
 	private static final String REFERENCE_NAME = "testRef";
+	private static final String REFERENCED_ENTITY_TYPE = "testRefType";
+	private static final String GROUP_ENTITY_TYPE = "testGroup";
 	private static final int MUTATED_ENTITY_PK = 42;
 	private static final Scope TEST_SCOPE = Scope.LIVE;
 
 	private ReevaluateFacetExpressionExecutor executor;
-	private IndexMutationTarget target;
-	private EntitySchema entitySchema;
-	private ReferenceSchemaContract refSchema;
-	private EntityIndex globalIndex;
-	private ExpressionIndexTrigger trigger;
-
-	@BeforeEach
-	void setUp() {
-		this.executor = new ReevaluateFacetExpressionExecutor();
-		this.target = mock(IndexMutationTarget.class);
-		this.entitySchema = mock(EntitySchema.class);
-		this.refSchema = mock(ReferenceSchemaContract.class);
-		this.globalIndex = mock(EntityIndex.class);
-		this.trigger = mock(ExpressionIndexTrigger.class);
-
-		when(this.target.getEntitySchema()).thenReturn(this.entitySchema);
-	}
+	private TestIndexMutationTarget target;
+	private GlobalEntityIndex globalIndex;
 
 	/**
 	 * Creates a baseline trigger FilterBy: `filterBy(referenceHaving("testRef", entityPrimaryKeyInSet(1)))`.
@@ -108,94 +115,279 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Configures mocks for the GROUP_ENTITY_ATTRIBUTE resolution path: ReferencedTypeEntityIndex lookup,
-	 * storagePK resolution, and ReducedGroupEntityIndex with facetPKs and owner bitmaps.
+	 * Builds a real {@link EntitySchema} with a reference configured for the given index type.
 	 *
-	 * @param storagePKs   storage primary keys returned by the ReferencedTypeEntityIndex
+	 * @param forFilteringAndPartitioning `true` for FOR_FILTERING_AND_PARTITIONING, `false` for FOR_FILTERING
+	 * @return built entity schema with the reference
+	 */
+	@Nonnull
+	private static EntitySchema buildEntitySchema(boolean forFilteringAndPartitioning) {
+		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
+			"testCatalog",
+			NamingConvention.generate("testCatalog"),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return Set.of();
+				}
+
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return Optional.empty();
+				}
+			}
+		);
+		final InternalEntitySchemaBuilder builder = new InternalEntitySchemaBuilder(
+			catalogSchema, EntitySchema._internalBuild(ENTITY_TYPE)
+		);
+		if (forFilteringAndPartitioning) {
+			builder.withReferenceTo(
+				REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.withGroupType(GROUP_ENTITY_TYPE)
+					.facetedInScope(TEST_SCOPE)
+					.indexedForFilteringAndPartitioningInScope(TEST_SCOPE)
+			);
+		} else {
+			builder.withReferenceTo(
+				REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.withGroupType(GROUP_ENTITY_TYPE)
+					.facetedInScope(TEST_SCOPE)
+			);
+		}
+		return (EntitySchema) builder.toInstance();
+	}
+
+	/**
+	 * Asserts that a facet entry exists in the given index for the specified reference, facet PK, group PK, and
+	 * owner PK.
+	 *
+	 * @param index         the entity index to inspect
+	 * @param referenceName the reference name
+	 * @param facetPK       the facet primary key
+	 * @param groupPK       the group primary key, or null for ungrouped
+	 * @param ownerPK       the owner entity primary key
+	 */
+	private static void assertFacetExists(
+		@Nonnull EntityIndex index,
+		@Nonnull String referenceName,
+		int facetPK,
+		@Nullable Integer groupPK,
+		int ownerPK
+	) {
+		final FacetReferenceIndex refIndex = index.getFacetingEntities().get(referenceName);
+		assertNotNull(refIndex, "FacetReferenceIndex for '" + referenceName + "' should exist");
+		final FacetGroupIndex groupIndex = refIndex.getFacetsInGroup(groupPK);
+		assertNotNull(groupIndex, "FacetGroupIndex for group " + groupPK + " should exist");
+		final FacetIdIndex facetIdIndex = groupIndex.getFacetIdIndex(facetPK);
+		assertNotNull(facetIdIndex, "FacetIdIndex for facet " + facetPK + " should exist");
+		assertTrue(
+			facetIdIndex.getRecords().contains(ownerPK),
+			"Owner PK " + ownerPK + " should be present in facet " + facetPK + " (group " + groupPK + ")"
+		);
+	}
+
+	/**
+	 * Asserts that a facet entry does NOT exist in the given index for the specified reference, facet PK, group PK,
+	 * and owner PK. The assertion passes if any level of the facet hierarchy is missing (reference, group, facet, or
+	 * owner PK not in bitmap).
+	 *
+	 * @param index         the entity index to inspect
+	 * @param referenceName the reference name
+	 * @param facetPK       the facet primary key
+	 * @param groupPK       the group primary key, or null for ungrouped
+	 * @param ownerPK       the owner entity primary key
+	 */
+	private static void assertFacetNotExists(
+		@Nonnull EntityIndex index,
+		@Nonnull String referenceName,
+		int facetPK,
+		@Nullable Integer groupPK,
+		int ownerPK
+	) {
+		final FacetReferenceIndex refIndex = index.getFacetingEntities().get(referenceName);
+		if (refIndex == null) {
+			return; // no facets for this reference => not exists
+		}
+		final FacetGroupIndex groupIndex = refIndex.getFacetsInGroup(groupPK);
+		if (groupIndex == null) {
+			return; // no facets in this group => not exists
+		}
+		final FacetIdIndex facetIdIndex = groupIndex.getFacetIdIndex(facetPK);
+		if (facetIdIndex == null) {
+			return; // no facet with this PK => not exists
+		}
+		assertFalse(
+			facetIdIndex.getRecords().contains(ownerPK),
+			"Owner PK " + ownerPK + " should NOT be present in facet " + facetPK + " (group " + groupPK + ")"
+		);
+	}
+
+	/**
+	 * Returns the total number of facet entries (owner PKs) across all groups and facets for a given reference
+	 * in the index.
+	 *
+	 * @param index         the entity index to inspect
+	 * @param referenceName the reference name
+	 * @return total count of owner PK entries
+	 */
+	private static int countFacetEntries(@Nonnull EntityIndex index, @Nonnull String referenceName) {
+		final FacetReferenceIndex refIndex = index.getFacetingEntities().get(referenceName);
+		if (refIndex == null) {
+			return 0;
+		}
+		int count = 0;
+		final FacetGroupIndex notGrouped = refIndex.getNotGroupedFacets();
+		if (notGrouped != null) {
+			for (final Bitmap bitmap : notGrouped.getAsMap().values()) {
+				count += bitmap.size();
+			}
+		}
+		for (final FacetGroupIndex groupIndex : refIndex.getGroupedFacets()) {
+			for (final Bitmap bitmap : groupIndex.getAsMap().values()) {
+				count += bitmap.size();
+			}
+		}
+		return count;
+	}
+
+	@BeforeEach
+	void setUp() {
+		this.executor = new ReevaluateFacetExpressionExecutor();
+		this.globalIndex = new GlobalEntityIndex(
+			1, ENTITY_TYPE,
+			new EntityIndexKey(EntityIndexType.GLOBAL, TEST_SCOPE)
+		);
+		this.target = new TestIndexMutationTarget(buildEntitySchema(false));
+		this.target.registerIndex(new EntityIndexKey(EntityIndexType.GLOBAL, TEST_SCOPE), this.globalIndex);
+		this.target.setTrigger(
+			REFERENCE_NAME, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE,
+			new TestExpressionIndexTrigger(createTriggerFilterBy())
+		);
+		this.target.setTrigger(
+			REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE,
+			new TestExpressionIndexTrigger(createTriggerFilterBy())
+		);
+	}
+
+	/**
+	 * Configures real indexes for the GROUP_ENTITY_ATTRIBUTE resolution path: ReferencedTypeEntityIndex containing
+	 * storagePKs, and ReducedGroupEntityIndex instances populated with facetPKs and owner PKs.
+	 *
+	 * @param storagePKs   storage primary keys for the ReducedGroupEntityIndexes
 	 * @param facetPKs     facet primary keys for each ReducedGroupEntityIndex (parallel with storagePKs)
-	 * @param ownerBitmaps owner PK bitmaps for each (storagePK, facetPK) pair (parallel with facetPKs)
+	 * @param ownerPKs     owner PK arrays for each (storagePK, facetPK) pair (parallel with facetPKs)
 	 */
 	private void setupGroupEntityAttributeScenario(
 		@Nonnull int[] storagePKs,
 		@Nonnull int[][] facetPKs,
-		@Nonnull Bitmap[][] ownerBitmaps
+		@Nonnull int[][] ownerPKs
 	) {
-		final ReferencedTypeEntityIndex rtei = mock(ReferencedTypeEntityIndex.class);
 		final EntityIndexKey groupTypeKey = new EntityIndexKey(
 			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 		);
-		when(this.target.getIndexIfExists(groupTypeKey)).thenReturn(rtei);
-		when(rtei.getAllReferenceIndexes(MUTATED_ENTITY_PK)).thenReturn(storagePKs);
+		final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+			50, ENTITY_TYPE, groupTypeKey
+		);
 
 		for (int i = 0; i < storagePKs.length; i++) {
-			final ReducedGroupEntityIndex rgei = mock(ReducedGroupEntityIndex.class);
-			when(this.target.getIndexByPrimaryKeyIfExists(storagePKs[i])).thenReturn(rgei);
+			final EntityIndexKey rgeiKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY, TEST_SCOPE,
+				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+			);
+			final ReducedGroupEntityIndex rgei = new ReducedGroupEntityIndex(
+				storagePKs[i], ENTITY_TYPE, rgeiKey
+			);
 
-			final Set<Integer> facetPKSet = new java.util.LinkedHashSet<>();
-			for (int fpk : facetPKs[i]) {
-				facetPKSet.add(fpk);
-			}
-			when(rgei.getReferencedEntityPrimaryKeys()).thenReturn(facetPKSet);
+			// register the storagePK -> mutatedEntityPK mapping in RTEI
+			rtei.insertPrimaryKeyIfMissing(storagePKs[i], MUTATED_ENTITY_PK);
 
+			// populate the RGEI with facetPK -> ownerPKs
 			for (int j = 0; j < facetPKs[i].length; j++) {
-				when(rgei.getOwnerPKsForReferencedEntity(facetPKs[i][j])).thenReturn(ownerBitmaps[i][j]);
+				for (final int ownerPK : ownerPKs[j]) {
+					rgei.insertPrimaryKeyIfMissing(ownerPK, facetPKs[i][j]);
+				}
 			}
+
+			this.target.registerIndexByPK(storagePKs[i], rgei);
 		}
+
+		this.target.registerIndex(groupTypeKey, rtei);
 	}
 
 	/**
-	 * Configures mocks for the REFERENCED_ENTITY_ATTRIBUTE resolution path: ReferencedTypeEntityIndex lookup,
-	 * storagePK resolution, EntityIndex with getAllPrimaryKeys, and optional FacetReferenceIndex for group PK.
+	 * Configures real indexes for the REFERENCED_ENTITY_ATTRIBUTE resolution path: ReferencedTypeEntityIndex
+	 * containing storagePKs, and ReducedEntityIndex instances populated with owner PKs.
 	 *
-	 * @param storagePKs   storage primary keys returned by the ReferencedTypeEntityIndex
-	 * @param ownerBitmaps owner PK bitmaps for each reduced EntityIndex (parallel with storagePKs)
-	 * @param groupPK      the group PK to configure via FacetReferenceIndex, or null for ungrouped
+	 * @param storagePKs   storage primary keys for the ReducedEntityIndexes
+	 * @param ownerPKs     owner PK arrays for each ReducedEntityIndex (parallel with storagePKs)
+	 * @param groupPK      the group PK to configure via FacetReferenceIndex on globalIndex, or null for ungrouped
 	 */
 	private void setupReferencedEntityAttributeScenario(
 		@Nonnull int[] storagePKs,
-		@Nonnull Bitmap[] ownerBitmaps,
+		@Nonnull int[][] ownerPKs,
 		@Nullable Integer groupPK
 	) {
-		final ReferencedTypeEntityIndex rtei = mock(ReferencedTypeEntityIndex.class);
 		final EntityIndexKey refTypeKey = new EntityIndexKey(
 			EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 		);
-		when(this.target.getIndexIfExists(refTypeKey)).thenReturn(rtei);
-		when(rtei.getAllReferenceIndexes(MUTATED_ENTITY_PK)).thenReturn(storagePKs);
+		final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+			60, ENTITY_TYPE, refTypeKey
+		);
 
 		for (int i = 0; i < storagePKs.length; i++) {
-			final EntityIndex reducedIndex = mock(EntityIndex.class);
-			when(this.target.getIndexByPrimaryKeyIfExists(storagePKs[i])).thenReturn(reducedIndex);
-			when(reducedIndex.getAllPrimaryKeys()).thenReturn(ownerBitmaps[i]);
+			final EntityIndexKey reducedKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
+				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+			);
+			final ReducedEntityIndex reducedIndex = new ReducedEntityIndex(
+				storagePKs[i], ENTITY_TYPE, reducedKey
+			);
+
+			// register the storagePK -> mutatedEntityPK mapping in RTEI
+			rtei.insertPrimaryKeyIfMissing(storagePKs[i], MUTATED_ENTITY_PK);
+
+			// populate the reduced index with owner PKs
+			for (final int ownerPK : ownerPKs[i]) {
+				reducedIndex.insertPrimaryKeyIfMissing(ownerPK);
+			}
+
+			this.target.registerIndexByPK(storagePKs[i], reducedIndex);
 		}
+
+		this.target.registerIndex(refTypeKey, rtei);
 
 		// configure FacetReferenceIndex on global index for group PK resolution
 		if (groupPK != null) {
-			final FacetReferenceIndex facetRefIndex = new FacetReferenceIndex(REFERENCE_NAME);
-			// add a facet so getGroupIdForFacet returns the expected groupPK
-			facetRefIndex.addFacet(MUTATED_ENTITY_PK, groupPK, 999);
-			when(this.globalIndex.getFacetingEntities()).thenReturn(Map.of(REFERENCE_NAME, facetRefIndex));
-		} else {
-			when(this.globalIndex.getFacetingEntities()).thenReturn(Map.of());
+			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK);
+			this.globalIndex.addFacet(null, refKey, groupPK, 999);
 		}
 	}
 
 	/**
-	 * Configures the global EntityIndex, EntitySchema reference lookup, reference schema, and trigger on the target.
+	 * Pre-populates the global index with facet entries that should be removed during execution. This is necessary
+	 * because `removeFacet` on real indexes asserts the entry exists.
 	 *
-	 * @param indexType the {@link ReferenceIndexType} to return from the reference schema
+	 * @param facetPK the facet primary key
+	 * @param groupPK the group primary key, or null for ungrouped
+	 * @param ownerPKs owner PKs to pre-populate
 	 */
-	private void setupGlobalIndexAndSchema(@Nonnull ReferenceIndexType indexType) {
-		final EntityIndexKey globalKey = new EntityIndexKey(EntityIndexType.GLOBAL, TEST_SCOPE);
-		when(this.target.getIndexIfExists(globalKey)).thenReturn(this.globalIndex);
-		when(this.entitySchema.getReference(REFERENCE_NAME)).thenReturn(Optional.of(this.refSchema));
-		when(this.refSchema.getReferenceIndexType(TEST_SCOPE)).thenReturn(indexType);
+	private void prepopulateGlobalFacets(int facetPK, @Nullable Integer groupPK, @Nonnull int... ownerPKs) {
+		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, facetPK);
+		for (final int ownerPK : ownerPKs) {
+			this.globalIndex.addFacet(null, refKey, groupPK, ownerPK);
+		}
+	}
 
-		when(this.target.getTrigger(REFERENCE_NAME, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE))
-			.thenReturn(this.trigger);
-		when(this.target.getTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE))
-			.thenReturn(this.trigger);
-		when(this.trigger.getFilterByConstraint()).thenReturn(createTriggerFilterBy());
+	/**
+	 * Reconfigures the target to use a schema with FOR_FILTERING_AND_PARTITIONING index type.
+	 */
+	private void switchToFilteringAndPartitioning() {
+		this.target.setEntitySchema(buildEntitySchema(true));
 	}
 
 	/**
@@ -210,41 +402,52 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		@DisplayName("Should return early when no affected entities exist")
 		void shouldReturnEarlyWhenNoAffectedEntities() {
 			// setup GROUP_ENTITY_ATTRIBUTE with RTEI returning empty storagePKs
-			final ReferencedTypeEntityIndex rtei = mock(ReferencedTypeEntityIndex.class);
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(groupTypeKey)).thenReturn(rtei);
-			when(rtei.getAllReferenceIndexes(MUTATED_ENTITY_PK)).thenReturn(new int[0]);
+			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+				50, ENTITY_TYPE, groupTypeKey
+			);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(groupTypeKey, rtei);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).evaluateFilter(any());
+			// no facets should have been added to the global index
+			assertEquals(0, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 
 		@Test
 		@DisplayName("Should return early when trigger is null")
 		void shouldReturnEarlyWhenTriggerIsNull() {
-			// setup GROUP_ENTITY_ATTRIBUTE with affected entities but null trigger
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10)}}
+				new int[][]{{10}}
 			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getTrigger(REFERENCE_NAME, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE))
-				.thenReturn(null);
+			// clear the trigger so it returns null
+			ReevaluateFacetExpressionExecutorTest.this.target.setTrigger(
+				REFERENCE_NAME, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE, null
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).evaluateFilter(any());
+			assertEquals(0, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 
 		@Test
@@ -254,9 +457,13 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).evaluateFilter(any());
+			assertEquals(0, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 
 		/**
@@ -266,18 +473,19 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Should return early when RTEI is null for GROUP_ENTITY_ATTRIBUTE")
 		void shouldReturnEarlyWhenRteiIsNullForGroupEntityAttribute() {
-			final EntityIndexKey groupTypeKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
-			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(groupTypeKey)).thenReturn(null);
+			// do NOT register any RTEI — getIndexIfExists will return null
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).evaluateFilter(any());
+			assertEquals(0, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 
 		/**
@@ -287,18 +495,19 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Should return early when RTEI is null for REFERENCED_ENTITY_ATTRIBUTE")
 		void shouldReturnEarlyWhenRteiIsNullForReferencedEntityAttribute() {
-			final EntityIndexKey refTypeKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
-			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(refTypeKey)).thenReturn(null);
+			// do NOT register any RTEI — getIndexIfExists will return null
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).evaluateFilter(any());
+			assertEquals(0, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 	}
 
@@ -317,48 +526,58 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10, 20)}}
+				new int[][]{{10, 20}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			// pre-populate global with facet entry for ownerPK=20 (it will be removed)
+			prepopulateGlobalFacets(5, MUTATED_ENTITY_PK, 20);
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
-
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, 5);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).removeFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(20)
+
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
+			);
+			assertFacetNotExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 20
 			);
 		}
 
 		@Test
 		@DisplayName("Should skip null reduced group index without error")
 		void shouldSkipNullReducedGroupIndex() {
-			// RTEI returns storagePKs but getIndexByPrimaryKeyIfExists returns null
-			final ReferencedTypeEntityIndex rtei = mock(ReferencedTypeEntityIndex.class);
+			// RTEI returns storagePKs but getIndexByPrimaryKeyIfExists returns null (no RGEI registered)
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(groupTypeKey)).thenReturn(rtei);
-			when(rtei.getAllReferenceIndexes(MUTATED_ENTITY_PK)).thenReturn(new int[]{100});
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(100)).thenReturn(null);
+			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+				50, ENTITY_TYPE, groupTypeKey
+			);
+			rtei.insertPrimaryKeyIfMissing(100, MUTATED_ENTITY_PK);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(groupTypeKey, rtei);
+			// do NOT register any index for storagePK=100
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			// no affected entities => no evaluateFilter, no facet ops
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).evaluateFilter(any());
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, never()).addFacet(any(), any(), any(), anyInt());
+			// no affected entities => no facet ops
+			assertEquals(0, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 
 		/**
@@ -368,57 +587,73 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Should handle multiple facet PKs in a single ReducedGroupEntityIndex")
 		void shouldHandleMultipleFacetPKsInSingleReducedGroupIndex() {
-			// one RGEI (storagePK=100) with two facetPKs: 5 and 7
+			// one RGEI (storagePK=100) with two facetPKs: 5 (owner=10) and 7 (owner=20)
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5, 7}},
-				new Bitmap[][]{{new BaseBitmap(10), new BaseBitmap(20)}}
+				new int[][]{{10}, {20}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
+			// pre-populate global with facet entry for ownerPK=20 (facet 7, it will be removed)
+			prepopulateGlobalFacets(7, MUTATED_ENTITY_PK, 20);
 			// PK 10 matches (facet 5), PK 20 does not match (facet 7) => add 10, remove 20
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
-
-			final ReferenceKey refKey5 = new ReferenceKey(REFERENCE_NAME, 5);
-			final ReferenceKey refKey7 = new ReferenceKey(REFERENCE_NAME, 7);
-
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(refKey5), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).removeFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(refKey7), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(20)
+
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
+			);
+			assertFacetNotExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 7, MUTATED_ENTITY_PK, 20
 			);
 		}
 
 		@Test
 		@DisplayName("Should skip non-ReducedGroupEntityIndex without error")
 		void shouldSkipNonGroupEntityIndex() {
-			// storagePK maps to a regular EntityIndex (not ReducedGroupEntityIndex)
-			final ReferencedTypeEntityIndex rtei = mock(ReferencedTypeEntityIndex.class);
+			// storagePK maps to a regular ReducedEntityIndex (not ReducedGroupEntityIndex)
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(groupTypeKey)).thenReturn(rtei);
-			when(rtei.getAllReferenceIndexes(MUTATED_ENTITY_PK)).thenReturn(new int[]{100});
-			// return a plain EntityIndex mock (not ReducedGroupEntityIndex)
-			final EntityIndex plainIndex = mock(EntityIndex.class);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(100)).thenReturn(plainIndex);
+			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+				50, ENTITY_TYPE, groupTypeKey
+			);
+			rtei.insertPrimaryKeyIfMissing(100, MUTATED_ENTITY_PK);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(groupTypeKey, rtei);
+
+			// register a plain ReducedEntityIndex (not ReducedGroupEntityIndex)
+			final ReducedEntityIndex plainIndex = new ReducedEntityIndex(
+				100, ENTITY_TYPE,
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+				)
+			);
+			plainIndex.insertPrimaryKeyIfMissing(10);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(100, plainIndex);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			// non-RGEI is skipped => no affected entities => no evaluateFilter
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).evaluateFilter(any());
+			// non-RGEI is skipped => no affected entities => no facet ops
+			assertEquals(0, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 	}
 
@@ -431,30 +666,35 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 	class ReferencedEntityAttributeResolutionTest {
 
 		@Test
-		@DisplayName("Should resolve affected entities through referenced entity index with group PK from FacetReferenceIndex")
+		@DisplayName("Should resolve affected entities through referenced entity index with group PK")
 		void shouldResolveAffectedEntitiesThroughReferencedEntityIndex() {
 			final int groupPK = 99;
 			setupReferencedEntityAttributeScenario(
 				new int[]{200},
-				new Bitmap[]{new BaseBitmap(10, 20)},
+				new int[][]{{10, 20}},
 				groupPK
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			// pre-populate global with facet entry for ownerPK=20 (it will be removed)
+			prepopulateGlobalFacets(MUTATED_ENTITY_PK, groupPK, 20);
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
-
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(groupPK)), eq(10)
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).removeFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(groupPK)), eq(20)
+
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, MUTATED_ENTITY_PK, groupPK, 10
+			);
+			assertFacetNotExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, MUTATED_ENTITY_PK, groupPK, 20
 			);
 		}
 
@@ -464,23 +704,26 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			// no FacetReferenceIndex => groupPK is null
 			setupReferencedEntityAttributeScenario(
 				new int[]{200},
-				new Bitmap[]{new BaseBitmap(10)},
+				new int[][]{{10}},
 				null
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK);
-			// groupId should be null for ungrouped facet
-			verify(
-				ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), isNull(), eq(10));
+			// facet should exist with null group
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, MUTATED_ENTITY_PK, null, 10
+			);
 		}
 
 		/**
@@ -490,40 +733,46 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Should skip null reduced index in REFERENCED_ENTITY_ATTRIBUTE path")
 		void shouldSkipNullReducedIndexInReferencedEntityPath() {
-			final ReferencedTypeEntityIndex rtei = mock(ReferencedTypeEntityIndex.class);
 			final EntityIndexKey refTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(refTypeKey)).thenReturn(rtei);
-			// RTEI returns two storagePKs; the first maps to null, the second to a valid index
-			when(rtei.getAllReferenceIndexes(MUTATED_ENTITY_PK)).thenReturn(new int[]{200, 201});
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(200)).thenReturn(null);
+			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+				60, ENTITY_TYPE, refTypeKey
+			);
+			// RTEI returns two storagePKs; only the second one has a real index
+			rtei.insertPrimaryKeyIfMissing(200, MUTATED_ENTITY_PK);
+			rtei.insertPrimaryKeyIfMissing(201, MUTATED_ENTITY_PK);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(refTypeKey, rtei);
 
-			final EntityIndex validReducedIndex = mock(EntityIndex.class);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(201)).thenReturn(validReducedIndex);
-			when(validReducedIndex.getAllPrimaryKeys()).thenReturn(new BaseBitmap(10));
+			// do NOT register index for storagePK=200 (will return null)
+			// register valid index for storagePK=201
+			final ReducedEntityIndex validReducedIndex = new ReducedEntityIndex(
+				201, ENTITY_TYPE,
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+				)
+			);
+			validReducedIndex.insertPrimaryKeyIfMissing(10);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(201, validReducedIndex);
 
-			// global index for group PK resolution
-			final EntityIndexKey globalKey = new EntityIndexKey(EntityIndexType.GLOBAL, TEST_SCOPE);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(globalKey)).thenReturn(ReevaluateFacetExpressionExecutorTest.this.globalIndex);
-			when(ReevaluateFacetExpressionExecutorTest.this.globalIndex.getFacetingEntities()).thenReturn(Map.of());
-
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
 			// should not throw even though storagePK=200 maps to null
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK);
-			verify(
-				ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), isNull(), eq(10));
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, MUTATED_ENTITY_PK, null, 10
+			);
 		}
 
 		/**
@@ -536,61 +785,71 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			final int groupPK = 99;
 			setupReferencedEntityAttributeScenario(
 				new int[]{200, 201},
-				new Bitmap[]{new BaseBitmap(10), new BaseBitmap(20)},
+				new int[][]{{10}, {20}},
 				groupPK
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
 			// both PKs match evaluation => both should be added
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10, 20));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10, 20)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(groupPK)), eq(10)
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, MUTATED_ENTITY_PK, groupPK, 10
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(groupPK)), eq(20)
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, MUTATED_ENTITY_PK, groupPK, 20
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, times(2)).addFacet(any(), any(), any(), anyInt());
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, never()).removeFacet(any(), any(), any(), anyInt());
+			// exactly 2 adds, also count the pre-populated entry (999) from setupReferencedEntityAttributeScenario
+			assertEquals(3, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 
 		@Test
 		@DisplayName("Should skip reduced index with empty primary keys")
 		void shouldSkipReducedIndexWithEmptyPrimaryKeys() {
 			// RTEI returns storagePK but the reduced index has no primary keys
-			final ReferencedTypeEntityIndex rtei = mock(ReferencedTypeEntityIndex.class);
 			final EntityIndexKey refTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(refTypeKey)).thenReturn(rtei);
-			when(rtei.getAllReferenceIndexes(MUTATED_ENTITY_PK)).thenReturn(new int[]{200});
+			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+				60, ENTITY_TYPE, refTypeKey
+			);
+			rtei.insertPrimaryKeyIfMissing(200, MUTATED_ENTITY_PK);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(refTypeKey, rtei);
 
-			final EntityIndex emptyIndex = mock(EntityIndex.class);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(200)).thenReturn(emptyIndex);
-			when(emptyIndex.getAllPrimaryKeys()).thenReturn(new BaseBitmap());
-
-			// global index for group PK resolution
-			final EntityIndexKey globalKey = new EntityIndexKey(EntityIndexType.GLOBAL, TEST_SCOPE);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(globalKey)).thenReturn(ReevaluateFacetExpressionExecutorTest.this.globalIndex);
-			when(ReevaluateFacetExpressionExecutorTest.this.globalIndex.getFacetingEntities()).thenReturn(Map.of());
+			// register an empty reduced index for storagePK=200
+			final ReducedEntityIndex emptyIndex = new ReducedEntityIndex(
+				200, ENTITY_TYPE,
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+				)
+			);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(200, emptyIndex);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			// empty ownerPKs => no affected => no evaluateFilter
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).evaluateFilter(any());
+			// empty ownerPKs => no affected => no facet ops
+			assertEquals(0, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 	}
 
@@ -608,27 +867,29 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10, 20)}}
+				new int[][]{{10, 20}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
 			// all affected PKs are in truePKs
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10, 20));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10, 20)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, 5);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(20)
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 20
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, never()).removeFacet(any(), any(), any(), anyInt());
 		}
 
 		@Test
@@ -637,25 +898,30 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10, 20)}}
+				new int[][]{{10, 20}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
+			// pre-populate global with entries to be removed
+			prepopulateGlobalFacets(5, MUTATED_ENTITY_PK, 10, 20);
 			// no affected PKs in truePKs
-			when(ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap());
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap()
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
-
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, 5);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, never()).addFacet(any(), any(), any(), anyInt());
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).removeFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).removeFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(20)
+
+			assertFacetNotExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
+			);
+			assertFacetNotExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 20
 			);
 		}
 
@@ -665,37 +931,41 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10, 20, 30)}}
+				new int[][]{{10, 20, 30}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
+			// pre-populate global with entry for ownerPK=20 (it will be removed)
+			prepopulateGlobalFacets(5, MUTATED_ENTITY_PK, 20);
 			// only 10 and 30 match
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10, 30));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10, 30)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, 5);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(30)
+			assertFacetNotExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 20
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).removeFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(20)
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 30
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, times(2)).addFacet(any(), any(), any(), anyInt());
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, times(1)).removeFacet(any(), any(), any(), anyInt());
 		}
 	}
 
 	/**
 	 * Tests verifying index routing: global-only vs. global + reduced entity index targeting based on
-	 * the reference schema's {@link ReferenceIndexType}.
+	 * the reference schema's {@link io.evitadb.api.requestResponse.schema.ReferenceIndexType}.
 	 */
 	@Nested
 	@DisplayName("Target index routing")
@@ -707,29 +977,34 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10)}}
+				new int[][]{{10}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
-
-			// global index should be used
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, 5);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
 			);
 
-			// no lookup for REFERENCED_ENTITY_TYPE (reduced indexes) should happen for FOR_FILTERING
-			final EntityIndexKey refEntityTypeKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
+			// global index should have the facet
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.target, never()).getIndexIfExists(refEntityTypeKey);
+
+			// FOR_FILTERING mode should NOT look up REFERENCED_ENTITY_TYPE index at all
+			// we can verify by checking that no reduced index was ever accessed
+			assertNull(
+				ReevaluateFacetExpressionExecutorTest.this.target.getRegisteredIndex(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME)
+				),
+				"No REFERENCED_ENTITY_TYPE index should be registered for FOR_FILTERING mode"
+			);
 		}
 
 		/**
@@ -739,90 +1014,108 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Should call removeFacet on both global and reduced index when REMOVE path is taken")
 		void shouldRemoveFacetOnBothGlobalAndReducedIndex() {
+			switchToFilteringAndPartitioning();
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10)}}
+				new int[][]{{10}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING);
+			// pre-populate global with facet entry for ownerPK=10 (it will be removed)
+			prepopulateGlobalFacets(5, MUTATED_ENTITY_PK, 10);
 
 			// setup REFERENCED_ENTITY_TYPE index for reduced targeting
-			final ReferencedTypeEntityIndex refTypeRtei = mock(ReferencedTypeEntityIndex.class);
 			final EntityIndexKey refEntityTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(refEntityTypeKey)).thenReturn(refTypeRtei);
-
+			final ReferencedTypeEntityIndex refTypeRtei = new ReferencedTypeEntityIndex(
+				70, ENTITY_TYPE, refEntityTypeKey
+			);
 			// reduced index for facetPK=5
-			final EntityIndex reducedIndex = mock(EntityIndex.class);
-			when(refTypeRtei.getAllReferenceIndexes(5)).thenReturn(new int[]{300});
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(300)).thenReturn(reducedIndex);
+			final ReducedEntityIndex reducedIndex = new ReducedEntityIndex(
+				300, ENTITY_TYPE,
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+				)
+			);
+			refTypeRtei.insertPrimaryKeyIfMissing(300, 5);
+			// pre-populate reduced index with facet entry for ownerPK=10
+			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, 5);
+			final ReferenceSchemaContract refSchema = ReevaluateFacetExpressionExecutorTest.this.target
+				.getEntitySchema().getReferenceOrThrowException(REFERENCE_NAME);
+			reducedIndex.addFacet(refSchema, refKey, MUTATED_ENTITY_PK, 10);
+
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(refEntityTypeKey, refTypeRtei);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(300, reducedIndex);
 
 			// no PKs match evaluation => all should be removed
-			when(ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap());
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap()
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, 5);
-			// both global and reduced should receive removeFacet
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).removeFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			// both global and reduced should have removed the facet
+			assertFacetNotExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
 			);
-			verify(reducedIndex).removeFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
-			);
-			// no addFacet calls
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, never()).addFacet(any(), any(), any(), anyInt());
-			verify(reducedIndex, never()).addFacet(any(), any(), any(), anyInt());
+			assertFacetNotExists(reducedIndex, REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10);
 		}
 
 		@Test
 		@DisplayName("Should target both global and reduced index when FOR_FILTERING_AND_PARTITIONING")
 		void shouldTargetGlobalAndReducedWhenFilteringAndPartitioning() {
+			switchToFilteringAndPartitioning();
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10)}}
+				new int[][]{{10}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING);
 
 			// setup REFERENCED_ENTITY_TYPE index for reduced targeting
-			final ReferencedTypeEntityIndex refTypeRtei = mock(ReferencedTypeEntityIndex.class);
 			final EntityIndexKey refEntityTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(refEntityTypeKey)).thenReturn(refTypeRtei);
-
+			final ReferencedTypeEntityIndex refTypeRtei = new ReferencedTypeEntityIndex(
+				70, ENTITY_TYPE, refEntityTypeKey
+			);
 			// reduced index for facetPK=5
-			final EntityIndex reducedIndex = mock(EntityIndex.class);
-			when(refTypeRtei.getAllReferenceIndexes(5)).thenReturn(new int[]{300});
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(300)).thenReturn(reducedIndex);
+			final ReducedEntityIndex reducedIndex = new ReducedEntityIndex(
+				300, ENTITY_TYPE,
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+				)
+			);
+			refTypeRtei.insertPrimaryKeyIfMissing(300, 5);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(refEntityTypeKey, refTypeRtei);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(300, reducedIndex);
 
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ReferenceKey expectedRefKey = new ReferenceKey(REFERENCE_NAME, 5);
-			// both global and reduced should receive addFacet
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			// both global and reduced should have the facet added
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
 			);
-			verify(reducedIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(expectedRefKey), eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
-			);
+			assertFacetExists(reducedIndex, REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10);
 		}
 	}
 
@@ -840,23 +1133,28 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10)}}
+				new int[][]{{10}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			// capture the FilterBy passed to evaluateFilter
+			final FilterBy[] capturedFilter = new FilterBy[1];
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> {
+					capturedFilter[0] = filter;
+					return new BaseBitmap(10);
+				}
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ArgumentCaptor<FilterBy> filterCaptor = ArgumentCaptor.forClass(FilterBy.class);
-			verify(ReevaluateFacetExpressionExecutorTest.this.target).evaluateFilter(filterCaptor.capture());
+			assertNotNull(capturedFilter[0], "evaluateFilter should have been called");
 
-			final FilterBy capturedFilter = filterCaptor.getValue();
-			final FilterConstraint[] topChildren = capturedFilter.getChildren();
+			final FilterConstraint[] topChildren = capturedFilter[0].getChildren();
 			assertEquals(1, topChildren.length, "FilterBy should have one top-level child");
 			assertInstanceOf(ReferenceHaving.class, topChildren[0]);
 
@@ -890,24 +1188,29 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		void shouldInjectEntityHavingForReferencedEntityAttribute() {
 			setupReferencedEntityAttributeScenario(
 				new int[]{200},
-				new Bitmap[]{new BaseBitmap(10)},
+				new int[][]{{10}},
 				99
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			// capture the FilterBy passed to evaluateFilter
+			final FilterBy[] capturedFilter = new FilterBy[1];
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> {
+					capturedFilter[0] = filter;
+					return new BaseBitmap(10);
+				}
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ArgumentCaptor<FilterBy> filterCaptor = ArgumentCaptor.forClass(FilterBy.class);
-			verify(ReevaluateFacetExpressionExecutorTest.this.target).evaluateFilter(filterCaptor.capture());
+			assertNotNull(capturedFilter[0], "evaluateFilter should have been called");
 
-			final FilterBy capturedFilter = filterCaptor.getValue();
-			final FilterConstraint[] topChildren = capturedFilter.getChildren();
+			final FilterConstraint[] topChildren = capturedFilter[0].getChildren();
 			assertEquals(1, topChildren.length, "FilterBy should have one top-level child");
 			assertInstanceOf(ReferenceHaving.class, topChildren[0]);
 
@@ -943,31 +1246,39 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 			setupGroupEntityAttributeScenario(
 				new int[]{100},
 				new int[][]{{5}},
-				new Bitmap[][]{{new BaseBitmap(10)}}
+				new int[][]{{10}}
 			);
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
 
-			// override the trigger FilterBy AFTER setupGlobalIndexAndSchema to use two ReferenceHaving children
+			// override the trigger FilterBy to use two ReferenceHaving children
 			final FilterBy triggerFilter = new FilterBy(
 				new ReferenceHaving("otherRef", new EntityPrimaryKeyInSet(99)),
 				new ReferenceHaving(REFERENCE_NAME, new EntityPrimaryKeyInSet(1))
 			);
-			when(ReevaluateFacetExpressionExecutorTest.this.trigger.getFilterByConstraint()).thenReturn(triggerFilter);
+			ReevaluateFacetExpressionExecutorTest.this.target.setTrigger(
+				REFERENCE_NAME, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE,
+				new TestExpressionIndexTrigger(triggerFilter)
+			);
 
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10));
+			// capture the FilterBy passed to evaluateFilter
+			final FilterBy[] capturedFilter = new FilterBy[1];
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> {
+					capturedFilter[0] = filter;
+					return new BaseBitmap(10);
+				}
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			final ArgumentCaptor<FilterBy> filterCaptor = ArgumentCaptor.forClass(FilterBy.class);
-			verify(ReevaluateFacetExpressionExecutorTest.this.target).evaluateFilter(filterCaptor.capture());
+			assertNotNull(capturedFilter[0], "evaluateFilter should have been called");
 
-			final FilterBy capturedFilter = filterCaptor.getValue();
-			final FilterConstraint[] topChildren = capturedFilter.getChildren();
+			final FilterConstraint[] topChildren = capturedFilter[0].getChildren();
 			assertEquals(2, topChildren.length, "FilterBy should have two top-level children");
 
 			// first child ("otherRef") should be unchanged — still plain ReferenceHaving
@@ -1002,45 +1313,272 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		void shouldHandleMultipleGroupsInSingleExecution() {
 			// two ReducedGroupEntityIndexes: storagePK=100 has facetPK=5 with owners {10},
 			// storagePK=101 has facetPK=7 with owners {20}
-			final ReferencedTypeEntityIndex rtei = mock(ReferencedTypeEntityIndex.class);
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexIfExists(groupTypeKey)).thenReturn(rtei);
-			when(rtei.getAllReferenceIndexes(MUTATED_ENTITY_PK)).thenReturn(new int[]{100, 101});
+			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+				50, ENTITY_TYPE, groupTypeKey
+			);
+			rtei.insertPrimaryKeyIfMissing(100, MUTATED_ENTITY_PK);
+			rtei.insertPrimaryKeyIfMissing(101, MUTATED_ENTITY_PK);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(groupTypeKey, rtei);
 
-			final ReducedGroupEntityIndex rgei1 = mock(ReducedGroupEntityIndex.class);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(100)).thenReturn(rgei1);
-			when(rgei1.getReferencedEntityPrimaryKeys()).thenReturn(Set.of(5));
-			when(rgei1.getOwnerPKsForReferencedEntity(5)).thenReturn(new BaseBitmap(10));
+			final ReducedGroupEntityIndex rgei1 = new ReducedGroupEntityIndex(
+				100, ENTITY_TYPE,
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_GROUP_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+				)
+			);
+			rgei1.insertPrimaryKeyIfMissing(10, 5);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(100, rgei1);
 
-			final ReducedGroupEntityIndex rgei2 = mock(ReducedGroupEntityIndex.class);
-			when(ReevaluateFacetExpressionExecutorTest.this.target.getIndexByPrimaryKeyIfExists(101)).thenReturn(rgei2);
-			when(rgei2.getReferencedEntityPrimaryKeys()).thenReturn(Set.of(7));
-			when(rgei2.getOwnerPKsForReferencedEntity(7)).thenReturn(new BaseBitmap(20));
+			final ReducedGroupEntityIndex rgei2 = new ReducedGroupEntityIndex(
+				101, ENTITY_TYPE,
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_GROUP_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+				)
+			);
+			rgei2.insertPrimaryKeyIfMissing(20, 7);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(101, rgei2);
 
-			setupGlobalIndexAndSchema(ReferenceIndexType.FOR_FILTERING);
 			// all affected PKs match
-			when(
-				ReevaluateFacetExpressionExecutorTest.this.target.evaluateFilter(any(FilterBy.class))).thenReturn(new BaseBitmap(10, 20));
+			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
+				(filter, scope) -> new BaseBitmap(10, 20)
+			);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.GROUP_ENTITY_ATTRIBUTE, TEST_SCOPE
 			);
 
-			ReevaluateFacetExpressionExecutorTest.this.executor.execute(mutation, ReevaluateFacetExpressionExecutorTest.this.target);
+			ReevaluateFacetExpressionExecutorTest.this.executor.execute(
+				mutation, ReevaluateFacetExpressionExecutorTest.this.target
+			);
 
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(new ReferenceKey(REFERENCE_NAME, 5)),
-				eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(10)
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 5, MUTATED_ENTITY_PK, 10
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex).addFacet(
-				eq(ReevaluateFacetExpressionExecutorTest.this.refSchema), eq(new ReferenceKey(REFERENCE_NAME, 7)),
-				eq(Integer.valueOf(MUTATED_ENTITY_PK)), eq(20)
+			assertFacetExists(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
+				REFERENCE_NAME, 7, MUTATED_ENTITY_PK, 20
 			);
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, times(2)).addFacet(any(), any(), any(), anyInt());
-			verify(ReevaluateFacetExpressionExecutorTest.this.globalIndex, never()).removeFacet(any(), any(), any(), anyInt());
+			assertEquals(2, countFacetEntries(
+				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
+			));
 		}
 
+	}
+
+	/**
+	 * Test double for {@link IndexMutationTarget} backed by simple maps. Provides configurable
+	 * {@link #evaluateFilter} behavior and explicit index registration via
+	 * {@link #registerIndex(EntityIndexKey, EntityIndex)} and {@link #registerIndexByPK(int, EntityIndex)}.
+	 */
+	private static class TestIndexMutationTarget implements IndexMutationTarget {
+		private final Map<EntityIndexKey, EntityIndex> indexesByKey = new HashMap<>();
+		private final Map<Integer, EntityIndex> indexesByPK = new HashMap<>();
+		private final Map<String, ExpressionIndexTrigger> triggers = new HashMap<>();
+		private EntitySchema entitySchema;
+		private BiFunction<FilterBy, Scope, Bitmap> evaluateFilterFn = (f, s) -> new BaseBitmap();
+
+		/**
+		 * Creates a new test target with the given entity schema.
+		 *
+		 * @param entitySchema the entity schema to use
+		 */
+		TestIndexMutationTarget(@Nonnull EntitySchema entitySchema) {
+			this.entitySchema = entitySchema;
+		}
+
+		/**
+		 * Registers an index by its key.
+		 *
+		 * @param key   the entity index key
+		 * @param index the entity index
+		 */
+		void registerIndex(@Nonnull EntityIndexKey key, @Nonnull EntityIndex index) {
+			this.indexesByKey.put(key, index);
+		}
+
+		/**
+		 * Registers an index by its storage primary key.
+		 *
+		 * @param pk    the storage primary key
+		 * @param index the entity index
+		 */
+		void registerIndexByPK(int pk, @Nonnull EntityIndex index) {
+			this.indexesByPK.put(pk, index);
+		}
+
+		/**
+		 * Returns the registered index for the given key, or null if not registered.
+		 *
+		 * @param key the entity index key
+		 * @return the index, or null
+		 */
+		@Nullable
+		EntityIndex getRegisteredIndex(@Nonnull EntityIndexKey key) {
+			return this.indexesByKey.get(key);
+		}
+
+		/**
+		 * Sets the trigger for the given reference name, dependency type, and scope.
+		 *
+		 * @param referenceName  the reference name
+		 * @param dependencyType the dependency type
+		 * @param scope          the scope
+		 * @param trigger        the trigger, or null to clear
+		 */
+		void setTrigger(
+			@Nonnull String referenceName,
+			@Nonnull DependencyType dependencyType,
+			@Nonnull Scope scope,
+			@Nullable ExpressionIndexTrigger trigger
+		) {
+			final String key = referenceName + ":" + dependencyType + ":" + scope;
+			if (trigger == null) {
+				this.triggers.remove(key);
+			} else {
+				this.triggers.put(key, trigger);
+			}
+		}
+
+		/**
+		 * Sets the evaluate filter function.
+		 *
+		 * @param fn the function to use for filter evaluation
+		 */
+		void setEvaluateFilter(@Nonnull BiFunction<FilterBy, Scope, Bitmap> fn) {
+			this.evaluateFilterFn = fn;
+		}
+
+		/**
+		 * Updates the entity schema used by this target.
+		 *
+		 * @param schema the new entity schema
+		 */
+		void setEntitySchema(@Nonnull EntitySchema schema) {
+			this.entitySchema = schema;
+		}
+
+		@Nonnull
+		@Override
+		public EntitySchema getEntitySchema() {
+			return this.entitySchema;
+		}
+
+		@Nullable
+		@Override
+		public ExpressionIndexTrigger getTrigger(
+			@Nonnull String referenceName,
+			@Nonnull DependencyType dependencyType,
+			@Nonnull Scope scope
+		) {
+			return this.triggers.get(referenceName + ":" + dependencyType + ":" + scope);
+		}
+
+		@Nonnull
+		@Override
+		public Bitmap evaluateFilter(@Nonnull FilterBy filterBy, @Nonnull Scope scope) {
+			return this.evaluateFilterFn.apply(filterBy, scope);
+		}
+
+		@Nonnull
+		@Override
+		public EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
+			return this.indexesByKey.computeIfAbsent(entityIndexKey, k -> {
+				throw new IllegalStateException("Index not pre-registered for key: " + k);
+			});
+		}
+
+		@Nullable
+		@Override
+		public EntityIndex getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
+			return this.indexesByKey.get(entityIndexKey);
+		}
+
+		@Nullable
+		@Override
+		public EntityIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+			return this.indexesByPK.get(indexPrimaryKey);
+		}
+	}
+
+	/**
+	 * Minimal test double for {@link ExpressionIndexTrigger} that only implements
+	 * {@link #getFilterByConstraint()} — the only method used by {@link ReevaluateFacetExpressionExecutor}.
+	 * All other methods return default values.
+	 */
+	private static class TestExpressionIndexTrigger implements ExpressionIndexTrigger {
+		private final FilterBy filterByConstraint;
+
+		/**
+		 * Creates a new test trigger with the given FilterBy constraint.
+		 *
+		 * @param filterByConstraint the pre-translated FilterBy to return
+		 */
+		TestExpressionIndexTrigger(@Nonnull FilterBy filterByConstraint) {
+			this.filterByConstraint = filterByConstraint;
+		}
+
+		@Nonnull
+		@Override
+		public String getOwnerEntityType() {
+			return ENTITY_TYPE;
+		}
+
+		@Nonnull
+		@Override
+		public String getReferenceName() {
+			return REFERENCE_NAME;
+		}
+
+		@Nonnull
+		@Override
+		public Scope getScope() {
+			return TEST_SCOPE;
+		}
+
+		@Nullable
+		@Override
+		public String getMutatedEntityType() {
+			return null;
+		}
+
+		@Nullable
+		@Override
+		public DependencyType getDependencyType() {
+			return null;
+		}
+
+		@Nullable
+		@Override
+		public String getDependentReferenceName() {
+			return null;
+		}
+
+		@Nonnull
+		@Override
+		public Set<String> getDependentAttributes() {
+			return Set.of();
+		}
+
+		@Nonnull
+		@Override
+		public FilterBy getFilterByConstraint() {
+			return this.filterByConstraint;
+		}
+
+		@Override
+		public boolean evaluate(
+			int ownerEntityPK,
+			@Nonnull ReferenceKey referenceKey,
+			@Nonnull io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor storageAccessor,
+			@Nonnull Function<String, EntitySchemaContract> schemaResolver
+		) {
+			throw new UnsupportedOperationException("Not used by ReevaluateFacetExpressionExecutor");
+		}
 	}
 }

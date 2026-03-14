@@ -122,6 +122,52 @@ public interface ExpressionIndexTrigger {
 	Set<String> getDependentAttributes();
 
 	/**
+	 * Entity-level attribute names that this expression reads from the owner entity
+	 * (e.g., `$entity.attributes['code']`).
+	 * Used by local re-evaluation dispatch to determine whether an `UpsertAttributeMutation` should trigger
+	 * re-evaluation of the facet expression for references of this type.
+	 *
+	 * Returns an empty set if the expression does not reference any entity-level attributes.
+	 */
+	@Nonnull
+	default Set<String> getLocalEntityAttributes() {
+		return Set.of();
+	}
+
+	/**
+	 * Reference-level attribute names that this expression reads (e.g., `$reference.attributes['priority']`).
+	 * Used by local re-evaluation dispatch to determine whether an `UpsertReferenceAttributeMutation` should trigger
+	 * re-evaluation of the facet expression.
+	 *
+	 * Returns an empty set if the expression does not reference any reference-level attributes.
+	 */
+	@Nonnull
+	default Set<String> getLocalReferenceAttributes() {
+		return Set.of();
+	}
+
+	/**
+	 * Associated data names that this expression reads from the owner entity
+	 * (e.g., `$entity.associatedData['description']`). Used by local re-evaluation dispatch to determine whether
+	 * an `UpsertAssociatedDataMutation` or `RemoveAssociatedDataMutation` should trigger re-evaluation.
+	 *
+	 * Returns an empty set if the expression does not reference any associated data.
+	 */
+	@Nonnull
+	default Set<String> getLocalAssociatedData() {
+		return Set.of();
+	}
+
+	/**
+	 * Returns `true` if this expression reads the owner entity's parent (e.g., `$entity.parentEntity`).
+	 * Used by local re-evaluation dispatch to determine whether a `SetParentMutation` or `RemoveParentMutation`
+	 * should trigger re-evaluation.
+	 */
+	default boolean usesParent() {
+		return false;
+	}
+
+	/**
 	 * Returns the full expression pre-translated to an evitaDB {@link FilterBy} constraint tree. Built at schema
 	 * load time by `ExpressionToQueryTranslator`.
 	 *

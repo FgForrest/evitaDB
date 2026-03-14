@@ -49,10 +49,14 @@ import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConfli
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.mutation.EntityIndexMutation;
+import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
+import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
+import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -76,6 +80,20 @@ import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.
  * different levels of operations, consistency checks, and potential rollbacks
  * or commits of mutations depending on the success or failure of operations.
  *
+ * The `execute()` method processes mutations in two sequential phases:
+ *
+ * - **Step 5a** (container implicit mutations) — the existing
+ *   `popImplicitMutations()` loop on the container executor produces local
+ *   and external mutations (e.g., reflected reference synchronization)
+ * - **Step 5b** (index trigger mutations) — `popIndexImplicitMutations()`
+ *   on the index executor produces {@link EntityIndexMutation} envelopes
+ *   routed to target collections via
+ *   {@link EntityCollection#applyIndexMutations(EntityIndexMutation, EvitaSessionContract)};
+ *   these are never written to WAL and are regenerated on replay
+ *
+ * Step 5a completes fully before Step 5b begins, ensuring storage state is
+ * consistent when cross-entity triggers evaluate expressions.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
@@ -91,7 +109,7 @@ class LocalMutationExecutorCollector {
 	/**
 	 * The persistence service used to fetch full entities by their primary key.
 	 */
-	private final EntityCollectionPersistenceService persistenceService;
+	private final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> persistenceService;
 	/**
 	 * The data store reader used to fetch entity data from the I/O storage.
 	 */
@@ -165,14 +183,17 @@ class LocalMutationExecutorCollector {
 	 * Executes a given entity mutation within the context of the specified entity schema,
 	 * optionally checking consistency and generating implicit mutations.
 	 *
-	 * @param entitySchema              The schema of the entity to which the mutation applies.
-	 * @param entityMutation            The mutation to be applied to the entity.
-	 * @param checkConsistency          Indicates whether consistency checks should be performed.
-	 * @param generateImplicitMutations Flags indicating which implicit mutations should be generated.
-	 * @param changeCollector           Executor to collect and apply local mutations.
-	 * @param entityIndexUpdater        Executor to update the entity index with the mutations.
-	 * @param requestUpdatedEntity      Indicates whether to return the updated entity after mutation.
-	 * @return The updated entity with fetch count if {@code returnUpdatedEntity} is true and
+	 * @param session                   the active session for query evaluation during index mutation
+	 *                                  dispatch (Step 5b), may be null during WAL replay
+	 * @param entitySchema              the schema of the entity to which the mutation applies
+	 * @param entityMutation            the mutation to be applied to the entity
+	 * @param checkConsistency          indicates whether consistency checks should be performed
+	 * @param generateImplicitMutations flags indicating which implicit mutations should be generated
+	 * @param changeCollector           executor to collect and apply local mutations
+	 * @param entityIndexUpdater        executor to update the entity index with the mutations
+	 * @param requestUpdatedEntity      the request specifying how to fetch the updated entity,
+	 *                                  or null if no entity body is needed
+	 * @return the updated entity with fetch count if {@code requestUpdatedEntity} is non-null and
 	 * the entity was updated, or entity reference
 	 */
 	@Nonnull
@@ -279,6 +300,21 @@ class LocalMutationExecutorCollector {
 						);
 				}
 			}
+
+			// Step 5b: index trigger mutations — runs unconditionally after Step 5a completes.
+			// Container mutations (Step 5a) must finish first so that storage state is fully
+			// consistent before cross-entity triggers read it. Index mutations are never written
+			// to WAL — they are regenerated deterministically on replay. The dispatch is synchronous
+			// and bounded by the number of affected entities.
+			final IndexImplicitMutations indexImplicit =
+				entityIndexUpdater.popIndexImplicitMutations(localMutations);
+			for (final EntityIndexMutation indexMutation : indexImplicit.indexMutations()) {
+				// route each envelope to the target collection's thin dispatcher — bypasses
+				// the full ServerEntityMutation pipeline (no storage, no WAL, no schema evolution)
+				this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType())
+					.applyIndexMutations(indexMutation, session);
+			}
+
 			if (checkConsistency) {
 				changeCollector.verifyConsistency();
 			}

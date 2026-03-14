@@ -138,11 +138,19 @@ public class FacetExpressionTriggerFactory {
 		// classify paths into dependency keys and collect dependent attributes per key
 		final LinkedHashMap<DependencyKey, Set<String>> dependencyAttributes = classifyPaths(paths);
 
+		// extract local dependencies from the same paths
+		final LocalDependencies localDeps = extractLocalDependencies(paths);
+
 		if (dependencyAttributes.isEmpty()) {
 			// purely local expression — build a local-only trigger (no FilterBy, no DependencyType)
-			collector.add(new FacetExpressionTriggerImpl(
-				ownerEntityType, referenceName, scope, expression, proxyDescriptor
-			));
+			collector.add(
+				new FacetExpressionTriggerImpl(
+					ownerEntityType, referenceName, scope,
+					localDeps.entityAttributes(), localDeps.referenceAttributes(),
+					localDeps.associatedData(), localDeps.usesParent(),
+					expression, proxyDescriptor
+				)
+			);
 		} else {
 			// cross-entity expression — translate to FilterBy once, reuse for all dependency keys
 			final FilterBy filterBy = ExpressionToQueryTranslator.translate(expression, referenceName);
@@ -154,6 +162,8 @@ public class FacetExpressionTriggerFactory {
 						ownerEntityType, referenceName, scope,
 						mutatedEntityType, key.type(), key.referenceName(),
 						depEntry.getValue(),
+						localDeps.entityAttributes(), localDeps.referenceAttributes(),
+						localDeps.associatedData(), localDeps.usesParent(),
 						expression, proxyDescriptor, filterBy
 					)
 				);
@@ -287,7 +297,7 @@ public class FacetExpressionTriggerFactory {
 	 * start position depending on the dependency type:
 	 *
 	 * - For `REFERENCED_ENTITY_ATTRIBUTE` / `GROUP_ENTITY_ATTRIBUTE`: scan from position 2
-	 *   (immediately after `referencedEntity`/`groupEntity`)
+	 * (immediately after `referencedEntity`/`groupEntity`)
 	 * - For `*_REFERENCE_ATTRIBUTE`: scan from position 4 (after `references['r']`)
 	 *
 	 * @param path    the accessed data path (must be a cross-entity path)
@@ -350,6 +360,86 @@ public class FacetExpressionTriggerFactory {
 	}
 
 	/**
+	 * Extracts local dependencies from the accessed data paths. Local dependencies are paths that reference
+	 * the owner entity's own data (`$entity.attributes['x']`, `$reference.attributes['y']`,
+	 * `$entity.associatedData['z']`, `$entity.parentEntity`) — as opposed to cross-entity paths that reach
+	 * into referenced or group entities.
+	 *
+	 * @param paths the accessed data paths from {@link AccessedDataFinder#findAccessedPaths}
+	 * @return a record containing all extracted local dependencies
+	 */
+	@Nonnull
+	private static LocalDependencies extractLocalDependencies(@Nonnull List<List<PathItem>> paths) {
+		Set<String> entityAttributes = null;
+		Set<String> referenceAttributes = null;
+		Set<String> associatedData = null;
+		boolean usesParent = false;
+
+		for (final List<PathItem> path : paths) {
+			if (path.size() < 2) {
+				continue;
+			}
+			final PathItem first = path.get(0);
+			final PathItem second = path.get(1);
+
+			if (!(first instanceof VariablePathItem variable) || !(second instanceof IdentifierPathItem identifier)) {
+				continue;
+			}
+
+			if (EntityContractAccessor.ENTITY_VARIABLE_NAME.equals(variable.value())) {
+				// $entity.attributes['x'] or $entity.localizedAttributes['x']
+				if (isAttributesProperty(identifier.value())
+					&& path.size() > 2 && path.get(2) instanceof ElementPathItem element) {
+					if (entityAttributes == null) {
+						entityAttributes = createLinkedHashSet(4);
+					}
+					entityAttributes.add(element.value());
+				}
+				// $entity.associatedData['x'] or $entity.localizedAssociatedData['x']
+				else if (isAssociatedDataProperty(identifier.value())
+					&& path.size() > 2 && path.get(2) instanceof ElementPathItem element) {
+					if (associatedData == null) {
+						associatedData = createLinkedHashSet(4);
+					}
+					associatedData.add(element.value());
+				}
+				// $entity.parentEntity
+				else if (EntityContractAccessor.PARENT_ENTITY_PROPERTY.equals(identifier.value())) {
+					usesParent = true;
+				}
+			} else if (ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variable.value())) {
+				// $reference.attributes['x'] or $reference.localizedAttributes['x']
+				// (but NOT $reference.referencedEntity.* or $reference.groupEntity.* — those are cross-entity)
+				if (isAttributesProperty(identifier.value())
+					&& path.size() > 2 && path.get(2) instanceof ElementPathItem element) {
+					if (referenceAttributes == null) {
+						referenceAttributes = createLinkedHashSet(4);
+					}
+					referenceAttributes.add(element.value());
+				}
+			}
+		}
+
+		return new LocalDependencies(
+			entityAttributes != null ? entityAttributes : Set.of(),
+			referenceAttributes != null ? referenceAttributes : Set.of(),
+			associatedData != null ? associatedData : Set.of(),
+			usesParent
+		);
+	}
+
+	/**
+	 * Checks whether the given property name refers to an associated data accessor.
+	 *
+	 * @param propertyName the property name to check
+	 * @return `true` if the name matches `associatedData` or `localizedAssociatedData`
+	 */
+	private static boolean isAssociatedDataProperty(@Nonnull String propertyName) {
+		return EntityContractAccessor.ASSOCIATED_DATA_PROPERTY.equals(propertyName)
+			|| EntityContractAccessor.LOCALIZED_ASSOCIATED_DATA_PROPERTY.equals(propertyName);
+	}
+
+	/**
 	 * Composite key for dependency classification that includes both the dependency type and the optional
 	 * reference name on the target entity. This allows an expression that accesses multiple reference names
 	 * on the same target entity to produce separate triggers per reference.
@@ -358,6 +448,23 @@ public class FacetExpressionTriggerFactory {
 	 * @param referenceName the reference name on the target entity, or `null` for entity-attribute deps
 	 */
 	private record DependencyKey(@Nonnull DependencyType type, @Nullable String referenceName) {
+	}
+
+	/**
+	 * Holds local dependency metadata extracted from expression paths: entity-level attributes, reference-level
+	 * attributes, associated data names, and parent entity usage.
+	 *
+	 * @param entityAttributes    entity-level attribute names read by the expression
+	 * @param referenceAttributes reference-level attribute names read by the expression
+	 * @param associatedData      associated data names read by the expression
+	 * @param usesParent          whether the expression accesses `$entity.parentEntity`
+	 */
+	private record LocalDependencies(
+		@Nonnull Set<String> entityAttributes,
+		@Nonnull Set<String> referenceAttributes,
+		@Nonnull Set<String> associatedData,
+		boolean usesParent
+	) {
 	}
 
 }
