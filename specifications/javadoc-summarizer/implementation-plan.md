@@ -126,7 +126,7 @@ import java.lang.annotation.Target;
 /**
  * Stores the MD5 hash of the source constraint JavaDoc and factory method signature
  * that was used to generate the summarized JavaDoc on this method. Used by
- * {@link io.evitadb.documentation.JavaDocSummarizer} to detect when regeneration is needed.
+ * {@link io.evitadb.documentation.javadoc.JavaDocSummarizer} to detect when regeneration is needed.
  *
  * This annotation is SOURCE-retained only — it exists purely as a marker in source code
  * and is not present in compiled bytecode.
@@ -398,7 +398,7 @@ Add a Maven profile `generate-javadoc` with `exec-maven-plugin`:
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>io.evitadb.documentation.JavaDocSummarizer</mainClass>
+                    <mainClass>io.evitadb.documentation.javadoc.JavaDocSummarizer</mainClass>
                     <classpathScope>test</classpathScope>
                 </configuration>
             </plugin>
