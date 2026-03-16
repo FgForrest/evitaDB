@@ -233,7 +233,7 @@ class DtoDelegationCompatibilityTest {
 			);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, globalPart, null, null, null
+				mockSchema, null, globalPart, null, null, null, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -266,7 +266,7 @@ class DtoDelegationCompatibilityTest {
 			attrMap.put(Locale.GERMAN, dePart);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, attrMap, null, null
+				mockSchema, null, null, attrMap, null, null, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -303,7 +303,7 @@ class DtoDelegationCompatibilityTest {
 			attrMap.put(Locale.GERMAN, dePart);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, attrMap, null, null
+				mockSchema, null, null, attrMap, null, null, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -341,7 +341,7 @@ class DtoDelegationCompatibilityTest {
 			adMap.put(adKey, adPart);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, null, adMap, null
+				mockSchema, null, null, null, adMap, null, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -381,7 +381,7 @@ class DtoDelegationCompatibilityTest {
 			adMap.put(deKey, dePart);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, null, adMap, null
+				mockSchema, null, null, null, adMap, null, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -410,7 +410,7 @@ class DtoDelegationCompatibilityTest {
 			final EntitySchemaContract mockSchema = mockEntitySchema("Product");
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, null, null, null
+				mockSchema, null, null, null, null, null, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -441,7 +441,7 @@ class DtoDelegationCompatibilityTest {
 				EntityProxyState.indexReferences(refPart);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, null, null, refsByName
+				mockSchema, null, null, null, null, refsByName, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -558,7 +558,7 @@ class DtoDelegationCompatibilityTest {
 			);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, globalPart, null, null, null
+				mockSchema, null, globalPart, null, null, null, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -643,7 +643,7 @@ class DtoDelegationCompatibilityTest {
 				EntityProxyState.indexReferences(refPart);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, null, null, refsByName
+				mockSchema, null, null, null, null, refsByName, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -691,7 +691,7 @@ class DtoDelegationCompatibilityTest {
 			adMap.put(adKey, adPart);
 
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, null, adMap, null
+				mockSchema, null, null, null, adMap, null, null
 			);
 
 			final EntityContract entityProxy = createEntityProxy(
@@ -734,7 +734,7 @@ class DtoDelegationCompatibilityTest {
 
 			// Proxy has only attribute + schema partials - NO references partial
 			final EntityProxyState state = new EntityProxyState(
-				mockSchema, null, null, null, null, null
+				mockSchema, null, null, null, null, null, null
 			);
 
 			// Use a unique marker interface to ensure fresh Proxycian classification

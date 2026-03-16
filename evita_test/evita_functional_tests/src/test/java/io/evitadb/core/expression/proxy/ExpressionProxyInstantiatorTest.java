@@ -363,7 +363,7 @@ class ExpressionProxyInstantiatorTest {
 			baseDescriptor.entityPartials(),
 			baseDescriptor.referencePartials(),
 			recipe,
-			false, false, null, null, null, null
+			false, false, null, null, null, null, false, null, null
 		);
 
 		final AttributesStoragePart globalAttrs = createAttributesPart(
@@ -470,8 +470,8 @@ class ExpressionProxyInstantiatorTest {
 			null, new AttributeValue(new AttributeKey("code"), "DEF")
 		);
 
-		final EntityProxyState state1 = new EntityProxyState(schema, null, attrs1, null, null, null);
-		final EntityProxyState state2 = new EntityProxyState(schema, null, attrs2, null, null, null);
+		final EntityProxyState state1 = new EntityProxyState(schema, null, attrs1, null, null, null, null);
+		final EntityProxyState state2 = new EntityProxyState(schema, null, attrs2, null, null, null, null);
 
 		final EntityContract proxy1 = ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(state1, partials),

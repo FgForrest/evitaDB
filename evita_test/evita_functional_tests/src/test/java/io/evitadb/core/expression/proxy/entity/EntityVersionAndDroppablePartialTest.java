@@ -109,7 +109,7 @@ class EntityVersionAndDroppablePartialTest {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
 		final EntityBodyStoragePart bodyPart = createBodyPart(3, 1, Scope.LIVE, new LinkedHashSet<>());
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,
@@ -129,7 +129,7 @@ class EntityVersionAndDroppablePartialTest {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
 		final EntityBodyStoragePart bodyPart = createBodyPart(1, 1, Scope.LIVE, new LinkedHashSet<>());
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,
@@ -149,7 +149,7 @@ class EntityVersionAndDroppablePartialTest {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
 		final EntityBodyStoragePart bodyPart = createBodyPart(1, 1, Scope.LIVE, new LinkedHashSet<>());
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,
@@ -172,7 +172,7 @@ class EntityVersionAndDroppablePartialTest {
 		locales.add(Locale.ENGLISH);
 		locales.add(Locale.GERMAN);
 		final EntityBodyStoragePart bodyPart = createBodyPart(1, 1, Scope.LIVE, locales);
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,
@@ -194,7 +194,7 @@ class EntityVersionAndDroppablePartialTest {
 	void shouldThrowExceptionWhenBodyPartIsNullForVersion() {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,

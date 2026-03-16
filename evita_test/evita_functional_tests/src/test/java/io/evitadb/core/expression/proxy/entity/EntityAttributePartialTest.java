@@ -134,7 +134,7 @@ class EntityAttributePartialTest {
 		);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, globalPart, null, null, null
+			mockSchema, null, globalPart, null, null, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -163,7 +163,7 @@ class EntityAttributePartialTest {
 		);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, globalPart, null, null, null
+			mockSchema, null, globalPart, null, null, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -188,7 +188,7 @@ class EntityAttributePartialTest {
 		attrMap.put(Locale.ENGLISH, enPart);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, null, attrMap, null, null
+			mockSchema, null, null, attrMap, null, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -216,7 +216,7 @@ class EntityAttributePartialTest {
 		attrMap.put(Locale.ENGLISH, enPart);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, null, attrMap, null, null
+			mockSchema, null, null, attrMap, null, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -247,7 +247,7 @@ class EntityAttributePartialTest {
 		attrMap.put(Locale.GERMAN, dePart);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, globalPart, attrMap, null, null
+			mockSchema, null, globalPart, attrMap, null, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -268,7 +268,7 @@ class EntityAttributePartialTest {
 		final EntityAttributeSchemaContract attrSchema = mock(EntityAttributeSchemaContract.class);
 		when(mockSchema.getAttribute("code")).thenReturn(Optional.of(attrSchema));
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntityAttributePartial.GET_ATTRIBUTE_SCHEMA, EntityAttributePartial.ATTRIBUTES_AVAILABLE
@@ -285,7 +285,7 @@ class EntityAttributePartialTest {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(state, EntityAttributePartial.ATTRIBUTES_AVAILABLE);
 
@@ -306,7 +306,7 @@ class EntityAttributePartialTest {
 		);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, globalPart, null, null, null
+			mockSchema, null, globalPart, null, null, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -341,7 +341,7 @@ class EntityAttributePartialTest {
 		when(mockSchema.getName()).thenReturn("Product");
 		when(mockSchema.getAttribute("unknown")).thenReturn(Optional.empty());
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntityAttributePartial.GET_ATTRIBUTE_SCHEMA, EntityAttributePartial.ATTRIBUTES_AVAILABLE
@@ -359,7 +359,7 @@ class EntityAttributePartialTest {
 
 		// globalAttributesPart is null in the state
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, null, null, null, null
+			mockSchema, null, null, null, null, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -402,7 +402,7 @@ class EntityAttributePartialTest {
 		// version=1, key="code", value="ABC", dropped=true
 		final AttributeValue droppedAttr = new AttributeValue(1, new AttributeKey("code"), "ABC", true);
 		final AttributesStoragePart globalPart = createAttributesPart(null, droppedAttr);
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, globalPart, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, globalPart, null, null, null, null);
 		final EntityContract proxy = createEntityProxy(state, EntityAttributePartial.GET_ATTRIBUTE);
 
 		assertNull(proxy.getAttribute("code"), "Dropped attribute should return null");
@@ -419,7 +419,7 @@ class EntityAttributePartialTest {
 		final AttributesStoragePart localePart = createAttributesPart(Locale.ENGLISH, droppedAttr);
 		final Map<Locale, AttributesStoragePart> localeParts = new HashMap<>();
 		localeParts.put(Locale.ENGLISH, localePart);
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, localeParts, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, localeParts, null, null, null);
 		final EntityContract proxy = createEntityProxy(state, EntityAttributePartial.GET_ATTRIBUTE_LOCALIZED);
 
 		assertNull(

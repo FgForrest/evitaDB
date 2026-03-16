@@ -112,7 +112,7 @@ class EntityAssociatedDataPartialTest {
 		adMap.put(new AssociatedDataKey("description"), descPart);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, null, null, adMap, null
+			mockSchema, null, null, null, adMap, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -137,7 +137,7 @@ class EntityAssociatedDataPartialTest {
 		final Map<AssociatedDataKey, AssociatedDataStoragePart> adMap = new HashMap<>(4);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, null, null, adMap, null
+			mockSchema, null, null, null, adMap, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -163,7 +163,7 @@ class EntityAssociatedDataPartialTest {
 		adMap.put(new AssociatedDataKey("description", Locale.ENGLISH), enPart);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, null, null, adMap, null
+			mockSchema, null, null, null, adMap, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -199,7 +199,7 @@ class EntityAssociatedDataPartialTest {
 		adMap.put(new AssociatedDataKey("description", Locale.GERMAN), dePart);
 
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, null, null, adMap, null
+			mockSchema, null, null, null, adMap, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -222,7 +222,7 @@ class EntityAssociatedDataPartialTest {
 		final AssociatedDataSchemaContract adSchema = mock(AssociatedDataSchemaContract.class);
 		when(mockSchema.getAssociatedData("description")).thenReturn(Optional.of(adSchema));
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,
@@ -241,7 +241,7 @@ class EntityAssociatedDataPartialTest {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntityAssociatedDataPartial.ASSOCIATED_DATA_AVAILABLE
@@ -258,7 +258,7 @@ class EntityAssociatedDataPartialTest {
 
 		// associatedDataParts is null in the state
 		final EntityProxyState state = new EntityProxyState(
-			mockSchema, null, null, null, null, null
+			mockSchema, null, null, null, null, null, null
 		);
 
 		final EntityContract proxy = createEntityProxy(
@@ -286,7 +286,7 @@ class EntityAssociatedDataPartialTest {
 		final Map<AssociatedDataKey, AssociatedDataStoragePart> adParts = new HashMap<>();
 		adParts.put(key, part);
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, adParts, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, adParts, null, null);
 		final EntityContract proxy = createEntityProxy(state, EntityAssociatedDataPartial.GET_ASSOCIATED_DATA);
 
 		assertNull(proxy.getAssociatedData("description"), "Dropped associated data should return null");
@@ -304,7 +304,7 @@ class EntityAssociatedDataPartialTest {
 		final Map<AssociatedDataKey, AssociatedDataStoragePart> adParts = new HashMap<>();
 		adParts.put(key, part);
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, adParts, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, adParts, null, null);
 		final EntityContract proxy = createEntityProxy(
 			state, EntityAssociatedDataPartial.GET_ASSOCIATED_DATA_LOCALIZED
 		);

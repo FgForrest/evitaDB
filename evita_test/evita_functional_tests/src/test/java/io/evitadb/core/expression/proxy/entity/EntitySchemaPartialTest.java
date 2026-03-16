@@ -85,7 +85,7 @@ class EntitySchemaPartialTest {
 	void shouldReturnEntitySchemaFromState() {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntitySchemaPartial.GET_SCHEMA, EntitySchemaPartial.GET_TYPE
@@ -102,7 +102,7 @@ class EntitySchemaPartialTest {
 	void shouldReturnSchemaNameAsType() {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntitySchemaPartial.GET_SCHEMA, EntitySchemaPartial.GET_TYPE
@@ -116,7 +116,7 @@ class EntitySchemaPartialTest {
 	void shouldThrowForUnhandledMethodsWhenOnlySchemaPartialPresent() {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntitySchemaPartial.GET_SCHEMA, EntitySchemaPartial.GET_TYPE

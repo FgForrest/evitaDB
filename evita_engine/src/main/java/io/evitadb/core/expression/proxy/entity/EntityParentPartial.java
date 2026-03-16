@@ -25,7 +25,9 @@ package io.evitadb.core.expression.proxy.entity;
 
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.core.expression.proxy.EntityProxyState;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import one.edee.oss.proxycian.PredicateMethodClassification;
 
 import java.util.Optional;
@@ -35,8 +37,8 @@ import java.util.Optional;
  *
  * Contains classifications for:
  * - `parentAvailable()` from {@link EntityContract} - returns `true`
- * - `getParentEntity()` from {@link EntityClassifierWithParent} - returns `Optional.empty()` since parent entity fetch
- *   is not needed for expression evaluation
+ * - `getParentEntity()` from {@link EntityClassifierWithParent} - returns an {@link EntityReferenceWithParent}
+ *   when the entity has a parent, or `Optional.empty()` otherwise
  */
 public final class EntityParentPartial {
 
@@ -55,8 +57,10 @@ public final class EntityParentPartial {
 		);
 
 	/**
-	 * Matches `getParentEntity()` declared on {@link EntityClassifierWithParent} and returns `Optional.empty()` since
-	 * expression evaluation does not need to traverse the parent entity hierarchy.
+	 * Matches `getParentEntity()` declared on {@link EntityClassifierWithParent}. Returns the
+	 * nested parent entity proxy when available (for expressions that access parent attributes),
+	 * or falls back to a lightweight {@link EntityReferenceWithParent} for expressions that only
+	 * check parent existence.
 	 */
 	public static final PredicateMethodClassification<Object, Void, EntityProxyState> GET_PARENT_ENTITY =
 		new PredicateMethodClassification<>(
@@ -65,7 +69,23 @@ public final class EntityParentPartial {
 				"getParentEntity".equals(method.getName())
 					&& method.getParameterCount() == 0,
 			(method, state) -> null,
-			(proxy, method, args, methodContext, proxyState, invokeSuper) -> Optional.empty()
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
+				// prefer nested parent entity proxy when available (supports attribute access)
+				if (proxyState.parentEntity() != null) {
+					return Optional.of(proxyState.parentEntity());
+				}
+				// fallback: lightweight reference for existence-only checks
+				final EntityBodyStoragePart body = proxyState.bodyPartOrThrowException();
+				final Integer parentPk = body.getParent();
+				if (parentPk == null) {
+					return Optional.empty();
+				}
+				return Optional.of(
+					new EntityReferenceWithParent(
+						proxyState.schema().getName(), parentPk, null
+					)
+				);
+			}
 		);
 
 	/**

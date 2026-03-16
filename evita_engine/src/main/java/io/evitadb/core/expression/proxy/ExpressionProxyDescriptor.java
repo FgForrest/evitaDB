@@ -51,6 +51,9 @@ import javax.annotation.Nullable;
  * @param groupEntityPartials        array of partials for the nested group entity proxy, or `null`
  * @param referencedEntityRecipe     recipe for fetching storage parts of the nested referenced entity, or `null`
  * @param groupEntityRecipe          recipe for fetching storage parts of the nested group entity, or `null`
+ * @param needsParentEntityProxy     whether the entity proxy needs a nested parent entity proxy
+ * @param parentEntityPartials       array of partials for the nested parent entity proxy, or `null`
+ * @param parentEntityRecipe         recipe for fetching storage parts of the nested parent entity, or `null`
  */
 public record ExpressionProxyDescriptor(
 	@Nonnull PredicateMethodClassification<?, ?, ?>[] entityPartials,
@@ -61,7 +64,10 @@ public record ExpressionProxyDescriptor(
 	@Nullable PredicateMethodClassification<?, ?, ?>[] referencedEntityPartials,
 	@Nullable PredicateMethodClassification<?, ?, ?>[] groupEntityPartials,
 	@Nullable StoragePartRecipe referencedEntityRecipe,
-	@Nullable StoragePartRecipe groupEntityRecipe
+	@Nullable StoragePartRecipe groupEntityRecipe,
+	boolean needsParentEntityProxy,
+	@Nullable PredicateMethodClassification<?, ?, ?>[] parentEntityPartials,
+	@Nullable StoragePartRecipe parentEntityRecipe
 ) {
 
 	/**
@@ -154,5 +160,40 @@ public record ExpressionProxyDescriptor(
 			);
 		}
 		return this.groupEntityRecipe;
+	}
+
+	/**
+	 * Returns the nested parent entity partials or throws if not available.
+	 *
+	 * @return the non-null parent entity partials array
+	 * @throws ExpressionEvaluationException if parentEntityPartials is null
+	 */
+	@Nonnull
+	public PredicateMethodClassification<?, ?, ?>[] parentEntityPartialsOrThrowException() {
+		if (this.parentEntityPartials == null) {
+			throw new ExpressionEvaluationException(
+				"Parent entity proxy partials are not available in the expression proxy descriptor. "
+					+ "This indicates the expression does not access parent entity data.",
+				"Parent entity proxy partials are not available for expression evaluation."
+			);
+		}
+		return this.parentEntityPartials;
+	}
+
+	/**
+	 * Returns the nested parent entity recipe or throws if not available.
+	 *
+	 * @return the non-null parent entity recipe
+	 * @throws ExpressionEvaluationException if parentEntityRecipe is null
+	 */
+	@Nonnull
+	public StoragePartRecipe parentEntityRecipeOrThrowException() {
+		if (this.parentEntityRecipe == null) {
+			throw new ExpressionEvaluationException(
+				"Parent entity storage recipe is not available in the expression proxy descriptor.",
+				"Parent entity storage recipe is not available for expression evaluation."
+			);
+		}
+		return this.parentEntityRecipe;
 	}
 }

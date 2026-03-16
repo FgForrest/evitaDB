@@ -67,7 +67,7 @@ class ExpressionProxyDescriptorTest {
 			final PredicateMethodClassification<?, ?, ?>[] refPartials = minimalEntityPartials();
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), refPartials, StoragePartRecipe.EMPTY,
-				false, false, null, null, null, null
+				false, false, null, null, null, null, false, null, null
 			);
 
 			final PredicateMethodClassification<?, ?, ?>[] result =
@@ -81,7 +81,7 @@ class ExpressionProxyDescriptorTest {
 		void shouldThrowExpressionEvaluationExceptionWhenReferencePartialsNull() {
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				false, false, null, null, null, null
+				false, false, null, null, null, null, false, null, null
 			);
 
 			final ExpressionEvaluationException exception = assertThrows(
@@ -108,7 +108,7 @@ class ExpressionProxyDescriptorTest {
 			final PredicateMethodClassification<?, ?, ?>[] refEntityPartials = minimalEntityPartials();
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				true, false, refEntityPartials, null, null, null
+				true, false, refEntityPartials, null, null, null, false, null, null
 			);
 
 			final PredicateMethodClassification<?, ?, ?>[] result =
@@ -123,7 +123,7 @@ class ExpressionProxyDescriptorTest {
 		void shouldThrowExpressionEvaluationExceptionWhenReferencedEntityPartialsNull() {
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				true, false, null, null, null, null
+				true, false, null, null, null, null, false, null, null
 			);
 
 			final ExpressionEvaluationException exception = assertThrows(
@@ -150,7 +150,7 @@ class ExpressionProxyDescriptorTest {
 			final PredicateMethodClassification<?, ?, ?>[] grpEntityPartials = minimalEntityPartials();
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				false, true, null, grpEntityPartials, null, null
+				false, true, null, grpEntityPartials, null, null, false, null, null
 			);
 
 			final PredicateMethodClassification<?, ?, ?>[] result =
@@ -165,7 +165,7 @@ class ExpressionProxyDescriptorTest {
 		void shouldThrowExpressionEvaluationExceptionWhenGroupEntityPartialsNull() {
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				false, true, null, null, null, null
+				false, true, null, null, null, null, false, null, null
 			);
 
 			final ExpressionEvaluationException exception = assertThrows(
@@ -192,7 +192,7 @@ class ExpressionProxyDescriptorTest {
 			final StoragePartRecipe recipe = StoragePartRecipe.EMPTY;
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				true, false, null, null, recipe, null
+				true, false, null, null, recipe, null, false, null, null
 			);
 
 			final StoragePartRecipe result = descriptor.referencedEntityRecipeOrThrowException();
@@ -205,7 +205,7 @@ class ExpressionProxyDescriptorTest {
 		void shouldThrowExpressionEvaluationExceptionWhenReferencedEntityRecipeNull() {
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				true, false, null, null, null, null
+				true, false, null, null, null, null, false, null, null
 			);
 
 			final ExpressionEvaluationException exception = assertThrows(
@@ -232,7 +232,7 @@ class ExpressionProxyDescriptorTest {
 			final StoragePartRecipe recipe = StoragePartRecipe.EMPTY;
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				false, true, null, null, null, recipe
+				false, true, null, null, null, recipe, false, null, null
 			);
 
 			final StoragePartRecipe result = descriptor.groupEntityRecipeOrThrowException();
@@ -245,7 +245,7 @@ class ExpressionProxyDescriptorTest {
 		void shouldThrowExpressionEvaluationExceptionWhenGroupEntityRecipeNull() {
 			final ExpressionProxyDescriptor descriptor = new ExpressionProxyDescriptor(
 				minimalEntityPartials(), null, StoragePartRecipe.EMPTY,
-				false, true, null, null, null, null
+				false, true, null, null, null, null, false, null, null
 			);
 
 			final ExpressionEvaluationException exception = assertThrows(

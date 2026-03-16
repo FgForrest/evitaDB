@@ -97,7 +97,8 @@ public final class ExpressionProxyInstantiator {
 	) {
 		final StoragePartRecipe recipe = descriptor.entityRecipe();
 		final EntityProxyState entityState = buildEntityState(
-			entitySchema, entityPrimaryKey, recipe, storageAccessor
+			entitySchema, entityPrimaryKey, recipe, storageAccessor,
+			descriptor, storageAccessor
 		);
 
 		// instantiate entity proxy
@@ -122,12 +123,16 @@ public final class ExpressionProxyInstantiator {
 	}
 
 	/**
-	 * Builds an {@link EntityProxyState} by fetching storage parts per the given recipe.
+	 * Builds an {@link EntityProxyState} by fetching storage parts per the given recipe, optionally
+	 * instantiating a nested parent entity proxy if the descriptor requires it.
 	 *
 	 * @param schema          the entity schema
 	 * @param primaryKey      the entity primary key
 	 * @param recipe          the recipe specifying which storage parts to fetch
 	 * @param storageAccessor the storage accessor
+	 * @param descriptor      the proxy descriptor (nullable — null for nested entities that don't need parent proxy)
+	 * @param parentAccessor  the storage accessor for fetching parent entity parts (nullable — null when no parent
+	 *                        proxy is needed)
 	 * @return the assembled entity proxy state
 	 */
 	@Nonnull
@@ -135,7 +140,9 @@ public final class ExpressionProxyInstantiator {
 		@Nonnull EntitySchemaContract schema,
 		int primaryKey,
 		@Nonnull StoragePartRecipe recipe,
-		@Nonnull EntityStoragePartAccessor storageAccessor
+		@Nonnull EntityStoragePartAccessor storageAccessor,
+		@Nullable ExpressionProxyDescriptor descriptor,
+		@Nullable EntityStoragePartAccessor parentAccessor
 	) {
 		final String entityType = schema.getName();
 
@@ -168,9 +175,23 @@ public final class ExpressionProxyInstantiator {
 			entityType, primaryKey, storageAccessor
 		);
 
+		// build nested parent entity proxy if needed
+		final SealedEntity parentEntity;
+		if (descriptor != null && descriptor.needsParentEntityProxy()
+			&& bodyPart != null && bodyPart.getParent() != null && parentAccessor != null) {
+			parentEntity = instantiateNestedEntityProxy(
+				schema, bodyPart.getParent(),
+				descriptor.parentEntityPartialsOrThrowException(),
+				descriptor.parentEntityRecipeOrThrowException(),
+				parentAccessor
+			);
+		} else {
+			parentEntity = null;
+		}
+
 		return new EntityProxyState(
 			schema, bodyPart, globalAttrs, localeAttrs, adParts,
-			EntityProxyState.indexReferences(refsPart)
+			EntityProxyState.indexReferences(refsPart), parentEntity
 		);
 	}
 
@@ -193,7 +214,9 @@ public final class ExpressionProxyInstantiator {
 		@Nonnull StoragePartRecipe recipe,
 		@Nonnull EntityStoragePartAccessor storageAccessor
 	) {
-		final EntityProxyState nestedState = buildEntityState(schema, primaryKey, recipe, storageAccessor);
+		final EntityProxyState nestedState = buildEntityState(
+			schema, primaryKey, recipe, storageAccessor, null, null
+		);
 		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(nestedState, partials),
 			new Class<?>[]{ SealedEntity.class },

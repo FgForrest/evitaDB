@@ -278,6 +278,12 @@ public class FacetExpressionTriggerImpl implements FacetExpressionTrigger {
 		variables.put(EntityContractAccessor.ENTITY_VARIABLE_NAME, instantiation.entityProxy());
 		if (instantiation.referenceProxy() != null) {
 			variables.put(ReferenceContractAccessor.REFERENCE_VARIABLE_NAME, instantiation.referenceProxy());
+		} else if (this.proxyDescriptor.referencePartials() != null) {
+			// the expression uses $reference but the reference data is not available yet — this
+			// happens during InsertReferenceMutation processing when the reference has not been
+			// written to storage yet; return false so the facet is not indexed now, and rely on
+			// re-evaluation when the reference attribute mutation is processed later
+			return false;
 		}
 
 		final ExpressionVariableContext context = new ExpressionVariableContext(variables);

@@ -103,7 +103,7 @@ class EntityProxyStateTest {
 			final EntitySchemaContract schema = mockSchema("Product");
 			final EntityBodyStoragePart bodyPart = new EntityBodyStoragePart(ENTITY_PK);
 			final EntityProxyState state = new EntityProxyState(
-				schema, bodyPart, null, null, null, null
+				schema, bodyPart, null, null, null, null, null
 			);
 
 			final EntityBodyStoragePart result = state.bodyPartOrThrowException();
@@ -116,7 +116,7 @@ class EntityProxyStateTest {
 		void shouldThrowExpressionEvaluationExceptionWhenBodyPartNull() {
 			final EntitySchemaContract schema = mockSchema("Product");
 			final EntityProxyState state = new EntityProxyState(
-				schema, null, null, null, null, null
+				schema, null, null, null, null, null, null
 			);
 
 			final ExpressionEvaluationException exception = assertThrows(
@@ -145,7 +145,7 @@ class EntityProxyStateTest {
 				"brand", List.of()
 			);
 			final EntityProxyState state = new EntityProxyState(
-				schema, null, null, null, null, refsMap
+				schema, null, null, null, null, refsMap, null
 			);
 
 			final Map<String, List<ReferenceContract>> result = state.referencesByNameOrThrowException();
@@ -158,7 +158,7 @@ class EntityProxyStateTest {
 		void shouldThrowExpressionEvaluationExceptionWhenReferencesNull() {
 			final EntitySchemaContract schema = mockSchema("Product");
 			final EntityProxyState state = new EntityProxyState(
-				schema, null, null, null, null, null
+				schema, null, null, null, null, null, null
 			);
 
 			final ExpressionEvaluationException exception = assertThrows(

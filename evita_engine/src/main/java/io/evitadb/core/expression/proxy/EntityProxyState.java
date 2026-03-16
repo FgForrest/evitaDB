@@ -25,6 +25,7 @@ package io.evitadb.core.expression.proxy;
 
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.ExpressionEvaluationException;
@@ -63,6 +64,9 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @param referencesByName        references pre-indexed by reference name for O(1) lookup - needed by
  *                                ReferencesPartial. Built from {@link ReferencesStoragePart} via
  *                                {@link #indexReferences(ReferencesStoragePart)}.
+ * @param parentEntity            nested parent entity proxy - needed by ParentPartial when the expression
+ *                                accesses parent entity attributes (e.g., `$entity.parentEntity.attributes[...]`).
+ *                                Null when the expression only checks parent existence or the entity has no parent.
  */
 public record EntityProxyState(
 	@Nonnull EntitySchemaContract schema,
@@ -70,7 +74,8 @@ public record EntityProxyState(
 	@Nullable AttributesStoragePart globalAttributesPart,
 	@Nullable Map<Locale, AttributesStoragePart> localeAttributesParts,
 	@Nullable Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataParts,
-	@Nullable Map<String, List<ReferenceContract>> referencesByName
+	@Nullable Map<String, List<ReferenceContract>> referencesByName,
+	@Nullable SealedEntity parentEntity
 ) implements Serializable {
 
 	@Serial private static final long serialVersionUID = -6951184351029566L;

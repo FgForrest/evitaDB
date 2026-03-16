@@ -66,7 +66,10 @@ public final class ExpressionProxyFactory {
 			result.referencedEntityPartials(),
 			result.groupEntityPartials(),
 			result.referencedEntityRecipe(),
-			result.groupEntityRecipe()
+			result.groupEntityRecipe(),
+			result.needsParentEntityProxy(),
+			result.parentEntityPartials(),
+			result.parentEntityRecipe()
 		);
 	}
 

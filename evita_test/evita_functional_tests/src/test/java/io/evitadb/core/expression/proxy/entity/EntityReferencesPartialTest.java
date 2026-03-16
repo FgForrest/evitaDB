@@ -117,7 +117,7 @@ class EntityReferencesPartialTest {
 		final ReferencesStoragePart refPart = new ReferencesStoragePart(ENTITY_PK, 3, sortedRefs, -1);
 		final Map<String, List<ReferenceContract>> refsByName = EntityProxyState.indexReferences(refPart);
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, refsByName);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, refsByName, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,
@@ -143,7 +143,7 @@ class EntityReferencesPartialTest {
 		final ReferencesStoragePart refPart = new ReferencesStoragePart(ENTITY_PK);
 		final Map<String, List<ReferenceContract>> refsByName = EntityProxyState.indexReferences(refPart);
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, refsByName);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, refsByName, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntityReferencesPartial.GET_REFERENCES_BY_NAME, EntityReferencesPartial.REFERENCES_AVAILABLE
@@ -165,7 +165,7 @@ class EntityReferencesPartialTest {
 		);
 		final Map<String, List<ReferenceContract>> refsByName = EntityProxyState.indexReferences(refPart);
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, refsByName);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, refsByName, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntityReferencesPartial.GET_REFERENCE, EntityReferencesPartial.REFERENCES_AVAILABLE
@@ -185,7 +185,7 @@ class EntityReferencesPartialTest {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(state, EntityReferencesPartial.REFERENCES_AVAILABLE);
 
@@ -199,7 +199,7 @@ class EntityReferencesPartialTest {
 		when(mockSchema.getName()).thenReturn("Product");
 
 		// referencesByName is null in the state
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,

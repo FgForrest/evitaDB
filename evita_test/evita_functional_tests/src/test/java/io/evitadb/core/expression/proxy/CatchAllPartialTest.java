@@ -62,7 +62,7 @@ class CatchAllPartialTest {
 	private static EntityContract createCatchAllProxy() {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(
 				state,
@@ -144,7 +144,7 @@ class CatchAllPartialTest {
 
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("TestProduct");
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		// Custom classification that matches getType() and returns schema name
 		final PredicateMethodClassification<Object, Void, Object> getTypeClassification =

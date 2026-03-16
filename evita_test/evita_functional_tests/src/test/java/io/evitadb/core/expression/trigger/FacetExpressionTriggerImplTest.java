@@ -32,7 +32,9 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -62,8 +64,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
 
@@ -437,6 +441,220 @@ class FacetExpressionTriggerImplTest {
 	}
 
 	@Nested
+	@DisplayName("Reference variable binding in evaluate()")
+	class ReferenceVariableBindingTest {
+
+		@Test
+		@DisplayName("Should produce descriptor with needsReferences for $reference.attributes expression")
+		void shouldProduceDescriptorWithNeedsReferencesForReferenceAttributeExpression() {
+			final Expression expression =
+				ExpressionFactory.parse("$reference.attributes['priority'] > 0");
+			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
+
+			// verify descriptor has reference partials (needed to instantiate reference proxy)
+			assertNotNull(
+				descriptor.referencePartials(),
+				"Proxy descriptor must have non-null referencePartials for $reference.attributes expression"
+			);
+			// verify entity recipe loads references so that the reference can be found during
+			// proxy instantiation — without this, the reference proxy will be null and $reference
+			// variable will not be bound, causing VariableNotDefinedException
+			assertTrue(
+				descriptor.entityRecipe().needsReferences(),
+				"Entity recipe must need references when expression uses $reference variable"
+			);
+		}
+
+		@Test
+		@DisplayName("Should produce descriptor with needsReferences for $reference.referencedEntity expression")
+		void shouldProduceDescriptorWithNeedsReferencesForReferencedEntityExpression() {
+			final Expression expression =
+				ExpressionFactory.parse("$reference.referencedEntity.attributes['code'] == 'A'");
+			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
+
+			assertNotNull(
+				descriptor.referencePartials(),
+				"Proxy descriptor must have non-null referencePartials for $reference.referencedEntity expression"
+			);
+			assertTrue(
+				descriptor.entityRecipe().needsReferences(),
+				"Entity recipe must need references when expression uses $reference variable"
+			);
+		}
+
+		@Test
+		@DisplayName("Should produce descriptor with needsReferences for $reference.groupEntity expression")
+		void shouldProduceDescriptorWithNeedsReferencesForGroupEntityExpression() {
+			final Expression expression =
+				ExpressionFactory.parse("$reference.groupEntity?.attributes['widgetType'] == 'CHECKBOX'");
+			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
+
+			assertNotNull(
+				descriptor.referencePartials(),
+				"Proxy descriptor must have non-null referencePartials for $reference.groupEntity expression"
+			);
+			assertTrue(
+				descriptor.entityRecipe().needsReferences(),
+				"Entity recipe must need references when expression uses $reference variable"
+			);
+		}
+
+		@Test
+		@DisplayName("Should return false when reference not yet in storage (insert-time evaluation)")
+		void shouldReturnFalseWhenReferenceNotYetInStorage() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+				CATALOG_SCHEMA, EntitySchema._internalBuild(ENTITY_TYPE)
+			)
+				.withReferenceTo(
+					REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs.withAttribute("priority", Long.class)
+				)
+				.toInstance();
+
+			final Expression expression = ExpressionFactory.parse("$reference.attributes['priority'] > 0");
+			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
+
+			final FacetExpressionTriggerImpl trigger = new FacetExpressionTriggerImpl(
+				ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE,
+				Set.of(), Set.of("priority"), Set.of(), false,
+				expression, descriptor
+			);
+
+			// the storage accessor returns an EMPTY references storage part — simulating
+			// the condition during InsertReferenceMutation processing where the reference
+			// has not yet been written to storage
+			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_PK);
+			final TestStorageAccessor accessor = new TestStorageAccessor(ENTITY_PK);
+
+			// evaluate must return false (not throw VariableNotDefinedException) because
+			// the reference data is not available yet — re-evaluation will happen later
+			// when the reference attribute mutation is processed
+			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema);
+			assertFalse(
+				result,
+				"Expression using $reference should return false when reference not yet in storage"
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Cross-entity expression evaluation")
+	class CrossEntityExpressionEvaluationTest {
+
+		private static final String GROUP_ENTITY_TYPE = "parameterGroup";
+		private static final int GROUP_PK = 50;
+
+		@Test
+		@DisplayName("Should evaluate referencedEntity attribute expression to true with correct schema resolver")
+		void shouldEvaluateReferencedEntityAttributeExpressionToTrue() {
+			// owner entity schema (product) — does NOT have 'status' attribute
+			final EntitySchemaContract ownerSchema = new InternalEntitySchemaBuilder(
+				CATALOG_SCHEMA, EntitySchema._internalBuild(ENTITY_TYPE)
+			)
+				.withReferenceTo(REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE)
+				.toInstance();
+
+			// referenced entity schema (parameterType) — HAS 'status' attribute
+			final EntitySchemaContract referencedSchema = new InternalEntitySchemaBuilder(
+				CATALOG_SCHEMA, EntitySchema._internalBuild(REFERENCED_ENTITY_TYPE)
+			)
+				.withAttribute("status", String.class)
+				.toInstance();
+
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.referencedEntity.attributes['status'] == 'ACTIVE'"
+			);
+			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
+
+			final FacetExpressionTriggerImpl trigger = new FacetExpressionTriggerImpl(
+				ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE,
+				Set.of(), Set.of(), Set.of(), false,
+				expression, descriptor
+			);
+
+			// set up storage with a reference and the referenced entity's attribute
+			final CrossEntityTestStorageAccessor accessor = new CrossEntityTestStorageAccessor();
+			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_PK);
+			final ReferenceSchemaContract refSchemaContract =
+				ownerSchema.getReferenceOrThrowException(REFERENCE_NAME);
+			final Reference ref = new Reference(ownerSchema, refSchemaContract, refKey, null);
+			accessor.setReferencesStoragePart(
+				ENTITY_TYPE, ENTITY_PK,
+				new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1)
+			);
+
+			// set the referenced entity's attributes — 'status' = 'ACTIVE'
+			accessor.setGlobalAttributes(
+				REFERENCED_ENTITY_TYPE, REFERENCED_PK,
+				createAttributesPart(REFERENCED_PK, new AttributeValue(new AttributeKey("status"), "ACTIVE"))
+			);
+
+			// schema resolver that correctly maps entity types to their schemas
+			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> {
+				if (ENTITY_TYPE.equals(name)) {
+					return ownerSchema;
+				} else if (REFERENCED_ENTITY_TYPE.equals(name)) {
+					return referencedSchema;
+				}
+				throw new IllegalStateException("Unexpected entity type: " + name);
+			});
+
+			assertTrue(
+				result,
+				"Expression '$reference.referencedEntity.attributes[\"status\"] == \"ACTIVE\"' " +
+					"should evaluate to true when the referenced entity has status=ACTIVE and the " +
+					"schema resolver provides the correct (referenced entity's) schema"
+			);
+		}
+
+		@Test
+		@DisplayName("Should fail when schema resolver returns wrong schema for referenced entity type")
+		void shouldFailWhenSchemaResolverReturnsWrongSchemaForReferencedEntityType() {
+			// owner entity schema (product) — does NOT have 'status' attribute
+			final EntitySchemaContract ownerSchema = new InternalEntitySchemaBuilder(
+				CATALOG_SCHEMA, EntitySchema._internalBuild(ENTITY_TYPE)
+			)
+				.withReferenceTo(REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE)
+				.toInstance();
+
+			final Expression expression = ExpressionFactory.parse(
+				"$reference.referencedEntity.attributes['status'] == 'ACTIVE'"
+			);
+			final ExpressionProxyDescriptor descriptor = ExpressionProxyFactory.buildDescriptor(expression);
+
+			final FacetExpressionTriggerImpl trigger = new FacetExpressionTriggerImpl(
+				ENTITY_TYPE, REFERENCE_NAME, Scope.LIVE,
+				Set.of(), Set.of(), Set.of(), false,
+				expression, descriptor
+			);
+
+			// set up storage with a reference
+			final CrossEntityTestStorageAccessor accessor = new CrossEntityTestStorageAccessor();
+			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_PK);
+			final ReferenceSchemaContract refSchemaContract =
+				ownerSchema.getReferenceOrThrowException(REFERENCE_NAME);
+			final Reference ref = new Reference(ownerSchema, refSchemaContract, refKey, null);
+			accessor.setReferencesStoragePart(
+				ENTITY_TYPE, ENTITY_PK,
+				new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1)
+			);
+
+			// BUGGY resolver — always returns the owner (product) schema, even when asked for
+			// the referenced entity type. The product schema does NOT have 'status' attribute,
+			// so getAttributeSchema("status") will return Optional.empty(), causing the error
+			// "Attribute schema for element `status` not found."
+			assertThrows(
+				ExpressionEvaluationException.class,
+				() -> trigger.evaluate(ENTITY_PK, refKey, accessor, name -> ownerSchema),
+				"Should throw ExpressionEvaluationException when schema resolver provides the " +
+					"wrong schema for the referenced entity type"
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Non-boolean expression result errors")
 	class NonBooleanResultErrorTest {
 
@@ -640,7 +858,8 @@ class FacetExpressionTriggerImplTest {
 
 	/**
 	 * Simple test implementation of {@link WritableEntityStorageContainerAccessor} backed by in-memory storage parts.
-	 * Returns empty parts by default, with setters for customization.
+	 * Returns empty parts by default, with setters for customization. Entity-type-unaware — suitable for
+	 * single-entity tests.
 	 */
 	private static final class TestStorageAccessor implements WritableEntityStorageContainerAccessor {
 
@@ -750,6 +969,142 @@ class FacetExpressionTriggerImplTest {
 			@Nonnull String entityType, int entityPrimaryKey
 		) {
 			return new PricesStoragePart(this.entityPK);
+		}
+	}
+
+	/**
+	 * Entity-type-aware test implementation of {@link WritableEntityStorageContainerAccessor}. Supports
+	 * cross-entity storage access by routing storage part lookups based on `(entityType, entityPK)` tuples.
+	 * Used for testing cross-entity expressions like `$reference.referencedEntity.attributes['status']`.
+	 */
+	private static final class CrossEntityTestStorageAccessor implements WritableEntityStorageContainerAccessor {
+
+		private final Map<String, AttributesStoragePart> globalAttributesMap = new HashMap<>();
+		private final Map<String, ReferencesStoragePart> referencesMap = new HashMap<>();
+
+		/**
+		 * Generates a composite key for the `(entityType, entityPK)` pair.
+		 *
+		 * @param entityType the entity type name
+		 * @param entityPK   the entity primary key
+		 * @return the composite key
+		 */
+		@Nonnull
+		private static String key(@Nonnull String entityType, int entityPK) {
+			return entityType + "#" + entityPK;
+		}
+
+		/**
+		 * Registers global attributes for a specific entity.
+		 *
+		 * @param entityType the entity type name
+		 * @param entityPK   the entity primary key
+		 * @param part       the attributes storage part
+		 */
+		void setGlobalAttributes(
+			@Nonnull String entityType, int entityPK, @Nonnull AttributesStoragePart part
+		) {
+			this.globalAttributesMap.put(key(entityType, entityPK), part);
+		}
+
+		/**
+		 * Registers a references storage part for a specific entity.
+		 *
+		 * @param entityType the entity type name
+		 * @param entityPK   the entity primary key
+		 * @param part       the references storage part
+		 */
+		void setReferencesStoragePart(
+			@Nonnull String entityType, int entityPK, @Nonnull ReferencesStoragePart part
+		) {
+			this.referencesMap.put(key(entityType, entityPK), part);
+		}
+
+		@Override
+		public boolean isEntityRemovedEntirely() {
+			return false;
+		}
+
+		@Override
+		public void registerAssignedPriceId(
+			int entityPrimaryKey, @Nonnull PriceKey priceKey, int internalPriceId
+		) {
+			// no-op
+		}
+
+		@Nonnull
+		@Override
+		public OptionalInt findExistingInternalId(
+			@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey
+		) {
+			return OptionalInt.empty();
+		}
+
+		@Nonnull
+		@Override
+		public LocaleWithScope[] getAddedLocales() {
+			return new LocaleWithScope[0];
+		}
+
+		@Nonnull
+		@Override
+		public LocaleWithScope[] getRemovedLocales() {
+			return new LocaleWithScope[0];
+		}
+
+		@Override
+		public int getLocalesIdentityHash() {
+			return 0;
+		}
+
+		@Nonnull
+		@Override
+		public EntityBodyStoragePart getEntityStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey, @Nonnull EntityExistence expects
+		) {
+			return new EntityBodyStoragePart(entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public AttributesStoragePart getAttributeStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey
+		) {
+			final AttributesStoragePart part = this.globalAttributesMap.get(key(entityType, entityPrimaryKey));
+			return part != null ? part : new AttributesStoragePart(entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public AttributesStoragePart getAttributeStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey, @Nullable Locale locale
+		) {
+			return new AttributesStoragePart(entityPrimaryKey, locale);
+		}
+
+		@Nonnull
+		@Override
+		public AssociatedDataStoragePart getAssociatedDataStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey, @Nonnull AssociatedDataKey key
+		) {
+			return new AssociatedDataStoragePart(entityPrimaryKey, key);
+		}
+
+		@Nonnull
+		@Override
+		public ReferencesStoragePart getReferencesStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey
+		) {
+			final ReferencesStoragePart part = this.referencesMap.get(key(entityType, entityPrimaryKey));
+			return part != null ? part : new ReferencesStoragePart(entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public PricesStoragePart getPriceStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey
+		) {
+			return new PricesStoragePart(entityPrimaryKey);
 		}
 	}
 

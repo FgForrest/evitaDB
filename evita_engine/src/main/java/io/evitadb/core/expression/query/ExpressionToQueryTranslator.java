@@ -88,6 +88,8 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  * - Referenced entity attribute comparisons: wrapped in `referenceHaving("refName", entityHaving(...))`
  * - Boolean operators `&&`, `||`, `!` to `and()`, `or()`, `not()` with flattening
  * - Parent existence checks to `hierarchyWithinRootSelf()`
+ * - Parent entity attribute comparisons: wrapped in `hierarchyWithinRootSelf(directRelation(), having(...))`
+ * - Null-coalesce (`??`) unwrapping: the default value is discarded (FilterBy handles nulls natively)
  * - Attribute null checks to `attributeIsNull()` / `attributeIsNotNull()`
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -177,6 +179,29 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 				"Unsupported children for node `" + current.getClass().getSimpleName() + "`."
 			);
 			current = children[0];
+		}
+		return current;
+	}
+
+	/**
+	 * Unwraps a {@link NullCoalesceOperator} wrapper, returning its value operand (first child).
+	 * The default-value operand is discarded because FilterBy constraints do not need a fallback:
+	 * a null attribute simply does not match the comparison.
+	 *
+	 * If the node is not a {@link NullCoalesceOperator}, it is returned as-is after standard
+	 * {@link #unwrap(ExpressionNode)} processing. Handles nested coalesce and wrapper combinations.
+	 */
+	@Nonnull
+	private static ExpressionNode unwrapNullCoalesce(@Nonnull ExpressionNode node) {
+		ExpressionNode current = unwrap(node);
+		while (current instanceof NullCoalesceOperator) {
+			final ExpressionNode[] coalesceChildren = current.getChildren();
+			Assert.isPremiseValid(
+				coalesceChildren != null && coalesceChildren.length == 2,
+				"NullCoalesceOperator must have 2 children."
+			);
+			// take the value operand (first child) — the default value is discarded
+			current = unwrap(coalesceChildren[0]);
 		}
 		return current;
 	}
@@ -285,7 +310,15 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 * type and extract the attribute name.
 	 *
 	 * Supported path patterns:
+	 *
 	 * - `$entity.attributes['x']` / `$entity.localizedAttributes['x']` -> `ENTITY_ATTRIBUTE`
+	 * - `$entity.parentEntity` -> `ENTITY_PARENT`
+	 * - `$entity.parentEntity.attributes['x']` -> `PARENT_ENTITY_ATTRIBUTE`
+	 * - `$entity.parentEntity.references['r'].attributes['x']` -> `PARENT_ENTITY_REFERENCE_ATTRIBUTE`
+	 * - `$reference.attributes['x']` -> `REFERENCE_ATTRIBUTE`
+	 * - `$reference.groupEntity?.attributes['x']` -> `GROUP_ENTITY_ATTRIBUTE`
+	 * - `$reference.referencedEntity.attributes['x']` -> `REFERENCED_ENTITY_ATTRIBUTE`
+	 * - `$reference.*.references['r'].attributes['x']` -> `*_REFERENCE_ATTRIBUTE`
 	 *
 	 * @param accessOperator the object access operator to classify
 	 * @return the classified data path
@@ -306,24 +339,33 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 
 		if (EntityContractAccessor.ENTITY_VARIABLE_NAME.equals(variableName)) {
 			// $entity context — properties from EntityContractAccessor
-			if (
-				EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(firstPropertyName)
-					|| EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(firstPropertyName)
-			) {
-				final String attributeName = extractAttributeName(firstProperty.getNext());
-				return new DataPath(PathType.ENTITY_ATTRIBUTE, attributeName, null);
-			} else if (EntityContractAccessor.PARENT_ENTITY_PROPERTY.equals(firstPropertyName)) {
-				return new DataPath(PathType.ENTITY_PARENT, EntityContractAccessor.PARENT_ENTITY_PROPERTY, null);
-			} else if (
-				EntityContractAccessor.ASSOCIATED_DATA_PROPERTY.equals(firstPropertyName)
-					|| EntityContractAccessor.LOCALIZED_ASSOCIATED_DATA_PROPERTY.equals(firstPropertyName)
-			) {
-				throw new NonTranslatableExpressionException(
-					"Associated data path `$" + EntityContractAccessor.ENTITY_VARIABLE_NAME + "." +
-						firstPropertyName +
-						"[...]` cannot be translated to a FilterBy constraint. " +
-						"There is no FilterBy equivalent for associated data access."
-				);
+			switch (firstPropertyName) {
+				case EntityContractAccessor.ATTRIBUTES_PROPERTY,
+				     EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY -> {
+					final String attributeName = extractAttributeName(firstProperty.getNext());
+					return new DataPath(PathType.ENTITY_ATTRIBUTE, attributeName, null);
+				}
+				case EntityContractAccessor.PARENT_ENTITY_PROPERTY -> {
+					// check if chain continues beyond parentEntity (attribute or reference access)
+					final ObjectAccessStep afterParent = skipNullSafe(firstProperty.getNext());
+					if (afterParent == null) {
+						// chain ends at parentEntity → existence check (existing behavior)
+						return new DataPath(
+							PathType.ENTITY_PARENT, EntityContractAccessor.PARENT_ENTITY_PROPERTY, null
+						);
+					}
+					// chain continues → delegate to shared entity path walker
+					return extractEntityAttributePath(firstProperty, PathType.PARENT_ENTITY_ATTRIBUTE);
+					// chain continues → delegate to shared entity path walker
+				}
+				case EntityContractAccessor.ASSOCIATED_DATA_PROPERTY,
+				     EntityContractAccessor.LOCALIZED_ASSOCIATED_DATA_PROPERTY ->
+					throw new NonTranslatableExpressionException(
+						"Associated data path `$" + EntityContractAccessor.ENTITY_VARIABLE_NAME + "." +
+							firstPropertyName +
+							"[...]` cannot be translated to a FilterBy constraint. " +
+							"There is no FilterBy equivalent for associated data access."
+					);
 			}
 		} else if (ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variableName)) {
 			// $reference context — properties from ReferenceContractAccessor
@@ -374,8 +416,9 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	}
 
 	/**
-	 * Extracts the attribute name from a sub-entity path (e.g., `.groupEntity?.attributes['x']`
-	 * or `.referencedEntity.localizedAttributes['x']`). After the first property, skips an optional
+	 * Extracts the attribute name from a sub-entity path (e.g., `.groupEntity?.attributes['x']`,
+	 * `.referencedEntity.localizedAttributes['x']`, or `.parentEntity.attributes['x']`).
+	 * After the first property, skips an optional
 	 * null-safe step, then checks the next property:
 	 *
 	 * - `attributes`/`localizedAttributes` -> entity-attribute dependency (existing behavior)
@@ -383,7 +426,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 *   from either a non-spread chain or a spread mapping expression
 	 *
 	 * @param firstProperty the property access step preceding the entity navigation
-	 * @param pathType      the base path type (`REFERENCED_ENTITY_ATTRIBUTE` or `GROUP_ENTITY_ATTRIBUTE`)
+	 * @param pathType      the base path type (`REFERENCED_ENTITY_ATTRIBUTE`, `GROUP_ENTITY_ATTRIBUTE`,
+	 *                      or `PARENT_ENTITY_ATTRIBUTE`)
 	 * @return the classified data path with the extracted attribute name and optional reference name
 	 * @throws NonTranslatableExpressionException if the path pattern is not recognized
 	 */
@@ -426,7 +470,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 * (`.references['r']*.attributes['A']`).
 	 *
 	 * @param referencesStep the `PropertyAccessStep` for `references`
-	 * @param basePathType   the base path type (`REFERENCED_ENTITY_ATTRIBUTE` or `GROUP_ENTITY_ATTRIBUTE`)
+	 * @param basePathType   the base path type (`REFERENCED_ENTITY_ATTRIBUTE`, `GROUP_ENTITY_ATTRIBUTE`,
+	 *                       or `PARENT_ENTITY_ATTRIBUTE`)
 	 * @return the classified data path with reference-attribute path type
 	 */
 	@Nonnull
@@ -443,22 +488,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 					(elementStep != null ? elementStep.getClass().getSimpleName() : "end of chain") + "`."
 			);
 		}
-		if (!(refElement.getElementIdentifierOperand() instanceof ConstantOperand refNameConst)) {
-			throw new NonTranslatableExpressionException(
-				"Dynamic reference name in `." + EntityContractAccessor.REFERENCES_PROPERTY +
-					"[...]` cannot be translated to a FilterBy constraint. " +
-					"The reference name must be a string literal."
-			);
-		}
-		final Serializable refNameValue = refNameConst.getValue();
-		if (refNameValue == null) {
-			throw new NonTranslatableExpressionException(
-				"Null reference name in `." + EntityContractAccessor.REFERENCES_PROPERTY +
-					"[null]` cannot be translated to a FilterBy constraint. " +
-					"The reference name must be a non-null string literal."
-			);
-		}
-		final String referenceName = refNameValue.toString();
+		final String referenceName = getReferenceName(refElement);
 
 		// after the element access, check for spread or direct property chain
 		final ObjectAccessStep afterElement = refElement.getNext();
@@ -494,12 +524,44 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		final PathType mappedPathType = switch (basePathType) {
 			case REFERENCED_ENTITY_ATTRIBUTE -> PathType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE;
 			case GROUP_ENTITY_ATTRIBUTE -> PathType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
+			case PARENT_ENTITY_ATTRIBUTE -> PathType.PARENT_ENTITY_REFERENCE_ATTRIBUTE;
 			default -> throw new NonTranslatableExpressionException(
 				"Unexpected base path type `" + basePathType + "` for reference-attribute path."
 			);
 		};
 
 		return new DataPath(mappedPathType, attributeName, referenceName);
+	}
+
+	/**
+	 * Retrieves the reference name as a string from the provided {@link ElementAccessStep}.
+	 * This method ensures that the reference name is a non-null string literal and throws
+	 * an exception if it encounters a dynamic or invalid reference name.
+	 *
+	 * @param refElement The {@link ElementAccessStep} containing the reference element.
+	 *                   This parameter must not be null.
+	 * @return The reference name extracted as a string.
+	 * @throws NonTranslatableExpressionException If the reference name is not a string literal
+	 *                                            or if it is null.
+	 */
+	@Nonnull
+	private static String getReferenceName(@Nonnull ElementAccessStep refElement) {
+		if (!(refElement.getElementIdentifierOperand() instanceof ConstantOperand refNameConst)) {
+			throw new NonTranslatableExpressionException(
+				"Dynamic reference name in `." + EntityContractAccessor.REFERENCES_PROPERTY +
+					"[...]` cannot be translated to a FilterBy constraint. " +
+					"The reference name must be a string literal."
+			);
+		}
+		final Serializable refNameValue = refNameConst.getValue();
+		if (refNameValue == null) {
+			throw new NonTranslatableExpressionException(
+				"Null reference name in `." + EntityContractAccessor.REFERENCES_PROPERTY +
+					"[null]` cannot be translated to a FilterBy constraint. " +
+					"The reference name must be a non-null string literal."
+			);
+		}
+		return refNameValue.toString();
 	}
 
 	/**
@@ -515,7 +577,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	@Nonnull
 	private static String extractAttributeFromSpreadMapping(@Nonnull SpreadAccessStep spreadStep) {
 		final ExpressionNode mappingExpr = spreadStep.getMappingExpression();
-		final ExpressionNode unwrapped = unwrap(mappingExpr);
+		final ExpressionNode unwrapped = unwrapNullCoalesce(mappingExpr);
 		if (!(unwrapped instanceof ObjectAccessOperator mappingAccess)) {
 			throw new NonTranslatableExpressionException(
 				"Spread mapping expression must be a simple attribute access (e.g., " +
@@ -815,6 +877,13 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 				this.referenceName,
 				groupHaving(referenceHaving(dataPath.referenceName(), attributeConstraint))
 			);
+			case PARENT_ENTITY_ATTRIBUTE -> hierarchyWithinRootSelf(
+				directRelation(), having(attributeConstraint)
+			);
+			case PARENT_ENTITY_REFERENCE_ATTRIBUTE -> hierarchyWithinRootSelf(
+				directRelation(),
+				having(referenceHaving(dataPath.referenceName(), attributeConstraint))
+			);
 		};
 	}
 
@@ -896,9 +965,10 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	private void translateComparison(@Nonnull ExpressionNode comparisonNode) {
 		final ExpressionNode[] children = comparisonNode.getChildren();
 		Assert.isPremiseValid(children != null && children.length == 2, "Comparison must have 2 children.");
-		// unwrap parenthesized/nested wrappers so that (path) == value works the same as path == value
-		final ExpressionNode left = unwrap(children[0]);
-		final ExpressionNode right = unwrap(children[1]);
+		// unwrap parenthesized/nested wrappers and null-coalesce operators so that
+		// (path ?? default) == value works the same as path == value
+		final ExpressionNode left = unwrapNullCoalesce(children[0]);
+		final ExpressionNode right = unwrapNullCoalesce(children[1]);
 
 		// determine which operand is the path and which is the value
 		final ObjectAccessOperator pathOperand;
@@ -991,7 +1061,18 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		/**
 		 * `$entity.parentEntity` — parent existence check, no wrapping needed.
 		 */
-		ENTITY_PARENT
+		ENTITY_PARENT,
+		/**
+		 * `$entity.parentEntity.attributes['x']` — parent entity attribute,
+		 * wrapped in `hierarchyWithinRootSelf(directRelation(), having(...))`.
+		 */
+		PARENT_ENTITY_ATTRIBUTE,
+		/**
+		 * `$entity.parentEntity.references['r'].attributes['x']` — reference attribute on
+		 * the parent entity, wrapped in
+		 * `hierarchyWithinRootSelf(directRelation(), having(referenceHaving('r', ...)))`.
+		 */
+		PARENT_ENTITY_REFERENCE_ATTRIBUTE
 	}
 
 	/**

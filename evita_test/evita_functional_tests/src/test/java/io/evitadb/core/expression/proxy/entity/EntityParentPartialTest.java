@@ -82,7 +82,7 @@ class EntityParentPartialTest {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Category");
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntityParentPartial.PARENT_AVAILABLE, EntityParentPartial.GET_PARENT_ENTITY
@@ -92,15 +92,15 @@ class EntityParentPartialTest {
 	}
 
 	@Test
-	@DisplayName("getParentEntity() returns empty Optional")
-	void shouldReturnEmptyOptionalForParentEntity() {
+	@DisplayName("getParentEntity() returns EntityReferenceWithParent when parent is set and no proxy available")
+	void shouldReturnReferenceWithParentWhenParentSet() {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Category");
 
 		final EntityBodyStoragePart bodyPart = new EntityBodyStoragePart(10);
 		bodyPart.setParent(5);
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntityParentPartial.PARENT_AVAILABLE, EntityParentPartial.GET_PARENT_ENTITY
@@ -108,9 +108,11 @@ class EntityParentPartialTest {
 
 		final Optional<EntityClassifierWithParent> parentEntity = proxy.getParentEntity();
 		assertTrue(
-			parentEntity.isEmpty(),
-			"getParentEntity() should return empty Optional since expression evaluation doesn't need parent entity traversal"
+			parentEntity.isPresent(),
+			"getParentEntity() should return present Optional with EntityReferenceWithParent"
 		);
+		assertEquals("Category", parentEntity.get().getType());
+		assertEquals(Integer.valueOf(5), parentEntity.get().getPrimaryKey());
 	}
 
 	@Test
@@ -122,7 +124,7 @@ class EntityParentPartialTest {
 		final EntityBodyStoragePart bodyPart = new EntityBodyStoragePart(10);
 		// parent is null by default
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state, EntityParentPartial.PARENT_AVAILABLE, EntityParentPartial.GET_PARENT_ENTITY
@@ -141,7 +143,7 @@ class EntityParentPartialTest {
 		final EntityBodyStoragePart bodyPart = new EntityBodyStoragePart(10);
 		bodyPart.setParent(5);
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		// verify that the proxy state correctly exposes the parent PK through the body part
 		final Integer parentPk = state.bodyPartOrThrowException().getParent();
@@ -154,8 +156,12 @@ class EntityParentPartialTest {
 
 		assertTrue(proxy.parentAvailable(), "parentAvailable() should return true");
 		assertTrue(
-			proxy.getParentEntity().isEmpty(),
-			"getParentEntity() should return empty since expression proxy doesn't traverse hierarchy"
+			proxy.getParentEntity().isPresent(),
+			"getParentEntity() should return EntityReferenceWithParent when parent is set"
+		);
+		assertEquals(
+			Integer.valueOf(5), proxy.getParentEntity().get().getPrimaryKey(),
+			"Parent entity PK should be 5"
 		);
 	}
 
@@ -168,7 +174,7 @@ class EntityParentPartialTest {
 		final EntityBodyStoragePart bodyPart = new EntityBodyStoragePart(10);
 		// parent is null by default — do not call setParent
 
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		// verify that the proxy state correctly reports null parent through the body part
 		assertNull(state.bodyPartOrThrowException().getParent(), "Parent should be null when not set");

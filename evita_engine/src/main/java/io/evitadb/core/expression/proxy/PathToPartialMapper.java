@@ -155,6 +155,11 @@ public final class PathToPartialMapper {
 		if (EntityContractAccessor.REFERENCES_PROPERTY.equals(property)) {
 			processReferencePath(path, ctx);
 		}
+
+		// handle parent entity sub-path processing (e.g., $entity.parentEntity.attributes['code'])
+		if (EntityContractAccessor.PARENT_ENTITY_PROPERTY.equals(property) || "parent".equals(property)) {
+			processParentEntitySubPath(path, ctx);
+		}
 	}
 
 	/**
@@ -196,7 +201,16 @@ public final class PathToPartialMapper {
 				processAssociatedDataPath(path, depth, acc);
 			case EntityContractAccessor.LOCALIZED_ASSOCIATED_DATA_PROPERTY ->
 				processLocalizedAssociatedDataPath(path, depth, acc);
-			// references on nested entities are not supported (would require another level of nesting)
+			case EntityContractAccessor.REFERENCES_PROPERTY -> {
+				acc.needsReferences = true;
+				acc.partials.add(EntityReferencesPartial.GET_REFERENCES_BY_NAME);
+				acc.partials.add(EntityReferencesPartial.GET_REFERENCE);
+				acc.partials.add(EntityReferencesPartial.GET_ALL_REFERENCES);
+				acc.partials.add(EntityReferencesPartial.REFERENCES_AVAILABLE);
+			}
+			// nested entity -> reference -> nested entity (2-level nesting) is not supported;
+			// references on nested entities return real storage objects whose attributes are available
+			// but whose referencedEntity/groupEntity are not loaded
 			default -> {
 				// unknown property — will be handled by CatchAllPartial at runtime
 			}
@@ -306,6 +320,26 @@ public final class PathToPartialMapper {
 	}
 
 	/**
+	 * Processes a parent entity sub-path (`$entity.parentEntity.{property}...`). If the path contains items
+	 * beyond the `parentEntity` property itself, the nested entity accumulator is populated so that a parent
+	 * entity proxy can be instantiated at trigger time.
+	 *
+	 * @param path the full path
+	 * @param ctx  the mutable mapping context
+	 */
+	private static void processParentEntitySubPath(
+		@Nonnull List<PathItem> path,
+		@Nonnull MappingContext ctx
+	) {
+		// sub-path starts at index 2: $entity.parentEntity.{property}
+		//                                0       1            2
+		if (path.size() >= 3 && path.get(2) instanceof IdentifierPathItem nestedProp) {
+			ctx.needsParentEntityProxy = true;
+			processEntityProperty(nestedProp.value(), path, 2, ctx.parentEntityAcc);
+		}
+	}
+
+	/**
 	 * Processes a `$reference` variable path. The `$reference` variable accesses the reference directly (without going
 	 * through `$entity.references['name']`), so we activate reference partials and process the reference property
 	 * at path index 1.
@@ -318,6 +352,9 @@ public final class PathToPartialMapper {
 		@Nonnull MappingContext ctx
 	) {
 		ctx.hasReferencePartials = true;
+		// the instantiator needs the references storage part to locate the specific reference by key
+		// and extract its attributes, group, and nested entity data for the reference proxy
+		ctx.entityAcc.needsReferences = true;
 
 		if (path.size() >= 2 && path.get(1) instanceof IdentifierPathItem refProperty) {
 			// nested entity property is at index 2: $reference.referencedEntity.attributes
@@ -404,6 +441,9 @@ public final class PathToPartialMapper {
 	 * @param groupEntityPartials        array of partials for the nested group entity proxy, or `null`
 	 * @param referencedEntityRecipe     recipe for fetching storage parts of the nested referenced entity, or `null`
 	 * @param groupEntityRecipe          recipe for fetching storage parts of the nested group entity, or `null`
+	 * @param needsParentEntityProxy     whether the entity proxy needs a nested parent entity proxy
+	 * @param parentEntityPartials       array of partials for the nested parent entity proxy, or `null`
+	 * @param parentEntityRecipe         recipe for fetching storage parts of the nested parent entity, or `null`
 	 */
 	public record MappingResult(
 		@Nonnull PredicateMethodClassification<?, ?, ?>[] entityPartials,
@@ -414,7 +454,10 @@ public final class PathToPartialMapper {
 		@Nullable PredicateMethodClassification<?, ?, ?>[] referencedEntityPartials,
 		@Nullable PredicateMethodClassification<?, ?, ?>[] groupEntityPartials,
 		@Nullable StoragePartRecipe referencedEntityRecipe,
-		@Nullable StoragePartRecipe groupEntityRecipe
+		@Nullable StoragePartRecipe groupEntityRecipe,
+		boolean needsParentEntityProxy,
+		@Nullable PredicateMethodClassification<?, ?, ?>[] parentEntityPartials,
+		@Nullable StoragePartRecipe parentEntityRecipe
 	) {
 
 	}
@@ -502,8 +545,10 @@ public final class PathToPartialMapper {
 		boolean hasReferencePartials;
 		boolean needsReferencedEntityProxy;
 		boolean needsGroupEntityProxy;
+		boolean needsParentEntityProxy;
 		final EntityMappingAccumulator referencedEntityAcc = new EntityMappingAccumulator();
 		final EntityMappingAccumulator groupEntityAcc = new EntityMappingAccumulator();
+		final EntityMappingAccumulator parentEntityAcc = new EntityMappingAccumulator();
 
 		/**
 		 * Builds the final {@link MappingResult} by appending always-included partials and constructing the recipe.
@@ -527,12 +572,17 @@ public final class PathToPartialMapper {
 				this.needsReferencedEntityProxy ? this.referencedEntityAcc.buildRecipe() : null;
 			final StoragePartRecipe grpEntityRecipe =
 				this.needsGroupEntityProxy ? this.groupEntityAcc.buildRecipe() : null;
+			final PredicateMethodClassification<?, ?, ?>[] parentEntityPartials =
+				this.needsParentEntityProxy ? this.parentEntityAcc.buildEntityPartials() : null;
+			final StoragePartRecipe parentEntityRecipe =
+				this.needsParentEntityProxy ? this.parentEntityAcc.buildRecipe() : null;
 
 			return new MappingResult(
 				entityArray, referenceArray, recipe,
 				this.needsReferencedEntityProxy, this.needsGroupEntityProxy,
 				refEntityPartials, grpEntityPartials,
-				refEntityRecipe, grpEntityRecipe
+				refEntityRecipe, grpEntityRecipe,
+				this.needsParentEntityProxy, parentEntityPartials, parentEntityRecipe
 			);
 		}
 

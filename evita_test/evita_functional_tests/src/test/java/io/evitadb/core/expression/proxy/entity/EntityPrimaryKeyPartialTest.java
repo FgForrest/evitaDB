@@ -85,7 +85,7 @@ class EntityPrimaryKeyPartialTest {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
 		final EntityBodyStoragePart bodyPart = new EntityBodyStoragePart(42);
-		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, bodyPart, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(
 			state,
@@ -105,13 +105,13 @@ class EntityPrimaryKeyPartialTest {
 
 		// Test with PK=0
 		final EntityBodyStoragePart bodyPartZero = new EntityBodyStoragePart(0);
-		final EntityProxyState stateZero = new EntityProxyState(mockSchema, bodyPartZero, null, null, null, null);
+		final EntityProxyState stateZero = new EntityProxyState(mockSchema, bodyPartZero, null, null, null, null, null);
 		final EntityContract proxyZero = createEntityProxy(stateZero, EntityPrimaryKeyPartial.GET_PRIMARY_KEY);
 		assertEquals(0, proxyZero.getPrimaryKey(), "getPrimaryKey() should return 0");
 
 		// Test with PK=Integer.MAX_VALUE
 		final EntityBodyStoragePart bodyPartMax = new EntityBodyStoragePart(Integer.MAX_VALUE);
-		final EntityProxyState stateMax = new EntityProxyState(mockSchema, bodyPartMax, null, null, null, null);
+		final EntityProxyState stateMax = new EntityProxyState(mockSchema, bodyPartMax, null, null, null, null, null);
 		final EntityContract proxyMax = createEntityProxy(stateMax, EntityPrimaryKeyPartial.GET_PRIMARY_KEY);
 		assertEquals(Integer.MAX_VALUE, proxyMax.getPrimaryKey(), "getPrimaryKey() should return Integer.MAX_VALUE");
 	}
@@ -121,7 +121,7 @@ class EntityPrimaryKeyPartialTest {
 	void shouldThrowExceptionWhenBodyPartIsNull() {
 		final EntitySchemaContract mockSchema = mock(EntitySchemaContract.class);
 		when(mockSchema.getName()).thenReturn("Product");
-		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null);
+		final EntityProxyState state = new EntityProxyState(mockSchema, null, null, null, null, null, null);
 
 		final EntityContract proxy = createEntityProxy(state, EntityPrimaryKeyPartial.GET_PRIMARY_KEY);
 
