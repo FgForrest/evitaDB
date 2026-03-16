@@ -31,6 +31,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressorView;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
@@ -251,6 +252,14 @@ public class OffsetIndex {
 	 */
 	private OffsetIndexDescriptor fileOffsetDescriptor;
 	/**
+	 * Lazily cached read-only view over the current
+	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor} held by
+	 * {@link #fileOffsetDescriptor}. The view delegates all read-only methods directly to the live write compressor
+	 * while preventing mutation via {@link KeyCompressor#getId(Comparable)}. This field is reset to {@code null}
+	 * whenever {@link #fileOffsetDescriptor} is reassigned so that a stale view is never served.
+	 */
+	@Nullable private ReadOnlyKeyCompressorView readOnlyKeyCompressorView;
+	/**
 	 * Main index that keeps track of record keys file locations. Used for persisted record reading.
 	 * This map is completely replaced on each flush, so it could be "non-concurrent" map.
 	 */
@@ -332,6 +341,7 @@ public class OffsetIndex {
 		this.checksumFactory = checksumFactory;
 		this.compressionFactory = compressionFactory;
 		this.fileOffsetDescriptor = fileOffsetDescriptor;
+		this.readOnlyKeyCompressorView = null;
 		this.recordTypeRegistry = recordTypeRegistry;
 		this.volatileValues = new VolatileValues(
 			nonFlushedBlockObserver == null ? nonFlushedBlock -> {
@@ -443,6 +453,7 @@ public class OffsetIndex {
 			this.totalSizeBytes.set(fileOffsetIndexBuilder.getTotalSizeBytes());
 			this.maxRecordSizeBytes.set(fileOffsetIndexBuilder.getMaxSizeBytes());
 			this.fileOffsetDescriptor = offsetIndexDescriptorFactory.apply(fileOffsetIndexBuilder, input);
+			this.readOnlyKeyCompressorView = null;
 			this.keyCatalogVersion = catalogVersion;
 			this.readKryoPool = new FileOffsetIndexKryoPool(
 				maxOpenedReadHandlesOrDefault,
@@ -509,6 +520,7 @@ public class OffsetIndex {
 		this.totalSizeBytes.set(previousOffsetIndex.totalSizeBytes.get());
 		this.maxRecordSizeBytes.set(previousOffsetIndex.getMaxRecordSizeBytes());
 		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
+		this.readOnlyKeyCompressorView = null;
 		this.keyCatalogVersion = catalogVersion;
 		this.readKryoPool = new FileOffsetIndexKryoPool(
 			maxOpenedReadHandlesOrDefault,
@@ -532,10 +544,17 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns readable instance of key compressor.
+	 * Returns a read-only view over the live write key compressor. The view is lazily cached and invalidated
+	 * whenever {@link #fileOffsetDescriptor} is reassigned.
 	 */
+	@Nonnull
 	public KeyCompressor getReadOnlyKeyCompressor() {
-		return this.fileOffsetDescriptor.getReadOnlyKeyCompressor();
+		ReadOnlyKeyCompressorView result = this.readOnlyKeyCompressorView;
+		if (result == null) {
+			result = new ReadOnlyKeyCompressorView(this.fileOffsetDescriptor.getWriteKeyCompressor());
+			this.readOnlyKeyCompressorView = result;
+		}
+		return result;
 	}
 
 	/**
@@ -830,6 +849,7 @@ public class OffsetIndex {
 		assertOperative();
 		this.keyCatalogVersion = catalogVersion;
 		this.fileOffsetDescriptor = doFlush(catalogVersion, this.fileOffsetDescriptor, false);
+		this.readOnlyKeyCompressorView = null;
 		return this.fileOffsetDescriptor;
 	}
 
@@ -948,6 +968,7 @@ public class OffsetIndex {
 					this.fileOffsetDescriptor,
 					true
 				);
+				this.readOnlyKeyCompressorView = null;
 				return this.fileOffsetDescriptor.fileLocation();
 			} else {
 				throw new GenericEvitaInternalError("OffsetIndex is already being closed!");
@@ -1304,6 +1325,7 @@ public class OffsetIndex {
 							getActiveRecordShare(this.lastSyncedPosition),
 							this.lastSyncedPosition
 						);
+						this.readOnlyKeyCompressorView = null;
 						this.readKryoPool.expireAllPreviouslyCreated();
 					}
 					return null;
