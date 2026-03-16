@@ -459,6 +459,12 @@
 				</plugins>
 			</build>
 		</profile>
+		<profile>
+			<id>intellij-idea-only</id>
+			<build>
+				<directory>${project.basedir}/out</directory>
+			</build>
+		</profile>
 	</profiles>
 	<build>
 		<pluginManagement>
