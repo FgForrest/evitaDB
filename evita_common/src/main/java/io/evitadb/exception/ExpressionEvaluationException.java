@@ -25,7 +25,9 @@ package io.evitadb.exception;
 
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
+import java.io.Serializable;
 
 /**
  * Represents an exception that occurs during the evaluation of an expression.
@@ -47,6 +49,38 @@ public class ExpressionEvaluationException extends EvitaInvalidUsageException {
 
 	public ExpressionEvaluationException(@Nonnull String publicMessage) {
 		super(publicMessage, publicMessage);
+	}
+
+	/**
+	 * Asserts that the given operand is non-null and {@link Comparable}, throwing
+	 * an {@link ExpressionEvaluationException} with a descriptive message if not.
+	 *
+	 * This helper consolidates the two-step validation (null check + type check) that
+	 * is repeated in every comparison operator (`>`, `>=`, `<`, `<=`).
+	 *
+	 * @param value        the computed operand value
+	 * @param operatorName the human-readable operator name (e.g. "Greater than")
+	 * @param side         "left" or "right"
+	 */
+	public static void assertComparableOperand(
+		@Nullable Serializable value,
+		@Nonnull String operatorName,
+		@Nonnull String side
+	) {
+		if (value == null) {
+			throw new ExpressionEvaluationException(
+				operatorName + " function " + side + " operand evaluated to null"
+					+ " — the referenced data may be missing or not yet available.",
+				operatorName + " function " + side + " operand must not be null."
+			);
+		}
+		if (!(value instanceof Comparable)) {
+			throw new ExpressionEvaluationException(
+				operatorName + " function " + side + " operand of type "
+					+ value.getClass().getSimpleName() + " must be comparable!",
+				operatorName + " function operand must be comparable!"
+			);
+		}
 	}
 
 }

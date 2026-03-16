@@ -31,7 +31,6 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -70,15 +69,9 @@ public class GreaterThanOperator implements BooleanOperator {
 	@Override
 	public Boolean compute(@Nonnull ExpressionEvaluationContext context) {
 		final Serializable value1 = this.leftOperator.compute(context);
-		Assert.isTrue(
-			value1 instanceof Comparable,
-			() -> new ExpressionEvaluationException("Greater than function operand must be comparable!")
-		);
+		ExpressionEvaluationException.assertComparableOperand(value1, "Greater than", "left");
 		final Serializable value2 = this.rightOperator.compute(context);
-		Assert.isTrue(
-			value2 instanceof Comparable,
-			() -> new ExpressionEvaluationException("Greater than function operand must be comparable!")
-		);
+		ExpressionEvaluationException.assertComparableOperand(value2, "Greater than", "right");
 		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked
 		return ((Comparable) value1).compareTo(convertedValue2) > 0;
