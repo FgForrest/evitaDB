@@ -25,6 +25,7 @@ package io.evitadb.core.expression.proxy;
 
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -274,7 +275,7 @@ public final class ExpressionProxyInstantiator {
 		final AttributeValue[] sortedAttrs = attrValues.toArray(new AttributeValue[0]);
 		Arrays.sort(sortedAttrs);
 
-		final GroupEntityReference group = matchingRef.getGroup().orElse(null);
+		final GroupEntityReference group = matchingRef.getGroup().filter(Droppable::exists).orElse(null);
 		final Set<Locale> attributeLocales = matchingRef.getAttributeLocales();
 
 		// wire nested referenced entity proxy

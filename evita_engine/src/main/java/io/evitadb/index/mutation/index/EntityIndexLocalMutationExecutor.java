@@ -2112,6 +2112,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					scope, getStoragePartExistingDataFactory()
 				);
 			}
+			// defer re-evaluation — removing the group may change the expression result
+			if (hasFacetExpressionTriggers()) {
+				final String mutatedRefName = referenceKey.referenceName();
+				deferFacetReEvaluation(
+					() -> ReferenceIndexMutator.reEvaluateFacetExpressions(
+						entityIndex, this, epk,
+						trigger -> mutatedRefName.equals(trigger.getReferenceName())
+					)
+				);
+			}
 		} else {
 			if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
 				final AttributeMutation attributeMutation = referenceAttributesUpdateMutation.getAttributeMutation();
