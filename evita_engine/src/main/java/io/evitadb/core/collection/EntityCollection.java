@@ -2503,7 +2503,9 @@ public final class EntityCollection implements
 			entityMutation.expects(),
 			this.catalog::getInternalSchema,
 			this::getInternalSchema,
-			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType).orElse(null),
+			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType)
+				.map(EntityCollection::getDataStoreReader)
+				.orElse(null),
 			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation
 		);
@@ -2519,7 +2521,13 @@ public final class EntityCollection implements
 			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity(),
 			() -> this.catalog.getExpressionTriggerRegistry(),
 			(referenceName, scope) -> this.catalog.getExpressionTriggerRegistry()
-				.getLocalTrigger(entityType, referenceName, scope)
+				.getLocalTrigger(entityType, referenceName, scope),
+			otherEntityType -> this.catalog.getCollectionForEntityInternal(otherEntityType)
+				.map(EntityCollection::getInternalSchema)
+				.orElseThrow(() -> new IllegalStateException(
+					"No entity collection found for entity type `" + otherEntityType + "` " +
+						"while resolving schema for cross-entity expression evaluation."
+				))
 		);
 
 		return localMutationExecutorCollector.execute(

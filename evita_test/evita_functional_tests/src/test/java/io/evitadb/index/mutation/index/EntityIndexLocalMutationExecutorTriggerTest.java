@@ -277,6 +277,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			false,
 			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
 			registrySupplier,
+			null,
 			null
 		);
 	}
@@ -1205,7 +1206,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			false,
 			() -> { throw new UnsupportedOperationException("Not used in trigger test."); },
 			registrySupplier,
-			localTriggerSupplier
+			localTriggerSupplier,
+			null
 		);
 	}
 

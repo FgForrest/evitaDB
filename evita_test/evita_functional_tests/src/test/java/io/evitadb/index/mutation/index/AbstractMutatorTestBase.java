@@ -129,6 +129,7 @@ abstract class AbstractMutatorTestBase {
 				throw new UnsupportedOperationException("Not supported in the test.");
 			},
 			null,
+			null,
 			null
 		);
 

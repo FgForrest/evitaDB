@@ -896,6 +896,11 @@ public final class ContainerizedLocalMutationExecutor
 	 * returns a cached entity storage part or fetches it from the data store if it's not cached.
 	 * Additionally, it validates the existence of the entity based on the expectation provided.
 	 *
+	 * When the requested `entityType` differs from the entity type being mutated by this executor,
+	 * the method delegates to the cross-entity data store reader without caching. This enables
+	 * expression evaluation proxies to transparently read storage parts from referenced or group
+	 * entity collections.
+	 *
 	 * @param entityType the type of the entity being retrieved
 	 * @param entityPrimaryKey the primary key of the entity to retrieve
 	 * @param expects the expected existence state of the entity, which could be MUST_EXIST or MUST_NOT_EXIST
@@ -908,70 +913,100 @@ public final class ContainerizedLocalMutationExecutor
 		int entityPrimaryKey,
 		@Nonnull EntityExistence expects
 	) {
-		// if entity container is already present - return it quickly
-		return ofNullable(getCachedEntityStorageContainer(entityPrimaryKey))
-			// when not
-			.orElseGet(() -> {
-				// read it from mem table
-				return cacheEntityStorageContainer(
+		if (this.entityType.equals(entityType) && this.entityPrimaryKey == entityPrimaryKey) {
+			// same entity — use cached approach
+			return ofNullable(getCachedEntityStorageContainer(entityPrimaryKey))
+				.orElseGet(() -> cacheEntityStorageContainer(
 					entityPrimaryKey,
 					ofNullable(this.dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class))
 						.map(it -> {
-							// if it was found, verify whether it was expected
 							if (expects == EntityExistence.MUST_NOT_EXIST && !it.isMarkedForRemoval()) {
 								throw new InvalidMutationException(
-									"There is already entity " + entityType + " with primary key " +
-										entityPrimaryKey + " present! Please fetch this entity and perform update " +
-										"operation on top of it."
+									"There is already entity " + entityType + " with primary key "
+										+ entityPrimaryKey + " present! Please fetch this entity and perform"
+										+ " update operation on top of it."
 								);
 							} else if (expects == EntityExistence.MUST_EXIST && it.isMarkedForRemoval()) {
 								throw new InvalidMutationException(
-									"There is no entity " + entityType + " with primary key " +
-										entityPrimaryKey + " present! This means, that you're probably trying to update " +
-										"entity that has been already removed!"
+									"There is no entity " + entityType + " with primary key "
+										+ entityPrimaryKey + " present! This means, that you're probably"
+										+ " trying to update entity that has been already removed!"
 								);
 							}
 							return it;
 						})
 						.orElseGet(() -> {
-							// if it was not found, verify whether it was expected
 							if (expects == EntityExistence.MUST_EXIST) {
 								throw new InvalidMutationException(
-									"There is no entity " + entityType + " with primary key " +
-										entityPrimaryKey + " present! This means, that you're probably trying to update " +
-										"entity that has been already removed!"
+									"There is no entity " + entityType + " with primary key "
+										+ entityPrimaryKey + " present! This means, that you're probably"
+										+ " trying to update entity that has been already removed!"
 								);
 							} else {
-								// create new container for the entity
 								return new EntityBodyStoragePart(entityPrimaryKey);
 							}
 						})
-				);
-			});
+				));
+		} else {
+			// different entity (cross-entity or same-type parent) — non-cached read
+			final DataStoreReader reader = this.entityType.equals(entityType)
+				? this.dataStoreReader
+				: getCrossEntityDataStoreReader(entityType);
+			return ofNullable(reader.fetch(this.catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class))
+				.orElseGet(() -> new EntityBodyStoragePart(entityPrimaryKey));
+		}
+	}
+
+	/**
+	 * Resolves the {@link DataStoreReader} for a different entity type using the cross-entity reader accessor.
+	 * Used for cross-entity expression evaluation where storage parts (attributes, references, etc.) of
+	 * a referenced or group entity need to be read from their own collection.
+	 *
+	 * The returned reader is the target collection's data store buffer, which provides access to both
+	 * persistent storage and uncommitted changes within the current session.
+	 *
+	 * @param entityType the entity type to resolve the reader for
+	 * @return a non-null data store reader for the specified entity type
+	 * @throws GenericEvitaInternalError if no collection exists for the specified entity type
+	 */
+	@Nonnull
+	private DataStoreReader getCrossEntityDataStoreReader(@Nonnull String entityType) {
+		final DataStoreReader reader = this.dataStoreReaderAccessor.apply(entityType);
+		if (reader == null) {
+			throw new GenericEvitaInternalError(
+				"Data store reader for entity type `" + entityType + "` not found. " +
+					"This is required for cross-entity expression evaluation."
+			);
+		}
+		return reader;
 	}
 
 	@Nonnull
 	@Override
 	public AttributesStoragePart getAttributeStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
-		// if attributes container is already present - return it quickly
-		return ofNullable(getCachedAttributeStorageContainer(entityPrimaryKey))
-			// when not
-			.orElseGet(
-				() -> {
-					// try to compute container id (keyCompressor must already recognize the EntityAttributesSetKey)
-					final EntityAttributesSetKey globalAttributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, null);
+		if (this.entityType.equals(entityType) && this.entityPrimaryKey == entityPrimaryKey) {
+			// same entity — use cached approach
+			return ofNullable(getCachedAttributeStorageContainer(entityPrimaryKey))
+				.orElseGet(() -> {
+					final EntityAttributesSetKey key = new EntityAttributesSetKey(entityPrimaryKey, null);
 					return cacheAttributeStorageContainer(
 						entityPrimaryKey,
 						ofNullable(this.dataStoreReader.fetch(
-							this.catalogVersion, globalAttributeSetKey,
-							AttributesStoragePart.class,
-							AttributesStoragePart::computeUniquePartId
-						))
-							// when not found in storage - create new container
-							.orElseGet(() -> new AttributesStoragePart(entityPrimaryKey))
+							this.catalogVersion, key,
+							AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
+						)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey))
 					);
-				}
-			);
+				});
+		} else {
+			// different entity (cross-entity or same-type parent) — non-cached read
+			final DataStoreReader reader = this.entityType.equals(entityType)
+				? this.dataStoreReader
+				: getCrossEntityDataStoreReader(entityType);
+			final EntityAttributesSetKey key = new EntityAttributesSetKey(entityPrimaryKey, null);
+			return ofNullable(reader.fetch(
+				this.catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
+			)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey));
+		}
 	}
 
 	@Nonnull
@@ -979,25 +1014,31 @@ public final class ContainerizedLocalMutationExecutor
 	public AttributesStoragePart getAttributeStoragePart(
 		@Nonnull String entityType, int entityPrimaryKey, @Nonnull Locale locale
 	) {
-		// check existence locale specific attributes index
-		final Map<Locale, AttributesStoragePart> attributesContainer =
-			getOrCreateCachedLocalizedAttributesStorageContainer(entityPrimaryKey);
-		// if attributes container is already present in the index - return it quickly
-		return attributesContainer.computeIfAbsent(
-			locale,
-			language -> {
-				// try to compute container id (keyCompressor must already recognize the EntityAttributesSetKey)
-				final EntityAttributesSetKey localeSpecificAttributeSetKey =
-					new EntityAttributesSetKey(entityPrimaryKey, language);
-				return ofNullable(this.dataStoreReader.fetch(
-					this.catalogVersion, localeSpecificAttributeSetKey,
-					AttributesStoragePart.class,
-					AttributesStoragePart::computeUniquePartId
-				))
-					// when not found in storage - create new container
-					.orElseGet(() -> new AttributesStoragePart(entityPrimaryKey, locale));
-			}
-		);
+		if (this.entityType.equals(entityType) && this.entityPrimaryKey == entityPrimaryKey) {
+			// same entity — use cached approach
+			final Map<Locale, AttributesStoragePart> attributesContainer =
+				getOrCreateCachedLocalizedAttributesStorageContainer(entityPrimaryKey);
+			return attributesContainer.computeIfAbsent(
+				locale,
+				language -> {
+					final EntityAttributesSetKey key =
+						new EntityAttributesSetKey(entityPrimaryKey, language);
+					return ofNullable(this.dataStoreReader.fetch(
+						this.catalogVersion, key,
+						AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
+					)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey, locale));
+				}
+			);
+		} else {
+			// different entity (cross-entity or same-type parent) — non-cached read
+			final DataStoreReader reader = this.entityType.equals(entityType)
+				? this.dataStoreReader
+				: getCrossEntityDataStoreReader(entityType);
+			final EntityAttributesSetKey key = new EntityAttributesSetKey(entityPrimaryKey, locale);
+			return ofNullable(reader.fetch(
+				this.catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
+			)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey, locale));
+		}
 	}
 
 	@Nonnull
@@ -1005,58 +1046,84 @@ public final class ContainerizedLocalMutationExecutor
 	public AssociatedDataStoragePart getAssociatedDataStoragePart(
 		@Nonnull String entityType, int entityPrimaryKey, @Nonnull AssociatedDataKey key
 	) {
-		// check existence locale specific associated data index
-		final Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainer =
-			getOrCreateCachedAssociatedDataStorageContainer(entityPrimaryKey);
-		// if associated data container is already present in the index - return it quickly
-		return associatedDataContainer.computeIfAbsent(
-			key,
-			associatedDataKey -> {
-				// try to compute container id (keyCompressor must already recognize the EntityAssociatedDataKey)
-				final EntityAssociatedDataKey entityAssociatedDataKey = new EntityAssociatedDataKey(
-					entityPrimaryKey, key.associatedDataName(), key.locale()
-				);
-				return ofNullable(this.dataStoreReader.fetch(
-					this.catalogVersion, entityAssociatedDataKey,
-					AssociatedDataStoragePart.class,
-					AssociatedDataStoragePart::computeUniquePartId
-				))
-					// when not found in storage - create new container
-					.orElseGet(() -> new AssociatedDataStoragePart(entityPrimaryKey, associatedDataKey));
-			}
-		);
+		if (this.entityType.equals(entityType) && this.entityPrimaryKey == entityPrimaryKey) {
+			// same entity — use cached approach
+			final Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainer =
+				getOrCreateCachedAssociatedDataStorageContainer(entityPrimaryKey);
+			return associatedDataContainer.computeIfAbsent(
+				key,
+				associatedDataKey -> {
+					final EntityAssociatedDataKey entityKey = new EntityAssociatedDataKey(
+						entityPrimaryKey, key.associatedDataName(), key.locale()
+					);
+					return ofNullable(this.dataStoreReader.fetch(
+						this.catalogVersion, entityKey,
+						AssociatedDataStoragePart.class,
+						AssociatedDataStoragePart::computeUniquePartId
+					)).orElseGet(
+						() -> new AssociatedDataStoragePart(entityPrimaryKey, associatedDataKey)
+					);
+				}
+			);
+		} else {
+			// different entity (cross-entity or same-type parent) — non-cached read
+			final DataStoreReader reader = this.entityType.equals(entityType)
+				? this.dataStoreReader
+				: getCrossEntityDataStoreReader(entityType);
+			final EntityAssociatedDataKey entityKey = new EntityAssociatedDataKey(
+				entityPrimaryKey, key.associatedDataName(), key.locale()
+			);
+			return ofNullable(reader.fetch(
+				this.catalogVersion, entityKey,
+				AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId
+			)).orElseGet(() -> new AssociatedDataStoragePart(entityPrimaryKey, key));
+		}
 	}
 
 	@Nonnull
 	@Override
 	public ReferencesStoragePart getReferencesStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
-		// if reference container is already present - return it quickly
-		return ofNullable(getCachedReferenceStorageContainer(entityPrimaryKey))
-			//when not
-			.orElseGet(
-				() -> cacheReferencesStorageContainer(
+		if (this.entityType.equals(entityType) && this.entityPrimaryKey == entityPrimaryKey) {
+			// same entity — use cached approach
+			return ofNullable(getCachedReferenceStorageContainer(entityPrimaryKey))
+				.orElseGet(() -> cacheReferencesStorageContainer(
 					entityPrimaryKey,
-					ofNullable(this.dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class))
-						// and when not found even there create new container
-						.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
-				)
-			);
+					ofNullable(this.dataStoreReader.fetch(
+						this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+					)).orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
+				));
+		} else {
+			// different entity (cross-entity or same-type parent) — non-cached read
+			final DataStoreReader reader = this.entityType.equals(entityType)
+				? this.dataStoreReader
+				: getCrossEntityDataStoreReader(entityType);
+			return ofNullable(reader.fetch(
+				this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
+			)).orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey));
+		}
 	}
 
 	@Nonnull
 	@Override
 	public PricesStoragePart getPriceStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
-		// if price container is already present - return it quickly
-		return ofNullable(getCachedPricesStorageContainer(entityPrimaryKey))
-			//when not
-			.orElseGet(
-				() -> cachePricesStorageContainer(
+		if (this.entityType.equals(entityType) && this.entityPrimaryKey == entityPrimaryKey) {
+			// same entity — use cached approach
+			return ofNullable(getCachedPricesStorageContainer(entityPrimaryKey))
+				.orElseGet(() -> cachePricesStorageContainer(
 					entityPrimaryKey,
-					ofNullable(this.dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, PricesStoragePart.class))
-						// and when not found even there create new container
-						.orElseGet(() -> new PricesStoragePart(entityPrimaryKey))
-				)
-			);
+					ofNullable(this.dataStoreReader.fetch(
+						this.catalogVersion, entityPrimaryKey, PricesStoragePart.class
+					)).orElseGet(() -> new PricesStoragePart(entityPrimaryKey))
+				));
+		} else {
+			// different entity (cross-entity or same-type parent) — non-cached read
+			final DataStoreReader reader = this.entityType.equals(entityType)
+				? this.dataStoreReader
+				: getCrossEntityDataStoreReader(entityType);
+			return ofNullable(reader.fetch(
+				this.catalogVersion, entityPrimaryKey, PricesStoragePart.class
+			)).orElseGet(() -> new PricesStoragePart(entityPrimaryKey));
+		}
 	}
 
 	@Override
@@ -1091,13 +1158,14 @@ public final class ContainerizedLocalMutationExecutor
 	 * ensures the integrity and order of the data within the storage container after mutations have
 	 * been executed.
 	 */
+	@Override
 	public void finishLocalMutationExecutionPhase() {
 		if (this.referencesStorageContainer != null) {
 			getReferenceKeyManager().processAssignedPrimaryKeys(this.referencesStorageContainer.assignMissingIdsAndSort());
 		}
 		// when scope changes
 		if (this.initialEntityScope != this.entityContainer.getScope()) {
-			// all references are considered as new for the safe of reflected references propagation
+			// all references are considered as new for the sake of reflected references propagation
 			final ReferencesStoragePart rsp = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 			getReferenceKeyManager().markAllReferencesAsCreated(rsp.getReferences());
 		}
@@ -2606,7 +2674,8 @@ public final class ContainerizedLocalMutationExecutor
 							.collect(Collectors.toSet())
 					);
 				}
-				return mandatoryAssociatedData.get().contains(it.getValue().key().associatedDataName());
+				final AssociatedDataValue value = it.getValue();
+				return value != null && mandatoryAssociatedData.get().contains(value.key().associatedDataName());
 			})
 			.map(it -> it.getValue().key())
 			// skip localized associated data whose locale has been dropped from the entity

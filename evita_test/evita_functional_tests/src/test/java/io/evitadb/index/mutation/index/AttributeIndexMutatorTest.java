@@ -426,6 +426,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						false,
 						UNSUPPORTED_OPERATION,
 						null,
+						null,
 						null
 					),
 					null,
@@ -452,6 +453,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.priceIdSequence::incrementAndGet,
 						false,
 						UNSUPPORTED_OPERATION,
+						null,
 						null,
 						null
 					),
@@ -485,6 +487,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				false,
 				UNSUPPORTED_OPERATION,
 				null,
+				null,
 				null
 			),
 			null,
@@ -506,6 +509,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.priceIdSequence::incrementAndGet,
 				false,
 				UNSUPPORTED_OPERATION,
+				null,
 				null,
 				null
 			),
@@ -633,6 +637,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.priceIdSequence::incrementAndGet,
 				false,
 				UNSUPPORTED_OPERATION,
+				null,
 				null,
 				null
 			),

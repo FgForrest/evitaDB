@@ -211,6 +211,7 @@ class LocalMutationExecutorCollector {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
 		this.executors.add(changeCollector);
+		final LocalMutationExecutor[] orderedExecutors = {entityIndexUpdater, changeCollector};
 
 		// add the mutation to the list of mutations, but only for root level mutations
 		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
@@ -268,24 +269,31 @@ class LocalMutationExecutorCollector {
 				this.entityMutations.add(entityMutation);
 			}
 
-			for (LocalMutation<?, ?> localMutation : localMutations) {
-				entityIndexUpdater.applyMutation(localMutation);
-				changeCollector.applyMutation(localMutation);
+			for (final LocalMutation<?, ?> localMutation : localMutations) {
+				for (final LocalMutationExecutor executor : orderedExecutors) {
+					executor.applyMutation(localMutation);
+				}
 			}
-
-			changeCollector.finishLocalMutationExecutionPhase();
+			for (final LocalMutationExecutor executor : orderedExecutors) {
+				executor.finishLocalMutationExecutionPhase();
+			}
 
 			if (!generateImplicitMutations.isEmpty()) {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
 					localMutations, generateImplicitMutations
 				);
 				// immediately apply all local mutations
-				for (LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
-					entityIndexUpdater.applyMutation(localMutation);
-					changeCollector.applyMutation(localMutation);
+				for (final LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
+					for (final LocalMutationExecutor executor : orderedExecutors) {
+						executor.applyMutation(localMutation);
+					}
 				}
+				for (final LocalMutationExecutor executor : orderedExecutors) {
+					executor.finishLocalMutationExecutionPhase();
+				}
+
 				// and for each external mutation - call external collection to apply it
-				for (EntityMutation externalEntityMutations : implicitMutations.externalMutations()) {
+				for (final EntityMutation externalEntityMutations : implicitMutations.externalMutations()) {
 					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externalEntityMutations;
 					this.catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
 						.applyMutations(
@@ -409,7 +417,7 @@ class LocalMutationExecutorCollector {
 		// we need to clean partially applied changes in his isolated indexes so that he doesn't see them
 		// each operation must behave atomically - either all local mutations are applied or none of them - it's
 		// something like a transaction within a transaction
-		for (LocalMutationExecutor executor : this.executors) {
+		for (final LocalMutationExecutor executor : this.executors) {
 			try {
 				executor.rollback();
 			} catch (RuntimeException rollbackEx) {
@@ -433,13 +441,13 @@ class LocalMutationExecutorCollector {
 		// we do not address the situation where only one applicator fails on commit and the others succeed
 		// this is unlikely situation and should cause entire transaction to be rolled back
 		try {
-			for (LocalMutationExecutor executor : this.executors) {
+			for (final LocalMutationExecutor executor : this.executors) {
 				executor.commit();
 			}
 			// register the mutation to the write ahead log
 			Transaction.getTransaction()
 				.ifPresent(it -> {
-					for (EntityMutation mutation : this.entityMutations) {
+					for (final EntityMutation mutation : this.entityMutations) {
 						it.registerMutation(mutation);
 					}
 				});
@@ -447,4 +455,5 @@ class LocalMutationExecutorCollector {
 			this.exception = new TransactionException("Failed to commit local mutations!", ex);
 		}
 	}
+
 }
