@@ -42,10 +42,11 @@ import java.io.Serializable;
  * - {@link ElementAccessStep} for bracket-notation element access (`[index]` or `['key']`)
  * - {@link SpreadAccessStep} for spread/map operations (`.*[expr]`, `.*![expr]`)
  * - {@link NullSafeAccessStep} for optional chaining (`?.`, `?[`)
+ * - {@link MethodInvocationStep} for method invocation (`.method(args)`, `?.method(args)`)
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-public interface ObjectAccessStep extends Serializable {
+public interface ObjectOperationStep extends Serializable {
 
 	@Nullable Serializable compute(
 		@Nonnull ExpressionEvaluationContext context,
@@ -58,5 +59,5 @@ public interface ObjectAccessStep extends Serializable {
 	 * @return The next {@code ObjectAccessStep} in the chain, or {@code null} if this is the final step.
 	 */
 	@Nullable
-	ObjectAccessStep getNext();
+	ObjectOperationStep getNext();
 }

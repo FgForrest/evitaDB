@@ -355,6 +355,18 @@ public class EvitaELBaseListener implements EvitaELListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterMethodAccessExpression(EvitaELParser.MethodAccessExpressionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitMethodAccessExpression(EvitaELParser.MethodAccessExpressionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterElementAccessExpression(EvitaELParser.ElementAccessExpressionContext ctx) { }
 	/**
 	 * {@inheritDoc}

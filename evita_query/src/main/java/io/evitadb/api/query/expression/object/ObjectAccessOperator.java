@@ -38,7 +38,7 @@ import java.io.Serializable;
 
 /**
  * Expression node that evaluates an object access expression in EvitaEL. It combines a source
- * operand expression with a chain of {@link ObjectAccessStep}s to traverse nested data structures.
+ * operand expression with a chain of {@link ObjectOperationStep}s to traverse nested data structures.
  *
  * For example, the expression `$entity.attributes['name']` is represented as an
  * {@link ObjectAccessOperator} where the operand is a variable reference to `$entity` and the
@@ -52,13 +52,13 @@ public class ObjectAccessOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 2269901980432598797L;
 
 	@Nonnull private final ExpressionNode operandOperator;
-	@Nonnull @Getter private final ObjectAccessStep accessChain;
+	@Nonnull @Getter private final ObjectOperationStep accessChain;
 	@Getter
 	private final ExpressionNode[] children;
 
 	public ObjectAccessOperator(
 		@Nonnull ExpressionNode operandOperator,
-		@Nonnull ObjectAccessStep accessChain
+		@Nonnull ObjectOperationStep accessChain
 	) {
 		this.operandOperator = operandOperator;
 		this.accessChain = accessChain;

@@ -210,7 +210,16 @@ public class ExpressionTest {
 			/* 109 */ Arguments.of("5 != null", Map.of(), true, BigDecimalNumberRange.INFINITE),
 			/* 110 */ Arguments.of("null == 'abc'", Map.of(), false, BigDecimalNumberRange.INFINITE),
 			/* 111 */ Arguments.of("null == $var", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
-			/* 112 */ Arguments.of("$var == null", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE)
+			/* 112 */ Arguments.of("$var == null", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
+			/* Collection `any` method */
+			        Arguments.of("$obj.list.any($ > 200)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.list.any($ > 1000)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.list.all($ < 1000)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.list.all($ > 200)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.list.none($ > 1000)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.list.none($ < 1000)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.objectList.any($.attribute != null)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.objectList.any($.attribute == null)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE)
 		);
 	}
 

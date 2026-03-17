@@ -47,7 +47,7 @@ expression
     | variable # variableExpression
     | functionName = IDENTIFIER LPAREN (arguments += expression (COMMA arguments += expression)*)? RPAREN # functionExpression
     | LPAREN nested = expression RPAREN # nestedExpression
-    | operand = operandOperationOperand (elementAccessExpression | propertyAccessExpression | spreadAccessExpression)* # objectAccessExpression
+    | operand = operandOperationOperand (methodAccessExpression | elementAccessExpression | propertyAccessExpression | spreadAccessExpression)* # objectAccessExpression
     | EXCLAMATION_MARK nested = expression # negatingExpression
     | PLUS nested = expression # positiveExpression
     | MINUS nested = expression # negativeExpression
@@ -73,6 +73,10 @@ operandOperationOperand
     : literal # literalCallOperand
     | variable # variableCallOperand
     | LPAREN nested = expression RPAREN # nestedExpressionCallOperand
+    ;
+
+methodAccessExpression
+    : nullSafe = QUESTION_MARK? DOT methodIdentifier = IDENTIFIER LPAREN (arguments += expression (COMMA arguments += expression)*)? RPAREN
     ;
 
 elementAccessExpression

@@ -23,9 +23,12 @@
 
 import io.evitadb.api.query.expression.function.processor.*;
 import io.evitadb.api.query.expression.object.accessor.ObjectElementAccessor;
+import io.evitadb.api.query.expression.object.accessor.ObjectMethodAccessor;
 import io.evitadb.api.query.expression.object.accessor.ObjectPropertyAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.ArrayElementAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.ListElementAccessor;
+import io.evitadb.api.query.expression.object.accessor.common.ArrayMethodAccessor;
+import io.evitadb.api.query.expression.object.accessor.common.ListMethodAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.MapElementAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.DateTimeRangePropertyAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.MapEntryPropertyAccessor;
@@ -38,6 +41,7 @@ module evita.query {
 	uses FunctionProcessor;
 	uses ObjectElementAccessor;
 	uses ObjectPropertyAccessor;
+	uses ObjectMethodAccessor;
 
 	provides FunctionProcessor with
 		AbsFunctionProcessor,
@@ -60,6 +64,10 @@ module evita.query {
 		ListElementAccessor,
 		ArrayElementAccessor,
 		MapElementAccessor;
+
+	provides ObjectMethodAccessor with
+		ListMethodAccessor,
+		ArrayMethodAccessor;
 
 	exports io.evitadb.api.query;
 	exports io.evitadb.api.query.descriptor;

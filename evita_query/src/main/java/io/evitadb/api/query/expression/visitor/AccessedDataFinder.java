@@ -26,7 +26,7 @@ package io.evitadb.api.query.expression.visitor;
 import io.evitadb.api.query.expression.object.ElementAccessStep;
 import io.evitadb.api.query.expression.object.NullSafeAccessStep;
 import io.evitadb.api.query.expression.object.ObjectAccessOperator;
-import io.evitadb.api.query.expression.object.ObjectAccessStep;
+import io.evitadb.api.query.expression.object.ObjectOperationStep;
 import io.evitadb.api.query.expression.object.PropertyAccessStep;
 import io.evitadb.api.query.expression.object.SpreadAccessStep;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
@@ -149,8 +149,9 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 		children[0].accept(this);
 
 		// add steps path
-		ObjectAccessStep step = objectAccessOperator.getAccessChain();
+		ObjectOperationStep step = objectAccessOperator.getAccessChain();
 		do {
+			// todo lho implement method invocation
 			if (step instanceof PropertyAccessStep propertyAccessStep) {
 				path.add(new IdentifierPathItem(propertyAccessStep.getPropertyIdentifier()));
 			} else if (step instanceof ElementAccessStep elementAccessStep) {

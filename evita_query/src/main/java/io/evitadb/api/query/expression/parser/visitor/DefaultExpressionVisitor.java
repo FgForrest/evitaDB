@@ -38,9 +38,10 @@ import io.evitadb.api.query.expression.numeric.NegativeOperator;
 import io.evitadb.api.query.expression.numeric.PositiveOperator;
 import io.evitadb.api.query.expression.numeric.SubtractionOperator;
 import io.evitadb.api.query.expression.object.ElementAccessStep;
+import io.evitadb.api.query.expression.object.MethodInvocationStep;
 import io.evitadb.api.query.expression.object.NullSafeAccessStep;
 import io.evitadb.api.query.expression.object.ObjectAccessOperator;
-import io.evitadb.api.query.expression.object.ObjectAccessStep;
+import io.evitadb.api.query.expression.object.ObjectOperationStep;
 import io.evitadb.api.query.expression.object.PropertyAccessStep;
 import io.evitadb.api.query.expression.object.SpreadAccessStep;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
@@ -102,10 +103,22 @@ public class DefaultExpressionVisitor extends EvitaELBaseVisitor<ExpressionNode>
 		final ExpressionNode operand = ctx.operand.accept(this);
 
 		final int childrenCount = ctx.getChildCount();
-		ObjectAccessStep accessChain = null;
+		ObjectOperationStep accessChain = null;
 		for (int i = childrenCount - 1; i >= 1; i--) {
 			final ParseTree child = ctx.getChild(i);
-			if (child instanceof PropertyAccessExpressionContext propertyAccess) {
+			if (child instanceof MethodAccessExpressionContext methodAccess) {
+				final MethodInvocationStep step = new MethodInvocationStep(
+					methodAccess.methodIdentifier.getText(),
+					methodAccess.arguments.stream().map(it -> it.accept(this)).toList(),
+					accessChain
+				);
+
+				if (methodAccess.nullSafe != null) {
+					accessChain = new NullSafeAccessStep(step);
+				} else {
+					accessChain = step;
+				}
+			} else if (child instanceof PropertyAccessExpressionContext propertyAccess) {
 				final PropertyAccessStep step = new PropertyAccessStep(
 					propertyAccess.propertyIdentifier.getText(),
 					accessChain
