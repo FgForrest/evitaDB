@@ -32,6 +32,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.core.expression.query.NonTranslatableExpressionException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
@@ -283,6 +284,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				REF_PARAM_BY_GROUP_ATTR, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
 					.faceted()
 					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER_GROUP)
 					.facetedPartially(
@@ -323,6 +325,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				REF_PARAM_BY_GROUP_ENTITY_REF_ATTR, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
 					.faceted()
 					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER_GROUP)
 					.facetedPartially(
@@ -355,6 +358,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
 					.faceted()
 					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER_GROUP)
 					.facetedPartially(
@@ -372,6 +376,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				REF_PARAM_BY_MIXED_AND, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
 					.faceted()
 					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER_GROUP)
 					.facetedPartially(
@@ -387,6 +392,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				REF_PARAM_BY_MULTI_SOURCE_OR, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
 					.faceted()
 					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER_GROUP)
 					.facetedPartially(
@@ -402,6 +408,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				REF_PARAM_BY_GROUP_ATTR_SECONDARY, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
 					.faceted()
 					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER_GROUP)
 					.facetedPartially(

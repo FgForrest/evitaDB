@@ -1161,12 +1161,19 @@ void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation) {
   `ReferenceKey(referenceName, facetPK)`), and `getAllPrimaryKeys()` yields owner entity PKs.
   (Confirmed by `FilterByVisitor.getMatchingGroupEntityPrimaryKeys()` which does the reverse
   mapping via `getReferencedPrimaryKeysForIndexPks()`.)
-- **REFERENCED_ENTITY_ATTRIBUTE**: `ReferencedTypeEntityIndex` for `REFERENCED_ENTITY_TYPE`
-  (discriminator = referenceName) → `getAllReferenceIndexes(referencedEntityPK)` returns storage
-  PKs of `ReducedEntityIndex` instances → the facet PK is `mutatedEntityPK` itself, and for
-  each, `getAllPrimaryKeys()` yields owner entity PKs. The group PK for each reference is
-  determined from the `ReducedGroupEntityIndex` structure (the reduced index lives within the
-  group's scope).
+- **REFERENCED_ENTITY_ATTRIBUTE**: resolution splits by whether the reference has groups:
+  - **Grouped references**: `ReferencedTypeEntityIndex` for `REFERENCED_GROUP_ENTITY_TYPE`
+    (discriminator = referenceName) → `getAllTrackedReferencedEntityPrimaryKeys()` returns all
+    group PKs tracked by the index → for each group PK, `getAllReferenceIndexes(groupPK)` returns
+    storage PKs of `ReducedGroupEntityIndex` instances → for each,
+    `getOwnerPKsForReferencedEntity(facetPK)` yields owner entity PKs for the specific facet.
+    The group PK is known from the iteration key — no reverse lookup needed. This approach reads
+    from the reference indexing infrastructure (always maintained) rather than the facet index
+    (which may be empty if the facet was previously removed by an expression flip).
+  - **Ungrouped references**: `ReferencedTypeEntityIndex` for `REFERENCED_ENTITY_TYPE`
+    (discriminator = referenceName) → `getAllReferenceIndexes(referencedEntityPK)` returns storage
+    PKs of `ReducedEntityIndex` instances → the facet PK is `mutatedEntityPK` itself, and for
+    each, `getAllPrimaryKeys()` yields owner entity PKs. The group PK is `null`.
 
 **Target index routing** — same as existing facet mutations:
 
@@ -1471,19 +1478,36 @@ class ReevaluateFacetExpressionExecutor
     /**
      * Resolves affected owner entity PKs and associated facet PKs using the
      * target collection's indexes. Returns a structured result mapping each
-     * reduced index to its (facetPK, groupPK, ownerPKs) tuple.
+     * resolved group to its (facetPK, groupPK, ownerPKs) tuple.
      *
-     * Two-step lookup:
-     * 1. {@code target.getIndexIfExists(REFERENCED_GROUP_ENTITY_TYPE/...)}
+     * Resolution differs by dependency type:
+     *
+     * GROUP_ENTITY_ATTRIBUTE / GROUP_ENTITY_REFERENCE_ATTRIBUTE:
+     * 1. {@code target.getIndexIfExists(REFERENCED_GROUP_ENTITY_TYPE, referenceName)}
      *    → {@link ReferencedTypeEntityIndex}
-     * 2. {@code rtei.getAllReferenceIndexes(mutatedPK)} → {@code int[]} storage PKs
-     * 3. For each storage PK: {@code target.getIndexByPrimaryKeyIfExists(pk)}
-     *    → {@link ReducedGroupEntityIndex} / {@link ReducedEntityIndex}
-     *    — facetPK recovered from {@code EntityIndexKey.discriminator}
-     *      (which is a {@code ReferenceKey(referenceName, facetPK)})
-     *    — groupPK: for GROUP_ENTITY_ATTRIBUTE = mutatedEntityPK;
-     *      for REFERENCED_ENTITY_ATTRIBUTE = from ReducedGroupEntityIndex scope
-     * 4. {@code reducedIndex.getAllPrimaryKeys()} → owner entity PKs
+     * 2. {@code rtei.getAllReferenceIndexes(mutatedEntityPK)} → storage PKs
+     *    (mutatedEntityPK = groupPK)
+     * 3. For each storage PK → {@link ReducedGroupEntityIndex}
+     *    → facetPKs from {@code getReferencedEntityPrimaryKeys()}
+     *    → ownerPKs from {@code getOwnerPKsForReferencedEntity(facetPK)}
+     *
+     * REFERENCED_ENTITY_ATTRIBUTE / REFERENCED_ENTITY_REFERENCE_ATTRIBUTE
+     * (grouped references):
+     * 1. {@code target.getIndexIfExists(REFERENCED_GROUP_ENTITY_TYPE, referenceName)}
+     *    → {@link ReferencedTypeEntityIndex}
+     * 2. {@code rtei.getAllTrackedReferencedEntityPrimaryKeys()} → all group PKs
+     * 3. For each groupPK → {@code getAllReferenceIndexes(groupPK)} → storage PKs
+     *    → {@link ReducedGroupEntityIndex}
+     *    → ownerPKs from {@code getOwnerPKsForReferencedEntity(facetPK)}
+     *    (facetPK = mutatedEntityPK; groupPK known from the iteration key)
+     *
+     * REFERENCED_ENTITY_ATTRIBUTE / REFERENCED_ENTITY_REFERENCE_ATTRIBUTE
+     * (ungrouped references):
+     * 1. {@code target.getIndexIfExists(REFERENCED_ENTITY_TYPE, referenceName)}
+     *    → {@link ReferencedTypeEntityIndex}
+     * 2. {@code rtei.getAllReferenceIndexes(facetPK)} → storage PKs
+     * 3. For each storage PK → {@link ReducedEntityIndex}
+     *    → ownerPKs from {@code getAllPrimaryKeys()}; groupPK = null
      */
     @Nonnull
     private AffectedEntityResolution resolveAffected(
@@ -2001,10 +2025,15 @@ None — all resolved.
 
 5. **No cross-collection index access** — source entity's executor never reaches into the
    target collection's indexes. The executor on the target side resolves affected PKs via
-   two-step lookup: `ReferencedTypeEntityIndex` (type-level, `REFERENCED_GROUP_ENTITY_TYPE`
-   or `REFERENCED_ENTITY_TYPE`) → `getAllReferenceIndexes(mutatedPK)` → reduced-index
-   storage PKs → `ReducedGroupEntityIndex`/`ReducedEntityIndex` → `getAllPrimaryKeys()` →
-   owner entity PKs. Facet PK and group PK are recovered from `EntityIndexKey` discriminators.
+   the `REFERENCED_GROUP_ENTITY_TYPE` or `REFERENCED_ENTITY_TYPE` type-level indexes. For
+   `GROUP_ENTITY_ATTRIBUTE`: `getAllReferenceIndexes(groupPK)` → `ReducedGroupEntityIndex`
+   → facetPKs and ownerPKs. For `REFERENCED_ENTITY_ATTRIBUTE` with groups:
+   `getAllTrackedReferencedEntityPrimaryKeys()` iterates all group PKs, then for each
+   `getAllReferenceIndexes(groupPK)` → `ReducedGroupEntityIndex` →
+   `getOwnerPKsForReferencedEntity(facetPK)`. For ungrouped: `REFERENCED_ENTITY_TYPE` →
+   `getAllReferenceIndexes(facetPK)` → `ReducedEntityIndex` → `getAllPrimaryKeys()`.
+   Group PKs are always resolved from the reference index structure (invariant), never
+   from the facet index (which may be empty after an expression-driven removal).
 
 6. **Thin dispatch path** — `EntityIndexMaintainer` (private inner class of `EntityCollection`)
    implements `IndexMutationTarget` (role interface limiting access to index lookup, schema

@@ -87,8 +87,7 @@ public class IndexMutationExecutorRegistry {
 		@Nonnull M mutation,
 		@Nonnull IndexMutationTarget target
 	) {
-		final IndexMutationExecutor<M> executor =
-			(IndexMutationExecutor<M>) this.executors.get(mutation.getClass());
+		final IndexMutationExecutor<M> executor = (IndexMutationExecutor<M>) this.executors.get(mutation.getClass());
 		Assert.notNull(
 			executor,
 			() -> "No executor registered for mutation type `" + mutation.getClass().getName() + "`."

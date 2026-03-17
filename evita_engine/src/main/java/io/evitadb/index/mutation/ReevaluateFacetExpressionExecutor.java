@@ -42,7 +42,6 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.utils.Assert;
 import org.roaringbitmap.RoaringBitmap;
 
@@ -51,7 +50,6 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
@@ -211,7 +209,8 @@ class ReevaluateFacetExpressionExecutor
 			refSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
 		final ReferencedTypeEntityIndex refTypeIndex = targetReduced
 			? (ReferencedTypeEntityIndex) target.getIndexIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName))
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
+			)
 			: null;
 
 		// add facet entries for entities that should be faceted
@@ -238,9 +237,10 @@ class ReevaluateFacetExpressionExecutor
 	 *   for `REFERENCED_GROUP_ENTITY_TYPE`, then resolves per-facet owner PK bitmaps from each
 	 *   {@link ReducedGroupEntityIndex}
 	 * - **{@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE}** and
-	 *   **{@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}**: looks up
-	 *   `ReferencedTypeEntityIndex` for `REFERENCED_ENTITY_TYPE`, then resolves owner PKs from each
-	 *   `ReducedEntityIndex` and determines the group PK from `FacetReferenceIndex`
+	 *   **{@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}**: for grouped references, iterates
+	 *   `REFERENCED_GROUP_ENTITY_TYPE` to resolve per-group owner PK bitmaps from
+	 *   {@link ReducedGroupEntityIndex}; for ungrouped references, looks up `REFERENCED_ENTITY_TYPE`
+	 *   and uses `groupPK = null`
 	 *
 	 * @param target   limited view of the target collection
 	 * @param mutation the mutation carrying reference name, mutated PK, dependency type, and scope
@@ -311,33 +311,118 @@ class ReevaluateFacetExpressionExecutor
 	/**
 	 * Resolves affected entities for {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} and
 	 * {@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}. The mutated entity is the referenced
-	 * entity — facetPK = mutatedEntityPK, and groupPK is resolved from the `GlobalEntityIndex`'s
-	 * {@link FacetReferenceIndex}.
+	 * entity — facetPK = mutatedEntityPK.
+	 *
+	 * For **grouped references**, the group PK is resolved from the `REFERENCED_GROUP_ENTITY_TYPE` index
+	 * structure (iterating all groups and checking which ones contain the facetPK via
+	 * {@link ReducedGroupEntityIndex#getOwnerPKsForReferencedEntity(int)}). This is correct even when
+	 * the facet was previously removed from the `FacetReferenceIndex` — the group-level reduced indexes
+	 * are always maintained regardless of facet state.
+	 *
+	 * For **ungrouped references**, owner PKs are resolved from `REFERENCED_ENTITY_TYPE` reduced indexes
+	 * with `groupPK = null`.
 	 */
 	@Nonnull
 	private static AffectedEntityResolution resolveForReferencedEntityAttribute(
 		@Nonnull IndexMutationTarget target,
 		@Nonnull ReevaluateFacetExpressionMutation mutation
 	) {
+		final int facetPK = mutation.mutatedEntityPK();
+		final String referenceName = mutation.referenceName();
+		final Scope scope = mutation.scope();
+
+		// check if this reference has group-level indexes
+		final ReferenceSchemaContract refSchema = target.getEntitySchema()
+			.getReference(referenceName)
+			.orElseThrow();
+
+		if (refSchema.getReferencedGroupType() != null) {
+			return resolveForReferencedEntityAttributeWithGroup(target, referenceName, facetPK, scope);
+		}
+
+		return resolveForReferencedEntityAttributeUngrouped(target, referenceName, facetPK, scope);
+	}
+
+	/**
+	 * Resolves affected entities for a **grouped** reference when the referenced entity (facet) changes.
+	 * Uses `REFERENCED_GROUP_ENTITY_TYPE` to iterate all groups and find which ones contain the given
+	 * facetPK, building correct `(facetPK, groupPK, ownerPKs)` tuples from the
+	 * {@link ReducedGroupEntityIndex} structure.
+	 *
+	 * @param target        limited view of the target collection
+	 * @param referenceName name of the reference
+	 * @param facetPK       the mutated referenced entity PK (= facet PK)
+	 * @param scope         the scope of the expression
+	 * @return resolution with per-group owner PK bitmaps
+	 */
+	@Nonnull
+	private static AffectedEntityResolution resolveForReferencedEntityAttributeWithGroup(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName,
+		int facetPK,
+		@Nonnull Scope scope
+	) {
+		final EntityIndex groupTypeRteiIndex = target.getIndexIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName)
+		);
+		if (groupTypeRteiIndex == null) {
+			return AffectedEntityResolution.EMPTY;
+		}
+
+		final ReferencedTypeEntityIndex groupTypeRtei = (ReferencedTypeEntityIndex) groupTypeRteiIndex;
+		final Set<Integer> allGroupPKs = groupTypeRtei.getAllTrackedReferencedEntityPrimaryKeys();
+		if (allGroupPKs.isEmpty()) {
+			return AffectedEntityResolution.EMPTY;
+		}
+
+		final List<AffectedFacetGroup> groups = new ArrayList<>(4);
+
+		for (int groupPK : allGroupPKs) {
+			final int[] storagePKs = groupTypeRtei.getAllReferenceIndexes(groupPK);
+			for (int storagePK : storagePKs) {
+				final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
+				if (reducedIndex instanceof ReducedGroupEntityIndex rgei) {
+					final Bitmap ownerPKs = rgei.getOwnerPKsForReferencedEntity(facetPK);
+					if (ownerPKs != null && !ownerPKs.isEmpty()) {
+						groups.add(new AffectedFacetGroup(facetPK, groupPK, ownerPKs));
+					}
+				}
+			}
+		}
+
+		return new AffectedEntityResolution(groups);
+	}
+
+	/**
+	 * Resolves affected entities for an **ungrouped** reference when the referenced entity (facet) changes.
+	 * Uses `REFERENCED_ENTITY_TYPE` to find owner PKs from `ReducedEntityIndex` instances with
+	 * `groupPK = null`.
+	 *
+	 * @param target        limited view of the target collection
+	 * @param referenceName name of the reference
+	 * @param facetPK       the mutated referenced entity PK (= facet PK)
+	 * @param scope         the scope of the expression
+	 * @return resolution with null group PK
+	 */
+	@Nonnull
+	private static AffectedEntityResolution resolveForReferencedEntityAttributeUngrouped(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName,
+		int facetPK,
+		@Nonnull Scope scope
+	) {
 		final EntityIndex rteiIndex = target.getIndexIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY_TYPE, mutation.scope(), mutation.referenceName()
-			)
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
 		);
 		if (rteiIndex == null) {
 			return AffectedEntityResolution.EMPTY;
 		}
 
 		final ReferencedTypeEntityIndex rtei = (ReferencedTypeEntityIndex) rteiIndex;
-		final int[] storagePKs = rtei.getAllReferenceIndexes(mutation.mutatedEntityPK());
+		final int[] storagePKs = rtei.getAllReferenceIndexes(facetPK);
 		if (storagePKs.length == 0) {
 			return AffectedEntityResolution.EMPTY;
 		}
-
-		final int facetPK = mutation.mutatedEntityPK();
-
-		// resolve group PK from GlobalEntityIndex's FacetIndex
-		final Integer groupPK = resolveGroupPKForFacet(target, mutation.referenceName(), facetPK, mutation.scope());
 
 		final List<AffectedFacetGroup> groups = new ArrayList<>(storagePKs.length);
 
@@ -348,42 +433,11 @@ class ReevaluateFacetExpressionExecutor
 			}
 			final Bitmap ownerPKs = reducedIndex.getAllPrimaryKeys();
 			if (!ownerPKs.isEmpty()) {
-				groups.add(new AffectedFacetGroup(facetPK, groupPK, ownerPKs));
+				groups.add(new AffectedFacetGroup(facetPK, null, ownerPKs));
 			}
 		}
 
 		return new AffectedEntityResolution(groups);
-	}
-
-	/**
-	 * Resolves the group PK for a given facet PK by looking up the `GlobalEntityIndex`'s `FacetIndex` ->
-	 * `FacetReferenceIndex`. Returns `null` for ungrouped facets or if the facet is not currently indexed.
-	 *
-	 * @param target        limited view of the target collection
-	 * @param referenceName name of the reference
-	 * @param facetPK       primary key of the facet (referenced entity)
-	 * @param scope         scope of the expression
-	 * @return group PK, or `null` for ungrouped/not-found facets
-	 */
-	@Nullable
-	private static Integer resolveGroupPKForFacet(
-		@Nonnull IndexMutationTarget target,
-		@Nonnull String referenceName,
-		int facetPK,
-		@Nonnull Scope scope
-	) {
-		final EntityIndex globalIndex = target.getIndexIfExists(
-			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
-		);
-		if (globalIndex == null) {
-			return null;
-		}
-		final Map<String, FacetReferenceIndex> facetingEntities = globalIndex.getFacetingEntities();
-		final FacetReferenceIndex facetRefIndex = facetingEntities.get(referenceName);
-		if (facetRefIndex == null) {
-			return null;
-		}
-		return facetRefIndex.getGroupIdForFacet(facetPK);
 	}
 
 	/**

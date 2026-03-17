@@ -43,6 +43,7 @@ import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -269,6 +270,21 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public boolean isEmpty() {
 		return super.isEmpty() &&
 			this.indexPrimaryKeyCardinality.isEmpty();
+	}
+
+	/**
+	 * Returns an unmodifiable view of all referenced entity primary keys tracked by this index. For a
+	 * `REFERENCED_GROUP_ENTITY_TYPE` index these are the group entity PKs; for a `REFERENCED_ENTITY_TYPE`
+	 * index these are the referenced (facet) entity PKs.
+	 *
+	 * Used by ReevaluateFacetExpressionExecutor to iterate all groups when resolving group PKs
+	 * for {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} dependencies on grouped references.
+	 *
+	 * @return unmodifiable set of all tracked referenced entity primary keys
+	 */
+	@Nonnull
+	public Set<Integer> getAllTrackedReferencedEntityPrimaryKeys() {
+		return this.indexPrimaryKeyCardinality.getAllTrackedReferencedEntityPrimaryKeys();
 	}
 
 	/**
