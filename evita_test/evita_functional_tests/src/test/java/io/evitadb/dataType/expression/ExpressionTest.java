@@ -211,7 +211,7 @@ public class ExpressionTest {
 			/* 110 */ Arguments.of("null == 'abc'", Map.of(), false, BigDecimalNumberRange.INFINITE),
 			/* 111 */ Arguments.of("null == $var", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
 			/* 112 */ Arguments.of("$var == null", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
-			/* Collection `any` method */
+			/* List `any` method */
 			        Arguments.of("$obj.list.any($ > 200)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
 			        Arguments.of("$obj.list.any($ > 1000)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
 			        Arguments.of("$obj.list.all($ < 1000)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
@@ -219,7 +219,14 @@ public class ExpressionTest {
 			        Arguments.of("$obj.list.none($ > 1000)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
 			        Arguments.of("$obj.list.none($ < 1000)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
 			        Arguments.of("$obj.objectList.any($.attribute != null)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.objectList.any($.attribute == null)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE)
+			        Arguments.of("$obj.objectList.any($.attribute == null)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* Array `any` method */
+			        Arguments.of("$obj.arr.any($ > 8.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.arr.any($ > 1000.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.arr.all($ < 1000.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.arr.all($ > 200.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.arr.none($ > 1000.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			        Arguments.of("$obj.arr.none($ < 1000.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE)
 		);
 	}
 
