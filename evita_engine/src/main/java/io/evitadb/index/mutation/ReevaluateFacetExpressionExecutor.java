@@ -233,12 +233,14 @@ class ReevaluateFacetExpressionExecutor
 	 * Resolves affected owner entity PKs and associated facet PKs using the target collection's indexes.
 	 * The resolution path differs by {@link DependencyType}:
 	 *
-	 * - **{@link DependencyType#GROUP_ENTITY_ATTRIBUTE}**: looks up `ReferencedTypeEntityIndex` for
-	 *   `REFERENCED_GROUP_ENTITY_TYPE`, then resolves per-facet owner PK bitmaps from each
+	 * - **{@link DependencyType#GROUP_ENTITY_ATTRIBUTE}** and
+	 *   **{@link DependencyType#GROUP_ENTITY_REFERENCE_ATTRIBUTE}**: looks up `ReferencedTypeEntityIndex`
+	 *   for `REFERENCED_GROUP_ENTITY_TYPE`, then resolves per-facet owner PK bitmaps from each
 	 *   {@link ReducedGroupEntityIndex}
-	 * - **{@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE}**: looks up `ReferencedTypeEntityIndex` for
-	 *   `REFERENCED_ENTITY_TYPE`, then resolves owner PKs from each `ReducedEntityIndex` and determines
-	 *   the group PK from `FacetReferenceIndex`
+	 * - **{@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE}** and
+	 *   **{@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}**: looks up
+	 *   `ReferencedTypeEntityIndex` for `REFERENCED_ENTITY_TYPE`, then resolves owner PKs from each
+	 *   `ReducedEntityIndex` and determines the group PK from `FacetReferenceIndex`
 	 *
 	 * @param target   limited view of the target collection
 	 * @param mutation the mutation carrying reference name, mutated PK, dependency type, and scope
@@ -250,16 +252,18 @@ class ReevaluateFacetExpressionExecutor
 		@Nonnull ReevaluateFacetExpressionMutation mutation
 	) {
 		return switch (mutation.dependencyType()) {
-			case GROUP_ENTITY_ATTRIBUTE -> resolveForGroupEntityAttribute(target, mutation);
-			case REFERENCED_ENTITY_ATTRIBUTE -> resolveForReferencedEntityAttribute(target, mutation);
-			default -> AffectedEntityResolution.EMPTY;
+			case GROUP_ENTITY_ATTRIBUTE, GROUP_ENTITY_REFERENCE_ATTRIBUTE ->
+				resolveForGroupEntityAttribute(target, mutation);
+			case REFERENCED_ENTITY_ATTRIBUTE, REFERENCED_ENTITY_REFERENCE_ATTRIBUTE ->
+				resolveForReferencedEntityAttribute(target, mutation);
 		};
 	}
 
 	/**
-	 * Resolves affected entities for {@link DependencyType#GROUP_ENTITY_ATTRIBUTE}. The mutated entity is the
-	 * group entity — facet PKs are recovered from each {@link ReducedGroupEntityIndex}'s
-	 * `referencedPrimaryKeysIndex`, and groupPK = mutatedEntityPK.
+	 * Resolves affected entities for {@link DependencyType#GROUP_ENTITY_ATTRIBUTE} and
+	 * {@link DependencyType#GROUP_ENTITY_REFERENCE_ATTRIBUTE}. The mutated entity is the group entity —
+	 * facet PKs are recovered from each {@link ReducedGroupEntityIndex}'s `referencedPrimaryKeysIndex`,
+	 * and groupPK = mutatedEntityPK.
 	 */
 	@Nonnull
 	private static AffectedEntityResolution resolveForGroupEntityAttribute(
@@ -305,8 +309,9 @@ class ReevaluateFacetExpressionExecutor
 	}
 
 	/**
-	 * Resolves affected entities for {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE}. The mutated entity is
-	 * the referenced entity — facetPK = mutatedEntityPK, and groupPK is resolved from the `GlobalEntityIndex`'s
+	 * Resolves affected entities for {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} and
+	 * {@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}. The mutated entity is the referenced
+	 * entity — facetPK = mutatedEntityPK, and groupPK is resolved from the `GlobalEntityIndex`'s
 	 * {@link FacetReferenceIndex}.
 	 */
 	@Nonnull
@@ -386,9 +391,11 @@ class ReevaluateFacetExpressionExecutor
 	 * entity. This prevents false positives from unrelated groups/references when the query is evaluated
 	 * against the collection's indexes.
 	 *
-	 * - **{@link DependencyType#GROUP_ENTITY_ATTRIBUTE}**: injects
+	 * - **Group dependency types** ({@link DependencyType#GROUP_ENTITY_ATTRIBUTE},
+	 *   {@link DependencyType#GROUP_ENTITY_REFERENCE_ATTRIBUTE}): inject
 	 *   `groupHaving(entityPrimaryKeyInSet(mutatedPK))` within the matching `referenceHaving` clause
-	 * - **{@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE}**: injects
+	 * - **Referenced entity dependency types** ({@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE},
+	 *   {@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}): inject
 	 *   `entityHaving(entityPrimaryKeyInSet(mutatedPK))` within the matching `referenceHaving` clause
 	 *
 	 * @param triggerFilterBy the pre-translated FilterBy from the trigger
@@ -404,9 +411,12 @@ class ReevaluateFacetExpressionExecutor
 		int mutatedEntityPK,
 		@Nonnull DependencyType dependencyType
 	) {
-		final FilterConstraint pkScope = (dependencyType == DependencyType.GROUP_ENTITY_ATTRIBUTE)
-			? new GroupHaving(new EntityPrimaryKeyInSet(mutatedEntityPK))
-			: new EntityHaving(new EntityPrimaryKeyInSet(mutatedEntityPK));
+		final FilterConstraint pkScope = switch (dependencyType) {
+			case GROUP_ENTITY_ATTRIBUTE, GROUP_ENTITY_REFERENCE_ATTRIBUTE ->
+				new GroupHaving(new EntityPrimaryKeyInSet(mutatedEntityPK));
+			case REFERENCED_ENTITY_ATTRIBUTE, REFERENCED_ENTITY_REFERENCE_ATTRIBUTE ->
+				new EntityHaving(new EntityPrimaryKeyInSet(mutatedEntityPK));
+		};
 
 		// walk FilterBy top-level children to find the matching ReferenceHaving node
 		final FilterConstraint[] topChildren = triggerFilterBy.getChildren();

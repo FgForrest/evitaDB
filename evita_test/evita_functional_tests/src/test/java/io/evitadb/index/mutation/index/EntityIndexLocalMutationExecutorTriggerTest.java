@@ -1128,7 +1128,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 
 			// apply an attribute mutation — this would normally trigger re-evaluation
 			// but since getTriggerFor returns null, the re-evaluation path in
-			// ReferenceIndexMutator.reEvaluateFacetExpressions skips evaluation (line: cachedTrigger == null)
+			// ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes skips evaluation (cachedTrigger == null)
 			final UpsertAttributeMutation mutation = new UpsertAttributeMutation("inputWidgetType", "RADIO");
 			executor.applyMutation(mutation);
 

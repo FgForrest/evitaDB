@@ -1249,7 +1249,7 @@ public interface ReferenceIndexMutator {
 		}
 		if (groupId != null) {
 			for (final FacetGroupIndex groupIndex : facetRefIndex.getGroupedFacets()) {
-				if (groupIndex.getGroupId() == groupId) {
+				if (Objects.equals(groupIndex.getGroupId(), groupId)) {
 					final FacetIdIndex facetIdIndex = groupIndex.getFacetIdIndex(referenceKey.primaryKey());
 					return facetIdIndex != null && facetIdIndex.getRecords().contains(entityPrimaryKey);
 				}
@@ -1403,33 +1403,39 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Re-evaluates facet expressions for all references of the owning entity on a single entity index (global or
-	 * reduced). Called after a non-reference mutation (entity attribute, associated data, parent change) modifies data
-	 * that a facet expression may depend on.
+	 * Re-evaluates facet expressions for all references of the owning entity on **both** the
+	 * {@link EntityIndex global index} and all applicable {@link ReducedEntityIndex} instances. Used from
+	 * all deferred facet re-evaluation call sites to keep both index levels consistent.
 	 *
-	 * For each existing reference whose schema marks it as faceted in the index's scope:
+	 * The method performs a single pass over stored references. For each reference whose trigger matches
+	 * the relevance predicate, it:
 	 *
-	 * 1. obtains the trigger via `executor.getTriggerFor(referenceName, scope)`
-	 * 2. checks whether the trigger depends on the changed data (via `triggerRelevancePredicate`)
-	 * 3. if relevant, evaluates the expression and applies the was/now decision matrix
+	 * 1. evaluates the expression
+	 * 2. applies the was/now decision matrix to the global index
+	 * 3. if the reference schema is indexed at
+	 *    {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level with entity-component indexing,
+	 *    looks up (or creates) the corresponding {@link ReducedEntityIndex} and applies the same decision
+	 *    matrix there
 	 *
-	 * @param index                      the target entity index (global or reduced)
+	 * @param globalIndex                the global entity index (must be a global-scoped index)
 	 * @param executor                   the mutation executor; provides references storage and schema access
 	 * @param entityPrimaryKey           the primary key of the entity owning the references
 	 * @param triggerRelevancePredicate  predicate that returns `true` when a trigger depends on the changed data
 	 */
-	static void reEvaluateFacetExpressions(
-		@Nonnull EntityIndex index,
+	static void reEvaluateFacetExpressionsInAllIndexes(
+		@Nonnull EntityIndex globalIndex,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		int entityPrimaryKey,
 		@Nonnull Predicate<FacetExpressionTrigger> triggerRelevancePredicate
 	) {
-		final Scope scope = index.getIndexKey().scope();
+		final Scope scope = globalIndex.getIndexKey().scope();
 		final ReferencesStoragePart referencesStoragePart = executor.getReferencesStoragePart();
 
 		ReferenceSchemaContract cachedSchema = null;
 		FacetExpressionTrigger cachedTrigger = null;
 		boolean cachedTriggerResolved = false;
+		// cache whether the current schema requires reduced-index facet propagation
+		boolean cachedNeedsReducedIndex = false;
 		for (final ReferenceContract reference : referencesStoragePart.getReferences()) {
 			if (!reference.exists()) {
 				continue;
@@ -1441,6 +1447,9 @@ public interface ReferenceIndexMutator {
 				cachedSchema = executor.getEntitySchema()
 					.getReferenceOrThrowException(referenceKey.referenceName());
 				cachedTriggerResolved = false;
+				cachedNeedsReducedIndex =
+					isIndexedReferenceFor(cachedSchema, scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+						&& isIndexedForEntityComponent(cachedSchema, scope);
 			}
 			if (!cachedSchema.isFacetedInScope(scope)) {
 				continue;
@@ -1459,7 +1468,23 @@ public interface ReferenceIndexMutator {
 				.filter(Droppable::exists)
 				.map(GroupEntityReference::getPrimaryKey)
 				.orElse(null);
-			applyFacetDecisionMatrix(index, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null);
+
+			// apply to global index
+			applyFacetDecisionMatrix(
+				globalIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+			);
+
+			// apply to reduced entity index when the schema requires partitioning-level indexing
+			if (cachedNeedsReducedIndex) {
+				final RepresentativeReferenceKeys bothKeys =
+					executor.getRepresentativeReferenceKeys(referenceKey, true);
+				final ReducedEntityIndex reducedIndex = referenceKey.isKnownInternalPrimaryKey()
+					? getOrCreateReferencedEntityIndex(executor, bothKeys.stored(), scope)
+					: getOrCreateReferencedEntityIndex(executor, bothKeys.current(), scope);
+				applyFacetDecisionMatrix(
+					reducedIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+				);
+			}
 		}
 	}
 

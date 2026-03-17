@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.index.mutation.DependencyType;
 import io.evitadb.index.mutation.EntityIndexMutation;
@@ -2920,9 +2921,10 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Returns the expression trigger for the given reference name, dependency type, and scope. Currently returns
-		 * `null` — trigger infrastructure will be integrated in a downstream WBS when
-		 * `CatalogExpressionTriggerRegistry` is wired into the dispatch path.
+		 * Returns the expression trigger for the given reference name, dependency type, and scope. Delegates to
+		 * the catalog's {@link CatalogExpressionTriggerRegistry#getLocalTrigger} which stores one trigger per
+		 * `(ownerEntityType, referenceName, scope)` triple — cross-entity triggers stored there have a valid
+		 * {@link ExpressionIndexTrigger#getFilterByConstraint()} for index-based evaluation.
 		 */
 		@Nullable
 		@Override
@@ -2931,8 +2933,8 @@ public final class EntityCollection implements
 			@Nonnull DependencyType dependencyType,
 			@Nonnull Scope scope
 		) {
-			// trigger infrastructure will be integrated in a downstream WBS
-			return null;
+			return EntityCollection.this.catalog.getExpressionTriggerRegistry()
+				.getLocalTrigger(EntityCollection.this.getEntityType(), referenceName, scope);
 		}
 
 		/**

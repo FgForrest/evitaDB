@@ -129,12 +129,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private static final IndexImplicitMutations EMPTY_INDEX_IMPLICIT_MUTATIONS =
 		new IndexImplicitMutations(new EntityIndexMutation[0]);
 	/**
-	 * Cross-entity attribute dependency types to iterate when consulting the trigger registry.
-	 * Only entity-level attribute dependencies are relevant for source-side detection.
+	 * Cross-entity dependency types for entity-level attribute changes. When an entity-level attribute
+	 * mutates, the registry is consulted for these dependency types.
 	 */
 	private static final DependencyType[] CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES = {
 		DependencyType.REFERENCED_ENTITY_ATTRIBUTE,
 		DependencyType.GROUP_ENTITY_ATTRIBUTE
+	};
+	/**
+	 * Cross-entity dependency types for reference-level attribute changes. When a reference attribute
+	 * on the mutated entity changes, the registry is consulted for these dependency types.
+	 */
+	private static final DependencyType[] CROSS_ENTITY_REFERENCE_ATTRIBUTE_DEPENDENCY_TYPES = {
+		DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE,
+		DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE
 	};
 	/**
 	 * The {@link EntitySchemaContract#getName()} of the entity type.
@@ -287,7 +295,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Returns `true` if facet expression triggers are installed, meaning that mutations should
 	 * re-evaluate facet indexing expressions. The supplier is set at construction time and its
 	 * presence signals that the catalog uses conditional facet indexing. When this method returns
-	 * `false`, all `reEvaluateFacetExpressions` calls can be skipped because no expressions exist
+	 * `false`, all facet re-evaluation calls can be skipped because no expressions exist
 	 * to evaluate.
 	 *
 	 * @return `true` if facet expression re-evaluation is enabled
@@ -331,7 +339,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * O(1) (three map gets in {@link CatalogExpressionTriggerRegistry#getLocalTrigger}).
 	 *
 	 * Callers that iterate sorted references should cache the result themselves across consecutive references
-	 * of the same type (see `reEvaluateFacetExpressions` and `indexAllFacets` in {@link ReferenceIndexMutator}).
+	 * of the same type (see `reEvaluateFacetExpressionsInAllIndexes` and `indexAllFacets` in
+	 * {@link ReferenceIndexMutator}).
 	 *
 	 * @param referenceName the name of the reference to look up
 	 * @param scope         the scope to look up
@@ -408,10 +417,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Builds {@link IndexImplicitMutations} for the attribute change path. Iterates `inputMutations`
-	 * to find {@link AttributeMutation} instances, extracts attribute names, and consults the trigger
-	 * registry for each unique attribute name. Duplicate attribute names within the batch are
+	 * to find {@link AttributeMutation} and {@link ReferenceAttributeMutation} instances, extracts
+	 * attribute names (and reference names for reference attributes), and consults the trigger
+	 * registry for each unique attribute. Duplicate attribute names within the batch are
 	 * deduplicated — a single trigger firing is sufficient regardless of how many mutations touch the
 	 * same attribute.
+	 *
+	 * Entity-level attributes are looked up against {@link #CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES},
+	 * while reference-level attributes are looked up against
+	 * {@link #CROSS_ENTITY_REFERENCE_ATTRIBUTE_DEPENDENCY_TYPES} with an additional filter on the
+	 * dependent reference name.
 	 *
 	 * @param registry       the trigger registry to consult
 	 * @param entityPK       the primary key of the mutated entity
@@ -425,54 +440,141 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
 	) {
 		Map<String, List<IndexMutation>> mutationsByTargetType = null;
-		// track already-processed attribute names to avoid duplicate trigger firings within a batch
-		Set<String> processedAttributes = null;
+		// track already-processed entity-level attribute names to avoid duplicate trigger firings
+		Set<String> processedEntityAttributes = null;
+		// track already-processed (referenceName, attributeName) pairs for reference attributes
+		Set<String> processedRefAttributes = null;
 
 		for (final LocalMutation<?, ?> mutation : inputMutations) {
-			if (!(mutation instanceof AttributeMutation attributeMutation)) {
-				continue;
-			}
-			final String attributeName = attributeMutation.getAttributeKey().attributeName();
-
-			// deduplicate: skip if this attribute name was already processed in this batch
-			if (processedAttributes != null && processedAttributes.contains(attributeName)) {
-				continue;
-			}
-
-			// consult registry for each cross-entity attribute dependency type
-			for (final DependencyType dependencyType : CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES) {
-				final List<ExpressionIndexTrigger> triggers =
-					registry.getTriggersForAttribute(this.entityType, dependencyType, attributeName);
-				for (final ExpressionIndexTrigger trigger : triggers) {
-					if (mutationsByTargetType == null) {
-						mutationsByTargetType = CollectionUtils.createHashMap(4);
-					}
-					mutationsByTargetType
-						.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4))
-						.add(
-							new ReevaluateFacetExpressionMutation(
-								trigger.getReferenceName(),
-								entityPK,
-								dependencyType,
-								trigger.getScope()
-							)
-						);
+			if (mutation instanceof ReferenceAttributeMutation refAttrMutation) {
+				final String referenceName = refAttrMutation.getReferenceKey().referenceName();
+				final String attributeName = refAttrMutation.getAttributeKey().attributeName();
+				// deduplicate by (referenceName + '\0' + attributeName) to avoid collisions
+				final String deduplicationKey = referenceName + '\0' + attributeName;
+				if (processedRefAttributes != null && processedRefAttributes.contains(deduplicationKey)) {
+					continue;
 				}
-			}
 
-			if (processedAttributes == null) {
-				processedAttributes = CollectionUtils.createHashSet(8);
+				mutationsByTargetType = collectReferenceAttributeTriggers(
+					registry, entityPK, referenceName, attributeName, mutationsByTargetType
+				);
+
+				if (processedRefAttributes == null) {
+					processedRefAttributes = CollectionUtils.createHashSet(8);
+				}
+				processedRefAttributes.add(deduplicationKey);
+			} else if (mutation instanceof AttributeMutation attributeMutation) {
+				final String attributeName = attributeMutation.getAttributeKey().attributeName();
+
+				// deduplicate: skip if this attribute name was already processed in this batch
+				if (processedEntityAttributes != null && processedEntityAttributes.contains(attributeName)) {
+					continue;
+				}
+
+				mutationsByTargetType = collectEntityAttributeTriggers(
+					registry, entityPK, attributeName, mutationsByTargetType
+				);
+
+				if (processedEntityAttributes == null) {
+					processedEntityAttributes = CollectionUtils.createHashSet(8);
+				}
+				processedEntityAttributes.add(attributeName);
 			}
-			processedAttributes.add(attributeName);
 		}
 
 		return groupByTargetEntityType(mutationsByTargetType);
 	}
 
 	/**
+	 * Consults the trigger registry for entity-level attribute dependency types and collects
+	 * {@link ReevaluateFacetExpressionMutation} instances for each matching trigger.
+	 *
+	 * @param registry             the trigger registry to consult
+	 * @param entityPK             the primary key of the mutated entity
+	 * @param attributeName        the entity-level attribute that changed
+	 * @param mutationsByTargetType existing mutations map (may be null, will be lazily created)
+	 * @return the mutations map (possibly newly created)
+	 */
+	@Nullable
+	private Map<String, List<IndexMutation>> collectEntityAttributeTriggers(
+		@Nonnull CatalogExpressionTriggerRegistry registry,
+		int entityPK,
+		@Nonnull String attributeName,
+		@Nullable Map<String, List<IndexMutation>> mutationsByTargetType
+	) {
+		for (final DependencyType dependencyType : CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES) {
+			final List<ExpressionIndexTrigger> triggers =
+				registry.getTriggersForAttribute(this.entityType, dependencyType, attributeName);
+			for (final ExpressionIndexTrigger trigger : triggers) {
+				if (mutationsByTargetType == null) {
+					mutationsByTargetType = CollectionUtils.createHashMap(4);
+				}
+				mutationsByTargetType
+					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4))
+					.add(
+						new ReevaluateFacetExpressionMutation(
+							trigger.getReferenceName(),
+							entityPK,
+							dependencyType,
+							trigger.getScope()
+						)
+					);
+			}
+		}
+		return mutationsByTargetType;
+	}
+
+	/**
+	 * Consults the trigger registry for reference-level attribute dependency types and collects
+	 * {@link ReevaluateFacetExpressionMutation} instances for each matching trigger. Only triggers
+	 * whose {@link ExpressionIndexTrigger#getDependentReferenceName()} matches the mutated reference
+	 * name are included — multiple references on the same entity may share attribute names.
+	 *
+	 * @param registry             the trigger registry to consult
+	 * @param entityPK             the primary key of the mutated entity
+	 * @param referenceName        the reference name on the mutated entity whose attribute changed
+	 * @param attributeName        the reference-level attribute that changed
+	 * @param mutationsByTargetType existing mutations map (may be null, will be lazily created)
+	 * @return the mutations map (possibly newly created)
+	 */
+	@Nullable
+	private Map<String, List<IndexMutation>> collectReferenceAttributeTriggers(
+		@Nonnull CatalogExpressionTriggerRegistry registry,
+		int entityPK,
+		@Nonnull String referenceName,
+		@Nonnull String attributeName,
+		@Nullable Map<String, List<IndexMutation>> mutationsByTargetType
+	) {
+		for (final DependencyType dependencyType : CROSS_ENTITY_REFERENCE_ATTRIBUTE_DEPENDENCY_TYPES) {
+			final List<ExpressionIndexTrigger> triggers =
+				registry.getTriggersForAttribute(this.entityType, dependencyType, attributeName);
+			for (final ExpressionIndexTrigger trigger : triggers) {
+				// filter: only fire if the trigger depends on the same reference that was mutated
+				if (!referenceName.equals(trigger.getDependentReferenceName())) {
+					continue;
+				}
+				if (mutationsByTargetType == null) {
+					mutationsByTargetType = CollectionUtils.createHashMap(4);
+				}
+				mutationsByTargetType
+					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4))
+					.add(
+						new ReevaluateFacetExpressionMutation(
+							trigger.getReferenceName(),
+							entityPK,
+							dependencyType,
+							trigger.getScope()
+						)
+					);
+			}
+		}
+		return mutationsByTargetType;
+	}
+
+	/**
 	 * Builds {@link IndexImplicitMutations} for the entity removal path. Entity removal changes all
-	 * properties to null, so all triggers in {@link #CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES} for the
-	 * entity type fire unconditionally without per-attribute filtering or old-vs-new comparison.
+	 * properties to null, so all triggers — both entity-level attribute and reference-level attribute
+	 * dependency types — fire unconditionally without per-attribute filtering or old-vs-new comparison.
 	 *
 	 * @param registry the trigger registry to consult
 	 * @param entityPK the primary key of the removed entity
@@ -484,8 +586,34 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		int entityPK
 	) {
 		Map<String, List<IndexMutation>> mutationsByTargetType = null;
+		mutationsByTargetType = collectAllTriggersForRemoval(
+			registry, entityPK, CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES, mutationsByTargetType
+		);
+		mutationsByTargetType = collectAllTriggersForRemoval(
+			registry, entityPK, CROSS_ENTITY_REFERENCE_ATTRIBUTE_DEPENDENCY_TYPES, mutationsByTargetType
+		);
+		return groupByTargetEntityType(mutationsByTargetType);
+	}
 
-		for (final DependencyType dependencyType : CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES) {
+	/**
+	 * Iterates the given dependency types and collects all triggers registered for this entity type
+	 * unconditionally (no attribute filtering). Used during entity removal where all attributes
+	 * effectively become null.
+	 *
+	 * @param registry              the trigger registry to consult
+	 * @param entityPK              the primary key of the removed entity
+	 * @param dependencyTypes       the dependency types to iterate
+	 * @param mutationsByTargetType existing mutations map (may be null, will be lazily created)
+	 * @return the mutations map (possibly newly created)
+	 */
+	@Nullable
+	private Map<String, List<IndexMutation>> collectAllTriggersForRemoval(
+		@Nonnull CatalogExpressionTriggerRegistry registry,
+		int entityPK,
+		@Nonnull DependencyType[] dependencyTypes,
+		@Nullable Map<String, List<IndexMutation>> mutationsByTargetType
+	) {
+		for (final DependencyType dependencyType : dependencyTypes) {
 			final List<ExpressionIndexTrigger> triggers =
 				registry.getTriggersFor(this.entityType, dependencyType);
 			for (final ExpressionIndexTrigger trigger : triggers) {
@@ -504,8 +632,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					);
 			}
 		}
-
-		return groupByTargetEntityType(mutationsByTargetType);
+		return mutationsByTargetType;
 	}
 
 	/**
@@ -616,7 +743,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			if (hasFacetExpressionTriggers()) {
 				final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
 				deferFacetReEvaluation(
-					() -> ReferenceIndexMutator.reEvaluateFacetExpressions(
+					() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
 						globalIndex, this, entityPK,
 						FacetExpressionTrigger::usesParent
 					)
@@ -646,7 +773,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
 					final String mutatedRefName = referenceKey.referenceName();
 					deferFacetReEvaluation(
-						() -> ReferenceIndexMutator.reEvaluateFacetExpressions(
+						() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
 							globalIndex, this, entityPK,
 							trigger -> mutatedRefName.equals(trigger.getReferenceName())
 								&& trigger.getLocalReferenceAttributes().contains(mutatedAttrName)
@@ -682,7 +809,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				final String mutatedAttrName = attributeMutation.getAttributeKey().attributeName();
 				final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
 				deferFacetReEvaluation(
-					() -> ReferenceIndexMutator.reEvaluateFacetExpressions(
+					() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
 						globalIndex, this, entityPK,
 						trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
 					)
@@ -694,7 +821,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				final String mutatedDataName = associatedDataMutation.getAssociatedDataKey().associatedDataName();
 				final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
 				deferFacetReEvaluation(
-					() -> ReferenceIndexMutator.reEvaluateFacetExpressions(
+					() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
 						globalIndex, this, entityPK,
 						trigger -> trigger.getLocalAssociatedData().contains(mutatedDataName)
 					)
@@ -2079,7 +2206,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			if (hasFacetExpressionTriggers()) {
 				final String mutatedRefName = referenceKey.referenceName();
 				deferFacetReEvaluation(
-					() -> ReferenceIndexMutator.reEvaluateFacetExpressions(
+					() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
 						entityIndex, this, epk,
 						trigger -> mutatedRefName.equals(trigger.getReferenceName())
 					)
@@ -2116,7 +2243,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			if (hasFacetExpressionTriggers()) {
 				final String mutatedRefName = referenceKey.referenceName();
 				deferFacetReEvaluation(
-					() -> ReferenceIndexMutator.reEvaluateFacetExpressions(
+					() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
 						entityIndex, this, epk,
 						trigger -> mutatedRefName.equals(trigger.getReferenceName())
 					)
@@ -2208,7 +2335,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					if (hasFacetExpressionTriggers()) {
 						final String mutatedRefName = referenceKey.referenceName();
 						deferFacetReEvaluation(
-							() -> ReferenceIndexMutator.reEvaluateFacetExpressions(
+							() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
 								entityIndex, this, epk,
 								trigger -> mutatedRefName.equals(trigger.getReferenceName())
 							)
