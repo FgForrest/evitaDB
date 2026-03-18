@@ -69,9 +69,10 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  *
  * - **Local-only**: expression references only `$entity.*` and `$reference.attributes['x']` — a single
  * trigger with `getDependencyType() == null` is produced, usable only via `evaluate()`
- * - **Cross-entity**: expression references `$reference.referencedEntity.*` and/or
- * `$reference.groupEntity.*` — one trigger per {@link DependencyType} is produced, each carrying
- * the full pre-translated {@link FilterBy} and the set of dependent attribute names
+ * - **Cross-entity**: expression references `$reference.referencedEntity.*`,
+ * `$reference.groupEntity.*`, and/or `$entity.parentEntity.*` — one trigger per
+ * {@link DependencyType} is produced, each carrying the full pre-translated {@link FilterBy}
+ * and the set of dependent attribute names
  * - **Mixed**: if an expression combines local and cross-entity paths, only cross-entity triggers
  * are produced (the local portion is captured in the full {@link FilterBy} tree)
  *
@@ -156,7 +157,7 @@ public class FacetExpressionTriggerFactory {
 			final FilterBy filterBy = ExpressionToQueryTranslator.translate(expression, referenceName);
 			for (final Entry<DependencyKey, Set<String>> depEntry : dependencyAttributes.entrySet()) {
 				final DependencyKey key = depEntry.getKey();
-				final String mutatedEntityType = resolveMutatedEntityType(referenceSchema, key.type());
+				final String mutatedEntityType = resolveMutatedEntityType(ownerEntityType, referenceSchema, key.type());
 				collector.add(
 					new FacetExpressionTriggerImpl(
 						ownerEntityType, referenceName, scope,
@@ -172,16 +173,18 @@ public class FacetExpressionTriggerFactory {
 	}
 
 	/**
-	 * Resolves the mutated entity type from the reference schema and dependency type. The mutated entity type is the
-	 * entity type whose changes fire the trigger — it is the key under which the trigger is indexed in the registry's
-	 * inverted index.
+	 * Resolves the mutated entity type from the owner entity type, reference schema and dependency type. The mutated
+	 * entity type is the entity type whose changes fire the trigger — it is the key under which the trigger is indexed
+	 * in the registry's inverted index.
 	 *
+	 * @param ownerEntityType the entity type that owns the reference (e.g. "product")
 	 * @param referenceSchema the reference schema carrying the expression
 	 * @param dependencyType  the dependency type classifying the cross-entity relationship
 	 * @return the entity type name of the mutated entity
 	 */
 	@Nonnull
 	private static String resolveMutatedEntityType(
+		@Nonnull String ownerEntityType,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull DependencyType dependencyType
 	) {
@@ -198,6 +201,8 @@ public class FacetExpressionTriggerFactory {
 				}
 				yield groupType;
 			}
+			// parent entity is the same entity type as the owner — hierarchy is self-referential
+			case PARENT_ENTITY_ATTRIBUTE, PARENT_ENTITY_REFERENCE_ATTRIBUTE -> ownerEntityType;
 		};
 	}
 
@@ -242,10 +247,13 @@ public class FacetExpressionTriggerFactory {
 	/**
 	 * Detects the {@link DependencyType} for a single path. Returns `null` for local-only paths.
 	 *
-	 * A cross-entity path starts with `$reference` (VariablePathItem) followed by either
-	 * `referencedEntity` or `groupEntity` (IdentifierPathItem). Position 2 discriminates
-	 * entity-attribute dependencies (`attributes`/`localizedAttributes`) from reference-attribute
-	 * dependencies (`references`).
+	 * A cross-entity path starts with either:
+	 *
+	 * - `$reference` followed by `referencedEntity` or `groupEntity` — position 2 discriminates
+	 *   entity-attribute dependencies (`attributes`/`localizedAttributes`) from reference-attribute
+	 *   dependencies (`references`)
+	 * - `$entity` followed by `parentEntity` — same position-2 discrimination for parent entity
+	 *   attribute vs. parent entity reference-attribute dependencies
 	 *
 	 * @param path the accessed data path
 	 * @return the dependency type, or `null` if the path is local-only
@@ -262,29 +270,44 @@ public class FacetExpressionTriggerFactory {
 
 		if (
 			first instanceof VariablePathItem variable
-				&& ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variable.value())
 				&& second instanceof IdentifierPathItem identifier
 		) {
-			final boolean isReferencedEntity =
-				ReferenceContractAccessor.REFERENCED_ENTITY_PROPERTY.equals(identifier.value());
-			final boolean isGroupEntity =
-				ReferenceContractAccessor.GROUP_ENTITY_PROPERTY.equals(identifier.value());
+			if (ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variable.value())) {
+				// $reference.referencedEntity.* or $reference.groupEntity.*
+				final boolean isReferencedEntity =
+					ReferenceContractAccessor.REFERENCED_ENTITY_PROPERTY.equals(identifier.value());
+				final boolean isGroupEntity =
+					ReferenceContractAccessor.GROUP_ENTITY_PROPERTY.equals(identifier.value());
 
-			if (!isReferencedEntity && !isGroupEntity) {
-				return null;
-			}
+				if (!isReferencedEntity && !isGroupEntity) {
+					return null;
+				}
 
-			// check position 2 to distinguish entity-attribute from reference-attribute dependency
-			final PathItem third = path.get(2);
-			if (third instanceof IdentifierPathItem thirdIdentifier) {
-				if (isAttributesProperty(thirdIdentifier.value())) {
-					return isReferencedEntity
-						? DependencyType.REFERENCED_ENTITY_ATTRIBUTE
-						: DependencyType.GROUP_ENTITY_ATTRIBUTE;
-				} else if (EntityContractAccessor.REFERENCES_PROPERTY.equals(thirdIdentifier.value())) {
-					return isReferencedEntity
-						? DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE
-						: DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
+				// check position 2 to distinguish entity-attribute from reference-attribute dependency
+				final PathItem third = path.get(2);
+				if (third instanceof IdentifierPathItem thirdIdentifier) {
+					if (isAttributesProperty(thirdIdentifier.value())) {
+						return isReferencedEntity
+							? DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+							: DependencyType.GROUP_ENTITY_ATTRIBUTE;
+					} else if (EntityContractAccessor.REFERENCES_PROPERTY.equals(thirdIdentifier.value())) {
+						return isReferencedEntity
+							? DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE
+							: DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
+					}
+				}
+			} else if (
+				EntityContractAccessor.ENTITY_VARIABLE_NAME.equals(variable.value())
+					&& EntityContractAccessor.PARENT_ENTITY_PROPERTY.equals(identifier.value())
+			) {
+				// $entity.parentEntity.* — parent entity of the owner (same entity type, self-referential hierarchy)
+				final PathItem third = path.get(2);
+				if (third instanceof IdentifierPathItem thirdIdentifier) {
+					if (isAttributesProperty(thirdIdentifier.value())) {
+						return DependencyType.PARENT_ENTITY_ATTRIBUTE;
+					} else if (EntityContractAccessor.REFERENCES_PROPERTY.equals(thirdIdentifier.value())) {
+						return DependencyType.PARENT_ENTITY_REFERENCE_ATTRIBUTE;
+					}
 				}
 			}
 		}
@@ -311,7 +334,8 @@ public class FacetExpressionTriggerFactory {
 	) {
 		final int startIndex;
 		switch (depType) {
-			case REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, GROUP_ENTITY_REFERENCE_ATTRIBUTE -> startIndex = 4;
+			case REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, GROUP_ENTITY_REFERENCE_ATTRIBUTE,
+				PARENT_ENTITY_REFERENCE_ATTRIBUTE -> startIndex = 4;
 			default -> startIndex = 2;
 		}
 		for (int i = startIndex; i < path.size() - 1; i++) {

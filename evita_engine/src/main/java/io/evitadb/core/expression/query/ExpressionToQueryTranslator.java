@@ -66,6 +66,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
@@ -88,7 +89,9 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  * - Referenced entity attribute comparisons: wrapped in `referenceHaving("refName", entityHaving(...))`
  * - Boolean operators `&&`, `||`, `!` to `and()`, `or()`, `not()` with flattening
  * - Parent existence checks to `hierarchyWithinRootSelf()`
- * - Parent entity attribute comparisons: wrapped in `hierarchyWithinRootSelf(directRelation(), having(...))`
+ * - Parent entity attribute comparisons: wrapped in `hierarchyWithinSelf(attributeConstraint, directRelation())`
+ * - Parent entity reference attribute comparisons: wrapped in
+ *   `hierarchyWithinSelf(referenceHaving('r', attributeConstraint), directRelation())`
  * - Null-coalesce (`??`) unwrapping: the default value is discarded (FilterBy handles nulls natively)
  * - Attribute null checks to `attributeIsNull()` / `attributeIsNotNull()`
  *
@@ -356,7 +359,6 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 					}
 					// chain continues → delegate to shared entity path walker
 					return extractEntityAttributePath(firstProperty, PathType.PARENT_ENTITY_ATTRIBUTE);
-					// chain continues → delegate to shared entity path walker
 				}
 				case EntityContractAccessor.ASSOCIATED_DATA_PROPERTY,
 				     EntityContractAccessor.LOCALIZED_ASSOCIATED_DATA_PROPERTY ->
@@ -856,7 +858,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 
 	/**
 	 * Wraps the given attribute constraint based on the path type. For `ENTITY_ATTRIBUTE`, the constraint
-	 * is returned as-is (no wrapper). Other path types add `referenceHaving`, `groupHaving`, etc.
+	 * is returned as-is (no wrapper). Other path types add `referenceHaving`, `groupHaving`,
+	 * `hierarchyWithinSelf`, etc.
 	 */
 	@Nonnull
 	private FilterConstraint wrapForPathType(
@@ -877,12 +880,14 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 				this.referenceName,
 				groupHaving(referenceHaving(dataPath.referenceName(), attributeConstraint))
 			);
-			case PARENT_ENTITY_ATTRIBUTE -> hierarchyWithinRootSelf(
-				directRelation(), having(attributeConstraint)
+			case PARENT_ENTITY_ATTRIBUTE -> Objects.requireNonNull(
+				hierarchyWithinSelf(attributeConstraint, directRelation())
 			);
-			case PARENT_ENTITY_REFERENCE_ATTRIBUTE -> hierarchyWithinRootSelf(
-				directRelation(),
-				having(referenceHaving(dataPath.referenceName(), attributeConstraint))
+			case PARENT_ENTITY_REFERENCE_ATTRIBUTE -> Objects.requireNonNull(
+				hierarchyWithinSelf(
+					referenceHaving(dataPath.referenceName(), attributeConstraint),
+					directRelation()
+				)
 			);
 		};
 	}
@@ -1064,13 +1069,13 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		ENTITY_PARENT,
 		/**
 		 * `$entity.parentEntity.attributes['x']` — parent entity attribute,
-		 * wrapped in `hierarchyWithinRootSelf(directRelation(), having(...))`.
+		 * wrapped in `hierarchyWithinSelf(attributeConstraint, directRelation())`.
 		 */
 		PARENT_ENTITY_ATTRIBUTE,
 		/**
 		 * `$entity.parentEntity.references['r'].attributes['x']` — reference attribute on
 		 * the parent entity, wrapped in
-		 * `hierarchyWithinRootSelf(directRelation(), having(referenceHaving('r', ...)))`.
+		 * `hierarchyWithinSelf(referenceHaving('r', attributeConstraint), directRelation())`.
 		 */
 		PARENT_ENTITY_REFERENCE_ATTRIBUTE
 	}

@@ -134,7 +134,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private static final DependencyType[] CROSS_ENTITY_ATTRIBUTE_DEPENDENCY_TYPES = {
 		DependencyType.REFERENCED_ENTITY_ATTRIBUTE,
-		DependencyType.GROUP_ENTITY_ATTRIBUTE
+		DependencyType.GROUP_ENTITY_ATTRIBUTE,
+		DependencyType.PARENT_ENTITY_ATTRIBUTE
 	};
 	/**
 	 * Cross-entity dependency types for reference-level attribute changes. When a reference attribute
@@ -142,7 +143,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private static final DependencyType[] CROSS_ENTITY_REFERENCE_ATTRIBUTE_DEPENDENCY_TYPES = {
 		DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE,
-		DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE
+		DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE,
+		DependencyType.PARENT_ENTITY_REFERENCE_ATTRIBUTE
 	};
 	/**
 	 * The {@link EntitySchemaContract#getName()} of the entity type.

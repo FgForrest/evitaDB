@@ -314,8 +314,7 @@ class LocalMutationExecutorCollector {
 			// consistent before cross-entity triggers read it. Index mutations are never written
 			// to WAL — they are regenerated deterministically on replay. The dispatch is synchronous
 			// and bounded by the number of affected entities.
-			final IndexImplicitMutations indexImplicit =
-				entityIndexUpdater.popIndexImplicitMutations(localMutations);
+			final IndexImplicitMutations indexImplicit = entityIndexUpdater.popIndexImplicitMutations(localMutations);
 			for (final EntityIndexMutation indexMutation : indexImplicit.indexMutations()) {
 				// route each envelope to the target collection's thin dispatcher — bypasses
 				// the full ServerEntityMutation pipeline (no storage, no WAL, no schema evolution)

@@ -68,6 +68,26 @@ public enum DependencyType {
 	 *
 	 * Fan-out can be significant (same as {@link #GROUP_ENTITY_ATTRIBUTE}).
 	 */
-	GROUP_ENTITY_REFERENCE_ATTRIBUTE
+	GROUP_ENTITY_REFERENCE_ATTRIBUTE,
+
+	/**
+	 * The mutated entity is the **parent entity** of the owner entity (self-referential hierarchy).
+	 * Expression path: `$entity.parentEntity.attributes['x']`
+	 *
+	 * The trigger fires when an attribute on the parent entity changes. Affected entities are the direct
+	 * children of the mutated parent that hold the reference. Fan-out is bounded by the branching factor
+	 * of the hierarchy.
+	 */
+	PARENT_ENTITY_ATTRIBUTE,
+
+	/**
+	 * The mutated entity is the **parent entity** of the owner entity (self-referential hierarchy),
+	 * and the dependency is on a reference attribute of that parent entity.
+	 * Expression path: `$entity.parentEntity.references['r'].attributes['x']`
+	 *
+	 * The trigger fires when a reference mutation on the parent entity affects reference 'r' (insert,
+	 * remove, or attribute 'x' change). Fan-out is bounded by the branching factor of the hierarchy.
+	 */
+	PARENT_ENTITY_REFERENCE_ATTRIBUTE
 
 }

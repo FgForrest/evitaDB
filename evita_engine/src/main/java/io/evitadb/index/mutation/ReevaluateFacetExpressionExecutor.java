@@ -42,6 +42,7 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 import org.roaringbitmap.RoaringBitmap;
 
@@ -55,7 +56,7 @@ import java.util.Set;
 
 /**
  * Re-evaluates the `facetedPartially` expression for all owner entities affected by a cross-entity change. When a
- * group entity or referenced entity attribute changes, this executor:
+ * group entity, referenced entity, or parent entity attribute changes, this executor:
  *
  * 1. Resolves affected owner entity PKs and associated facet PKs from the target collection's own indexes
  *    (two-step lookup via {@link ReferencedTypeEntityIndex} -> {@link ReducedGroupEntityIndex} /
@@ -241,6 +242,9 @@ class ReevaluateFacetExpressionExecutor
 	 *   `REFERENCED_GROUP_ENTITY_TYPE` to resolve per-group owner PK bitmaps from
 	 *   {@link ReducedGroupEntityIndex}; for ungrouped references, looks up `REFERENCED_ENTITY_TYPE`
 	 *   and uses `groupPK = null`
+	 * - **{@link DependencyType#PARENT_ENTITY_ATTRIBUTE}** and
+	 *   **{@link DependencyType#PARENT_ENTITY_REFERENCE_ATTRIBUTE}**: uses the hierarchy index to find
+	 *   direct children of the mutated parent, then intersects with reference index owner PK bitmaps
 	 *
 	 * @param target   limited view of the target collection
 	 * @param mutation the mutation carrying reference name, mutated PK, dependency type, and scope
@@ -256,6 +260,8 @@ class ReevaluateFacetExpressionExecutor
 				resolveForGroupEntityAttribute(target, mutation);
 			case REFERENCED_ENTITY_ATTRIBUTE, REFERENCED_ENTITY_REFERENCE_ATTRIBUTE ->
 				resolveForReferencedEntityAttribute(target, mutation);
+			case PARENT_ENTITY_ATTRIBUTE, PARENT_ENTITY_REFERENCE_ATTRIBUTE ->
+				resolveForParentEntityAttribute(target, mutation);
 		};
 	}
 
@@ -441,6 +447,177 @@ class ReevaluateFacetExpressionExecutor
 	}
 
 	/**
+	 * Resolves affected entities for {@link DependencyType#PARENT_ENTITY_ATTRIBUTE} and
+	 * {@link DependencyType#PARENT_ENTITY_REFERENCE_ATTRIBUTE}. The mutated entity is the parent entity —
+	 * affected owner entities are the direct children of the mutated parent that hold the reference.
+	 *
+	 * Resolution steps:
+	 * 1. Use the hierarchy index on the global entity index to find direct children of the parent PK.
+	 * 2. Walk the `REFERENCED_ENTITY_TYPE` (or `REFERENCED_GROUP_ENTITY_TYPE`) index for the reference
+	 *    to enumerate all (facetPK, ownerPKs) pairs.
+	 * 3. Intersect each ownerPKs bitmap with the children bitmap to keep only children that carry the
+	 *    reference — these are the entities whose facet expression may have changed.
+	 *
+	 * @param target   limited view of the target collection
+	 * @param mutation the mutation carrying reference name, mutated parent PK, dependency type, and scope
+	 * @return structured resolution with per-facet groups and owner PK bitmaps
+	 */
+	@Nonnull
+	private static AffectedEntityResolution resolveForParentEntityAttribute(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull ReevaluateFacetExpressionMutation mutation
+	) {
+		final int parentPK = mutation.mutatedEntityPK();
+		final String referenceName = mutation.referenceName();
+		final Scope scope = mutation.scope();
+
+		// step 1: direct children of the mutated parent from the hierarchy index
+		final EntityIndex globalIndex = target.getIndexIfExists(
+			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+		);
+		if (globalIndex == null) {
+			return AffectedEntityResolution.EMPTY;
+		}
+		// levels=0 returns only immediate children (no grandchildren)
+		final Bitmap childrenPKs = globalIndex.listHierarchyNodesFromParentDownTo(
+			parentPK, 0, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
+		);
+		if (childrenPKs.isEmpty()) {
+			return AffectedEntityResolution.EMPTY;
+		}
+
+		// step 2+3: iterate reference index to find (facetPK, ownerPKs) and intersect with children
+		final ReferenceSchemaContract refSchema = target.getEntitySchema()
+			.getReference(referenceName)
+			.orElseThrow();
+
+		if (refSchema.getReferencedGroupType() != null) {
+			return resolveForParentEntityAttributeWithGroup(target, referenceName, childrenPKs, scope);
+		}
+		return resolveForParentEntityAttributeUngrouped(target, referenceName, childrenPKs, scope);
+	}
+
+	/**
+	 * Resolves affected entities for a **grouped** reference when the parent entity attribute changes.
+	 * Uses `REFERENCED_GROUP_ENTITY_TYPE` to enumerate all (groupPK, facetPK, ownerPKs) combinations
+	 * and intersects ownerPKs with the children bitmap.
+	 *
+	 * @param target        limited view of the target collection
+	 * @param referenceName name of the reference
+	 * @param childrenPKs   bitmap of direct children of the mutated parent entity
+	 * @param scope         the scope of the expression
+	 * @return resolution with per-group owner PK bitmaps intersected with children
+	 */
+	@Nonnull
+	private static AffectedEntityResolution resolveForParentEntityAttributeWithGroup(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName,
+		@Nonnull Bitmap childrenPKs,
+		@Nonnull Scope scope
+	) {
+		final EntityIndex groupTypeRteiIndex = target.getIndexIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName)
+		);
+		if (groupTypeRteiIndex == null) {
+			return AffectedEntityResolution.EMPTY;
+		}
+
+		final ReferencedTypeEntityIndex groupTypeRtei = (ReferencedTypeEntityIndex) groupTypeRteiIndex;
+		final Set<Integer> allGroupPKs = groupTypeRtei.getAllTrackedReferencedEntityPrimaryKeys();
+		if (allGroupPKs.isEmpty()) {
+			return AffectedEntityResolution.EMPTY;
+		}
+
+		final List<AffectedFacetGroup> groups = new ArrayList<>(4);
+		final RoaringBitmap childrenRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(childrenPKs);
+
+		for (int groupPK : allGroupPKs) {
+			final int[] storagePKs = groupTypeRtei.getAllReferenceIndexes(groupPK);
+			for (int storagePK : storagePKs) {
+				final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
+				if (reducedIndex instanceof ReducedGroupEntityIndex rgei) {
+					final Set<Integer> facetPKs = rgei.getReferencedEntityPrimaryKeys();
+					for (int facetPK : facetPKs) {
+						final Bitmap ownerPKs = rgei.getOwnerPKsForReferencedEntity(facetPK);
+						if (ownerPKs != null && !ownerPKs.isEmpty()) {
+							final Bitmap affected = new BaseBitmap(
+								RoaringBitmap.and(
+									childrenRoaring,
+									RoaringBitmapBackedBitmap.getRoaringBitmap(ownerPKs)
+								)
+							);
+							if (!affected.isEmpty()) {
+								groups.add(new AffectedFacetGroup(facetPK, groupPK, affected));
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return new AffectedEntityResolution(groups);
+	}
+
+	/**
+	 * Resolves affected entities for an **ungrouped** reference when the parent entity attribute changes.
+	 * Uses `REFERENCED_ENTITY_TYPE` to enumerate all (facetPK, ownerPKs) pairs and intersects
+	 * ownerPKs with the children bitmap.
+	 *
+	 * @param target        limited view of the target collection
+	 * @param referenceName name of the reference
+	 * @param childrenPKs   bitmap of direct children of the mutated parent entity
+	 * @param scope         the scope of the expression
+	 * @return resolution with null group PK and intersected owner PK bitmaps
+	 */
+	@Nonnull
+	private static AffectedEntityResolution resolveForParentEntityAttributeUngrouped(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName,
+		@Nonnull Bitmap childrenPKs,
+		@Nonnull Scope scope
+	) {
+		final EntityIndex rteiIndex = target.getIndexIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
+		);
+		if (rteiIndex == null) {
+			return AffectedEntityResolution.EMPTY;
+		}
+
+		final ReferencedTypeEntityIndex rtei = (ReferencedTypeEntityIndex) rteiIndex;
+		final Set<Integer> allFacetPKs = rtei.getAllTrackedReferencedEntityPrimaryKeys();
+		if (allFacetPKs.isEmpty()) {
+			return AffectedEntityResolution.EMPTY;
+		}
+
+		final List<AffectedFacetGroup> groups = new ArrayList<>(allFacetPKs.size());
+		final RoaringBitmap childrenRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(childrenPKs);
+
+		for (int facetPK : allFacetPKs) {
+			final int[] storagePKs = rtei.getAllReferenceIndexes(facetPK);
+			for (int storagePK : storagePKs) {
+				final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
+				if (reducedIndex == null) {
+					continue;
+				}
+				final Bitmap ownerPKs = reducedIndex.getAllPrimaryKeys();
+				if (!ownerPKs.isEmpty()) {
+					final Bitmap affected = new BaseBitmap(
+						RoaringBitmap.and(
+							childrenRoaring,
+							RoaringBitmapBackedBitmap.getRoaringBitmap(ownerPKs)
+						)
+					);
+					if (!affected.isEmpty()) {
+						groups.add(new AffectedFacetGroup(facetPK, null, affected));
+					}
+				}
+			}
+		}
+
+		return new AffectedEntityResolution(groups);
+	}
+
+	/**
 	 * Parameterizes the pre-translated {@link FilterBy} constraint with a PK-scoping clause for the mutated
 	 * entity. This prevents false positives from unrelated groups/references when the query is evaluated
 	 * against the collection's indexes.
@@ -451,6 +628,9 @@ class ReevaluateFacetExpressionExecutor
 	 * - **Referenced entity dependency types** ({@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE},
 	 *   {@link DependencyType#REFERENCED_ENTITY_REFERENCE_ATTRIBUTE}): inject
 	 *   `entityHaving(entityPrimaryKeyInSet(mutatedPK))` within the matching `referenceHaving` clause
+	 * - **Parent entity dependency types** ({@link DependencyType#PARENT_ENTITY_ATTRIBUTE},
+	 *   {@link DependencyType#PARENT_ENTITY_REFERENCE_ATTRIBUTE}): no injection — the FilterBy already
+	 *   encodes the hierarchy constraint; bitmap AND in the caller scopes results to affected children
 	 *
 	 * @param triggerFilterBy the pre-translated FilterBy from the trigger
 	 * @param referenceName   reference name to match the `referenceHaving` node
@@ -465,11 +645,21 @@ class ReevaluateFacetExpressionExecutor
 		int mutatedEntityPK,
 		@Nonnull DependencyType dependencyType
 	) {
+		// parent entity expressions use a hierarchy filter at the top level — no ReferenceHaving to inject into.
+		// the bitmap AND in execute() naturally scopes the result to the affected children.
+		if (dependencyType == DependencyType.PARENT_ENTITY_ATTRIBUTE
+			|| dependencyType == DependencyType.PARENT_ENTITY_REFERENCE_ATTRIBUTE) {
+			return triggerFilterBy;
+		}
+
 		final FilterConstraint pkScope = switch (dependencyType) {
 			case GROUP_ENTITY_ATTRIBUTE, GROUP_ENTITY_REFERENCE_ATTRIBUTE ->
 				new GroupHaving(new EntityPrimaryKeyInSet(mutatedEntityPK));
 			case REFERENCED_ENTITY_ATTRIBUTE, REFERENCED_ENTITY_REFERENCE_ATTRIBUTE ->
 				new EntityHaving(new EntityPrimaryKeyInSet(mutatedEntityPK));
+			// already handled above
+			case PARENT_ENTITY_ATTRIBUTE, PARENT_ENTITY_REFERENCE_ATTRIBUTE ->
+				throw new IllegalStateException("Unreachable");
 		};
 
 		// walk FilterBy top-level children to find the matching ReferenceHaving node
