@@ -1548,34 +1548,61 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 		}
 
 		@Test
-		@DisplayName("Should index facet when referenced entity is inserted after referencing entity")
-		void shouldIndexFacetWhenReferencedEntityIsInsertedAfterReferencingEntity() {
+		@DisplayName("Should index facet immediately when local expression is true even if referenced entity absent")
+		void shouldIndexFacetImmediatelyWhenLocalExpressionTrueAndReferencedEntityAbsent() {
 			ConditionalFacetIndexingTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					defineConditionalFacetSchema(session);
 
-					// create product with isActive=true referencing non-existent parameter
-					// use paramByEntityAttr (entity attribute expression) to avoid
-					// $reference.referencedEntity failure when referenced entity absent
+					// create product with isActive=true referencing non-existent parameter PK=1;
+					// the expression ($entity.attributes['isActive'] ?? false) == true uses only
+					// local entity data — the referenced entity's existence is irrelevant
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setAttribute(ATTR_IS_ACTIVE, true)
 						.setReference(REF_PARAM_BY_ENTITY_ATTR, 1)
 						.upsertVia(session);
 
 					final EntityCollectionContract productCollection = getProductCollection();
-					// even though expression is true, facet may not be indexed
-					// because referenced entity doesn't exist yet
-					assertFacetNotIndexed(
-						productCollection, REF_PARAM_BY_ENTITY_ATTR, 1, null, 1
-					);
-
-					// late arrival: create the parameter
-					session.createNewEntity(ENTITY_PARAMETER, 1).upsertVia(session);
-
-					// now the facet should be indexed (entity attr is true + ref entity exists)
+					// expression evaluates to true using local data only → facet must be indexed
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_ENTITY_ATTR, 1, null, 1
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("Should index facet when referenced entity with matching attributes is inserted after referencing entity")
+		void shouldIndexFacetWhenReferencedEntityWithMatchingAttributesInsertedLater() {
+			ConditionalFacetIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					defineConditionalFacetSchema(session);
+
+					// create product referencing non-existent parameter PK=1;
+					// the expression ($reference.referencedEntity.attributes['status'] ?? '') == 'ACTIVE'
+					// reads the referenced entity's attribute — since parameter PK=1 doesn't exist yet,
+					// the null-safe coalesce yields '' which != 'ACTIVE' → expression is false
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.upsertVia(session);
+
+					final EntityCollectionContract productCollection = getProductCollection();
+					// referenced entity absent → expression evaluates to false → not faceted
+					assertFacetNotIndexed(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR, 1, null, 1
+					);
+
+					// late arrival: create parameter PK=1 with status='ACTIVE' —
+					// cross-entity trigger fires, re-evaluates expression → now true
+					session.createNewEntity(ENTITY_PARAMETER, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.upsertVia(session);
+
+					// facet should now be indexed via the cross-entity trigger
+					assertFacetIndexed(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR, 1, null, 1
 					);
 				}
 			);
