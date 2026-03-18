@@ -172,12 +172,16 @@ class IndexMutationExecutorRegistryTest {
 	 * returns `null` indexes causes the executor to short-circuit (no affected entities), proving the
 	 * mapping is present without requiring a fully wired collection. This guards against accidental
 	 * removal of the registration entry.
+	 *
+	 * Uses {@link DependencyType#GROUP_ENTITY_ATTRIBUTE} because its resolution path calls
+	 * {@code target.getIndexIfExists(...)} first (which returns {@code null} from the mock),
+	 * causing an immediate short-circuit without requiring a wired entity schema.
 	 */
 	@Test
 	@DisplayName("INSTANCE singleton should contain ReevaluateFacetExpressionMutation executor")
 	void shouldContainReevaluateFacetExpressionMutationEntry() {
 		final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
-			"testRef", 1, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.DEFAULT_SCOPE
+			"testRef", 1, DependencyType.GROUP_ENTITY_ATTRIBUTE, Scope.DEFAULT_SCOPE
 		);
 		final IndexMutationTarget target = Mockito.mock(IndexMutationTarget.class);
 

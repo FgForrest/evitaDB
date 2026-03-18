@@ -118,10 +118,23 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 	 * Builds a real {@link EntitySchema} with a reference configured for the given index type.
 	 *
 	 * @param forFilteringAndPartitioning `true` for FOR_FILTERING_AND_PARTITIONING, `false` for FOR_FILTERING
-	 * @return built entity schema with the reference
+	 * @return built entity schema with the reference (including group type)
 	 */
 	@Nonnull
 	private static EntitySchema buildEntitySchema(boolean forFilteringAndPartitioning) {
+		return buildEntitySchema(forFilteringAndPartitioning, true);
+	}
+
+	/**
+	 * Builds a real {@link EntitySchema} with a reference configured for the given index type
+	 * and optionally with a group type.
+	 *
+	 * @param forFilteringAndPartitioning `true` for FOR_FILTERING_AND_PARTITIONING, `false` for FOR_FILTERING
+	 * @param withGroupType `true` to include group type, `false` for ungrouped reference
+	 * @return built entity schema with the reference
+	 */
+	@Nonnull
+	private static EntitySchema buildEntitySchema(boolean forFilteringAndPartitioning, boolean withGroupType) {
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			"testCatalog",
 			NamingConvention.generate("testCatalog"),
@@ -146,17 +159,23 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		if (forFilteringAndPartitioning) {
 			builder.withReferenceTo(
 				REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.withGroupType(GROUP_ENTITY_TYPE)
-					.facetedInScope(TEST_SCOPE)
-					.indexedForFilteringAndPartitioningInScope(TEST_SCOPE)
+				whichIs -> {
+					if (withGroupType) {
+						whichIs.withGroupType(GROUP_ENTITY_TYPE);
+					}
+					whichIs.facetedInScope(TEST_SCOPE)
+						.indexedForFilteringAndPartitioningInScope(TEST_SCOPE);
+				}
 			);
 		} else {
 			builder.withReferenceTo(
 				REFERENCE_NAME, REFERENCED_ENTITY_TYPE, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.withGroupType(GROUP_ENTITY_TYPE)
-					.facetedInScope(TEST_SCOPE)
+				whichIs -> {
+					if (withGroupType) {
+						whichIs.withGroupType(GROUP_ENTITY_TYPE);
+					}
+					whichIs.facetedInScope(TEST_SCOPE);
+				}
 			);
 		}
 		return (EntitySchema) builder.toInstance();
@@ -320,51 +339,83 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Configures real indexes for the REFERENCED_ENTITY_ATTRIBUTE resolution path: ReferencedTypeEntityIndex
-	 * containing storagePKs, and ReducedEntityIndex instances populated with owner PKs.
+	 * Configures real indexes for the REFERENCED_ENTITY_ATTRIBUTE resolution path. When `groupPK` is non-null,
+	 * creates a `REFERENCED_GROUP_ENTITY_TYPE` `ReferencedTypeEntityIndex` with `ReducedGroupEntityIndex` instances
+	 * (the grouped resolution path). When `groupPK` is null, creates a `REFERENCED_ENTITY_TYPE`
+	 * `ReferencedTypeEntityIndex` with `ReducedEntityIndex` instances and switches to an ungrouped schema
+	 * (the ungrouped resolution path).
 	 *
-	 * @param storagePKs   storage primary keys for the ReducedEntityIndexes
-	 * @param ownerPKs     owner PK arrays for each ReducedEntityIndex (parallel with storagePKs)
-	 * @param groupPK      the group PK to configure via FacetReferenceIndex on globalIndex, or null for ungrouped
+	 * @param storagePKs storage primary keys for the reduced indexes
+	 * @param ownerPKs   owner PK arrays for each reduced index (parallel with storagePKs)
+	 * @param groupPK    the group PK for grouped resolution, or null for ungrouped resolution
 	 */
 	private void setupReferencedEntityAttributeScenario(
 		@Nonnull int[] storagePKs,
 		@Nonnull int[][] ownerPKs,
 		@Nullable Integer groupPK
 	) {
-		final EntityIndexKey refTypeKey = new EntityIndexKey(
-			EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
-		);
-		final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
-			60, ENTITY_TYPE, refTypeKey
-		);
-
-		for (int i = 0; i < storagePKs.length; i++) {
-			final EntityIndexKey reducedKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
-				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+		if (groupPK != null) {
+			// grouped path: use REFERENCED_GROUP_ENTITY_TYPE + ReducedGroupEntityIndex
+			final EntityIndexKey groupTypeKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
-			final ReducedEntityIndex reducedIndex = new ReducedEntityIndex(
-				storagePKs[i], ENTITY_TYPE, reducedKey
+			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+				60, ENTITY_TYPE, groupTypeKey
 			);
 
-			// register the storagePK -> mutatedEntityPK mapping in RTEI
-			rtei.insertPrimaryKeyIfMissing(storagePKs[i], MUTATED_ENTITY_PK);
+			for (int i = 0; i < storagePKs.length; i++) {
+				final EntityIndexKey rgeiKey = new EntityIndexKey(
+					EntityIndexType.REFERENCED_GROUP_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, groupPK))
+				);
+				final ReducedGroupEntityIndex rgei = new ReducedGroupEntityIndex(
+					storagePKs[i], ENTITY_TYPE, rgeiKey
+				);
 
-			// populate the reduced index with owner PKs
-			for (final int ownerPK : ownerPKs[i]) {
-				reducedIndex.insertPrimaryKeyIfMissing(ownerPK);
+				// register the storagePK -> groupPK mapping in RTEI
+				rtei.insertPrimaryKeyIfMissing(storagePKs[i], groupPK);
+
+				// populate the RGEI with facetPK (= MUTATED_ENTITY_PK) -> ownerPKs
+				for (final int ownerPK : ownerPKs[i]) {
+					rgei.insertPrimaryKeyIfMissing(ownerPK, MUTATED_ENTITY_PK);
+				}
+
+				this.target.registerIndexByPK(storagePKs[i], rgei);
 			}
 
-			this.target.registerIndexByPK(storagePKs[i], reducedIndex);
-		}
+			this.target.registerIndex(groupTypeKey, rtei);
+		} else {
+			// ungrouped path: use REFERENCED_ENTITY_TYPE + ReducedEntityIndex + schema without group type
+			this.target.setEntitySchema(buildEntitySchema(false, false));
 
-		this.target.registerIndex(refTypeKey, rtei);
+			final EntityIndexKey refTypeKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
+			);
+			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
+				60, ENTITY_TYPE, refTypeKey
+			);
 
-		// configure FacetReferenceIndex on global index for group PK resolution
-		if (groupPK != null) {
-			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK);
-			this.globalIndex.addFacet(null, refKey, groupPK, 999);
+			for (int i = 0; i < storagePKs.length; i++) {
+				final EntityIndexKey reducedKey = new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+				);
+				final ReducedEntityIndex reducedIndex = new ReducedEntityIndex(
+					storagePKs[i], ENTITY_TYPE, reducedKey
+				);
+
+				// register the storagePK -> mutatedEntityPK mapping in RTEI
+				rtei.insertPrimaryKeyIfMissing(storagePKs[i], MUTATED_ENTITY_PK);
+
+				// populate the reduced index with owner PKs
+				for (final int ownerPK : ownerPKs[i]) {
+					reducedIndex.insertPrimaryKeyIfMissing(ownerPK);
+				}
+
+				this.target.registerIndexByPK(storagePKs[i], reducedIndex);
+			}
+
+			this.target.registerIndex(refTypeKey, rtei);
 		}
 	}
 
@@ -490,7 +541,7 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 
 		/**
 		 * Verifies that when `target.getIndexIfExists()` returns null for the
-		 * REFERENCED_ENTITY_TYPE key, the executor returns EMPTY resolution.
+		 * REFERENCED_GROUP_ENTITY_TYPE key (grouped reference), the executor returns EMPTY resolution.
 		 */
 		@Test
 		@DisplayName("Should return early when RTEI is null for REFERENCED_ENTITY_ATTRIBUTE")
@@ -701,7 +752,7 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Should resolve null group PK for ungrouped facet")
 		void shouldResolveNullGroupPKForUngroupedFacet() {
-			// no FacetReferenceIndex => groupPK is null
+			// ungrouped reference schema => uses REFERENCED_ENTITY_TYPE path with groupPK = null
 			setupReferencedEntityAttributeScenario(
 				new int[]{200},
 				new int[][]{{10}},
@@ -728,32 +779,34 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 
 		/**
 		 * Verifies that when `target.getIndexByPrimaryKeyIfExists()` returns null during
-		 * REFERENCED_ENTITY_ATTRIBUTE resolution, that storagePK is skipped without error.
+		 * REFERENCED_ENTITY_ATTRIBUTE grouped resolution, that storagePK is skipped without error.
 		 */
 		@Test
 		@DisplayName("Should skip null reduced index in REFERENCED_ENTITY_ATTRIBUTE path")
 		void shouldSkipNullReducedIndexInReferencedEntityPath() {
-			final EntityIndexKey refTypeKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
+			final int groupPK = 99;
+			final EntityIndexKey groupTypeKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
 			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
-				60, ENTITY_TYPE, refTypeKey
+				60, ENTITY_TYPE, groupTypeKey
 			);
-			// RTEI returns two storagePKs; only the second one has a real index
-			rtei.insertPrimaryKeyIfMissing(200, MUTATED_ENTITY_PK);
-			rtei.insertPrimaryKeyIfMissing(201, MUTATED_ENTITY_PK);
-			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(refTypeKey, rtei);
+			// RTEI returns two storagePKs for group 99; only the second one has a real index
+			rtei.insertPrimaryKeyIfMissing(200, groupPK);
+			rtei.insertPrimaryKeyIfMissing(201, groupPK);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(groupTypeKey, rtei);
 
 			// do NOT register index for storagePK=200 (will return null)
-			// register valid index for storagePK=201
-			final ReducedEntityIndex validReducedIndex = new ReducedEntityIndex(
+			// register valid ReducedGroupEntityIndex for storagePK=201
+			final ReducedGroupEntityIndex validReducedIndex = new ReducedGroupEntityIndex(
 				201, ENTITY_TYPE,
 				new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
-					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+					EntityIndexType.REFERENCED_GROUP_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, groupPK))
 				)
 			);
-			validReducedIndex.insertPrimaryKeyIfMissing(10);
+			// facetPK = MUTATED_ENTITY_PK, ownerPK = 10
+			validReducedIndex.insertPrimaryKeyIfMissing(10, MUTATED_ENTITY_PK);
 			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(201, validReducedIndex);
 
 			ReevaluateFacetExpressionExecutorTest.this.target.setEvaluateFilter(
@@ -771,7 +824,7 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 
 			assertFacetExists(
 				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
-				REFERENCE_NAME, MUTATED_ENTITY_PK, null, 10
+				REFERENCE_NAME, MUTATED_ENTITY_PK, groupPK, 10
 			);
 		}
 
@@ -809,34 +862,37 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 				ReevaluateFacetExpressionExecutorTest.this.globalIndex,
 				REFERENCE_NAME, MUTATED_ENTITY_PK, groupPK, 20
 			);
-			// exactly 2 adds, also count the pre-populated entry (999) from setupReferencedEntityAttributeScenario
-			assertEquals(3, countFacetEntries(
+			// exactly 2 adds from the two storagePKs
+			assertEquals(2, countFacetEntries(
 				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
 			));
 		}
 
 		@Test
-		@DisplayName("Should skip reduced index with empty primary keys")
+		@DisplayName("Should skip reduced index with empty owner PKs for facet")
 		void shouldSkipReducedIndexWithEmptyPrimaryKeys() {
-			// RTEI returns storagePK but the reduced index has no primary keys
-			final EntityIndexKey refTypeKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
+			// RTEI returns storagePK but the ReducedGroupEntityIndex has no owner PKs for the facetPK
+			final int groupPK = 99;
+			final EntityIndexKey groupTypeKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, TEST_SCOPE, REFERENCE_NAME
 			);
 			final ReferencedTypeEntityIndex rtei = new ReferencedTypeEntityIndex(
-				60, ENTITY_TYPE, refTypeKey
+				60, ENTITY_TYPE, groupTypeKey
 			);
-			rtei.insertPrimaryKeyIfMissing(200, MUTATED_ENTITY_PK);
-			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(refTypeKey, rtei);
+			rtei.insertPrimaryKeyIfMissing(200, groupPK);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndex(groupTypeKey, rtei);
 
-			// register an empty reduced index for storagePK=200
-			final ReducedEntityIndex emptyIndex = new ReducedEntityIndex(
+			// register a ReducedGroupEntityIndex that has entries for a DIFFERENT facetPK (not MUTATED_ENTITY_PK)
+			final ReducedGroupEntityIndex rgei = new ReducedGroupEntityIndex(
 				200, ENTITY_TYPE,
 				new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY, TEST_SCOPE,
-					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, MUTATED_ENTITY_PK))
+					EntityIndexType.REFERENCED_GROUP_ENTITY, TEST_SCOPE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, groupPK))
 				)
 			);
-			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(200, emptyIndex);
+			// populate with a different facet PK so getOwnerPKsForReferencedEntity(MUTATED_ENTITY_PK) returns null
+			rgei.insertPrimaryKeyIfMissing(10, 999);
+			ReevaluateFacetExpressionExecutorTest.this.target.registerIndexByPK(200, rgei);
 
 			final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
 				REFERENCE_NAME, MUTATED_ENTITY_PK, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, TEST_SCOPE
@@ -846,7 +902,7 @@ class ReevaluateFacetExpressionExecutorTest implements TimeBoundedTestSupport {
 				mutation, ReevaluateFacetExpressionExecutorTest.this.target
 			);
 
-			// empty ownerPKs => no affected => no facet ops
+			// no owner PKs for MUTATED_ENTITY_PK => no affected => no facet ops
 			assertEquals(0, countFacetEntries(
 				ReevaluateFacetExpressionExecutorTest.this.globalIndex, REFERENCE_NAME
 			));
