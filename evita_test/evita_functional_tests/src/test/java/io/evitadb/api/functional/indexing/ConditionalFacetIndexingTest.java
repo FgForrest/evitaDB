@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.indexing;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -45,16 +46,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * End-to-end integration tests for the conditional facet indexing infrastructure.
@@ -532,7 +535,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	 * @param refPK         the primary key of the referenced entity
 	 * @param ownerPK       the primary key of the owner entity (Product PK)
 	 */
-	private void assertReferenceStillIndexed(
+	private static void assertReferenceStillIndexed(
 		@Nonnull EntityCollectionContract collection,
 		@Nonnull String referenceName,
 		int refPK,
@@ -554,6 +557,34 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	}
 
 	/**
+	 * Executes a test in the specified catalog state. The fixture setup always runs in WARMING_UP
+	 * (bulk mode), then the catalog optionally transitions to ALIVE before the test logic executes.
+	 * This allows every test to verify behavior in both non-transactional and transactional modes.
+	 *
+	 * @param targetState  the catalog state in which the test logic should execute
+	 * @param fixtureSetup schema definition and initial entity creation (always runs in WARMING_UP)
+	 * @param testLogic    assertions and mutations that exercise the scenario under test
+	 */
+	private void withCatalogInState(
+		@Nonnull CatalogState targetState,
+		@Nonnull Consumer<EvitaSessionContract> fixtureSetup,
+		@Nonnull Consumer<EvitaSessionContract> testLogic
+	) {
+		if (targetState == CatalogState.WARMING_UP) {
+			this.evita.updateCatalog(TEST_CATALOG, session -> {
+				fixtureSetup.accept(session);
+				testLogic.accept(session);
+			});
+		} else {
+			this.evita.updateCatalog(TEST_CATALOG, session -> {
+				fixtureSetup.accept(session);
+				session.goLiveAndClose();
+			});
+			this.evita.updateCatalog(TEST_CATALOG, testLogic);
+		}
+	}
+
+	/**
 	 * Tests verifying correct initial facet index state for each supported data access path
 	 * (entity attribute, reference attribute, associated data, parent, group entity, referenced entity, etc.).
 	 */
@@ -561,11 +592,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Initial indexing — one test per data access path")
 	class InitialIndexingTest {
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on entity attribute")
-		void shouldIndexFacetConditionallyBasedOnEntityAttribute() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnEntityAttribute(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -583,7 +615,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 						.setAttribute(ATTR_IS_ACTIVE, false)
 						.setReference(REF_PARAM_BY_ENTITY_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(productCollection, REF_PARAM_BY_ENTITY_ATTR, 1, null, 1);
 					assertFacetNotIndexed(productCollection, REF_PARAM_BY_ENTITY_ATTR, 1, null, 2);
@@ -594,11 +627,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on reference attribute")
-		void shouldIndexFacetConditionallyBasedOnReferenceAttribute() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnReferenceAttribute(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -619,7 +653,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setAttribute(ATTR_PRIORITY, -1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(productCollection, REF_PARAM_BY_REF_ATTR, 1, null, 1);
 					assertFacetNotIndexed(productCollection, REF_PARAM_BY_REF_ATTR, 1, null, 2);
@@ -630,11 +665,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on associated data")
-		void shouldIndexFacetConditionallyBasedOnAssociatedData() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnAssociatedData(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -650,7 +686,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 2)
 						.setReference(REF_PARAM_BY_ASSOC_DATA, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(productCollection, REF_PARAM_BY_ASSOC_DATA, 1, null, 1);
 					assertFacetNotIndexed(
@@ -663,11 +700,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on entity parent")
-		void shouldIndexFacetConditionallyBasedOnEntityParent() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnEntityParent(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -686,7 +724,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 3)
 						.setReference(REF_PARAM_BY_PARENT, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(productCollection, REF_PARAM_BY_PARENT, 1, null, 2);
 					assertFacetNotIndexed(productCollection, REF_PARAM_BY_PARENT, 1, null, 3);
@@ -697,11 +736,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on parent entity attribute")
-		void shouldIndexFacetConditionallyBasedOnParentEntityAttribute() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnParentEntityAttribute(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -733,9 +773,9 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 5)
 						.setReference(REF_PARAM_BY_PARENT_ATTR, 1)
 						.upsertVia(session);
-
-					final EntityCollectionContract productCollection =
-						getProductCollection();
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_PARENT_ATTR, 1, null, 3
 					);
@@ -752,11 +792,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on parent entity reference attribute")
-		void shouldIndexFacetConditionallyBasedOnParentEntityReferenceAttribute() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnParentEntityReferenceAttribute(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -795,9 +836,9 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 5)
 						.setReference(REF_PARAM_BY_PARENT_REF_ATTR, 1)
 						.upsertVia(session);
-
-					final EntityCollectionContract productCollection =
-						getProductCollection();
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection,
 						REF_PARAM_BY_PARENT_REF_ATTR, 1, null, 3
@@ -818,11 +859,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on group entity attribute")
-		void shouldIndexFacetConditionallyBasedOnGroupEntityAttribute() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnGroupEntityAttribute(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -852,7 +894,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 2)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1
@@ -867,11 +910,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on referenced entity attribute")
-		void shouldIndexFacetConditionallyBasedOnReferencedEntityAttribute() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnReferencedEntityAttribute(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -891,7 +935,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 2)
 						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR, 1, null, 1
@@ -906,11 +951,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on referenced entity reference attribute")
-		void shouldIndexFacetConditionallyBasedOnReferencedEntityReferenceAttribute() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnReferencedEntityReferenceAttribute(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -938,7 +984,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 2)
 						.setReference(REF_PARAM_BY_REF_ENTITY_REF_ATTR, 2)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR, 1, null, 1
@@ -953,11 +1000,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet conditionally based on referenced entity single reference attribute")
-		void shouldIndexFacetConditionallyBasedOnReferencedEntitySingleReferenceAttribute() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetConditionallyBasedOnReferencedEntitySingleReferenceAttribute(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -985,7 +1033,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 2)
 						.setReference(REF_PARAM_BY_REF_ENTITY_SINGLE_REF_ATTR, 2)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection,
@@ -1013,11 +1062,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Local trigger — state transitions on owner entity mutations")
 	class LocalTriggerTest {
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet on entity attribute change")
-		void shouldToggleFacetOnEntityAttributeChange() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetOnEntityAttributeChange(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1028,7 +1078,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 						.setAttribute(ATTR_IS_ACTIVE, false)
 						.setReference(REF_PARAM_BY_ENTITY_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetNotIndexed(
 						productCollection, REF_PARAM_BY_ENTITY_ATTR, 1, null, 1
@@ -1059,11 +1110,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet on reference attribute change")
-		void shouldToggleFacetOnReferenceAttributeChange() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetOnReferenceAttributeChange(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1076,7 +1128,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setAttribute(ATTR_PRIORITY, -1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetNotIndexed(
 						productCollection, REF_PARAM_BY_REF_ATTR, 1, null, 1
@@ -1113,11 +1166,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet on associated data change")
-		void shouldToggleFacetOnAssociatedDataChange() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetOnAssociatedDataChange(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1127,7 +1181,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setReference(REF_PARAM_BY_ASSOC_DATA, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetNotIndexed(
 						productCollection, REF_PARAM_BY_ASSOC_DATA, 1, null, 1
@@ -1158,11 +1213,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet on parent change")
-		void shouldToggleFacetOnParentChange() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetOnParentChange(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1175,7 +1231,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 2)
 						.setReference(REF_PARAM_BY_PARENT, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetNotIndexed(
 						productCollection, REF_PARAM_BY_PARENT, 1, null, 2
@@ -1206,11 +1263,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet when product gains and loses parent with matching attribute")
-		void shouldToggleFacetWhenProductGainsAndLosesParent() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetWhenProductGainsAndLosesParent(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1225,9 +1283,9 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 2)
 						.setReference(REF_PARAM_BY_PARENT_ATTR, 1)
 						.upsertVia(session);
-
-					final EntityCollectionContract productCollection =
-						getProductCollection();
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetNotIndexed(
 						productCollection, REF_PARAM_BY_PARENT_ATTR, 1, null, 2
 					);
@@ -1257,11 +1315,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet on group assignment change")
-		void shouldToggleFacetOnGroupAssignmentChange() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetOnGroupAssignmentChange(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1274,7 +1333,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setReference(REF_PARAM_BY_GROUP_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetNotIndexed(
 						productCollection, REF_PARAM_BY_GROUP_ATTR, 1, null, 1
@@ -1308,11 +1368,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should not reevaluate when irrelevant attribute changes")
-		void shouldNotReevaluateWhenIrrelevantAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldNotReevaluateWhenIrrelevantAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1324,7 +1385,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 						.setAttribute(ATTR_CODE, "ABC")
 						.setReference(REF_PARAM_BY_ENTITY_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_ENTITY_ATTR, 1, null, 1
@@ -1353,11 +1415,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Cross-entity triggers — referenced entity mutations")
 	class CrossEntityReferencedEntityTriggerTest {
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet when referenced entity attribute changes")
-		void shouldToggleFacetWhenReferencedEntityAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetWhenReferencedEntityAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1368,7 +1431,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR, 1, null, 1
@@ -1399,11 +1463,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet when referenced entity reference attribute changes")
-		void shouldToggleFacetWhenReferencedEntityReferenceAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetWhenReferencedEntityReferenceAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1419,7 +1484,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setReference(REF_PARAM_BY_REF_ENTITY_REF_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_REF_ENTITY_REF_ATTR, 1, null, 1
@@ -1456,11 +1522,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet when referenced entity single reference attribute changes")
-		void shouldToggleFacetWhenReferencedEntitySingleReferenceAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetWhenReferencedEntitySingleReferenceAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1476,7 +1543,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setReference(REF_PARAM_BY_REF_ENTITY_SINGLE_REF_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection,
@@ -1516,11 +1584,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should remove facet when referenced entity is removed")
-		void shouldRemoveFacetWhenReferencedEntityIsRemoved() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldRemoveFacetWhenReferencedEntityIsRemoved(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1531,7 +1600,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR, 1, null, 1
@@ -1547,11 +1617,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet immediately when local expression is true even if referenced entity absent")
-		void shouldIndexFacetImmediatelyWhenLocalExpressionTrueAndReferencedEntityAbsent() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetImmediatelyWhenLocalExpressionTrueAndReferencedEntityAbsent(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1562,7 +1633,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 						.setAttribute(ATTR_IS_ACTIVE, true)
 						.setReference(REF_PARAM_BY_ENTITY_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					// expression evaluates to true using local data only → facet must be indexed
 					assertFacetIndexed(
@@ -1572,11 +1644,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet when referenced entity with matching attributes is inserted after referencing entity")
-		void shouldIndexFacetWhenReferencedEntityWithMatchingAttributesInsertedLater() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetWhenReferencedEntityWithMatchingAttributesInsertedLater(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1587,7 +1660,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					// referenced entity absent → expression evaluates to false → not faceted
 					assertFacetNotIndexed(
@@ -1617,11 +1691,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Cross-entity triggers — parent entity mutations")
 	class CrossEntityParentEntityTriggerTest {
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet when parent entity attribute changes")
-		void shouldToggleFacetWhenParentEntityAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetWhenParentEntityAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1637,9 +1712,9 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 						.setParent(1)
 						.setReference(REF_PARAM_BY_PARENT_ATTR, 1)
 						.upsertVia(session);
-
-					final EntityCollectionContract productCollection =
-						getProductCollection();
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_PARENT_ATTR, 1, null, 2
 					);
@@ -1669,11 +1744,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should cascade to multiple children when parent attribute changes")
-		void shouldCascadeToMultipleChildrenWhenParentAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldCascadeToMultipleChildrenWhenParentAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1697,9 +1773,9 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 						.setParent(1)
 						.setReference(REF_PARAM_BY_PARENT_ATTR, 1)
 						.upsertVia(session);
-
-					final EntityCollectionContract productCollection =
-						getProductCollection();
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_PARENT_ATTR, 1, null, 2
 					);
@@ -1756,11 +1832,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Cross-entity triggers — group entity mutations")
 	class CrossEntityGroupEntityTriggerTest {
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should cascade to all owner entities when group entity attribute changes")
-		void shouldCascadeToAllOwnerEntitiesWhenGroupEntityAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldCascadeToAllOwnerEntitiesWhenGroupEntityAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1788,7 +1865,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1
@@ -1837,11 +1915,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet when group entity reference attribute changes")
-		void shouldToggleFacetWhenGroupEntityReferenceAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetWhenGroupEntityReferenceAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1861,7 +1940,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_GROUP_ENTITY_REF_ATTR, 1, 1, 1
@@ -1898,11 +1978,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should toggle facet when group entity single reference attribute changes")
-		void shouldToggleFacetWhenGroupEntitySingleReferenceAttributeChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldToggleFacetWhenGroupEntitySingleReferenceAttributeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1922,7 +2003,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection,
@@ -1962,11 +2044,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should remove facet when group entity is removed")
-		void shouldRemoveFacetWhenGroupEntityIsRemoved() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldRemoveFacetWhenGroupEntityIsRemoved(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -1987,7 +2070,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1
@@ -2009,11 +2093,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should index facet when group entity is inserted after referencing entity")
-		void shouldIndexFacetWhenGroupEntityIsInsertedAfterReferencingEntity() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldIndexFacetWhenGroupEntityIsInsertedAfterReferencingEntity(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -2026,7 +2111,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetNotIndexed(
 						productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1
@@ -2054,11 +2140,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@DisplayName("Mixed and cross-cutting expression tests")
 	class MixedAndCrossCuttingTest {
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should evaluate mixed expression combining group and entity attributes")
-		void shouldEvaluateMixedExpressionCombiningGroupAndEntityAttributes() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldEvaluateMixedExpressionCombiningGroupAndEntityAttributes(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -2075,7 +2162,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_MIXED_AND, 1, 1, 1
@@ -2123,11 +2211,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should evaluate OR expression across multiple cross-entity sources")
-		void shouldEvaluateOrExpressionAcrossMultipleCrossEntitySources() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldEvaluateOrExpressionAcrossMultipleCrossEntitySources(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -2144,7 +2233,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					// both branches true
 					assertFacetIndexed(
@@ -2187,11 +2277,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should handle null-safe group entity access")
-		void shouldHandleNullSafeGroupEntityAccess() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldHandleNullSafeGroupEntityAccess(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -2204,7 +2295,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetNotIndexed(
 						productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1
@@ -2229,11 +2321,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should reevaluate all reference types when shared group entity changes")
-		void shouldReevaluateAllReferenceTypesWhenSharedGroupEntityChanges() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldReevaluateAllReferenceTypesWhenSharedGroupEntityChanges(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -2253,7 +2346,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
 						)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1
@@ -2279,11 +2373,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should inherit facetedPartially from source schema via reflected reference")
-		void shouldInheritFacetedPartiallyFromSourceSchemaViaReflectedReference() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldInheritFacetedPartiallyFromSourceSchemaViaReflectedReference(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					// use $reference.referencedEntity expression on source reference
 					// from item's perspective: $reference.referencedEntity is the category
@@ -2329,7 +2424,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity("item", 2)
 						.setReference("category", 2)
 						.upsertVia(session);
-
+				},
+				session -> {
 					// assert on item collection — source reference faceting
 					final CatalogContract catalog =
 						ConditionalFacetIndexingTest.this.evita
@@ -2345,11 +2441,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should not trigger reevaluation when attribute value does not actually change")
-		void shouldNotTriggerReevaluationWhenAttributeValueDoesNotActuallyChange() {
-			ConditionalFacetIndexingTest.this.evita.updateCatalog(
-				TEST_CATALOG,
+		void shouldNotTriggerReevaluationWhenAttributeValueDoesNotActuallyChange(CatalogState state) {
+			withCatalogInState(
+				state,
 				session -> {
 					defineConditionalFacetSchema(session);
 
@@ -2360,7 +2457,8 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
 						.upsertVia(session);
-
+				},
+				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertFacetIndexed(
 						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR, 1, null, 1
@@ -2381,32 +2479,45 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			);
 		}
 
-		@Test
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should reject non-translatable expression at schema time")
-		void shouldRejectNonTranslatableExpressionAtSchemaTime() {
-			assertThrows(
-				NonTranslatableExpressionException.class,
-				() -> ConditionalFacetIndexingTest.this.evita.updateCatalog(
-					TEST_CATALOG,
-					session -> {
-						session.defineEntitySchema(ENTITY_PARAMETER).updateVia(session);
-						session.defineEntitySchema("testEntity")
-							.withReferenceToEntity(
-								"ref", ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
-								whichIs -> whichIs
-									.indexedForFilteringAndPartitioning()
-									.faceted()
-									.facetedPartially(
-										ExpressionFactory.parse(
-											"$reference.referencedEntity.attributes['type']"
-												+ " == $entity.attributes['category']"
-										)
+		void shouldRejectNonTranslatableExpressionAtSchemaTime(CatalogState state) {
+			try {
+				withCatalogInState(
+					state,
+					session -> session.defineEntitySchema(ENTITY_PARAMETER).updateVia(session),
+					session -> session.defineEntitySchema("testEntity")
+						.withReferenceToEntity(
+							"ref", ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedForFilteringAndPartitioning()
+								.faceted()
+								.facetedPartially(
+									ExpressionFactory.parse(
+										"$reference.referencedEntity.attributes['type']"
+											+ " == $entity.attributes['category']"
 									)
-							)
-							.updateVia(session);
+								)
+						)
+						.updateVia(session)
+				);
+				fail("Expected NonTranslatableExpressionException");
+			} catch (NonTranslatableExpressionException e) {
+				// expected — direct throw in WARMING_UP
+			} catch (Exception e) {
+				// in ALIVE mode, the exception may be wrapped by session proxy
+				boolean found = false;
+				Throwable cause = e;
+				while (cause != null) {
+					if (cause instanceof NonTranslatableExpressionException) {
+						found = true;
+						break;
 					}
-				)
-			);
+					cause = cause.getCause();
+				}
+				assertTrue(found, "Expected NonTranslatableExpressionException in cause chain, got: " + e);
+			}
 		}
 	}
 }

@@ -241,6 +241,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				evitaRequest.getLabels()
 			)
 		);
+		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
 	}
 
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
@@ -259,13 +260,47 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			evitaSession, evitaRequest, telemetry, indexes, indexesByPk,
 			cacheSupervisor, null
 		);
+		// guard only when session is expected — nested contexts during session-less evaluation
+		// (WAL replay) inherit the null session from the parent and should not assert
+		if (parentQueryContext == null || parentQueryContext.evitaSession != null) {
+			Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
+		}
+	}
+
+	/**
+	 * Creates a session-optional context for internal index-only evaluation (e.g., facet expression re-evaluation
+	 * during WAL replay where no session is available). The session is nullable — cache analysis and binary format
+	 * checks gracefully degrade when absent. All other query planning features (indexes, schema, telemetry) work
+	 * normally.
+	 *
+	 * **Do not use for normal query processing** — use the public constructors that enforce a non-null session.
+	 *
+	 * @param catalog           the catalog instance
+	 * @param entityCollection  the entity collection being queried (nullable for catalog-level queries)
+	 * @param evitaSession      the session, or null when no session context is available (WAL replay)
+	 * @param evitaRequest      the request describing the query
+	 * @param indexes           the index map for formula resolution
+	 * @param indexesByPk       the index map keyed by primary key
+	 * @param cacheSupervisor   the cache supervisor (tolerates null session)
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public QueryPlanningContext(
+		@Nonnull Catalog catalog,
+		@Nullable EntityCollection entityCollection,
+		@Nullable EvitaSessionContract evitaSession,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull Map indexes,
+		@Nonnull Map indexesByPk,
+		@Nonnull CacheSupervisor cacheSupervisor
+	) {
+		this(null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor, null);
 	}
 
 	private <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
 		@Nonnull Catalog catalog,
 		@Nullable EntityCollection entityCollection,
-		@Nonnull EvitaSessionContract evitaSession,
+		@Nullable EvitaSessionContract evitaSession,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable QueryTelemetry telemetry,
 		@Nonnull Map<S, T> indexes,
@@ -280,8 +315,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			.map(EntityCollection::getSchema)
 			.map(EntitySchemaContract::getName)
 			.orElse(null);
-		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
-		this.evitaSession = (EvitaSession) evitaSession;
+		this.evitaSession = evitaSession instanceof EvitaSession es ? es : null;
 		this.evitaRequest = evitaRequest;
 		if (parentQueryContext == null) {
 			// when debug mode is enabled we need to enforce the main plan to be non-cached
@@ -724,7 +758,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
 	 */
 	public boolean isRequiresBinaryForm() {
-		return this.evitaSession.isBinaryFormat();
+		return this.evitaSession != null && this.evitaSession.isBinaryFormat();
 	}
 
 	/**
@@ -1106,7 +1140,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public QueryExecutionContext createExecutionContext(boolean prefetchExecution, @Nullable byte[] frozenRandom) {
 		return new QueryExecutionContext(
-			this, prefetchExecution, frozenRandom, this.evitaSession::createEntityProxy
+			this, prefetchExecution, frozenRandom,
+			this.evitaSession != null ? this.evitaSession::createEntityProxy : (type, entity) -> {
+				throw new GenericEvitaInternalError("Entity proxy creation is not available without a session.");
+			}
 		);
 	}
 

@@ -576,6 +576,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		return isTransactionAvailable() ? new ReferencedTypeEntityIndexChanges() : null;
 	}
 
+	@Override
+	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
+		this.indexPrimaryKeyCardinality.removeLayer(transactionalLayer);
+		this.cardinalityIndexes.removeLayer(transactionalLayer);
+	}
+
 	@Nonnull
 	@Override
 	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(ReferencedTypeEntityIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {

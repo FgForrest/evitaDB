@@ -37,8 +37,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -199,11 +199,7 @@ class ReevaluateFacetExpressionExecutor
 		final Scope scope = mutation.scope();
 
 		// always target GlobalEntityIndex
-		final EntityIndex globalIndex = target.getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
-		Assert.notNull(
-			globalIndex,
-			"GlobalEntityIndex must exist for scope `" + scope + "`."
-		);
+		final EntityIndex globalIndex = target.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
 
 		// determine if ReducedEntityIndex instances should also be targeted
 		final boolean targetReduced =
@@ -711,12 +707,14 @@ class ReevaluateFacetExpressionExecutor
 		final int[] reducedStoragePKs = refTypeIndex.getAllReferenceIndexes(entry.facetPK());
 		for (int reducedStoragePK : reducedStoragePKs) {
 			final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(reducedStoragePK);
-			if (reducedIndex != null) {
-				if (add) {
-					reducedIndex.addFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
-				} else {
-					reducedIndex.removeFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
-				}
+			Assert.isPremiseValid(
+				reducedIndex != null,
+				"Expected reduced index with storage PK " + reducedStoragePK + " to exist for facet PK " + entry.facetPK()
+			);
+			if (add) {
+				reducedIndex.addFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
+			} else {
+				reducedIndex.removeFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
 			}
 		}
 	}

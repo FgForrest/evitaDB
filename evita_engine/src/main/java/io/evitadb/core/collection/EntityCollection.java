@@ -162,6 +162,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2942,22 +2943,16 @@ public final class EntityCollection implements
 		 * scope and returns the matching entity PK bitmap. Uses the full query planning infrastructure
 		 * (`FilterByVisitor` + `Formula`) to evaluate the filter.
 		 *
-		 * Requires `session` to be set via `setSession()` before dispatch — called exclusively from within
-		 * `applyIndexMutations()` which sets and clears the session around the dispatch loop.
+		 * The session is used when available (normal session execution) for cache analysis but is **not required** —
+		 * during WAL replay (trunk incorporation) no session exists and the evaluation proceeds without caching.
 		 *
 		 * @param filterBy the filter constraint to evaluate (typically a parameterized expression from a trigger)
 		 * @param scope    the scope whose `GlobalEntityIndex` should be queried
 		 * @return bitmap of entity primary keys matching the filter, never null (may be empty)
-		 * @throws GenericEvitaInternalError if no session is available (indicates incorrect dispatch wiring)
 		 */
 		@Nonnull
 		@Override
 		public Bitmap evaluateFilter(@Nonnull FilterBy filterBy, @Nonnull Scope scope) {
-			Assert.notNull(
-				this.session,
-				"evaluateFilter requires an active session — ensure applyIndexMutations() sets the session " +
-					"before dispatch."
-			);
 			// inject EntityScope into the filter so that EvitaRequest.getScopes() returns the correct scope;
 			// without this, nested constraint processing (e.g., ReferenceHaving translator) would default to
 			// LIVE scope and look up wrong indexes when evaluating ARCHIVED entities
@@ -2976,8 +2971,15 @@ public final class EntityCollection implements
 				EntityReference.class,
 				null
 			);
-			final QueryPlanningContext queryContext = EntityCollection.this.createQueryContext(
-				evitaRequest, this.session
+			// use session-optional QueryPlanningContext — session may be null during WAL replay
+			final QueryPlanningContext queryContext = new QueryPlanningContext(
+				EntityCollection.this.catalog,
+				EntityCollection.this,
+				this.session,
+				evitaRequest,
+				EntityCollection.this.indexes,
+				EntityCollection.this.indexesByPrimaryKey,
+				EntityCollection.this.cacheSupervisor
 			);
 			final Set<Scope> requestedScopes = EnumSet.of(scope);
 			final Formula formula = FilterByVisitor.createFormulaForTheFilter(

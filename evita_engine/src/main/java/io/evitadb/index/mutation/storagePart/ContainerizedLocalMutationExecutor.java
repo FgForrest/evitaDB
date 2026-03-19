@@ -3269,11 +3269,19 @@ public final class ContainerizedLocalMutationExecutor
 		 * @param assignedKeys map of comparable keys to their assigned reference keys with internal PKs
 		 */
 		void processAssignedPrimaryKeys(@Nonnull Map<ComparableReferenceKey, ReferenceKey> assignedKeys) {
-			this.assignedPrimaryKeys = assignedKeys;
 			if (assignedKeys.isEmpty()) {
-				this.createdReferenceKeys = Collections.emptyMap();
+				this.createdReferenceKeys = this.createdReferenceKeys == null ?
+					Collections.emptyMap() : this.createdReferenceKeys;
+				this.assignedPrimaryKeys = this.assignedPrimaryKeys == null ?
+					Collections.emptyMap() : this.assignedPrimaryKeys;
 			} else {
-				this.createdReferenceKeys = CollectionUtils.createHashMap(assignedKeys.size());
+				this.createdReferenceKeys = this.createdReferenceKeys == null || this.createdReferenceKeys.isEmpty() ?
+					CollectionUtils.createHashMap(assignedKeys.size()) : this.createdReferenceKeys;
+				if (this.assignedPrimaryKeys == null || this.assignedPrimaryKeys.isEmpty()) {
+					this.assignedPrimaryKeys = new HashMap<>(assignedKeys);
+				} else {
+					this.assignedPrimaryKeys.putAll(assignedKeys);
+				}
 				for (Entry<ComparableReferenceKey, ReferenceKey> entry : assignedKeys.entrySet()) {
 					final ReferenceKey key = entry.getValue();
 					final ReferenceKey assignedKey = entry.getKey().referenceKey();
