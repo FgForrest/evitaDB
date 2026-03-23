@@ -206,6 +206,7 @@ class CreateReferenceSchemaMutationTest {
 			},
 			null,
 			new Scope[]{Scope.LIVE},
+			null, null, null,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -299,7 +300,8 @@ class CreateReferenceSchemaMutationTest {
 				new Scope[]{Scope.LIVE},
 				new ScopedFacetedPartially[]{
 					new ScopedFacetedPartially(Scope.LIVE, expression)
-				}
+				},
+				null, null
 			);
 			// existing schema is NOT faceted — facetedInScopes={}
 			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -413,6 +415,64 @@ class CreateReferenceSchemaMutationTest {
 
 			assertNull(result);
 		}
+
+		/**
+		 * Verifies that when a create mutation with bucketed config is combined
+		 * with a remove mutation against a non-bucketed existing schema, exactly one
+		 * SetReferenceSchemaBucketedMutation is emitted carrying both bucketed
+		 * histogram definitions and bucketedPartially expressions.
+		 */
+		@Test
+		@DisplayName("should emit single bucketed mutation when remove+create with different bucketed")
+		void shouldEmitSingleBucketedMutationWhenRemoveAndCreateWithDifferentBucketed() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"oldDescription", "oldDeprecationNotice",
+				Cardinality.ZERO_OR_MORE, REFERENCE_TYPE, false,
+				GROUP_TYPE, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, expression)
+				}
+			);
+			// existing schema is NOT bucketed
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(createExistingReferenceSchema()));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			// Count SetReferenceSchemaBucketedMutation instances -- must be exactly 1
+			final SetReferenceSchemaBucketedMutation[] bucketedMutations =
+				Arrays.stream(result.current())
+					.filter(SetReferenceSchemaBucketedMutation.class::isInstance)
+					.map(SetReferenceSchemaBucketedMutation.class::cast)
+					.toArray(SetReferenceSchemaBucketedMutation[]::new);
+			assertEquals(
+				1, bucketedMutations.length,
+				"Expected exactly one SetReferenceSchemaBucketedMutation"
+			);
+			final SetReferenceSchemaBucketedMutation bucketedMutation = bucketedMutations[0];
+			assertNotNull(bucketedMutation.getBucketedInScopes());
+			assertEquals(1, bucketedMutation.getBucketedInScopes().length);
+			assertNotNull(bucketedMutation.getBucketedPartiallyInScopes());
+			assertEquals(1, bucketedMutation.getBucketedPartiallyInScopes().length);
+		}
 	}
 
 	@Nested
@@ -517,7 +577,8 @@ class CreateReferenceSchemaMutationTest {
 				new Scope[]{Scope.LIVE},
 				new ScopedFacetedPartially[]{
 					new ScopedFacetedPartially(Scope.LIVE, expression)
-				}
+				},
+				null, null
 			);
 
 			final ReferenceSchemaContract referenceSchema =
@@ -546,6 +607,49 @@ class CreateReferenceSchemaMutationTest {
 					false, false
 				)
 			);
+		}
+
+		/**
+		 * Verifies that the 14-arg constructor with bucketed histogram data produces
+		 * a reference schema where the histogram definition is retrievable.
+		 */
+		@Test
+		@DisplayName("should create reference with bucketed histogram")
+		void shouldCreateReferenceWithBucketedHistogram() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", expression)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, expression)
+				}
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertTrue(referenceSchema.isBucketedInScope(Scope.LIVE));
+			assertEquals(
+				"priceHistogram",
+				referenceSchema.getHistogramIndexDefinition(Scope.LIVE).nameOfTheIndex()
+			);
+			assertNotNull(referenceSchema.getBucketedPartiallyInScope(Scope.LIVE));
 		}
 	}
 
@@ -675,6 +779,38 @@ class CreateReferenceSchemaMutationTest {
 			assertTrue(result.contains("Create entity reference"));
 			assertTrue(result.contains(REFERENCE_NAME));
 			assertTrue(result.contains(REFERENCE_TYPE));
+		}
+
+		/**
+		 * Verifies that toString output includes bucketed and bucketedPartially
+		 * substrings when bucketed fields are set.
+		 */
+		@Test
+		@DisplayName("should include bucketed in toString")
+		void shouldIncludeBucketedInToString() {
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"desc", null,
+				Cardinality.ZERO_OR_MORE, REFERENCE_TYPE, false,
+				null, false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse("1 > 0"))
+				}
+			);
+
+			final String result = mutation.toString();
+
+			assertTrue(result.contains("bucketed="));
+			assertTrue(result.contains("bucketedPartially="));
 		}
 	}
 }

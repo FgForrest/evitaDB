@@ -756,6 +756,15 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										indexedComponents
 									}
 									faceted
+									bucketed {
+										scope
+										nameOfTheIndex
+										valueExpression
+									}
+									bucketedPartially {
+										scope
+										expression
+									}
 								}
 								obsoleteBrand {
 									deprecationNotice
@@ -820,6 +829,8 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexedDto(brandReferenceSchema))
 								.e(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), createReferenceIndexedComponentsDto(brandReferenceSchema))
 								.e(ReferenceSchemaDescriptor.FACETED.name(), createReferencedFacetedDto(brandReferenceSchema))
+								.e(ReferenceSchemaDescriptor.BUCKETED.name(), createBucketedHistogramDto(brandReferenceSchema))
+								.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), createBucketedPartiallyDto(brandReferenceSchema))
 								.build())
 							.e(REFERENCE_OBSOLETE_BRAND, map()
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), obsoleteBrandReferenceSchema.getDeprecationNotice())
@@ -1099,6 +1110,15 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 							allReferences {
 								__typename
 								name
+								bucketed {
+									scope
+									nameOfTheIndex
+									valueExpression
+								}
+								bucketedPartially {
+									scope
+									expression
+								}
 							}
 						}
 					}
@@ -1114,6 +1134,14 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + NamedSchemaDescriptor.NAME.name(),
 				containsInAnyOrder(productSchema.getReferences().keySet().toArray(String[]::new))
+			)
+			.body(
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.BUCKETED.name(),
+				everyItem(equalTo(List.of()))
+			)
+			.body(
+				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
+				everyItem(equalTo(List.of()))
 			);
 	}
 

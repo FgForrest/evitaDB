@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -86,6 +88,21 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 				mutation.getFacetedPartiallyList()
 			);
 
+		// Handle bucketed histogram definitions -- coalesce null to EMPTY for non-reflected references
+		// where bucketed is never inherited (null would be semantically ambiguous)
+		final ScopedHistogramIndexDefinition[] parsedBucketed = EntitySchemaConverter.parseBucketedHistogram(
+			mutation.getBucketedInScopesList()
+		);
+		final ScopedHistogramIndexDefinition[] bucketedInScopes =
+			parsedBucketed != null ? parsedBucketed : ScopedHistogramIndexDefinition.EMPTY;
+
+		// Handle bucketedPartially expressions -- coalesce null to EMPTY for consistency
+		final ScopedBucketedPartially[] parsedBucketedPartially = EntitySchemaConverter.parseBucketedPartially(
+			mutation.getBucketedPartiallyInScopesList()
+		);
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			parsedBucketedPartially != null ? parsedBucketedPartially : ScopedBucketedPartially.EMPTY;
+
 		return new CreateReferenceSchemaMutation(
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
@@ -98,7 +115,9 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			indexedInScopes,
 			indexedComponentsInScopes,
 			facetedInScopes,
-			facetedPartiallyInScopes
+			facetedPartiallyInScopes,
+			bucketedInScopes,
+			bucketedPartiallyInScopes
 		);
 	}
 
@@ -150,6 +169,20 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 		builder.addAllFacetedPartially(
 			SetReferenceSchemaFacetedMutationConverter.toGrpcScopedFacetedPartially(
 				mutation.getFacetedPartiallyInScopes()
+			)
+		);
+
+		// Handle bucketed histogram definitions
+		builder.addAllBucketedInScopes(
+			SetReferenceSchemaBucketedMutationConverter.toGrpcScopedHistogramIndexDefinition(
+				mutation.getBucketedInScopes()
+			)
+		);
+
+		// Handle bucketedPartially expressions
+		builder.addAllBucketedPartiallyInScopes(
+			SetReferenceSchemaBucketedMutationConverter.toGrpcScopedBucketedPartially(
+				mutation.getBucketedPartiallyInScopes()
 			)
 		);
 

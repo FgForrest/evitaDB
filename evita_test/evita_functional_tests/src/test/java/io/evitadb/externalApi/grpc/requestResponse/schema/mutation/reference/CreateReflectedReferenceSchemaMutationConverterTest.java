@@ -28,7 +28,9 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -42,7 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Tests for {@link CreateReflectedReferenceSchemaMutationConverter} verifying gRPC
- * round-trip conversion of reflected reference mutations including facetedPartially.
+ * round-trip conversion of reflected reference mutations including facetedPartially
+ * and bucketed expressions.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -113,6 +116,8 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				new ScopedFacetedPartially[]{
 					new ScopedFacetedPartially(Scope.LIVE, expression)
 				},
+				null,
+				null,
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 				new String[]{"order"}
 			);
@@ -147,10 +152,12 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				null,
 				"tag",
 				"originalTags",
-				null,  // indexed inherited
-				null,  // components inherited
-				null,  // faceted inherited
-				null,  // facetedPartially inherited
+				null,
+				null,
+				null,
+				null,
+				null,
+				null,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null
 			);
@@ -160,6 +167,8 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 
 		assertNull(roundTripped.getFacetedInScopes());
 		assertNull(roundTripped.getFacetedPartiallyInScopes());
+		assertNull(roundTripped.getBucketedInScopes());
+		assertNull(roundTripped.getBucketedPartiallyInScopes());
 	}
 
 	/**
@@ -189,6 +198,8 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					new ScopedFacetedPartially(Scope.LIVE, liveExpr),
 					new ScopedFacetedPartially(Scope.ARCHIVED, archivedExpr)
 				},
+				null,
+				null,
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 				new String[]{"order"}
 			);
@@ -199,5 +210,90 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 		assertEquals(mutation, roundTripped);
 		assertNotNull(roundTripped.getFacetedPartiallyInScopes());
 		assertEquals(2, roundTripped.getFacetedPartiallyInScopes().length);
+	}
+
+	/**
+	 * Verifies that a mutation with bucketed histogram definitions and bucketedPartially
+	 * expressions survives gRPC round-trip.
+	 */
+	@Test
+	@DisplayName("should round-trip mutation with bucketed fields")
+	void shouldConvertMutationWithBucketedFields() {
+		final Expression valueExpr = ExpressionFactory.parse("$price * $quantity");
+		final Expression bucketedPartiallyExpr = ExpressionFactory.parse("$active == 1");
+		final CreateReflectedReferenceSchemaMutation mutation =
+			new CreateReflectedReferenceSchemaMutation(
+				"tags",
+				"desc",
+				null,
+				Cardinality.ZERO_OR_MORE,
+				"tag",
+				"originalTags",
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", valueExpr
+					)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, bucketedPartiallyExpr)
+				},
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				new String[]{"order"}
+			);
+
+		final CreateReflectedReferenceSchemaMutation roundTripped =
+			converter.convert(converter.convert(mutation));
+
+		assertEquals(mutation, roundTripped);
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(1, roundTripped.getBucketedInScopes().length);
+		assertEquals("priceHistogram", roundTripped.getBucketedInScopes()[0].nameOfTheIndex());
+		assertNotNull(roundTripped.getBucketedInScopes()[0].valueExpression());
+		assertEquals(
+			valueExpr.toExpressionString(),
+			roundTripped.getBucketedInScopes()[0].valueExpression().toExpressionString()
+		);
+
+		assertNotNull(roundTripped.getBucketedPartiallyInScopes());
+		assertEquals(1, roundTripped.getBucketedPartiallyInScopes().length);
+		assertEquals(Scope.LIVE, roundTripped.getBucketedPartiallyInScopes()[0].scope());
+		assertNotNull(roundTripped.getBucketedPartiallyInScopes()[0].expression());
+	}
+
+	/**
+	 * Verifies that null bucketed fields (inherited) survive round-trip as null.
+	 */
+	@Test
+	@DisplayName("should preserve null bucketed fields when inherited")
+	void shouldPreserveInheritedBucketedFields() {
+		final CreateReflectedReferenceSchemaMutation mutation =
+			new CreateReflectedReferenceSchemaMutation(
+				"tags",
+				"desc",
+				null,
+				null,
+				"tag",
+				"originalTags",
+				null,
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				null,
+				null,
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				new String[]{"order"}
+			);
+
+		final CreateReflectedReferenceSchemaMutation roundTripped =
+			converter.convert(converter.convert(mutation));
+
+		assertNull(roundTripped.getBucketedInScopes());
+		assertNull(roundTripped.getBucketedPartiallyInScopes());
 	}
 }

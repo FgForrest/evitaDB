@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -947,6 +947,250 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 	}
 
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
+	@DisplayName("Should create and update bucketed reference schema")
+	void shouldCreateAndUpdateBucketedReferenceSchema(GraphQLTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+
+		// create reference with bucketed config including valueExpression
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				mutation {
+					updateEmptySchema (
+						mutations: [
+							{
+								createReferenceSchemaMutation: {
+									name: "myBucketedRef"
+									referencedEntityType: "tag"
+									referencedEntityTypeManaged: false
+									referencedGroupTypeManaged: false
+									indexedInScopes: [
+										{
+											scope: LIVE
+											indexType: FOR_FILTERING
+										}
+									]
+									bucketedInScopes: [
+										{
+											scope: LIVE
+											nameOfTheIndex: "priceHistogram"
+											valueExpression: "$price * 1.21"
+										}
+									]
+									bucketedPartiallyInScopes: [
+										{
+											scope: LIVE
+											expression: "1 > 0"
+										}
+									]
+								}
+							}
+						]
+					) {
+						version
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				UPDATE_EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 1)
+						.build()
+				)
+			);
+
+		// verify the bucketed reference schema
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				query {
+					getEmptySchema {
+						version
+						references {
+							myBucketedRef {
+								name
+								bucketed {
+									scope
+									nameOfTheIndex
+									valueExpression
+								}
+								bucketedPartially {
+									scope
+									expression
+								}
+							}
+						}
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 1)
+						.e(EntitySchemaDescriptor.REFERENCES.name(), map()
+							.e("myBucketedRef", map()
+								.e(NamedSchemaDescriptor.NAME.name(), "myBucketedRef")
+								.e(
+									ReferenceSchemaDescriptor.BUCKETED.name(),
+									list().i(
+										map()
+											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+											.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
+											.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$price * 1.21")
+									)
+								)
+								.e(
+									ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
+									list().i(
+										map()
+											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+											.e(ScopedBucketedPartiallyDescriptor.EXPRESSION.name(), "1 > 0")
+									)
+								)
+								.build())
+							.build())
+						.build()
+				)
+			);
+
+		// update bucketed config via setReferenceSchemaBucketedMutation with null valueExpression (T5)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				mutation {
+					updateEmptySchema (
+						mutations: [
+							{
+								setReferenceSchemaBucketedMutation: {
+									name: "myBucketedRef"
+									bucketedInScopes: [
+										{
+											scope: LIVE
+											nameOfTheIndex: "countHistogram"
+										}
+									]
+									bucketedPartiallyInScopes: []
+								}
+							}
+						]
+					) {
+						version
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				UPDATE_EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 2)
+						.build()
+				)
+			);
+
+		// verify updated bucketed config with null valueExpression
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				query {
+					getEmptySchema {
+						version
+						references {
+							myBucketedRef {
+								name
+								bucketed {
+									scope
+									nameOfTheIndex
+									valueExpression
+								}
+								bucketedPartially {
+									scope
+									expression
+								}
+							}
+						}
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				EMPTY_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 2)
+						.e(EntitySchemaDescriptor.REFERENCES.name(), map()
+							.e("myBucketedRef", map()
+								.e(NamedSchemaDescriptor.NAME.name(), "myBucketedRef")
+								.e(
+									ReferenceSchemaDescriptor.BUCKETED.name(),
+									list().i(
+										map()
+											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+											.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "countHistogram")
+											.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), null)
+									)
+								)
+								.e(
+									ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
+									List.of()
+								)
+								.build())
+							.build())
+						.build()
+				)
+			);
+
+		// clean up: remove the reference
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				mutation {
+					updateEmptySchema (
+						mutations: [
+							{
+								removeReferenceSchemaMutation: {
+									name: "myBucketedRef"
+								}
+							}
+						]
+					) {
+						version
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				UPDATE_EMPTY_SCHEMA_PATH + "." + VersionedDescriptor.VERSION.name(),
+				equalTo(initialEntitySchemaVersion + 3)
+			);
+	}
 
 	private static int getEntitySchemaVersion(@Nonnull GraphQLTester tester, @Nonnull String entityType) {
 		return tester.test(TEST_CATALOG)

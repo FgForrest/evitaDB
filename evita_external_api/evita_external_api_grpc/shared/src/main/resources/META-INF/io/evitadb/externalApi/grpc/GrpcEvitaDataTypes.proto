@@ -491,3 +491,25 @@ message GrpcScopedFacetedPartially {
   // When absent (not set), no partial faceting filter is applied for this scope.
   google.protobuf.StringValue expression = 2;
 }
+
+// Message representing a per-scope bucketed histogram configuration that defines the index name
+// and optional value expression computing the bucket value for each referenced entity.
+message GrpcScopedHistogramIndexDefinition {
+  // The scope in which the bucketed histogram configuration applies.
+  GrpcEntityScope scope = 1;
+  // The name identifying the histogram index.
+  string nameOfTheIndex = 2;
+  // The expression computing the histogram bucket value for each referenced entity.
+  // When absent (not set), no value expression is defined for this scope.
+  google.protobuf.StringValue valueExpression = 3;
+}
+
+// Message representing a per-scope expression that narrows which entities participate
+// in bucketed histogram computation.
+message GrpcScopedBucketedPartially {
+  // The scope in which the bucketed partially expression applies.
+  GrpcEntityScope scope = 1;
+  // The expression that narrows which entities participate in bucketed histogram for this scope.
+  // When absent (not set), no partial bucketing filter is applied for this scope.
+  google.protobuf.StringValue expression = 2;
+}

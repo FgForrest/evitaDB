@@ -738,6 +738,8 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						)
 						.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 						.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), list())
+						.e(ReferenceSchemaDescriptor.BUCKETED.name(), list())
+						.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), list())
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.build()
@@ -810,6 +812,188 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			.statusCode(200)
 			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
 			.body(EntitySchemaDescriptor.REFERENCES.name() + ".mySpecialTags", nullValue())
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+	}
+
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
+	@DisplayName("Should change reference schema with bucketed histogram")
+	void shouldChangeReferenceSchemaWithBucketedHistogram(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+
+		// create a reference with bucketed histogram (with valueExpression) and bucketedPartially
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"createReferenceSchemaMutation": {
+								"name": "myBucketedRef",
+								"referencedEntityType": "tag",
+								"referencedEntityTypeManaged": false,
+								"referencedGroupTypeManaged": false,
+								"indexedInScopes": [
+									{
+										"scope": "LIVE",
+										"indexType": "FOR_FILTERING"
+									}
+								],
+								"bucketedInScopes": [
+									{
+										"scope": "LIVE",
+										"nameOfTheIndex": "priceHistogram",
+										"valueExpression": "$price * 1.21"
+									}
+								],
+								"bucketedPartiallyInScopes": [
+									{
+										"scope": "LIVE",
+										"expression": "1 > 0"
+									}
+								]
+							}
+						}
+					]
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200)
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// verify the bucketed reference schema with valueExpression and bucketedPartially (T2 + T3)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef."
+					+ ReferenceSchemaDescriptor.BUCKETED.name(),
+				equalTo(
+					list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
+							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$price * 1.21")
+							.build()
+					).build()
+				)
+			)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef."
+					+ ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
+				equalTo(
+					list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedBucketedPartiallyDescriptor.EXPRESSION.name(), "1 > 0")
+							.build()
+					).build()
+				)
+			)
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// update bucketed config with null valueExpression and remove bucketedPartially (T4)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"setReferenceSchemaBucketedMutation": {
+								"name": "myBucketedRef",
+								"bucketedInScopes": [
+									{
+										"scope": "LIVE",
+										"nameOfTheIndex": "countHistogram"
+									}
+								],
+								"bucketedPartiallyInScopes": []
+							}
+						}
+					]
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200)
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// verify updated bucketed config with null valueExpression
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef."
+					+ ReferenceSchemaDescriptor.BUCKETED.name(),
+				equalTo(
+					list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "countHistogram")
+							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), null)
+							.build()
+					).build()
+				)
+			)
+			.body(
+				EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef."
+					+ ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
+				equalTo(List.of())
+			)
+			.body(
+				"",
+				equalTo(
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+				)
+			);
+
+		// clean up: remove the reference
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"removeReferenceSchemaMutation": {
+								"name": "myBucketedRef"
+							}
+						}
+					]
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200)
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
+			.body(EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef", nullValue())
 			.body(
 				"",
 				equalTo(

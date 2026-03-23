@@ -149,6 +149,7 @@ public class DelegatingEntitySchemaMutationConverter extends
 		registerConverter(ModifyReferenceSchemaRelatedEntityMutation.class, new ModifyReferenceSchemaRelatedEntityMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class, new ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(RemoveReferenceSchemaMutation.class, new RemoveReferenceSchemaMutationConverter(objectMapper, exceptionFactory));
+		registerConverter(SetReferenceSchemaBucketedMutation.class, new SetReferenceSchemaBucketedMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetReferenceSchemaFacetedMutation.class, new SetReferenceSchemaFacetedMutationConverter(objectMapper, exceptionFactory));
 		registerConverter(SetReferenceSchemaIndexedMutation.class, new SetReferenceSchemaIndexedMutationConverter(objectMapper, exceptionFactory));
 	}

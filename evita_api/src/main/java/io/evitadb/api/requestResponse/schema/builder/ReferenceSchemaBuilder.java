@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -352,6 +353,48 @@ public final class ReferenceSchemaBuilder
 			.filter(it -> !excludedScopes.contains(it))
 			.toArray(Scope[]::new);
 		return applyNonFacetedMutation(remainingScopes);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder bucketedInScope(
+		@Nonnull Scope scope,
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression
+	) {
+		// compute complete state: current bucketed definitions + new scope entry
+		final Map<Scope, HistogramIndexDefinition> currentBucketed = this.getHistogramIndexDefinitions();
+		final Map<Scope, HistogramIndexDefinition> allBucketed = currentBucketed.isEmpty()
+			? new EnumMap<>(Scope.class) : new EnumMap<>(currentBucketed);
+		allBucketed.put(scope, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+		// compute complete bucketedPartially: filter existing to retained scopes
+		final Map<Scope, Expression> filteredPartially = filterBucketedPartiallyToScopes(allBucketed.keySet());
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(allBucketed),
+			toScopedBucketedPartiallyArray(filteredPartially),
+			true
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder bucketedPartiallyInScope(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		// compute complete state: current bucketed definitions unchanged, current expressions + new entry
+		final Map<Scope, HistogramIndexDefinition> currentBucketed = this.getHistogramIndexDefinitions();
+		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
+			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
+		allPartially.put(scope, expression);
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(currentBucketed),
+			toScopedBucketedPartiallyArray(allPartially),
+			true
+		);
 	}
 
 	@Override

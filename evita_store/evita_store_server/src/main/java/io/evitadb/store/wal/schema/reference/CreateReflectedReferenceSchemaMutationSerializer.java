@@ -30,12 +30,18 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
+import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.readScopedHistogramIndexDefinitionArray;
+import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.readScopedBucketedPartiallyArray;
+import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.writeScopedHistogramIndexDefinitionArray;
+import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaBucketedMutationSerializer.writeScopedBucketedPartiallyArray;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaFacetedMutationSerializer.readScopedFacetedPartiallyArray;
 import static io.evitadb.store.wal.schema.reference.SetReferenceSchemaFacetedMutationSerializer.writeScopedFacetedPartiallyArray;
 
@@ -76,6 +82,15 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		}
 		// write facetedPartially expressions
 		writeScopedFacetedPartiallyArray(kryo, output, mutation.getFacetedPartiallyInScopes());
+		// write bucketed histogram definitions with null-check
+		if (mutation.getBucketedInScopes() == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeScopedHistogramIndexDefinitionArray(kryo, output, mutation.getBucketedInScopes());
+		}
+		// write bucketedPartially expressions
+		writeScopedBucketedPartiallyArray(kryo, output, mutation.getBucketedPartiallyInScopes());
 
 		kryo.writeObject(output, mutation.getAttributeInheritanceBehavior());
 
@@ -102,6 +117,11 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			input.readBoolean() ? readScopedReferenceIndexedComponentsArray(kryo, input) : null;
 		// read facetedPartially expressions
 		final ScopedFacetedPartially[] facetedPartiallyInScopes = readScopedFacetedPartiallyArray(kryo, input);
+		// read bucketed histogram definitions with null-check
+		final ScopedHistogramIndexDefinition[] bucketedInScopes = input.readBoolean()
+			? readScopedHistogramIndexDefinitionArray(kryo, input) : null;
+		// read bucketedPartially expressions
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes = readScopedBucketedPartiallyArray(kryo, input);
 
 		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
 		final int attributesExcludedFromInheritanceLength = input.readVarInt(true);
@@ -121,6 +141,8 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			indexedComponentsInScopes,
 			facetedInScopes,
 			facetedPartiallyInScopes,
+			bucketedInScopes,
+			bucketedPartiallyInScopes,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance
 		);

@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -98,6 +100,16 @@ public class CreateReferenceSchemaMutationConverter
 			CreateReferenceSchemaMutationDescriptor.FACETED_PARTIALLY_IN_SCOPES
 		);
 
+		final ScopedHistogramIndexDefinition[] bucketedInScopes = parseBucketedHistogram(
+			input,
+			CreateReferenceSchemaMutationDescriptor.BUCKETED_IN_SCOPES
+		);
+
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes = parseBucketedPartially(
+			input,
+			CreateReferenceSchemaMutationDescriptor.BUCKETED_PARTIALLY_IN_SCOPES
+		);
+
 		return new CreateReferenceSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
@@ -110,7 +122,9 @@ public class CreateReferenceSchemaMutationConverter
 			indexedInScopes,
 			indexedComponentsInScopes,
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
-			facetedPartiallyInScopes
+			facetedPartiallyInScopes,
+			bucketedInScopes,
+			bucketedPartiallyInScopes
 		);
 	}
 
@@ -120,6 +134,8 @@ public class CreateReferenceSchemaMutationConverter
 		@Nonnull Output output
 	) {
 		serializeFacetedPartially(mutation.getFacetedPartiallyInScopes(), output);
+		serializeBucketedHistogram(mutation.getBucketedInScopes(), output);
+		serializeBucketedPartially(mutation.getBucketedPartiallyInScopes(), output);
 		super.convertToOutput(mutation, output);
 	}
 }

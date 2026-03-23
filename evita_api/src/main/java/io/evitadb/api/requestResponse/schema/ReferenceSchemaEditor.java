@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
@@ -257,6 +258,96 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T nonFacetedPartially(@Nonnull Scope... inScope);
+
+	/**
+	 * Enables bucketed histogram indexing for this reference in the {@link Scope#DEFAULT_SCOPE}.
+	 * When a reference is bucketed, evitaDB creates and maintains a histogram index that allows
+	 * computation of bucketed histogram statistics for the reference.
+	 *
+	 * @param nameOfTheIndex the name identifying the histogram index
+	 * @param valueExpression the expression computing the histogram bucket value
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T bucketed(@Nonnull String nameOfTheIndex, @Nullable Expression valueExpression) {
+		return bucketedInScope(Scope.DEFAULT_SCOPE, nameOfTheIndex, valueExpression);
+	}
+
+	/**
+	 * Enables bucketed histogram indexing for this reference in the specified scope.
+	 * When a reference is bucketed, evitaDB creates and maintains a histogram index that allows
+	 * computation of bucketed histogram statistics for the reference.
+	 *
+	 * @param scope the scope where the bucketed histogram should be enabled
+	 * @param nameOfTheIndex the name identifying the histogram index
+	 * @param valueExpression the expression computing the histogram bucket value
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T bucketedInScope(@Nonnull Scope scope, @Nonnull String nameOfTheIndex, @Nullable Expression valueExpression);
+
+	/**
+	 * Disables bucketed histogram indexing in all scopes.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonBucketed() {
+		return nonBucketed(Scope.values());
+	}
+
+	/**
+	 * Disables bucketed histogram indexing in the specified scopes.
+	 *
+	 * @param inScope one or more scopes where bucketed histogram indexing should be disabled
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonBucketed(@Nonnull Scope... inScope);
+
+	/**
+	 * Sets the expression that narrows which entities participate in bucketed histogram computation
+	 * in the {@link Scope#DEFAULT_SCOPE}. Only meaningful when the reference is bucketed in that scope.
+	 *
+	 * @param expression the expression narrowing bucketed participation
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T bucketedPartially(@Nonnull Expression expression) {
+		return bucketedPartiallyInScope(Scope.DEFAULT_SCOPE, expression);
+	}
+
+	/**
+	 * Sets the expression that narrows which entities participate in bucketed histogram computation
+	 * in the given scope. Only meaningful when the reference is bucketed in that scope.
+	 *
+	 * @param scope the scope to set the expression for
+	 * @param expression the expression narrowing bucketed participation
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T bucketedPartiallyInScope(@Nonnull Scope scope, @Nonnull Expression expression);
+
+	/**
+	 * Clears the bucketedPartially expression in the {@link Scope#DEFAULT_SCOPE}, reverting to
+	 * full bucketed histogram computation where all bucketed entities participate.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonBucketedPartially() {
+		return nonBucketedPartially(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Clears the bucketedPartially expression in the given scope(s), reverting to full bucketed
+	 * histogram computation where all bucketed entities participate.
+	 *
+	 * @param inScope one or more scopes to clear the expression for
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonBucketedPartially(@Nonnull Scope... inScope);
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with

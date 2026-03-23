@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,6 +88,13 @@ public interface ReflectedReferenceSchemaContract extends ReferenceSchemaContrac
 	 * @return true if the faceted property settings is inherited, false otherwise
 	 */
 	boolean isFacetedInherited();
+
+	/**
+	 * Returns true if the bucketed property settings of the reflected reference are inherited from the target reference.
+	 *
+	 * @return true if the bucketed property settings are inherited, false otherwise
+	 */
+	boolean isBucketedInherited();
 
 	/**
 	 * Returns true if the indexed components settings of the reflected reference is inherited from the target reference.

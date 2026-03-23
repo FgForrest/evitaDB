@@ -547,6 +547,16 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		this.buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.BUCKETED,
+			ReferenceSchemasBucketedDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.BUCKETED_PARTIALLY,
+			ReferenceSchemasBucketedPartiallyDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
 			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			AllSortableAttributeCompoundSchemasDataFetcher.getInstance()
 		);
@@ -681,6 +691,16 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			objectName,
 			ReferenceSchemaDescriptor.FACETED_PARTIALLY,
 			ReferenceSchemaFacetedPartiallyDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			objectName,
+			ReferenceSchemaDescriptor.BUCKETED,
+			ReferenceSchemasBucketedDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			objectName,
+			ReferenceSchemaDescriptor.BUCKETED_PARTIALLY,
+			ReferenceSchemasBucketedPartiallyDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			objectName,

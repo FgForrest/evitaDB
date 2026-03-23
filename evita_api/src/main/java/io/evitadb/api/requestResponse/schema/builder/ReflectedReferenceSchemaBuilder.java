@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -273,6 +274,19 @@ public final class ReflectedReferenceSchemaBuilder
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaFacetedMutation(getName(), (Scope[]) null)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder withBucketedInherited() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaBucketedMutation(getName(), null)
 			)
 		);
 		return this;
@@ -533,6 +547,148 @@ public final class ReflectedReferenceSchemaBuilder
 		} else {
 			// when explicit, use the base implementation which reads the complete state
 			super.nonFacetedPartially(inScope);
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder bucketedInScope(
+		@Nonnull Scope scope,
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression
+	) {
+		// breaking inheritance: the mutation carries the complete explicit state from scratch
+		final Map<Scope, HistogramIndexDefinition> allBucketed;
+		final Map<Scope, Expression> filteredPartially;
+		if (isBucketedInherited()) {
+			// breaking inheritance — start from scratch with just this scope
+			allBucketed = new EnumMap<>(Scope.class);
+		} else {
+			// already explicit — accumulate on top of current state
+			final Map<Scope, HistogramIndexDefinition> currentBucketed = this.getHistogramIndexDefinitions();
+			allBucketed = currentBucketed.isEmpty()
+				? new EnumMap<>(Scope.class)
+				: new EnumMap<>(currentBucketed);
+		}
+		filteredPartially = new EnumMap<>(Scope.class);
+		allBucketed.put(scope, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+		// filter partially to retained scopes
+		if (!isBucketedInherited()) {
+			final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+			for (final Map.Entry<Scope, Expression> entry : currentPartially.entrySet()) {
+				if (allBucketed.containsKey(entry.getKey())) {
+					filteredPartially.put(entry.getKey(), entry.getValue());
+				}
+			}
+		}
+		final boolean allInformationPresent = isReflectedReferenceAvailable() || !isIndexedInherited();
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(allBucketed),
+			toScopedBucketedPartiallyArray(filteredPartially),
+			allInformationPresent
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder bucketedPartiallyInScope(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		// compute complete state: when inherited, start from scratch; when explicit, build on top
+		final Map<Scope, HistogramIndexDefinition> allBucketed;
+		final Map<Scope, Expression> allPartially;
+		if (isBucketedInherited()) {
+			// breaking inheritance — start from scratch with just this scope
+			allBucketed = new EnumMap<>(Scope.class);
+			allPartially = new EnumMap<>(Scope.class);
+		} else {
+			// already explicit — accumulate on top of current state
+			final Map<Scope, HistogramIndexDefinition> currentBucketed = this.getHistogramIndexDefinitions();
+			allBucketed = currentBucketed.isEmpty()
+				? new EnumMap<>(Scope.class) : new EnumMap<>(currentBucketed);
+			final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+			allPartially = currentPartially.isEmpty()
+				? new EnumMap<>(Scope.class)
+				: new EnumMap<>(currentPartially);
+		}
+		allPartially.put(scope, expression);
+		final boolean allInformationPresent = isReflectedReferenceAvailable() || !isIndexedInherited();
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(allBucketed),
+			toScopedBucketedPartiallyArray(allPartially),
+			allInformationPresent
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder nonBucketed() {
+		if (isReflectedReferenceAvailable()) {
+			return nonBucketed(Scope.DEFAULT_SCOPE);
+		} else {
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaBucketedMutation(
+						getName(),
+						ScopedHistogramIndexDefinition.EMPTY,
+						ScopedBucketedPartially.EMPTY
+					)
+				)
+			);
+			return this;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder nonBucketed(@Nonnull Scope... inScope) {
+		Assert.isTrue(
+			!isBucketedInherited() || isReflectedReferenceAvailable(),
+			() -> new InvalidSchemaMutationException(
+				"Cannot update non-bucketed scopes on inherited reference schema "
+					+ "when the referenced schema is not available!"
+			)
+		);
+		return super.nonBucketed(inScope);
+	}
+
+	/**
+	 * Overrides the base implementation to handle reflected reference null semantics for
+	 * bucketed histogram. For reflected references, passing `null` for `bucketedInScopes`
+	 * means "inherit from original" - so we must always pass the current explicit state
+	 * to preserve it. When inherited, we pass `null` to keep inheritance intact.
+	 */
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder nonBucketedPartially(@Nonnull Scope... inScope) {
+		if (isBucketedInherited()) {
+			// when inherited, clearing a partial expression should stay inherited
+			// but remove the partial expression for the specified scopes
+			final EnumSet<Scope> clearedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+			final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+			final Map<Scope, Expression> remaining = currentPartially.isEmpty()
+				? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
+			for (final Scope scope : clearedScopes) {
+				remaining.remove(scope);
+			}
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaBucketedMutation(
+						getName(), null, toScopedBucketedPartiallyArray(remaining)
+					)
+				)
+			);
+		} else {
+			// when explicit, use the base implementation which reads the complete state
+			super.nonBucketedPartially(inScope);
 		}
 		return this;
 	}

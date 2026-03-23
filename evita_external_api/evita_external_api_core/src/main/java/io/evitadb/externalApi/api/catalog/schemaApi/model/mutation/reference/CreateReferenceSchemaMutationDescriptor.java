@@ -26,6 +26,8 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
@@ -173,6 +175,34 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 	PropertyDescriptor FACETED_PARTIALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(FACETED_PARTIALLY_IN_SCOPES)
 		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS_INPUT))
 		.build();
+	PropertyDescriptor BUCKETED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("bucketedInScopes")
+		.description("""
+			Per-scope bucketed histogram configuration for this reference. Each entry associates
+			a scope with a histogram index name and an optional value expression that computes
+			the histogram bucket value for each referenced entity.
+
+			This array defines in which scopes the reference will be bucketed. It will not be
+			bucketed in not-specified scopes.
+			""")
+		.type(nullableListRef(ScopedHistogramIndexDefinitionDescriptor.THIS))
+		.build();
+	PropertyDescriptor BUCKETED_IN_SCOPES_INPUT = PropertyDescriptor.from(BUCKETED_IN_SCOPES)
+		.type(nullableListRef(ScopedHistogramIndexDefinitionDescriptor.THIS_INPUT))
+		.build();
+	PropertyDescriptor BUCKETED_PARTIALLY_IN_SCOPES = PropertyDescriptor.builder()
+		.name("bucketedPartiallyInScopes")
+		.description("""
+			Per-scope expressions that narrow which entities participate in bucketed histogram
+			computation. Each entry associates a scope with a boolean expression that is evaluated
+			against the entity data. Only entities for which the expression evaluates to true will
+			participate in histogram computation for the given scope.
+			""")
+		.type(nullableListRef(ScopedBucketedPartiallyDescriptor.THIS))
+		.build();
+	PropertyDescriptor BUCKETED_PARTIALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(BUCKETED_PARTIALLY_IN_SCOPES)
+		.type(nullableListRef(ScopedBucketedPartiallyDescriptor.THIS_INPUT))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(CreateReferenceSchemaMutation.class)
@@ -192,11 +222,15 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES)
 		.staticProperty(FACETED_IN_SCOPES)
 		.staticProperty(FACETED_PARTIALLY_IN_SCOPES)
+		.staticProperty(BUCKETED_IN_SCOPES)
+		.staticProperty(BUCKETED_PARTIALLY_IN_SCOPES)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateReferenceSchemaMutationInput")
 		.staticProperty(INDEXED_IN_SCOPES_INPUT)
 		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES_INPUT)
 		.staticProperty(FACETED_PARTIALLY_IN_SCOPES_INPUT)
+		.staticProperty(BUCKETED_IN_SCOPES_INPUT)
+		.staticProperty(BUCKETED_PARTIALLY_IN_SCOPES_INPUT)
 		.build();
 }

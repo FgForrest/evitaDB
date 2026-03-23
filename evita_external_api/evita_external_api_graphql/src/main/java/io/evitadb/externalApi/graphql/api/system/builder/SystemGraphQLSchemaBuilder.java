@@ -62,6 +62,8 @@ import io.evitadb.externalApi.api.catalog.model.cdc.DataSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.SchemaSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
@@ -177,6 +179,8 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedReferenceIndexedComponentsDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedFacetedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedHistogramIndexDefinitionDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedBucketedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		buildMutationInterface();
@@ -289,6 +293,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS,
 			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS,
 			RemoveReferenceSchemaMutationDescriptor.THIS,
+			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
 

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -228,6 +229,43 @@ class ReflectedReferenceSchemaBuilderTest {
 		productBuilder.withReferenceToEntity(
 			"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 			ref -> ref.facetedInScope(Scope.LIVE, Scope.ARCHIVED)
+		);
+
+		// create reflected reference and build the schema
+		final EntitySchemaContract schema = createCategorySchemaBuilder()
+			.withReflectedReferenceToEntity(
+				"categoryProducts", Entities.PRODUCT, "productCategory",
+				whichIs
+			)
+			.toInstance();
+
+		return (ReflectedReferenceSchemaContract) schema
+			.getReference("categoryProducts").orElseThrow();
+	}
+
+	/**
+	 * Builds a reflected reference schema where the **original** reference on the
+	 * product entity is bucketed in both `LIVE` and `ARCHIVED` scopes. This setup
+	 * causes the reflected reference to inherit bucketed state from the original,
+	 * which is essential for testing the inherited-to-explicit transition behavior.
+	 *
+	 * @param whichIs consumer to configure the reflected reference builder
+	 * @return the built reflected reference schema
+	 */
+	@Nonnull
+	private ReflectedReferenceSchemaContract buildReflectedReferenceWithBucketedOriginal(
+		@Nonnull Consumer<ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder> whichIs
+	) {
+		// create the base reference on product -> category, bucketed in LIVE + ARCHIVED
+		final EntitySchemaBuilder productBuilder = new InternalEntitySchemaBuilder(
+			this.catalogSchema, this.productSchema
+		);
+		productBuilder.withReferenceToEntity(
+			"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+			ref -> {
+				ref.bucketedInScope(Scope.LIVE, "idx", null);
+				ref.bucketedInScope(Scope.ARCHIVED, "idx2", null);
+			}
 		);
 
 		// create reflected reference and build the schema
@@ -1473,6 +1511,329 @@ class ReflectedReferenceSchemaBuilderTest {
 					Scope.LIVE,
 					setIndexed.getIndexedInScopes()[0].scope()
 				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucketed operations")
+	class BucketedOperations {
+
+		/**
+		 * Verifies that calling `bucketedInScope` on a reflected reference sets the bucketed
+		 * state explicitly (not inherited).
+		 */
+		@Test
+		@DisplayName("should set bucketed in scope")
+		void shouldSetBucketedInScope() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "idx", null)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isBucketedInherited())
+			);
+		}
+
+		/**
+		 * Verifies that setting bucketed and then reverting to inherited restores
+		 * the inherited state.
+		 */
+		@Test
+		@DisplayName("should inherit bucketed status")
+		void shouldInheritBucketedStatus() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", null)
+					.withBucketedInherited()
+			);
+
+			assertTrue(ref.isBucketedInherited());
+		}
+
+		/**
+		 * Verifies that calling `bucketedInScope` on a reflected reference auto-promotes
+		 * it to indexed.
+		 */
+		@Test
+		@DisplayName("should implicitly index when bucketed")
+		void shouldImplicitlyIndexWhenBucketed() {
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "idx", null)
+			);
+
+			assertTrue(
+				ref.isIndexedInScope(Scope.LIVE),
+				"Reference should be implicitly indexed when bucketed"
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedInScope` on a reflected reference with a bucketed
+		 * original breaks inheritance and only applies the explicitly requested scope.
+		 */
+		@Test
+		@DisplayName("should break inheritance when calling bucketedInScope")
+		void shouldBreakInheritanceWhenCallingBucketedInScope() {
+			final ReflectedReferenceSchemaContract ref =
+				buildReflectedReferenceWithBucketedOriginal(
+					whichIs -> whichIs.bucketedInScope(Scope.LIVE, "myIdx", null)
+				);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInherited(),
+					"Bucketed should no longer be inherited"
+				),
+				() -> assertTrue(
+					ref.isBucketedInScope(Scope.LIVE),
+					"LIVE should be bucketed (explicitly requested)"
+				),
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.ARCHIVED),
+					"ARCHIVED should NOT be carried over from inherited state"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedInScope` followed by `bucketedPartiallyInScope` on a
+		 * reflected reference with a bucketed original breaks inheritance and starts from scratch.
+		 * Note: `bucketedInScope` is required first because `bucketedPartiallyInScope` alone
+		 * cannot break inheritance -- bucketed requires a `nameOfTheIndex` that cannot be inferred.
+		 */
+		@Test
+		@DisplayName("should break inheritance when calling bucketedPartiallyInScope")
+		void shouldBreakInheritanceWhenCallingBucketedPartiallyInScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+
+			final ReflectedReferenceSchemaContract ref =
+				buildReflectedReferenceWithBucketedOriginal(
+					whichIs -> whichIs
+						.bucketedInScope(Scope.LIVE, "myIdx", null)
+						.bucketedPartiallyInScope(Scope.LIVE, expression)
+				);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInherited(),
+					"Bucketed should no longer be inherited"
+				),
+				() -> assertNotNull(
+					ref.getBucketedPartiallyInScope(Scope.LIVE),
+					"Partial expression should be present for LIVE"
+				),
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.ARCHIVED),
+					"ARCHIVED should NOT be carried over from inherited state"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that setting explicit bucketed + partially and then calling
+		 * `withBucketedInherited` clears all explicit settings.
+		 */
+		@Test
+		@DisplayName("should clear all explicit settings when calling withBucketedInherited")
+		void shouldClearAllExplicitSettingsWhenCallingWithBucketedInherited() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+					.withBucketedInherited()
+			);
+
+			assertAll(
+				() -> assertTrue(
+					ref.isBucketedInherited(),
+					"Bucketed should be inherited again"
+				),
+				() -> {
+					final Map<Scope, Expression> partials = ref.getBucketedPartiallyInScopes();
+					assertTrue(
+						partials.isEmpty(),
+						"No leftover partial expressions should remain after reverting to inherited"
+					);
+				}
+			);
+		}
+
+		/**
+		 * Verifies that calling `nonBucketed(Scope)` on an explicitly bucketed reflected
+		 * reference removes bucketed from the specified scope while keeping the reference
+		 * in non-inherited mode.
+		 */
+		@Test
+		@DisplayName("should make non-bucketed for explicit scope")
+		void shouldMakeNonBucketedWithoutReflectedRef() {
+			final ReflectedReferenceSchemaContract ref =
+				buildReflectedReferenceWithBucketedOriginal(
+					whichIs -> whichIs
+						.bucketedInScope(Scope.LIVE, "myIdx", null)
+						.bucketedInScope(Scope.ARCHIVED, "myIdx2", null)
+						.nonBucketed(Scope.LIVE)
+				);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"LIVE should no longer be bucketed"
+				),
+				() -> assertTrue(
+					ref.isBucketedInScope(Scope.ARCHIVED),
+					"ARCHIVED should still be bucketed"
+				),
+				() -> assertFalse(ref.isBucketedInherited())
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedInScope` followed by `bucketedPartiallyInScope` for
+		 * LIVE and ARCHIVED accumulates both scopes and both expressions.
+		 */
+		@Test
+		@DisplayName("should accumulate scopes across multiple bucketedPartiallyInScope calls")
+		void shouldAccumulateScopesAcrossMultipleBucketedPartiallyInScopeCalls() {
+			final Expression liveExpression = ExpressionFactory.parse("1 > 0");
+			final Expression archivedExpression = ExpressionFactory.parse("2 > 1");
+
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+					.bucketedPartiallyInScope(Scope.LIVE, liveExpression)
+					.bucketedPartiallyInScope(Scope.ARCHIVED, archivedExpression)
+			);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInherited(),
+					"Bucketed should not be inherited"
+				),
+				() -> assertNotNull(
+					ref.getBucketedPartiallyInScope(Scope.LIVE),
+					"LIVE partial expression should be present"
+				),
+				() -> assertNotNull(
+					ref.getBucketedPartiallyInScope(Scope.ARCHIVED),
+					"ARCHIVED partial expression should be present"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `nonBucketedPartially` on an **existing** reflected reference
+		 * preserves the explicitly set bucketed scopes instead of resetting them to inherited.
+		 * This tests the update path where the reference already exists in the schema
+		 * and the mutation is applied directly (not absorbed into a Create mutation).
+		 */
+		@Test
+		@DisplayName("should preserve bucketed scopes when clearing partial expression on existing ref")
+		void shouldPreserveBucketedScopesWhenClearingPartialExpressionOnExistingRef() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+
+			// Step 1: Build the initial category schema with a reflected reference
+			// that has bucketed+partially set
+			final EntitySchemaBuilder productBuilder = new InternalEntitySchemaBuilder(
+				ReflectedReferenceSchemaBuilderTest.this.catalogSchema,
+				ReflectedReferenceSchemaBuilderTest.this.productSchema
+			);
+			productBuilder.withReferenceToEntity(
+				"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				ReferenceSchemaEditor::indexed
+			);
+
+			final EntitySchemaContract initialCategorySchema =
+				createCategorySchemaBuilder()
+					.withReflectedReferenceToEntity(
+						"categoryProducts", Entities.PRODUCT, "productCategory",
+						whichIs -> whichIs
+							.bucketedInScope(Scope.LIVE, "idx", null)
+							.bucketedPartiallyInScope(Scope.LIVE, expression)
+					)
+					.toInstance();
+
+			// Verify initial state
+			final ReflectedReferenceSchemaContract initialRef =
+				(ReflectedReferenceSchemaContract) initialCategorySchema
+					.getReference("categoryProducts").orElseThrow();
+			assertTrue(initialRef.isBucketedInScope(Scope.LIVE), "Initial ref should be bucketed");
+			assertFalse(initialRef.isBucketedInherited(), "Initial ref should NOT inherit bucketed");
+
+			// Step 2: Create a new builder from the built schema to simulate an update
+			final EntitySchemaContract updatedSchema =
+				new InternalEntitySchemaBuilder(
+					ReflectedReferenceSchemaBuilderTest.this.catalogSchema,
+					initialCategorySchema
+				)
+					.withReflectedReferenceToEntity(
+						"categoryProducts", Entities.PRODUCT, "productCategory",
+						whichIs -> whichIs.nonBucketedPartially(Scope.LIVE)
+					)
+					.toInstance();
+
+			final ReflectedReferenceSchemaContract updatedRef =
+				(ReflectedReferenceSchemaContract) updatedSchema
+					.getReference("categoryProducts").orElseThrow();
+
+			assertFalse(
+				updatedRef.isBucketedInherited(),
+				"Bucketed should NOT be reset to inherited by nonBucketedPartially"
+			);
+			assertTrue(
+				updatedRef.isBucketedInScope(Scope.LIVE),
+				"Bucketed scope should be preserved after clearing partial expression"
+			);
+			assertNull(
+				updatedRef.getBucketedPartiallyInScope(Scope.LIVE),
+				"Partial expression should be cleared"
+			);
+		}
+
+		/**
+		 * Verifies the full round-trip from inherited to explicit bucketed state and back.
+		 * Setting explicit bucketed breaks inheritance, reverting with `withBucketedInherited`
+		 * restores it with no leftover partial expressions.
+		 */
+		@Test
+		@DisplayName("should support full round-trip inherited to explicit and back")
+		void shouldSupportFullRoundTripInheritedToExplicitAndBack() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+
+			final ReflectedReferenceSchemaContract ref =
+				buildReflectedReferenceWithBucketedOriginal(whichIs -> {
+					// step 1: set explicit bucketed (breaks inheritance)
+					whichIs
+						.bucketedInScope(Scope.LIVE, "myIdx", null)
+						.bucketedPartiallyInScope(Scope.LIVE, expression);
+
+					// step 2: verify explicit state through the builder
+					assertFalse(
+						whichIs.isBucketedInherited(),
+						"Should be explicit after setting bucketed"
+					);
+
+					// step 3: revert back to inherited
+					whichIs.withBucketedInherited();
+				});
+
+			// final state should be fully inherited with no leftover explicit settings
+			assertAll(
+				() -> assertTrue(
+					ref.isBucketedInherited(),
+					"Bucketed should be inherited after round-trip"
+				),
+				() -> {
+					final Map<Scope, Expression> partials = ref.getBucketedPartiallyInScopes();
+					assertTrue(
+						partials.isEmpty(),
+						"No partial expressions should survive the round-trip"
+					);
+				}
 			);
 		}
 	}

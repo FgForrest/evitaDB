@@ -29,6 +29,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
@@ -72,7 +75,10 @@ public class CreateReferenceSchemaMutationSerializer_2026_1 extends Serializer<C
 			referencedGroupTypeManaged,
 			indexedInScopes,
 			null,
-			facetedInScopes
+			facetedInScopes,
+			ScopedFacetedPartially.EMPTY,
+			ScopedHistogramIndexDefinition.EMPTY,
+			ScopedBucketedPartially.EMPTY
 		);
 	}
 

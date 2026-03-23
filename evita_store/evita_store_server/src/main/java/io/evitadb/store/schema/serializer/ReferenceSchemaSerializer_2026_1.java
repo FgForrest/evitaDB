@@ -118,6 +118,8 @@ public class ReferenceSchemaSerializer_2026_1 extends Serializer<ReferenceSchema
 			ReferenceSchema.defaultIndexedComponents(indexedInScopes),
 			facetedInScopes,
 			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			attributes, sortableAttributeCompounds
 		);
 	}

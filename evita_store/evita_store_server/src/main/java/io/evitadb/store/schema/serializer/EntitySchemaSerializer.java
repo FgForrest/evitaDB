@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -262,6 +263,58 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 			facetedPartiallyMap.put(scope, expression);
 		}
 		return facetedPartiallyMap;
+	}
+
+	/**
+	 * Serializes a map of {@link Scope} to {@link HistogramIndexDefinition} representing
+	 * bucketed histogram configuration into a Kryo {@link Output}.
+	 *
+	 * @param kryo                   the Kryo instance to use for serialization
+	 * @param output                 the Output instance to write to
+	 * @param bucketedHistogramMap   the map to serialize
+	 */
+	static void writeBucketedHistogramMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull Map<Scope, HistogramIndexDefinition> bucketedHistogramMap
+	) {
+		output.writeVarInt(bucketedHistogramMap.size(), true);
+		for (Entry<Scope, HistogramIndexDefinition> entry : bucketedHistogramMap.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			output.writeString(entry.getValue().nameOfTheIndex());
+			if (entry.getValue().valueExpression() != null) {
+				output.writeBoolean(true);
+				kryo.writeObject(output, entry.getValue().valueExpression());
+			} else {
+				output.writeBoolean(false);
+			}
+		}
+	}
+
+	/**
+	 * Reads a map of {@link Scope} to {@link HistogramIndexDefinition} representing
+	 * bucketed histogram configuration from a Kryo {@link Input}.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the deserialized map
+	 */
+	@Nonnull
+	static Map<Scope, HistogramIndexDefinition> readBucketedHistogramMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input
+	) {
+		final int count = input.readVarInt(true);
+		final Map<Scope, HistogramIndexDefinition> bucketedHistogramMap =
+			CollectionUtils.createHashMap(count);
+		for (int i = 0; i < count; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final String nameOfTheIndex = input.readString();
+			final Expression valueExpression = input.readBoolean()
+				? kryo.readObject(input, Expression.class) : null;
+			bucketedHistogramMap.put(scope, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+		}
+		return bucketedHistogramMap;
 	}
 
 	/**

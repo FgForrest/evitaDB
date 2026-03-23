@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -836,6 +838,441 @@ class ReferenceSchemaTest {
 				ex.getMessage().contains("FacetedPartially expression is defined for scope"),
 				"Expected error about facetedPartially for non-faceted scope, got: " + ex.getMessage()
 			);
+		}
+
+		/**
+		 * Verifies that validate() reports an error when bucketedPartially is configured
+		 * for a scope that is not bucketed.
+		 */
+		@Test
+		@DisplayName("should fail when bucketedPartially set for non-bucketed scope")
+		void shouldFailValidationWhenBucketedPartiallySetForNonBucketedScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			// Create schema with bucketedPartially in LIVE but NOT bucketed in LIVE
+			final ReferenceSchema schema = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				false,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(), // NOT bucketed in any scope
+				Map.of(Scope.LIVE, expression), // but bucketedPartially is set for LIVE
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			final EntitySchema entitySchema = EntitySchema._internalBuild("TestEntity");
+			final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
+				"testCatalog",
+				NamingConvention.generate("testCatalog"),
+				EnumSet.allOf(CatalogEvolutionMode.class),
+				new EntitySchemaProvider() {
+					@Nonnull
+					@Override
+					public Collection<EntitySchemaContract> getEntitySchemas() {
+						return List.of(entitySchema);
+					}
+
+					@Nonnull
+					@Override
+					public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+						return Optional.empty();
+					}
+				}
+			);
+
+			final InvalidSchemaMutationException ex = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> schema.validate(catalogSchema, entitySchema)
+			);
+			assertTrue(
+				ex.getMessage().contains("BucketedPartially expression is defined for scope"),
+				"Expected error about bucketedPartially for non-bucketed scope, got: " + ex.getMessage()
+			);
+		}
+
+		/**
+		 * Verifies that validateScopeSettings rejects a bucketed scope that is not indexed.
+		 */
+		@Test
+		@DisplayName("should reject bucketed in non-indexed scope")
+		void shouldRejectBucketedInNonIndexedScope() {
+			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("hist", null));
+
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> ReferenceSchema.validateScopeSettings(
+					Collections.emptySet(),
+					bucketedMap,
+					Map.of(Scope.LIVE, ReferenceIndexType.NONE),
+					null
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucketed tests")
+	class BucketedTests {
+
+		/**
+		 * Verifies that building a {@link ReferenceSchema} with a {@link HistogramIndexDefinition}
+		 * produces the expected bucketed configuration.
+		 */
+		@Test
+		@DisplayName("should build with bucketed histogram definition")
+		void shouldBuildWithHistogramIndexDefinition() {
+			final Expression valueExpr = ExpressionFactory.parse("$price * $quantity");
+			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("priceHistogram", valueExpr));
+
+			final ReferenceSchema schema = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			assertTrue(schema.isBucketedInScope(Scope.LIVE));
+			assertFalse(schema.isBucketedInScope(Scope.ARCHIVED));
+			assertTrue(schema.isBucketedInAnyScope());
+			assertEquals("priceHistogram", schema.getHistogramIndexDefinition(Scope.LIVE).nameOfTheIndex());
+			assertEquals(
+				valueExpr.toExpressionString(),
+				schema.getHistogramIndexDefinition(Scope.LIVE).valueExpression().toExpressionString()
+			);
+			assertEquals(Set.of(Scope.LIVE), schema.getBucketedInScopes());
+			assertEquals(1, schema.getHistogramIndexDefinitions().size());
+		}
+
+		/**
+		 * Verifies that a {@link ReferenceSchema} can be built with a bucketedPartially expression.
+		 */
+		@Test
+		@DisplayName("should build with bucketedPartially expression")
+		void shouldBuildWithBucketedPartiallyExpression() {
+			final Expression partiallyExpr = ExpressionFactory.parse("$status == 1");
+			final ReferenceSchema schema = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				Cardinality.ZERO_OR_ONE,
+				null,
+				Collections.emptyMap(),
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				Scope.NO_SCOPE,
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "hist", null)
+				},
+				new ScopedBucketedPartially[]{
+					new ScopedBucketedPartially(Scope.LIVE, partiallyExpr)
+				},
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			assertNotNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
+			assertEquals(
+				partiallyExpr.toExpressionString(),
+				schema.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString()
+			);
+			assertEquals(
+				partiallyExpr.toExpressionString(),
+				schema.getBucketedPartially().toExpressionString()
+			);
+			assertEquals(1, schema.getBucketedPartiallyInScopes().size());
+		}
+
+		/**
+		 * Verifies that a {@link HistogramIndexDefinition} with a null valueExpression
+		 * can be constructed and used correctly.
+		 */
+		@Test
+		@DisplayName("should build with null value expression")
+		void shouldBuildWithNullValueExpression() {
+			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("hist", null));
+
+			final ReferenceSchema schema = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			assertTrue(schema.isBucketedInScope(Scope.LIVE));
+			assertNull(schema.getHistogramIndexDefinition(Scope.LIVE).valueExpression());
+		}
+
+		/**
+		 * Verifies that a minimal {@link ReferenceSchema} built without bucketed arguments
+		 * returns empty bucketed state.
+		 */
+		@Test
+		@DisplayName("should return empty bucketed when not configured")
+		void shouldReturnEmptyBucketedWhenNotConfigured() {
+			final ReferenceSchema schema = ReferenceSchema._internalBuild(
+				"brand",
+				"Brand",
+				true,
+				Cardinality.ZERO_OR_ONE,
+				null,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null
+			);
+
+			assertFalse(schema.isBucketedInScope(Scope.LIVE));
+			assertFalse(schema.isBucketedInAnyScope());
+			assertTrue(schema.getBucketedInScopes().isEmpty());
+			assertTrue(schema.getHistogramIndexDefinitions().isEmpty());
+			assertNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
+			assertTrue(schema.getBucketedPartiallyInScopes().isEmpty());
+		}
+
+		/**
+		 * Verifies that schemas differing only in bucketed definitions are not equal.
+		 */
+		@Test
+		@DisplayName("should include bucketed in equality check")
+		void shouldIncludeBucketedInEquality() {
+			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("hist", null));
+
+			final ReferenceSchema withBucketed = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+			final ReferenceSchema withoutBucketed = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			assertNotEquals(withBucketed, withoutBucketed);
+
+			// Two identical bucketed schemas should be equal
+			final ReferenceSchema withBucketed2 = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+			assertEquals(withBucketed, withBucketed2);
+			assertEquals(withBucketed.hashCode(), withBucketed2.hashCode());
+		}
+
+		/**
+		 * Verifies that schemas differing only in bucketedPartially expressions are not equal.
+		 */
+		@Test
+		@DisplayName("should include bucketedPartially in equality check")
+		void shouldIncludeBucketedPartiallyInEquality() {
+			final Expression expression = ExpressionFactory.parse("$status == 1");
+			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("hist", null));
+
+			final ReferenceSchema withPartially = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Map.of(Scope.LIVE, expression),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+			final ReferenceSchema withoutPartially = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			assertNotEquals(withPartially, withoutPartially);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucketed static helpers")
+	class BucketedStaticHelpers {
+
+		/**
+		 * Verifies that toBucketedHistogramMap correctly converts a multi-element array.
+		 */
+		@Test
+		@DisplayName("should convert scoped bucketed histogram to map")
+		void shouldConvertScopedHistogramIndexDefinitionToMap() {
+			final Expression expr = ExpressionFactory.parse("$price");
+			final ScopedHistogramIndexDefinition[] input = new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "liveHist", expr),
+				new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHist", null)
+			};
+
+			final Map<Scope, HistogramIndexDefinition> result =
+				ReferenceSchema.toBucketedHistogramMap(input);
+
+			assertEquals(2, result.size());
+			assertEquals("liveHist", result.get(Scope.LIVE).nameOfTheIndex());
+			assertEquals(
+				expr.toExpressionString(),
+				result.get(Scope.LIVE).valueExpression().toExpressionString()
+			);
+			assertEquals("archivedHist", result.get(Scope.ARCHIVED).nameOfTheIndex());
+			assertNull(result.get(Scope.ARCHIVED).valueExpression());
+
+			// null and empty input should return empty maps
+			assertTrue(ReferenceSchema.toBucketedHistogramMap(null).isEmpty());
+			assertTrue(ReferenceSchema.toBucketedHistogramMap(ScopedHistogramIndexDefinition.EMPTY).isEmpty());
+		}
+
+		/**
+		 * Verifies that toBucketedPartiallyMap correctly converts arrays, filters nulls,
+		 * and handles null/empty input.
+		 */
+		@Test
+		@DisplayName("should convert scoped bucketed partially to map")
+		void shouldConvertScopedBucketedPartiallyToMap() {
+			final Expression liveExpr = ExpressionFactory.parse("$status == 1");
+			final ScopedBucketedPartially[] input = new ScopedBucketedPartially[]{
+				new ScopedBucketedPartially(Scope.LIVE, liveExpr),
+				new ScopedBucketedPartially(Scope.ARCHIVED, null) // should be filtered
+			};
+
+			final Map<Scope, Expression> result = ReferenceSchema.toBucketedPartiallyMap(input);
+
+			assertEquals(1, result.size());
+			assertNotNull(result.get(Scope.LIVE));
+			assertNull(result.get(Scope.ARCHIVED));
+
+			// null and empty input should return empty maps
+			assertTrue(ReferenceSchema.toBucketedPartiallyMap(null).isEmpty());
+			assertTrue(ReferenceSchema.toBucketedPartiallyMap(ScopedBucketedPartially.EMPTY).isEmpty());
 		}
 	}
 }

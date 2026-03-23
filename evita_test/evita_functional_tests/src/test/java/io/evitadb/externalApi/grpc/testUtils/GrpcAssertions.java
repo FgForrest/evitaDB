@@ -54,10 +54,14 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.AssociatedDataForm;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -238,6 +242,41 @@ public class GrpcAssertions {
 				actualReferenceSchema.getScopedIndexedComponentsList().size(),
 				"Indexed components in scopes count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
 			);
+
+			// assert bucketed histogram definitions
+			assertEquals(
+				expectedReferenceSchema.getHistogramIndexDefinitions().size(),
+				actualReferenceSchema.getBucketedList().size(),
+				"Bucketed histogram definitions count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
+			);
+			for (GrpcScopedHistogramIndexDefinition grpcBucketed : actualReferenceSchema.getBucketedList()) {
+				final Scope scope = EvitaEnumConverter.toScope(grpcBucketed.getScope());
+				final HistogramIndexDefinition expectedDef =
+					expectedReferenceSchema.getHistogramIndexDefinition(scope);
+				assertNotNull(
+					expectedDef,
+					"Expected bucketed histogram definition for scope " + scope +
+						" in reference `" + expectedReferenceSchema.getName() + "`"
+				);
+				assertEquals(expectedDef.nameOfTheIndex(), grpcBucketed.getNameOfTheIndex());
+			}
+
+			// assert bucketedPartially expressions
+			assertEquals(
+				expectedReferenceSchema.getBucketedPartiallyInScopes().size(),
+				actualReferenceSchema.getBucketedPartiallyList().size(),
+				"Bucketed partially count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
+			);
+
+			// for reflected references: assert bucketedInherited flag
+			if (expectedReferenceSchema instanceof ReflectedReferenceSchemaContract reflectedSchema) {
+				assertEquals(
+					reflectedSchema.isBucketedInherited(),
+					actualReferenceSchema.getBucketedInherited(),
+					"Bucketed inherited flag mismatch for reference `" + expectedReferenceSchema.getName() + "`"
+				);
+			}
+
 			assertAttributes(expectedReferenceSchema.getAttributes(), actualReferenceSchema.getAttributesMap());
 		}
 	}

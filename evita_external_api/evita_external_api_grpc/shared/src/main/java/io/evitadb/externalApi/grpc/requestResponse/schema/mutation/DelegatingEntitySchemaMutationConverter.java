@@ -7,7 +7,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,21 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.*;
-import io.evitadb.api.requestResponse.schema.mutation.reference.*;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaBucketedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
@@ -63,7 +77,21 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.Modif
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.entity.*;
-import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.*;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReferenceSchemaNameMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.SetReferenceSchemaBucketedMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationConverter;
@@ -157,6 +185,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_GRPC_CONVERTERS.put(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class, new ToGrpc((b, m) -> b.setModifyReflectedReferenceAttributeInheritanceSchemaMutation((GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) m), ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(RemoveReferenceSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceSchemaMutation((GrpcRemoveReferenceSchemaMutation) m), RemoveReferenceSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetReferenceSchemaFacetedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaFacetedMutation((GrpcSetReferenceSchemaFacetedMutation) m), SetReferenceSchemaFacetedMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(SetReferenceSchemaBucketedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaBucketedMutation((GrpcSetReferenceSchemaBucketedMutation) m), SetReferenceSchemaBucketedMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetReferenceSchemaIndexedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaIndexedMutation((GrpcSetReferenceSchemaIndexedMutation) m), SetReferenceSchemaIndexedMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(ModifyReferenceSortableAttributeCompoundSchemaMutation.class, new ToGrpc((b, m) -> b.setModifyReferenceSortableAttributeCompoundSchemaMutation((GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) m), ModifyReferenceSortableAttributeCompoundSchemaMutationConverter.INSTANCE));
 
@@ -221,6 +250,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_JAVA_CONVERTERS.put(MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getModifyReflectedReferenceAttributeInheritanceSchemaMutation, ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(REMOVEREFERENCESCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getRemoveReferenceSchemaMutation, RemoveReferenceSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETREFERENCESCHEMAFACETEDMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetReferenceSchemaFacetedMutation, SetReferenceSchemaFacetedMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(SETREFERENCESCHEMABUCKETEDMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetReferenceSchemaBucketedMutation, SetReferenceSchemaBucketedMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETREFERENCESCHEMAINDEXEDMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetReferenceSchemaIndexedMutation, SetReferenceSchemaIndexedMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getModifyReferenceSortableAttributeCompoundSchemaMutation, ModifyReferenceSortableAttributeCompoundSchemaMutationConverter.INSTANCE));
 	}

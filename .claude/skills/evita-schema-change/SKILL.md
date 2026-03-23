@@ -604,9 +604,18 @@ Update `EntitySchemaConverter` and gRPC mutation converters to map the new field
 
 **Module:** `evita_external_api_rest`
 
-1. **Type registration** in `EntitySchemaObjectBuilder`
-2. **JSON serialization** — for scope-aware fields, add a serialization method in `SchemaJsonSerializer` that converts `Map<Scope, ...>` to a JSON array. Call it from `EntitySchemaJsonSerializer`. For simple fields, Jackson serializes them from the getter automatically.
-3. **REST functional test DTO helpers** — update `CatalogRestSchemaEndpointFunctionalTest.createReferenceSchemaDto()` (or equivalent `create*SchemaDto()` method) to include the new field. For scope-aware fields, create a new `create*Dto()` helper method that converts the schema's map data into the expected JSON structure (list of maps with scope + value). Without this, all REST schema endpoint functional tests will fail with JSON path mismatches.
+1. **Schema type registration** in `EntitySchemaObjectBuilder` — registers scoped descriptor types (e.g., `ScopedNewFieldDescriptor.THIS` and `THIS_INPUT`) as reusable OpenAPI component schemas. This is for the **schema output/input types**, not for mutations.
+2. **Mutation registration in `CatalogRestBuilder`** — when adding a **new mutation class**, it must be registered in **three** methods:
+   - `buildMutationInterface()` — add `typeRefTo(SetSchemaTypeNewFieldMutationDescriptor.THIS.name())` to the mutation union discriminator
+   - `buildInputMutations()` — add `SetSchemaTypeNewFieldMutationDescriptor.THIS_INPUT` to register the input mutation schema
+   - `buildOutputMutations()` — add `SetSchemaTypeNewFieldMutationDescriptor.THIS` to register the output mutation schema
+3. **Mutation registration in `SystemRestBuilder`** — the **system REST API** has its own builder with a **separate type registry** (analogous to `SystemGraphQLSchemaBuilder` for GraphQL). New mutations must be registered in **two** methods:
+   - `buildMutationInterface()` — add `typeRefTo(SetSchemaTypeNewFieldMutationDescriptor.THIS.name())`
+   - `buildOutputMutations()` — add `SetSchemaTypeNewFieldMutationDescriptor.THIS`
+
+   **Note:** `SystemRestBuilder` does NOT have a `buildInputMutations()` — the system API only reads mutations (from CDC/WAL), it does not accept mutation input.
+4. **JSON serialization** — for scope-aware fields, add a serialization method in `SchemaJsonSerializer` that converts `Map<Scope, ...>` to a JSON array. Call it from `EntitySchemaJsonSerializer`. For simple fields, Jackson serializes them from the getter automatically.
+5. **REST functional test DTO helpers** — update `CatalogRestSchemaEndpointFunctionalTest.createReferenceSchemaDto()` (or equivalent `create*SchemaDto()` method) to include the new field. For scope-aware fields, create a new `create*Dto()` helper method that converts the schema's map data into the expected JSON structure (list of maps with scope + value). Without this, all REST schema endpoint functional tests will fail with JSON path mismatches.
 
 **Backward compatibility note:** New JSON fields in responses are non-breaking. Ensure request deserialization treats the new field as optional.
 
@@ -621,7 +630,9 @@ Update `EntitySchemaConverter` and gRPC mutation converters to map the new field
 - [ ] **GraphQL:** Types registered in `SystemGraphQLSchemaBuilder` (System API)
 - [ ] **GraphQL:** DataFetcher created and registered (if scope-aware)
 - [ ] **GraphQL:** Input types allow omission of new field
-- [ ] **REST:** Types registered in `EntitySchemaObjectBuilder`
+- [ ] **REST:** Schema types registered in `EntitySchemaObjectBuilder`
+- [ ] **REST:** *(New mutations only)* Mutation registered in `CatalogRestBuilder` (3 methods: `buildMutationInterface`, `buildInputMutations`, `buildOutputMutations`)
+- [ ] **REST:** *(New mutations only)* Mutation registered in `SystemRestBuilder` (2 methods: `buildMutationInterface`, `buildOutputMutations`)
 - [ ] **REST:** Serializer added/updated
 - [ ] **REST:** Request deserialization treats new field as optional
 
@@ -913,7 +924,9 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 | 6b - GQL catalog builder | `evita_external_api_graphql/.../schemaApi/builder/*SchemaBuilder.java` |
 | 6b - GQL system builder | `evita_external_api_graphql/.../system/builder/SystemGraphQLSchemaBuilder.java` |
 | 6b - DataFetcher | `evita_external_api_graphql/.../schemaApi/resolver/dataFetcher/*DataFetcher.java` |
-| 6c - REST builder | `evita_external_api_rest/.../schemaApi/builder/*ObjectBuilder.java` |
+| 6c - REST schema builder | `evita_external_api_rest/.../schemaApi/builder/*ObjectBuilder.java` |
+| 6c - REST catalog builder | `evita_external_api_rest/.../catalog/CatalogRestBuilder.java` |
+| 6c - REST system builder | `evita_external_api_rest/.../system/SystemRestBuilder.java` |
 | 6c - REST serial | `evita_external_api_rest/.../schemaApi/resolver/serializer/*Serializer.java` |
 | 7 - Schema serial | `evita_store_server/.../schema/serializer/SchemaTypeSerializer.java` |
 | 7 - Schema compat | `evita_store_server/.../schema/serializer/SchemaTypeSerializer_YYYY_M.java` |
@@ -960,7 +973,9 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 
 17. **Backward-compat serializer version suffix and release-only policy.** The `YYYY_M` suffix on backward-compatible serializer files must match the **last released version** (latest `release_YYYY-M` branch), not the current development version. Determine it via `git branch -r --list 'origin/release_*' --sort=-v:refname | head -1`. For example, `origin/release_2026-1` → suffix `_2026_1`, annotation `@Deprecated(since = "2026.1")`. **Crucially, we only maintain backward compatibility with the release version.** If a model changes multiple times during a dev cycle and a backward-compat serializer for the release already exists, do NOT create additional backward-compat serializers for intermediate states — just update the current serializer.
 
-18. **`input.getOptionalProperty()` raw vs typed overload.** `getOptionalProperty(String)` returns the raw underlying object (e.g., `List`) without type conversion. `getOptionalProperty(String, Class)` invokes `toTargetType()` which handles `List` -> array conversion. Using the wrong overload causes `ClassCastException` at runtime when the mutation constructor expects an array type.
+18. **`CatalogRestBuilder` and `SystemRestBuilder` are separate mutation registries.** evitaDB has **two independent** REST API builders: `CatalogRestBuilder` (catalog API) and `SystemRestBuilder` (system API). When adding a new mutation, it must be registered in **both**. `CatalogRestBuilder` has 3 methods (`buildMutationInterface`, `buildInputMutations`, `buildOutputMutations`); `SystemRestBuilder` has 2 (`buildMutationInterface`, `buildOutputMutations` — no input mutations). Missing either builder causes `OpenApiBuildingError: Found missing schema in OpenAPI` for the mutation name and its input variant. This is the REST analog of pitfall #16 (GraphQL dual builders). Look for existing `Set*MutationDescriptor` registrations near `SetReferenceSchemaFacetedMutationDescriptor` and add the new one alongside them.
+
+19. **`input.getOptionalProperty()` raw vs typed overload.** `getOptionalProperty(String)` returns the raw underlying object (e.g., `List`) without type conversion. `getOptionalProperty(String, Class)` invokes `toTargetType()` which handles `List` -> array conversion. Using the wrong overload causes `ClassCastException` at runtime when the mutation constructor expects an array type.
 
 ---
 

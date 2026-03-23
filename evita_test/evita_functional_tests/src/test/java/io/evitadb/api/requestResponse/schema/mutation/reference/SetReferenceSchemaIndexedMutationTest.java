@@ -865,6 +865,7 @@ class SetReferenceSchemaIndexedMutationTest {
 					},
 					null,
 					Scope.NO_SCOPE,
+					null, null, null,
 					Collections.emptyMap(), Collections.emptyMap(),
 					ReflectedReferenceSchemaContract.AttributeInheritanceBehavior
 						.INHERIT_ONLY_SPECIFIED,

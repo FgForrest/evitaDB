@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceI
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -57,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -2109,6 +2111,291 @@ class ReferenceSchemaBuilderTest {
 					fromResult.getIndexedComponentsInScopes(),
 					"toInstance() and toResult() components must match"
 				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucketed operations")
+	class BucketedOperations {
+
+		/**
+		 * Verifies that calling `bucketedInScope` for LIVE creates a bucketed histogram definition
+		 * for that scope only.
+		 */
+		@Test
+		@DisplayName("should make bucketed in LIVE scope")
+		void shouldMakeBucketedInLiveScope() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "idx", null)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isBucketedInScope(Scope.ARCHIVED)),
+				() -> {
+					final Map<Scope, HistogramIndexDefinition> defs =
+						ref.getHistogramIndexDefinitions();
+					assertEquals(1, defs.size());
+					assertEquals("idx", defs.get(Scope.LIVE).nameOfTheIndex());
+				}
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedInScope` for LIVE and ARCHIVED creates two bucketed
+		 * histogram definitions with the correct index names.
+		 */
+		@Test
+		@DisplayName("should make bucketed in both scopes")
+		void shouldMakeBucketedInBothScopes() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertTrue(ref.isBucketedInScope(Scope.ARCHIVED)),
+				() -> {
+					final Map<Scope, HistogramIndexDefinition> defs =
+						ref.getHistogramIndexDefinitions();
+					assertEquals(2, defs.size());
+					assertEquals("idx1", defs.get(Scope.LIVE).nameOfTheIndex());
+					assertEquals("idx2", defs.get(Scope.ARCHIVED).nameOfTheIndex());
+				}
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedInScope` on a non-indexed reference auto-promotes
+		 * it to indexed.
+		 */
+		@Test
+		@DisplayName("should implicitly index when bucketed")
+		void shouldImplicitlyIndexWhenBucketed() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "idx", null)
+			);
+
+			assertTrue(
+				ref.isIndexedInScope(Scope.LIVE),
+				"Reference should be implicitly indexed when bucketed"
+			);
+		}
+
+		/**
+		 * Verifies that adding bucketed to an already indexed scope preserves both
+		 * the indexed and bucketed states.
+		 */
+		@Test
+		@DisplayName("should preserve indexing when adding bucketed to already indexed scope")
+		void shouldPreserveIndexingWhenAddingBucketedToAlreadyIndexedScope() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.indexedInScope(Scope.LIVE)
+					.bucketedInScope(Scope.LIVE, "idx", null)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isIndexedInScope(Scope.LIVE)),
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE))
+			);
+		}
+
+		/**
+		 * Verifies that `nonBucketed` removes bucketed from a specific scope while
+		 * keeping other scopes intact.
+		 */
+		@Test
+		@DisplayName("should remove bucketed from scope")
+		void shouldRemoveBucketedFromScope() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+					.nonBucketed(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertFalse(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertTrue(ref.isBucketedInScope(Scope.ARCHIVED))
+			);
+		}
+
+		/**
+		 * Verifies that `nonBucketed` with all scopes removes all bucketed definitions
+		 * and empties the histogram definitions map.
+		 */
+		@Test
+		@DisplayName("should remove all bucketed scopes")
+		void shouldRemoveAllBucketedScopes() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+					.nonBucketed(Scope.values())
+			);
+
+			assertAll(
+				() -> assertFalse(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertFalse(ref.isBucketedInScope(Scope.ARCHIVED)),
+				() -> assertTrue(ref.getHistogramIndexDefinitions().isEmpty())
+			);
+		}
+
+		/**
+		 * Verifies that `bucketedPartiallyInScope` sets a partial expression for
+		 * the specified scope.
+		 */
+		@Test
+		@DisplayName("should set bucketedPartially expression in scope")
+		void shouldSetBucketedPartiallyExpressionInScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertNotNull(ref.getBucketedPartiallyInScope(Scope.LIVE)),
+				() -> assertEquals(
+					expression.toExpressionString(),
+					ref.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedPartiallyInScope` for two different scopes retains
+		 * both expressions independently.
+		 */
+		@Test
+		@DisplayName("should retain bucketedPartially for multiple scopes")
+		void shouldRetainBucketedPartiallyForMultipleScopes() {
+			final Expression liveExpression = ExpressionFactory.parse("1 > 0");
+			final Expression archivedExpression = ExpressionFactory.parse("2 > 1");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx1", null)
+					.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+					.bucketedPartiallyInScope(Scope.LIVE, liveExpression)
+					.bucketedPartiallyInScope(Scope.ARCHIVED, archivedExpression)
+			);
+
+			assertAll(
+				() -> assertNotNull(
+					ref.getBucketedPartiallyInScope(Scope.LIVE),
+					"LIVE expression should not be overwritten by ARCHIVED"
+				),
+				() -> assertNotNull(
+					ref.getBucketedPartiallyInScope(Scope.ARCHIVED),
+					"ARCHIVED expression should be set"
+				),
+				() -> assertEquals(
+					liveExpression.toExpressionString(),
+					ref.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString()
+				),
+				() -> assertEquals(
+					archivedExpression.toExpressionString(),
+					ref.getBucketedPartiallyInScope(Scope.ARCHIVED).toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that `nonBucketedPartially` clears the partial expression while
+		 * keeping the scope bucketed.
+		 */
+		@Test
+		@DisplayName("should clear bucketedPartially via nonBucketedPartially")
+		void shouldClearBucketedPartiallyViaNonBucketedPartially() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+					.nonBucketedPartially(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertNull(ref.getBucketedPartiallyInScope(Scope.LIVE))
+			);
+		}
+
+		/**
+		 * Verifies that calling `nonBucketed` on a scope that has a partial expression
+		 * also removes the orphaned partial expression.
+		 */
+		@Test
+		@DisplayName("should filter orphaned partially when removing bucketed scope")
+		void shouldFilterOrphanedPartiallyWhenRemovingBucketedScope() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+					.nonBucketed(Scope.LIVE)
+			);
+
+			assertAll(
+				() -> assertFalse(ref.isBucketedInScope(Scope.LIVE)),
+				() -> assertNull(ref.getBucketedPartiallyInScope(Scope.LIVE))
+			);
+		}
+
+		/**
+		 * Verifies that a value expression is stored in the bucketed histogram definition.
+		 */
+		@Test
+		@DisplayName("should store bucketed histogram definition with value expression")
+		void shouldStoreHistogramIndexDefinitionWithValueExpression() {
+			final Expression valueExpr = ExpressionFactory.parse("$price * $quantity");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "idx", valueExpr)
+			);
+
+			final HistogramIndexDefinition def =
+				ref.getHistogramIndexDefinitions().get(Scope.LIVE);
+			assertNotNull(def);
+			assertEquals(
+				valueExpr.toExpressionString(),
+				def.valueExpression().toExpressionString()
+			);
+		}
+
+		/**
+		 * Verifies the B1 bug fix: calling `bucketedPartiallyInScope` on a non-indexed
+		 * reference auto-promotes to indexed. This tests the override added to
+		 * {@link ReferenceSchemaBuilder}.
+		 */
+		@Test
+		@DisplayName("should auto-promote to indexed when calling bucketedPartiallyInScope on non-indexed ref")
+		void shouldAutoPromoteToIndexedWhenCallingBucketedPartiallyInScopeOnNonIndexedRef() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedPartiallyInScope(Scope.LIVE, expression)
+			);
+
+			assertTrue(
+				ref.isIndexedInScope(Scope.LIVE),
+				"Reference should be auto-promoted to indexed when calling bucketedPartiallyInScope"
 			);
 		}
 	}

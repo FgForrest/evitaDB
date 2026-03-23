@@ -424,6 +424,13 @@ message GrpcReferenceSchema {
   bool indexedComponentsInherited = 30;
   // Per-scope expressions that narrow which entities participate in faceting.
   repeated GrpcScopedFacetedPartially facetedPartially = 31;
+  // Contains true if the bucketed property settings of the reflected reference is inherited
+  // from the target reference.
+  bool bucketedInherited = 32;
+  // Per-scope bucketed histogram configurations defining index name and value expression.
+  repeated GrpcScopedHistogramIndexDefinition bucketed = 33;
+  // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+  repeated GrpcScopedBucketedPartially bucketedPartially = 34;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

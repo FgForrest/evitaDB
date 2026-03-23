@@ -109,7 +109,7 @@ public class ReflectedReferenceSchemaSerializer_2026_1 extends Serializer<Reflec
 				? ReferenceSchema.defaultIndexedComponents(indexedInScopes)
 				: null,
 			facetedInScopes,
-			null,
+			null, null, null,
 			attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);

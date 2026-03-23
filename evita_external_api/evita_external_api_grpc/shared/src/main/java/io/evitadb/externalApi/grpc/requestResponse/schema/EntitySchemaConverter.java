@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -542,6 +544,37 @@ public class EntitySchemaConverter {
 			}
 		}
 
+		// convert bucketed histogram definitions per scope
+		final Map<Scope, HistogramIndexDefinition> bucketedInScopes =
+			referenceSchema.getHistogramIndexDefinitions();
+		if (!bucketedInScopes.isEmpty()) {
+			for (Entry<Scope, HistogramIndexDefinition> entry : bucketedInScopes.entrySet()) {
+				final GrpcScopedHistogramIndexDefinition.Builder bhBuilder = GrpcScopedHistogramIndexDefinition.newBuilder()
+					.setScope(EvitaEnumConverter.toGrpcScope(entry.getKey()))
+					.setNameOfTheIndex(entry.getValue().nameOfTheIndex());
+				if (entry.getValue().valueExpression() != null) {
+					bhBuilder.setValueExpression(
+						StringValue.of(entry.getValue().valueExpression().toExpressionString())
+					);
+				}
+				builder.addBucketed(bhBuilder);
+			}
+		}
+
+		// convert bucketedPartially expressions per scope
+		final Map<Scope, Expression> bucketedPartiallyInScopes =
+			referenceSchema.getBucketedPartiallyInScopes();
+		if (!bucketedPartiallyInScopes.isEmpty()) {
+			for (Entry<Scope, Expression> entry : bucketedPartiallyInScopes.entrySet()) {
+				final GrpcScopedBucketedPartially.Builder bpBuilder = GrpcScopedBucketedPartially.newBuilder()
+					.setScope(EvitaEnumConverter.toGrpcScope(entry.getKey()));
+				if (entry.getValue() != null) {
+					bpBuilder.setExpression(StringValue.of(entry.getValue().toExpressionString()));
+				}
+				builder.addBucketedPartially(bpBuilder);
+			}
+		}
+
 		if (referenceSchema.getReferencedGroupType() != null) {
 			builder.setGroupType(StringValue.newBuilder().setValue(referenceSchema.getReferencedGroupType()).build());
 		}
@@ -561,6 +594,7 @@ public class EntitySchemaConverter {
 				.setIndexedInherited(reflectedSchema.isIndexedInherited())
 				.setIndexedComponentsInherited(reflectedSchema.isIndexedComponentsInherited())
 				.setFacetedInherited(reflectedSchema.isFacetedInherited())
+				.setBucketedInherited(reflectedSchema.isBucketedInherited())
 				.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(reflectedSchema.getAttributesInheritanceBehavior()));
 			for (String attributeName : reflectedSchema.getAttributeInheritanceFilter()) {
 				builder.addAttributeInheritanceFilter(attributeName);
@@ -718,6 +752,12 @@ public class EntitySchemaConverter {
 		final ScopedFacetedPartially[] facetedPartiallyInScopes = parseFacetedPartially(
 			referenceSchema.getFacetedPartiallyList()
 		);
+		final ScopedHistogramIndexDefinition[] parsedBucketedHistograms = parseBucketedHistogram(
+			referenceSchema.getBucketedList()
+		);
+		final ScopedBucketedPartially[] parsedBucketedPartially = parseBucketedPartially(
+			referenceSchema.getBucketedPartiallyList()
+		);
 
 		if (referenceSchema.hasReflectedReferenceName()) {
 			return ReflectedReferenceSchema._internalBuild(
@@ -737,6 +777,8 @@ public class EntitySchemaConverter {
 				indexedComponentsInScopes,
 				facetedInScopes,
 				facetedPartiallyInScopes,
+				referenceSchema.getBucketedInherited() ? null : parsedBucketedHistograms,
+				referenceSchema.getBucketedInherited() ? null : parsedBucketedPartially,
 				referenceSchema.getAttributesMap()
 					.entrySet()
 					.stream()
@@ -759,6 +801,7 @@ public class EntitySchemaConverter {
 				referenceSchema.getIndexedInherited(),
 				referenceSchema.getIndexedComponentsInherited(),
 				referenceSchema.getFacetedInherited(),
+				referenceSchema.getBucketedInherited(),
 				toAttributeInheritanceBehavior(referenceSchema.getAttributeInheritanceBehavior()),
 				referenceSchema.getAttributeInheritanceFilterList().toArray(String[]::new),
 				// here we create mock original reference - it won't be used in most cases, except for detecting
@@ -779,6 +822,8 @@ public class EntitySchemaConverter {
 					indexedComponentsInScopes,
 					facetedInScopes,
 					facetedPartiallyInScopes,
+					parsedBucketedHistograms,
+					parsedBucketedPartially,
 					referenceSchema.getAttributesMap()
 						.entrySet()
 						.stream()
@@ -820,6 +865,9 @@ public class EntitySchemaConverter {
 				indexedComponentsInScopes,
 				facetedInScopes,
 				facetedPartiallyInScopes,
+				// for non-reflected references, bucketed is never inherited -- coalesce null to EMPTY
+				parsedBucketedHistograms != null ? parsedBucketedHistograms : ScopedHistogramIndexDefinition.EMPTY,
+				parsedBucketedPartially != null ? parsedBucketedPartially : ScopedBucketedPartially.EMPTY,
 				referenceSchema.getAttributesMap()
 					.entrySet()
 					.stream()
@@ -961,6 +1009,65 @@ public class EntitySchemaConverter {
 		for (int i = 0; i < facetedPartiallyList.size(); i++) {
 			final GrpcScopedFacetedPartially grpcEntry = facetedPartiallyList.get(i);
 			result[i] = new ScopedFacetedPartially(
+				EvitaEnumConverter.toScope(grpcEntry.getScope()),
+				grpcEntry.hasExpression()
+					? ExpressionFactory.parse(grpcEntry.getExpression().getValue())
+					: null
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Parses a list of {@link GrpcScopedHistogramIndexDefinition} messages into an array of
+	 * {@link ScopedHistogramIndexDefinition}. Returns null if the input list is empty, which allows
+	 * the caller to use null to signify "not set" (e.g. for inherited values).
+	 *
+	 * @param bucketedHistogramList the gRPC list of scoped bucketed histogram messages
+	 * @return an array of {@link ScopedHistogramIndexDefinition}, or null if the input list is empty
+	 */
+	@Nullable
+	public static ScopedHistogramIndexDefinition[] parseBucketedHistogram(
+		@Nonnull List<GrpcScopedHistogramIndexDefinition> bucketedHistogramList
+	) {
+		if (bucketedHistogramList.isEmpty()) {
+			return null;
+		}
+		final ScopedHistogramIndexDefinition[] result =
+			new ScopedHistogramIndexDefinition[bucketedHistogramList.size()];
+		for (int i = 0; i < bucketedHistogramList.size(); i++) {
+			final GrpcScopedHistogramIndexDefinition grpcEntry = bucketedHistogramList.get(i);
+			result[i] = new ScopedHistogramIndexDefinition(
+				EvitaEnumConverter.toScope(grpcEntry.getScope()),
+				grpcEntry.getNameOfTheIndex(),
+				grpcEntry.hasValueExpression()
+					? ExpressionFactory.parse(grpcEntry.getValueExpression().getValue())
+					: null
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Parses a list of {@link GrpcScopedBucketedPartially} messages into an array of
+	 * {@link ScopedBucketedPartially}. Returns null if the input list is empty, which allows
+	 * the caller to use null to signify "not set" (e.g. for inherited values).
+	 *
+	 * @param bucketedPartiallyList the gRPC list of scoped bucketed partially messages
+	 * @return an array of {@link ScopedBucketedPartially}, or null if the input list is empty
+	 */
+	@Nullable
+	public static ScopedBucketedPartially[] parseBucketedPartially(
+		@Nonnull List<GrpcScopedBucketedPartially> bucketedPartiallyList
+	) {
+		if (bucketedPartiallyList.isEmpty()) {
+			return null;
+		}
+		final ScopedBucketedPartially[] result =
+			new ScopedBucketedPartially[bucketedPartiallyList.size()];
+		for (int i = 0; i < bucketedPartiallyList.size(); i++) {
+			final GrpcScopedBucketedPartially grpcEntry = bucketedPartiallyList.get(i);
+			result[i] = new ScopedBucketedPartially(
 				EvitaEnumConverter.toScope(grpcEntry.getScope()),
 				grpcEntry.hasExpression()
 					? ExpressionFactory.parse(grpcEntry.getExpression().getValue())

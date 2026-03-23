@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.At
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -43,12 +44,14 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readBucketedHistogramMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readFacetedPartiallyMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readIndexedComponentsMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readNameVariants;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopedReferenceIndexTypeArray;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readSortableAttributeCompounds;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeBucketedHistogramMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeFacetedPartiallyMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeIndexedComponentsMap;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeNameVariants;
@@ -105,6 +108,15 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			writeFacetedPartiallyMap(kryo, output, facetedPartiallyInScopes);
 		}
 
+		if (referenceSchema.isBucketedInherited()) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeBucketedHistogramMap(kryo, output, referenceSchema.getHistogramIndexDefinitions());
+			// reuse faceted partially serializer — same Map<Scope, Expression> shape
+			writeFacetedPartiallyMap(kryo, output, referenceSchema.getBucketedPartiallyInScopes());
+		}
+
 		kryo.writeObject(output, referenceSchema.getDeclaredAttributes());
 
 		kryo.writeObjectOrNull(
@@ -143,6 +155,17 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		final Map<Scope, Expression> facetedPartiallyInScopes =
 			input.readBoolean() ? readFacetedPartiallyMap(kryo, input) : null;
 
+		final Map<Scope, HistogramIndexDefinition> bucketedInScopes;
+		final Map<Scope, Expression> bucketedPartiallyInScopes;
+		if (input.readBoolean()) {
+			bucketedInScopes = readBucketedHistogramMap(kryo, input);
+			// reuse faceted partially serializer — same Map<Scope, Expression> shape
+			bucketedPartiallyInScopes = readFacetedPartiallyMap(kryo, input);
+		} else {
+			bucketedInScopes = null;
+			bucketedPartiallyInScopes = null;
+		}
+
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
 
 		final String description = kryo.readObjectOrNull(input, String.class);
@@ -161,6 +184,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
 			indexedInScopes, indexedComponentsInScopes, facetedInScopes, facetedPartiallyInScopes,
+			bucketedInScopes, bucketedPartiallyInScopes,
 			attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);

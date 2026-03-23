@@ -104,7 +104,7 @@ public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<Refle
 			indexedInScopes,
 			ReferenceSchema.defaultIndexedComponents(indexedInScopes),
 			faceted == null ? null : (faceted ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class)),
-			null,
+			null, null, null,
 			attributes,
 			sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
