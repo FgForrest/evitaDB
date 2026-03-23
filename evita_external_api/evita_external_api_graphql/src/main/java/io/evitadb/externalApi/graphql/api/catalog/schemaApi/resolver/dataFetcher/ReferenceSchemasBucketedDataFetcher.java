@@ -41,7 +41,7 @@ import java.util.Objects;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * Provides complete list of {@link ReferenceSchemaContract#getHistogramIndexDefinitions()}
+ * Provides complete list of {@link ReferenceSchemaContract#getAllHistogramIndexDefinitions()}
  * as a list of maps containing scope, nameOfTheIndex and valueExpression for GraphQL schema resolution.
  * Each map entry contains a "scope" key with the {@link Scope} value, a "nameOfTheIndex" key with the
  * histogram index name, and a "valueExpression" key with the expression string obtained
@@ -72,19 +72,26 @@ public class ReferenceSchemasBucketedDataFetcher implements DataFetcher<List<Map
 	@Nonnull
 	public List<Map<String, Object>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final ReferenceSchemaContract referenceSchema = Objects.requireNonNull(environment.getSource());
-		final Map<Scope, HistogramIndexDefinition> bucketedInScopes = referenceSchema.getHistogramIndexDefinitions();
-		final List<Map<String, Object>> result = new ArrayList<>(bucketedInScopes.size());
-		for (final Map.Entry<Scope, HistogramIndexDefinition> entry : bucketedInScopes.entrySet()) {
-			final Map<String, Object> map = createHashMap(3);
-			map.put("scope", entry.getKey());
-			map.put("nameOfTheIndex", entry.getValue().nameOfTheIndex());
-			map.put(
-				"valueExpression",
-				entry.getValue().valueExpression() != null
-					? entry.getValue().valueExpression().toExpressionString()
-					: null
-			);
-			result.add(map);
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes =
+			referenceSchema.getAllHistogramIndexDefinitions();
+		int totalEntries = 0;
+		for (final Map<String, HistogramIndexDefinition> inner : bucketedInScopes.values()) {
+			totalEntries += inner.size();
+		}
+		final List<Map<String, Object>> result = new ArrayList<>(totalEntries);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedInScopes.entrySet()) {
+			for (final Map.Entry<String, HistogramIndexDefinition> entry : scopeEntry.getValue().entrySet()) {
+				final Map<String, Object> map = createHashMap(3);
+				map.put("scope", scopeEntry.getKey());
+				map.put("nameOfTheIndex", entry.getValue().nameOfTheIndex());
+				map.put(
+					"valueExpression",
+					entry.getValue().valueExpression() != null
+						? entry.getValue().valueExpression().toExpressionString()
+						: null
+				);
+				result.add(map);
+			}
 		}
 		return result;
 	}

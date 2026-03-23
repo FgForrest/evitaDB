@@ -2135,10 +2135,10 @@ class ReferenceSchemaBuilderTest {
 				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
 				() -> assertFalse(ref.isBucketedInScope(Scope.ARCHIVED)),
 				() -> {
-					final Map<Scope, HistogramIndexDefinition> defs =
-						ref.getHistogramIndexDefinitions();
+					final Map<Scope, Map<String, HistogramIndexDefinition>> defs =
+						ref.getAllHistogramIndexDefinitions();
 					assertEquals(1, defs.size());
-					assertEquals("idx", defs.get(Scope.LIVE).nameOfTheIndex());
+					assertEquals("idx", defs.get(Scope.LIVE).get("idx").nameOfTheIndex());
 				}
 			);
 		}
@@ -2161,11 +2161,11 @@ class ReferenceSchemaBuilderTest {
 				() -> assertTrue(ref.isBucketedInScope(Scope.LIVE)),
 				() -> assertTrue(ref.isBucketedInScope(Scope.ARCHIVED)),
 				() -> {
-					final Map<Scope, HistogramIndexDefinition> defs =
-						ref.getHistogramIndexDefinitions();
+					final Map<Scope, Map<String, HistogramIndexDefinition>> defs =
+						ref.getAllHistogramIndexDefinitions();
 					assertEquals(2, defs.size());
-					assertEquals("idx1", defs.get(Scope.LIVE).nameOfTheIndex());
-					assertEquals("idx2", defs.get(Scope.ARCHIVED).nameOfTheIndex());
+					assertEquals("idx1", defs.get(Scope.LIVE).get("idx1").nameOfTheIndex());
+					assertEquals("idx2", defs.get(Scope.ARCHIVED).get("idx2").nameOfTheIndex());
 				}
 			);
 		}
@@ -2247,7 +2247,7 @@ class ReferenceSchemaBuilderTest {
 			assertAll(
 				() -> assertFalse(ref.isBucketedInScope(Scope.LIVE)),
 				() -> assertFalse(ref.isBucketedInScope(Scope.ARCHIVED)),
-				() -> assertTrue(ref.getHistogramIndexDefinitions().isEmpty())
+				() -> assertTrue(ref.getAllHistogramIndexDefinitions().isEmpty())
 			);
 		}
 
@@ -2371,7 +2371,7 @@ class ReferenceSchemaBuilderTest {
 			);
 
 			final HistogramIndexDefinition def =
-				ref.getHistogramIndexDefinitions().get(Scope.LIVE);
+				ref.getHistogramIndexDefinition(Scope.LIVE, "idx");
 			assertNotNull(def);
 			assertEquals(
 				valueExpr.toExpressionString(),
@@ -2396,6 +2396,216 @@ class ReferenceSchemaBuilderTest {
 			assertTrue(
 				ref.isIndexedInScope(Scope.LIVE),
 				"Reference should be auto-promoted to indexed when calling bucketedPartiallyInScope"
+			);
+		}
+
+		/**
+		 * Verifies that adding two histograms to the same scope results in a single scope entry
+		 * containing both histogram definitions.
+		 */
+		@Test
+		@DisplayName("should add multiple histograms to the same scope")
+		void shouldAddMultipleHistogramsToSameScope() {
+			final Expression expr1 = ExpressionFactory.parse("$price * 1.21");
+			final Expression expr2 = ExpressionFactory.parse("$quantity + 1");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "price", expr1)
+					.bucketedInScope(Scope.LIVE, "quantity", expr2)
+			);
+
+			final Map<Scope, Map<String, HistogramIndexDefinition>> defs =
+				ref.getAllHistogramIndexDefinitions();
+			assertAll(
+				() -> assertEquals(
+					1, defs.size(),
+					"Should have exactly 1 scope entry"
+				),
+				() -> assertEquals(
+					2, defs.get(Scope.LIVE).size(),
+					"LIVE scope should contain 2 histograms"
+				),
+				() -> {
+					final HistogramIndexDefinition priceDef =
+						ref.getHistogramIndexDefinition(Scope.LIVE, "price");
+					assertNotNull(priceDef, "price histogram should be accessible");
+					assertEquals(
+						expr1.toExpressionString(),
+						priceDef.valueExpression().toExpressionString()
+					);
+				},
+				() -> {
+					final HistogramIndexDefinition quantityDef =
+						ref.getHistogramIndexDefinition(Scope.LIVE, "quantity");
+					assertNotNull(quantityDef, "quantity histogram should be accessible");
+					assertEquals(
+						expr2.toExpressionString(),
+						quantityDef.valueExpression().toExpressionString()
+					);
+				}
+			);
+		}
+
+		/**
+		 * Verifies that adding a histogram with the same name in the same scope overwrites
+		 * the previous definition, keeping only the latest expression.
+		 */
+		@Test
+		@DisplayName("should overwrite histogram with same name in same scope")
+		void shouldOverwriteHistogramWithSameNameInSameScope() {
+			final Expression expr1 = ExpressionFactory.parse("$price * 1.21");
+			final Expression expr2 = ExpressionFactory.parse("$price * 1.15");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "idx", expr1)
+					.bucketedInScope(Scope.LIVE, "idx", expr2)
+			);
+
+			final Map<Scope, Map<String, HistogramIndexDefinition>> defs =
+				ref.getAllHistogramIndexDefinitions();
+			assertAll(
+				() -> assertEquals(1, defs.get(Scope.LIVE).size()),
+				() -> assertEquals(
+					expr2.toExpressionString(),
+					ref.getHistogramIndexDefinition(Scope.LIVE, "idx")
+						.valueExpression().toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that `nonBucketedByName` removes only the named histogram while
+		 * keeping the other histogram in the same scope intact.
+		 */
+		@Test
+		@DisplayName("should remove named histogram from scope keeping others")
+		void shouldRemoveNamedHistogramFromScope() {
+			final Expression expr1 = ExpressionFactory.parse("$price * 1.21");
+			final Expression expr2 = ExpressionFactory.parse("$quantity + 1");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "price", expr1)
+					.bucketedInScope(Scope.LIVE, "quantity", expr2)
+					.nonBucketedByName(Scope.LIVE, "price")
+			);
+
+			assertAll(
+				() -> assertTrue(
+					ref.isBucketedInScope(Scope.LIVE),
+					"Scope should still be bucketed because 'quantity' remains"
+				),
+				() -> assertNull(
+					ref.getHistogramIndexDefinition(Scope.LIVE, "price"),
+					"'price' histogram should have been removed"
+				),
+				() -> assertNotNull(
+					ref.getHistogramIndexDefinition(Scope.LIVE, "quantity"),
+					"'quantity' histogram should remain"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `nonBucketedByName` with a name that does not exist in the
+		 * bucketed histogram definitions does not cause a schema rebuild by emitting an
+		 * unnecessary mutation. When no entry matches, the method should short-circuit
+		 * and leave the mutation list completely unchanged.
+		 */
+		@Test
+		@DisplayName("should not emit mutation when removing non-existent histogram name")
+		void shouldNotEmitMutationWhenRemovingNonExistentHistogramName() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder.bucketedInScope(Scope.LIVE, "price", null);
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				);
+
+			final ReferenceSchemaBuilder builder = captured.get();
+			// collect the exact mutations before the no-op removal
+			final List<LocalEntitySchemaMutation> mutationsBefore =
+				List.copyOf(builder.toMutation());
+
+			// attempt to remove a non-existent histogram name
+			builder.nonBucketedByName(Scope.LIVE, "nonexistent");
+
+			final List<LocalEntitySchemaMutation> mutationsAfter =
+				List.copyOf(builder.toMutation());
+
+			// the mutations should be referentially identical (same objects, same order)
+			// — if a no-op SetReferenceSchemaBucketedMutation was emitted, the Create
+			// mutation would have been replaced with a new object via combineWith()
+			assertEquals(
+				mutationsBefore.size(), mutationsAfter.size(),
+				"Mutation list size should not change"
+			);
+			for (int i = 0; i < mutationsBefore.size(); i++) {
+				assertSame(
+					mutationsBefore.get(i), mutationsAfter.get(i),
+					"Mutation at index " + i + " should be the same object instance " +
+						"(no-op removal should not cause mutation replacement)"
+				);
+			}
+		}
+
+		/**
+		 * Verifies that removing the last histogram by name clears the scope entirely,
+		 * so that `isBucketedInScope` returns false and the definitions map is empty.
+		 */
+		@Test
+		@DisplayName("should remove last histogram and clear scope entirely")
+		void shouldRemoveLastHistogramAndClearScopeEntirely() {
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "price", null)
+					.nonBucketedByName(Scope.LIVE, "price")
+			);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"Scope should no longer be bucketed after last histogram removed"
+				),
+				() -> assertTrue(
+					ref.getAllHistogramIndexDefinitions().isEmpty(),
+					"All histogram definitions should be empty"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that removing the last histogram by name also clears
+		 * the orphaned `bucketedPartially` expression for that scope.
+		 */
+		@Test
+		@DisplayName("should filter orphaned partially when last histogram removed by name")
+		void shouldFilterOrphanedPartiallyWhenLastHistogramRemovedByName() {
+			final Expression expression = ExpressionFactory.parse("1 > 0");
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.bucketedInScope(Scope.LIVE, "price", null)
+					.bucketedPartiallyInScope(Scope.LIVE, expression)
+					.nonBucketedByName(Scope.LIVE, "price")
+			);
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"Scope should no longer be bucketed"
+				),
+				() -> assertNull(
+					ref.getBucketedPartiallyInScope(Scope.LIVE),
+					"Orphaned bucketedPartially should be filtered out"
+				)
 			);
 		}
 	}

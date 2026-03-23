@@ -297,13 +297,25 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	}
 
 	/**
-	 * Disables bucketed histogram indexing in the specified scopes.
+	 * Disables bucketed histogram indexing in the specified scopes. All named histogram
+	 * definitions in the given scopes are removed.
 	 *
 	 * @param inScope one or more scopes where bucketed histogram indexing should be disabled
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T nonBucketed(@Nonnull Scope... inScope);
+
+	/**
+	 * Removes a single named histogram definition from the given scope. If the scope
+	 * becomes empty (no more histogram definitions), the scope is removed entirely.
+	 *
+	 * @param scope the scope to remove the histogram from
+	 * @param nameOfTheIndex the name of the histogram index to remove
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonBucketedByName(@Nonnull Scope scope, @Nonnull String nameOfTheIndex);
 
 	/**
 	 * Sets the expression that narrows which entities participate in bucketed histogram computation

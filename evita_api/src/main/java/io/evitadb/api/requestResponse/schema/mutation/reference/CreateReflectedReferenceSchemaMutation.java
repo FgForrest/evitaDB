@@ -164,17 +164,21 @@ public class CreateReflectedReferenceSchemaMutation
 	) {
 		final ScopedHistogramIndexDefinition[] createdBucketed = createdVersion.isBucketedInherited()
 			? null
-			: createdVersion.getHistogramIndexDefinitions().entrySet().stream()
-				.map(e -> new ScopedHistogramIndexDefinition(
-					e.getKey(), e.getValue().nameOfTheIndex(), e.getValue().valueExpression()
-				))
+			: createdVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+					.map(def -> new ScopedHistogramIndexDefinition(
+						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+					))
+				)
 				.toArray(ScopedHistogramIndexDefinition[]::new);
 		final ScopedHistogramIndexDefinition[] existingBucketed = existingVersion.isBucketedInherited()
 			? null
-			: existingVersion.getHistogramIndexDefinitions().entrySet().stream()
-				.map(e -> new ScopedHistogramIndexDefinition(
-					e.getKey(), e.getValue().nameOfTheIndex(), e.getValue().valueExpression()
-				))
+			: existingVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+					.map(def -> new ScopedHistogramIndexDefinition(
+						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+					))
+				)
 				.toArray(ScopedHistogramIndexDefinition[]::new);
 		final boolean bucketedEqual = Arrays.equals(createdBucketed, existingBucketed);
 		final boolean partiallyEqual = createdVersion.getBucketedPartiallyInScopes()

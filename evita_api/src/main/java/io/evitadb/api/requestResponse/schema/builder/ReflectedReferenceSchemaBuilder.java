@@ -55,6 +55,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -559,20 +560,22 @@ public final class ReflectedReferenceSchemaBuilder
 		@Nullable Expression valueExpression
 	) {
 		// breaking inheritance: the mutation carries the complete explicit state from scratch
-		final Map<Scope, HistogramIndexDefinition> allBucketed;
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed;
 		final Map<Scope, Expression> filteredPartially;
 		if (isBucketedInherited()) {
 			// breaking inheritance — start from scratch with just this scope
 			allBucketed = new EnumMap<>(Scope.class);
 		} else {
 			// already explicit — accumulate on top of current state
-			final Map<Scope, HistogramIndexDefinition> currentBucketed = this.getHistogramIndexDefinitions();
-			allBucketed = currentBucketed.isEmpty()
-				? new EnumMap<>(Scope.class)
-				: new EnumMap<>(currentBucketed);
+			final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+			allBucketed = new EnumMap<>(Scope.class);
+			for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
+				allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+			}
 		}
 		filteredPartially = new EnumMap<>(Scope.class);
-		allBucketed.put(scope, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+		allBucketed.computeIfAbsent(scope, k -> new LinkedHashMap<>(8))
+			.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
 		// filter partially to retained scopes
 		if (!isBucketedInherited()) {
 			final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
@@ -598,7 +601,7 @@ public final class ReflectedReferenceSchemaBuilder
 		@Nonnull Expression expression
 	) {
 		// compute complete state: when inherited, start from scratch; when explicit, build on top
-		final Map<Scope, HistogramIndexDefinition> allBucketed;
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed;
 		final Map<Scope, Expression> allPartially;
 		if (isBucketedInherited()) {
 			// breaking inheritance — start from scratch with just this scope
@@ -606,9 +609,11 @@ public final class ReflectedReferenceSchemaBuilder
 			allPartially = new EnumMap<>(Scope.class);
 		} else {
 			// already explicit — accumulate on top of current state
-			final Map<Scope, HistogramIndexDefinition> currentBucketed = this.getHistogramIndexDefinitions();
-			allBucketed = currentBucketed.isEmpty()
-				? new EnumMap<>(Scope.class) : new EnumMap<>(currentBucketed);
+			final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+			allBucketed = new EnumMap<>(Scope.class);
+			for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
+				allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+			}
 			final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
 			allPartially = currentPartially.isEmpty()
 				? new EnumMap<>(Scope.class)

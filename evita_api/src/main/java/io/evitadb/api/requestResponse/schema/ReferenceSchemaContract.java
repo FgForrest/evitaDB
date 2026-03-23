@@ -445,23 +445,34 @@ public interface ReferenceSchemaContract extends
 	Set<Scope> getBucketedInScopes();
 
 	/**
-	 * Returns the bucketed histogram definition for the given scope, or null if the reference
-	 * is not bucketed in that scope.
+	 * Returns the bucketed histogram definition for the given scope and histogram name,
+	 * or null if no such histogram exists in that scope.
 	 *
 	 * @param scope the scope to get the definition for
-	 * @return the histogram definition, or null if not bucketed in the given scope
+	 * @param name the name of the histogram index
+	 * @return the histogram definition, or null if not found
 	 */
 	@Nullable
-	HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope);
+	HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope, @Nonnull String name);
 
 	/**
-	 * Returns a map of all scopes to their corresponding bucketed histogram definitions.
-	 * Only scopes where the reference is actually bucketed are included.
+	 * Returns all named histogram definitions for the given scope. If the reference is not
+	 * bucketed in that scope, an empty map is returned.
 	 *
-	 * @return map where keys are scopes and values are the histogram definitions
+	 * @param scope the scope to get definitions for
+	 * @return map where keys are histogram names and values are the definitions
 	 */
 	@Nonnull
-	Map<Scope, HistogramIndexDefinition> getHistogramIndexDefinitions();
+	Map<String, HistogramIndexDefinition> getHistogramIndexDefinitions(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding named bucketed histogram definitions.
+	 * Only scopes where the reference is actually bucketed are included.
+	 *
+	 * @return map where keys are scopes and values are maps of histogram name to definition
+	 */
+	@Nonnull
+	Map<Scope, Map<String, HistogramIndexDefinition>> getAllHistogramIndexDefinitions();
 
 	/**
 	 * Returns the expression that narrows which entities participate in bucketed histogram

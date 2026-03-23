@@ -209,7 +209,7 @@ class SetReferenceSchemaBucketedMutationTest {
 	private static ReflectedReferenceSchema createExplicitBucketedReflectedSchema() {
 		final ReflectedReferenceSchema base = createInheritedReflectedReferenceSchema();
 		return (ReflectedReferenceSchema) base.withBucketed(
-			Map.of(Scope.LIVE, new HistogramIndexDefinition(INDEX_NAME, null))
+			Map.of(Scope.LIVE, Map.of(INDEX_NAME, new HistogramIndexDefinition(INDEX_NAME, null)))
 		);
 	}
 
@@ -548,7 +548,7 @@ class SetReferenceSchemaBucketedMutationTest {
 			assertNotNull(result);
 			assertTrue(result.isBucketedInScope(Scope.LIVE));
 			final HistogramIndexDefinition definition =
-				result.getHistogramIndexDefinition(Scope.LIVE);
+				result.getHistogramIndexDefinition(Scope.LIVE, INDEX_NAME);
 			assertNotNull(definition);
 			assertEquals(INDEX_NAME, definition.nameOfTheIndex());
 		}
@@ -601,6 +601,52 @@ class SetReferenceSchemaBucketedMutationTest {
 			assertSame(existingSchema, result);
 		}
 
+		/**
+		 * Verifies that a mutation carrying two histogram definitions for the same scope
+		 * correctly applies both to the reference schema.
+		 */
+		@Test
+		@DisplayName("should mutate with multiple histograms in same scope")
+		void shouldMutateWithMultipleHistogramsInSameScope() {
+			final Expression expr1 = ExpressionFactory.parse("$price * 1.21");
+			final Expression expr2 = ExpressionFactory.parse("$quantity + 1");
+			final SetReferenceSchemaBucketedMutation mutation =
+				new SetReferenceSchemaBucketedMutation(
+					REFERENCE_NAME,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr1),
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "quantity", expr2)
+					}
+				);
+
+			final ReferenceSchemaContract result =
+				mutation.mutate(
+					Mockito.mock(EntitySchemaContract.class),
+					createNonBucketedReferenceSchema()
+				);
+
+			assertNotNull(result);
+			assertTrue(result.isBucketedInScope(Scope.LIVE));
+
+			final HistogramIndexDefinition priceDef =
+				result.getHistogramIndexDefinition(Scope.LIVE, "price");
+			assertNotNull(priceDef, "price histogram should be present");
+			assertEquals("price", priceDef.nameOfTheIndex());
+			assertEquals(
+				expr1.toExpressionString(),
+				priceDef.valueExpression().toExpressionString()
+			);
+
+			final HistogramIndexDefinition quantityDef =
+				result.getHistogramIndexDefinition(Scope.LIVE, "quantity");
+			assertNotNull(quantityDef, "quantity histogram should be present");
+			assertEquals("quantity", quantityDef.nameOfTheIndex());
+			assertEquals(
+				expr2.toExpressionString(),
+				quantityDef.valueExpression().toExpressionString()
+			);
+		}
+
 		@Test
 		@DisplayName("should update only bucketedPartially while preserving existing bucketed definitions")
 		void shouldMutateNonReflectedReferenceUpdatingOnlyBucketedPartially() {
@@ -629,7 +675,7 @@ class SetReferenceSchemaBucketedMutationTest {
 			assertNotNull(result);
 			// bucketed definitions should be preserved
 			assertTrue(result.isBucketedInScope(Scope.LIVE));
-			final HistogramIndexDefinition definition = result.getHistogramIndexDefinition(Scope.LIVE);
+			final HistogramIndexDefinition definition = result.getHistogramIndexDefinition(Scope.LIVE, INDEX_NAME);
 			assertNotNull(definition);
 			assertEquals(INDEX_NAME, definition.nameOfTheIndex());
 			// bucketedPartially should be updated
@@ -668,7 +714,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				assertInstanceOf(ReflectedReferenceSchemaContract.class, result);
 			assertFalse(reflected.isBucketedInherited());
 			assertTrue(result.isBucketedInScope(Scope.LIVE));
-			assertEquals(INDEX_NAME, result.getHistogramIndexDefinition(Scope.LIVE).nameOfTheIndex());
+			assertEquals(INDEX_NAME, result.getHistogramIndexDefinition(Scope.LIVE, INDEX_NAME).nameOfTheIndex());
 		}
 
 		@Test

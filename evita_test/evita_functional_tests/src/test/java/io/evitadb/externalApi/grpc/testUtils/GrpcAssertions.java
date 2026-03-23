@@ -244,15 +244,17 @@ public class GrpcAssertions {
 			);
 
 			// assert bucketed histogram definitions
+			final long expectedBucketedCount = expectedReferenceSchema.getAllHistogramIndexDefinitions()
+				.values().stream().mapToLong(m -> m.size()).sum();
 			assertEquals(
-				expectedReferenceSchema.getHistogramIndexDefinitions().size(),
+				expectedBucketedCount,
 				actualReferenceSchema.getBucketedList().size(),
 				"Bucketed histogram definitions count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
 			);
 			for (GrpcScopedHistogramIndexDefinition grpcBucketed : actualReferenceSchema.getBucketedList()) {
 				final Scope scope = EvitaEnumConverter.toScope(grpcBucketed.getScope());
 				final HistogramIndexDefinition expectedDef =
-					expectedReferenceSchema.getHistogramIndexDefinition(scope);
+					expectedReferenceSchema.getHistogramIndexDefinition(scope, grpcBucketed.getNameOfTheIndex());
 				assertNotNull(
 					expectedDef,
 					"Expected bucketed histogram definition for scope " + scope +

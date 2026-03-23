@@ -51,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
@@ -130,27 +131,34 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	}
 
 	/**
-	 * Converts a map of per-scope bucketed histogram definitions to the array form expected by
-	 * {@link SetReferenceSchemaBucketedMutation}.
+	 * Converts a nested map of per-scope named bucketed histogram definitions to the flat array
+	 * form expected by {@link SetReferenceSchemaBucketedMutation}. One array entry is produced
+	 * for each (scope, name) pair.
 	 *
-	 * @param bucketedMap per-scope histogram definitions (may be empty)
+	 * @param bucketedMap per-scope named histogram definitions (may be empty)
 	 * @return the corresponding array, possibly empty but never null
 	 */
 	@Nonnull
 	protected static ScopedHistogramIndexDefinition[] toScopedHistogramIndexDefinitionArray(
-		@Nonnull Map<Scope, HistogramIndexDefinition> bucketedMap
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap
 	) {
 		if (bucketedMap.isEmpty()) {
 			return ScopedHistogramIndexDefinition.EMPTY;
 		}
-		final ScopedHistogramIndexDefinition[] result = new ScopedHistogramIndexDefinition[bucketedMap.size()];
+		int totalSize = 0;
+		for (final Map<String, HistogramIndexDefinition> inner : bucketedMap.values()) {
+			totalSize += inner.size();
+		}
+		final ScopedHistogramIndexDefinition[] result = new ScopedHistogramIndexDefinition[totalSize];
 		int i = 0;
-		for (final Map.Entry<Scope, HistogramIndexDefinition> entry : bucketedMap.entrySet()) {
-			result[i++] = new ScopedHistogramIndexDefinition(
-				entry.getKey(),
-				entry.getValue().nameOfTheIndex(),
-				entry.getValue().valueExpression()
-			);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> outer : bucketedMap.entrySet()) {
+			for (final Map.Entry<String, HistogramIndexDefinition> inner : outer.getValue().entrySet()) {
+				result[i++] = new ScopedHistogramIndexDefinition(
+					outer.getKey(),
+					inner.getValue().nameOfTheIndex(),
+					inner.getValue().valueExpression()
+				);
+			}
 		}
 		return result;
 	}
@@ -298,10 +306,35 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	@Override
 	public T nonBucketed(@Nonnull Scope... inScope) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		final Map<Scope, HistogramIndexDefinition> currentBucketed = this.getHistogramIndexDefinitions();
-		final Map<Scope, HistogramIndexDefinition> remaining = new EnumMap<>(Scope.class);
-		for (final Map.Entry<Scope, HistogramIndexDefinition> entry : currentBucketed.entrySet()) {
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> remaining = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
 			if (!excludedScopes.contains(entry.getKey())) {
+				remaining.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return applyNonBucketedMutation(remaining);
+	}
+
+	@Nonnull
+	@Override
+	@SuppressWarnings("unchecked")
+	public T nonBucketedByName(@Nonnull Scope scope, @Nonnull String nameOfTheIndex) {
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+		// short-circuit when the target scope or name does not exist — no mutation needed
+		final Map<String, HistogramIndexDefinition> innerMap = currentBucketed.get(scope);
+		if (innerMap == null || !innerMap.containsKey(nameOfTheIndex)) {
+			return (T) this;
+		}
+		final Map<Scope, Map<String, HistogramIndexDefinition>> remaining = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
+			if (entry.getKey() == scope) {
+				final Map<String, HistogramIndexDefinition> innerCopy = new LinkedHashMap<>(entry.getValue());
+				innerCopy.remove(nameOfTheIndex);
+				if (!innerCopy.isEmpty()) {
+					remaining.put(entry.getKey(), innerCopy);
+				}
+			} else {
 				remaining.put(entry.getKey(), entry.getValue());
 			}
 		}
@@ -316,7 +349,7 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	) {
 		// compute complete state: current bucketed scopes + new scope, current expressions + new entry
 		final S current = toInstance();
-		final Map<Scope, HistogramIndexDefinition> currentBucketed = current.getHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = current.getAllHistogramIndexDefinitions();
 		final Map<Scope, Expression> currentPartially = current.getBucketedPartiallyInScopes();
 		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
 			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
@@ -347,7 +380,7 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 		for (final Scope scope : clearedScopes) {
 			remaining.remove(scope);
 		}
-		final Map<Scope, HistogramIndexDefinition> currentBucketed = current.getHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = current.getAllHistogramIndexDefinitions();
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -500,7 +533,7 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 	 */
 	@Nonnull
 	protected T applyNonBucketedMutation(
-		@Nonnull Map<Scope, HistogramIndexDefinition> remainingBucketed
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> remainingBucketed
 	) {
 		final EnumSet<Scope> remainingScopeSet = remainingBucketed.isEmpty()
 			? EnumSet.noneOf(Scope.class)

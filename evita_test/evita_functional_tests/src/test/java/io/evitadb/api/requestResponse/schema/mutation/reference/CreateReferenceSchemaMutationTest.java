@@ -647,7 +647,7 @@ class CreateReferenceSchemaMutationTest {
 			assertTrue(referenceSchema.isBucketedInScope(Scope.LIVE));
 			assertEquals(
 				"priceHistogram",
-				referenceSchema.getHistogramIndexDefinition(Scope.LIVE).nameOfTheIndex()
+				referenceSchema.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram").nameOfTheIndex()
 			);
 			assertNotNull(referenceSchema.getBucketedPartiallyInScope(Scope.LIVE));
 		}

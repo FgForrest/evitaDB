@@ -97,7 +97,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 
 		writeFacetedPartiallyMap(kryo, output, referenceSchema.getFacetedPartiallyInScopes());
 
-		writeBucketedHistogramMap(kryo, output, referenceSchema.getHistogramIndexDefinitions());
+		writeBucketedHistogramMap(kryo, output, referenceSchema.getAllHistogramIndexDefinitions());
 		// reuse faceted partially serializer — same Map<Scope, Expression> shape
 		writeFacetedPartiallyMap(kryo, output, referenceSchema.getBucketedPartiallyInScopes());
 
@@ -136,7 +136,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 
 		final Map<Scope, Expression> facetedPartiallyInScopes = readFacetedPartiallyMap(kryo, input);
 
-		final Map<Scope, HistogramIndexDefinition> bucketedInScopes = readBucketedHistogramMap(kryo, input);
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes = readBucketedHistogramMap(kryo, input);
 		// reuse faceted partially serializer — same Map<Scope, Expression> shape
 		final Map<Scope, Expression> bucketedPartiallyInScopes = readFacetedPartiallyMap(kryo, input);
 

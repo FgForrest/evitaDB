@@ -269,50 +269,64 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 	 * Serializes a map of {@link Scope} to {@link HistogramIndexDefinition} representing
 	 * bucketed histogram configuration into a Kryo {@link Output}.
 	 *
+	 * The serialization format is a nested map: outer scope count, then for each scope its ordinal
+	 * followed by the inner entry count, and for each inner entry the nameOfTheIndex string and
+	 * nullable valueExpression.
+	 *
 	 * @param kryo                   the Kryo instance to use for serialization
 	 * @param output                 the Output instance to write to
-	 * @param bucketedHistogramMap   the map to serialize
+	 * @param bucketedHistogramMap   the nested map to serialize
 	 */
 	static void writeBucketedHistogramMap(
 		@Nonnull Kryo kryo,
 		@Nonnull Output output,
-		@Nonnull Map<Scope, HistogramIndexDefinition> bucketedHistogramMap
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramMap
 	) {
 		output.writeVarInt(bucketedHistogramMap.size(), true);
-		for (Entry<Scope, HistogramIndexDefinition> entry : bucketedHistogramMap.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			output.writeString(entry.getValue().nameOfTheIndex());
-			if (entry.getValue().valueExpression() != null) {
-				output.writeBoolean(true);
-				kryo.writeObject(output, entry.getValue().valueExpression());
-			} else {
-				output.writeBoolean(false);
+		for (final Entry<Scope, Map<String, HistogramIndexDefinition>> outerEntry : bucketedHistogramMap.entrySet()) {
+			kryo.writeObject(output, outerEntry.getKey());
+			final Map<String, HistogramIndexDefinition> innerMap = outerEntry.getValue();
+			output.writeVarInt(innerMap.size(), true);
+			for (final Entry<String, HistogramIndexDefinition> innerEntry : innerMap.entrySet()) {
+				output.writeString(innerEntry.getValue().nameOfTheIndex());
+				if (innerEntry.getValue().valueExpression() != null) {
+					output.writeBoolean(true);
+					kryo.writeObject(output, innerEntry.getValue().valueExpression());
+				} else {
+					output.writeBoolean(false);
+				}
 			}
 		}
 	}
 
 	/**
-	 * Reads a map of {@link Scope} to {@link HistogramIndexDefinition} representing
-	 * bucketed histogram configuration from a Kryo {@link Input}.
+	 * Reads a nested map of {@link Scope} to name-keyed {@link HistogramIndexDefinition} maps
+	 * representing bucketed histogram configuration from a Kryo {@link Input}.
 	 *
 	 * @param kryo  the Kryo instance to use for deserialization
 	 * @param input the Input instance to read from
-	 * @return the deserialized map
+	 * @return the deserialized nested map
 	 */
 	@Nonnull
-	static Map<Scope, HistogramIndexDefinition> readBucketedHistogramMap(
+	static Map<Scope, Map<String, HistogramIndexDefinition>> readBucketedHistogramMap(
 		@Nonnull Kryo kryo,
 		@Nonnull Input input
 	) {
-		final int count = input.readVarInt(true);
-		final Map<Scope, HistogramIndexDefinition> bucketedHistogramMap =
-			CollectionUtils.createHashMap(count);
-		for (int i = 0; i < count; i++) {
+		final int outerCount = input.readVarInt(true);
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramMap =
+			CollectionUtils.createHashMap(outerCount);
+		for (int i = 0; i < outerCount; i++) {
 			final Scope scope = kryo.readObject(input, Scope.class);
-			final String nameOfTheIndex = input.readString();
-			final Expression valueExpression = input.readBoolean()
-				? kryo.readObject(input, Expression.class) : null;
-			bucketedHistogramMap.put(scope, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+			final int innerCount = input.readVarInt(true);
+			final Map<String, HistogramIndexDefinition> innerMap =
+				new LinkedHashMap<>(innerCount);
+			for (int j = 0; j < innerCount; j++) {
+				final String nameOfTheIndex = input.readString();
+				final Expression valueExpression = input.readBoolean()
+					? kryo.readObject(input, Expression.class) : null;
+				innerMap.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+			}
+			bucketedHistogramMap.put(scope, innerMap);
 		}
 		return bucketedHistogramMap;
 	}

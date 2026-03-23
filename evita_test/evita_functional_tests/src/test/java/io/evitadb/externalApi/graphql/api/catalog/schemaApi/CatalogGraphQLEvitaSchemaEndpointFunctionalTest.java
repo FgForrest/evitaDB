@@ -168,24 +168,26 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	protected static List<Map<String, Object>> createBucketedHistogramDto(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final Map<Scope, HistogramIndexDefinition> bucketedHistogramDefinitions =
-			referenceSchema.getHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramDefinitions =
+			referenceSchema.getAllHistogramIndexDefinitions();
 		return bucketedHistogramDefinitions.entrySet()
 			.stream()
-			.map(entry -> {
-				final Expression valueExpression = entry.getValue().valueExpression();
-				return map()
-					.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
-					.e(
-						ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
-						entry.getValue().nameOfTheIndex()
-					)
-					.e(
-						ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
-						valueExpression != null ? valueExpression.toExpressionString() : null
-					)
-					.build();
-			})
+			.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+				.map(def -> {
+					final Expression valueExpression = def.valueExpression();
+					return map()
+						.e(ScopedDataDescriptor.SCOPE.name(), scopeEntry.getKey().name())
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
+							def.nameOfTheIndex()
+						)
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
+							valueExpression != null ? valueExpression.toExpressionString() : null
+						)
+						.build();
+				})
+			)
 			.toList();
 	}
 

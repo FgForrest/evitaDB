@@ -295,7 +295,7 @@ public class SetReferenceSchemaFacetedMutation
 				referenceSchema.getIndexedComponentsInScopes(),
 				facetedScopes,
 				newPartially,
-				referenceSchema.getHistogramIndexDefinitions(),
+				referenceSchema.getAllHistogramIndexDefinitions(),
 				referenceSchema.getBucketedPartiallyInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()

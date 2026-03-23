@@ -239,25 +239,27 @@ public abstract class SchemaJsonSerializer {
 	@Nonnull
 	protected ArrayNode serializeBucketedHistogram(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final ArrayNode bucketedHistogramArray = this.objectJsonSerializer.arrayNode();
-		final Map<Scope, HistogramIndexDefinition> bucketedHistogramDefinitions =
-			referenceSchema.getHistogramIndexDefinitions();
-		for (Map.Entry<Scope, HistogramIndexDefinition> entry : bucketedHistogramDefinitions.entrySet()) {
-			final ObjectNode bucketedHistogramNode = this.objectJsonSerializer.objectNode();
-			bucketedHistogramNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
-			bucketedHistogramNode.put(
-				ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
-				entry.getValue().nameOfTheIndex()
-			);
-			final Expression valueExpression = entry.getValue().valueExpression();
-			if (valueExpression != null) {
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramDefinitions =
+			referenceSchema.getAllHistogramIndexDefinitions();
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedHistogramDefinitions.entrySet()) {
+			for (final Map.Entry<String, HistogramIndexDefinition> entry : scopeEntry.getValue().entrySet()) {
+				final ObjectNode bucketedHistogramNode = this.objectJsonSerializer.objectNode();
+				bucketedHistogramNode.put(ScopedDataDescriptor.SCOPE.name(), scopeEntry.getKey().name());
 				bucketedHistogramNode.put(
-					ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
-					valueExpression.toExpressionString()
+					ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
+					entry.getValue().nameOfTheIndex()
 				);
-			} else {
-				bucketedHistogramNode.putNull(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name());
+				final Expression valueExpression = entry.getValue().valueExpression();
+				if (valueExpression != null) {
+					bucketedHistogramNode.put(
+						ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
+						valueExpression.toExpressionString()
+					);
+				} else {
+					bucketedHistogramNode.putNull(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name());
+				}
+				bucketedHistogramArray.add(bucketedHistogramNode);
 			}
-			bucketedHistogramArray.add(bucketedHistogramNode);
 		}
 		return bucketedHistogramArray;
 	}
@@ -273,7 +275,7 @@ public abstract class SchemaJsonSerializer {
 	protected ArrayNode serializeBucketedPartially(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final ArrayNode bucketedPartiallyArray = this.objectJsonSerializer.arrayNode();
 		final Map<Scope, Expression> bucketedPartiallyInScopes = referenceSchema.getBucketedPartiallyInScopes();
-		for (Map.Entry<Scope, Expression> entry : bucketedPartiallyInScopes.entrySet()) {
+		for (final Map.Entry<Scope, Expression> entry : bucketedPartiallyInScopes.entrySet()) {
 			final ObjectNode bucketedPartiallyNode = this.objectJsonSerializer.objectNode();
 			bucketedPartiallyNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
 			bucketedPartiallyNode.put(

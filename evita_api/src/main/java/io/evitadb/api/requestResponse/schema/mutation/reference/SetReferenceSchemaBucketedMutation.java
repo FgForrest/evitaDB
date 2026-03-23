@@ -190,11 +190,11 @@ public class SetReferenceSchemaBucketedMutation
 			ReferenceSchemaContract result = reflectedReferenceSchema;
 			// apply bucketed change if present
 			if (this.bucketedInScopes != null) {
-				final Map<Scope, HistogramIndexDefinition> bucketedMap =
+				final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap =
 					ReferenceSchema.toBucketedHistogramMap(this.bucketedInScopes);
 				final boolean alreadyMatches =
 					!reflectedReferenceSchema.isBucketedInherited() &&
-						reflectedReferenceSchema.getHistogramIndexDefinitions().equals(bucketedMap);
+						reflectedReferenceSchema.getAllHistogramIndexDefinitions().equals(bucketedMap);
 				if (!alreadyMatches) {
 					result = reflectedReferenceSchema.withBucketed(bucketedMap);
 				}
@@ -224,9 +224,9 @@ public class SetReferenceSchemaBucketedMutation
 			return result;
 		} else {
 			// non-reflected reference: null means "don't change"
-			final Map<Scope, HistogramIndexDefinition> bucketedScopes = this.bucketedInScopes != null
+			final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedScopes = this.bucketedInScopes != null
 				? ReferenceSchema.toBucketedHistogramMap(this.bucketedInScopes)
-				: referenceSchema.getHistogramIndexDefinitions();
+				: referenceSchema.getAllHistogramIndexDefinitions();
 			// compute new bucketedPartially map
 			final Map<Scope, Expression> newPartially;
 			if (this.bucketedPartiallyInScopes != null) {
@@ -248,7 +248,7 @@ public class SetReferenceSchemaBucketedMutation
 				newPartially = referenceSchema.getBucketedPartiallyInScopes();
 			}
 			// check if anything actually changed
-			if (bucketedScopes.equals(referenceSchema.getHistogramIndexDefinitions()) &&
+			if (bucketedScopes.equals(referenceSchema.getAllHistogramIndexDefinitions()) &&
 				newPartially.equals(referenceSchema.getBucketedPartiallyInScopes())) {
 				return referenceSchema;
 			}

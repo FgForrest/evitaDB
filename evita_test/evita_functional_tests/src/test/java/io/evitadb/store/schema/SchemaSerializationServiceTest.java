@@ -126,7 +126,7 @@ class SchemaSerializationServiceTest {
 
 		// verify bucketed fields on the brand reference (populated bucketed with expression)
 		final ReferenceSchemaContract brandRef = deserialized.getReference(Entities.BRAND).orElseThrow();
-		final HistogramIndexDefinition brandDef = brandRef.getHistogramIndexDefinitions().get(Scope.LIVE);
+		final HistogramIndexDefinition brandDef = brandRef.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram");
 		assertNotNull(brandDef);
 		assertEquals("priceHistogram", brandDef.nameOfTheIndex());
 		assertEquals(valueExpression, brandDef.valueExpression());
@@ -134,15 +134,70 @@ class SchemaSerializationServiceTest {
 
 		// verify bucketed fields on the stock reference (bucketed with null valueExpression)
 		final ReferenceSchemaContract stockRef = deserialized.getReference("stock").orElseThrow();
-		final HistogramIndexDefinition stockDef = stockRef.getHistogramIndexDefinitions().get(Scope.LIVE);
+		final HistogramIndexDefinition stockDef = stockRef.getHistogramIndexDefinition(Scope.LIVE, "stockIdx");
 		assertNotNull(stockDef);
 		assertEquals("stockIdx", stockDef.nameOfTheIndex());
 		assertNull(stockDef.valueExpression(), "valueExpression should be null");
 
 		// verify bucketed fields on the category reference (empty bucketed)
 		final ReferenceSchemaContract categoryRef = deserialized.getReference(Entities.CATEGORY).orElseThrow();
-		assertTrue(categoryRef.getHistogramIndexDefinitions().isEmpty());
+		assertTrue(categoryRef.getAllHistogramIndexDefinitions().isEmpty());
 		assertTrue(categoryRef.getBucketedPartiallyInScopes().isEmpty());
+	}
+
+	/**
+	 * Verifies round-trip serialization of a reference schema containing two distinct
+	 * histogram definitions in the same scope, ensuring both survive the round-trip.
+	 */
+	@Test
+	void shouldSerializeAndDeserializeMultipleHistogramsPerScope() {
+		final Kryo kryo = createKryo();
+		final Expression priceExpr = ExpressionFactory.parse("$price * 1.21");
+		final Expression quantityExpr = ExpressionFactory.parse("$quantity + 1");
+
+		final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
+			.verifySchemaButAllow(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_REFERENCES)
+			.withReferenceToEntity(
+				Entities.BRAND,
+				Entities.BRAND,
+				Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.faceted()
+					.bucketed("priceHistogram", priceExpr)
+					.bucketed("quantityHistogram", quantityExpr)
+			)
+			.toInstance();
+
+		final EntitySchema deserialized = roundTripEntitySchema(kryo, createdSchema);
+
+		assertEquals(createdSchema, deserialized);
+		assertExactlyEquals(createdSchema, deserialized);
+
+		final ReferenceSchemaContract brandRef =
+			deserialized.getReference(Entities.BRAND).orElseThrow();
+
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allDefs =
+			brandRef.getAllHistogramIndexDefinitions();
+		assertEquals(
+			1, allDefs.size(),
+			"Should have exactly 1 scope entry"
+		);
+		assertEquals(
+			2, allDefs.get(Scope.LIVE).size(),
+			"LIVE scope should contain 2 histograms"
+		);
+
+		final HistogramIndexDefinition priceDef =
+			brandRef.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram");
+		assertNotNull(priceDef, "priceHistogram should survive round-trip");
+		assertEquals("priceHistogram", priceDef.nameOfTheIndex());
+		assertEquals(priceExpr, priceDef.valueExpression());
+
+		final HistogramIndexDefinition quantityDef =
+			brandRef.getHistogramIndexDefinition(Scope.LIVE, "quantityHistogram");
+		assertNotNull(quantityDef, "quantityHistogram should survive round-trip");
+		assertEquals("quantityHistogram", quantityDef.nameOfTheIndex());
+		assertEquals(quantityExpr, quantityDef.valueExpression());
 	}
 
 	/**
@@ -155,8 +210,8 @@ class SchemaSerializationServiceTest {
 		final Expression valueExpression = ExpressionFactory.parse("$price * 1.21");
 		final Expression partiallyExpression = ExpressionFactory.parse("1 > 0");
 
-		final Map<Scope, HistogramIndexDefinition> bucketedInScopes = new EnumMap<>(Scope.class);
-		bucketedInScopes.put(Scope.LIVE, new HistogramIndexDefinition("refIdx", valueExpression));
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes = new EnumMap<>(Scope.class);
+		bucketedInScopes.put(Scope.LIVE, Map.of("refIdx", new HistogramIndexDefinition("refIdx", valueExpression)));
 
 		final Map<Scope, Expression> bucketedPartiallyInScopes = new EnumMap<>(Scope.class);
 		bucketedPartiallyInScopes.put(Scope.LIVE, partiallyExpression);
@@ -170,7 +225,7 @@ class SchemaSerializationServiceTest {
 
 		assertEquals(withBoth, deserialized);
 		assertFalse(deserialized.isBucketedInherited());
-		assertEquals(bucketedInScopes, deserialized.getHistogramIndexDefinitions());
+		assertEquals(bucketedInScopes, deserialized.getAllHistogramIndexDefinitions());
 		assertEquals(bucketedPartiallyInScopes, deserialized.getBucketedPartiallyInScopes());
 	}
 
@@ -188,7 +243,7 @@ class SchemaSerializationServiceTest {
 
 		assertEquals(base, deserialized);
 		assertTrue(deserialized.isBucketedInherited());
-		assertTrue(deserialized.getHistogramIndexDefinitions().isEmpty());
+		assertTrue(deserialized.getAllHistogramIndexDefinitions().isEmpty());
 		assertTrue(deserialized.getBucketedPartiallyInScopes().isEmpty());
 	}
 
@@ -210,7 +265,7 @@ class SchemaSerializationServiceTest {
 		final ReflectedReferenceSchema deserialized = roundTripReflectedReferenceSchema(kryo, withEmptyBucketed);
 
 		// the bucketed maps should be empty after round-trip
-		assertTrue(deserialized.getHistogramIndexDefinitions().isEmpty());
+		assertTrue(deserialized.getAllHistogramIndexDefinitions().isEmpty());
 		assertTrue(deserialized.getBucketedPartiallyInScopes().isEmpty());
 		// verify the non-inherited flag survives the round-trip
 		assertFalse(deserialized.isBucketedInherited(), "deserialized bucketedInherited");

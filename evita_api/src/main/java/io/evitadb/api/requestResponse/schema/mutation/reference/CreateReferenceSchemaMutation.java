@@ -329,19 +329,21 @@ public class CreateReferenceSchemaMutation
 										.toArray(ScopedFacetedPartially[]::new)
 								),
 							// emit a single mutation carrying both bucketedInScopes and bucketedPartially
-							(createdVersion.getHistogramIndexDefinitions()
-								.equals(existingVersion.getHistogramIndexDefinitions()) &&
+							(createdVersion.getAllHistogramIndexDefinitions()
+								.equals(existingVersion.getAllHistogramIndexDefinitions()) &&
 								createdVersion.getBucketedPartiallyInScopes()
 									.equals(existingVersion.getBucketedPartiallyInScopes()))
 								? null
 								: new SetReferenceSchemaBucketedMutation(
 									this.name,
-									createdVersion.getHistogramIndexDefinitions().entrySet().stream()
-										.map(e -> new ScopedHistogramIndexDefinition(
-											e.getKey(),
-											e.getValue().nameOfTheIndex(),
-											e.getValue().valueExpression()
-										))
+									createdVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+										.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+											.map(def -> new ScopedHistogramIndexDefinition(
+												scopeEntry.getKey(),
+												def.nameOfTheIndex(),
+												def.valueExpression()
+											))
+										)
 										.toArray(ScopedHistogramIndexDefinition[]::new),
 									createdVersion.getBucketedPartiallyInScopes().entrySet().stream()
 										.map(e -> new ScopedBucketedPartially(e.getKey(), e.getValue()))

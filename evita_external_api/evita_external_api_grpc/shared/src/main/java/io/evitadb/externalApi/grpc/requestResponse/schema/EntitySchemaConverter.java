@@ -534,7 +534,7 @@ public class EntitySchemaConverter {
 		// convert facetedPartially expressions per scope
 		final Map<Scope, Expression> facetedPartiallyInScopes = referenceSchema.getFacetedPartiallyInScopes();
 		if (!facetedPartiallyInScopes.isEmpty()) {
-			for (Entry<Scope, Expression> entry : facetedPartiallyInScopes.entrySet()) {
+			for (final Entry<Scope, Expression> entry : facetedPartiallyInScopes.entrySet()) {
 				final GrpcScopedFacetedPartially.Builder fpBuilder = GrpcScopedFacetedPartially.newBuilder()
 					.setScope(EvitaEnumConverter.toGrpcScope(entry.getKey()));
 				if (entry.getValue() != null) {
@@ -545,19 +545,21 @@ public class EntitySchemaConverter {
 		}
 
 		// convert bucketed histogram definitions per scope
-		final Map<Scope, HistogramIndexDefinition> bucketedInScopes =
-			referenceSchema.getHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes =
+			referenceSchema.getAllHistogramIndexDefinitions();
 		if (!bucketedInScopes.isEmpty()) {
-			for (Entry<Scope, HistogramIndexDefinition> entry : bucketedInScopes.entrySet()) {
-				final GrpcScopedHistogramIndexDefinition.Builder bhBuilder = GrpcScopedHistogramIndexDefinition.newBuilder()
-					.setScope(EvitaEnumConverter.toGrpcScope(entry.getKey()))
-					.setNameOfTheIndex(entry.getValue().nameOfTheIndex());
-				if (entry.getValue().valueExpression() != null) {
-					bhBuilder.setValueExpression(
-						StringValue.of(entry.getValue().valueExpression().toExpressionString())
-					);
+			for (final Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedInScopes.entrySet()) {
+				for (final Entry<String, HistogramIndexDefinition> entry : scopeEntry.getValue().entrySet()) {
+					final GrpcScopedHistogramIndexDefinition.Builder bhBuilder = GrpcScopedHistogramIndexDefinition.newBuilder()
+						.setScope(EvitaEnumConverter.toGrpcScope(scopeEntry.getKey()))
+						.setNameOfTheIndex(entry.getValue().nameOfTheIndex());
+					if (entry.getValue().valueExpression() != null) {
+						bhBuilder.setValueExpression(
+							StringValue.of(entry.getValue().valueExpression().toExpressionString())
+						);
+					}
+					builder.addBucketed(bhBuilder);
 				}
-				builder.addBucketed(bhBuilder);
 			}
 		}
 
@@ -565,7 +567,7 @@ public class EntitySchemaConverter {
 		final Map<Scope, Expression> bucketedPartiallyInScopes =
 			referenceSchema.getBucketedPartiallyInScopes();
 		if (!bucketedPartiallyInScopes.isEmpty()) {
-			for (Entry<Scope, Expression> entry : bucketedPartiallyInScopes.entrySet()) {
+			for (final Entry<Scope, Expression> entry : bucketedPartiallyInScopes.entrySet()) {
 				final GrpcScopedBucketedPartially.Builder bpBuilder = GrpcScopedBucketedPartially.newBuilder()
 					.setScope(EvitaEnumConverter.toGrpcScope(entry.getKey()));
 				if (entry.getValue() != null) {

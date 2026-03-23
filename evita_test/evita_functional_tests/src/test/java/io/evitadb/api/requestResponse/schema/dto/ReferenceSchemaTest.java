@@ -907,8 +907,8 @@ class ReferenceSchemaTest {
 		@Test
 		@DisplayName("should reject bucketed in non-indexed scope")
 		void shouldRejectBucketedInNonIndexedScope() {
-			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("hist", null));
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, Map.of("hist", new HistogramIndexDefinition("hist", null)));
 
 			assertThrows(
 				InvalidSchemaMutationException.class,
@@ -934,8 +934,11 @@ class ReferenceSchemaTest {
 		@DisplayName("should build with bucketed histogram definition")
 		void shouldBuildWithHistogramIndexDefinition() {
 			final Expression valueExpr = ExpressionFactory.parse("$price * $quantity");
-			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("priceHistogram", valueExpr));
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(
+				Scope.LIVE,
+				Map.of("priceHistogram", new HistogramIndexDefinition("priceHistogram", valueExpr))
+			);
 
 			final ReferenceSchema schema = ReferenceSchema._internalBuild(
 				"brand",
@@ -962,13 +965,16 @@ class ReferenceSchemaTest {
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
 			assertFalse(schema.isBucketedInScope(Scope.ARCHIVED));
 			assertTrue(schema.isBucketedInAnyScope());
-			assertEquals("priceHistogram", schema.getHistogramIndexDefinition(Scope.LIVE).nameOfTheIndex());
+			assertEquals(
+				"priceHistogram",
+				schema.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram").nameOfTheIndex()
+			);
 			assertEquals(
 				valueExpr.toExpressionString(),
-				schema.getHistogramIndexDefinition(Scope.LIVE).valueExpression().toExpressionString()
+				schema.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram").valueExpression().toExpressionString()
 			);
 			assertEquals(Set.of(Scope.LIVE), schema.getBucketedInScopes());
-			assertEquals(1, schema.getHistogramIndexDefinitions().size());
+			assertEquals(1, schema.getAllHistogramIndexDefinitions().size());
 		}
 
 		/**
@@ -1024,8 +1030,8 @@ class ReferenceSchemaTest {
 		@Test
 		@DisplayName("should build with null value expression")
 		void shouldBuildWithNullValueExpression() {
-			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("hist", null));
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, Map.of("hist", new HistogramIndexDefinition("hist", null)));
 
 			final ReferenceSchema schema = ReferenceSchema._internalBuild(
 				"brand",
@@ -1050,7 +1056,7 @@ class ReferenceSchemaTest {
 			);
 
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
-			assertNull(schema.getHistogramIndexDefinition(Scope.LIVE).valueExpression());
+			assertNull(schema.getHistogramIndexDefinition(Scope.LIVE, "hist").valueExpression());
 		}
 
 		/**
@@ -1076,9 +1082,74 @@ class ReferenceSchemaTest {
 			assertFalse(schema.isBucketedInScope(Scope.LIVE));
 			assertFalse(schema.isBucketedInAnyScope());
 			assertTrue(schema.getBucketedInScopes().isEmpty());
-			assertTrue(schema.getHistogramIndexDefinitions().isEmpty());
+			assertTrue(schema.getAllHistogramIndexDefinitions().isEmpty());
 			assertNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
 			assertTrue(schema.getBucketedPartiallyInScopes().isEmpty());
+		}
+
+		/**
+		 * Verifies that multiple histogram definitions can coexist within a single scope
+		 * and are individually accessible by name.
+		 */
+		@Test
+		@DisplayName("should support multiple histograms per scope")
+		void shouldSupportMultipleHistogramsPerScope() {
+			final Expression priceExpr = ExpressionFactory.parse("$price");
+			final Expression quantityExpr = ExpressionFactory.parse("$quantity");
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(
+				Scope.LIVE,
+				Map.of(
+					"priceHistogram", new HistogramIndexDefinition("priceHistogram", priceExpr),
+					"quantityHistogram", new HistogramIndexDefinition("quantityHistogram", quantityExpr)
+				)
+			);
+
+			final ReferenceSchema schema = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			assertTrue(schema.isBucketedInScope(Scope.LIVE));
+			assertEquals(2, schema.getHistogramIndexDefinitions(Scope.LIVE).size());
+			assertEquals(1, schema.getAllHistogramIndexDefinitions().size());
+
+			final HistogramIndexDefinition priceDef =
+				schema.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram");
+			assertNotNull(priceDef);
+			assertEquals("priceHistogram", priceDef.nameOfTheIndex());
+			assertEquals(
+				priceExpr.toExpressionString(),
+				priceDef.valueExpression().toExpressionString()
+			);
+
+			final HistogramIndexDefinition quantityDef =
+				schema.getHistogramIndexDefinition(Scope.LIVE, "quantityHistogram");
+			assertNotNull(quantityDef);
+			assertEquals("quantityHistogram", quantityDef.nameOfTheIndex());
+			assertEquals(
+				quantityExpr.toExpressionString(),
+				quantityDef.valueExpression().toExpressionString()
+			);
+
+			assertNull(schema.getHistogramIndexDefinition(Scope.LIVE, "nonExistent"));
 		}
 
 		/**
@@ -1087,8 +1158,8 @@ class ReferenceSchemaTest {
 		@Test
 		@DisplayName("should include bucketed in equality check")
 		void shouldIncludeBucketedInEquality() {
-			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("hist", null));
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, Map.of("hist", new HistogramIndexDefinition("hist", null)));
 
 			final ReferenceSchema withBucketed = ReferenceSchema._internalBuild(
 				"brand",
@@ -1164,12 +1235,55 @@ class ReferenceSchemaTest {
 		/**
 		 * Verifies that schemas differing only in bucketedPartially expressions are not equal.
 		 */
+		/**
+		 * Verifies that {@link ReferenceSchema} filters out empty inner maps from the bucketed
+		 * scopes, so that `isBucketedInScope` returns false for a scope with no actual
+		 * histogram definitions.
+		 */
+		@Test
+		@DisplayName("should filter out empty inner maps in bucketed scopes")
+		void shouldFilterOutEmptyInnerMapsInBucketedScopes() {
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, Collections.emptyMap());
+
+			final ReferenceSchema schema = ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			assertFalse(
+				schema.isBucketedInScope(Scope.LIVE),
+				"Scope with empty inner map should not be considered bucketed"
+			);
+			assertTrue(
+				schema.getAllHistogramIndexDefinitions().isEmpty(),
+				"Empty inner maps should be filtered from histogram definitions"
+			);
+		}
+
 		@Test
 		@DisplayName("should include bucketedPartially in equality check")
 		void shouldIncludeBucketedPartiallyInEquality() {
 			final Expression expression = ExpressionFactory.parse("$status == 1");
-			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("hist", null));
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, Map.of("hist", new HistogramIndexDefinition("hist", null)));
 
 			final ReferenceSchema withPartially = ReferenceSchema._internalBuild(
 				"brand",
@@ -1234,21 +1348,76 @@ class ReferenceSchemaTest {
 				new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHist", null)
 			};
 
-			final Map<Scope, HistogramIndexDefinition> result =
+			final Map<Scope, Map<String, HistogramIndexDefinition>> result =
 				ReferenceSchema.toBucketedHistogramMap(input);
 
 			assertEquals(2, result.size());
-			assertEquals("liveHist", result.get(Scope.LIVE).nameOfTheIndex());
+			assertEquals(1, result.get(Scope.LIVE).size());
+			assertEquals("liveHist", result.get(Scope.LIVE).get("liveHist").nameOfTheIndex());
 			assertEquals(
 				expr.toExpressionString(),
-				result.get(Scope.LIVE).valueExpression().toExpressionString()
+				result.get(Scope.LIVE).get("liveHist").valueExpression().toExpressionString()
 			);
-			assertEquals("archivedHist", result.get(Scope.ARCHIVED).nameOfTheIndex());
-			assertNull(result.get(Scope.ARCHIVED).valueExpression());
+			assertEquals(1, result.get(Scope.ARCHIVED).size());
+			assertEquals("archivedHist", result.get(Scope.ARCHIVED).get("archivedHist").nameOfTheIndex());
+			assertNull(result.get(Scope.ARCHIVED).get("archivedHist").valueExpression());
 
 			// null and empty input should return empty maps
 			assertTrue(ReferenceSchema.toBucketedHistogramMap(null).isEmpty());
 			assertTrue(ReferenceSchema.toBucketedHistogramMap(ScopedHistogramIndexDefinition.EMPTY).isEmpty());
+		}
+
+		/**
+		 * Verifies that toBucketedHistogramMap groups multiple histograms under the same scope
+		 * when the input contains multiple entries for the same scope with different names.
+		 */
+		@Test
+		@DisplayName("should group multiple histograms per scope in toBucketedHistogramMap")
+		void shouldGroupMultipleHistogramsPerScopeInToBucketedHistogramMap() {
+			final Expression priceExpr = ExpressionFactory.parse("$price");
+			final Expression quantityExpr = ExpressionFactory.parse("$quantity");
+			final ScopedHistogramIndexDefinition[] input = new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHist", priceExpr),
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "quantityHist", quantityExpr)
+			};
+
+			final Map<Scope, Map<String, HistogramIndexDefinition>> result =
+				ReferenceSchema.toBucketedHistogramMap(input);
+
+			assertEquals(1, result.size());
+			final Map<String, HistogramIndexDefinition> liveHistograms = result.get(Scope.LIVE);
+			assertNotNull(liveHistograms);
+			assertEquals(2, liveHistograms.size());
+			assertEquals("priceHist", liveHistograms.get("priceHist").nameOfTheIndex());
+			assertEquals(
+				priceExpr.toExpressionString(),
+				liveHistograms.get("priceHist").valueExpression().toExpressionString()
+			);
+			assertEquals("quantityHist", liveHistograms.get("quantityHist").nameOfTheIndex());
+			assertEquals(
+				quantityExpr.toExpressionString(),
+				liveHistograms.get("quantityHist").valueExpression().toExpressionString()
+			);
+		}
+
+		/**
+		 * Verifies that {@link ReferenceSchema#toBucketedHistogramMap(ScopedHistogramIndexDefinition[])}
+		 * throws {@link InvalidSchemaMutationException} when two entries share the same scope and name.
+		 */
+		@Test
+		@DisplayName("should reject duplicate histogram name in same scope")
+		void shouldRejectDuplicateHistogramNameInSameScope() {
+			final Expression expr1 = ExpressionFactory.parse("$price");
+			final Expression expr2 = ExpressionFactory.parse("$quantity");
+			final ScopedHistogramIndexDefinition[] input = new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr1),
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr2)
+			};
+
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> ReferenceSchema.toBucketedHistogramMap(input)
+			);
 		}
 
 		/**

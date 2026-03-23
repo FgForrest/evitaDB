@@ -109,8 +109,8 @@ class ReflectedReferenceSchemaTest {
 	@Nonnull
 	private static ReferenceSchema createOriginalReferenceWithBucketed() {
 		final Expression bucketedPartiallyExpr = ExpressionFactory.parse("$active == 1");
-		final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
-		bucketedMap.put(Scope.LIVE, new HistogramIndexDefinition("priceHist", ExpressionFactory.parse("$price")));
+		final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+		bucketedMap.put(Scope.LIVE, Map.of("priceHist", new HistogramIndexDefinition("priceHist", ExpressionFactory.parse("$price"))));
 		return ReferenceSchema._internalBuild(
 			"productRef",
 			NamingConvention.generate("productRef"),
@@ -1645,7 +1645,7 @@ class ReflectedReferenceSchemaTest {
 			assertFalse(bound.isBucketedInScope(Scope.ARCHIVED));
 			assertEquals(
 				"priceHist",
-				bound.getHistogramIndexDefinition(Scope.LIVE).nameOfTheIndex()
+				bound.getHistogramIndexDefinition(Scope.LIVE, "priceHist").nameOfTheIndex()
 			);
 			assertNotNull(bound.getBucketedPartiallyInScope(Scope.LIVE));
 			assertEquals(
@@ -1697,9 +1697,9 @@ class ReflectedReferenceSchemaTest {
 			assertTrue(bound.isBucketedInScope(Scope.LIVE));
 			assertEquals(
 				"myOwnHist",
-				bound.getHistogramIndexDefinition(Scope.LIVE).nameOfTheIndex()
+				bound.getHistogramIndexDefinition(Scope.LIVE, "myOwnHist").nameOfTheIndex()
 			);
-			assertNull(bound.getHistogramIndexDefinition(Scope.LIVE).valueExpression());
+			assertNull(bound.getHistogramIndexDefinition(Scope.LIVE, "myOwnHist").valueExpression());
 		}
 
 		/**
@@ -1792,7 +1792,7 @@ class ReflectedReferenceSchemaTest {
 			assertTrue(schema.isBucketedInScope(Scope.LIVE));
 			assertEquals(
 				"priceHist",
-				schema.getHistogramIndexDefinition(Scope.LIVE).nameOfTheIndex()
+				schema.getHistogramIndexDefinition(Scope.LIVE, "priceHist").nameOfTheIndex()
 			);
 			assertNotNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
 		}
@@ -1879,10 +1879,10 @@ class ReflectedReferenceSchemaTest {
 		@Test
 		@DisplayName("should throw in _internalBuild Map overload when bucketed scope is not indexed")
 		void shouldThrowInInternalBuildMapOverloadWhenBucketedScopeNotIndexed() {
-			final EnumMap<Scope, HistogramIndexDefinition> bucketedMap = new EnumMap<>(Scope.class);
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
 			bucketedMap.put(
 				Scope.LIVE,
-				new HistogramIndexDefinition("priceHist", null)
+				Map.of("priceHist", new HistogramIndexDefinition("priceHist", null))
 			);
 
 			assertThrows(

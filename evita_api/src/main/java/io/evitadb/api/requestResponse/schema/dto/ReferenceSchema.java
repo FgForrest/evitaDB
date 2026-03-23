@@ -111,10 +111,10 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 */
 	@Getter @Nonnull protected final Map<Scope, Expression> facetedPartiallyInScopes;
 	/**
-	 * Per-scope bucketed histogram definitions. The presence of a scope key means the
-	 * reference is bucketed in that scope.
+	 * Per-scope named bucketed histogram definitions. The presence of a scope key means the
+	 * reference is bucketed in that scope. The inner map keys are histogram index names.
 	 */
-	protected final Map<Scope, HistogramIndexDefinition> bucketedInScopes;
+	protected final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes;
 	/**
 	 * Per-scope expressions that narrow which entities participate in bucketed histogram
 	 * computation. Only meaningful for scopes where the reference is bucketed.
@@ -364,6 +364,30 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
+	 * Wraps a nested scope-to-name-to-definition map in unmodifiable views for both
+	 * the outer and all inner maps. Returns {@link Collections#emptyMap()} when the
+	 * input is empty.
+	 *
+	 * @param map the mutable nested map
+	 * @return an unmodifiable copy of the nested map
+	 */
+	@Nonnull
+	private static Map<Scope, Map<String, HistogramIndexDefinition>> toUnmodifiableNestedMap(
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> map
+	) {
+		if (map.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		final EnumMap<Scope, Map<String, HistogramIndexDefinition>> result = new EnumMap<>(Scope.class);
+		for (final Entry<Scope, Map<String, HistogramIndexDefinition>> entry : map.entrySet()) {
+			if (!entry.getValue().isEmpty()) {
+				result.put(entry.getKey(), Collections.unmodifiableMap(entry.getValue()));
+			}
+		}
+		return Collections.unmodifiableMap(result);
+	}
+
+	/**
 	 * Validates that the entity type and optional group type
 	 * conform to the required classifier format.
 	 *
@@ -381,26 +405,35 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
-	 * Converts an array of {@link ScopedHistogramIndexDefinition} objects into a map linking
-	 * {@link Scope} to {@link HistogramIndexDefinition}. If the input array is null
-	 * or empty, an empty map is returned.
+	 * Converts an array of {@link ScopedHistogramIndexDefinition} objects into a nested map
+	 * linking {@link Scope} to a map of histogram names to {@link HistogramIndexDefinition}.
+	 * Multiple entries with the same scope but different names produce multiple entries in the
+	 * inner map. If the input array is null or empty, an empty map is returned.
 	 *
 	 * @param scopedBucketedHistograms an array of scoped bucketed histogram entries, may be null
-	 * @return a map where each scope is associated with its corresponding histogram definition
+	 * @return a nested map: scope to (histogram name to definition)
 	 */
 	@Nonnull
-	public static Map<Scope, HistogramIndexDefinition> toBucketedHistogramMap(
+	public static Map<Scope, Map<String, HistogramIndexDefinition>> toBucketedHistogramMap(
 		@Nullable ScopedHistogramIndexDefinition[] scopedBucketedHistograms
 	) {
 		if (scopedBucketedHistograms == null || scopedBucketedHistograms.length == 0) {
 			return Collections.emptyMap();
 		}
-		final EnumMap<Scope, HistogramIndexDefinition> result = new EnumMap<>(Scope.class);
-		for (ScopedHistogramIndexDefinition entry : scopedBucketedHistograms) {
-			result.put(
-				entry.scope(),
-				new HistogramIndexDefinition(entry.nameOfTheIndex(), entry.valueExpression())
-			);
+		final EnumMap<Scope, Map<String, HistogramIndexDefinition>> result = new EnumMap<>(Scope.class);
+		for (final ScopedHistogramIndexDefinition entry : scopedBucketedHistograms) {
+			final HistogramIndexDefinition previous = result
+				.computeIfAbsent(entry.scope(), k -> new LinkedHashMap<>())
+				.put(
+					entry.nameOfTheIndex(),
+					new HistogramIndexDefinition(entry.nameOfTheIndex(), entry.valueExpression())
+				);
+			if (previous != null) {
+				throw new InvalidSchemaMutationException(
+					"Duplicate histogram name `" + entry.nameOfTheIndex() +
+						"` in scope " + entry.scope() + "!"
+				);
+			}
 		}
 		return result;
 	}
@@ -523,7 +556,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes,
-		@Nonnull Map<Scope, HistogramIndexDefinition> bucketedInScopes,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
 		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
@@ -623,7 +656,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		);
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		final Map<Scope, Expression> facetedPartiallyMap = toFacetedPartiallyMap(facetedPartiallyInScopes);
-		final Map<Scope, HistogramIndexDefinition> bucketedMap = toBucketedHistogramMap(bucketedInScopes);
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = toBucketedHistogramMap(bucketedInScopes);
 		final Map<Scope, Expression> bucketedPartiallyMap = toBucketedPartiallyMap(bucketedPartiallyInScopes);
 		validateScopeSettings(facetedScopes, bucketedMap, indexedScopesMap, indexedComponentsMap);
 
@@ -677,7 +710,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			referenceSchema.getIndexedComponentsInScopes(),
 			referenceSchema.getFacetedInScopes(),
 			referenceSchema.getFacetedPartiallyInScopes(),
-			referenceSchema.getHistogramIndexDefinitions(),
+			referenceSchema.getAllHistogramIndexDefinitions(),
 			referenceSchema.getBucketedPartiallyInScopes(),
 			referenceSchema.getAttributes(),
 			referenceSchema.getSortableAttributeCompounds()
@@ -723,7 +756,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 */
 	static void validateScopeSettings(
 		@Nonnull Set<Scope> facetedScopes,
-		@Nonnull Map<Scope, HistogramIndexDefinition> bucketedScopes,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedScopes,
 		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes,
 		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes
 	) {
@@ -829,7 +862,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes,
-		@Nonnull Map<Scope, HistogramIndexDefinition> bucketedInScopes,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
 		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
@@ -850,7 +883,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.indexedComponentsInScopes = CollectionUtils.toUnmodifiableMap(indexedComponentsInScopes);
 		this.facetedInScopes = CollectionUtils.toUnmodifiableSet(facetedInScopes);
 		this.facetedPartiallyInScopes = CollectionUtils.toUnmodifiableMap(facetedPartiallyInScopes);
-		this.bucketedInScopes = CollectionUtils.toUnmodifiableMap(bucketedInScopes);
+		this.bucketedInScopes = toUnmodifiableNestedMap(bucketedInScopes);
 		this.bucketedPartiallyInScopes = CollectionUtils.toUnmodifiableMap(bucketedPartiallyInScopes);
 		this.attributes = Collections.unmodifiableMap(
 			attributes.entrySet()
@@ -1010,13 +1043,20 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 
 	@Nullable
 	@Override
-	public HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope) {
-		return this.bucketedInScopes.get(scope);
+	public HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope, @Nonnull String name) {
+		final Map<String, HistogramIndexDefinition> scopeMap = this.bucketedInScopes.get(scope);
+		return scopeMap != null ? scopeMap.get(name) : null;
 	}
 
 	@Nonnull
 	@Override
-	public Map<Scope, HistogramIndexDefinition> getHistogramIndexDefinitions() {
+	public Map<String, HistogramIndexDefinition> getHistogramIndexDefinitions(@Nonnull Scope scope) {
+		return this.bucketedInScopes.getOrDefault(scope, Collections.emptyMap());
+	}
+
+	@Nonnull
+	@Override
+	public Map<Scope, Map<String, HistogramIndexDefinition>> getAllHistogramIndexDefinitions() {
 		return this.bucketedInScopes;
 	}
 

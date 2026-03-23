@@ -415,7 +415,7 @@ public class SetReferenceSchemaIndexedMutation
 					indexedComponents,
 					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getFacetedPartiallyInScopes(),
-					referenceSchema.getHistogramIndexDefinitions(),
+					referenceSchema.getAllHistogramIndexDefinitions(),
 					referenceSchema.getBucketedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()

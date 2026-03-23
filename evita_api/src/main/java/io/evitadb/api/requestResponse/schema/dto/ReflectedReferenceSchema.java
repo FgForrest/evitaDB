@@ -202,7 +202,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				: ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		final Map<Scope, Expression> facetedPartiallyMap =
 				ReferenceSchema.toFacetedPartiallyMap(facetedPartiallyInScopes);
-		final Map<Scope, HistogramIndexDefinition> bucketedMap =
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap =
 				ReferenceSchema.toBucketedHistogramMap(bucketedInScopes);
 		final Map<Scope, Expression> bucketedPartiallyMap =
 				ReferenceSchema.toBucketedPartiallyMap(bucketedPartiallyInScopes);
@@ -254,7 +254,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nullable EnumSet<Scope> facetedInScopes,
 		@Nullable Map<Scope, Expression> facetedPartiallyInScopes,
-		@Nullable Map<Scope, HistogramIndexDefinition> bucketedInScopes,
+		@Nullable Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
 		@Nullable Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
@@ -393,7 +393,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			ReferenceSchema.toIndexedComponentsEnumMap(indexedComponentsInScopes) : null;
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		final Map<Scope, Expression> facetedPartiallyMap = ReferenceSchema.toFacetedPartiallyMap(facetedPartiallyInScopes);
-		final Map<Scope, HistogramIndexDefinition> bucketedMap = bucketedInherited
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = bucketedInherited
 			? Collections.emptyMap()
 			: ReferenceSchema.toBucketedHistogramMap(bucketedInScopes);
 		final Map<Scope, Expression> bucketedPartiallyMap = bucketedInherited
@@ -603,7 +603,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nullable Set<Scope> facetedInScopes,
 		@Nullable Map<Scope, Expression> facetedPartiallyInScopes,
-		@Nullable Map<Scope, HistogramIndexDefinition> bucketedInScopes,
+		@Nullable Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
 		@Nullable Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
@@ -669,7 +669,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			bucketedInScopes != null
 				? bucketedInScopes
 				: ofNullable(reflectedReference)
-					.map(ReferenceSchemaContract::getHistogramIndexDefinitions)
+					.map(ReferenceSchemaContract::getAllHistogramIndexDefinitions)
 					.orElse(Collections.emptyMap()),
 			// bucketedPartially: use provided value if present, otherwise inherit from reflected reference
 			bucketedPartiallyInScopes != null
@@ -760,7 +760,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nullable Set<Scope> facetedInScopes,
 		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes,
-		@Nonnull Map<Scope, HistogramIndexDefinition> bucketedInScopes,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
 		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
@@ -1135,8 +1135,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					}
 				}
 				if (this.bucketedInherited) {
-					final Map<Scope, HistogramIndexDefinition> originalBucketed =
-						theReflectedReference.getHistogramIndexDefinitions();
+					final Map<Scope, Map<String, HistogramIndexDefinition>> originalBucketed =
+						theReflectedReference.getAllHistogramIndexDefinitions();
 					if (!this.bucketedInScopes.equals(originalBucketed)) {
 						referenceErrors = Stream.concat(
 							referenceErrors,
@@ -1761,7 +1761,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 */
 	@Nonnull
 	public ReflectedReferenceSchemaContract withBucketed(
-		@Nullable Map<Scope, HistogramIndexDefinition> bucketedInScopes
+		@Nullable Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes
 	) {
 		return new ReflectedReferenceSchema(
 			this.name,
@@ -2019,8 +2019,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInScopes;
 		// resolve bucketed scopes before validation so the consistency check can verify
 		// that all bucketed scopes are also indexed
-		final Map<Scope, HistogramIndexDefinition> resolvedBucketed = this.bucketedInherited
-			? originalReference.getHistogramIndexDefinitions()
+		final Map<Scope, Map<String, HistogramIndexDefinition>> resolvedBucketed = this.bucketedInherited
+			? originalReference.getAllHistogramIndexDefinitions()
 			: this.bucketedInScopes;
 		final Map<Scope, Expression> resolvedBucketedPartially = this.bucketedInherited
 			? originalReference.getBucketedPartiallyInScopes()
