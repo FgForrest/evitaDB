@@ -284,6 +284,8 @@ class SetReferenceSchemaIndexedMutationTest {
 					Collections.emptyMap(),
 					Collections.emptySet(),
 					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Collections.emptyMap(),
 					Map.of(
 						"filterableAttr",
 						AttributeSchema._internalBuild(
@@ -354,6 +356,8 @@ class SetReferenceSchemaIndexedMutationTest {
 					),
 					Collections.emptySet(),
 					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Collections.emptyMap(),
 					Map.of(
 						"filterableAttr",
 						AttributeSchema._internalBuild(
@@ -421,6 +425,8 @@ class SetReferenceSchemaIndexedMutationTest {
 					Collections.emptyMap(),
 					Collections.emptyMap(),
 					Collections.emptySet(),
+					Collections.emptyMap(),
+					Collections.emptyMap(),
 					Collections.emptyMap(),
 					Map.of(
 						"filterableAttr",
@@ -814,6 +820,8 @@ class SetReferenceSchemaIndexedMutationTest {
 				),
 				Collections.emptySet(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap(), Collections.emptyMap()
 			);
 			// mutation sets LIVE to NONE but carries explicit LIVE components
@@ -924,6 +932,7 @@ class SetReferenceSchemaIndexedMutationTest {
 					},
 					Scope.NO_SCOPE,
 					null,
+					null, null,
 					Collections.emptyMap(), Collections.emptyMap()
 				)
 			);
@@ -957,6 +966,7 @@ class SetReferenceSchemaIndexedMutationTest {
 				},
 				Scope.NO_SCOPE,
 				null,
+				null, null,
 				Collections.emptyMap(), Collections.emptyMap()
 			);
 

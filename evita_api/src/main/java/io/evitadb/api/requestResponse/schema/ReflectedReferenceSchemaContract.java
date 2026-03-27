@@ -90,13 +90,6 @@ public interface ReflectedReferenceSchemaContract extends ReferenceSchemaContrac
 	boolean isFacetedInherited();
 
 	/**
-	 * Returns true if the bucketed property settings of the reflected reference are inherited from the target reference.
-	 *
-	 * @return true if the bucketed property settings are inherited, false otherwise
-	 */
-	boolean isBucketedInherited();
-
-	/**
 	 * Returns true if the indexed components settings of the reflected reference is inherited from the target reference.
 	 *
 	 * @return true if the indexed components settings is inherited, false otherwise

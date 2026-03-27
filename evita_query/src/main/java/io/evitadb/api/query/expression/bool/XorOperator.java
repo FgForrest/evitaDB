@@ -24,14 +24,12 @@
 package io.evitadb.api.query.expression.bool;
 
 
+import io.evitadb.api.query.expression.AbstractBinaryOperator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -42,32 +40,25 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EqualsAndHashCode
-public class XorOperator implements BooleanOperator {
+@EqualsAndHashCode(callSuper = true)
+public class XorOperator extends AbstractBinaryOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = -5124789469194418098L;
-	private final ExpressionNode leftOperator;
-	private final ExpressionNode rightOperator;
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public XorOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
-		this.leftOperator = leftOperator;
-		this.rightOperator = rightOperator;
-		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
+		super(leftOperator, rightOperator);
+	}
+
+	@Nonnull
+	@Override
+	protected String getOperatorSymbol() {
+		return "^";
 	}
 
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull ExpressionEvaluationContext context) {
-		final Boolean leftOperand = this.leftOperator.compute(context, Boolean.class);
-		if (leftOperand == null) {
-			throw new ExpressionEvaluationException("Left operand required, but evaluated to null.");
-		}
-		final Boolean rightOperand = this.rightOperator.compute(context, Boolean.class);
-		if (rightOperand == null) {
-			throw new ExpressionEvaluationException("Right operand required, but evaluated to null.");
-		}
+		final Boolean leftOperand = computeLeft(context, Boolean.class);
+		final Boolean rightOperand = computeRight(context, Boolean.class);
 		return leftOperand ^ rightOperand;
 	}
 
@@ -75,19 +66,9 @@ public class XorOperator implements BooleanOperator {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return BigDecimalNumberRange.union(
-			this.leftOperator.determinePossibleRange(),
-			this.rightOperator.determinePossibleRange()
+			getLeftOperand().determinePossibleRange(),
+			getRightOperand().determinePossibleRange()
 		);
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
-	}
-
-	@Override
-	public String toString() {
-		return this.leftOperator + " ^ " + this.rightOperator;
 	}
 
 }

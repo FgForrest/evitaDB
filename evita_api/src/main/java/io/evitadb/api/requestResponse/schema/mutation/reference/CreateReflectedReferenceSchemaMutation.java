@@ -162,18 +162,16 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull ReflectedReferenceSchemaContract createdVersion,
 		@Nonnull ReflectedReferenceSchemaContract existingVersion
 	) {
-		final ScopedHistogramIndexDefinition[] createdBucketed = createdVersion.isBucketedInherited()
-			? null
-			: createdVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+		final ScopedHistogramIndexDefinition[] createdBucketed =
+			createdVersion.getAllHistogramIndexDefinitions().entrySet().stream()
 				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
 					.map(def -> new ScopedHistogramIndexDefinition(
 						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
 					))
 				)
 				.toArray(ScopedHistogramIndexDefinition[]::new);
-		final ScopedHistogramIndexDefinition[] existingBucketed = existingVersion.isBucketedInherited()
-			? null
-			: existingVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+		final ScopedHistogramIndexDefinition[] existingBucketed =
+			existingVersion.getAllHistogramIndexDefinitions().entrySet().stream()
 				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
 					.map(def -> new ScopedHistogramIndexDefinition(
 						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
@@ -220,10 +218,10 @@ public class CreateReflectedReferenceSchemaMutation
 			faceted == null ? null : faceted ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
 			// by default facetedPartially is inherited
 			null,
-			// by default bucketed is inherited
-			null,
-			// by default bucketedPartially is inherited
-			null,
+			// by default bucketed is empty
+			ScopedHistogramIndexDefinition.EMPTY,
+			// by default bucketedPartially is empty
+			ScopedBucketedPartially.EMPTY,
 			attributeInheritanceBehavior, attributeInheritanceFilter
 		);
 	}
@@ -250,7 +248,7 @@ public class CreateReflectedReferenceSchemaMutation
 			referencedEntityType, reflectedReferenceName,
 			indexedInScopes, indexedComponentsInScopes,
 			facetedInScopes, null,
-			null, null,
+			ScopedHistogramIndexDefinition.EMPTY, ScopedBucketedPartially.EMPTY,
 			attributeInheritanceBehavior, attributeInheritanceFilter
 		);
 	}
@@ -484,17 +482,13 @@ public class CreateReflectedReferenceSchemaMutation
 			facetedPartiallyDescription = "(in scopes: " + Arrays.toString(this.facetedPartiallyInScopes) + ")";
 		}
 		final String bucketedDescription;
-		if (this.bucketedInScopes == null) {
-			bucketedDescription = "(inherited)";
-		} else if (this.bucketedInScopes.length == 0) {
+		if (this.bucketedInScopes == null || this.bucketedInScopes.length == 0) {
 			bucketedDescription = "(not bucketed)";
 		} else {
 			bucketedDescription = "(bucketed in scopes: " + Arrays.toString(this.bucketedInScopes) + ")";
 		}
 		final String bucketedPartiallyDescription;
-		if (this.bucketedPartiallyInScopes == null) {
-			bucketedPartiallyDescription = "(inherited)";
-		} else if (this.bucketedPartiallyInScopes.length == 0) {
+		if (this.bucketedPartiallyInScopes == null || this.bucketedPartiallyInScopes.length == 0) {
 			bucketedPartiallyDescription = "(none)";
 		} else {
 			bucketedPartiallyDescription = "(in scopes: " + Arrays.toString(this.bucketedPartiallyInScopes) + ")";

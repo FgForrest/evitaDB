@@ -100,15 +100,20 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			CreateReflectedReferenceSchemaMutationDescriptor.FACETED_PARTIALLY_IN_SCOPES
 		);
 
-		final ScopedHistogramIndexDefinition[] bucketedInScopes = parseBucketedHistogram(
+		// bucketed is not inheritable — coalesce null to EMPTY
+		final ScopedHistogramIndexDefinition[] parsedBucketed = parseBucketedHistogram(
 			input,
 			CreateReflectedReferenceSchemaMutationDescriptor.BUCKETED_IN_SCOPES
 		);
+		final ScopedHistogramIndexDefinition[] bucketedInScopes =
+			parsedBucketed != null ? parsedBucketed : ScopedHistogramIndexDefinition.EMPTY;
 
-		final ScopedBucketedPartially[] bucketedPartiallyInScopes = parseBucketedPartially(
+		final ScopedBucketedPartially[] parsedBucketedPartially = parseBucketedPartially(
 			input,
 			CreateReflectedReferenceSchemaMutationDescriptor.BUCKETED_PARTIALLY_IN_SCOPES
 		);
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			parsedBucketedPartially != null ? parsedBucketedPartially : ScopedBucketedPartially.EMPTY;
 
 		return new CreateReflectedReferenceSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),

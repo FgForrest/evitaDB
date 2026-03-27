@@ -556,9 +556,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
 
 			assertNotNull(referenceSchema);
-			final ReflectedReferenceSchemaContract reflected =
-				assertInstanceOf(ReflectedReferenceSchemaContract.class, referenceSchema);
-			assertFalse(reflected.isBucketedInherited());
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, referenceSchema);
 			assertTrue(referenceSchema.isBucketedInScope(Scope.LIVE));
 			assertEquals(
 				"priceHistogram",
@@ -567,33 +565,6 @@ class CreateReflectedReferenceSchemaMutationTest {
 			assertNotNull(referenceSchema.getBucketedPartiallyInScope(Scope.LIVE));
 		}
 
-		/**
-		 * Verifies that the constructor with null bucketed fields produces a
-		 * reflected reference schema where bucketed is inherited.
-		 */
-		@Test
-		@DisplayName("should create reflected reference with inherited bucketed")
-		void shouldCreateReflectedReferenceWithInheritedBucketed() {
-			final CreateReflectedReferenceSchemaMutation mutation =
-				new CreateReflectedReferenceSchemaMutation(
-					REFERENCE_NAME,
-					null, null, null,
-					REFERENCE_TYPE,
-					REFLECTED_REFERENCE_NAME,
-					null, null, null, null,
-					null, null,
-					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-					null
-				);
-
-			final ReferenceSchemaContract referenceSchema =
-				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
-
-			assertNotNull(referenceSchema);
-			final ReflectedReferenceSchemaContract reflected =
-				assertInstanceOf(ReflectedReferenceSchemaContract.class, referenceSchema);
-			assertTrue(reflected.isBucketedInherited());
-		}
 	}
 
 	@Nested
@@ -736,8 +707,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 		@Test
 		@DisplayName("should include bucketed in toString")
 		void shouldIncludeBucketedInToString() {
-			// inherited bucketed (null)
-			final CreateReflectedReferenceSchemaMutation inheritedBucketed =
+			// cleared bucketed (null)
+			final CreateReflectedReferenceSchemaMutation clearedBucketed =
 				new CreateReflectedReferenceSchemaMutation(
 					REFERENCE_NAME,
 					"desc", null, null,
@@ -748,7 +719,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 					null
 				);
-			assertTrue(inheritedBucketed.toString().contains("bucketed=(inherited)"));
+			assertTrue(clearedBucketed.toString().contains("bucketed=(not bucketed)"));
 
 			// not bucketed (empty array)
 			final CreateReflectedReferenceSchemaMutation notBucketed =

@@ -96,6 +96,8 @@ class ReflectedReferenceSchemaTest {
 			EnumSet.of(Scope.LIVE),
 			Collections.emptyMap(),
 			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
 	}
@@ -162,6 +164,8 @@ class ReflectedReferenceSchemaTest {
 				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 			),
 			Collections.emptySet(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			Collections.emptyMap(),
 			attributes,
 			Collections.emptyMap()
@@ -1250,6 +1254,8 @@ class ReflectedReferenceSchemaTest {
 				EnumSet.of(Scope.LIVE),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1324,6 +1330,8 @@ class ReflectedReferenceSchemaTest {
 				EnumSet.of(Scope.LIVE),
 				Map.of(Scope.LIVE, originalExpr),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1395,6 +1403,8 @@ class ReflectedReferenceSchemaTest {
 				EnumSet.of(Scope.LIVE),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1462,6 +1472,8 @@ class ReflectedReferenceSchemaTest {
 					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				),
 				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap()
@@ -1536,6 +1548,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptySet(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1593,25 +1607,12 @@ class ReflectedReferenceSchemaTest {
 	class BucketedInheritance {
 
 		/**
-		 * Verifies that a minimal {@link ReflectedReferenceSchema} marks bucketed as inherited by default.
+		 * Verifies that a {@link ReflectedReferenceSchema} with null bucketed fields does NOT
+		 * inherit bucketed settings from the original reference — bucketed must be explicit.
 		 */
 		@Test
-		@DisplayName("should mark bucketed inherited by default")
-		void shouldMarkBucketedInheritedByDefault() {
-			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
-				"reflected", "Brand", "brandRef"
-			);
-
-			assertTrue(schema.isBucketedInherited());
-		}
-
-		/**
-		 * Verifies that a {@link ReflectedReferenceSchema} with bucketedInherited=true correctly inherits
-		 * bucketed settings from the original reference when bound via withReferencedSchema.
-		 */
-		@Test
-		@DisplayName("should inherit bucketed from original reference")
-		void shouldInheritBucketedFromOriginalReference() {
+		@DisplayName("should not inherit bucketed from original reference")
+		void shouldNotInheritBucketedFromOriginalReference() {
 			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
 				"reflected",
 				NamingConvention.generate("reflected"),
@@ -1632,7 +1633,7 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				true, true, true,
 				true, true,
-				true, true, // bucketedInherited = true
+				true,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
 				null
@@ -1641,22 +1642,16 @@ class ReflectedReferenceSchemaTest {
 			final ReferenceSchema original = createOriginalReferenceWithBucketed();
 			final ReflectedReferenceSchema bound = schema.withReferencedSchema(original);
 
-			assertTrue(bound.isBucketedInScope(Scope.LIVE));
+			// bucketed is always explicit — null means empty, not inherited
+			assertFalse(bound.isBucketedInScope(Scope.LIVE));
 			assertFalse(bound.isBucketedInScope(Scope.ARCHIVED));
-			assertEquals(
-				"priceHist",
-				bound.getHistogramIndexDefinition(Scope.LIVE, "priceHist").nameOfTheIndex()
-			);
-			assertNotNull(bound.getBucketedPartiallyInScope(Scope.LIVE));
-			assertEquals(
-				ExpressionFactory.parse("$active == 1").toExpressionString(),
-				bound.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString()
-			);
+			assertTrue(bound.getAllHistogramIndexDefinitions().isEmpty());
+			assertNull(bound.getBucketedPartiallyInScope(Scope.LIVE));
 		}
 
 		/**
-		 * Verifies that a {@link ReflectedReferenceSchema} with bucketedInherited=false retains its
-		 * explicit bucketed settings even when bound to an original with different bucketed settings.
+		 * Verifies that a {@link ReflectedReferenceSchema} with explicit bucketed settings retains them
+		 * even when bound to an original with different bucketed settings.
 		 */
 		@Test
 		@DisplayName("should keep explicit bucketed when not inherited")
@@ -1684,7 +1679,7 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				true, true, true,
 				true, true,
-				true, false, // bucketedInherited = false
+				true,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
 				null
@@ -1703,74 +1698,12 @@ class ReflectedReferenceSchemaTest {
 		}
 
 		/**
-		 * Verifies that two {@link ReflectedReferenceSchema} instances differing only in bucketedInherited
-		 * are not equal.
+		 * Verifies that the first (simpler) constructor of {@link ReflectedReferenceSchema} does
+		 * not inherit bucketed settings from the original reference — bucketed defaults to empty.
 		 */
 		@Test
-		@DisplayName("should include bucketedInherited in equals and hashCode")
-		void shouldIncludeBucketedInheritedInEqualsAndHashCode() {
-			final ReflectedReferenceSchema inherited = ReflectedReferenceSchema._internalBuild(
-				"reflected",
-				NamingConvention.generate("reflected"),
-				null, null,
-				"Product",
-				NamingConvention.generate("Product"),
-				null,
-				Collections.emptyMap(),
-				false,
-				"productRef",
-				null,
-				null,
-				null,
-				null,
-				null,
-				null, null,
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				true, true, true,
-				true, true,
-				true, true, // bucketedInherited = true
-				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null,
-				null
-			);
-
-			final ReflectedReferenceSchema explicit = ReflectedReferenceSchema._internalBuild(
-				"reflected",
-				NamingConvention.generate("reflected"),
-				null, null,
-				"Product",
-				NamingConvention.generate("Product"),
-				null,
-				Collections.emptyMap(),
-				false,
-				"productRef",
-				null,
-				null,
-				null,
-				null,
-				null,
-				ScopedHistogramIndexDefinition.EMPTY, ScopedBucketedPartially.EMPTY,
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				true, true, true,
-				true, true,
-				true, false, // bucketedInherited = false
-				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-				null,
-				null
-			);
-
-			assertNotEquals(inherited, explicit);
-		}
-
-		/**
-		 * Verifies that the first (simpler) constructor of {@link ReflectedReferenceSchema} always sets
-		 * bucketedInherited=true and correctly inherits bucketed settings from the original reference.
-		 */
-		@Test
-		@DisplayName("should inherit bucketed via first constructor")
-		void shouldInheritBucketedViaFirstConstructor() {
+		@DisplayName("should not inherit bucketed via first constructor")
+		void shouldNotInheritBucketedViaFirstConstructor() {
 			final ReferenceSchema original = createOriginalReferenceWithBucketed();
 
 			final ReflectedReferenceSchema schema = new ReflectedReferenceSchema(
@@ -1788,13 +1721,10 @@ class ReflectedReferenceSchemaTest {
 				original
 			);
 
-			assertTrue(schema.isBucketedInherited());
-			assertTrue(schema.isBucketedInScope(Scope.LIVE));
-			assertEquals(
-				"priceHist",
-				schema.getHistogramIndexDefinition(Scope.LIVE, "priceHist").nameOfTheIndex()
-			);
-			assertNotNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
+			// bucketed is always explicit — null means empty, not inherited
+			assertFalse(schema.isBucketedInScope(Scope.LIVE));
+			assertTrue(schema.getAllHistogramIndexDefinitions().isEmpty());
+			assertNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
 		}
 	}
 
@@ -1829,6 +1759,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptySet(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1856,7 +1788,7 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptyMap(),
 				true, true, true,
 				true, true,       // indexed inherited
-				true, false,      // bucketed NOT inherited (explicit)
+				true,
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 				null,
 				null

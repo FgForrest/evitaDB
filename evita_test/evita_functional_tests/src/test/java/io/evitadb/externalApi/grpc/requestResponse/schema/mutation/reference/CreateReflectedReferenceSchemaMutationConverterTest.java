@@ -116,8 +116,8 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				new ScopedFacetedPartially[]{
 					new ScopedFacetedPartially(Scope.LIVE, expression)
 				},
-				null,
-				null,
+				ScopedHistogramIndexDefinition.EMPTY,
+				ScopedBucketedPartially.EMPTY,
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 				new String[]{"order"}
 			);
@@ -167,8 +167,11 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 
 		assertNull(roundTripped.getFacetedInScopes());
 		assertNull(roundTripped.getFacetedPartiallyInScopes());
-		assertNull(roundTripped.getBucketedInScopes());
-		assertNull(roundTripped.getBucketedPartiallyInScopes());
+		// bucketed is not inheritable — null coalesces to EMPTY
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(0, roundTripped.getBucketedInScopes().length);
+		assertNotNull(roundTripped.getBucketedPartiallyInScopes());
+		assertEquals(0, roundTripped.getBucketedPartiallyInScopes().length);
 	}
 
 	/**
@@ -198,8 +201,8 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					new ScopedFacetedPartially(Scope.LIVE, liveExpr),
 					new ScopedFacetedPartially(Scope.ARCHIVED, archivedExpr)
 				},
-				null,
-				null,
+				ScopedHistogramIndexDefinition.EMPTY,
+				ScopedBucketedPartially.EMPTY,
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 				new String[]{"order"}
 			);
@@ -267,11 +270,11 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 	}
 
 	/**
-	 * Verifies that null bucketed fields (inherited) survive round-trip as null.
+	 * Verifies that null bucketed fields round-trip as EMPTY (bucketed is not inheritable).
 	 */
 	@Test
-	@DisplayName("should preserve null bucketed fields when inherited")
-	void shouldPreserveInheritedBucketedFields() {
+	@DisplayName("should round-trip null bucketed fields as EMPTY")
+	void shouldRoundTripNullBucketedFieldsAsEmpty() {
 		final CreateReflectedReferenceSchemaMutation mutation =
 			new CreateReflectedReferenceSchemaMutation(
 				"tags",
@@ -293,7 +296,10 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 		final CreateReflectedReferenceSchemaMutation roundTripped =
 			converter.convert(converter.convert(mutation));
 
-		assertNull(roundTripped.getBucketedInScopes());
-		assertNull(roundTripped.getBucketedPartiallyInScopes());
+		// bucketed is not inheritable — null coalesces to EMPTY
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(0, roundTripped.getBucketedInScopes().length);
+		assertNotNull(roundTripped.getBucketedPartiallyInScopes());
+		assertEquals(0, roundTripped.getBucketedPartiallyInScopes().length);
 	}
 }

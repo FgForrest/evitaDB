@@ -120,6 +120,8 @@ class CreateReferenceSchemaMutationTest {
 			ReferenceSchema.defaultIndexedComponents(indexedScopesMap),
 			indexed ? EnumSet.of(Scope.LIVE) : EnumSet.noneOf(Scope.class),
 			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			Map.of(
 				REFERENCE_ATTRIBUTE_PRIORITY,
 				AttributeSchema._internalBuild(

@@ -38,7 +38,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.mutation.DependencyType;
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -335,7 +335,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 
 	/**
 	 * Returns the group ID for the given facet primary key, or `null` if the facet is ungrouped or not found in any
-	 * group. Used by the cross-entity re-evaluation executor ReevaluateFacetExpressionExecutor to determine the group
+	 * group. Used by the cross-entity re-evaluation executor ReevaluateExpressionExecutor to determine the group
 	 * assignment when resolving {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} dependencies.
 	 *
 	 * @param facetPK the primary key of the facet (referenced entity)

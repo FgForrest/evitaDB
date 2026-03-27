@@ -112,6 +112,8 @@ class ReferenceSchemaTest {
 				Collections.emptySet(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -165,6 +167,8 @@ class ReferenceSchemaTest {
 					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				),
 				EnumSet.of(Scope.LIVE),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap()
@@ -439,6 +443,7 @@ class ReferenceSchemaTest {
 				},
 				Scope.NO_SCOPE,
 				null,
+				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
@@ -477,6 +482,7 @@ class ReferenceSchemaTest {
 				},
 				Scope.NO_SCOPE,
 				null,
+				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
@@ -521,6 +527,7 @@ class ReferenceSchemaTest {
 				},
 				Scope.NO_SCOPE,
 				null,
+				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
@@ -588,6 +595,7 @@ class ReferenceSchemaTest {
 				new ScopedFacetedPartially[]{
 					new ScopedFacetedPartially(Scope.LIVE, expression)
 				},
+				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
@@ -695,6 +703,7 @@ class ReferenceSchemaTest {
 				new ScopedFacetedPartially[]{
 					new ScopedFacetedPartially(Scope.LIVE, expression)
 				},
+				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
@@ -717,6 +726,7 @@ class ReferenceSchemaTest {
 				null,
 				new Scope[]{Scope.LIVE},
 				null,
+				null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
@@ -806,6 +816,8 @@ class ReferenceSchemaTest {
 				),
 				Collections.emptySet(), // NOT faceted in any scope
 				Map.of(Scope.LIVE, expression), // but facetedPartially is set for LIVE
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
@@ -1232,9 +1244,6 @@ class ReferenceSchemaTest {
 			assertEquals(withBucketed.hashCode(), withBucketed2.hashCode());
 		}
 
-		/**
-		 * Verifies that schemas differing only in bucketedPartially expressions are not equal.
-		 */
 		/**
 		 * Verifies that {@link ReferenceSchema} filters out empty inner maps from the bucketed
 		 * scopes, so that `isBucketedInScope` returns false for a scope with no actual

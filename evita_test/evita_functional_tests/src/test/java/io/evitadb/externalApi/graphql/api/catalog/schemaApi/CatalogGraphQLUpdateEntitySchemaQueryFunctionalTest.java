@@ -952,9 +952,11 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
 	@DisplayName("Should create and update bucketed reference schema")
 	void shouldCreateAndUpdateBucketedReferenceSchema(GraphQLTester tester) {
-		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+		// create reference with numeric filterable attribute for bucketed histogram
+		createBucketedReferenceWithAttribute(tester);
+		final int refCreatedVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
-		// create reference with bucketed config including valueExpression
+		// set bucketed config with valid valueExpression referencing the attribute
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.document(
@@ -963,22 +965,13 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 					updateEmptySchema (
 						mutations: [
 							{
-								createReferenceSchemaMutation: {
+								setReferenceSchemaBucketedMutation: {
 									name: "myBucketedRef"
-									referencedEntityType: "tag"
-									referencedEntityTypeManaged: false
-									referencedGroupTypeManaged: false
-									indexedInScopes: [
-										{
-											scope: LIVE
-											indexType: FOR_FILTERING
-										}
-									]
 									bucketedInScopes: [
 										{
 											scope: LIVE
 											nameOfTheIndex: "priceHistogram"
-											valueExpression: "$price * 1.21"
+											valueExpression: "$reference.attributes['quantity']"
 										}
 									]
 									bucketedPartiallyInScopes: [
@@ -1003,7 +996,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 				UPDATE_EMPTY_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 1)
+						.e(VersionedDescriptor.VERSION.name(), refCreatedVersion + 1)
 						.build()
 				)
 			);
@@ -1041,7 +1034,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 				EMPTY_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 1)
+						.e(VersionedDescriptor.VERSION.name(), refCreatedVersion + 1)
 						.e(EntitySchemaDescriptor.REFERENCES.name(), map()
 							.e("myBucketedRef", map()
 								.e(NamedSchemaDescriptor.NAME.name(), "myBucketedRef")
@@ -1051,7 +1044,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 										map()
 											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 											.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
-											.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$price * 1.21")
+											.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$reference.attributes['quantity']")
 									)
 								)
 								.e(
@@ -1068,7 +1061,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 				)
 			);
 
-		// update bucketed config via setReferenceSchemaBucketedMutation with null valueExpression (T5)
+		// update bucketed config via setReferenceSchemaBucketedMutation with null valueExpression
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.document(
@@ -1102,7 +1095,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 				UPDATE_EMPTY_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 2)
+						.e(VersionedDescriptor.VERSION.name(), refCreatedVersion + 2)
 						.build()
 				)
 			);
@@ -1140,7 +1133,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 				EMPTY_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(VersionedDescriptor.VERSION.name(), initialEntitySchemaVersion + 2)
+						.e(VersionedDescriptor.VERSION.name(), refCreatedVersion + 2)
 						.e(EntitySchemaDescriptor.REFERENCES.name(), map()
 							.e("myBucketedRef", map()
 								.e(NamedSchemaDescriptor.NAME.name(), "myBucketedRef")
@@ -1188,8 +1181,68 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.body(ERRORS_PATH, nullValue())
 			.body(
 				UPDATE_EMPTY_SCHEMA_PATH + "." + VersionedDescriptor.VERSION.name(),
-				equalTo(initialEntitySchemaVersion + 3)
+				equalTo(refCreatedVersion + 3)
 			);
+	}
+
+	/**
+	 * Creates a reference "myBucketedRef" to "tag" with a numeric filterable attribute "quantity"
+	 * so that bucketed histogram expressions can reference it.
+	 */
+	private static void createBucketedReferenceWithAttribute(@Nonnull GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.document(
+				"""
+				mutation {
+					updateEmptySchema (
+						mutations: [
+							{
+								createReferenceSchemaMutation: {
+									name: "myBucketedRef"
+									referencedEntityType: "tag"
+									referencedEntityTypeManaged: false
+									referencedGroupTypeManaged: false
+									indexedInScopes: [
+										{
+											scope: LIVE
+											indexType: FOR_FILTERING
+										}
+									]
+								}
+							},
+							{
+								modifyReferenceAttributeSchemaMutation: {
+									name: "myBucketedRef"
+									attributeSchemaMutation: {
+										createAttributeSchemaMutation: {
+											name: "quantity"
+											uniqueInScopes: [
+												{
+													scope: LIVE
+													uniquenessType: NOT_UNIQUE
+												}
+											]
+											filterableInScopes: [LIVE]
+											sortableInScopes: []
+											localized: false
+											nullable: true
+											type: Integer
+											indexedDecimalPlaces: 0
+										}
+									}
+								}
+							}
+						]
+					) {
+						version
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue());
 	}
 
 	private static int getEntitySchemaVersion(@Nonnull GraphQLTester tester, @Nonnull String entityType) {

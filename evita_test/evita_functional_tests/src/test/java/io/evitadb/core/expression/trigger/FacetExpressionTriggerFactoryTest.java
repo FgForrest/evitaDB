@@ -34,8 +34,6 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.expression.query.NonTranslatableExpressionException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
-import io.evitadb.index.mutation.DependencyType;
-import io.evitadb.index.mutation.FacetExpressionTrigger;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

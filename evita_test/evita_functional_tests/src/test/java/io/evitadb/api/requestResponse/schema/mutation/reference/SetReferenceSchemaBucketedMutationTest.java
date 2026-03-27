@@ -481,11 +481,8 @@ class SetReferenceSchemaBucketedMutationTest {
 			assertNotNull(result);
 			final CreateReflectedReferenceSchemaMutation absorbed =
 				assertInstanceOf(CreateReflectedReferenceSchemaMutation.class, result.origin());
-			// bucketed should be preserved from the CreateReflected mutation
-			final ScopedHistogramIndexDefinition[] bucketed = absorbed.getBucketedInScopes();
-			assertNotNull(bucketed);
-			assertEquals(1, bucketed.length);
-			assertEquals(INDEX_NAME, bucketed[0].nameOfTheIndex());
+			// bucketed is null (cleared) because the Set mutation had null bucketedInScopes
+			assertNull(absorbed.getBucketedInScopes());
 			// bucketedPartially should come from the Set mutation
 			final ScopedBucketedPartially[] partially = absorbed.getBucketedPartiallyInScopes();
 			assertNotNull(partially);
@@ -693,7 +690,6 @@ class SetReferenceSchemaBucketedMutationTest {
 		@DisplayName("should mutate reflected reference with explicit bucketed")
 		void shouldMutateReflectedReferenceWithExplicitBucketed() {
 			final ReflectedReferenceSchema inheritedRef = createInheritedReflectedReferenceSchema();
-			assertTrue(inheritedRef.isBucketedInherited());
 
 			final SetReferenceSchemaBucketedMutation mutation =
 				new SetReferenceSchemaBucketedMutation(
@@ -710,18 +706,15 @@ class SetReferenceSchemaBucketedMutationTest {
 				);
 
 			assertNotNull(result);
-			final ReflectedReferenceSchemaContract reflected =
-				assertInstanceOf(ReflectedReferenceSchemaContract.class, result);
-			assertFalse(reflected.isBucketedInherited());
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, result);
 			assertTrue(result.isBucketedInScope(Scope.LIVE));
 			assertEquals(INDEX_NAME, result.getHistogramIndexDefinition(Scope.LIVE, INDEX_NAME).nameOfTheIndex());
 		}
 
 		@Test
-		@DisplayName("should mutate reflected reference to inherited when both null")
-		void shouldMutateReflectedReferenceToInheritedWhenBothNull() {
+		@DisplayName("should mutate reflected reference to clear bucketed when both null")
+		void shouldMutateReflectedReferenceToClearBucketedWhenBothNull() {
 			final ReflectedReferenceSchema explicitRef = createExplicitBucketedReflectedSchema();
-			assertFalse(explicitRef.isBucketedInherited());
 
 			final SetReferenceSchemaBucketedMutation mutation =
 				new SetReferenceSchemaBucketedMutation(
@@ -735,9 +728,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				);
 
 			assertNotNull(result);
-			final ReflectedReferenceSchemaContract reflected =
-				assertInstanceOf(ReflectedReferenceSchemaContract.class, result);
-			assertTrue(reflected.isBucketedInherited());
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, result);
 		}
 
 		@Test
@@ -773,7 +764,6 @@ class SetReferenceSchemaBucketedMutationTest {
 		@DisplayName("should return same instance when explicit bucketed already matches")
 		void shouldReturnSameReflectedSchemaWhenBucketedAlreadyMatches() {
 			final ReflectedReferenceSchema explicitRef = createExplicitBucketedReflectedSchema();
-			assertFalse(explicitRef.isBucketedInherited());
 
 			// mutation carries the same bucketed definition as the existing schema
 			final SetReferenceSchemaBucketedMutation mutation =
@@ -797,7 +787,6 @@ class SetReferenceSchemaBucketedMutationTest {
 		@DisplayName("should return same instance when already inherited and mutation inherits")
 		void shouldReturnSameReflectedSchemaWhenAlreadyInherited() {
 			final ReflectedReferenceSchema inheritedRef = createInheritedReflectedReferenceSchema();
-			assertTrue(inheritedRef.isBucketedInherited());
 
 			// both fields null means "inherit" — schema is already inherited
 			final SetReferenceSchemaBucketedMutation mutation =
@@ -815,13 +804,12 @@ class SetReferenceSchemaBucketedMutationTest {
 		}
 
 		@Test
-		@DisplayName("should transition to inherited bucketing and apply partially expression")
-		void shouldTransitionReflectedReferenceToInheritedBucketingAndApplyPartially() {
+		@DisplayName("should clear bucketed and apply partially expression")
+		void shouldClearBucketedAndApplyPartially() {
 			final ReflectedReferenceSchema explicitRef = createExplicitBucketedReflectedSchema();
-			assertFalse(explicitRef.isBucketedInherited());
 			final Expression expression = ExpressionFactory.parse("3 > 2");
 
-			// bucketedInScopes=null (→inherit), bucketedPartiallyInScopes=non-null
+			// bucketedInScopes=null, bucketedPartiallyInScopes=non-null
 			final SetReferenceSchemaBucketedMutation mutation =
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
@@ -838,10 +826,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				);
 
 			assertNotNull(result);
-			final ReflectedReferenceSchemaContract reflected =
-				assertInstanceOf(ReflectedReferenceSchemaContract.class, result);
-			// bucketed should now be inherited
-			assertTrue(reflected.isBucketedInherited());
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, result);
 			// partially expression should be applied
 			final Expression actual = result.getBucketedPartiallyInScope(Scope.LIVE);
 			assertNotNull(actual);
@@ -856,10 +841,10 @@ class SetReferenceSchemaBucketedMutationTest {
 		@Test
 		@DisplayName("should produce readable toString for all states")
 		void shouldProduceReadableToString() {
-			// inherited (null)
-			final SetReferenceSchemaBucketedMutation inherited =
+			// cleared (null)
+			final SetReferenceSchemaBucketedMutation cleared =
 				new SetReferenceSchemaBucketedMutation(REFERENCE_NAME, null, null);
-			assertTrue(inherited.toString().contains("(inherited)"));
+			assertTrue(cleared.toString().contains("(cleared)"));
 
 			// not bucketed (empty)
 			final SetReferenceSchemaBucketedMutation notBucketed =

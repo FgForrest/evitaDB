@@ -25,25 +25,25 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
-import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
-import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.test.Entities;
@@ -2272,6 +2272,61 @@ class ReferenceSchemaBuilderTest {
 				() -> assertEquals(
 					expression.toExpressionString(),
 					ref.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString()
+				)
+			);
+		}
+
+		/**
+		 * Verifies that calling `bucketedPartiallyInScope` after `bucketedInScope` preserves
+		 * the histogram definition when other references precede this one on the same entity
+		 * schema. This is a regression test: the `bucketedPartially` mutation was losing
+		 * the bucketed histogram definition when both were absorbed into
+		 * {@link io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation}.
+		 */
+		@Test
+		@DisplayName("should preserve histogram definition when bucketedPartially is called after bucketed")
+		void shouldPreserveHistogramDefinitionWhenBucketedPartiallyCalledAfterBucketed() {
+			final Expression valueExpr = ExpressionFactory.parse("$reference.attributes['someValue']");
+			final Expression condExpr = ExpressionFactory.parse("$reference.attributes['priority'] > 0");
+
+			// must match the exact pattern from the real schema definition:
+			// .indexedForFilteringAndPartitioning() + .withAttribute() + .bucketed() + .bucketedPartially()
+			final EntitySchemaContract schema = createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"testedRef", Entities.BRAND, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs
+						.indexedForFilteringAndPartitioning()
+						.withAttribute("priority", Integer.class, a -> a.filterable().nullable())
+						.withAttribute("someValue", Integer.class, a -> a.filterable().nullable())
+						.bucketedInScope(Scope.LIVE, "myHistogram", valueExpr)
+						.bucketedPartiallyInScope(Scope.LIVE, condExpr)
+				)
+				.toInstance();
+
+			final ReferenceSchemaContract ref = schema.getReference("testedRef").orElseThrow();
+
+			assertAll(
+				() -> assertTrue(
+					ref.isBucketedInScope(Scope.LIVE),
+					"Reference must be bucketed in LIVE scope"
+				),
+				() -> {
+					final HistogramIndexDefinition def =
+						ref.getHistogramIndexDefinition(Scope.LIVE, "myHistogram");
+					assertNotNull(
+						def,
+						"Histogram definition 'myHistogram' must survive the bucketedPartially call"
+					);
+					assertEquals(
+						valueExpr.toExpressionString(),
+						def.valueExpression().toExpressionString(),
+						"Value expression must be preserved"
+					);
+				},
+				() -> assertEquals(
+					condExpr.toExpressionString(),
+					ref.getBucketedPartiallyInScope(Scope.LIVE).toExpressionString(),
+					"Condition expression must be set"
 				)
 			);
 		}

@@ -54,7 +54,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
@@ -269,15 +268,6 @@ public class GrpcAssertions {
 				actualReferenceSchema.getBucketedPartiallyList().size(),
 				"Bucketed partially count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
 			);
-
-			// for reflected references: assert bucketedInherited flag
-			if (expectedReferenceSchema instanceof ReflectedReferenceSchemaContract reflectedSchema) {
-				assertEquals(
-					reflectedSchema.isBucketedInherited(),
-					actualReferenceSchema.getBucketedInherited(),
-					"Bucketed inherited flag mismatch for reference `" + expectedReferenceSchema.getName() + "`"
-				);
-			}
 
 			assertAttributes(expectedReferenceSchema.getAttributes(), actualReferenceSchema.getAttributesMap());
 		}

@@ -596,7 +596,6 @@ public class EntitySchemaConverter {
 				.setIndexedInherited(reflectedSchema.isIndexedInherited())
 				.setIndexedComponentsInherited(reflectedSchema.isIndexedComponentsInherited())
 				.setFacetedInherited(reflectedSchema.isFacetedInherited())
-				.setBucketedInherited(reflectedSchema.isBucketedInherited())
 				.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(reflectedSchema.getAttributesInheritanceBehavior()));
 			for (String attributeName : reflectedSchema.getAttributeInheritanceFilter()) {
 				builder.addAttributeInheritanceFilter(attributeName);
@@ -779,8 +778,8 @@ public class EntitySchemaConverter {
 				indexedComponentsInScopes,
 				facetedInScopes,
 				facetedPartiallyInScopes,
-				referenceSchema.getBucketedInherited() ? null : parsedBucketedHistograms,
-				referenceSchema.getBucketedInherited() ? null : parsedBucketedPartially,
+				parsedBucketedHistograms,
+				parsedBucketedPartially,
 				referenceSchema.getAttributesMap()
 					.entrySet()
 					.stream()
@@ -803,7 +802,6 @@ public class EntitySchemaConverter {
 				referenceSchema.getIndexedInherited(),
 				referenceSchema.getIndexedComponentsInherited(),
 				referenceSchema.getFacetedInherited(),
-				referenceSchema.getBucketedInherited(),
 				toAttributeInheritanceBehavior(referenceSchema.getAttributeInheritanceBehavior()),
 				referenceSchema.getAttributeInheritanceFilterList().toArray(String[]::new),
 				// here we create mock original reference - it won't be used in most cases, except for detecting

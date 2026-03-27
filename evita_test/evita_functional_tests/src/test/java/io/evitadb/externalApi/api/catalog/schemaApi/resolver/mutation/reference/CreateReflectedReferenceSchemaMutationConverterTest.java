@@ -306,6 +306,10 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					)
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(),
 						array().i(Scope.LIVE.name()))
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.BUCKETED_IN_SCOPES.name(),
+						list())
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.BUCKETED_PARTIALLY_IN_SCOPES.name(),
+						list())
 					.e(CreateReflectedReferenceSchemaMutationDescriptor
 						.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(),
 						AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
@@ -507,8 +511,10 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					.build()
 			);
 
-		// null means inherited from reflected reference
-		assertNull(convertedMutation.getBucketedInScopes());
-		assertNull(convertedMutation.getBucketedPartiallyInScopes());
+		// bucketed is not inheritable — absent input coalesces to EMPTY
+		assertNotNull(convertedMutation.getBucketedInScopes());
+		assertEquals(0, convertedMutation.getBucketedInScopes().length);
+		assertNotNull(convertedMutation.getBucketedPartiallyInScopes());
+		assertEquals(0, convertedMutation.getBucketedPartiallyInScopes().length);
 	}
 }

@@ -651,60 +651,44 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
 
   /**
    * <pre>
-   * when set to true, the value of `bucketedInScopes` field is ignored and the settings are inherited
-   * from the original reference.
-   * </pre>
-   *
-   * <code>bool bucketedInherited = 17;</code>
-   * @return The bucketedInherited.
-   */
-  boolean getBucketedInherited();
-
-  /**
-   * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> 
       getBucketedInScopesList();
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition getBucketedInScopes(int index);
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   int getBucketedInScopesCount();
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> 
       getBucketedInScopesOrBuilderList();
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder getBucketedInScopesOrBuilder(
       int index);
@@ -712,48 +696,43 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> 
       getBucketedPartiallyInScopesList();
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially getBucketedPartiallyInScopes(int index);
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   int getBucketedPartiallyInScopesCount();
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> 
       getBucketedPartiallyInScopesOrBuilderList();
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyInScopesOrBuilder(
       int index);

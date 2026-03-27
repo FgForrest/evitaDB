@@ -132,23 +132,18 @@ Following the three-tier pattern (any-scope → default-scope → specific-scope
 | `nonBucketedPartially()` | Clear condition in DEFAULT_SCOPE |
 | `nonBucketedPartially(Scope...)` | Clear condition in specific scopes |
 
-### 1.4 Add reflected reference support
+### 1.4 Reflected reference note
 
-**File:** `evita_api/.../schema/ReflectedReferenceSchemaContract.java`
-
-- Add `isBucketedInherited()` method (boolean)
-
-**File:** `evita_api/.../schema/ReflectedReferenceSchemaEditor.java`
-
-- Add `withBucketedInherited()` method (returns `S`)
+Histogram definitions are **not** inherited by reflected references (see
+`conditional-bucket-indexing.md` Section 1.6 for rationale). No `isBucketedInherited()`
+or `withBucketedInherited()` methods are needed — reflected references must configure
+their own `bucketedInScope()` / `bucketedPartiallyInScope()` explicitly.
 
 ### Checklist
 
 - [ ] `HistogramIndexDefinition` record created
 - [ ] Three-tier getters added to `ReferenceSchemaContract`
 - [ ] Editor fluent methods added to `ReferenceSchemaEditor`
-- [ ] `isBucketedInherited()` in `ReflectedReferenceSchemaContract`
-- [ ] `withBucketedInherited()` in `ReflectedReferenceSchemaEditor`
 
 ---
 
@@ -192,16 +187,8 @@ Update `equals()`, `hashCode()`, `toString()` to include both bucketed fields.
 
 **File:** `evita_api/.../schema/dto/ReflectedReferenceSchema.java`
 
-Add inheritance flag:
-```java
-private final boolean bucketedInherited;
-```
-
-In constructor: `this.bucketedInherited = bucketedInScopes == null;`
-
-Add inheritance resolution logic (same pattern as faceted):
-- `bucketedInScopes == null` → fetch from `reflectedReference.getHistogramIndexDefinitions()`
-- Otherwise use explicit values
+No inheritance flag is needed — reflected references do not inherit bucketed definitions
+(see `conditional-bucket-indexing.md` Section 1.6). Bucketed maps are always explicit.
 
 Update all `_internalBuild()` overloads and `withBucketed(...)` / `withBucketedPartially(...)` factory methods.
 
@@ -213,8 +200,6 @@ Update all `_internalBuild()` overloads and `withBucketed(...)` / `withBucketedP
 - [ ] All three `_internalBuild()` overloads updated
 - [ ] `validateScopeSettings()` extended for bucketed scopes
 - [ ] `equals()` / `hashCode()` / `toString()` updated
-- [ ] `ReflectedReferenceSchema` inheritance resolution added
-- [ ] `isBucketedInherited()` getter implemented
 - [ ] `withBucketed()` / `withBucketedPartially()` factory methods on reflected DTO
 
 ---
@@ -254,13 +239,12 @@ In constructor: extract bucketed state from `baseSchema` for `CreateReferenceSch
 
 **File:** `evita_api/.../schema/builder/ReflectedReferenceSchemaBuilder.java`
 
-Override all bucketed methods with inheritance-aware logic (same pattern as faceted overrides):
+Override bucketed methods with reflected-reference-aware logic (no inheritance — explicit only):
 
-- `withBucketedInherited()` — pass `null` arrays to mutation
-- `bucketedInScope(...)` — break inheritance, compute explicit state
-- `bucketedPartiallyInScope(...)` — break inheritance if needed
+- `bucketedInScope(...)` — compute explicit state
+- `bucketedPartiallyInScope(...)` — compute explicit state
 - `nonBucketed(...)` — handle reflected reference availability
-- `nonBucketedPartially(...)` — handle null semantics for inherited state
+- `nonBucketedPartially(...)` — handle empty state
 
 ### Checklist
 
@@ -268,8 +252,7 @@ Override all bucketed methods with inheritance-aware logic (same pattern as face
 - [ ] `ReferenceSchemaBuilder.bucketedInScope()` with auto-indexed promotion
 - [ ] `ReferenceSchemaBuilder.nonBucketed()` implemented
 - [ ] Constructor passes bucketed state to `CreateReferenceSchemaMutation`
-- [ ] `ReflectedReferenceSchemaBuilder` overrides with inheritance-aware logic
-- [ ] `withBucketedInherited()` implemented
+- [ ] `ReflectedReferenceSchemaBuilder` overrides implemented
 
 ---
 
@@ -671,20 +654,15 @@ Add new helper methods to `EntitySchemaSerializer`:
 
 ### 7.4 Update `ReflectedReferenceSchemaSerializer`
 
-Add after faceted serialization, using boolean presence flag for inheritance:
+Add after faceted serialization — no inheritance flag needed, always write/read directly:
 ```java
 // Write:
-if (referenceSchema.isBucketedInherited()) {
-    output.writeBoolean(false);
-} else {
-    output.writeBoolean(true);
-    writeBucketedHistogramMap(...);
-    // nullable bucketedPartially with presence flag
-}
+writeBucketedHistogramMap(kryo, output, referenceSchema.getHistogramIndexDefinitions());
+writeFacetedPartiallyMap(kryo, output, referenceSchema.getBucketedPartiallyInScopes());
 
 // Read:
-final Map<Scope, HistogramIndexDefinition> bucketedInScopes =
-    input.readBoolean() ? readBucketedHistogramMap(...) : null;
+final Map<Scope, HistogramIndexDefinition> bucketedInScopes = readBucketedHistogramMap(kryo, input);
+final Map<Scope, Expression> bucketedPartiallyInScopes = readFacetedPartiallyMap(kryo, input);
 ```
 
 ### 7.5 Update backward-compat serializers
@@ -794,12 +772,10 @@ Update existing `_2026_1` backward-compat serializers for `CreateReferenceSchema
 2. **Per-scope bucketed** — LIVE scope has histogram, ARCHIVED does not
 3. **Bucketed + condition** — bucketed with `bucketedPartially` condition expression
 4. **Auto-indexed promotion** — calling `bucketedInScope()` on non-indexed scope auto-indexes
-5. **Reflected inheritance** — reflected reference inherits bucketed settings
-6. **Reflected override** — reflected reference explicitly sets bucketed settings
-7. **Reflected back to inherited** — `withBucketedInherited()` resets to inherited
-8. **Mutation combine** — `SetReferenceSchemaBucketedMutation` absorbs into `CreateReferenceSchemaMutation`
-9. **Mutation idempotency** — applying same mutation twice produces no change
-10. **Validation** — bucketed scope without indexed scope throws
+5. **Reflected explicit** — reflected reference explicitly sets bucketed settings (no inheritance)
+6. **Mutation combine** — `SetReferenceSchemaBucketedMutation` absorbs into `CreateReferenceSchemaMutation`
+7. **Mutation idempotency** — applying same mutation twice produces no change
+8. **Validation** — bucketed scope without indexed scope throws
 
 ### Checklist
 
@@ -860,10 +836,8 @@ Testing spans all layers and should run after all groups complete.
 |---|---|---|
 | `ReferenceSchemaContract.java` | `evita_api` | Add bucketed getters |
 | `ReferenceSchemaEditor.java` | `evita_api` | Add bucketed editor methods |
-| `ReflectedReferenceSchemaContract.java` | `evita_api` | Add `isBucketedInherited()` |
-| `ReflectedReferenceSchemaEditor.java` | `evita_api` | Add `withBucketedInherited()` |
 | `ReferenceSchema.java` | `evita_api` | Add fields, constructors, `_internalBuild()`, validation, equals/hashCode |
-| `ReflectedReferenceSchema.java` | `evita_api` | Add inheritance resolution, factory methods |
+| `ReflectedReferenceSchema.java` | `evita_api` | Add explicit bucketed support, factory methods (no inheritance) |
 | `AbstractReferenceSchemaBuilder.java` | `evita_api` | Add shared bucketed methods |
 | `ReferenceSchemaBuilder.java` | `evita_api` | Add `bucketedInScope()`, `nonBucketed()` |
 | `ReflectedReferenceSchemaBuilder.java` | `evita_api` | Add inheritance-aware overrides |

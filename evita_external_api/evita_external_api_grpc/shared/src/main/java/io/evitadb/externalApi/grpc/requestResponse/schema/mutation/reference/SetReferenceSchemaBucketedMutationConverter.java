@@ -105,9 +105,7 @@ public class SetReferenceSchemaBucketedMutationConverter
 	public GrpcSetReferenceSchemaBucketedMutation convert(@Nonnull SetReferenceSchemaBucketedMutation mutation) {
 		final Builder builder = GrpcSetReferenceSchemaBucketedMutation.newBuilder()
 			.setName(mutation.getName());
-		final boolean bucketedInherited = mutation.getBucketedInScopes() == null;
-		builder.setInherited(bucketedInherited);
-		if (!bucketedInherited) {
+		if (mutation.getBucketedInScopes() != null) {
 			builder.addAllBucketedInScopes(toGrpcScopedHistogramIndexDefinition(mutation.getBucketedInScopes()));
 		}
 
@@ -122,30 +120,20 @@ public class SetReferenceSchemaBucketedMutationConverter
 
 	@Nonnull
 	public SetReferenceSchemaBucketedMutation convert(@Nonnull GrpcSetReferenceSchemaBucketedMutation mutation) {
-		final ScopedHistogramIndexDefinition[] bucketedInScopes;
-		if (mutation.getInherited()) {
-			bucketedInScopes = null;
-		} else {
-			// coalesce null to EMPTY so that explicit "not bucketed in any scope" is not confused
-			// with "inherited" (which is represented by null)
-			final ScopedHistogramIndexDefinition[] parsed = EntitySchemaConverter.parseBucketedHistogram(
-				mutation.getBucketedInScopesList()
-			);
-			bucketedInScopes = parsed != null ? parsed : ScopedHistogramIndexDefinition.EMPTY;
-		}
+		final ScopedHistogramIndexDefinition[] parsed = EntitySchemaConverter.parseBucketedHistogram(
+			mutation.getBucketedInScopesList()
+		);
+		final ScopedHistogramIndexDefinition[] bucketedInScopes =
+			parsed != null ? parsed : ScopedHistogramIndexDefinition.EMPTY;
 
-		// Parse per-scope bucketedPartially expressions independently of inherited flag:
-		// the domain model supports inherited bucketed + explicit bucketedPartially
+		// Parse per-scope bucketedPartially expressions
 		final ScopedBucketedPartially[] bucketedPartiallyInScopes;
 		if (mutation.getBucketedPartiallyCount() > 0) {
-			final ScopedBucketedPartially[] parsed = EntitySchemaConverter.parseBucketedPartially(
+			final ScopedBucketedPartially[] parsedPartially = EntitySchemaConverter.parseBucketedPartially(
 				mutation.getBucketedPartiallyList()
 			);
-			bucketedPartiallyInScopes = parsed != null ? parsed : ScopedBucketedPartially.EMPTY;
-		} else if (mutation.getInherited()) {
-			bucketedPartiallyInScopes = null;
+			bucketedPartiallyInScopes = parsedPartially != null ? parsedPartially : ScopedBucketedPartially.EMPTY;
 		} else {
-			// non-inherited with no partially entries — explicit "no partial bucketing"
 			bucketedPartiallyInScopes = ScopedBucketedPartially.EMPTY;
 		}
 

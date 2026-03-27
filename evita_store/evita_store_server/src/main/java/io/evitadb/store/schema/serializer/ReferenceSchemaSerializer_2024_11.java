@@ -116,6 +116,8 @@ public class ReferenceSchemaSerializer_2024_11 extends Serializer<ReferenceSchem
 			ReferenceSchema.defaultIndexedComponents(indexedInScopes),
 			(faceted ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class)),
 			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			attributes, sortableAttributeCompounds
 		);
 	}

@@ -23,16 +23,15 @@
 
 package io.evitadb.api.query.expression.coalesce;
 
+import io.evitadb.api.query.expression.AbstractBinaryOperator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,33 +59,31 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@EqualsAndHashCode
-public class SpreadNullCoalesceOperator implements ExpressionNode {
+@EqualsAndHashCode(callSuper = true)
+public class SpreadNullCoalesceOperator extends AbstractBinaryOperator {
 	@Serial private static final long serialVersionUID = 2760082902212762061L;
 
 	private final boolean nullSafe;
-
-	@Nonnull private final ExpressionNode valueOperator;
-	@Nonnull private final ExpressionNode defaultValueOperator;
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public SpreadNullCoalesceOperator(
 		boolean nullSafe,
 		@Nonnull ExpressionNode valueOperator,
 		@Nonnull ExpressionNode defaultValueOperator
 	) {
+		super(valueOperator, defaultValueOperator);
 		this.nullSafe = nullSafe;
-		this.valueOperator = valueOperator;
-		this.defaultValueOperator = defaultValueOperator;
-		this.children = new ExpressionNode[]{this.valueOperator, this.defaultValueOperator};
+	}
+
+	@Nonnull
+	@Override
+	protected String getOperatorSymbol() {
+		return this.nullSafe ? "?*?" : "*?";
 	}
 
 	@Nullable
 	@Override
 	public Serializable compute(@Nonnull ExpressionEvaluationContext context) throws ExpressionEvaluationException {
-		final Serializable value = this.valueOperator.compute(context);
+		final Serializable value = getLeftOperand().compute(context);
 		if (value == null) {
 			if (this.nullSafe) {
 				return null;
@@ -98,7 +95,7 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 			}
 		}
 
-		final Serializable defaultValue = this.defaultValueOperator.compute(context);
+		final Serializable defaultValue = getRightOperand().compute(context);
 
 		if (value instanceof Collection<?> collection) {
 			return coalesceCollection(collection, defaultValue);
@@ -190,23 +187,12 @@ public class SpreadNullCoalesceOperator implements ExpressionNode {
 		return (Serializable) (item == null ? defaultValue : item);
 	}
 
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
-	}
-
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return BigDecimalNumberRange.union(
-			this.valueOperator.determinePossibleRange(),
-			this.defaultValueOperator.determinePossibleRange()
+			getLeftOperand().determinePossibleRange(),
+			getRightOperand().determinePossibleRange()
 		);
-	}
-
-	@Override
-	public String toString() {
-		return this.valueOperator + (this.nullSafe ? " ?*? " : " *? ") + this.defaultValueOperator;
 	}
 }

@@ -44,11 +44,28 @@ public interface IndexProvider<K extends IndexKey, T extends Index<K>> {
 	 * Returns existing index for passed `entityIndexKey` or creates a new index instance and associates it with
 	 * the passed `entityIndexKey`.
 	 *
+	 * Use this method instead of {@link #getIndexIfExists(IndexKey)} when the caller intends to mutate the
+	 * returned index.
+	 *
 	 * @param entityIndexKey the key of the index to be retrieved or created
 	 * @return the index associated with the provided key, never null
 	 */
 	@Nonnull
 	T getOrCreateIndex(@Nonnull K entityIndexKey);
+
+	/**
+	 * Returns the index identified by its storage primary key and registers it for modification tracking so that
+	 * its changed storage parts are persisted on the next flush. Returns `null` when no index with the given primary
+	 * key exists.
+	 *
+	 * Use this method instead of {@link #getIndexByPrimaryKeyIfExists(int)} when the caller intends to mutate the
+	 * returned index.
+	 *
+	 * @param indexPrimaryKey the unique storage primary key of the index to be retrieved
+	 * @return the index associated with the provided primary key registered for modification, or null if not found
+	 */
+	@Nonnull
+	T getOrCreateIndexByPrimaryKey(int indexPrimaryKey);
 
 	/**
 	 * Returns existing index for passed `entityIndexKey` or returns null if no such index exists.

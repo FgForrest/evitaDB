@@ -151,6 +151,13 @@ public class AttributeCardinalityIndex
 	}
 
 	/**
+	 * Returns `true` if the index contents have been modified and need persistence.
+	 */
+	public boolean isDirty() {
+		return this.dirty.isTrue();
+	}
+
+	/**
 	 * Method creates container for storing chain index from memory to the persistent storage.
 	 */
 	@Nullable

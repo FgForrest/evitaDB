@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation;
 
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
@@ -168,7 +169,7 @@ class IndexMutationExecutorRegistryTest {
 
 	/**
 	 * Verifies that the `INSTANCE` singleton contains an executor mapping for
-	 * {@link ReevaluateFacetExpressionMutation}. Dispatching a minimal mutation with a mock target that
+	 * {@link ReevaluateExpressionMutation}. Dispatching a minimal mutation with a mock target that
 	 * returns `null` indexes causes the executor to short-circuit (no affected entities), proving the
 	 * mapping is present without requiring a fully wired collection. This guards against accidental
 	 * removal of the registration entry.
@@ -178,9 +179,9 @@ class IndexMutationExecutorRegistryTest {
 	 * causing an immediate short-circuit without requiring a wired entity schema.
 	 */
 	@Test
-	@DisplayName("INSTANCE singleton should contain ReevaluateFacetExpressionMutation executor")
-	void shouldContainReevaluateFacetExpressionMutationEntry() {
-		final ReevaluateFacetExpressionMutation mutation = new ReevaluateFacetExpressionMutation(
+	@DisplayName("INSTANCE singleton should contain ReevaluateExpressionMutation executor")
+	void shouldContainReevaluateExpressionMutationEntry() {
+		final ReevaluateExpressionMutation mutation = new ReevaluateExpressionMutation(
 			"testRef", 1, DependencyType.GROUP_ENTITY_ATTRIBUTE, Scope.DEFAULT_SCOPE
 		);
 		final IndexMutationTarget target = Mockito.mock(IndexMutationTarget.class);

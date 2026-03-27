@@ -33,8 +33,8 @@ import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
+import io.evitadb.dataType.expression.UnaryExpressionNode;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -97,6 +97,8 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 			visit(constantOperand);
 		} else if (node instanceof VariableOperand variableOperand) {
 			visit(variableOperand);
+		} else if (node instanceof UnaryExpressionNode unary) {
+			unary.getOperand().accept(this);
 		} else {
 			// traverse children to find potential nested accessed data
 			final ExpressionNode[] children = node.getChildren();
@@ -104,29 +106,23 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 				return;
 			}
 
-			if (children.length > 1) {
-				// save the current path to revert to after visiting children
-				final List<PathItem> parentPath = this.currentPath;
+			// save the current path to revert to after visiting children
+			final List<PathItem> parentPath = this.currentPath;
 
-				// traverse children and generate possible multiple paths
-				for (ExpressionNode child : children) {
-					if (parentPath == null) {
-						// no parent path yet, let the child handle its own new path
-						child.accept(this);
-					} else {
-						// link the child paths to the parent path
-						final LinkedList<PathItem> childPath = new LinkedList<>(parentPath);
-						this.currentPath = childPath;
-						child.accept(this);
-						this.accessedPaths.add(childPath);
-					}
+			// traverse children and generate possible multiple paths
+			for (ExpressionNode child : children) {
+				if (parentPath == null) {
+					child.accept(this);
+				} else {
+					final LinkedList<PathItem> childPath = new LinkedList<>(parentPath);
+					this.currentPath = childPath;
+					child.accept(this);
+					this.accessedPaths.add(childPath);
 				}
-
-				// revert to the parent path so that the parent can continue where they left off
-				this.currentPath = parentPath;
-			} else {
-				children[0].accept(this);
 			}
+
+			// revert to the parent path so that the parent can continue where they left off
+			this.currentPath = parentPath;
 		}
 	}
 
@@ -144,9 +140,7 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 		}
 
 		// add an operand path first
-		final ExpressionNode[] children = objectAccessOperator.getChildren();
-		Assert.isTrue(children != null && children.length == 1, "Object access operator must have exactly one child.");
-		children[0].accept(this);
+		objectAccessOperator.getOperand().accept(this);
 
 		// add steps path
 		ObjectAccessStep step = objectAccessOperator.getAccessChain();

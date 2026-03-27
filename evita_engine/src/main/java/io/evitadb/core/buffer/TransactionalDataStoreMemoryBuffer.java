@@ -77,11 +77,23 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 		this.dataStoreChanges = new DataStoreChanges(persistenceService);
 	}
 
+	@Nonnull
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		return Objects.requireNonNullElse(layer, this.dataStoreChanges)
 			.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
+	}
+
+	@Nonnull
+	@Override
+	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(
+		int entityIndexPrimaryKey,
+		@Nonnull IntFunction<I> accessorWhenMissing
+	) {
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges)
+			.getIndexForModification(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
 	@Override
@@ -102,6 +114,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 			.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
+	@Nonnull
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
 		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);

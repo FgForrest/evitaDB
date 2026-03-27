@@ -137,15 +137,6 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	S withFacetedInherited();
 
 	/**
-	 * Specifies that {@link ReferenceSchemaContract#isBucketed()} property settings is inherited from the target
-	 * reference.
-	 *
-	 * @return this
-	 */
-	@Nonnull
-	S withBucketedInherited();
-
-	/**
 	 * Group type can be set only on original reference. It makes no sense to change it on reflected one.
 	 *
 	 * @return this

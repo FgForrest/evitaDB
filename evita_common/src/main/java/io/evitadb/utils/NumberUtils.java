@@ -26,6 +26,7 @@ package io.evitadb.utils;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
@@ -215,6 +216,37 @@ public class NumberUtils {
 		} else {
 			throw new IllegalArgumentException("Unsupported number type: " + number.getClass());
 		}
+	}
+
+	/**
+	 * Converts a {@link Number} to a specific target numeric type supported by evitaDB (`Byte`, `Short`, `Integer`,
+	 * `Long`, or `BigDecimal`). For integral target types, the value is first converted to {@link BigDecimal}
+	 * and then narrowed using exact-value methods to detect overflow. For `BigDecimal` targets, trailing zeros
+	 * are stripped to ensure consistent equality semantics.
+	 *
+	 * @param number     the source number to convert
+	 * @param targetType the desired numeric class
+	 * @return the converted number in the target type
+	 * @throws ArithmeticException      if the value does not fit in the target type
+	 * @throws IllegalArgumentException if the target type is not one of the supported types
+	 */
+	@Nonnull
+	public static Number convertToNumericType(
+		@Nonnull Number number,
+		@Nonnull Class<? extends Serializable> targetType
+	) {
+		if (targetType == Byte.class) {
+			return convertToBigDecimal(number).byteValueExact();
+		} else if (targetType == Short.class) {
+			return convertToBigDecimal(number).shortValueExact();
+		} else if (targetType == Integer.class) {
+			return convertToBigDecimal(number).intValueExact();
+		} else if (targetType == Long.class) {
+			return convertToBigDecimal(number).longValueExact();
+		} else if (targetType == BigDecimal.class) {
+			return convertToBigDecimal(number).stripTrailingZeros();
+		}
+		throw new IllegalArgumentException("Unsupported target numeric type: " + targetType);
 	}
 
 	/**

@@ -101,23 +101,16 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 		}
 
 		// Handle bucketed histogram definitions
-		final ScopedHistogramIndexDefinition[] bucketedInScopes;
-		final ScopedBucketedPartially[] bucketedPartiallyInScopes;
-		if (mutation.getBucketedInherited()) {
-			// when bucketed is inherited, both bucketed fields are inherited
-			bucketedInScopes = null;
-			bucketedPartiallyInScopes = null;
-		} else {
-			// coalesce null to EMPTY so that explicit "not bucketed" is not confused with "inherited"
-			final ScopedHistogramIndexDefinition[] parsedBucketed = EntitySchemaConverter.parseBucketedHistogram(
-				mutation.getBucketedInScopesList()
-			);
-			bucketedInScopes = parsedBucketed != null ? parsedBucketed : ScopedHistogramIndexDefinition.EMPTY;
-			final ScopedBucketedPartially[] parsedPartially = EntitySchemaConverter.parseBucketedPartially(
-				mutation.getBucketedPartiallyInScopesList()
-			);
-			bucketedPartiallyInScopes = parsedPartially != null ? parsedPartially : ScopedBucketedPartially.EMPTY;
-		}
+		final ScopedHistogramIndexDefinition[] parsedBucketed = EntitySchemaConverter.parseBucketedHistogram(
+			mutation.getBucketedInScopesList()
+		);
+		final ScopedHistogramIndexDefinition[] bucketedInScopes =
+			parsedBucketed != null ? parsedBucketed : ScopedHistogramIndexDefinition.EMPTY;
+		final ScopedBucketedPartially[] parsedPartially = EntitySchemaConverter.parseBucketedPartially(
+			mutation.getBucketedPartiallyInScopesList()
+		);
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			parsedPartially != null ? parsedPartially : ScopedBucketedPartially.EMPTY;
 
 		return new CreateReflectedReferenceSchemaMutation(
 			mutation.getName(),
@@ -200,18 +193,15 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 					mutation.getBucketedInScopes()
 				)
 			);
-			// Handle bucketedPartially expressions when bucketed is not inherited
-			final ScopedBucketedPartially[] bucketedPartiallyInScopes =
-				mutation.getBucketedPartiallyInScopes();
-			if (bucketedPartiallyInScopes != null) {
-				builder.addAllBucketedPartiallyInScopes(
-					SetReferenceSchemaBucketedMutationConverter.toGrpcScopedBucketedPartially(
-						bucketedPartiallyInScopes
-					)
-				);
-			}
-		} else {
-			builder.setBucketedInherited(true);
+		}
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			mutation.getBucketedPartiallyInScopes();
+		if (bucketedPartiallyInScopes != null) {
+			builder.addAllBucketedPartiallyInScopes(
+				SetReferenceSchemaBucketedMutationConverter.toGrpcScopedBucketedPartially(
+					bucketedPartiallyInScopes
+				)
+			);
 		}
 		for (String attribute : mutation.getAttributeInheritanceFilter()) {
 			builder.addAttributeInheritanceFilter(attribute);

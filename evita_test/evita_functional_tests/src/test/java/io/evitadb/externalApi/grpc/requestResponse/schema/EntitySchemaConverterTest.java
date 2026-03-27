@@ -149,6 +149,7 @@ class EntitySchemaConverterTest {
 							ExpressionFactory.parse("1 > 0")
 						)
 					},
+					null, null,
 					Map.of(
 						"code", EntityAttributeSchema._internalBuild(
 							"code",

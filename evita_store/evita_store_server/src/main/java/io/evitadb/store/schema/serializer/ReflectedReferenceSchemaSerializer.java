@@ -108,14 +108,8 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			writeFacetedPartiallyMap(kryo, output, facetedPartiallyInScopes);
 		}
 
-		if (referenceSchema.isBucketedInherited()) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeBucketedHistogramMap(kryo, output, referenceSchema.getAllHistogramIndexDefinitions());
-			// reuse faceted partially serializer — same Map<Scope, Expression> shape
-			writeFacetedPartiallyMap(kryo, output, referenceSchema.getBucketedPartiallyInScopes());
-		}
+		writeBucketedHistogramMap(kryo, output, referenceSchema.getAllHistogramIndexDefinitions());
+		writeFacetedPartiallyMap(kryo, output, referenceSchema.getBucketedPartiallyInScopes());
 
 		kryo.writeObject(output, referenceSchema.getDeclaredAttributes());
 
@@ -155,16 +149,8 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		final Map<Scope, Expression> facetedPartiallyInScopes =
 			input.readBoolean() ? readFacetedPartiallyMap(kryo, input) : null;
 
-		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes;
-		final Map<Scope, Expression> bucketedPartiallyInScopes;
-		if (input.readBoolean()) {
-			bucketedInScopes = readBucketedHistogramMap(kryo, input);
-			// reuse faceted partially serializer — same Map<Scope, Expression> shape
-			bucketedPartiallyInScopes = readFacetedPartiallyMap(kryo, input);
-		} else {
-			bucketedInScopes = null;
-			bucketedPartiallyInScopes = null;
-		}
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes = readBucketedHistogramMap(kryo, input);
+		final Map<Scope, Expression> bucketedPartiallyInScopes = readFacetedPartiallyMap(kryo, input);
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
 

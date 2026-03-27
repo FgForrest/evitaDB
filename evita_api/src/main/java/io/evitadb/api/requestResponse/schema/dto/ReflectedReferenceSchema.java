@@ -114,10 +114,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 */
 	private final boolean facetedInherited;
 	/**
-	 * Contains TRUE if the bucketed settings of the reflected reference is inherited from the target reference.
-	 */
-	private final boolean bucketedInherited;
-	/**
 	 * Contains TRUE if the attributes of the reflected reference are inherited from the target reference.
 	 */
 	@Nonnull
@@ -340,8 +336,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			attributes, sortableAttributeCompounds,
 			descriptionInherited, deprecatedInherited, cardinalityInherited,
 			indexedInherited, indexedComponentsInherited,
-			// bucketed is inherited by default when using legacy overload
-			facetedInherited, true,
+			facetedInherited,
 			attributesInherited, attributesExcludedFromInheritance,
 			reflectedReference
 		);
@@ -380,7 +375,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean indexedInherited,
 		boolean indexedComponentsInherited,
 		boolean facetedInherited,
-		boolean bucketedInherited,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance,
 		@Nullable ReferenceSchemaContract reflectedReference
@@ -393,12 +387,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			ReferenceSchema.toIndexedComponentsEnumMap(indexedComponentsInScopes) : null;
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		final Map<Scope, Expression> facetedPartiallyMap = ReferenceSchema.toFacetedPartiallyMap(facetedPartiallyInScopes);
-		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = bucketedInherited
-			? Collections.emptyMap()
-			: ReferenceSchema.toBucketedHistogramMap(bucketedInScopes);
-		final Map<Scope, Expression> bucketedPartiallyMap = bucketedInherited
-			? Collections.emptyMap()
-			: ReferenceSchema.toBucketedPartiallyMap(bucketedPartiallyInScopes);
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap =
+			ReferenceSchema.toBucketedHistogramMap(bucketedInScopes);
+		final Map<Scope, Expression> bucketedPartiallyMap =
+			ReferenceSchema.toBucketedPartiallyMap(bucketedPartiallyInScopes);
 		if (!indexedInherited && !facetedInherited) {
 			validateScopeSettings(
 				facetedScopes, bucketedMap, indexedScopesMap,
@@ -426,7 +418,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			indexedInherited,
 			indexedComponentsInherited,
 			facetedInherited,
-			bucketedInherited,
 			attributesInherited,
 			attributesExcludedFromInheritance == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributesExcludedFromInheritance,
 			reflectedReference
@@ -665,18 +656,14 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						.map(ReferenceSchemaContract::getFacetedPartiallyInScopes)
 						.orElse(Collections.emptyMap())
 					: Collections.emptyMap(),
-			// bucketed: use provided value if present, otherwise inherit from reflected reference
+			// bucketed: use provided value if present, otherwise empty (not inherited)
 			bucketedInScopes != null
 				? bucketedInScopes
-				: ofNullable(reflectedReference)
-					.map(ReferenceSchemaContract::getAllHistogramIndexDefinitions)
-					.orElse(Collections.emptyMap()),
-			// bucketedPartially: use provided value if present, otherwise inherit from reflected reference
+				: Collections.emptyMap(),
+			// bucketedPartially: use provided value if present, otherwise empty (not inherited)
 			bucketedPartiallyInScopes != null
 				? bucketedPartiallyInScopes
-				: ofNullable(reflectedReference)
-					.map(ReferenceSchemaContract::getBucketedPartiallyInScopes)
-					.orElse(Collections.emptyMap()),
+				: Collections.emptyMap(),
 			reflectedReference == null ?
 				attributes :
 				union(
@@ -722,7 +709,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited || facetedInScopes != null,
 			"Faceted scopes must be either inherited or specified explicitly!"
 		);
-		this.bucketedInherited = bucketedInScopes == null;
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
 		if (this.reflectedReference == null) {
@@ -770,7 +756,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean indexedInherited,
 		boolean indexedComponentsInherited,
 		boolean facetedInherited,
-		boolean bucketedInherited,
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter,
 		@Nullable ReferenceSchemaContract reflectedReference
@@ -803,7 +788,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		this.indexedInherited = indexedInherited;
 		this.indexedComponentsInherited = indexedComponentsInherited;
 		this.facetedInherited = facetedInherited;
-		this.bucketedInherited = bucketedInherited;
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
 		if (this.reflectedReference == null) {
@@ -859,11 +843,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Override
 	public boolean isFacetedInherited() {
 		return this.facetedInherited;
-	}
-
-	@Override
-	public boolean isBucketedInherited() {
-		return this.bucketedInherited;
 	}
 
 	@Nonnull
@@ -955,15 +934,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			"Faceted property of the reflected reference is inherited from the target reference, but the reflected reference is not available!"
 		);
 		return super.isFacetedInScope(scope);
-	}
-
-	@Override
-	public boolean isBucketedInScope(@Nonnull Scope scope) {
-		Assert.isTrue(
-			!this.bucketedInherited || this.reflectedReference != null,
-			"Bucketed property of the reflected reference is inherited from the target reference, but the reflected reference is not available!"
-		);
-		return super.isBucketedInScope(scope);
 	}
 
 	@Override
@@ -1134,32 +1104,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						);
 					}
 				}
-				if (this.bucketedInherited) {
-					final Map<Scope, Map<String, HistogramIndexDefinition>> originalBucketed =
-						theReflectedReference.getAllHistogramIndexDefinitions();
-					if (!this.bucketedInScopes.equals(originalBucketed)) {
-						referenceErrors = Stream.concat(
-							referenceErrors,
-							Stream.of(
-								"Bucketed scopes differ from the original reference `" +
-									this.reflectedReferenceName + "` in entity `" + referencedEntityType +
-									"`, but bucketed setting is inherited!"
-							)
-						);
-					}
-					final Map<Scope, Expression> originalBucketedPartially =
-						theReflectedReference.getBucketedPartiallyInScopes();
-					if (!this.bucketedPartiallyInScopes.equals(originalBucketedPartially)) {
-						referenceErrors = Stream.concat(
-							referenceErrors,
-							Stream.of(
-								"BucketedPartially expressions differ from the original reference `" +
-									this.reflectedReferenceName + "` in entity `" + referencedEntityType +
-									"`, but bucketed setting is inherited!"
-							)
-						);
-					}
-				}
 			}
 		}
 
@@ -1246,8 +1190,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedComponentsInherited ? null : this.indexedComponentsInScopes,
 			this.facetedInherited ? null : this.facetedInScopes,
 			this.facetedInherited ? null : this.facetedPartiallyInScopes,
-			this.bucketedInherited ? null : this.bucketedInScopes,
-			this.bucketedInherited ? null : this.bucketedPartiallyInScopes,
+			this.bucketedInScopes,
+			this.bucketedPartiallyInScopes,
 			collectAttributeSchemas(),
 			collectAttributeCompoundSchemas(),
 			this.attributesInheritanceBehavior,
@@ -1274,7 +1218,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		result = 31 * result + Boolean.hashCode(this.indexedInherited) + (this.indexedInherited ? 0 : this.indexedInScopes.hashCode());
 		result = 31 * result + Boolean.hashCode(this.indexedComponentsInherited) + (this.indexedComponentsInherited ? 0 : this.indexedComponentsInScopes.hashCode());
 		result = 31 * result + Boolean.hashCode(this.facetedInherited) + (this.facetedInherited ? 0 : this.facetedInScopes.hashCode());
-		result = 31 * result + Boolean.hashCode(this.bucketedInherited) + (this.bucketedInherited ? 0 : this.bucketedInScopes.hashCode());
+		result = 31 * result + this.bucketedInScopes.hashCode();
 		result = 31 * result + this.attributesInheritanceBehavior.hashCode();
 		result = 31 * result + Arrays.hashCode(this.attributeInheritanceFilter);
 		return result;
@@ -1296,7 +1240,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			Objects.equals(this.indexedComponentsInScopes, that.indexedComponentsInScopes) &&
 			this.facetedInherited == that.facetedInherited &&
 			Objects.equals(this.facetedInScopes, that.facetedInScopes) &&
-			this.bucketedInherited == that.bucketedInherited &&
 			Objects.equals(this.bucketedInScopes, that.bucketedInScopes) &&
 			this.attributesInheritanceBehavior == that.attributesInheritanceBehavior &&
 			this.reflectedReferenceName.equals(that.reflectedReferenceName) &&
@@ -1384,7 +1327,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1425,7 +1367,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1466,7 +1407,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1507,7 +1447,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1608,7 +1547,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			indexedInScopes == null,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1655,7 +1593,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			indexedComponentsInScopes == null,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1702,7 +1639,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			facetedInScopes == null,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1745,7 +1681,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1754,9 +1689,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 
 	/**
 	 * Creates a copy of this instance with different bucketed histogram definitions.
-	 * A null value means the bucketed settings are inherited from the reflected reference.
+	 * A null value means clearing all bucketed definitions (empty map).
 	 *
-	 * @param bucketedInScopes new bucketed histogram definitions per scope, or null for inherited
+	 * @param bucketedInScopes new bucketed histogram definitions per scope, or null to clear
 	 * @return copy of the schema with applied changes
 	 */
 	@Nonnull
@@ -1789,7 +1724,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			bucketedInScopes == null,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1832,7 +1766,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1877,7 +1810,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			inheritanceBehavior,
 			attributeInheritanceFilter,
 			this.reflectedReference
@@ -1927,7 +1859,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1977,7 +1908,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -2017,14 +1947,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				.filter(originalReference::isFacetedInScope)
 				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :
 			this.facetedInScopes;
-		// resolve bucketed scopes before validation so the consistency check can verify
-		// that all bucketed scopes are also indexed
-		final Map<Scope, Map<String, HistogramIndexDefinition>> resolvedBucketed = this.bucketedInherited
-			? originalReference.getAllHistogramIndexDefinitions()
-			: this.bucketedInScopes;
-		final Map<Scope, Expression> resolvedBucketedPartially = this.bucketedInherited
-			? originalReference.getBucketedPartiallyInScopes()
-			: this.bucketedPartiallyInScopes;
+		// bucketed is always explicit for reflected references (not inherited)
+		final Map<Scope, Map<String, HistogramIndexDefinition>> resolvedBucketed = this.bucketedInScopes;
+		final Map<Scope, Expression> resolvedBucketedPartially = this.bucketedPartiallyInScopes;
 		validateScopeSettings(facetedScopes, resolvedBucketed, indexedScopes, indexedComponents);
 
 		return new ReflectedReferenceSchema(
@@ -2085,7 +2010,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.indexedInherited,
 			this.indexedComponentsInherited,
 			this.facetedInherited,
-			this.bucketedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			originalReference

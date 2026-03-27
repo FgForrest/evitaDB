@@ -69,14 +69,15 @@ public class SetReferenceSchemaBucketedMutation
 	@Getter @Nullable private final ScopedHistogramIndexDefinition[] bucketedInScopes;
 	/**
 	 * Per-scope expressions narrowing which entities participate in bucketed histogram computation.
-	 * Null means inherited from the reflected reference (only valid for reflected references),
-	 * or "don't change" for non-reflected references.
+	 * Null means "clear all" for reflected references, or "don't change" for non-reflected
+	 * references.
 	 */
 	@Getter @Nullable private final ScopedBucketedPartially[] bucketedPartiallyInScopes;
 
 	/**
 	 * Creates mutation that controls the bucketed flag with detailed per-scope histogram
-	 * configuration. Null means inherited from the reflected reference.
+	 * configuration. Null means "clear all" for reflected references, or "don't change"
+	 * for non-reflected references.
 	 */
 	public SetReferenceSchemaBucketedMutation(
 		@Nonnull String name,
@@ -88,7 +89,7 @@ public class SetReferenceSchemaBucketedMutation
 	/**
 	 * Creates mutation that controls both the bucketed histogram configuration and the
 	 * bucketedPartially expressions with detailed per-scope configuration. Null for either
-	 * field means "inherited" for reflected references, or "don't change" for non-reflected
+	 * field means "clear all" for reflected references, or "don't change" for non-reflected
 	 * references.
 	 */
 	@SerializableCreator
@@ -148,9 +149,8 @@ public class SetReferenceSchemaBucketedMutation
 		} else if (
 			existingMutation instanceof CreateReflectedReferenceSchemaMutation createMutation
 				&& this.name.equals(createMutation.getName())
-				&& (this.bucketedInScopes != null || this.bucketedPartiallyInScopes != null)
 		) {
-			// Absorb into the CreateReflected mutation using pure replacement semantics.
+			// Absorb into the CreateReflected mutation — null means "clear all", always pass directly
 			return new MutationCombinationResult<>(
 				new CreateReflectedReferenceSchemaMutation(
 					createMutation.getName(),
@@ -163,12 +163,8 @@ public class SetReferenceSchemaBucketedMutation
 					createMutation.getIndexedComponentsInScopes(),
 					createMutation.getFacetedInScopes(),
 					createMutation.getFacetedPartiallyInScopes(),
-					this.bucketedInScopes != null
-						? this.bucketedInScopes
-						: createMutation.getBucketedInScopes(),
-					this.bucketedPartiallyInScopes != null
-						? this.bucketedPartiallyInScopes
-						: createMutation.getBucketedPartiallyInScopes(),
+					this.bucketedInScopes,
+					this.bucketedPartiallyInScopes,
 					createMutation.getAttributeInheritanceBehavior(),
 					createMutation.getAttributeInheritanceFilter()
 				)
@@ -187,30 +183,14 @@ public class SetReferenceSchemaBucketedMutation
 	) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			// for reflected references, null means "clear all" (same as non-reflected)
 			ReferenceSchemaContract result = reflectedReferenceSchema;
-			// apply bucketed change if present
-			if (this.bucketedInScopes != null) {
-				final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap =
-					ReferenceSchema.toBucketedHistogramMap(this.bucketedInScopes);
-				final boolean alreadyMatches =
-					!reflectedReferenceSchema.isBucketedInherited() &&
-						reflectedReferenceSchema.getAllHistogramIndexDefinitions().equals(bucketedMap);
-				if (!alreadyMatches) {
-					result = reflectedReferenceSchema.withBucketed(bucketedMap);
-				}
-			} else if (this.bucketedPartiallyInScopes == null) {
-				// both null — for reflected references null means "inherited";
-				// only skip if already inherited
-				if (reflectedReferenceSchema.isBucketedInherited()) {
-					return reflectedReferenceSchema;
-				}
-				result = reflectedReferenceSchema.withBucketed(null);
-			} else {
-				// bucketedInScopes is null (inherited) but bucketedPartiallyInScopes is set —
-				// transition to inherited bucketing if not already
-				if (!reflectedReferenceSchema.isBucketedInherited()) {
-					result = reflectedReferenceSchema.withBucketed(null);
-				}
+			// apply bucketed change
+			final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = this.bucketedInScopes != null
+				? ReferenceSchema.toBucketedHistogramMap(this.bucketedInScopes)
+				: Collections.emptyMap();
+			if (!reflectedReferenceSchema.getAllHistogramIndexDefinitions().equals(bucketedMap)) {
+				result = reflectedReferenceSchema.withBucketed(bucketedMap);
 			}
 			// apply bucketedPartially change if present
 			if (this.bucketedPartiallyInScopes != null &&
@@ -220,6 +200,11 @@ public class SetReferenceSchemaBucketedMutation
 				if (!reflectedResult.getBucketedPartiallyInScopes().equals(newBucketedPartiallyMap)) {
 					result = reflectedResult.withBucketedPartially(newBucketedPartiallyMap);
 				}
+			} else if (this.bucketedInScopes == null && this.bucketedPartiallyInScopes == null &&
+				result instanceof ReflectedReferenceSchema reflectedResult &&
+				!reflectedResult.getBucketedPartiallyInScopes().isEmpty()) {
+				// both fields null means "clear all" — also clear orphaned bucketedPartially
+				result = reflectedResult.withBucketedPartially(Collections.emptyMap());
 			}
 			return result;
 		} else {
@@ -284,7 +269,7 @@ public class SetReferenceSchemaBucketedMutation
 	public String toString() {
 		final String bucketedDescription;
 		if (this.bucketedInScopes == null) {
-			bucketedDescription = "(inherited)";
+			bucketedDescription = "(cleared)";
 		} else if (this.bucketedInScopes.length == 0) {
 			bucketedDescription = "(not bucketed)";
 		} else {

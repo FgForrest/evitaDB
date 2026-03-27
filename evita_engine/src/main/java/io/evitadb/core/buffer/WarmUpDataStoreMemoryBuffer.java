@@ -70,6 +70,7 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		this.dataStoreChanges.setPersistenceService(persistenceService);
 	}
 
+	@Nonnull
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		return this.dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
@@ -86,6 +87,16 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		return this.dataStoreChanges.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
+	@Nonnull
+	@Override
+	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(
+		int entityIndexPrimaryKey,
+		@Nonnull IntFunction<I> accessorWhenMissing
+	) {
+		return this.dataStoreChanges.getIndexForModification(entityIndexPrimaryKey, accessorWhenMissing);
+	}
+
+	@Nonnull
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
 		return this.dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);

@@ -491,45 +491,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			null,
 			facetedInScopes != null ? facetedInScopes : Scope.NO_SCOPE,
 			null,
+			null, null,
 			Collections.emptyMap(), Collections.emptyMap()
-		);
-	}
-
-	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
-	 *
-	 * Do not use this method from in the client code!
-	 */
-	@Nonnull
-	public static ReferenceSchema _internalBuild(
-		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nullable Cardinality cardinality,
-		@Nonnull String referencedEntityType,
-		@Nonnull Map<NamingConvention, String> entityTypeNameVariants,
-		boolean referencedEntityTypeManaged,
-		@Nullable String referencedGroupType,
-		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
-		boolean referencedGroupTypeManaged,
-		@Nonnull Map<Scope, ReferenceIndexType> indexedInScopes,
-		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
-		@Nonnull Set<Scope> facetedInScopes,
-		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes,
-		@Nonnull Map<String, AttributeSchemaContract> attributes,
-		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
-	) {
-		return _internalBuild(
-			name, nameVariants,
-			description, deprecationNotice, cardinality,
-			referencedEntityType, entityTypeNameVariants, referencedEntityTypeManaged,
-			referencedGroupType, groupTypeNameVariants, referencedGroupTypeManaged,
-			indexedInScopes, indexedComponentsInScopes,
-			facetedInScopes, facetedPartiallyInScopes,
-			Collections.emptyMap(), Collections.emptyMap(),
-			attributes, sortableAttributeCompounds
 		);
 	}
 
@@ -604,45 +567,6 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nonnull Scope[] facetedInScopes,
 		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
-		@Nonnull Map<String, AttributeSchemaContract> attributes,
-		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
-	) {
-		return _internalBuild(
-			name, nameVariants,
-			description, deprecationNotice,
-			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
-			cardinality,
-			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
-			indexedInScopes, indexedComponentsInScopes,
-			facetedInScopes, facetedPartiallyInScopes,
-			null, null,
-			attributes, sortableAttributeCompounds
-		);
-	}
-
-	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
-	 *
-	 * Do not use this method from in the client code!
-	 */
-	@Nonnull
-	public static ReferenceSchema _internalBuild(
-		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nonnull String entityType,
-		@Nonnull Map<NamingConvention, String> entityTypeNameVariants,
-		boolean referencedEntityTypeManaged,
-		@Nonnull Cardinality cardinality,
-		@Nullable String groupType,
-		@Nullable Map<NamingConvention, String> groupTypeNameVariants,
-		boolean referencedGroupTypeManaged,
-		@Nonnull ScopedReferenceIndexType[] indexedInScopes,
-		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
-		@Nonnull Scope[] facetedInScopes,
-		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
 		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
 		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
@@ -659,6 +583,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = toBucketedHistogramMap(bucketedInScopes);
 		final Map<Scope, Expression> bucketedPartiallyMap = toBucketedPartiallyMap(bucketedPartiallyInScopes);
 		validateScopeSettings(facetedScopes, bucketedMap, indexedScopesMap, indexedComponentsMap);
+		validateHistogramNamesNotCollidingWithAttributes(bucketedMap, attributes);
 
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -840,6 +765,34 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 					throw new InvalidSchemaMutationException(
 						"Indexed component `REFERENCED_GROUP_ENTITY` in scope `" + scope +
 							"` requires a non-null referenced group type on the reference schema."
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Validates that no histogram definition name collides with a reference attribute name. Such a collision
+	 * would make the storage key (AttributeIndexKey) ambiguous, because both the histogram filter index and
+	 * the regular filter attribute index would share the same key.
+	 *
+	 * @param bucketedScopes the per-scope histogram definitions
+	 * @param attributes     the reference attribute schemas
+	 */
+	/* TODO JNO - tohle by se mělo zvážit */
+	static void validateHistogramNamesNotCollidingWithAttributes(
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedScopes,
+		@Nonnull Map<String, AttributeSchemaContract> attributes
+	) {
+		if (bucketedScopes.isEmpty() || attributes.isEmpty()) {
+			return;
+		}
+		for (final Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedScopes.entrySet()) {
+			for (final String histogramName : scopeEntry.getValue().keySet()) {
+				if (attributes.containsKey(histogramName)) {
+					throw new InvalidSchemaMutationException(
+						"Histogram index name `" + histogramName + "` in scope `" + scopeEntry.getKey() +
+							"` collides with a reference attribute of the same name."
 					);
 				}
 			}

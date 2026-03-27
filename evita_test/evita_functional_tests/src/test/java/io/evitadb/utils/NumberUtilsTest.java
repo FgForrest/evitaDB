@@ -164,6 +164,35 @@ class NumberUtilsTest {
 	}
 
 	@Nested
+	@DisplayName("ConvertToNumericType tests")
+	class ConvertToNumericTypeTests {
+
+		@Test
+		@DisplayName("Should convert to each supported target type")
+		void shouldConvertToEachSupportedTargetType() {
+			assertEquals((byte) 42, NumberUtils.convertToNumericType(42, Byte.class));
+			assertEquals((short) 1000, NumberUtils.convertToNumericType(1000, Short.class));
+			assertEquals(100_000, NumberUtils.convertToNumericType(100_000L, Integer.class));
+			assertEquals(5_000_000_000L, NumberUtils.convertToNumericType(new BigDecimal("5000000000"), Long.class));
+			assertEquals(new BigDecimal("42"), NumberUtils.convertToNumericType(42, BigDecimal.class));
+		}
+
+		@Test
+		@DisplayName("Should strip trailing zeros for BigDecimal target")
+		void shouldStripTrailingZerosForBigDecimalTarget() {
+			assertEquals(new BigDecimal("10.5"), NumberUtils.convertToNumericType(new BigDecimal("10.500"), BigDecimal.class));
+		}
+
+		@Test
+		@DisplayName("Should throw on unsupported target type")
+		void shouldThrowOnUnsupportedTargetType() {
+			assertThrows(IllegalArgumentException.class, () -> NumberUtils.convertToNumericType(1, Float.class));
+			assertThrows(IllegalArgumentException.class, () -> NumberUtils.convertToNumericType(1, Double.class));
+			assertThrows(IllegalArgumentException.class, () -> NumberUtils.convertToNumericType(1, String.class));
+		}
+	}
+
+	@Nested
 	@DisplayName("Conversion tests")
 	class ConversionTests {
 

@@ -122,7 +122,7 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	 * scope that describes whether the addition is driven by an attribute value in that locale ({@link LocaleScope#ATTRIBUTE})
 	 * or by a direct entity locale assignment ({@link LocaleScope#ENTITY}).
 	 *
-	 * Consumers such as {@link io.evitadb.index.mutation.index.dataAccess.MemoizedLocalesObsoleteChecker} use this
+	 * Consumers such as {@link io.evitadb.index.mutation.local.dataAccess.MemoizedLocalesObsoleteChecker} use this
 	 * information to reconstruct the pre-mutation locale set by reversing the changes — i.e., temporarily removing
 	 * these added locales — so that existing attribute index entries can be correctly evaluated against the
 	 * state that existed before the mutation.
@@ -137,7 +137,7 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	 * the scope that describes whether the removal is driven by dropping the last attribute value in that locale
 	 * ({@link LocaleScope#ATTRIBUTE}) or by a direct entity locale removal ({@link LocaleScope#ENTITY}).
 	 *
-	 * Consumers such as {@link io.evitadb.index.mutation.index.dataAccess.MemoizedLocalesObsoleteChecker} use this
+	 * Consumers such as {@link io.evitadb.index.mutation.local.dataAccess.MemoizedLocalesObsoleteChecker} use this
 	 * information to reconstruct the pre-mutation locale set by reversing the changes — i.e., temporarily re-adding
 	 * these removed locales — so that existing attribute index entries can be correctly evaluated against the
 	 * state that existed before the mutation.

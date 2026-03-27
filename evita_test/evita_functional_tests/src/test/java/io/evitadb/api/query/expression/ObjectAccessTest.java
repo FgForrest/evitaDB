@@ -534,7 +534,7 @@ class ObjectAccessTest {
 				() -> new NestedOperator(null)
 			);
 			assertEquals(
-				"Nested operator must have at least one operand!",
+				"Unary operator must have an operand!",
 				exception.getMessage()
 			);
 		}

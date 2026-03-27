@@ -959,32 +959,15 @@ private static final long serialVersionUID = 0L;
     return facetedPartially_.get(index);
   }
 
-  public static final int BUCKETEDINHERITED_FIELD_NUMBER = 17;
-  private boolean bucketedInherited_ = false;
-  /**
-   * <pre>
-   * when set to true, the value of `bucketedInScopes` field is ignored and the settings are inherited
-   * from the original reference.
-   * </pre>
-   *
-   * <code>bool bucketedInherited = 17;</code>
-   * @return The bucketedInherited.
-   */
-  @java.lang.Override
-  public boolean getBucketedInherited() {
-    return bucketedInherited_;
-  }
-
-  public static final int BUCKETEDINSCOPES_FIELD_NUMBER = 18;
+  public static final int BUCKETEDINSCOPES_FIELD_NUMBER = 17;
   @SuppressWarnings("serial")
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> bucketedInScopes_;
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> getBucketedInScopesList() {
@@ -993,10 +976,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> 
@@ -1006,10 +988,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   @java.lang.Override
   public int getBucketedInScopesCount() {
@@ -1018,10 +999,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition getBucketedInScopes(int index) {
@@ -1030,10 +1010,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Per-scope bucketed histogram configurations defining index name and value expression.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder getBucketedInScopesOrBuilder(
@@ -1041,16 +1020,15 @@ private static final long serialVersionUID = 0L;
     return bucketedInScopes_.get(index);
   }
 
-  public static final int BUCKETEDPARTIALLYINSCOPES_FIELD_NUMBER = 19;
+  public static final int BUCKETEDPARTIALLYINSCOPES_FIELD_NUMBER = 18;
   @SuppressWarnings("serial")
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> bucketedPartiallyInScopes_;
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> getBucketedPartiallyInScopesList() {
@@ -1059,10 +1037,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> 
@@ -1072,10 +1049,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   @java.lang.Override
   public int getBucketedPartiallyInScopesCount() {
@@ -1084,10 +1060,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially getBucketedPartiallyInScopes(int index) {
@@ -1096,10 +1071,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-   * When `bucketedInherited` is true, this field is ignored.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyInScopesOrBuilder(
@@ -1178,14 +1152,11 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < facetedPartially_.size(); i++) {
       output.writeMessage(16, facetedPartially_.get(i));
     }
-    if (bucketedInherited_ != false) {
-      output.writeBool(17, bucketedInherited_);
-    }
     for (int i = 0; i < bucketedInScopes_.size(); i++) {
-      output.writeMessage(18, bucketedInScopes_.get(i));
+      output.writeMessage(17, bucketedInScopes_.get(i));
     }
     for (int i = 0; i < bucketedPartiallyInScopes_.size(); i++) {
-      output.writeMessage(19, bucketedPartiallyInScopes_.get(i));
+      output.writeMessage(18, bucketedPartiallyInScopes_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -1277,17 +1248,13 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(16, facetedPartially_.get(i));
     }
-    if (bucketedInherited_ != false) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(17, bucketedInherited_);
-    }
     for (int i = 0; i < bucketedInScopes_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(18, bucketedInScopes_.get(i));
+        .computeMessageSize(17, bucketedInScopes_.get(i));
     }
     for (int i = 0; i < bucketedPartiallyInScopes_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(19, bucketedPartiallyInScopes_.get(i));
+        .computeMessageSize(18, bucketedPartiallyInScopes_.get(i));
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -1341,8 +1308,6 @@ private static final long serialVersionUID = 0L;
         .equals(other.getScopedIndexedComponentsList())) return false;
     if (!getFacetedPartiallyList()
         .equals(other.getFacetedPartiallyList())) return false;
-    if (getBucketedInherited()
-        != other.getBucketedInherited()) return false;
     if (!getBucketedInScopesList()
         .equals(other.getBucketedInScopesList())) return false;
     if (!getBucketedPartiallyInScopesList()
@@ -1410,9 +1375,6 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + FACETEDPARTIALLY_FIELD_NUMBER;
       hash = (53 * hash) + getFacetedPartiallyList().hashCode();
     }
-    hash = (37 * hash) + BUCKETEDINHERITED_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getBucketedInherited());
     if (getBucketedInScopesCount() > 0) {
       hash = (37 * hash) + BUCKETEDINSCOPES_FIELD_NUMBER;
       hash = (53 * hash) + getBucketedInScopesList().hashCode();
@@ -1619,21 +1581,20 @@ private static final long serialVersionUID = 0L;
         facetedPartiallyBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00008000);
-      bucketedInherited_ = false;
       if (bucketedInScopesBuilder_ == null) {
         bucketedInScopes_ = java.util.Collections.emptyList();
       } else {
         bucketedInScopes_ = null;
         bucketedInScopesBuilder_.clear();
       }
-      bitField0_ = (bitField0_ & ~0x00020000);
+      bitField0_ = (bitField0_ & ~0x00010000);
       if (bucketedPartiallyInScopesBuilder_ == null) {
         bucketedPartiallyInScopes_ = java.util.Collections.emptyList();
       } else {
         bucketedPartiallyInScopes_ = null;
         bucketedPartiallyInScopesBuilder_.clear();
       }
-      bitField0_ = (bitField0_ & ~0x00040000);
+      bitField0_ = (bitField0_ & ~0x00020000);
       return this;
     }
 
@@ -1705,18 +1666,18 @@ private static final long serialVersionUID = 0L;
         result.facetedPartially_ = facetedPartiallyBuilder_.build();
       }
       if (bucketedInScopesBuilder_ == null) {
-        if (((bitField0_ & 0x00020000) != 0)) {
+        if (((bitField0_ & 0x00010000) != 0)) {
           bucketedInScopes_ = java.util.Collections.unmodifiableList(bucketedInScopes_);
-          bitField0_ = (bitField0_ & ~0x00020000);
+          bitField0_ = (bitField0_ & ~0x00010000);
         }
         result.bucketedInScopes_ = bucketedInScopes_;
       } else {
         result.bucketedInScopes_ = bucketedInScopesBuilder_.build();
       }
       if (bucketedPartiallyInScopesBuilder_ == null) {
-        if (((bitField0_ & 0x00040000) != 0)) {
+        if (((bitField0_ & 0x00020000) != 0)) {
           bucketedPartiallyInScopes_ = java.util.Collections.unmodifiableList(bucketedPartiallyInScopes_);
-          bitField0_ = (bitField0_ & ~0x00040000);
+          bitField0_ = (bitField0_ & ~0x00020000);
         }
         result.bucketedPartiallyInScopes_ = bucketedPartiallyInScopes_;
       } else {
@@ -1769,9 +1730,6 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000800) != 0)) {
         result.facetedInherited_ = facetedInherited_;
-      }
-      if (((from_bitField0_ & 0x00010000) != 0)) {
-        result.bucketedInherited_ = bucketedInherited_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1964,14 +1922,11 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
-      if (other.getBucketedInherited() != false) {
-        setBucketedInherited(other.getBucketedInherited());
-      }
       if (bucketedInScopesBuilder_ == null) {
         if (!other.bucketedInScopes_.isEmpty()) {
           if (bucketedInScopes_.isEmpty()) {
             bucketedInScopes_ = other.bucketedInScopes_;
-            bitField0_ = (bitField0_ & ~0x00020000);
+            bitField0_ = (bitField0_ & ~0x00010000);
           } else {
             ensureBucketedInScopesIsMutable();
             bucketedInScopes_.addAll(other.bucketedInScopes_);
@@ -1984,7 +1939,7 @@ private static final long serialVersionUID = 0L;
             bucketedInScopesBuilder_.dispose();
             bucketedInScopesBuilder_ = null;
             bucketedInScopes_ = other.bucketedInScopes_;
-            bitField0_ = (bitField0_ & ~0x00020000);
+            bitField0_ = (bitField0_ & ~0x00010000);
             bucketedInScopesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getBucketedInScopesFieldBuilder() : null;
@@ -1997,7 +1952,7 @@ private static final long serialVersionUID = 0L;
         if (!other.bucketedPartiallyInScopes_.isEmpty()) {
           if (bucketedPartiallyInScopes_.isEmpty()) {
             bucketedPartiallyInScopes_ = other.bucketedPartiallyInScopes_;
-            bitField0_ = (bitField0_ & ~0x00040000);
+            bitField0_ = (bitField0_ & ~0x00020000);
           } else {
             ensureBucketedPartiallyInScopesIsMutable();
             bucketedPartiallyInScopes_.addAll(other.bucketedPartiallyInScopes_);
@@ -2010,7 +1965,7 @@ private static final long serialVersionUID = 0L;
             bucketedPartiallyInScopesBuilder_.dispose();
             bucketedPartiallyInScopesBuilder_ = null;
             bucketedPartiallyInScopes_ = other.bucketedPartiallyInScopes_;
-            bitField0_ = (bitField0_ & ~0x00040000);
+            bitField0_ = (bitField0_ & ~0x00020000);
             bucketedPartiallyInScopesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getBucketedPartiallyInScopesFieldBuilder() : null;
@@ -2180,12 +2135,7 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 130
-            case 136: {
-              bucketedInherited_ = input.readBool();
-              bitField0_ |= 0x00010000;
-              break;
-            } // case 136
-            case 146: {
+            case 138: {
               io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition m =
                   input.readMessage(
                       io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.parser(),
@@ -2197,8 +2147,8 @@ private static final long serialVersionUID = 0L;
                 bucketedInScopesBuilder_.addMessage(m);
               }
               break;
-            } // case 146
-            case 154: {
+            } // case 138
+            case 146: {
               io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially m =
                   input.readMessage(
                       io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.parser(),
@@ -2210,7 +2160,7 @@ private static final long serialVersionUID = 0L;
                 bucketedPartiallyInScopesBuilder_.addMessage(m);
               }
               break;
-            } // case 154
+            } // case 146
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -5058,59 +5008,12 @@ private static final long serialVersionUID = 0L;
       return facetedPartiallyBuilder_;
     }
 
-    private boolean bucketedInherited_ ;
-    /**
-     * <pre>
-     * when set to true, the value of `bucketedInScopes` field is ignored and the settings are inherited
-     * from the original reference.
-     * </pre>
-     *
-     * <code>bool bucketedInherited = 17;</code>
-     * @return The bucketedInherited.
-     */
-    @java.lang.Override
-    public boolean getBucketedInherited() {
-      return bucketedInherited_;
-    }
-    /**
-     * <pre>
-     * when set to true, the value of `bucketedInScopes` field is ignored and the settings are inherited
-     * from the original reference.
-     * </pre>
-     *
-     * <code>bool bucketedInherited = 17;</code>
-     * @param value The bucketedInherited to set.
-     * @return This builder for chaining.
-     */
-    public Builder setBucketedInherited(boolean value) {
-
-      bucketedInherited_ = value;
-      bitField0_ |= 0x00010000;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * when set to true, the value of `bucketedInScopes` field is ignored and the settings are inherited
-     * from the original reference.
-     * </pre>
-     *
-     * <code>bool bucketedInherited = 17;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearBucketedInherited() {
-      bitField0_ = (bitField0_ & ~0x00010000);
-      bucketedInherited_ = false;
-      onChanged();
-      return this;
-    }
-
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> bucketedInScopes_ =
       java.util.Collections.emptyList();
     private void ensureBucketedInScopesIsMutable() {
-      if (!((bitField0_ & 0x00020000) != 0)) {
+      if (!((bitField0_ & 0x00010000) != 0)) {
         bucketedInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition>(bucketedInScopes_);
-        bitField0_ |= 0x00020000;
+        bitField0_ |= 0x00010000;
        }
     }
 
@@ -5120,10 +5023,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> getBucketedInScopesList() {
       if (bucketedInScopesBuilder_ == null) {
@@ -5135,10 +5037,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public int getBucketedInScopesCount() {
       if (bucketedInScopesBuilder_ == null) {
@@ -5150,10 +5051,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition getBucketedInScopes(int index) {
       if (bucketedInScopesBuilder_ == null) {
@@ -5165,10 +5065,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder setBucketedInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition value) {
@@ -5187,10 +5086,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder setBucketedInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder builderForValue) {
@@ -5206,10 +5104,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder addBucketedInScopes(io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition value) {
       if (bucketedInScopesBuilder_ == null) {
@@ -5227,10 +5124,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder addBucketedInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition value) {
@@ -5249,10 +5145,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder addBucketedInScopes(
         io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder builderForValue) {
@@ -5268,10 +5163,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder addBucketedInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder builderForValue) {
@@ -5287,10 +5181,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder addAllBucketedInScopes(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> values) {
@@ -5307,15 +5200,14 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder clearBucketedInScopes() {
       if (bucketedInScopesBuilder_ == null) {
         bucketedInScopes_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00020000);
+        bitField0_ = (bitField0_ & ~0x00010000);
         onChanged();
       } else {
         bucketedInScopesBuilder_.clear();
@@ -5325,10 +5217,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public Builder removeBucketedInScopes(int index) {
       if (bucketedInScopesBuilder_ == null) {
@@ -5343,10 +5234,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder getBucketedInScopesBuilder(
         int index) {
@@ -5355,10 +5245,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder getBucketedInScopesOrBuilder(
         int index) {
@@ -5370,10 +5259,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> 
          getBucketedInScopesOrBuilderList() {
@@ -5386,10 +5274,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder addBucketedInScopesBuilder() {
       return getBucketedInScopesFieldBuilder().addBuilder(
@@ -5398,10 +5285,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder addBucketedInScopesBuilder(
         int index) {
@@ -5411,10 +5297,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope bucketed histogram configurations defining index name and value expression.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder> 
          getBucketedInScopesBuilderList() {
@@ -5427,7 +5312,7 @@ private static final long serialVersionUID = 0L;
         bucketedInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder>(
                 bucketedInScopes_,
-                ((bitField0_ & 0x00020000) != 0),
+                ((bitField0_ & 0x00010000) != 0),
                 getParentForChildren(),
                 isClean());
         bucketedInScopes_ = null;
@@ -5438,9 +5323,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> bucketedPartiallyInScopes_ =
       java.util.Collections.emptyList();
     private void ensureBucketedPartiallyInScopesIsMutable() {
-      if (!((bitField0_ & 0x00040000) != 0)) {
+      if (!((bitField0_ & 0x00020000) != 0)) {
         bucketedPartiallyInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially>(bucketedPartiallyInScopes_);
-        bitField0_ |= 0x00040000;
+        bitField0_ |= 0x00020000;
        }
     }
 
@@ -5450,10 +5335,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> getBucketedPartiallyInScopesList() {
       if (bucketedPartiallyInScopesBuilder_ == null) {
@@ -5465,10 +5349,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public int getBucketedPartiallyInScopesCount() {
       if (bucketedPartiallyInScopesBuilder_ == null) {
@@ -5480,10 +5363,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially getBucketedPartiallyInScopes(int index) {
       if (bucketedPartiallyInScopesBuilder_ == null) {
@@ -5495,10 +5377,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder setBucketedPartiallyInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially value) {
@@ -5517,10 +5398,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder setBucketedPartiallyInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder builderForValue) {
@@ -5536,10 +5416,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder addBucketedPartiallyInScopes(io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially value) {
       if (bucketedPartiallyInScopesBuilder_ == null) {
@@ -5557,10 +5436,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder addBucketedPartiallyInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially value) {
@@ -5579,10 +5457,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder addBucketedPartiallyInScopes(
         io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder builderForValue) {
@@ -5598,10 +5475,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder addBucketedPartiallyInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder builderForValue) {
@@ -5617,10 +5493,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder addAllBucketedPartiallyInScopes(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> values) {
@@ -5637,15 +5512,14 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder clearBucketedPartiallyInScopes() {
       if (bucketedPartiallyInScopesBuilder_ == null) {
         bucketedPartiallyInScopes_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00040000);
+        bitField0_ = (bitField0_ & ~0x00020000);
         onChanged();
       } else {
         bucketedPartiallyInScopesBuilder_.clear();
@@ -5655,10 +5529,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public Builder removeBucketedPartiallyInScopes(int index) {
       if (bucketedPartiallyInScopesBuilder_ == null) {
@@ -5673,10 +5546,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder getBucketedPartiallyInScopesBuilder(
         int index) {
@@ -5685,10 +5557,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyInScopesOrBuilder(
         int index) {
@@ -5700,10 +5571,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> 
          getBucketedPartiallyInScopesOrBuilderList() {
@@ -5716,10 +5586,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder addBucketedPartiallyInScopesBuilder() {
       return getBucketedPartiallyInScopesFieldBuilder().addBuilder(
@@ -5728,10 +5597,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder addBucketedPartiallyInScopesBuilder(
         int index) {
@@ -5741,10 +5609,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-     * When `bucketedInherited` is true, this field is ignored.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder> 
          getBucketedPartiallyInScopesBuilderList() {
@@ -5757,7 +5624,7 @@ private static final long serialVersionUID = 0L;
         bucketedPartiallyInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder>(
                 bucketedPartiallyInScopes_,
-                ((bitField0_ & 0x00040000) != 0),
+                ((bitField0_ & 0x00020000) != 0),
                 getParentForChildren(),
                 isClean());
         bucketedPartiallyInScopes_ = null;

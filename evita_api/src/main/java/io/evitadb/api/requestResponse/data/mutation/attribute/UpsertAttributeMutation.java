@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
@@ -54,7 +55,7 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 			"Value for attribute `" + attributeKey + "` must not be null. " +
 				"Use `removeAttribute` mutation if you want to remove existing attribute."
 		);
-		this.value = value;
+		this.value = Objects.requireNonNull(EvitaDataTypes.toSupportedTypeOrItsArray(value));
 	}
 
 	public UpsertAttributeMutation(@Nonnull String attributeName, @Nonnull Serializable value) {
@@ -63,7 +64,7 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 			"Value for attribute `" + attributeName + "` must not be null. " +
 				"Use `removeAttribute` mutation if you want to remove existing attribute."
 		);
-		this.value = value;
+		this.value = Objects.requireNonNull(EvitaDataTypes.toSupportedTypeOrItsArray(value));
 	}
 
 	public UpsertAttributeMutation(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Serializable value) {
@@ -72,7 +73,7 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 			"Value for attribute `" + attributeName + "` must not be null. " +
 				"Use `removeAttribute` mutation if you want to remove existing attribute."
 		);
-		this.value = value;
+		this.value = Objects.requireNonNull(EvitaDataTypes.toSupportedTypeOrItsArray(value));
 	}
 
 	private UpsertAttributeMutation(@Nonnull AttributeKey attributeKey, @Nonnull Serializable value, long decisiveTimestamp) {
@@ -81,7 +82,7 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 		               "Value for attribute `" + attributeKey + "` must not be null. " +
 			               "Use `removeAttribute` mutation if you want to remove existing attribute."
 		);
-		this.value = value;
+		this.value = Objects.requireNonNull(EvitaDataTypes.toSupportedTypeOrItsArray(value));
 	}
 
 	@Override

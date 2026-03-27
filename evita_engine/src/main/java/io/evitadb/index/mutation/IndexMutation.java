@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.mutation.MutationContract;
  * - are never written to WAL (regenerated deterministically on replay)
  * - are processed entirely by the target `EntityCollection`
  *
- * This is a marker interface — concrete leaf mutations (e.g., {@link ReevaluateFacetExpressionMutation})
+ * This is a marker interface — concrete leaf mutations (e.g., {@link ReevaluateExpressionMutation})
  * carry domain-specific fields. The target entity type is NOT on this interface — it is carried by the
  * wrapping {@link EntityIndexMutation} transport envelope, which routes the mutations to the correct
  * `EntityCollection`.

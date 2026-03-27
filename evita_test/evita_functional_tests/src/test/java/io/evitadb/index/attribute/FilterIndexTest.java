@@ -46,7 +46,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -990,20 +989,6 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 			assertInstanceOf(Instant.class, result);
 			assertEquals(odt.toInstant(), result);
-		}
-
-		@Test
-		@DisplayName(
-			"getNormalizer for BigDecimal strips trailing zeros"
-		)
-		void shouldNormalizeBigDecimalByStrippingTrailingZeros() {
-			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(BigDecimal.class);
-			final BigDecimal value = new BigDecimal("10.500");
-
-			final Serializable result = normalizer.apply(value);
-
-			assertEquals(new BigDecimal("10.5"), result);
 		}
 
 		@Test

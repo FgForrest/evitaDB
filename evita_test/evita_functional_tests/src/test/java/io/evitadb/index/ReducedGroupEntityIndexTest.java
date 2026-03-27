@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -82,6 +83,7 @@ class ReducedGroupEntityIndexTest
 	implements TimeBoundedTestSupport {
 
 	private static final String REFERENCE_NAME = "CATEGORY";
+	private static final String HISTOGRAM_NAME = "priceHistogram";
 	private static final int INDEX_PK = 1;
 
 	/**
@@ -1255,6 +1257,57 @@ class ReducedGroupEntityIndexTest
 			assertFalse(afterRemoval.contains(1));
 		}
 
+	}
+
+	/**
+	 * Thin delegation test verifying that RGEI convenience methods correctly delegate to
+	 * {@link HistogramIndex}. Full histogram transactional lifecycle is tested in
+	 * {@link HistogramIndexTest}.
+	 */
+	@Nested
+	@DisplayName("Histogram delegation")
+	class HistogramDelegationTest {
+
+		@Test
+		@DisplayName("should delegate histogram insert and retrieval to HistogramIndex")
+		void shouldDelegateHistogramInsertAndRetrieval() {
+			assertStateAfterCommit(
+				ReducedGroupEntityIndexTest.this.index,
+				original -> {
+					original.insertPrimaryKeyIfMissing(10, 1);
+					original.insertHistogramValue(HISTOGRAM_NAME, false, null, 42, 10, Integer.class);
+
+					final FilterIndex filter = original.getHistogramFilterIndex(HISTOGRAM_NAME, null);
+					assertNotNull(filter, "Filter index should be accessible via convenience method");
+					assertTrue(filter.getRecordsEqualTo(42).contains(10));
+				},
+				(original, committed) -> {
+					assertNotNull(committed, "Committed copy must not be null");
+					final ReducedGroupEntityIndex committedIndex = (ReducedGroupEntityIndex) committed;
+					assertNotNull(
+						committedIndex.getHistogramFilterIndex(HISTOGRAM_NAME, null),
+						"Committed copy should have histogram data"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should report non-empty when only histogram data exists")
+		void shouldReportNonEmptyWhenOnlyHistogramDataExists() {
+			assertStateAfterCommit(
+				ReducedGroupEntityIndexTest.this.index,
+				original -> {
+					original.insertHistogramValue(HISTOGRAM_NAME, false, null, 99, 10, Integer.class);
+					assertFalse(original.isEmpty(), "Index with histogram data should not be empty");
+				},
+				(original, committed) -> {
+					assertNotNull(committed, "Committed copy must not be null");
+					final ReducedGroupEntityIndex committedIndex = (ReducedGroupEntityIndex) committed;
+					assertFalse(committedIndex.isEmpty(), "Committed index with histogram data should not be empty");
+				}
+			);
+		}
 	}
 
 	/**

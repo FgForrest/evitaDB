@@ -825,9 +825,11 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change reference schema with bucketed histogram")
 	void shouldChangeReferenceSchemaWithBucketedHistogram(Evita evita, RestTester tester) {
-		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
+		// create reference with numeric filterable attribute for bucketed histogram
+		createBucketedReferenceWithAttribute(tester);
+		final int refCreatedVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
-		// create a reference with bucketed histogram (with valueExpression) and bucketedPartially
+		// set bucketed config with valid valueExpression referencing the attribute
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
@@ -835,22 +837,13 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				{
 					"mutations": [
 						{
-							"createReferenceSchemaMutation": {
+							"setReferenceSchemaBucketedMutation": {
 								"name": "myBucketedRef",
-								"referencedEntityType": "tag",
-								"referencedEntityTypeManaged": false,
-								"referencedGroupTypeManaged": false,
-								"indexedInScopes": [
-									{
-										"scope": "LIVE",
-										"indexType": "FOR_FILTERING"
-									}
-								],
 								"bucketedInScopes": [
 									{
 										"scope": "LIVE",
 										"nameOfTheIndex": "priceHistogram",
-										"valueExpression": "$price * 1.21"
+										"valueExpression": "$reference.attributes['quantity']"
 									}
 								],
 								"bucketedPartiallyInScopes": [
@@ -866,7 +859,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(refCreatedVersion + 1))
 			.body(
 				"",
 				equalTo(
@@ -874,7 +867,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				)
 			);
 
-		// verify the bucketed reference schema with valueExpression and bucketedPartially (T2 + T3)
+		// verify the bucketed reference schema with valueExpression and bucketedPartially
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_GET)
@@ -888,7 +881,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						map()
 							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
-							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$price * 1.21")
+							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$reference.attributes['quantity']")
 							.build()
 					).build()
 				)
@@ -912,7 +905,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				)
 			);
 
-		// update bucketed config with null valueExpression and remove bucketedPartially (T4)
+		// update bucketed config with null valueExpression and remove bucketedPartially
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
@@ -936,7 +929,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(refCreatedVersion + 2))
 			.body(
 				"",
 				equalTo(
@@ -992,7 +985,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(refCreatedVersion + 3))
 			.body(EntitySchemaDescriptor.REFERENCES.name() + ".myBucketedRef", nullValue())
 			.body(
 				"",
@@ -1002,6 +995,60 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 	}
 
+
+	/**
+	 * Creates a reference "myBucketedRef" to "tag" with a numeric filterable attribute "quantity"
+	 * so that bucketed histogram expressions can reference it.
+	 */
+	private static void createBucketedReferenceWithAttribute(@Nonnull RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/empty/schema")
+			.httpMethod(Request.METHOD_PUT)
+			.requestBody("""
+				{
+					"mutations": [
+						{
+							"createReferenceSchemaMutation": {
+								"name": "myBucketedRef",
+								"referencedEntityType": "tag",
+								"referencedEntityTypeManaged": false,
+								"referencedGroupTypeManaged": false,
+								"indexedInScopes": [
+									{
+										"scope": "LIVE",
+										"indexType": "FOR_FILTERING"
+									}
+								]
+							}
+						},
+						{
+							"modifyReferenceAttributeSchemaMutation": {
+								"name": "myBucketedRef",
+								"attributeSchemaMutation": {
+									"createAttributeSchemaMutation": {
+										"name": "quantity",
+										"uniqueInScopes": [
+											{
+												"scope": "LIVE",
+												"uniquenessType": "NOT_UNIQUE"
+											}
+										],
+										"filterableInScopes": ["LIVE"],
+										"sortableInScopes": [],
+										"localized": false,
+										"nullable": true,
+										"type": "Integer",
+										"indexedDecimalPlaces": 0
+									}
+								}
+							}
+						}
+					]
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200);
+	}
 
 	private static int getEntitySchemaVersion(@Nonnull RestTester tester, @Nonnull String entityType) {
 		return tester.test(TEST_CATALOG)

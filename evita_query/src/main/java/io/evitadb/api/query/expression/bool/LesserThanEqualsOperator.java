@@ -24,15 +24,14 @@
 package io.evitadb.api.query.expression.bool;
 
 
-import io.evitadb.exception.ExpressionEvaluationException;
+import io.evitadb.api.query.expression.AbstractBinaryOperator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
+import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -49,28 +48,26 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EqualsAndHashCode
-public class LesserThanEqualsOperator implements BooleanOperator {
+@EqualsAndHashCode(callSuper = true)
+public class LesserThanEqualsOperator extends AbstractBinaryOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = -3926293825925846033L;
-	private final ExpressionNode leftOperator;
-	private final ExpressionNode rightOperator;
-
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public LesserThanEqualsOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
-		this.leftOperator = leftOperator;
-		this.rightOperator = rightOperator;
-		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
+		super(leftOperator, rightOperator);
+	}
+
+	@Nonnull
+	@Override
+	protected String getOperatorSymbol() {
+		return "<=";
 	}
 
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull ExpressionEvaluationContext context) {
-		final Serializable value1 = this.leftOperator.compute(context);
+		final Serializable value1 = getLeftOperand().compute(context);
 		ExpressionEvaluationException.assertComparableOperand(value1, "Lesser than or equals", "left");
-		final Serializable value2 = this.rightOperator.compute(context);
+		final Serializable value2 = getRightOperand().compute(context);
 		ExpressionEvaluationException.assertComparableOperand(value2, "Lesser than or equals", "right");
 		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked
@@ -80,8 +77,8 @@ public class LesserThanEqualsOperator implements BooleanOperator {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		final BigDecimal to1 = this.leftOperator.determinePossibleRange().getPreciseTo();
-		final BigDecimal to2 = this.rightOperator.determinePossibleRange().getPreciseTo();
+		final BigDecimal to1 = getLeftOperand().determinePossibleRange().getPreciseTo();
+		final BigDecimal to2 = getRightOperand().determinePossibleRange().getPreciseTo();
 		if (to1 == null && to2 == null) {
 			return BigDecimalNumberRange.INFINITE;
 		} else if (to1 == null) {
@@ -93,15 +90,5 @@ public class LesserThanEqualsOperator implements BooleanOperator {
 		} else {
 			return BigDecimalNumberRange.to(to1);
 		}
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
-	}
-
-	@Override
-	public String toString() {
-		return this.leftOperator.toString() + " <= " + this.rightOperator.toString();
 	}
 }

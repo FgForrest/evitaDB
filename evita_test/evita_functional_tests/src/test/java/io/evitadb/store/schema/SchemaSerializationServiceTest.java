@@ -202,7 +202,7 @@ class SchemaSerializationServiceTest {
 
 	/**
 	 * Verifies round-trip serialization of a {@link ReflectedReferenceSchema} with explicit
-	 * (non-inherited) bucketed state ({@code bucketedInherited = false}).
+	 * bucketed state.
 	 */
 	@Test
 	void shouldSerializeAndDeserializeReflectedReferenceSchemaWithExplicitBucketed() {
@@ -224,15 +224,14 @@ class SchemaSerializationServiceTest {
 		final ReflectedReferenceSchema deserialized = roundTripReflectedReferenceSchema(kryo, withBoth);
 
 		assertEquals(withBoth, deserialized);
-		assertFalse(deserialized.isBucketedInherited());
 		assertEquals(bucketedInScopes, deserialized.getAllHistogramIndexDefinitions());
 		assertEquals(bucketedPartiallyInScopes, deserialized.getBucketedPartiallyInScopes());
 	}
 
 	/**
-	 * Verifies round-trip serialization of a {@link ReflectedReferenceSchema} with inherited
-	 * bucketed state ({@code bucketedInherited = true}). This exercises the branch where
-	 * the serializer writes {@code false} (no bucketed data follows).
+	 * Verifies round-trip serialization of a {@link ReflectedReferenceSchema} with no
+	 * bucketed configuration. This exercises the branch where the serializer writes
+	 * {@code false} (no bucketed data follows).
 	 */
 	@Test
 	void shouldSerializeAndDeserializeReflectedReferenceSchemaWithInheritedBucketed() {
@@ -242,16 +241,14 @@ class SchemaSerializationServiceTest {
 		final ReflectedReferenceSchema deserialized = roundTripReflectedReferenceSchema(kryo, base);
 
 		assertEquals(base, deserialized);
-		assertTrue(deserialized.isBucketedInherited());
 		assertTrue(deserialized.getAllHistogramIndexDefinitions().isEmpty());
 		assertTrue(deserialized.getBucketedPartiallyInScopes().isEmpty());
 	}
 
 	/**
-	 * Verifies round-trip serialization of a {@link ReflectedReferenceSchema} with non-inherited
-	 * but empty bucketed maps. This is a boundary case where the serializer writes {@code true}
-	 * (not inherited) followed by zero-count maps. After round-trip, the serializer reconstructs
-	 * the schema via {@code _internalBuild} + {@code withBucketed}, preserving the non-inherited state.
+	 * Verifies round-trip serialization of a {@link ReflectedReferenceSchema} with explicit but
+	 * empty bucketed maps. After round-trip, the serializer reconstructs the schema via
+	 * {@code _internalBuild} + {@code withBucketed}, preserving the explicit empty state.
 	 */
 	@Test
 	void shouldSerializeAndDeserializeReflectedReferenceSchemaWithNonInheritedEmptyBucketed() {
@@ -260,15 +257,11 @@ class SchemaSerializationServiceTest {
 		final ReflectedReferenceSchema withEmptyBucketed =
 			(ReflectedReferenceSchema) base.withBucketed(Collections.emptyMap());
 
-		assertFalse(withEmptyBucketed.isBucketedInherited(), "original bucketedInherited");
-
 		final ReflectedReferenceSchema deserialized = roundTripReflectedReferenceSchema(kryo, withEmptyBucketed);
 
 		// the bucketed maps should be empty after round-trip
 		assertTrue(deserialized.getAllHistogramIndexDefinitions().isEmpty());
 		assertTrue(deserialized.getBucketedPartiallyInScopes().isEmpty());
-		// verify the non-inherited flag survives the round-trip
-		assertFalse(deserialized.isBucketedInherited(), "deserialized bucketedInherited");
 	}
 
 	/**
@@ -346,16 +339,15 @@ class SchemaSerializationServiceTest {
 
 	/**
 	 * Creates a base {@link ReflectedReferenceSchema} suitable for bucketed serialization tests.
-	 * The returned schema always has {@code bucketedInherited = true} (default). Callers can
-	 * subsequently call {@link ReflectedReferenceSchema#withBucketed(Map)} to flip it to non-inherited.
+	 * The returned schema has no bucketed configuration. Callers can subsequently call
+	 * {@link ReflectedReferenceSchema#withBucketed(Map)} to add explicit bucketed settings.
 	 *
-	 * @return a new reflected reference schema with inherited bucketed state
+	 * @return a new reflected reference schema without bucketed configuration
 	 */
 	@Nonnull
 	private static ReflectedReferenceSchema createBaseReflectedReferenceSchema() {
 		final Map<Scope, ReferenceIndexType> indexedInScopes = new EnumMap<>(Scope.class);
 		indexedInScopes.put(Scope.LIVE, ReferenceIndexType.FOR_FILTERING);
-		// the _internalBuild overload with only indexed/faceted parameters always sets bucketedInherited=true
 		return ReflectedReferenceSchema._internalBuild(
 			"referencedInCategories",
 			NamingConvention.generate("referencedInCategories"),

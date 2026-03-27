@@ -163,15 +163,10 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;
   // Per-scope expressions that narrow which entities participate in faceting.
   repeated GrpcScopedFacetedPartially facetedPartially = 16;
-  // when set to true, the value of `bucketedInScopes` field is ignored and the settings are inherited
-  // from the original reference.
-  bool bucketedInherited = 17;
   // Per-scope bucketed histogram configurations defining index name and value expression.
-  // When `bucketedInherited` is true, this field is ignored.
-  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 18;
+  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;
   // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-  // When `bucketedInherited` is true, this field is ignored.
-  repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 19;
+  repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
@@ -310,15 +305,10 @@ message GrpcSetReferenceSchemaFacetedMutation {
 message GrpcSetReferenceSchemaBucketedMutation {
   // Name of the reference the mutation is targeting.
   string name = 1;
-  // Set to true when the bucketed property should be inherited from the original.
-  // This property makes sense only for reflected references. For all other cases it
-  // must be left as false. When set to TRUE the bucketed fields are ignored.
-  bool inherited = 2;
   // Per-scope bucketed histogram configurations defining index name and value expression.
-  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 3;
+  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 2;
   // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
-  // When absent (not set), expressions are inherited for reflected references.
-  repeated GrpcScopedBucketedPartially bucketedPartially = 4;
+  repeated GrpcScopedBucketedPartially bucketedPartially = 3;
 }
 
 // Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.

@@ -231,6 +231,7 @@ Include the new field in all three methods on the DTO.
 - [ ] Contract getter methods implemented
 - [ ] Static converter/resolver methods added (scope-aware fields)
 - [ ] Both `_internalBuild()` overloads updated
+- [ ] **All callers of `_internalBuild()` updated** — grep for `_internalBuild(` across the entire `evita_api` module; every call that reconstructs the schema must pass the new parameter (see Pitfall #10)
 - [ ] `equals()` / `hashCode()` / `toString()` updated
 - [ ] *(ReferenceSchema only)* Reflected DTO inheritance resolution added
 
@@ -949,6 +950,8 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 
 5. **`_internalBuild()` overload mismatch.** There are typically two forms: array-based (for mutations/serializers) and map-based (for internal construction). Ensure both are updated and parameter order is consistent.
 
+   **CRITICAL: Also update all callers.** Adding a parameter to `_internalBuild()` is not enough — many mutations reconstruct the schema (e.g., attribute mutations like `CreateAttributeSchemaMutation`, `RemoveAttributeSchemaMutation`, `SetAttributeSchemaFilterableMutation`, and sortable compound mutations). These call `_internalBuild()` with all fields from the existing `referenceSchema` to rebuild it. If they still call the OLD overload (missing the new parameter), the new field is **silently dropped** whenever the mutation is applied. Grep for all `SchemaType._internalBuild(` calls across the entire `evita_api` module and verify each passes the new parameter.
+
 6. **Boolean flag for nullable serialization.** In Kryo serializers, always write a boolean flag before nullable/optional fields. Read must match: `input.readBoolean() ? readValue() : null`. Forgetting the flag causes deserialization offset errors.
 
 7. **Backward-compat serializer read order.** The old serializer must read fields in exactly the order the old version wrote them. Do not read the new field — it doesn't exist in old data.
@@ -960,6 +963,8 @@ Groups A, B, and C can run concurrently. Within Group A, the three external APIs
 10. **gRPC empty-list vs null.** In proto3, unset `repeated` fields are empty lists. Converters must treat empty list as `null` (not provided) to distinguish "not set" from "explicitly empty."
 
 11. **External API backward compatibility.** All three web APIs (gRPC, GraphQL, REST) must handle requests that omit the new field. Converters must supply a sensible default or `null` for the missing field. Test with payloads that don't include the new field.
+
+12. **`_internalBuild()` callers silently drop new fields.** When you add a parameter to `_internalBuild()`, every existing CALLER that reconstructs the schema via `_internalBuild()` will still compile against the OLD overload (which lacks the new parameter). The new field is **silently dropped** — no compiler error, no runtime error, just missing data. This is especially dangerous for `ReferenceSchema` which is rebuilt by ~12 attribute and sortable-compound mutations (e.g., `CreateAttributeSchemaMutation.mutate()`, `RemoveAttributeSchemaMutation.mutate()`, `ReferenceAttributeSchemaMutation`, etc.). **Always grep for `SchemaType._internalBuild(` across the entire `evita_api` module and verify every call site passes the new parameter.** A regression test that calls `.withAttribute(...).bucketed(...)` (or equivalent) will catch this — the attribute mutation's `_internalBuild()` call will drop the new field if not updated.
 
 12. **Enum registration order in Kryo configurers.** New registrations must be appended at the end (before the assertion) to maintain stable index numbering. Never insert in the middle — it shifts all subsequent indices and breaks deserialization.
 

@@ -37,7 +37,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.mutation.DependencyType;
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -213,7 +213,7 @@ public class ReferenceTypeCardinalityIndex
 	 * `REFERENCED_GROUP_ENTITY_TYPE` index these are the group entity PKs; for a `REFERENCED_ENTITY_TYPE`
 	 * index these are the referenced (facet) entity PKs.
 	 *
-	 * Used by ReevaluateFacetExpressionExecutor to iterate all groups when resolving group PKs for
+	 * Used by ReevaluateExpressionExecutor to iterate all groups when resolving group PKs for
 	 * {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} dependencies on grouped references.
 	 *
 	 * @return unmodifiable set of all tracked referenced entity primary keys

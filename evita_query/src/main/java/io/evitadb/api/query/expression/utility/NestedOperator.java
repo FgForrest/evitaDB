@@ -24,15 +24,12 @@
 package io.evitadb.api.query.expression.utility;
 
 
-import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.api.query.expression.AbstractUnaryOperator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,43 +45,29 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EqualsAndHashCode
-public class NestedOperator implements ExpressionNode {
+@EqualsAndHashCode(callSuper = true)
+public class NestedOperator extends AbstractUnaryOperator {
 	@Serial private static final long serialVersionUID = 1706903340400175650L;
-	private final ExpressionNode operator;
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public NestedOperator(@Nonnull ExpressionNode operator) {
-		Assert.isTrue(
-			operator != null,
-			() -> new ParserException("Nested operator must have at least one operand!")
-		);
-		this.operator = operator;
-		this.children = new ExpressionNode[]{this.operator};
+		super(operator);
 	}
 
 	@Nullable
 	@Override
 	public Serializable compute(@Nonnull ExpressionEvaluationContext context) {
-		return this.operator.compute(context);
+		return getOperand().compute(context);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return this.operator.determinePossibleRange();
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
+		return getOperand().determinePossibleRange();
 	}
 
 	@Override
 	public String toString() {
-		return "(" + this.operator.toString() + ")";
+		return "(" + getOperand() + ")";
 	}
 
 }

@@ -24,16 +24,15 @@
 package io.evitadb.api.query.expression.bool;
 
 
+import io.evitadb.api.query.expression.AbstractBinaryOperator;
 import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -46,27 +45,25 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EqualsAndHashCode
-public class NotEqualsOperator implements BooleanOperator {
+@EqualsAndHashCode(callSuper = true)
+public class NotEqualsOperator extends AbstractBinaryOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = -3906474600354280068L;
-	private final ExpressionNode leftOperator;
-	private final ExpressionNode rightOperator;
-
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public NotEqualsOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
-		this.leftOperator = leftOperator;
-		this.rightOperator = rightOperator;
-		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
+		super(leftOperator, rightOperator);
+	}
+
+	@Nonnull
+	@Override
+	protected String getOperatorSymbol() {
+		return "!=";
 	}
 
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull ExpressionEvaluationContext context) {
-		final Serializable value1 = this.leftOperator.compute(context);
-		final Serializable value2 = this.rightOperator.compute(context);
+		final Serializable value1 = getLeftOperand().compute(context);
+		final Serializable value2 = getRightOperand().compute(context);
 		if (value1 == null && value2 == null) {
 			return false;
 		}
@@ -92,15 +89,5 @@ public class NotEqualsOperator implements BooleanOperator {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return BigDecimalNumberRange.INFINITE;
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
-	}
-
-	@Override
-	public String toString() {
-		return this.leftOperator + " != " + this.rightOperator;
 	}
 }

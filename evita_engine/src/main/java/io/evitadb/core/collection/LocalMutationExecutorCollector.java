@@ -51,7 +51,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
-import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;

@@ -39,6 +39,7 @@ import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePartKey;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -298,6 +299,32 @@ public class DataStoreChanges {
 				return index;
 			}
 		);
+	}
+
+	/**
+	 * Method checks and returns the requested index from the local "dirty" memory by its storage primary key.
+	 * If it isn't there, it's fetched using `accessorWhenMissing` and — unlike
+	 * {@link #getIndexIfExists(int, IntFunction)} — stored into the "dirty" memory before returning.
+	 * This ensures that any subsequent modifications to the returned index will be captured by
+	 * {@link #popTrappedUpdates()}.
+	 */
+	@Nonnull
+	public <IK extends IndexKey, I extends Index<IK>> I getIndexForModification(int indexPrimaryKey, @Nonnull IntFunction<I> accessorWhenMissing) {
+		//noinspection unchecked
+		final I existing = (I) this.dirtyEntityIndexesByPk.get(indexPrimaryKey);
+		if (existing != null) {
+			return existing;
+		}
+		final I index = accessorWhenMissing.apply(indexPrimaryKey);
+		Assert.isPremiseValid(
+			index != null,
+			() -> "Index with primary key " + indexPrimaryKey + " was not found in the persistent storage and cannot be registered for modification."
+		);
+		this.dirtyEntityIndexes.put(index.getIndexKey(), index);
+		if (index instanceof EntityIndex entityIndex) {
+			this.dirtyEntityIndexesByPk.put(entityIndex.getPrimaryKey(), index);
+		}
+		return index;
 	}
 
 	/**

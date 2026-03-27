@@ -41,6 +41,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import lombok.RequiredArgsConstructor;
 
@@ -110,6 +111,13 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		for (String referenceName : facetIndexes) {
 			output.writeVarInt(this.keyCompressor.getId(new ReferenceNameKey(referenceName)), true);
 		}
+
+		final Set<HistogramIndexStorageKey> histogramIndexes = entityIndex.getHistogramIndexes();
+		output.writeVarInt(histogramIndexes.size(), true);
+		for (HistogramIndexStorageKey histogramKey : histogramIndexes) {
+			output.writeString(histogramKey.histogramName());
+			kryo.writeObjectOrNull(output, histogramKey.locale(), Locale.class);
+		}
 	}
 
 	@Override
@@ -162,12 +170,23 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			facetIndexes.add(key.referenceName());
 		}
 
+		final int histogramIndexesCount = input.readVarInt(true);
+		final Set<HistogramIndexStorageKey> histogramIndexes = createHashSet(histogramIndexesCount);
+		for (int i = 0; i < histogramIndexesCount; i++) {
+			final String histogramName = input.readString();
+			final Locale locale = kryo.readObjectOrNull(input, Locale.class);
+			histogramIndexes.add(new HistogramIndexStorageKey(
+				entityIndexKey, histogramName, locale
+			));
+		}
+
 		return new EntityIndexStoragePart(
 			primaryKey, version, entityIndexKey,
 			entityIds, entityIdsByLocale,
 			attributeIndexes,
 			priceIndexes,
-			hierarchyIndex, facetIndexes
+			hierarchyIndex, facetIndexes,
+			histogramIndexes
 		);
 	}
 }

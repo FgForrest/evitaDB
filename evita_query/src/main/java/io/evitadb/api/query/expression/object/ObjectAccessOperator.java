@@ -23,12 +23,13 @@
 
 package io.evitadb.api.query.expression.object;
 
+import io.evitadb.api.query.expression.AbstractUnaryOperator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import io.evitadb.exception.ExpressionEvaluationException;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -47,44 +48,36 @@ import java.io.Serializable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-public class ObjectAccessOperator implements ExpressionNode {
+@EqualsAndHashCode(callSuper = true)
+public class ObjectAccessOperator extends AbstractUnaryOperator {
 
 	@Serial private static final long serialVersionUID = 2269901980432598797L;
 
-	@Nonnull private final ExpressionNode operandOperator;
 	@Nonnull @Getter private final ObjectAccessStep accessChain;
-	@Getter
-	private final ExpressionNode[] children;
 
 	public ObjectAccessOperator(
 		@Nonnull ExpressionNode operandOperator,
 		@Nonnull ObjectAccessStep accessChain
 	) {
-		this.operandOperator = operandOperator;
+		super(operandOperator);
 		this.accessChain = accessChain;
-		this.children = new ExpressionNode[]{this.operandOperator};
 	}
 
 	@Nullable
 	@Override
 	public Serializable compute(@Nonnull ExpressionEvaluationContext context) throws ExpressionEvaluationException {
-		final Serializable operand = this.operandOperator.compute(context);
+		final Serializable operand = getOperand().compute(context);
 		return this.accessChain.compute(context, operand);
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return this.operandOperator.determinePossibleRange();
+		return getOperand().determinePossibleRange();
 	}
 
 	@Override
 	public String toString() {
-		return this.operandOperator.toString() + this.accessChain.toString();
+		return getOperand().toString() + this.accessChain;
 	}
 }

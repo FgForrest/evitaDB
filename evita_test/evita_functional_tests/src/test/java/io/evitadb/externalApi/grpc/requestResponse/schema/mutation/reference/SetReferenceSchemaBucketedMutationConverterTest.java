@@ -118,12 +118,13 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 	}
 
 	/**
-	 * Verifies that an inherited mutation (null bucketedInScopes) round-trips with
-	 * both bucketedInScopes and bucketedPartiallyInScopes as null via the inherited flag.
+	 * Verifies that a mutation with null bucketed fields round-trips with
+	 * both bucketedInScopes and bucketedPartiallyInScopes coalesced to EMPTY
+	 * (bucketed is not an inheritable property).
 	 */
 	@Test
-	@DisplayName("should round-trip inherited mutation")
-	void shouldRoundTripInheritedMutation() {
+	@DisplayName("should round-trip null bucketed fields as EMPTY")
+	void shouldRoundTripNullBucketedFieldsAsEmpty() {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
 			(ScopedHistogramIndexDefinition[]) null,
@@ -132,8 +133,10 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 
 		final SetReferenceSchemaBucketedMutation roundTripped = converter.convert(converter.convert(mutation));
 
-		assertNull(roundTripped.getBucketedInScopes());
-		assertNull(roundTripped.getBucketedPartiallyInScopes());
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(0, roundTripped.getBucketedInScopes().length);
+		assertNotNull(roundTripped.getBucketedPartiallyInScopes());
+		assertEquals(0, roundTripped.getBucketedPartiallyInScopes().length);
 	}
 
 	/**
@@ -262,28 +265,28 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 	}
 
 	/**
-	 * Verifies that a mutation with inherited bucketed (null bucketedInScopes) but explicit
-	 * bucketedPartially survives round-trip. The domain model supports this combination:
-	 * the bucketed histogram definitions are inherited from the reflected reference, but
-	 * the bucketedPartially filter expressions are set explicitly.
+	 * Verifies that a mutation with null bucketedInScopes but explicit bucketedPartially
+	 * round-trips with bucketedInScopes coalesced to EMPTY (bucketed is not inheritable)
+	 * and bucketedPartially preserved.
 	 */
 	@Test
-	@DisplayName("should round-trip inherited bucketed with explicit bucketedPartially")
-	void shouldRoundTripInheritedBucketedWithExplicitBucketedPartially() {
+	@DisplayName("should round-trip null bucketed with explicit bucketedPartially")
+	void shouldRoundTripNullBucketedWithExplicitBucketedPartially() {
 		final Expression partialExpression = ExpressionFactory.parse("$active == 1");
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
-			(ScopedHistogramIndexDefinition[]) null,  // inherited bucketed
-			new ScopedBucketedPartially[]{             // explicit bucketedPartially
+			(ScopedHistogramIndexDefinition[]) null,
+			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, partialExpression)
 			}
 		);
 
 		final SetReferenceSchemaBucketedMutation roundTripped = converter.convert(converter.convert(mutation));
 
-		// bucketedInScopes should remain null (inherited)
-		assertNull(roundTripped.getBucketedInScopes(),
-			"bucketedInScopes should be null (inherited) after round-trip");
+		// bucketedInScopes coalesces to EMPTY (bucketed is not inheritable)
+		assertNotNull(roundTripped.getBucketedInScopes(),
+			"bucketedInScopes should be EMPTY after round-trip");
+		assertEquals(0, roundTripped.getBucketedInScopes().length);
 		// bucketedPartiallyInScopes should be preserved
 		assertNotNull(roundTripped.getBucketedPartiallyInScopes(),
 			"bucketedPartiallyInScopes should not be null after round-trip");
