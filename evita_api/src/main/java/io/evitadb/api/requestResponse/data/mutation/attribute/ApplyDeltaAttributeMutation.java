@@ -140,7 +140,7 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 		final T newValue;
 		if (existingValue instanceof BigDecimal) {
 			//noinspection unchecked
-			newValue = (T) ((BigDecimal) existingValue).add((BigDecimal) this.delta).stripTrailingZeros();
+			newValue = (T) ((BigDecimal) existingValue).add((BigDecimal) this.delta);
 		} else if (existingValue instanceof Byte) {
 			//noinspection unchecked
 			newValue = (T) (Byte.valueOf((byte)((byte) existingValue + (byte) this.delta)));

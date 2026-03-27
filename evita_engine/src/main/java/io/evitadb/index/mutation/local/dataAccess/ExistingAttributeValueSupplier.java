@@ -26,8 +26,11 @@ package io.evitadb.index.mutation.local.dataAccess;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Optional;
@@ -92,5 +95,61 @@ public interface ExistingAttributeValueSupplier {
 	 */
 	@Nonnull
 	Stream<AttributeValue> getAttributeValues(@Nonnull Locale locale);
+
+	/**
+	 * Wraps the given supplier so that every {@link AttributeValue} returned by
+	 * {@link #getAttributeValue}, {@link #getAttributeValues()}, and
+	 * {@link #getAttributeValues(Locale)} has its `BigDecimal` values normalized
+	 * via {@link NumberUtils#normalize(BigDecimal)} (i.e. trailing zeros stripped).
+	 * This ensures that all values flowing into indexes use a canonical form,
+	 * while the original entity body on disk remains untouched.
+	 *
+	 * @param delegate the original supplier to wrap
+	 * @return a normalizing decorator over `delegate`
+	 */
+	@Nonnull
+	static ExistingAttributeValueSupplier normalizing(@Nonnull ExistingAttributeValueSupplier delegate) {
+		return new ExistingAttributeValueSupplier() {
+			@Nonnull
+			@Override
+			public Set<Locale> getEntityExistingAttributeLocales() {
+				return delegate.getEntityExistingAttributeLocales();
+			}
+
+			@Nonnull
+			@Override
+			public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
+				return delegate.getAttributeValue(attributeKey).map(ExistingAttributeValueSupplier::normalizeAttributeValue);
+			}
+
+			@Nonnull
+			@Override
+			public Stream<AttributeValue> getAttributeValues() {
+				return delegate.getAttributeValues().map(ExistingAttributeValueSupplier::normalizeAttributeValue);
+			}
+
+			@Nonnull
+			@Override
+			public Stream<AttributeValue> getAttributeValues(@Nonnull Locale locale) {
+				return delegate.getAttributeValues(locale).map(ExistingAttributeValueSupplier::normalizeAttributeValue);
+			}
+		};
+	}
+
+	/**
+	 * Normalizes `BigDecimal` values inside an {@link AttributeValue} by stripping trailing zeros.
+	 * Returns the original instance unchanged if no normalization is needed.
+	 */
+	@Nonnull
+	private static AttributeValue normalizeAttributeValue(@Nonnull AttributeValue attributeValue) {
+		final Serializable value = attributeValue.value();
+		if (value instanceof BigDecimal bd) {
+			final BigDecimal normalized = NumberUtils.normalize(bd);
+			if (normalized != bd) {
+				return new AttributeValue(attributeValue.version(), attributeValue.key(), normalized);
+			}
+		}
+		return attributeValue;
+	}
 
 }

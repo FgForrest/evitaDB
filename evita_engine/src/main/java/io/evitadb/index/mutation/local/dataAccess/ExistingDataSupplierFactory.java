@@ -38,6 +38,18 @@ public sealed interface ExistingDataSupplierFactory
 	permits EntityExistingDataFactory, EntityStoragePartExistingDataFactory {
 
 	/**
+	 * Provides an {@link ExistingAttributeValueSupplier} instance that supplies existing attribute values
+	 * from an entity with `BigDecimal` values normalized via
+	 * {@link ExistingAttributeValueSupplier#normalizing(ExistingAttributeValueSupplier)}.
+	 *
+	 * @return a normalizing instance of {@link ExistingAttributeValueSupplier}
+	 */
+	@Nonnull
+	default ExistingAttributeValueSupplier getNormalizedEntityAttributeValueSupplier() {
+		return ExistingAttributeValueSupplier.normalizing(getEntityAttributeValueSupplier());
+	}
+
+	/**
 	 * Provides an {@link ExistingAttributeValueSupplier} instance that supplies existing attribute values from an entity.
 	 *
 	 * @return an instance of {@link ExistingAttributeValueSupplier} which can be used to retrieve attribute values of an entity.
@@ -55,6 +67,21 @@ public sealed interface ExistingDataSupplierFactory
 
 	/**
 	 * Provides an {@link ExistingAttributeValueSupplier} instance for retrieving attribute values defined on
+	 * a particular reference, with `BigDecimal` values normalized via
+	 * {@link ExistingAttributeValueSupplier#normalizing(ExistingAttributeValueSupplier)}.
+	 *
+	 * @param referenceKey the unique identifier of the reference
+	 * @return a normalizing instance of {@link ExistingAttributeValueSupplier}
+	 */
+	@Nonnull
+	default ExistingAttributeValueSupplier getNormalizedReferenceAttributeValueSupplier(
+		@Nonnull ReferenceKey referenceKey
+	) {
+		return ExistingAttributeValueSupplier.normalizing(getReferenceAttributeValueSupplier(referenceKey));
+	}
+
+	/**
+	 * Provides an {@link ExistingAttributeValueSupplier} instance for retrieving attribute values defined on
 	 * a particular reference.
 	 *
 	 * @param referenceKey the unique identifier of the reference from which attribute values are to be retrieved.
@@ -63,6 +90,21 @@ public sealed interface ExistingDataSupplierFactory
 	 */
 	@Nonnull
 	ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey);
+
+	/**
+	 * Provides an {@link ExistingAttributeValueSupplier} instance for retrieving attribute values defined on
+	 * a particular reference, with `BigDecimal` values normalized via
+	 * {@link ExistingAttributeValueSupplier#normalizing(ExistingAttributeValueSupplier)}.
+	 *
+	 * @param referenceKey the unique identifier of the reference
+	 * @return a normalizing instance of {@link ExistingAttributeValueSupplier}
+	 */
+	@Nonnull
+	default ExistingAttributeValueSupplier getNormalizedReferenceAttributeValueSupplier(
+		@Nonnull RepresentativeReferenceKey referenceKey
+	) {
+		return ExistingAttributeValueSupplier.normalizing(getReferenceAttributeValueSupplier(referenceKey));
+	}
 
 	/**
 	 * Provides an {@link ExistingAttributeValueSupplier} instance for retrieving attribute values defined on

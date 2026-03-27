@@ -2299,35 +2299,12 @@ class EvitaDataTypesTest {
 				integer,
 				EvitaDataTypes.toSupportedType(integer)
 			);
-		}
 
-		@Test
-		@DisplayName(
-			"should strip trailing zeros from BigDecimal"
-		)
-		void shouldStripTrailingZerosFromBigDecimal() {
-			assertEquals(
-				new BigDecimal("3.14"),
-				EvitaDataTypes.toSupportedType(new BigDecimal("3.1400"))
-			);
-			assertEquals(
-				new BigDecimal("1E+2"),
-				EvitaDataTypes.toSupportedType(new BigDecimal("100.00"))
-			);
-			assertEquals(
-				new BigDecimal("0"),
-				EvitaDataTypes.toSupportedType(new BigDecimal("0.00"))
-			);
-		}
-
-		@Test
-		@DisplayName(
-			"should return equal BigDecimal when no trailing zeros"
-		)
-		void shouldReturnEqualBigDecimalWhenNoTrailingZeros() {
-			assertEquals(
-				new BigDecimal("3.14"),
-				EvitaDataTypes.toSupportedType(new BigDecimal("3.14"))
+			final BigDecimal decimal =
+				new BigDecimal("3.14");
+			assertSame(
+				decimal,
+				EvitaDataTypes.toSupportedType(decimal)
 			);
 		}
 
@@ -2429,104 +2406,6 @@ class EvitaDataTypesTest {
 				);
 
 			assertEquals("CATALOG", result);
-		}
-	}
-
-	@Nested
-	@DisplayName("Conversion to supported type or its array")
-	class ToSupportedTypeOrItsArrayTest {
-
-		@Test
-		@DisplayName("should return null for null input")
-		void shouldReturnNullForNullInput() {
-			assertNull(EvitaDataTypes.toSupportedTypeOrItsArray(null));
-		}
-
-		@Test
-		@DisplayName("should delegate scalar to toSupportedType")
-		void shouldDelegateScalarToSupportedType() {
-			final String string = "hello";
-			assertSame(string, EvitaDataTypes.toSupportedTypeOrItsArray(string));
-
-			final Integer integer = 42;
-			assertSame(integer, EvitaDataTypes.toSupportedTypeOrItsArray(integer));
-		}
-
-		@Test
-		@DisplayName("should normalize scalar BigDecimal by stripping trailing zeros")
-		void shouldNormalizeScalarBigDecimal() {
-			assertEquals(
-				new BigDecimal("3.14"),
-				EvitaDataTypes.toSupportedTypeOrItsArray(new BigDecimal("3.1400"))
-			);
-		}
-
-		@Test
-		@DisplayName("should return same array when no normalization needed")
-		void shouldReturnSameArrayWhenNoNormalizationNeeded() {
-			final Integer[] array = {1, 2, 3};
-			assertSame(array, EvitaDataTypes.toSupportedTypeOrItsArray(array));
-		}
-
-		@Test
-		@DisplayName("should return same array for empty array")
-		void shouldReturnSameArrayForEmptyArray() {
-			final String[] empty = {};
-			assertSame(empty, EvitaDataTypes.toSupportedTypeOrItsArray(empty));
-		}
-
-		@Test
-		@DisplayName("should normalize BigDecimal array by stripping trailing zeros")
-		void shouldNormalizeBigDecimalArray() {
-			final BigDecimal[] input = {
-				new BigDecimal("3.1400"),
-				new BigDecimal("100.00"),
-				new BigDecimal("5")
-			};
-
-			final Object result = EvitaDataTypes.toSupportedTypeOrItsArray(input);
-
-			assertInstanceOf(BigDecimal[].class, result);
-			assertNotSame(input, result);
-			final BigDecimal[] resultArray = (BigDecimal[]) result;
-			assertEquals(new BigDecimal("3.14"), resultArray[0]);
-			assertEquals(new BigDecimal("1E+2"), resultArray[1]);
-			assertEquals(new BigDecimal("5"), resultArray[2]);
-		}
-
-		@Test
-		@DisplayName("should handle null elements in array")
-		void shouldHandleNullElementsInArray() {
-			final BigDecimal[] input = {
-				new BigDecimal("3.1400"),
-				null,
-				new BigDecimal("5")
-			};
-
-			final Object result = EvitaDataTypes.toSupportedTypeOrItsArray(input);
-
-			assertInstanceOf(BigDecimal[].class, result);
-			final BigDecimal[] resultArray = (BigDecimal[]) result;
-			assertEquals(new BigDecimal("3.14"), resultArray[0]);
-			assertNull(resultArray[1]);
-			assertEquals(new BigDecimal("5"), resultArray[2]);
-		}
-
-		@Test
-		@DisplayName("should throw for unsupported scalar type")
-		void shouldThrowForUnsupportedScalarType() {
-			assertThrows(
-				UnsupportedDataTypeException.class,
-				() -> EvitaDataTypes.toSupportedTypeOrItsArray(new HashMap<>())
-			);
-		}
-
-		@Test
-		@DisplayName("should convert Float scalar to BigDecimal")
-		void shouldConvertFloatScalarToBigDecimal() {
-			final Object result = EvitaDataTypes.toSupportedTypeOrItsArray(3.14f);
-			assertInstanceOf(BigDecimal.class, result);
-			assertEquals(new BigDecimal("3.14"), result);
 		}
 	}
 

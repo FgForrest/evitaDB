@@ -134,7 +134,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(code, product.getAttribute(ATTRIBUTE_CODE));
 		assertEquals(name, product.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE));
 		assertEquals(theEnum, TestEnum.valueOf(product.getAttribute(ATTRIBUTE_ENUM)));
-		assertEquals(0, quantity.compareTo(product.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class)));
+		assertEquals(quantity, product.getAttribute(ATTRIBUTE_QUANTITY));
 		assertEquals(priority, product.getAttribute(ATTRIBUTE_PRIORITY));
 		assertTrue(product.getAttribute(ATTRIBUTE_ALIAS, Boolean.class));
 		if (optionallyAvailable) {
@@ -252,7 +252,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(entityCode, modifiedInstance.getCode());
 		assertEquals(entityName, modifiedInstance.getName(CZECH_LOCALE));
 		assertEquals(TestEnum.ONE, modifiedInstance.getEnum());
-		assertEquals(0, BigDecimal.TEN.compareTo(modifiedInstance.getQuantity()));
+		assertEquals(BigDecimal.TEN, modifiedInstance.getQuantity());
 		assertTrue(modifiedInstance.isOptionallyAvailable());
 		assertArrayEquals(new String[]{"market-1", "market-2"}, modifiedInstance.getMarketsAttribute());
 		assertArrayEquals(new String[]{"market-3", "market-4"}, modifiedInstance.getMarkets());

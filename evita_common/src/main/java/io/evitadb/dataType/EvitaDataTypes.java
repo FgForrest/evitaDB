@@ -903,9 +903,6 @@ public class EvitaDataTypes {
 			}
 			// normalize doubles to big decimal
 			return new BigDecimal(unknownObject.toString());
-		} else if (unknownObject instanceof BigDecimal bd) {
-			// normalize BigDecimal by stripping trailing zeros for consistent equality semantics
-			return bd.stripTrailingZeros();
 		} else if (unknownObject instanceof LocalDateTime) {
 			// always convert local date time to zoned
 			return ((LocalDateTime) unknownObject).atOffset(ZoneOffset.UTC);

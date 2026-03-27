@@ -50,6 +50,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -557,8 +558,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns bitmap of all record ids connected with the value in the argument
 	 */
 	@Nonnull
-	public <T> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
-		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
+	public <T extends Serializable> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
+		final T normalized = (T) NumberUtils.normalizeIfBigDecimal(attributeValue);
+		return ofNullable(getValueIndex().get(this.normalizer.apply(normalized)))
 			.map(this.invertedIndex::getRecordsAtIndex)
 			.orElse(EmptyBitmap.INSTANCE);
 	}
@@ -567,8 +569,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns bitmap of all record ids connected with the value in the argument
 	 */
 	@Nonnull
-	public <T> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
-		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
+	public <T extends Serializable> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
+		final T normalized = (T) NumberUtils.normalizeIfBigDecimal(attributeValue);
+		return ofNullable(getValueIndex().get(this.normalizer.apply(normalized)))
 			.map(it -> (Formula) new ConstantFormula(this.invertedIndex.getRecordsAtIndex(it)))
 			.orElse(EmptyFormula.INSTANCE);
 	}

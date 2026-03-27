@@ -99,6 +99,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesSt
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -441,7 +442,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (attributeValue == null || attributeValue.dropped()) {
 			return null;
 		}
-		return attributeValue.value();
+		return NumberUtils.normalizeIfBigDecimal(attributeValue.value());
 	}
 
 	/**
@@ -778,7 +779,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				null,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
-				getStoragePartExistingDataFactory().getEntityAttributeValueSupplier(),
+				getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier(),
 				this.undoActionsAppender
 			);
 
@@ -953,7 +954,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						ReferenceIndexMutator.addHistogramToIndex(
 							this, referenceKey, groupPK, entityPK,
 							getStoragePartExistingDataFactory()
-								.getReferenceAttributeValueSupplier(referenceKey),
+								.getNormalizedReferenceAttributeValueSupplier(referenceKey),
 							scope
 						);
 					}
@@ -971,7 +972,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
 		final ExistingAttributeValueSupplier entityAttributeValueSupplier =
-			getStoragePartExistingDataFactory().getEntityAttributeValueSupplier();
+			getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier();
 		final QuadriConsumer<Boolean, EntityIndex, EntityIndex, ReferenceSchemaContract> attributeUpdateApplicator =
 			(updateGlobalIndex, indexForRemoval, indexForUpsert, theReferenceSchema) -> updateAttribute(
 				theReferenceSchema,
@@ -1676,7 +1677,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
-				existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+				existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier(),
 				undoActionConsumer
 			);
 		}
@@ -1727,7 +1728,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
-				existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+				existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier(),
 				undoActionConsumer
 			);
 		}
@@ -1768,7 +1769,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				null,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
-				getStoragePartExistingDataFactory().getEntityAttributeValueSupplier(),
+				getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier(),
 				this.undoActionsAppender
 			);
 		}
@@ -1903,7 +1904,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						this,
 						null,
 						new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
-						existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+						existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier(),
 						globalIndex,
 						globalIndex,
 						key,
@@ -2657,7 +2658,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			deferExpressionReEvaluation(
 				() -> ReferenceIndexMutator.addHistogramToIndex(
 					this, referenceKey, null, epk,
-					getStoragePartExistingDataFactory().getReferenceAttributeValueSupplier(referenceKey),
+					getStoragePartExistingDataFactory().getNormalizedReferenceAttributeValueSupplier(referenceKey),
 					scope
 				)
 			);
@@ -2783,7 +2784,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.addHistogramToIndex(
 					this, referenceKey, newGroupPK, epk,
 					getStoragePartExistingDataFactory()
-						.getReferenceAttributeValueSupplier(referenceKey),
+						.getNormalizedReferenceAttributeValueSupplier(referenceKey),
 					scope
 				);
 			});

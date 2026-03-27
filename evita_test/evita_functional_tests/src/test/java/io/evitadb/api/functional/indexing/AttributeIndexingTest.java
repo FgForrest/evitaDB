@@ -47,6 +47,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Locale;
 
@@ -60,8 +61,11 @@ import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAllWithAttributes;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -1086,6 +1090,133 @@ class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 			);
 		}
 
+	}
+
+	@Nested
+	@DisplayName("BigDecimal normalization in indexes")
+	class BigDecimalNormalizationTest {
+
+		private static final String ATTRIBUTE_PRICE = "price";
+
+		@Test
+		@DisplayName("Should preserve original BigDecimal scale in stored entity but find it via scale-different query")
+		void shouldPreserveStoredBigDecimalButNormalizeInIndex() {
+			final BigDecimal storedValue = new BigDecimal("99.90");
+			final BigDecimal queryValue = new BigDecimal("99.9");
+
+			// verify these are compareTo-equal but equals-different
+			assertEquals(0, storedValue.compareTo(queryValue));
+			assertFalse(storedValue.equals(queryValue));
+
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateEntitySchema(
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withAttribute(ATTRIBUTE_PRICE, BigDecimal.class, AttributeSchemaEditor::filterable)
+					);
+
+					session
+						.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_PRICE, storedValue)
+						.upsertVia(session);
+				}
+			);
+
+			AttributeIndexingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// the stored value must preserve the original scale
+					final SealedEntity entity = session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(attributeEquals(ATTRIBUTE_PRICE, storedValue)),
+							require(entityFetchAll())
+						)
+					).orElseThrow();
+					final BigDecimal retrieved = entity.getAttribute(ATTRIBUTE_PRICE, BigDecimal.class);
+					assertNotNull(retrieved);
+					assertEquals(storedValue, retrieved);
+
+					// querying with a scale-different BigDecimal must also find the entity
+					final SealedEntity entityViaAlternateScale = session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(attributeEquals(ATTRIBUTE_PRICE, queryValue)),
+							require(entityFetchAll())
+						)
+					).orElseThrow();
+					assertEquals(1, entityViaAlternateScale.getPrimaryKey());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("Should correctly handle BigDecimal trailing zeros when updating attribute value")
+		void shouldHandleBigDecimalTrailingZerosOnUpdate() {
+			final BigDecimal originalValue = new BigDecimal("50.00");
+			final BigDecimal updatedValue = new BigDecimal("50.10");
+			final BigDecimal queryOriginal = new BigDecimal("50");
+			final BigDecimal queryUpdated = new BigDecimal("50.1");
+
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateEntitySchema(
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withAttribute(ATTRIBUTE_PRICE, BigDecimal.class, AttributeSchemaEditor::filterable)
+					);
+
+					session
+						.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_PRICE, originalValue)
+						.upsertVia(session);
+				}
+			);
+
+			// verify original can be found with scale-different query
+			AttributeIndexingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(
+						session.queryOneEntityReference(
+							query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_PRICE, queryOriginal)))
+						).isPresent()
+					);
+				}
+			);
+
+			// update the value
+			AttributeIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 1, attributeContentAll())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRICE, updatedValue)
+						.upsertVia(session);
+				}
+			);
+
+			// verify old value is no longer found and new value can be found with scale-different query
+			AttributeIndexingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertFalse(
+						session.queryOneEntityReference(
+							query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_PRICE, queryOriginal)))
+						).isPresent()
+					);
+					assertTrue(
+						session.queryOneEntityReference(
+							query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_PRICE, queryUpdated)))
+						).isPresent()
+					);
+				}
+			);
+		}
 	}
 
 }

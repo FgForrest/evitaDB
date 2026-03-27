@@ -277,4 +277,17 @@ public class NumberUtils {
 		return bigDecimal.stripTrailingZeros();
 	}
 
+	/**
+	 * Returns the value with `BigDecimal` trailing zeros stripped if the value is a `BigDecimal`;
+	 * otherwise returns the value unchanged. Used at the boundary between entity storage and
+	 * indexes to ensure consistent `BigDecimal` representation in index keys.
+	 *
+	 * @param value the serializable value to normalize
+	 * @return normalized value
+	 */
+	@Nonnull
+	public static Serializable normalizeIfBigDecimal(@Nonnull Serializable value) {
+		return value instanceof BigDecimal bd ? normalize(bd) : value;
+	}
+
 }

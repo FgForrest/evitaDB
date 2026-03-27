@@ -768,7 +768,7 @@ public interface ReferenceIndexMutator {
 
 		// use different existing attribute value accessor - attributes needs to be looked up in ReferencesStoragePart
 		final ExistingAttributeValueSupplier existingValueAccessorFactory = attributeSupplierFactory
-			.getReferenceAttributeValueSupplier(referenceKey);
+			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
 
 		// we access attributes and sortable compounds from the reference schema
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
@@ -883,7 +883,7 @@ public interface ReferenceIndexMutator {
 
 		// index all reference attributes to the reference type index
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
-			.getReferenceAttributeValueSupplier(referenceKey);
+			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
 
 		executor.executeWithDifferentPrimaryKeyToIndex(
 			(indexType, target) -> pkForReferenceTypeIndex,
@@ -1060,7 +1060,7 @@ public interface ReferenceIndexMutator {
 
 		// remove all reference attributes from the reference type index
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
-			.getReferenceAttributeValueSupplier(referenceKey);
+			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
 		executor.executeWithDifferentPrimaryKeyToIndex(
 			(indexType, target) -> pkForReferenceTypeIndex,
 			() -> referenceAttributeValueSupplier
@@ -1706,7 +1706,7 @@ public interface ReferenceIndexMutator {
 			final EntitySchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema);
 			final ExistingAttributeValueSupplier entityAttributeValueSupplier =
-				existingDataSupplierFactory.getEntityAttributeValueSupplier();
+				existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier();
 
 			primaryOp.apply(
 				executor, referenceSchema, targetIndex, locale, attributeSchemaProvider,
@@ -1726,7 +1726,7 @@ public interface ReferenceIndexMutator {
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider =
 			new ReferenceSchemaAttributeAndCompoundSchemaProvider(entitySchema, referenceSchema);
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier =
-			existingDataSupplierFactory.getReferenceAttributeValueSupplier(rrk);
+			existingDataSupplierFactory.getNormalizedReferenceAttributeValueSupplier(rrk);
 
 		primaryOp.apply(
 			executor, referenceSchema, targetIndex, locale, referenceSchemaAttributeProvider,
@@ -2019,7 +2019,7 @@ public interface ReferenceIndexMutator {
 			final EntitySchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema);
 
-			existingDataSupplierFactory.getEntityAttributeValueSupplier()
+			existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier()
 				.getAttributeValues()
 				.forEach(
 					attribute ->
@@ -2045,7 +2045,7 @@ public interface ReferenceIndexMutator {
 				entitySchema, referenceSchema
 			);
 
-		existingDataSupplierFactory.getReferenceAttributeValueSupplier(rrk)
+		existingDataSupplierFactory.getNormalizedReferenceAttributeValueSupplier(rrk)
 			.getAttributeValues()
 			.forEach(attribute ->
 				         executeWithProperPrimaryKey(
@@ -2270,14 +2270,14 @@ public interface ReferenceIndexMutator {
 			final EntitySchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema);
 
-			existingDataSupplierFactory.getEntityAttributeValueSupplier()
+			existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier()
 				.getAttributeValues()
 				.forEach(attribute ->
 					         AttributeIndexMutator.executeAttributeRemoval(
 						         executor,
 						         referenceSchema,
 						         attributeSchemaProvider,
-						         existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+						         existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier(),
 						         targetIndex,
 						         targetIndex,
 						         attribute.key(),
@@ -2295,7 +2295,7 @@ public interface ReferenceIndexMutator {
 			);
 
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
-			.getReferenceAttributeValueSupplier(rrk);
+			.getNormalizedReferenceAttributeValueSupplier(rrk);
 		referenceAttributeValueSupplier
 			.getAttributeValues()
 			.forEach(attribute ->

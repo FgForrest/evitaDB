@@ -175,9 +175,11 @@ public interface AttributeIndexMutator {
 			attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
 
-		final Serializable valueToInsert = Objects.requireNonNull(
-			EvitaDataTypes.toTargetType(
-				attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
+		final Serializable valueToInsert = NumberUtils.normalizeIfBigDecimal(
+			Objects.requireNonNull(
+				EvitaDataTypes.toTargetType(
+					attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
+			)
 		);
 
 		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
@@ -650,11 +652,9 @@ public interface AttributeIndexMutator {
 							attributeDefinition.getIndexedDecimalPlaces()
 						)
 					);
+					final Number sum = NumberUtils.sum((Number) oldValue, newValue);
 					//noinspection unchecked
-					return (T) NumberUtils.sum(
-						(Number) oldValue,
-						newValue
-					);
+					return (T) NumberUtils.normalizeIfBigDecimal(sum);
 				} else {
 					return existingValue;
 				}

@@ -221,21 +221,21 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyOrderBigDecimals() {
-		// values are pre-normalized (stripTrailingZeros) as they would be by UpsertAttributeMutation
+		// values are pre-normalized (stripTrailingZeros) as they would be by EntityIndexLocalMutationExecutor
 		final SortIndex sortIndex = new SortIndex(BigDecimal.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
-		sortIndex.addRecord(new BigDecimal("0").stripTrailingZeros(), 1);
-		sortIndex.addRecord(new BigDecimal("0").stripTrailingZeros(), 2);
-		sortIndex.addRecord(new BigDecimal("0").stripTrailingZeros(), 3);
-		sortIndex.addRecord(new BigDecimal("1.1").stripTrailingZeros(), 4);
-		sortIndex.addRecord(new BigDecimal("1.1").stripTrailingZeros(), 5);
-		sortIndex.addRecord(new BigDecimal("2").stripTrailingZeros(), 6);
+		sortIndex.addRecord(new BigDecimal("0"), 1);
+		sortIndex.addRecord(new BigDecimal("0"), 2);
+		sortIndex.addRecord(new BigDecimal("0"), 3);
+		sortIndex.addRecord(new BigDecimal("1.1"), 4);
+		sortIndex.addRecord(new BigDecimal("1.1"), 5);
+		sortIndex.addRecord(new BigDecimal("2"), 6);
 		assertArrayEquals(
 			new int[]{1, 2, 3, 4, 5, 6},
 			sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
 		);
 
-		sortIndex.removeRecord(new BigDecimal("0").stripTrailingZeros(), 2);
-		sortIndex.removeRecord(new BigDecimal("0").stripTrailingZeros(), 3);
+		sortIndex.removeRecord(new BigDecimal("0"), 2);
+		sortIndex.removeRecord(new BigDecimal("0"), 3);
 
 		assertArrayEquals(
 			new int[]{1, 4, 5, 6},
@@ -953,7 +953,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("should not create normalizer for BigDecimal type (normalization happens at entry point)")
+		@DisplayName("should not create normalizer for BigDecimal type (normalization happens at executor level)")
 		void shouldNotCreateNormalizerForBigDecimal() {
 			final ComparatorSource source =
 				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
