@@ -606,16 +606,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				if (mutationsByTargetType == null) {
 					mutationsByTargetType = CollectionUtils.createHashMap(4);
 				}
-				mutationsByTargetType
-					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4))
-					.add(
-						new ReevaluateExpressionMutation(
-							trigger.getReferenceName(),
-							entityPK,
-							dependencyType,
-							trigger.getScope()
-						)
-					);
+				final ReevaluateExpressionMutation mutation = new ReevaluateExpressionMutation(
+					trigger.getReferenceName(), entityPK, dependencyType, trigger.getScope()
+				);
+				final List<IndexMutation> mutations = mutationsByTargetType
+					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4));
+				if (!mutations.contains(mutation)) {
+					mutations.add(mutation);
+				}
 			}
 		}
 		return mutationsByTargetType;
@@ -653,16 +651,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				if (mutationsByTargetType == null) {
 					mutationsByTargetType = CollectionUtils.createHashMap(4);
 				}
-				mutationsByTargetType
-					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4))
-					.add(
-						new ReevaluateExpressionMutation(
-							trigger.getReferenceName(),
-							entityPK,
-							dependencyType,
-							trigger.getScope()
-						)
-					);
+				final ReevaluateExpressionMutation mutation = new ReevaluateExpressionMutation(
+					trigger.getReferenceName(), entityPK, dependencyType, trigger.getScope()
+				);
+				final List<IndexMutation> mutations = mutationsByTargetType
+					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4));
+				if (!mutations.contains(mutation)) {
+					mutations.add(mutation);
+				}
 			}
 		}
 		return mutationsByTargetType;
@@ -717,16 +713,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				if (mutationsByTargetType == null) {
 					mutationsByTargetType = CollectionUtils.createHashMap(4);
 				}
-				mutationsByTargetType
-					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4))
-					.add(
-						new ReevaluateExpressionMutation(
-							trigger.getReferenceName(),
-							entityPK,
-							dependencyType,
-							trigger.getScope()
-						)
-					);
+				final ReevaluateExpressionMutation mutation = new ReevaluateExpressionMutation(
+					trigger.getReferenceName(), entityPK, dependencyType, trigger.getScope()
+				);
+				final List<IndexMutation> mutations = mutationsByTargetType
+					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4));
+				if (!mutations.contains(mutation)) {
+					mutations.add(mutation);
+				}
 			}
 		}
 		return mutationsByTargetType;
