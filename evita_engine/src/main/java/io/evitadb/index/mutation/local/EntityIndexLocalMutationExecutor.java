@@ -2494,6 +2494,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				this
 			);
 		}
+		// defer histogram group transfer while cardinality data is still present
+		deferHistogramGroupTransfer(referenceKey, mutation.getGroupPrimaryKey(), epk, scope);
 		// group component: remove old group index, create new group index
 		if (groupIndexingEnabled) {
 			final EntitySchema entitySchema = getEntitySchema();
@@ -2510,9 +2512,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				newGroupPK, scope, existingStoragePartFactory
 			);
 		}
-		// defer facet expression re-evaluation and histogram group transfer
+		// defer facet expression re-evaluation
 		deferFacetExpressionReEvaluation(entityIndex, epk, referenceKey.referenceName());
-		deferHistogramGroupTransfer(referenceKey, mutation.getGroupPrimaryKey(), epk, scope);
 	}
 
 	/**
@@ -2549,6 +2550,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				this
 			);
 		}
+		// defer histogram group transfer while cardinality data is still present
+		deferHistogramGroupTransfer(referenceKey, null, epk, scope);
 		// group component: remove from group indexes
 		if (groupIndexingEnabled) {
 			removeFromGroupIndexes(
@@ -2556,9 +2559,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				scope, getStoragePartExistingDataFactory()
 			);
 		}
-		// defer facet expression re-evaluation and histogram transfer to ungrouped
+		// defer facet expression re-evaluation
 		deferFacetExpressionReEvaluation(entityIndex, epk, referenceKey.referenceName());
-		deferHistogramGroupTransfer(referenceKey, null, epk, scope);
 	}
 
 	/**
@@ -2797,10 +2799,22 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				.findReference(referenceKey).orElse(null);
 			final Integer oldGroupPK = existingRef != null
 				? extractActiveGroupPrimaryKey(existingRef) : null;
+			// eagerly resolve the storage PKs of the old group's reduced indexes while
+			// the cardinality data in REFERENCED_GROUP_ENTITY_TYPE is still present —
+			// removeFromGroupIndexes removes this data before the deferred lambda runs
+			final int[] oldGroupStoragePKs = resolveGroupStoragePKs(
+				referenceKey.referenceName(), oldGroupPK, scope
+			);
 			deferExpressionReEvaluation(() -> {
-				ReferenceIndexMutator.removeHistogramFromIndex(
-					this, referenceKey, oldGroupPK, epk, scope
-				);
+				if (oldGroupStoragePKs.length > 0) {
+					ReferenceIndexMutator.removeHistogramFromPreResolvedGroupIndexes(
+						this, referenceKey.referenceName(), epk, oldGroupStoragePKs, scope
+					);
+				} else if (oldGroupPK == null) {
+					ReferenceIndexMutator.removeHistogramFromIndex(
+						this, referenceKey, null, epk, scope
+					);
+				}
 				ReferenceIndexMutator.addHistogramToIndex(
 					this, referenceKey, newGroupPK, epk,
 					getStoragePartExistingDataFactory()
@@ -2809,6 +2823,35 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				);
 			});
 		}
+	}
+
+	/**
+	 * Resolves the storage primary keys of reduced group entity indexes for the given group.
+	 * Must be called while the cardinality data in {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE}
+	 * is still present (i.e., before {@code removeFromGroupIndexes} is called).
+	 *
+	 * @param referenceName the reference name
+	 * @param groupPK       the group primary key, or null if ungrouped
+	 * @param scope         the current scope
+	 * @return the storage PKs of the group's reduced indexes, or empty array if none
+	 */
+	@Nonnull
+	private int[] resolveGroupStoragePKs(
+		@Nonnull String referenceName,
+		@Nullable Integer groupPK,
+		@Nonnull Scope scope
+	) {
+		if (groupPK == null) {
+			return new int[0];
+		}
+		final EntityIndexKey groupTypeKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
+		);
+		final EntityIndex groupTypeIndex = getIndexIfExists(groupTypeKey);
+		if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
+			return rtei.getAllReferenceIndexes(groupPK);
+		}
+		return new int[0];
 	}
 
 	/**

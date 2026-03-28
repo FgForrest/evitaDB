@@ -2522,6 +2522,36 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
+	 * Removes histogram entries from pre-resolved group reduced entity indexes. Used when the cardinality
+	 * data in the {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} index may have already been cleaned
+	 * up (during deferred group transfer after {@code removeFromGroupIndexes}).
+	 *
+	 * @param executor        the mutation executor
+	 * @param referenceName   the reference name
+	 * @param ownerPK         the primary key of the owner entity to remove
+	 * @param groupStoragePKs pre-resolved storage PKs of ReducedGroupEntityIndex instances
+	 * @param scope           the current scope
+	 */
+	static void removeHistogramFromPreResolvedGroupIndexes(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull String referenceName,
+		int ownerPK,
+		@Nonnull int[] groupStoragePKs,
+		@Nonnull Scope scope
+	) {
+		final Collection<HistogramExpressionTrigger> histogramTriggers =
+			executor.getLocalHistogramTriggers(referenceName, scope);
+		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+			for (final int storagePK : groupStoragePKs) {
+				final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
+				if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
+					scanAndRemoveOwnerFromAllLocales(hcei, trigger.getHistogramIndexName(), ownerPK);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Scans the histogram FilterIndexes for the specified histogram name across all locales and removes all entries
 	 * for the given owner PK. Used during reference removal and group change (remove from old group).
 	 *
