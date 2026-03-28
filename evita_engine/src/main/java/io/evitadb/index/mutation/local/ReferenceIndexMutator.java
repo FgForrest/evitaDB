@@ -419,12 +419,14 @@ public interface ReferenceIndexMutator {
 	 * Returns (or lazily creates) the {@link AbstractReducedEntityIndex} of type
 	 * {@link EntityIndexType#REFERENCED_GROUP_ENTITY} for the given group reference key and scope.
 	 *
-	 * The group index mirrors the entity index but is keyed by the **group** primary key rather than the referenced
-	 * entity primary key. It is only created when the reference schema has group indexing enabled
-	 * ({@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY}) for the scope.
+	 * The group index uses the same keying as {@link EntityIndexType#REFERENCED_ENTITY} — the discriminator
+	 * contains the **referenced entity** primary key, not the group PK. The group PK is tracked internally
+	 * by the {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} type-level index, which maps group PKs
+	 * to storage PKs of individual group indexes. It is only created when the reference schema has group
+	 * indexing enabled ({@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY}) for the scope.
 	 *
 	 * @param executor         the mutation executor that manages index lifecycle
-	 * @param groupReferenceKey the representative key identifying the specific referenced group instance
+	 * @param groupReferenceKey the representative key for the referenced entity within a group context
 	 * @param scope             the scope in which the index is maintained
 	 * @return the existing or newly created group reduced entity index
 	 */
@@ -1497,6 +1499,70 @@ public interface ReferenceIndexMutator {
 					reducedIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
 				);
 			}
+		}
+	}
+
+	/**
+	 * Re-evaluates histogram expressions for all references of an entity after an entity-level
+	 * change (e.g., entity attribute mutation). Mirrors {@link #reEvaluateFacetExpressionsInAllIndexes}
+	 * for the histogram indexing path.
+	 *
+	 * For each reference whose histogram triggers match the relevance predicate, removes existing
+	 * histogram entries and re-adds them based on current condition evaluation. The remove+add
+	 * pattern handles all state transitions correctly (was/was-not indexed vs should/should-not be).
+	 *
+	 * @param globalIndex                the global entity index (used to derive scope)
+	 * @param executor                   the mutation executor providing access to storage, triggers, and indexes
+	 * @param entityPrimaryKey           the primary key of the entity whose attribute changed
+	 * @param existingDataFactory        factory for creating per-reference attribute value suppliers
+	 * @param triggerRelevancePredicate  filters histogram triggers to only those affected by the change
+	 */
+	static void reEvaluateHistogramExpressionsInAllIndexes(
+		@Nonnull EntityIndex globalIndex,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		int entityPrimaryKey,
+		@Nonnull ExistingDataSupplierFactory existingDataFactory,
+		@Nonnull Predicate<HistogramExpressionTrigger> triggerRelevancePredicate
+	) {
+		final Scope scope = globalIndex.getIndexKey().scope();
+		final ReferencesStoragePart referencesStoragePart = executor.getReferencesStoragePart();
+
+		String cachedReferenceName = null;
+		boolean cachedHasRelevantTrigger = false;
+		for (final ReferenceContract reference : referencesStoragePart.getReferences()) {
+			if (!reference.exists()) {
+				continue;
+			}
+			final ReferenceKey referenceKey = reference.getReferenceKey();
+			// cache trigger lookups across consecutive references of the same type
+			// (references are sorted by name in storage part)
+			if (cachedReferenceName == null || !cachedReferenceName.equals(referenceKey.referenceName())) {
+				cachedReferenceName = referenceKey.referenceName();
+				cachedHasRelevantTrigger = false;
+				final Collection<HistogramExpressionTrigger> triggers =
+					executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
+				for (final HistogramExpressionTrigger trigger : triggers) {
+					if (triggerRelevancePredicate.test(trigger)) {
+						cachedHasRelevantTrigger = true;
+						break;
+					}
+				}
+			}
+			if (!cachedHasRelevantTrigger) {
+				continue;
+			}
+			final Integer groupId = reference.getGroup()
+				.filter(Droppable::exists)
+				.map(GroupEntityReference::getPrimaryKey)
+				.orElse(null);
+			// remove then re-add: removeHistogramFromIndex is unconditional,
+			// addHistogramToIndex internally evaluates the condition
+			removeHistogramFromIndex(executor, referenceKey, groupId, entityPrimaryKey, scope);
+			addHistogramToIndex(
+				executor, referenceKey, groupId, entityPrimaryKey,
+				existingDataFactory.getNormalizedReferenceAttributeValueSupplier(referenceKey),
+				scope
+			);
 		}
 	}
 

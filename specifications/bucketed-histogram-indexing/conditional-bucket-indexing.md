@@ -1072,11 +1072,14 @@ cross-collection value resolution.
 
 ## 6. Local Triggers
 
-### 6.1 Integration Point: ReferenceIndexMutator
+### 6.1 Integration Point: ReferenceIndexMutator and EntityIndexLocalMutationExecutor
 
 Extend `ReferenceIndexMutator` to handle histogram indexing alongside facet indexing.
 The local trigger fires when the owner entity's reference is inserted, removed, or
-its attributes change.
+its attributes change. Additionally, extend `EntityIndexLocalMutationExecutor` to
+re-evaluate histogram conditions when an **entity attribute** referenced by a
+`bucketedPartially` condition expression changes — symmetric with the existing facet
+re-evaluation in `applyAttributeMutation`.
 
 ### 6.2 Reference Insertion
 
@@ -1185,7 +1188,53 @@ full condition re-evaluation:
 condition and value expressions. The condition re-evaluation (Case B) takes priority:
 if the condition becomes false, the entry is removed regardless of the value change.
 
-### 6.5 Group Change
+### 6.5 Entity Attribute Change
+
+When an entity attribute changes (e.g., `isActive` flips false → true) and the
+`bucketedPartially` condition expression references that attribute (e.g.,
+`($entity.attributes['isActive'] ?? false) == true`), all histogram conditions on
+all references of the entity must be re-evaluated. This mirrors the facet
+re-evaluation already performed by `applyAttributeMutation` via
+`reEvaluateFacetExpressionsInAllIndexes`.
+
+**Implementation:**
+
+1. In `EntityIndexLocalMutationExecutor.applyAttributeMutation()`, after the existing
+   facet re-evaluation block, add a deferred histogram re-evaluation guarded by
+   `triggerRegistrySupplier != null`.
+2. The deferred action calls `ReferenceIndexMutator.reEvaluateHistogramExpressionsInAllIndexes()`,
+   a static method structurally symmetric with `reEvaluateFacetExpressionsInAllIndexes`.
+3. The relevance predicate filters to histogram triggers whose condition expression
+   depends on the changed attribute: `trigger.getLocalEntityAttributes().contains(mutatedAttrName)`.
+
+**`reEvaluateHistogramExpressionsInAllIndexes` algorithm:**
+
+1. Get all references from `executor.getReferencesStoragePart()`
+2. Iterate references with per-reference-name caching:
+   - Cache `executor.getLocalHistogramTriggers(refName, scope)` per reference name
+   - Cache whether ANY trigger matches the relevance predicate (once per reference name)
+3. For each reference instance with a relevant trigger:
+   - Extract `groupId` from `reference.getGroup()`
+   - Call `removeHistogramFromIndex(executor, referenceKey, groupId, entityPK, scope)` —
+     unconditional removal (scans for existing entries)
+   - Call `addHistogramToIndex(executor, referenceKey, groupId, entityPK, supplier, scope)` —
+     internally evaluates the condition and only adds if true
+
+The remove+add pattern handles all state transitions:
+
+| Was indexed? | Now indexed? | Effect |
+|---|---|---|
+| yes | no | remove succeeds, add skips (condition false) |
+| no | yes | remove is no-op, add inserts |
+| yes | yes | remove clears, add re-inserts (idempotent) |
+| no | no | remove is no-op, add skips |
+
+**Note:** The `ExistingDataSupplierFactory` is passed as a parameter to the static method
+(avoiding exposure of the private `getStoragePartExistingDataFactory()`). Per-reference
+attribute value suppliers are created inside the loop via
+`existingDataFactory.getNormalizedReferenceAttributeValueSupplier(referenceKey)`.
+
+### 6.6 Group Change
 
 When a reference's group changes (e.g., PV #5 moves from group #42 to group #99):
 
@@ -1195,7 +1244,7 @@ When a reference's group changes (e.g., PV #5 moves from group #42 to group #99)
    `ReducedGroupEntityIndex` — evaluate condition against new group, read value
    if condition is true
 
-### 6.6 Deferred Evaluation
+### 6.7 Deferred Evaluation
 
 Histogram re-evaluations use the **same deferred queue** as facet re-evaluations.
 Rename `deferredFacetReEvaluations` to `deferredExpressionReEvaluations` in
@@ -1362,6 +1411,30 @@ does not assume the source FilterIndex contains the deleted entity's values.
 **Group added:** Same as reference insertion in the new group.
 
 **Group removed:** Same as reference removal from the old group.
+
+### 8.10 Entity Attribute Change Affecting Histogram Condition
+
+**Scenario:** Product #1 has reference `paramByEntityAttr` → PV #1 with histogram condition
+`($entity.attributes['isActive'] ?? false) == true` and value expression
+`$reference.referencedEntity?.attributes['basicUnitValue']`. Product's `isActive` changes
+false → true.
+
+**Flow:**
+1. `EntityIndexLocalMutationExecutor.applyAttributeMutation()` detects `isActive` changed
+2. Deferred histogram re-evaluation fires after storage write
+3. `ReferenceIndexMutator.reEvaluateHistogramExpressionsInAllIndexes()` iterates all
+   references, finds histogram trigger whose `getLocalEntityAttributes()` contains `isActive`
+4. Removes existing histogram entries (none — was not indexed) → no-op
+5. Re-adds via `addHistogramToIndex()` → condition now evaluates to true → reads
+   `basicUnitValue` from PV #1 → inserts into histogram FilterIndex
+
+**Reverse flow** (`isActive` changes true → false):
+1. Same detection and deferral
+2. Removes existing histogram entry (scan finds the value bucket) → removes
+3. Re-adds → condition evaluates to false → skips → net effect: histogram entry removed
+
+This is the local-trigger counterpart to the cross-entity scenarios in Sections 8.1–8.2.
+Symmetric with facet re-evaluation in `applyAttributeMutation` (Section 6.5).
 
 ---
 

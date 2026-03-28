@@ -203,6 +203,14 @@ Group indexes (`REFERENCED_GROUP_*`) are only maintained when the reference sche
 `ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY` enabled for the active scope
 (see [schema-settings.md](schema-settings.md#reference-indexed-components)).
 
+> **Note on group index keying:** The `RepresentativeReferenceKey` discriminator for
+> `REFERENCED_GROUP_ENTITY` contains the **referenced entity PK** (the target entity of
+> the reference), not the group entity PK. This is because reference attributes are
+> per-reference — collapsing multiple references into a single group-keyed index would
+> conflate attribute values from different referenced entities. The group PK mapping is
+> maintained separately by the `REFERENCED_GROUP_ENTITY_TYPE` type index, which maps
+> group PK → storage PKs of individual `ReducedGroupEntityIndex` instances.
+
 ### `ReferenceIndexConsumer` Callback Pattern
 
 All <Term location="/documentation/developer/indexes/overview.md" name="cross-reference propagation">cross-reference

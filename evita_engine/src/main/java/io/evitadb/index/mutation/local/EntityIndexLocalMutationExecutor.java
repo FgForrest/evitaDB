@@ -314,6 +314,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Returns the catalog expression trigger registry if available, or `null` if the catalog does
+	 * not use conditional bucket/histogram indexing. Encapsulates both the supplier presence check
+	 * and the supplier invocation, so that call sites need only a single null check. When this
+	 * method returns `null`, all histogram re-evaluation and cross-entity trigger checks can be
+	 * skipped because no registry exists to query.
+	 *
+	 * @return the registry, or `null` if expression trigger processing is disabled
+	 */
+	@Nullable
+	public CatalogExpressionTriggerRegistry getCatalogExpressionTriggerRegistry() {
+		return this.triggerRegistrySupplier != null ? this.triggerRegistrySupplier.get() : null;
+	}
+
+	/**
 	 * Defers an expression re-evaluation action to be executed after the corresponding storage write
 	 * completes. This ensures that expression evaluation reads updated attribute/associated data values
 	 * from storage, not stale pre-mutation values. Call {@link #finishLocalMutationExecutionPhase()} after
@@ -378,10 +392,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull String referenceName,
 		@Nonnull Scope scope
 	) {
-		if (this.triggerRegistrySupplier == null) {
-			return Collections.emptyList();
-		}
-		final CatalogExpressionTriggerRegistry registry = this.triggerRegistrySupplier.get();
+		final CatalogExpressionTriggerRegistry registry = getCatalogExpressionTriggerRegistry();
 		if (registry == null) {
 			return Collections.emptyList();
 		}
@@ -439,7 +450,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			? new AttributeKey(attributeName, locale)
 			: new AttributeKey(attributeName);
 		final AttributeValue attributeValue = attributesPart.findAttribute(key);
-		if (attributeValue == null || attributeValue.dropped()) {
+		if (attributeValue == null || attributeValue.value() == null || attributeValue.dropped()) {
 			return null;
 		}
 		return NumberUtils.normalizeIfBigDecimal(attributeValue.value());
@@ -486,10 +497,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
 	) {
 		// early return if no registry
-		if (this.triggerRegistrySupplier == null) {
-			return EMPTY_INDEX_IMPLICIT_MUTATIONS;
-		}
-		final CatalogExpressionTriggerRegistry registry = this.triggerRegistrySupplier.get();
+		final CatalogExpressionTriggerRegistry registry = getCatalogExpressionTriggerRegistry();
 		if (registry == null) {
 			return EMPTY_INDEX_IMPLICIT_MUTATIONS;
 		}
@@ -1000,6 +1008,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			deferExpressionReEvaluation(
 				() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
 					globalIndex, this, entityPK,
+					trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
+				)
+			);
+		}
+		// defer histogram re-evaluation for entity attribute changes
+		if (getCatalogExpressionTriggerRegistry() != null) {
+			final String mutatedAttrName = attributeMutation.getAttributeKey().attributeName();
+			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+			deferExpressionReEvaluation(
+				() -> ReferenceIndexMutator.reEvaluateHistogramExpressionsInAllIndexes(
+					globalIndex, this, entityPK,
+					getStoragePartExistingDataFactory(),
 					trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
 				)
 			);
