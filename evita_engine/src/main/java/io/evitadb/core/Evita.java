@@ -448,6 +448,8 @@ public final class Evita implements EvitaContract {
 		if (scheduleCatalogLoading) {
 			scheduleInitialCatalogLoading();
 		}
+
+		throw new RuntimeException("This should be noticed by Claude Code.");
 	}
 
 	@Override
