@@ -35,6 +35,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.utils.IOUtils;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 
@@ -144,6 +145,16 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 	@Override
 	public void close() {
 		IOUtils.closeQuietly(this.heartBeatTask::close);
+		// signal the gRPC client that the stream was forcibly terminated
+		try {
+			this.responseObserver.onError(
+				Status.UNAVAILABLE
+					.withDescription("CDC stream has been terminated by the server.")
+					.asRuntimeException()
+			);
+		} catch (Exception ignored) {
+			// stream may already be cancelled by the client — safe to ignore
+		}
 	}
 
 	/**
