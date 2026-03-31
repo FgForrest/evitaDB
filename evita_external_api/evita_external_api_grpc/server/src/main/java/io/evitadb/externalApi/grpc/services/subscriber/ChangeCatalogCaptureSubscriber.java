@@ -48,6 +48,7 @@ import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
@@ -118,9 +119,11 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 	 */
 	private Subscription subscription;
 	/**
-	 * Monotonically increasing counter for heartbeat message indexing.
+	 * Monotonically increasing counter for heartbeat message indexing. Atomic because
+	 * it is accessed from both the publisher thread ({@link #onNext}) and the scheduler
+	 * thread ({@link #sendHeartbeat}) via {@link #buildHeartBeatMessage()}.
 	 */
-	private long index = 0L;
+	private final AtomicLong index = new AtomicLong(0L);
 
 	public ChangeCatalogCaptureSubscriber(
 		@Nonnull Scheduler scheduler,
@@ -184,6 +187,7 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 			);
 		} catch (Exception ex) {
 			log.debug("CDC onNext failed (stream likely finalized concurrently): {}", ex.getMessage());
+			this.subscription.cancel();
 			return;
 		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
@@ -209,10 +213,10 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 
 	@Override
 	public void close() {
-		IOUtils.closeQuietly(this.heartBeatTask::close);
 		// signal the gRPC client that the stream was forcibly terminated
 		// (e.g. when the catalog is replaced or deleted while subscribers are listening)
 		if (this.streamFinalized.compareAndSet(false, true)) {
+			IOUtils.closeQuietly(this.heartBeatTask::close);
 			try {
 				this.responseObserver.onError(
 					Status.UNAVAILABLE
@@ -267,7 +271,7 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 	@Nonnull
 	private GrpcHeartBeat buildHeartBeatMessage() {
 		return GrpcHeartBeat.newBuilder()
-			.setIndex(this.index++)
+			.setIndex(this.index.getAndIncrement())
 			.setTimestamp(toGrpcOffsetDateTime(OffsetDateTime.now()))
 			.setLastObservedVersion(this.versionSupplier.getAsLong())
 			.setMillisToNextHeartbeat(this.heartBeatDelay)
