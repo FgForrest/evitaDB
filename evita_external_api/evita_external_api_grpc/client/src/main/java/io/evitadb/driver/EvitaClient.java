@@ -1264,7 +1264,7 @@ public class EvitaClient implements EvitaContract {
 	 */
 	record CatalogBoundCaptureKey(
 		@Nonnull String catalogName,
-		@Nonnull ChangeCaptureRequest request
+		@Nonnull ChangeCatalogCaptureRequest request
 	) implements CapturePublisherKey {
 	}
 
