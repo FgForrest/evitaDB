@@ -52,6 +52,7 @@ import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
@@ -208,7 +209,7 @@ public class EvitaClient implements EvitaContract {
 	 * {@link CapturePublisherKey} — either a {@link CatalogBoundCaptureKey} (for catalog-level captures)
 	 * or a {@link SystemCaptureKey} (for system-level captures).
 	 */
-	protected final Map<CapturePublisherKey, ClientChangeCapturePublisher<?, ?, ?>> activePublishers = CollectionUtils.createConcurrentHashMap(
+	final Map<CapturePublisherKey, ClientChangeCapturePublisher<?, ?, ?>> activePublishers = CollectionUtils.createConcurrentHashMap(
 		16);
 	/**
 	 * Executor service used for asynchronous operations.
