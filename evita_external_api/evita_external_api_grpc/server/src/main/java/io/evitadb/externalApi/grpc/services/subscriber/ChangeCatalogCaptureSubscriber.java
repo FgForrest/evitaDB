@@ -35,6 +35,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRes
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import javax.annotation.Nonnull;
@@ -153,6 +154,17 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 	@Override
 	public void close() {
 		IOUtils.closeQuietly(this.heartBeatTask::close);
+		// signal the gRPC client that the stream was forcibly terminated
+		// (e.g. when the catalog is replaced or deleted while subscribers are listening)
+		try {
+			this.responseObserver.onError(
+				Status.UNAVAILABLE
+					.withDescription("CDC stream has been terminated by the server.")
+					.asRuntimeException()
+			);
+		} catch (Exception ignored) {
+			// stream may already be cancelled by the client — safe to ignore
+		}
 	}
 
 	/**
