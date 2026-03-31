@@ -161,13 +161,18 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 		if (this.streamFinalized.get()) {
 			return;
 		}
-		this.responseObserver.onNext(
-			GrpcRegisterSystemChangeCaptureResponse
-				.newBuilder()
-				.setCapture(ChangeCaptureConverter.toGrpcChangeSystemCapture(item))
-				.setResponseType(GrpcCaptureResponseType.CHANGE)
-				.build()
-		);
+		try {
+			this.responseObserver.onNext(
+				GrpcRegisterSystemChangeCaptureResponse
+					.newBuilder()
+					.setCapture(ChangeCaptureConverter.toGrpcChangeSystemCapture(item))
+					.setResponseType(GrpcCaptureResponseType.CHANGE)
+					.build()
+			);
+		} catch (Exception ex) {
+			log.debug("CDC onNext failed (stream likely finalized concurrently): {}", ex.getMessage());
+			return;
+		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 		this.subscription.request(1);
 	}
@@ -201,7 +206,7 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 						.asRuntimeException()
 				);
 			} catch (Exception ex) {
-				log.debug("Failed to send UNAVAILABLE error to CDC client: {}", ex.getMessage());
+				log.debug("Failed to send UNAVAILABLE error to CDC client: {}", ex.getMessage(), ex);
 			}
 		}
 	}
@@ -222,12 +227,17 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 		if (this.subscription instanceof ChangeCaptureSubscription ccs) {
 			response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
 		}
-		this.responseObserver.onNext(
-			response
-				.setResponseType(GrpcCaptureResponseType.HEARTBEAT)
-				.setHeartBeat(buildHeartBeatMessage())
-				.build()
-		);
+		try {
+			this.responseObserver.onNext(
+				response
+					.setResponseType(GrpcCaptureResponseType.HEARTBEAT)
+					.setHeartBeat(buildHeartBeatMessage())
+					.build()
+			);
+		} catch (Exception ex) {
+			log.debug("Heartbeat send failed (stream likely finalized concurrently): {}", ex.getMessage());
+			return -1L;
+		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 		// plan the next heartbeat at regular interval
 		return 0L;
