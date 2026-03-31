@@ -545,10 +545,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
+		final EvitaClient.CatalogBoundCaptureKey key = new EvitaClient.CatalogBoundCaptureKey(
+			this.catalogName, request
+		);
 		//noinspection unchecked
 		return (ChangeCapturePublisher<ChangeCatalogCapture>) this.evita.activePublishers.compute(
-			request,
-			(theRequest, existingInstance) ->
+			key,
+			(theKey, existingInstance) ->
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeCatalogCaptureProcessor(
 						this.evita.getConfiguration().changeCaptureQueueSize(),
@@ -557,8 +560,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						subscriber -> {
 							final AsyncCallFunction<EvitaSessionServiceStub, Void> callFunction = evitaService -> {
 								evitaService.registerChangeCatalogCapture(
-									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(
-										(ChangeCatalogCaptureRequest) theRequest),
+									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(request),
 									subscriber
 								);
 								return null;
@@ -574,7 +576,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 								session.executeWithStreamingEvitaSessionService(callFunction);
 							}
 						},
-						publisher -> this.evita.activePublishers.remove(theRequest, publisher)
+						publisher -> this.evita.activePublishers.remove(key, publisher)
 					) : existingInstance
 		);
 	}
