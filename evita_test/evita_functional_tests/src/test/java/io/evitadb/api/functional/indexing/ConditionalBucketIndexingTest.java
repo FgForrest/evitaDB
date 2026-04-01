@@ -46,6 +46,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -111,6 +112,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	private static final String HISTOGRAM_OR = "orHistogram";
 	private static final String HISTOGRAM_DUAL = "dualHistogram";
 	private static final String HISTOGRAM_LOCALIZED = "localizedHistogram";
+
 
 	private Evita evita;
 
@@ -590,6 +592,45 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 		assertTrue(
 			filterIndex.getRecordsEqualTo(EvitaDataTypes.toSupportedType(value)).contains(ownerPK),
 			"Owner PK " + ownerPK + " should be in ungrouped histogram '" + histogramName
+				+ "' bucket " + value
+		);
+	}
+
+	/**
+	 * Asserts that the owner entity is NOT present in the specified histogram bucket value
+	 * for ungrouped references in the ReferencedTypeEntityIndex.
+	 *
+	 * @param collection    the entity collection to inspect
+	 * @param referenceName the reference schema name
+	 * @param histogramName the histogram definition name
+	 * @param value         the histogram bucket value to check
+	 * @param ownerPK       the primary key of the owner entity (Product PK)
+	 */
+	private static void assertUngroupedHistogramBucketNotContains(
+		@Nonnull EntityCollectionContract collection,
+		@Nonnull String referenceName,
+		@Nonnull String histogramName,
+		@Nonnull Serializable value,
+		int ownerPK
+	) {
+		final EntityIndex entityIndex = IndexingTestSupport.getReferencedEntityTypeIndex(
+			collection, Scope.LIVE, referenceName
+		);
+		if (entityIndex == null) {
+			return; // no type index = not indexed
+		}
+		assertInstanceOf(
+			ReferencedTypeEntityIndex.class, entityIndex,
+			"Expected ReferencedTypeEntityIndex but got " + entityIndex.getClass().getSimpleName()
+		);
+		final ReferencedTypeEntityIndex typeIndex = (ReferencedTypeEntityIndex) entityIndex;
+		final FilterIndex filterIndex = typeIndex.getHistogramFilterIndex(histogramName, null);
+		if (filterIndex == null) {
+			return; // no histogram FilterIndex = not indexed at all
+		}
+		assertFalse(
+			filterIndex.getRecordsEqualTo(EvitaDataTypes.toSupportedType(value)).contains(ownerPK),
+			"Owner PK " + ownerPK + " should NOT be in ungrouped histogram '" + histogramName
 				+ "' bucket " + value
 		);
 	}
@@ -2703,5 +2744,883 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				}
 			);
 		}
+
+		/**
+		 * Verifies that toggling the cross-entity condition to false removes histogram entries
+		 * for ALL locales, and restoring the condition brings them back.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should remove all locale histogram entries when condition becomes false")
+		void shouldRemoveAllLocaleHistogramEntriesWhenConditionBecomesFalse(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, Locale.ENGLISH, new BigDecimal("17.64"))
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, new Locale("cs"), new BigDecimal("500"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_LOCALIZED_ATTR, 1)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// verify both locales are indexed initially
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, new BigDecimal("17.64"), 1
+					);
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, new Locale("cs"), new BigDecimal("500"), 1
+					);
+
+					// toggle condition to false via cross-entity trigger
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.upsertVia(session);
+
+					// ALL locale histogram entries should be removed
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, 1
+					);
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, new Locale("cs"), 1
+					);
+
+					// restore condition - entries should come back
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.upsertVia(session);
+
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, new BigDecimal("17.64"), 1
+					);
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, new Locale("cs"), new BigDecimal("500"), 1
+					);
+				}
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying correct histogram behavior for numeric type edge cases
+	 * including BigDecimal normalization, Integer type value tracking, and default value conversion.
+	 */
+	@Nested
+	@DisplayName("Numeric type edge cases")
+	class NumericTypeEdgeCaseTest {
+
+		/**
+		 * Verifies that BigDecimal values differing only in trailing zeros (e.g. "50.00" vs "50")
+		 * are normalized to the same histogram bucket via stripTrailingZeros().
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should normalize BigDecimal via stripTrailingZeros")
+		void shouldNormalizeBigDecimalViaStripTrailingZeros(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					// PV#1 with trailing zeros in basicUnitValue
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50.00"))
+						.upsertVia(session);
+
+					// PV#2 with standard form
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// both should be in the same normalized bucket regardless of input form
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 2
+					);
+				}
+			);
+		}
+
+		/**
+		 * Verifies that Integer-typed histogram values (HISTOGRAM_HIST2 using weight attribute)
+		 * are correctly tracked through cross-entity value changes.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should track Integer histogram value changes via cross-entity trigger")
+		void shouldTrackIntegerHistogramValueChangesViaCrossEntityTrigger(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.setAttribute(ATTR_WEIGHT, 10)
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_MULTI_HISTOGRAM, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						HISTOGRAM_HIST2, 10, 1
+					);
+
+					// change weight from 10 to 25 via cross-entity trigger
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_WEIGHT, 25)
+						.upsertVia(session);
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						HISTOGRAM_HIST2, 25, 1
+					);
+					assertHistogramBucketNotContains(
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						HISTOGRAM_HIST2, 10, 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * Verifies that the default value literal (integer 0 from `?? 0`) is properly converted
+		 * to the source attribute type (BigDecimal) so that a null attribute and an explicit zero
+		 * resolve to the same histogram bucket.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should convert default value to match source attribute type")
+		void shouldConvertDefaultValueToMatchSourceAttributeType(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					// PV#1 with null basicUnitValue - should use default
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.upsertVia(session);
+
+					// PV#2 with explicit basicUnitValue = 0 - should match the default bucket
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, BigDecimal.ZERO)
+						.upsertVia(session);
+
+					// both use the "with default" reference (value expr: ?? 0)
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 2,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// Product#1 (null PV -> default 0) and Product#2 (explicit 0) in same bucket
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 2,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 2
+					);
+				}
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying histogram cleanup when the owner entity is deleted,
+	 * and correct selective indexing when an entity is created with multiple references
+	 * having mixed condition outcomes.
+	 */
+	@Nested
+	@DisplayName("Entity lifecycle — owner deletion and mixed-condition creation")
+	class EntityLifecycleTest {
+
+		/**
+		 * Verifies that deleting the owner entity (Product) completely removes its histogram
+		 * entries from all affected indexes.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should clean up histogram when owner entity is deleted")
+		void shouldCleanUpHistogramWhenOwnerEntityDeleted(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute(ATTR_IS_ACTIVE, true)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.setReference(REF_PARAM_BY_ENTITY_ATTR, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// verify initial indexing across multiple reference types
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_ENTITY_ATTR,
+						HISTOGRAM_ENTITY, new BigDecimal("50"), 1
+					);
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+
+					// delete the owner entity
+					session.deleteEntity(ENTITY_PRODUCT, 1);
+
+					// all histogram entries should be cleaned up
+					assertHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, 1
+					);
+					assertUngroupedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_ENTITY_ATTR,
+						HISTOGRAM_ENTITY, 1
+					);
+					assertUngroupedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * Verifies that creating a single entity with multiple references (some matching, some not)
+		 * correctly indexes only the matching references in the histogram.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should index only matching references when entity has mixed conditions")
+		void shouldIndexOnlyMatchingReferencesWhenEntityHasMixedConditions(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 20)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "CHECKBOX")
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("75"))
+						.upsertVia(session);
+
+					// single product with multiple references: some matching, some not
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute(ATTR_IS_ACTIVE, true)
+						// grouped ref to PV#1 via INTERVAL group - bucketed
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						// grouped ref to PV#2 via CHECKBOX group - NOT bucketed
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 2,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 20)
+						)
+						// ungrouped ref with matching entity condition - bucketed
+						.setReference(REF_PARAM_BY_ENTITY_ATTR, 1)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// grouped PV#1 via INTERVAL group - in histogram
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+					// grouped PV#2 via CHECKBOX group - NOT in histogram
+					assertHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 2,
+						HISTOGRAM_VALUE, 1
+					);
+					// ungrouped ref with isActive=true - in histogram
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_ENTITY_ATTR,
+						HISTOGRAM_ENTITY, new BigDecimal("50"), 1
+					);
+				}
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying histogram behavior during group reassignment between matching groups
+	 * and cross-entity updates propagating to multiple groups referencing the same entity.
+	 */
+	@Nested
+	@DisplayName("Group edge cases — reassignment and multi-group propagation")
+	class GroupEdgeCaseTest {
+
+		/**
+		 * Verifies that moving a reference from one matching group (INTERVAL) to another matching
+		 * group (INTERVAL) correctly maintains the histogram entry.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should reassign histogram between matching groups")
+		void shouldReassignHistogramBetweenMatchingGroups(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					// two groups, both INTERVAL
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 20)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// initially in histogram via group#10
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+
+					// reassign from group#10 to group#20 (both INTERVAL)
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 20)
+						)
+						.upsertVia(session);
+
+					// should still be in histogram (new group is also INTERVAL)
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * Verifies that changing a referenced entity's value attribute propagates correctly
+		 * to products in different matching groups (both INTERVAL) via cross-entity trigger.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should propagate cross-entity update to products in different matching groups")
+		void shouldPropagateCrossEntityUpdateToProductsInDifferentMatchingGroups(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 20)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					// Product#1 refs PV#1 in group#10
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+					// Product#2 refs PV#1 in group#20
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 20)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 2
+					);
+
+					// change PV#1's value - cross-entity trigger should update both
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("75"))
+						.upsertVia(session);
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("75"), 1
+					);
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("75"), 2
+					);
+					assertHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+					assertHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 2
+					);
+				}
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying histogram data survives catalog persistence (close/reopen) cycle,
+	 * confirming correct Kryo serialization/deserialization of histogram FilterIndex data.
+	 */
+	@Nested
+	@DisplayName("Persistence — histogram data survives catalog close and reopen")
+	class PersistenceRoundTripTest {
+
+		/**
+		 * Creates histogram data across grouped and ungrouped references, closes evita,
+		 * reopens it, and verifies all histogram FilterIndex entries survived the round-trip.
+		 */
+		@Test
+		@DisplayName("Should survive catalog close and reopen with histogram data intact")
+		void shouldSurviveCatalogCloseAndReopenWithHistogramDataIntact() {
+			// create fixture and go ALIVE
+			ConditionalBucketIndexingTest.this.evita.updateCatalog(TEST_CATALOG, session -> {
+				defineConditionalBucketSchema(session);
+
+				session.createNewEntity(ENTITY_PARAMETER, 10)
+					.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+					.upsertVia(session);
+
+				session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+					.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+					.setAttribute(ATTR_STATUS, "ACTIVE")
+					.upsertVia(session);
+
+				session.createNewEntity(ENTITY_PRODUCT, 1)
+					.setAttribute(ATTR_IS_ACTIVE, true)
+					.setReference(
+						REF_PARAM_BY_GROUP_ATTR, 1,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+					)
+					.setReference(REF_PARAM_BY_ENTITY_ATTR, 1)
+					.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+					.upsertVia(session);
+
+				session.goLiveAndClose();
+			});
+
+			// close and reopen Evita
+			ConditionalBucketIndexingTest.this.evita.close();
+			ConditionalBucketIndexingTest.this.evita = new Evita(getEvitaConfiguration());
+			ConditionalBucketIndexingTest.this.evita.waitUntilFullyInitialized();
+
+			// verify histogram data survived the round-trip
+			final EntityCollectionContract productCollection = getProductCollection();
+
+			// grouped histogram via group entity attribute
+			assertHistogramBucketContains(
+				productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+				HISTOGRAM_VALUE, new BigDecimal("50"), 1
+			);
+			// ungrouped histogram via entity attribute condition
+			assertUngroupedHistogramBucketContains(
+				productCollection, REF_PARAM_BY_ENTITY_ATTR,
+				HISTOGRAM_ENTITY, new BigDecimal("50"), 1
+			);
+			// ungrouped histogram via referenced entity attribute condition
+			assertUngroupedHistogramBucketContains(
+				productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+				HISTOGRAM_STATUS, new BigDecimal("50"), 1
+			);
+		}
+	}
+
+	/**
+	 * Tests revealing that cross-entity histogram re-evaluation incorrectly removes histogram entries
+	 * contributed by unrelated references when one referenced entity's attribute changes.
+	 *
+	 * The bug is in `ReevaluateExpressionExecutor.processHistogramTriggers()`: when computing the
+	 * `histogramShouldNotBeIndexed` bitmap via FilterBy evaluation, it removes ALL histogram entries
+	 * for the affected owner PKs — including entries contributed by UNRELATED references that were
+	 * never part of the mutation. The subsequent re-add only restores entries for the mutated entity,
+	 * permanently losing the contributions from other referenced entities.
+	 */
+	@Nested
+	@DisplayName("Cross-entity re-evaluation fan-out — multi-reference regression")
+	class CrossEntityMultiReferenceRegressionTest {
+
+		/**
+		 * Product#1 has two references to the same conditional reference type, each pointing to a
+		 * different PV. Toggling the condition on one PV should not destroy the histogram entry
+		 * contributed by the other.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should preserve histogram entries when cross-entity condition toggles on one reference")
+		void shouldPreserveHistogramEntriesWhenCrossEntityConditionTogglesOnOneReference(
+			@Nonnull CatalogState state
+		) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("75"))
+						.upsertVia(session);
+
+					// Product#1 references BOTH PV#1 and PV#2 via the conditional reference type
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute(ATTR_IS_ACTIVE, true)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// initially: Product#1 in bucket 50 (PV#1) and bucket 75 (PV#2)
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("75"), 1
+					);
+
+					// set PV#1 status to INACTIVE → condition false for PV#1 reference
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.upsertVia(session);
+
+					// BUG: Product#1 should STILL be in bucket 75 (from PV#2, whose condition
+					// is still ACTIVE), but the cross-entity re-evaluation removes ALL entries
+					// for Product#1 and only re-adds based on PV#1 (which now fails condition)
+					// — PV#2's entry is lost
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("75"), 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * Product#1 has two references to the same conditional reference type, each pointing to a
+		 * different PV with different values. Changing the value attribute on PV#1 (cross-entity
+		 * value change) should not destroy the histogram entry contributed by PV#2.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should preserve histogram entries when cross-entity value changes on one reference")
+		void shouldPreserveHistogramEntriesWhenCrossEntityValueChangesOnOneReference(
+			@Nonnull CatalogState state
+		) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("75"))
+						.upsertVia(session);
+
+					// Product#1 references BOTH PV#1 and PV#2 via the conditional reference type
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute(ATTR_IS_ACTIVE, true)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// initially: Product#1 in bucket 50 (PV#1) and bucket 75 (PV#2)
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("75"), 1
+					);
+
+					// change PV#1's basicUnitValue from 50 to 60 (value change, NOT condition change)
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("60"))
+						.upsertVia(session);
+
+					// Product#1 should be in bucket 60 (PV#1 new value) AND bucket 75 (PV#2 preserved)
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("60"), 1
+					);
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("75"), 1
+					);
+					// should NOT be in old bucket 50
+					assertUngroupedHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * Product#1 has two references to the same conditional reference type, both pointing to PVs
+		 * with the SAME value (50). Setting PV#1 to INACTIVE should decrement cardinality from 2 to 1,
+		 * NOT remove Product#1 from the bucket entirely.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should preserve histogram entry when same value contributed by multiple references")
+		void shouldPreserveHistogramEntryWhenSameValueContributedByMultipleReferences(
+			@Nonnull CatalogState state
+		) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					// Product#1 references BOTH PV#1 and PV#2
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute(ATTR_IS_ACTIVE, true)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// initially: Product#1 in bucket 50 (contributed by both PV#1 and PV#2)
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+
+					// set PV#1 status to INACTIVE -> condition false for PV#1 reference
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.upsertVia(session);
+
+					// Product#1 should STILL be in bucket 50 (PV#2 still contributes)
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * Product#1 has two references to the same reference type, each pointing to a different PV.
+		 * Removing the reference to PV#1 (local path -- single reference removal) should preserve the
+		 * histogram entry contributed by PV#2.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should preserve histogram entries when one reference is removed")
+		void shouldPreserveHistogramEntriesWhenOneReferenceRemoved(
+			@Nonnull CatalogState state
+		) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("75"))
+						.upsertVia(session);
+
+					// Product#1 references BOTH PV#1 and PV#2
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute(ATTR_IS_ACTIVE, true)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.setReference(REF_PARAM_BY_REF_ENTITY_ATTR, 2)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// initially: Product#1 in bucket 50 (PV#1) and bucket 75 (PV#2)
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("75"), 1
+					);
+
+					// remove Product#1's reference to PV#1
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(REF_PARAM_BY_REF_ENTITY_ATTR, 1)
+						.upsertVia(session);
+
+					// Product#1 should be in bucket 75 (PV#2 preserved), NOT in bucket 50
+					assertUngroupedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("75"), 1
+					);
+					assertUngroupedHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+				}
+			);
+		}
+
+
 	}
 }
