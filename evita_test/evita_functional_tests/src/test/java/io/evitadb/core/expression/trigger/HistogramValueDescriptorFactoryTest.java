@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
@@ -97,7 +98,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -119,7 +120,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -138,7 +139,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -156,7 +157,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -174,7 +175,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -192,7 +193,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -225,7 +226,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema,
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema,
 				entityResolver(REFERENCED_ENTITY_TYPE, referencedEntitySchema)
 			);
 
@@ -255,7 +256,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema,
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema,
 				entityResolver(REFERENCED_ENTITY_TYPE, referencedEntitySchema)
 			);
 
@@ -283,7 +284,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -304,7 +305,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -324,7 +325,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -351,7 +352,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema,
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema,
 				entityResolver(REFERENCED_ENTITY_TYPE, referencedEntitySchema)
 			);
 
@@ -371,7 +372,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -399,7 +400,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains("nonExistent"));
@@ -424,7 +425,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema,
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema,
 					entityResolver(REFERENCED_ENTITY_TYPE, referencedEntitySchema)
 				)
 			);
@@ -447,7 +448,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains(REFERENCED_ENTITY_TYPE));
@@ -470,7 +471,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains("not filterable"));
@@ -487,7 +488,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains("non-numeric"));
@@ -512,7 +513,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema,
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema,
 					entityResolver(REFERENCED_ENTITY_TYPE, referencedEntitySchema)
 				)
 			);
@@ -532,7 +533,7 @@ class HistogramValueDescriptorFactoryTest {
 			assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 		}
@@ -550,7 +551,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains("parent entity"));
@@ -569,7 +570,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains("unsupported expression form"));
@@ -588,7 +589,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains("localizedAttributes"));
@@ -608,7 +609,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains("attributes accessor"));
@@ -633,7 +634,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema,
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema,
 					entityResolver(REFERENCED_ENTITY_TYPE, referencedEntitySchema)
 				)
 			);
@@ -659,7 +660,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema,
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema,
 					entityResolver(REFERENCED_ENTITY_TYPE, referencedEntitySchema)
 				)
 			);
@@ -685,7 +686,7 @@ class HistogramValueDescriptorFactoryTest {
 			final InvalidSchemaMutationException ex = assertThrows(
 				InvalidSchemaMutationException.class,
 				() -> HistogramValueDescriptorFactory.build(
-					expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 				)
 			);
 			assertTrue(ex.getMessage().contains("multiple attributes"));
@@ -712,7 +713,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -741,7 +742,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema,
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema,
 				entityResolver(REFERENCED_ENTITY_TYPE, referencedEntitySchema)
 			);
 
@@ -766,7 +767,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);
@@ -790,7 +791,7 @@ class HistogramValueDescriptorFactoryTest {
 			);
 
 			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
-				expr, REFERENCE_NAME, HISTOGRAM_NAME, refSchema, noEntityResolver()
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
 			);
 
 			assertNotNull(result);

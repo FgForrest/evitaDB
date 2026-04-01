@@ -34,8 +34,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Immutable, thread-safe index for cross-entity trigger lookup by `(mutatedEntityType, dependencyType)`.
@@ -53,7 +55,8 @@ final class CrossEntityTriggerIndex {
 	/**
 	 * Empty singleton — no triggers registered.
 	 */
-	static final CrossEntityTriggerIndex EMPTY = new CrossEntityTriggerIndex(Collections.emptyMap());
+	static final CrossEntityTriggerIndex EMPTY =
+		new CrossEntityTriggerIndex(Collections.emptyMap(), Collections.emptyMap());
 
 	/**
 	 * Frozen nested map: mutated entity type -> dependency type -> trigger list.
@@ -63,15 +66,27 @@ final class CrossEntityTriggerIndex {
 	private final Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> index;
 
 	/**
-	 * Creates a frozen index from an already-frozen map. Callers must ensure the map and all nested
-	 * structures are unmodifiable.
+	 * Pre-built reverse index: mutated entity type -> set of entity-level attribute names referenced
+	 * by cross-entity triggers under entity-attribute dependency types ({@link DependencyType#isEntityAttributeDependency()}).
+	 * Used for O(1) checks in {@link #hasEntityAttributeTrigger} and {@link #hasAnyEntityAttributeTriggers}
+	 * to avoid unnecessary pre-mutation value capture when no trigger cares about the mutated attribute.
+	 */
+	@Nonnull
+	private final Map<String, Set<String>> entityAttributeIndex;
+
+	/**
+	 * Creates a frozen index from already-frozen maps. Callers must ensure all nested structures
+	 * are unmodifiable.
 	 *
-	 * @param frozenIndex the frozen nested map
+	 * @param frozenIndex          the frozen nested trigger map
+	 * @param entityAttributeIndex the frozen entity-attribute reverse index
 	 */
 	private CrossEntityTriggerIndex(
-		@Nonnull Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> frozenIndex
+		@Nonnull Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> frozenIndex,
+		@Nonnull Map<String, Set<String>> entityAttributeIndex
 	) {
 		this.index = frozenIndex;
+		this.entityAttributeIndex = entityAttributeIndex;
 	}
 
 	/**
@@ -120,6 +135,48 @@ final class CrossEntityTriggerIndex {
 			}
 		}
 		return filtered.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(filtered);
+	}
+
+	/**
+	 * Returns `true` if any cross-entity trigger under an entity-attribute dependency type references
+	 * the given attribute name for the specified mutated entity type. Used to skip pre-mutation value
+	 * capture when no trigger depends on the attribute being mutated.
+	 *
+	 * @param mutatedEntityType the entity type being mutated
+	 * @param attributeName     the attribute that changed
+	 * @return `true` if at least one entity-attribute trigger depends on this attribute
+	 */
+	boolean hasEntityAttributeTrigger(
+		@Nonnull String mutatedEntityType,
+		@Nonnull String attributeName
+	) {
+		final Set<String> attributes = this.entityAttributeIndex.get(mutatedEntityType);
+		return attributes != null && attributes.contains(attributeName);
+	}
+
+	/**
+	 * Returns `true` if any cross-entity trigger under an entity-attribute dependency type exists
+	 * for the specified mutated entity type. Used to skip bulk pre-mutation value capture (e.g.,
+	 * during scope changes) when no trigger depends on any attribute of this entity type.
+	 *
+	 * @param mutatedEntityType the entity type being mutated
+	 * @return `true` if at least one entity-attribute trigger exists for this entity type
+	 */
+	boolean hasAnyEntityAttributeTriggers(@Nonnull String mutatedEntityType) {
+		return this.entityAttributeIndex.containsKey(mutatedEntityType);
+	}
+
+	/**
+	 * Returns the set of entity-level attribute names referenced by cross-entity triggers under
+	 * entity-attribute dependency types for the specified mutated entity type. The returned set is
+	 * unmodifiable and pre-computed at build time.
+	 *
+	 * @param mutatedEntityType the entity type being mutated
+	 * @return attribute names referenced by triggers, or empty set if none
+	 */
+	@Nonnull
+	Set<String> getEntityAttributeNames(@Nonnull String mutatedEntityType) {
+		return this.entityAttributeIndex.getOrDefault(mutatedEntityType, Collections.emptySet());
 	}
 
 	/**
@@ -260,7 +317,8 @@ final class CrossEntityTriggerIndex {
 
 		/**
 		 * Freezes the mutable state into an immutable {@link CrossEntityTriggerIndex}. Returns
-		 * {@link CrossEntityTriggerIndex#EMPTY} if the index is empty.
+		 * {@link CrossEntityTriggerIndex#EMPTY} if the index is empty. Pre-computes the entity
+		 * attribute reverse index for O(1) attribute-level trigger existence checks.
 		 *
 		 * @return the frozen index
 		 */
@@ -271,8 +329,10 @@ final class CrossEntityTriggerIndex {
 			}
 			final Map<String, Map<DependencyType, List<ExpressionIndexTrigger>>> frozen =
 				createHashMap(this.mutableIndex.size());
+			final Map<String, Set<String>> entityAttrIndex = createHashMap(this.mutableIndex.size());
 			for (final Entry<String, Map<DependencyType, List<ExpressionIndexTrigger>>> outerEntry :
 				this.mutableIndex.entrySet()) {
+				final String mutatedEntityType = outerEntry.getKey();
 				final Map<DependencyType, List<ExpressionIndexTrigger>> innerMap = outerEntry.getValue();
 				final EnumMap<DependencyType, List<ExpressionIndexTrigger>> frozenInner =
 					new EnumMap<>(DependencyType.class);
@@ -282,10 +342,34 @@ final class CrossEntityTriggerIndex {
 						innerEntry.getKey(),
 						Collections.unmodifiableList(innerEntry.getValue())
 					);
+					// collect entity-attribute dependency names for the reverse index
+					if (innerEntry.getKey().isEntityAttributeDependency()) {
+						for (final ExpressionIndexTrigger trigger : innerEntry.getValue()) {
+							final Set<String> dependentAttributes = trigger.getDependentAttributes();
+							if (!dependentAttributes.isEmpty()) {
+								entityAttrIndex
+									.computeIfAbsent(mutatedEntityType, k -> createHashSet(8))
+									.addAll(dependentAttributes);
+							}
+						}
+					}
 				}
 				frozen.put(outerEntry.getKey(), Collections.unmodifiableMap(frozenInner));
 			}
-			return new CrossEntityTriggerIndex(Collections.unmodifiableMap(frozen));
+			// freeze the entity attribute index
+			final Map<String, Set<String>> frozenEntityAttrIndex;
+			if (entityAttrIndex.isEmpty()) {
+				frozenEntityAttrIndex = Collections.emptyMap();
+			} else {
+				frozenEntityAttrIndex = createHashMap(entityAttrIndex.size());
+				for (final Entry<String, Set<String>> entry : entityAttrIndex.entrySet()) {
+					frozenEntityAttrIndex.put(entry.getKey(), Collections.unmodifiableSet(entry.getValue()));
+				}
+			}
+			return new CrossEntityTriggerIndex(
+				Collections.unmodifiableMap(frozen),
+				Collections.unmodifiableMap(frozenEntityAttrIndex)
+			);
 		}
 
 		/**

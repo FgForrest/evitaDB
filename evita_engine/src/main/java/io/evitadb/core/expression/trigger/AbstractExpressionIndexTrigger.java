@@ -308,6 +308,11 @@ public abstract class AbstractExpressionIndexTrigger implements ExpressionIndexT
 		return this.usesParent;
 	}
 
+	@Override
+	public boolean hasFilterByConstraint() {
+		return this.filterByConstraint != null;
+	}
+
 	@Nonnull
 	@Override
 	public FilterBy getFilterByConstraint() {
@@ -327,7 +332,8 @@ public abstract class AbstractExpressionIndexTrigger implements ExpressionIndexT
 		int ownerEntityPK,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull WritableEntityStorageContainerAccessor storageAccessor,
-		@Nonnull Function<String, EntitySchemaContract> schemaResolver
+		@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+		@Nonnull Scope scope
 	) {
 		// unconditional trigger -- no expression to evaluate
 		if (this.expression == null) {
@@ -352,7 +358,8 @@ public abstract class AbstractExpressionIndexTrigger implements ExpressionIndexT
 			referenceSchema,
 			referenceKey,
 			storageAccessor,
-			schemaResolver
+			schemaResolver,
+			scope
 		);
 
 		// bind variables -- names without $ prefix matching VariableOperand lookup

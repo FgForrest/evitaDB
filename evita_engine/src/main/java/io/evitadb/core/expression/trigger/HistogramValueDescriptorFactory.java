@@ -28,14 +28,16 @@ import io.evitadb.api.query.expression.coalesce.NullCoalesceOperator;
 import io.evitadb.api.query.expression.object.accessor.entity.EntityContractAccessor;
 import io.evitadb.api.query.expression.object.accessor.entity.ReferenceContractAccessor;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
-import io.evitadb.api.query.expression.visitor.ElementPathItem;
 import io.evitadb.api.query.expression.visitor.IdentifierPathItem;
 import io.evitadb.api.query.expression.visitor.PathItem;
 import io.evitadb.api.query.expression.visitor.VariablePathItem;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition.AttributePathClassification;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.utils.NumberUtils;
@@ -65,6 +67,7 @@ public class HistogramValueDescriptorFactory {
 	 * @param valueExpression the parsed value expression AST
 	 * @param referenceName   the reference name (for error messages)
 	 * @param histogramName   the histogram name (for error messages)
+	 * @param scope           the scope in which the histogram is defined
 	 * @param referenceSchema the reference schema
 	 * @param schemaResolver  function resolving entity type name to entity schema
 	 * @return immutable value resolution metadata
@@ -74,6 +77,7 @@ public class HistogramValueDescriptorFactory {
 		@Nonnull Expression valueExpression,
 		@Nonnull String referenceName,
 		@Nonnull String histogramName,
+		@Nonnull Scope scope,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Function<String, EntitySchemaContract> schemaResolver
 	) {
@@ -160,11 +164,12 @@ public class HistogramValueDescriptorFactory {
 			);
 		}
 
-		if (!attributeSchema.isFilterableInAnyScope()) {
+		if (!attributeSchema.isFilterableInScope(scope)) {
 			throw new InvalidSchemaMutationException(
 				"Histogram value expression for reference '" + referenceName +
-					"', histogram '" + histogramName + "' references attribute '" + attributeName +
-					"' which is not filterable. Source attributes must be filterable."
+					"', histogram '" + histogramName + "' in scope " + scope.name() +
+					" references attribute '" + attributeName +
+					"' which is not filterable in that scope. Source attributes must be filterable."
 			);
 		}
 
@@ -190,10 +195,9 @@ public class HistogramValueDescriptorFactory {
 
 	/**
 	 * Classifies a single accessed-data path to determine whether it represents a reference attribute
-	 * access (`$reference.attributes['x']` or `$reference.localizedAttributes['x']`) or a referenced
-	 * entity attribute access (`$reference.referencedEntity?.attributes['x']` or
-	 * `$reference.referencedEntity?.localizedAttributes['x']`). Rejects unsupported forms such as
-	 * entity-level attributes, parent entity attributes, and group entity attributes.
+	 * access or a referenced entity attribute access. Delegates core pattern matching to
+	 * {@link HistogramIndexDefinition#classifyAttributePath(List)} and adds validation that rejects
+	 * unsupported forms (entity-level, parent, and group entity attributes).
 	 *
 	 * @param path          the path items extracted from the expression AST by
 	 *                      {@link io.evitadb.api.query.expression.visitor.AccessedDataFinder}
@@ -225,7 +229,7 @@ public class HistogramValueDescriptorFactory {
 						"Reference '" + referenceName + "', histogram '" + histogramName + "'."
 				);
 			}
-			if (ExpressionDependencyClassifier.isAttributesProperty(identifier.value())) {
+			if (EntityContractAccessor.isAttributesProperty(identifier.value())) {
 				throw new InvalidSchemaMutationException(
 					"Histogram value expression for reference '" + referenceName +
 						"', histogram '" + histogramName + "' uses unsupported expression form."
@@ -234,48 +238,25 @@ public class HistogramValueDescriptorFactory {
 			return null;
 		}
 
-		// only $reference paths are relevant from here
-		if (!ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variable.value())) {
-			return null;
-		}
-
-		// $reference.localizedAttributes['x'] → localized reference-level attribute
-		if (ReferenceContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(identifier.value())
-			&& path.size() > 2 && path.get(2) instanceof ElementPathItem element) {
-			return new AttributePathResult(HistogramValueSource.REFERENCE_ATTRIBUTE, element.value(), true);
-		}
-
-		// $reference.attributes['x'] → reference-level attribute
-		if (EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(identifier.value())
-			&& path.size() > 2 && path.get(2) instanceof ElementPathItem element) {
-			return new AttributePathResult(HistogramValueSource.REFERENCE_ATTRIBUTE, element.value(), false);
-		}
-
 		// reject group entity attribute access — not supported in histogram value expressions
-		if (ReferenceContractAccessor.GROUP_ENTITY_PROPERTY.equals(identifier.value())) {
+		if (ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variable.value())
+			&& ReferenceContractAccessor.GROUP_ENTITY_PROPERTY.equals(identifier.value())) {
 			throw new InvalidSchemaMutationException(
 				"Histogram value expression for reference '" + referenceName +
 					"', histogram '" + histogramName + "' uses unsupported expression form."
 			);
 		}
 
-		// $reference.referencedEntity?.attributes['x'] or localizedAttributes['x'] → referenced entity attribute
-		if (
-			ReferenceContractAccessor.REFERENCED_ENTITY_PROPERTY.equals(identifier.value())
-				&& path.size() > 3
-				&& path.get(2) instanceof IdentifierPathItem thirdId
-		) {
-			if (EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(thirdId.value())
-				&& path.get(3) instanceof ElementPathItem element) {
-				return new AttributePathResult(HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE, element.value(), true);
-			}
-			if (EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(thirdId.value())
-				&& path.get(3) instanceof ElementPathItem element) {
-				return new AttributePathResult(HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE, element.value(), false);
-			}
+		// delegate core matching to the shared classifier
+		final AttributePathClassification classification = HistogramIndexDefinition.classifyAttributePath(path);
+		if (classification == null) {
+			return null;
 		}
-
-		return null;
+		final HistogramValueSource source = switch (classification.source()) {
+			case REFERENCE_ATTRIBUTE -> HistogramValueSource.REFERENCE_ATTRIBUTE;
+			case REFERENCED_ENTITY_ATTRIBUTE -> HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE;
+		};
+		return new AttributePathResult(source, classification.attributeName(), classification.localized());
 	}
 
 	/**
@@ -322,7 +303,8 @@ public class HistogramValueDescriptorFactory {
 	/**
 	 * Internal result of classifying a single expression path. Carries the determined
 	 * {@link HistogramValueSource}, the attribute name extracted from the path's
-	 * {@link ElementPathItem}, and whether the path accesses localized attributes.
+	 * {@link io.evitadb.api.query.expression.visitor.ElementPathItem}, and whether the path accesses
+	 * localized attributes.
 	 *
 	 * @param source        whether the attribute lives on the reference or the referenced entity
 	 * @param attributeName the attribute name from the expression path

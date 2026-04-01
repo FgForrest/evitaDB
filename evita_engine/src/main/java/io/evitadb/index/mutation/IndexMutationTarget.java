@@ -26,7 +26,7 @@ package io.evitadb.index.mutation;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.expression.trigger.DependencyType;
-import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
 import io.evitadb.dataType.Scope;
@@ -60,22 +60,6 @@ public interface IndexMutationTarget extends IndexProvider<EntityIndexKey, Entit
 	EntitySchema getEntitySchema();
 
 	/**
-	 * Returns the {@link ExpressionIndexTrigger} for the given reference/dependency/scope combination, or `null` if
-	 * no conditional expression is defined for that combination.
-	 *
-	 * @param referenceName  name of the reference carrying the conditional expression
-	 * @param dependencyType relationship between the mutated entity and the owner entity
-	 * @param scope          the scope for which the trigger should be retrieved
-	 * @return the matching trigger, or `null` if none is registered
-	 */
-	@Nullable
-	ExpressionIndexTrigger getTrigger(
-		@Nonnull String referenceName,
-		@Nonnull DependencyType dependencyType,
-		@Nonnull Scope scope
-	);
-
-	/**
 	 * Evaluates a {@link FilterBy} constraint against this collection's global entity index for the specified scope
 	 * and returns the matching entity primary keys as a {@link Bitmap}.
 	 *
@@ -85,6 +69,22 @@ public interface IndexMutationTarget extends IndexProvider<EntityIndexKey, Entit
 	 */
 	@Nonnull
 	Bitmap evaluateFilter(@Nonnull FilterBy filterBy, @Nonnull Scope scope);
+
+	/**
+	 * Returns the {@link FacetExpressionTrigger} for the given reference/dependency/scope combination, or `null` if
+	 * no `facetedPartially` expression is defined for that combination.
+	 *
+	 * @param referenceName  name of the reference carrying the conditional expression
+	 * @param dependencyType relationship between the mutated entity and the owner entity
+	 * @param scope          the scope for which the trigger should be retrieved
+	 * @return the matching facet trigger, or `null` if none is registered
+	 */
+	@Nullable
+	FacetExpressionTrigger getFacetTrigger(
+		@Nonnull String referenceName,
+		@Nonnull DependencyType dependencyType,
+		@Nonnull Scope scope
+	);
 
 	/**
 	 * Returns all {@link HistogramExpressionTrigger} instances registered for the given reference name and scope.
@@ -110,13 +110,15 @@ public interface IndexMutationTarget extends IndexProvider<EntityIndexKey, Entit
 	 * @param entityType    entity type of the foreign collection to look up
 	 * @param attributeName name of the attribute whose {@link FilterIndex} should be returned
 	 * @param locale        locale for localized attributes, or `null` for non-localized
+	 * @param scope         the scope whose GlobalEntityIndex should be queried
 	 * @return the filter index, or `null` if the collection or index does not yet exist
 	 */
 	@Nullable
 	FilterIndex getSourceFilterIndex(
 		@Nonnull String entityType,
 		@Nonnull String attributeName,
-		@Nullable Locale locale
+		@Nullable Locale locale,
+		@Nonnull Scope scope
 	);
 
 	/**

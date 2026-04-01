@@ -1275,7 +1275,7 @@ class ReducedGroupEntityIndexTest
 				ReducedGroupEntityIndexTest.this.index,
 				original -> {
 					original.insertPrimaryKeyIfMissing(10, 1);
-					original.insertHistogramValue(HISTOGRAM_NAME, false, null, 42, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class);
 
 					final FilterIndex filter = original.getHistogramFilterIndex(HISTOGRAM_NAME, null);
 					assertNotNull(filter, "Filter index should be accessible via convenience method");
@@ -1298,7 +1298,7 @@ class ReducedGroupEntityIndexTest
 			assertStateAfterCommit(
 				ReducedGroupEntityIndexTest.this.index,
 				original -> {
-					original.insertHistogramValue(HISTOGRAM_NAME, false, null, 99, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 99, 10, Integer.class);
 					assertFalse(original.isEmpty(), "Index with histogram data should not be empty");
 				},
 				(original, committed) -> {

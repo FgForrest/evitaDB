@@ -388,7 +388,7 @@ class DefaultFacetExpressionTriggerTest {
 			));
 
 			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_PK);
-			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema);
+			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema, Scope.LIVE);
 			assertTrue(result);
 		}
 
@@ -408,7 +408,7 @@ class DefaultFacetExpressionTriggerTest {
 			));
 
 			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_PK);
-			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema);
+			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema, Scope.LIVE);
 			assertFalse(result);
 		}
 
@@ -431,7 +431,7 @@ class DefaultFacetExpressionTriggerTest {
 			final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_PK);
 
 			// null attribute value compared to 'ACTIVE' must not NPE — should evaluate to false
-			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema);
+			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema, Scope.LIVE);
 			assertFalse(result);
 		}
 
@@ -526,7 +526,7 @@ class DefaultFacetExpressionTriggerTest {
 			// evaluate must return false (not throw VariableNotDefinedException) because
 			// the reference data is not available yet — re-evaluation will happen later
 			// when the reference attribute mutation is processed
-			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema);
+			final boolean result = trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema, Scope.LIVE);
 			assertFalse(
 				result,
 				"Expression using $reference should return false when reference not yet in storage"
@@ -595,7 +595,7 @@ class DefaultFacetExpressionTriggerTest {
 					return referencedSchema;
 				}
 				throw new IllegalStateException("Unexpected entity type: " + name);
-			});
+			}, Scope.LIVE);
 
 			assertTrue(
 				result,
@@ -643,7 +643,7 @@ class DefaultFacetExpressionTriggerTest {
 			// "Attribute schema for element `status` not found."
 			assertThrows(
 				ExpressionEvaluationException.class,
-				() -> trigger.evaluate(ENTITY_PK, refKey, accessor, name -> ownerSchema),
+				() -> trigger.evaluate(ENTITY_PK, refKey, accessor, name -> ownerSchema, Scope.LIVE),
 				"Should throw ExpressionEvaluationException when schema resolver provides the " +
 					"wrong schema for the referenced entity type"
 			);
@@ -850,7 +850,7 @@ class DefaultFacetExpressionTriggerTest {
 
 		final TestStorageAccessor accessor = new TestStorageAccessor(ENTITY_PK);
 		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_PK);
-		return trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema);
+		return trigger.evaluate(ENTITY_PK, refKey, accessor, name -> schema, Scope.LIVE);
 	}
 
 	/**

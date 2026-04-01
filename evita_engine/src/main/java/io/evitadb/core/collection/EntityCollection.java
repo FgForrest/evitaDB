@@ -97,7 +97,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
 import io.evitadb.core.expression.trigger.DependencyType;
-import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -2920,14 +2920,13 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Returns the expression trigger for the given reference name, dependency type, and scope. Delegates to
-		 * the catalog's {@link CatalogExpressionTriggerRegistry#getLocalTrigger} which stores one trigger per
-		 * `(ownerEntityType, referenceName, scope)` triple — cross-entity triggers stored there have a valid
-		 * {@link ExpressionIndexTrigger#getFilterByConstraint()} for index-based evaluation.
+		 * Returns the facet expression trigger for the given reference name, dependency type, and scope.
+		 * Delegates to the catalog's {@link CatalogExpressionTriggerRegistry#getLocalTrigger} which stores
+		 * one facet trigger per `(ownerEntityType, referenceName, scope)` triple.
 		 */
 		@Nullable
 		@Override
-		public ExpressionIndexTrigger getTrigger(
+		public FacetExpressionTrigger getFacetTrigger(
 			@Nonnull String referenceName,
 			@Nonnull DependencyType dependencyType,
 			@Nonnull Scope scope
@@ -3012,12 +3011,13 @@ public final class EntityCollection implements
 		public FilterIndex getSourceFilterIndex(
 			@Nonnull String entityType,
 			@Nonnull String attributeName,
-			@Nullable Locale locale
+			@Nullable Locale locale,
+			@Nonnull Scope scope
 		) {
 			final EntityCollection sourceCollection = EntityCollection.this.catalog
 				.getCollectionForEntityOrThrowException(entityType);
 			final EntityIndex globalIndex = sourceCollection.getIndexByKeyIfExists(
-				new EntityIndexKey(EntityIndexType.GLOBAL)
+				new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 			);
 			if (globalIndex == null) {
 				return null;

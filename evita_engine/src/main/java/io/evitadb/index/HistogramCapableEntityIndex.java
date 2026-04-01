@@ -64,15 +64,16 @@ public interface HistogramCapableEntityIndex {
 	 * {@link HistogramIndex}, creating it lazily if needed.
 	 *
 	 * @param histogramName the name of the histogram definition
-	 * @param localized     whether the histogram tracks localized attributes
 	 * @param locale        the locale for localized histograms, or `null` for non-localized
 	 * @param value         the histogram value in its original numeric type
 	 * @param ownerPK       the primary key of the owner entity
 	 * @param valueType     the numeric type of the value (used for lazy index creation)
 	 */
 	void insertHistogramValue(
-		@Nonnull String histogramName, boolean localized, @Nullable Locale locale,
-		@Nonnull Number value, int ownerPK,
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Number value,
+		int ownerPK,
 		@Nonnull Class<? extends Serializable> valueType
 	);
 

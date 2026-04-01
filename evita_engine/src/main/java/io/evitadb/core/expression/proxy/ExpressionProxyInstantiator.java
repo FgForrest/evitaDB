@@ -43,6 +43,8 @@ import one.edee.oss.proxycian.PredicateMethodClassification;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 
+import io.evitadb.dataType.Scope;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
@@ -84,6 +86,8 @@ public final class ExpressionProxyInstantiator {
 	 * @param referenceKey      the reference key identifying the specific reference, or `null`
 	 * @param storageAccessor   the accessor for fetching storage parts
 	 * @param schemaResolver    function resolving entity type name to entity schema (for nested entity proxies)
+	 * @param scope             the scope for nested entity proxy scope filtering — entities not in this
+	 *                          scope produce `null` proxies (safe-navigation `?.` short-circuits to `null`)
 	 * @return instantiation result with entity proxy and optional reference proxy
 	 */
 	@Nonnull
@@ -94,12 +98,13 @@ public final class ExpressionProxyInstantiator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable ReferenceKey referenceKey,
 		@Nonnull EntityStoragePartAccessor storageAccessor,
-		@Nonnull Function<String, EntitySchemaContract> schemaResolver
+		@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+		@Nonnull Scope scope
 	) {
 		final StoragePartRecipe recipe = descriptor.entityRecipe();
 		final EntityProxyState entityState = buildEntityState(
 			entitySchema, entityPrimaryKey, recipe, storageAccessor,
-			descriptor, storageAccessor
+			descriptor, storageAccessor, scope
 		);
 
 		// instantiate entity proxy
@@ -114,7 +119,7 @@ public final class ExpressionProxyInstantiator {
 		final ReferenceContract referenceProxy;
 		if (descriptor.referencePartials() != null && referenceKey != null && referenceSchema != null) {
 			referenceProxy = instantiateReferenceProxy(
-				descriptor, entityState, referenceSchema, referenceKey, storageAccessor, schemaResolver
+				descriptor, entityState, referenceSchema, referenceKey, storageAccessor, schemaResolver, scope
 			);
 		} else {
 			referenceProxy = null;
@@ -134,6 +139,7 @@ public final class ExpressionProxyInstantiator {
 	 * @param descriptor      the proxy descriptor (nullable — null for nested entities that don't need parent proxy)
 	 * @param parentAccessor  the storage accessor for fetching parent entity parts (nullable — null when no parent
 	 *                        proxy is needed)
+	 * @param scope           the required scope for nested entity proxy filtering
 	 * @return the assembled entity proxy state
 	 */
 	@Nonnull
@@ -143,7 +149,8 @@ public final class ExpressionProxyInstantiator {
 		@Nonnull StoragePartRecipe recipe,
 		@Nonnull EntityStoragePartAccessor storageAccessor,
 		@Nullable ExpressionProxyDescriptor descriptor,
-		@Nullable EntityStoragePartAccessor parentAccessor
+		@Nullable EntityStoragePartAccessor parentAccessor,
+		@Nonnull Scope scope
 	) {
 		final String entityType = schema.getName();
 
@@ -184,7 +191,8 @@ public final class ExpressionProxyInstantiator {
 				schema, bodyPart.getParent(),
 				descriptor.parentEntityPartialsOrThrowException(),
 				descriptor.parentEntityRecipeOrThrowException(),
-				parentAccessor
+				parentAccessor,
+				scope
 			);
 		} else {
 			parentEntity = null;
@@ -198,25 +206,35 @@ public final class ExpressionProxyInstantiator {
 
 	/**
 	 * Instantiates a nested entity proxy implementing {@link SealedEntity} for use as a referenced or group entity
-	 * within a reference proxy.
+	 * within a reference proxy. Returns `null` when the nested entity's storage scope does not match the
+	 * requested scope — the `?.` safe-navigation operator in expressions will short-circuit to `null`.
 	 *
 	 * @param schema          the nested entity schema
 	 * @param primaryKey      the nested entity primary key
 	 * @param partials        the partial array for the nested entity proxy
 	 * @param recipe          the recipe for fetching the nested entity's storage parts
 	 * @param storageAccessor the storage accessor
-	 * @return the nested entity proxy implementing SealedEntity
+	 * @param scope           the required scope — if the entity body's scope differs, `null` is returned
+	 * @return the nested entity proxy implementing SealedEntity, or `null` if scope mismatch
 	 */
-	@Nonnull
+	@Nullable
 	private static SealedEntity instantiateNestedEntityProxy(
 		@Nonnull EntitySchemaContract schema,
 		int primaryKey,
 		@Nonnull PredicateMethodClassification<?, ?, ?>[] partials,
 		@Nonnull StoragePartRecipe recipe,
-		@Nonnull EntityStoragePartAccessor storageAccessor
+		@Nonnull EntityStoragePartAccessor storageAccessor,
+		@Nonnull Scope scope
 	) {
+		// scope check: read the body part and verify the entity is in the expected scope
+		final EntityBodyStoragePart bodyPart = storageAccessor.getEntityStoragePart(
+			schema.getName(), primaryKey, EntityExistence.MUST_EXIST
+		);
+		if (bodyPart.getScope() != scope) {
+			return null;
+		}
 		final EntityProxyState nestedState = buildEntityState(
-			schema, primaryKey, recipe, storageAccessor, null, null
+			schema, primaryKey, recipe, storageAccessor, null, null, scope
 		);
 		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(nestedState, partials),
@@ -236,6 +254,7 @@ public final class ExpressionProxyInstantiator {
 	 * @param referenceKey    the key identifying the specific reference
 	 * @param storageAccessor the storage accessor (needed for nested entity proxy fetching)
 	 * @param schemaResolver  function resolving entity type name to entity schema
+	 * @param scope           the required scope for nested entity proxy filtering
 	 * @return the reference proxy, or `null` if the reference was not found
 	 */
 	@Nullable
@@ -245,7 +264,8 @@ public final class ExpressionProxyInstantiator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull EntityStoragePartAccessor storageAccessor,
-		@Nonnull Function<String, EntitySchemaContract> schemaResolver
+		@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+		@Nonnull Scope scope
 	) {
 		final Map<String, List<ReferenceContract>> refsByName = entityState.referencesByName();
 		if (refsByName == null) {
@@ -288,8 +308,13 @@ public final class ExpressionProxyInstantiator {
 				referenceKey.primaryKey(),
 				descriptor.referencedEntityPartialsOrThrowException(),
 				descriptor.referencedEntityRecipeOrThrowException(),
-				storageAccessor
+				storageAccessor,
+				scope
 			);
+			// scope mismatch: referenced entity is in a different scope — reference proxy is invalid
+			if (referencedEntity == null) {
+				return null;
+			}
 		} else {
 			referencedEntity = null;
 		}
@@ -304,8 +329,13 @@ public final class ExpressionProxyInstantiator {
 				group.getPrimaryKey(),
 				descriptor.groupEntityPartialsOrThrowException(),
 				descriptor.groupEntityRecipeOrThrowException(),
-				storageAccessor
+				storageAccessor,
+				scope
 			);
+			// scope mismatch: group entity is in a different scope — reference proxy is invalid
+			if (groupEntity == null) {
+				return null;
+			}
 		} else {
 			groupEntity = null;
 		}

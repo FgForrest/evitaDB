@@ -168,6 +168,13 @@ public interface ExpressionIndexTrigger {
 	}
 
 	/**
+	 * Returns `true` if this trigger has a pre-translated {@link FilterBy} constraint — i.e. it carries a
+	 * `*Partially` condition that can be evaluated via index-based query. Unconditional triggers and
+	 * value-only histogram triggers return `false`.
+	 */
+	boolean hasFilterByConstraint();
+
+	/**
 	 * Returns the full expression pre-translated to an evitaDB {@link FilterBy} constraint tree. Built at schema
 	 * load time by `ExpressionToQueryTranslator`.
 	 *
@@ -203,13 +210,16 @@ public interface ExpressionIndexTrigger {
 	 * @param referenceKey    identifies the specific reference instance
 	 * @param storageAccessor accessor for fetching required StorageParts
 	 * @param schemaResolver  function resolving entity type name to entity schema
+	 * @param scope           the scope in which the evaluation takes place — nested entity proxies
+	 *                        (referencedEntity, groupEntity) whose storage scope differs are excluded
 	 * @return `true` if the index entry should exist, `false` otherwise
 	 */
 	boolean evaluate(
 		int ownerEntityPK,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull WritableEntityStorageContainerAccessor storageAccessor,
-		@Nonnull Function<String, EntitySchemaContract> schemaResolver
+		@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+		@Nonnull Scope scope
 	);
 
 }

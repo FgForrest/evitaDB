@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.dataType.Scope;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -200,7 +201,7 @@ class ExpressionProxyInstantiatorTest {
 		final ExpressionProxyDescriptor descriptor = buildDescriptor("$entity.primaryKey > 0");
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertNotNull(result.entityProxy(), "Entity proxy should not be null");
@@ -220,7 +221,7 @@ class ExpressionProxyInstantiatorTest {
 		final ExpressionProxyDescriptor descriptor = buildDescriptor("$entity.primaryKey > 0");
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertEquals(ENTITY_PK, result.entityProxy().getPrimaryKey(), "Proxy should return PK 42");
@@ -242,7 +243,7 @@ class ExpressionProxyInstantiatorTest {
 		);
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertEquals("ABC", result.entityProxy().getAttribute("code"), "Proxy should return attribute 'ABC'");
@@ -261,7 +262,7 @@ class ExpressionProxyInstantiatorTest {
 		final ExpressionProxyDescriptor descriptor = buildDescriptor("$entity.primaryKey > 0");
 		ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		// verify body was fetched
@@ -283,7 +284,7 @@ class ExpressionProxyInstantiatorTest {
 		final ExpressionProxyDescriptor descriptor = buildDescriptor("1 + 2 > 3");
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertNotNull(result.entityProxy());
@@ -299,7 +300,7 @@ class ExpressionProxyInstantiatorTest {
 		final ExpressionProxyDescriptor descriptor = buildDescriptor("$entity.type == 'Product'");
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertEquals(ENTITY_TYPE, result.entityProxy().getType(), "Proxy type should match schema name");
@@ -336,7 +337,7 @@ class ExpressionProxyInstantiatorTest {
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, refSchema, refKey, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertNotNull(result.referenceProxy(), "Reference proxy should not be null");
@@ -383,7 +384,7 @@ class ExpressionProxyInstantiatorTest {
 
 		ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		// verify each locale-specific attribute part was fetched
@@ -413,7 +414,7 @@ class ExpressionProxyInstantiatorTest {
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, refSchema, refKey, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertNotNull(result.referenceProxy(), "Reference proxy should not be null");
@@ -442,7 +443,7 @@ class ExpressionProxyInstantiatorTest {
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, refSchema, refKey, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		final ReferenceContract referenceProxy = result.referenceProxy();
@@ -511,7 +512,7 @@ class ExpressionProxyInstantiatorTest {
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertNotNull(result.entityProxy(), "Entity proxy must not be null");
@@ -546,6 +547,8 @@ class ExpressionProxyInstantiatorTest {
 			null, new AttributeValue(new AttributeKey("type"), "CHECKBOX")
 		);
 		when(accessor.getAttributeStoragePart(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK)).thenReturn(groupAttrs);
+		when(accessor.getEntityStoragePart(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK, EntityExistence.MUST_EXIST))
+			.thenReturn(new EntityBodyStoragePart(GROUP_ENTITY_PK));
 
 		final ExpressionProxyDescriptor descriptor = buildDescriptor(
 			"$entity.references['brand'].groupEntity.attributes['type'] == 'CHECKBOX'"
@@ -556,7 +559,7 @@ class ExpressionProxyInstantiatorTest {
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, ownerSchema, ENTITY_PK, refSchema, refKey, accessor,
-			schemaResolver(Map.of(GROUP_ENTITY_TYPE, groupSchema))
+			schemaResolver(Map.of(GROUP_ENTITY_TYPE, groupSchema)), Scope.LIVE
 		);
 
 		assertNotNull(result.entityProxy(), "Entity proxy must not be null");
@@ -586,7 +589,7 @@ class ExpressionProxyInstantiatorTest {
 		// referenceKey is null — should skip reference proxy instantiation
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, refSchema, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertNotNull(result.entityProxy(), "Entity proxy must not be null");
@@ -631,7 +634,7 @@ class ExpressionProxyInstantiatorTest {
 
 		ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		// Verify: should fetch attribute parts for ENGLISH and GERMAN (the body's actual locales),
@@ -682,7 +685,7 @@ class ExpressionProxyInstantiatorTest {
 
 		ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, null, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		// Verify: should fetch AD parts for both localized (ENGLISH, GERMAN) and global
@@ -714,7 +717,7 @@ class ExpressionProxyInstantiatorTest {
 		// referenceSchema is null — should skip reference proxy instantiation
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
 			descriptor, schema, ENTITY_PK, null, refKey, accessor,
-			name -> { throw new IllegalStateException("No nested schema expected"); }
+			name -> { throw new IllegalStateException("No nested schema expected"); }, Scope.LIVE
 		);
 
 		assertNotNull(result.entityProxy(), "Entity proxy must not be null");

@@ -39,6 +39,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Immutable, thread-safe implementation of {@link CatalogExpressionTriggerRegistry}. Delegates to
@@ -148,6 +149,25 @@ class DefaultCatalogExpressionTriggerRegistry implements CatalogExpressionTrigge
 		return this.crossEntityIndex.getTriggersForAttribute(
 			mutatedEntityType, dependencyType, attributeName
 		);
+	}
+
+	@Override
+	public boolean hasEntityAttributeTrigger(
+		@Nonnull String mutatedEntityType,
+		@Nonnull String attributeName
+	) {
+		return this.crossEntityIndex.hasEntityAttributeTrigger(mutatedEntityType, attributeName);
+	}
+
+	@Override
+	public boolean hasAnyEntityAttributeTriggers(@Nonnull String mutatedEntityType) {
+		return this.crossEntityIndex.hasAnyEntityAttributeTriggers(mutatedEntityType);
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getEntityAttributeNames(@Nonnull String mutatedEntityType) {
+		return this.crossEntityIndex.getEntityAttributeNames(mutatedEntityType);
 	}
 
 	@Nullable

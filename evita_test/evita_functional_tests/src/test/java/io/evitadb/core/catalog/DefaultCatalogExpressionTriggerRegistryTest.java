@@ -66,6 +66,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -1366,6 +1367,275 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 
 	}
 
+	@Nested
+	@DisplayName("hasEntityAttributeTrigger — per-attribute trigger existence check")
+	class HasEntityAttributeTriggerTest {
+
+		@Test
+		@DisplayName("Should return false on empty registry")
+		void shouldReturnFalseOnEmptyRegistry() {
+			assertFalse(CatalogExpressionTriggerRegistry.EMPTY.hasEntityAttributeTrigger(
+				PARAMETER_GROUP, "status"
+			));
+		}
+
+		@Test
+		@DisplayName("Should return true for attribute referenced by group entity trigger")
+		void shouldReturnTrueForAttributeReferencedByGroupEntityTrigger() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			assertTrue(registry.hasEntityAttributeTrigger(PARAMETER_GROUP, "status"));
+		}
+
+		@Test
+		@DisplayName("Should return true for attribute referenced by referenced entity trigger")
+		void shouldReturnTrueForAttributeReferencedByReferencedEntityTrigger() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(
+				buildEntitySchemaWithRefEntityExpression(
+					PRODUCT, PARAMETER_REF, PARAMETER_TYPE,
+					"$reference.referencedEntity.attributes['code'] == 'A'"
+				)
+			);
+
+			assertTrue(registry.hasEntityAttributeTrigger(PARAMETER_TYPE, "code"));
+		}
+
+		@Test
+		@DisplayName("Should return false for non-matching attribute name")
+		void shouldReturnFalseForNonMatchingAttributeName() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			assertFalse(registry.hasEntityAttributeTrigger(PARAMETER_GROUP, "displayOrder"));
+		}
+
+		@Test
+		@DisplayName("Should return false for non-matching entity type")
+		void shouldReturnFalseForNonMatchingEntityType() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			assertFalse(registry.hasEntityAttributeTrigger(BRAND, "status"));
+		}
+
+		@Test
+		@DisplayName("Should accumulate attributes from multiple triggers on same entity type")
+		void shouldAccumulateAttributesFromMultipleTriggersOnSameEntityType() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(
+				buildEntitySchemaWithTwoGroupRefs(
+					PRODUCT, PARAMETER_REF, ALT_PARAMETER_REF,
+					PARAMETER_TYPE, PARAMETER_GROUP,
+					"$reference.groupEntity?.attributes['status'] == 'VISIBLE'",
+					"$reference.groupEntity?.attributes['priority'] > 0"
+				)
+			);
+
+			assertTrue(registry.hasEntityAttributeTrigger(PARAMETER_GROUP, "status"));
+			assertTrue(registry.hasEntityAttributeTrigger(PARAMETER_GROUP, "priority"));
+			assertFalse(registry.hasEntityAttributeTrigger(PARAMETER_GROUP, "unknown"));
+		}
+
+		@Test
+		@DisplayName("Should return true after rebuild adds trigger")
+		void shouldReturnTrueAfterRebuildAddsTrigger() {
+			final List<ExpressionIndexTrigger> triggers = buildTriggersForGroupRef(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['weight'] > 10"
+			);
+			final CatalogExpressionTriggerRegistry rebuilt =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(PRODUCT, triggers);
+
+			assertTrue(rebuilt.hasEntityAttributeTrigger(PARAMETER_GROUP, "weight"));
+		}
+
+		@Test
+		@DisplayName("Should return false after rebuild removes trigger")
+		void shouldReturnFalseAfterRebuildRemovesTrigger() {
+			final CatalogExpressionTriggerRegistry original = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			assertTrue(original.hasEntityAttributeTrigger(PARAMETER_GROUP, "status"));
+
+			final CatalogExpressionTriggerRegistry rebuilt =
+				original.rebuildForEntityType(PRODUCT, List.of());
+
+			assertFalse(rebuilt.hasEntityAttributeTrigger(PARAMETER_GROUP, "status"));
+		}
+
+		@Test
+		@DisplayName("Should not match reference-attribute dependency type")
+		void shouldNotMatchReferenceAttributeDependencyType() {
+			// create a trigger with REFERENCED_ENTITY_REFERENCE_ATTRIBUTE dependency —
+			// this is NOT an entity-attribute dependency and must NOT appear in the entity attribute index
+			final ExpressionIndexTrigger refAttrTrigger = createTriggerWithDependency(
+				PARAMETER_TYPE, DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, Set.of("refAttrName")
+			);
+
+			final CatalogExpressionTriggerRegistry registry =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(PRODUCT, List.of(refAttrTrigger));
+
+			assertFalse(
+				registry.hasEntityAttributeTrigger(PARAMETER_TYPE, "refAttrName"),
+				"Reference-attribute dependency type must not be indexed as entity-attribute"
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("hasAnyEntityAttributeTriggers — entity type existence check")
+	class HasAnyEntityAttributeTriggersTest {
+
+		@Test
+		@DisplayName("Should return false on empty registry")
+		void shouldReturnFalseOnEmptyRegistry() {
+			assertFalse(CatalogExpressionTriggerRegistry.EMPTY.hasAnyEntityAttributeTriggers(PARAMETER_GROUP));
+		}
+
+		@Test
+		@DisplayName("Should return true for entity type with cross-entity attribute triggers")
+		void shouldReturnTrueForEntityTypeWithCrossEntityAttributeTriggers() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			assertTrue(registry.hasAnyEntityAttributeTriggers(PARAMETER_GROUP));
+		}
+
+		@Test
+		@DisplayName("Should return false for entity type with no triggers")
+		void shouldReturnFalseForEntityTypeWithNoTriggers() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			assertFalse(registry.hasAnyEntityAttributeTriggers(BRAND));
+		}
+
+		@Test
+		@DisplayName("Should correctly reflect state after rebuild adds triggers")
+		void shouldCorrectlyReflectStateAfterRebuildAddsTriggers() {
+			final List<ExpressionIndexTrigger> triggers = buildTriggersForGroupRef(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['weight'] > 10"
+			);
+			final CatalogExpressionTriggerRegistry rebuilt =
+				CatalogExpressionTriggerRegistry.EMPTY.rebuildForEntityType(PRODUCT, triggers);
+
+			assertTrue(rebuilt.hasAnyEntityAttributeTriggers(PARAMETER_GROUP));
+			assertFalse(rebuilt.hasAnyEntityAttributeTriggers(BRAND));
+		}
+
+		@Test
+		@DisplayName("Should correctly reflect state after rebuild removes triggers")
+		void shouldCorrectlyReflectStateAfterRebuildRemovesTriggers() {
+			final CatalogExpressionTriggerRegistry original = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			final CatalogExpressionTriggerRegistry rebuilt =
+				original.rebuildForEntityType(PRODUCT, List.of());
+
+			assertFalse(rebuilt.hasAnyEntityAttributeTriggers(PARAMETER_GROUP));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("getEntityAttributeNames()")
+	class GetEntityAttributeNamesTest {
+
+		@Test
+		@DisplayName("Should return empty set on empty registry")
+		void shouldReturnEmptySetOnEmptyRegistry() {
+			final Set<String> result = CatalogExpressionTriggerRegistry.EMPTY.getEntityAttributeNames(PARAMETER_GROUP);
+
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("Should return attribute names for entity type with triggers")
+		void shouldReturnAttributeNamesForEntityTypeWithTriggers() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			final Set<String> result = registry.getEntityAttributeNames(PARAMETER_GROUP);
+
+			assertEquals(Set.of("status"), result);
+		}
+
+		@Test
+		@DisplayName("Should return empty set for entity type with no triggers")
+		void shouldReturnEmptySetForEntityTypeWithNoTriggers() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			final Set<String> result = registry.getEntityAttributeNames(BRAND);
+
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("Should combine attribute names from multiple triggers")
+		void shouldCombineAttributeNamesFromMultipleTriggers() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryFromSchemas(
+				buildEntitySchemaWithTwoGroupRefs(
+					PRODUCT, PARAMETER_REF, ALT_PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+					"$reference.groupEntity?.attributes['status'] == 'VISIBLE'",
+					"$reference.groupEntity?.attributes['weight'] > 10"
+				)
+			);
+
+			final Set<String> result = registry.getEntityAttributeNames(PARAMETER_GROUP);
+
+			assertEquals(Set.of("status", "weight"), result);
+		}
+
+		@Test
+		@DisplayName("Should return empty set after rebuild removes all triggers")
+		void shouldReturnEmptySetAfterRebuildRemovesAllTriggers() {
+			final CatalogExpressionTriggerRegistry original = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			final CatalogExpressionTriggerRegistry rebuilt =
+				original.rebuildForEntityType(PRODUCT, List.of());
+
+			assertTrue(rebuilt.getEntityAttributeNames(PARAMETER_GROUP).isEmpty());
+		}
+
+		@Test
+		@DisplayName("Should return unmodifiable set")
+		void shouldReturnUnmodifiableSet() {
+			final CatalogExpressionTriggerRegistry registry = buildRegistryWithGroupEntityExpression(
+				PRODUCT, PARAMETER_REF, PARAMETER_TYPE, PARAMETER_GROUP,
+				"$reference.groupEntity?.attributes['status'] == 'VISIBLE'"
+			);
+
+			final Set<String> result = registry.getEntityAttributeNames(PARAMETER_GROUP);
+
+			assertThrows(UnsupportedOperationException.class, () -> result.add("hack"));
+		}
+
+	}
+
 	// --- Helper methods ---
 
 	/**
@@ -1614,6 +1884,11 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				return Set.of("status");
 			}
 
+			@Override
+			public boolean hasFilterByConstraint() {
+				return false;
+			}
+
 			@Nonnull
 			@Override
 			public FilterBy getFilterByConstraint() {
@@ -1625,7 +1900,90 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				int ownerEntityPK,
 				@Nonnull ReferenceKey referenceKey,
 				@Nonnull WritableEntityStorageContainerAccessor storageAccessor,
-				@Nonnull Function<String, EntitySchemaContract> schemaResolver
+				@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+				@Nonnull Scope scope
+			) {
+				throw new UnsupportedOperationException("stub");
+			}
+		};
+	}
+
+	/**
+	 * Creates a consistent {@link ExpressionIndexTrigger} stub with a specific mutated entity type,
+	 * dependency type, and set of dependent attributes. Used to test entity-attribute index filtering.
+	 *
+	 * @param mutatedEntityType the mutated entity type
+	 * @param dependencyType    the dependency type
+	 * @param dependentAttributes the set of attribute names the trigger depends on
+	 * @return a trigger stub
+	 */
+	@Nonnull
+	private static ExpressionIndexTrigger createTriggerWithDependency(
+		@Nonnull String mutatedEntityType,
+		@Nonnull DependencyType dependencyType,
+		@Nonnull Set<String> dependentAttributes
+	) {
+		return new ExpressionIndexTrigger() {
+			@Nonnull
+			@Override
+			public String getOwnerEntityType() {
+				return PRODUCT;
+			}
+
+			@Nonnull
+			@Override
+			public String getReferenceName() {
+				return PARAMETER_REF;
+			}
+
+			@Nonnull
+			@Override
+			public Scope getScope() {
+				return Scope.LIVE;
+			}
+
+			@Nonnull
+			@Override
+			public String getMutatedEntityType() {
+				return mutatedEntityType;
+			}
+
+			@Nonnull
+			@Override
+			public DependencyType getDependencyType() {
+				return dependencyType;
+			}
+
+			@Nullable
+			@Override
+			public String getDependentReferenceName() {
+				return null;
+			}
+
+			@Nonnull
+			@Override
+			public Set<String> getDependentAttributes() {
+				return dependentAttributes;
+			}
+
+			@Override
+			public boolean hasFilterByConstraint() {
+				return false;
+			}
+
+			@Nonnull
+			@Override
+			public FilterBy getFilterByConstraint() {
+				throw new UnsupportedOperationException("stub");
+			}
+
+			@Override
+			public boolean evaluate(
+				int ownerEntityPK,
+				@Nonnull ReferenceKey referenceKey,
+				@Nonnull WritableEntityStorageContainerAccessor storageAccessor,
+				@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+				@Nonnull Scope scope
 			) {
 				throw new UnsupportedOperationException("stub");
 			}

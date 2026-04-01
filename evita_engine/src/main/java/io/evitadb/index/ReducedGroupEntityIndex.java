@@ -720,14 +720,16 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 
 	@Override
 	public void insertHistogramValue(
-		@Nonnull String histogramName, boolean localized, @Nullable Locale locale,
-		@Nonnull Number value, int ownerPK,
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Number value,
+		int ownerPK,
 		@Nonnull Class<? extends Serializable> valueType
 	) {
 		final String referenceName = getRepresentativeReferenceKey().referenceName();
 		final HistogramIndex histogramIndex = this.histogramIndexes.computeIfAbsent(
 			histogramName,
-			k -> localized
+			k -> locale != null
 				? new LocalizedHistogramIndex(histogramName, referenceName, valueType)
 				: new SimpleHistogramIndex(histogramName, referenceName, valueType)
 		);
@@ -737,7 +739,10 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 
 	@Override
 	public void removeHistogramValue(
-		@Nonnull String histogramName, @Nullable Locale locale, @Nonnull Serializable value, int ownerPK
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int ownerPK
 	) {
 		final HistogramIndex histogramIndex = this.histogramIndexes.get(histogramName);
 		Assert.isPremiseValid(

@@ -108,7 +108,7 @@ public class HistogramExpressionTriggerFactory {
 				final HistogramValueDescriptor valueResolution =
 					HistogramValueDescriptorFactory.build(
 						valueExpression, referenceName, histogramName,
-						referenceSchema, schemaResolver
+						scope, referenceSchema, schemaResolver
 					);
 
 				buildTriggersForHistogram(

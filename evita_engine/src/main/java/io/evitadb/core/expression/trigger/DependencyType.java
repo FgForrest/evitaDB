@@ -88,6 +88,20 @@ public enum DependencyType {
 	 * The trigger fires when a reference mutation on the parent entity affects reference 'r' (insert,
 	 * remove, or attribute 'x' change). Fan-out is bounded by the branching factor of the hierarchy.
 	 */
-	PARENT_ENTITY_REFERENCE_ATTRIBUTE
+	PARENT_ENTITY_REFERENCE_ATTRIBUTE;
+
+	/**
+	 * Returns `true` if this dependency type represents an entity-level attribute dependency
+	 * (as opposed to a reference-level attribute dependency). Entity-level attribute dependencies
+	 * are: {@link #REFERENCED_ENTITY_ATTRIBUTE}, {@link #GROUP_ENTITY_ATTRIBUTE}, and
+	 * {@link #PARENT_ENTITY_ATTRIBUTE}.
+	 *
+	 * @return `true` for entity-attribute dependency types
+	 */
+	public boolean isEntityAttributeDependency() {
+		return this == REFERENCED_ENTITY_ATTRIBUTE
+			|| this == GROUP_ENTITY_ATTRIBUTE
+			|| this == PARENT_ENTITY_ATTRIBUTE;
+	}
 
 }
