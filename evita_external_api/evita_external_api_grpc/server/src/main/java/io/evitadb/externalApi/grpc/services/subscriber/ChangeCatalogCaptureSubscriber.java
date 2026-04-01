@@ -163,12 +163,23 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 		if (subscription instanceof ChangeCaptureSubscription ccs) {
 			response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
 		}
-		this.responseObserver.onNext(
-			response
-				.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
-				.setHeartBeat(buildHeartBeatMessage())
-				.build()
-		);
+		try {
+			this.responseObserver.onNext(
+				response
+					.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
+					.setHeartBeat(buildHeartBeatMessage())
+					.build()
+			);
+		} catch (Exception ex) {
+			log.debug("CDC acknowledgement failed (stream already terminated): {}", ex.getMessage());
+			if (this.streamFinalized.compareAndSet(false, true)) {
+				IOUtils.closeQuietly(this.heartBeatTask::close);
+			}
+			// Defer cancellation — this method is called from DefaultChangeCaptureSubscription constructor
+			// inside ConcurrentHashMap.computeIfAbsent; synchronous cancel would re-enter the map.
+			CompletableFuture.runAsync(subscription::cancel);
+			return;
+		}
 		subscription.request(1);
 	}
 
