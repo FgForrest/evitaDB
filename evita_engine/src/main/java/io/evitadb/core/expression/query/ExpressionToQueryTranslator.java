@@ -608,13 +608,13 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 
 	/**
 	 * Checks whether the given property name refers to an attributes accessor.
+	 * Delegates to {@link EntityContractAccessor#isAttributesProperty(String)}.
 	 *
 	 * @param propertyName the property name to check
 	 * @return `true` if the name matches `attributes` or `localizedAttributes`
 	 */
 	private static boolean isAttributesProperty(@Nonnull String propertyName) {
-		return EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(propertyName)
-			|| EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
+		return EntityContractAccessor.isAttributesProperty(propertyName);
 	}
 
 	/**

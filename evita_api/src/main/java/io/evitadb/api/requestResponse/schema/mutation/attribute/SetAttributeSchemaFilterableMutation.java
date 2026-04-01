@@ -24,12 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
-import io.evitadb.api.query.expression.object.accessor.entity.EntityContractAccessor;
-import io.evitadb.api.query.expression.object.accessor.entity.ReferenceContractAccessor;
-import io.evitadb.api.query.expression.visitor.ElementPathItem;
-import io.evitadb.api.query.expression.visitor.IdentifierPathItem;
 import io.evitadb.api.query.expression.visitor.PathItem;
-import io.evitadb.api.query.expression.visitor.VariablePathItem;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -44,6 +39,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition.AttributePathClassification;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition.AttributeSource;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -284,8 +281,6 @@ public class SetAttributeSchemaFilterableMutation
 	 * is being removed. Scans all histogram index definitions on the given reference for value expressions
 	 * of the form `$reference.attributes['x']` that match the attribute being mutated.
 	 *
-	 * TODO JNO - TADY S TÍM SI NEJSEM JEŠTĚ JISTEJ
-	 *
 	 * @param referenceSchema the reference schema whose histogram definitions are checked
 	 * @param entityTypeName  the entity type name for error messages
 	 * @throws InvalidSchemaMutationException if the attribute is referenced by a histogram value expression
@@ -305,7 +300,9 @@ public class SetAttributeSchemaFilterableMutation
 				if (valueExpression == null) {
 					continue;
 				}
-				final String referencedAttr = extractReferenceAttributeName(valueExpression);
+				final String referencedAttr = extractAttributeNameBySource(
+					valueExpression, AttributeSource.REFERENCE_ATTRIBUTE
+				);
 				if (this.name.equals(referencedAttr)) {
 					throw new InvalidSchemaMutationException(
 						"Cannot remove filterability from attribute `" + this.name +
@@ -346,7 +343,9 @@ public class SetAttributeSchemaFilterableMutation
 						if (valueExpression == null) {
 							continue;
 						}
-						final String referencedAttr = extractReferencedEntityAttributeName(valueExpression);
+						final String referencedAttr = extractAttributeNameBySource(
+							valueExpression, AttributeSource.REFERENCED_ENTITY_ATTRIBUTE
+						);
 						if (this.name.equals(referencedAttr)) {
 							throw new InvalidSchemaMutationException(
 								"Cannot remove filterability from attribute `" + this.name +
@@ -365,70 +364,27 @@ public class SetAttributeSchemaFilterableMutation
 	}
 
 	/**
-	 * Extracts the attribute name from a value expression of the form `$reference.attributes['x']`.
-	 * Returns null if the expression does not match that pattern.
+	 * Extracts the attribute name from a value expression that matches the given
+	 * {@link AttributeSource}. Delegates path classification to
+	 * {@link HistogramIndexDefinition#classifyAttributePath(List)}.
 	 *
 	 * @param valueExpression the histogram value expression to analyze
-	 * @return the attribute name if the expression is a reference attribute access, null otherwise
+	 * @param expectedSource  the expected attribute source to match
+	 * @return the attribute name if found for the given source, null otherwise
 	 */
 	@Nullable
-	private static String extractReferenceAttributeName(@Nonnull Expression valueExpression) {
+	private static String extractAttributeNameBySource(
+		@Nonnull Expression valueExpression,
+		@Nonnull AttributeSource expectedSource
+	) {
 		final List<List<PathItem>> paths = findAccessedPaths(valueExpression);
 		for (final List<PathItem> path : paths) {
-			if (path.size() < 3) {
-				continue;
-			}
-			final PathItem first = path.get(0);
-			final PathItem second = path.get(1);
-			if (first instanceof VariablePathItem variable
-				&& ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variable.value())
-				&& second instanceof IdentifierPathItem identifier
-				&& isAttributesProperty(identifier.value())
-				&& path.get(2) instanceof ElementPathItem element) {
-				return element.value();
+			final AttributePathClassification classification =
+				HistogramIndexDefinition.classifyAttributePath(path);
+			if (classification != null && classification.source() == expectedSource) {
+				return classification.attributeName();
 			}
 		}
 		return null;
-	}
-
-	/**
-	 * Extracts the attribute name from a value expression of the form
-	 * `$reference.referencedEntity?.attributes['x']`. Returns null if the expression does not match
-	 * that pattern.
-	 *
-	 * @param valueExpression the histogram value expression to analyze
-	 * @return the attribute name if the expression is a referenced entity attribute access, null otherwise
-	 */
-	@Nullable
-	private static String extractReferencedEntityAttributeName(@Nonnull Expression valueExpression) {
-		final List<List<PathItem>> paths = findAccessedPaths(valueExpression);
-		for (final List<PathItem> path : paths) {
-			if (path.size() < 4) {
-				continue;
-			}
-			final PathItem first = path.get(0);
-			final PathItem second = path.get(1);
-			if (first instanceof VariablePathItem variable
-				&& ReferenceContractAccessor.REFERENCE_VARIABLE_NAME.equals(variable.value())
-				&& second instanceof IdentifierPathItem identifier
-				&& ReferenceContractAccessor.REFERENCED_ENTITY_PROPERTY.equals(identifier.value())
-				&& path.get(2) instanceof IdentifierPathItem thirdId
-				&& isAttributesProperty(thirdId.value())
-				&& path.get(3) instanceof ElementPathItem element) {
-				return element.value();
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Checks whether the given property name refers to an attributes accessor.
-	 *
-	 * @param propertyName the property name to check
-	 * @return true if the name matches `attributes` or `localizedAttributes`
-	 */
-	private static boolean isAttributesProperty(@Nonnull String propertyName) {
-		return EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(propertyName)
-			|| EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
 	}
 }

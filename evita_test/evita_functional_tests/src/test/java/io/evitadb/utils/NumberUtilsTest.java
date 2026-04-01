@@ -32,9 +32,12 @@ import java.util.Map;
 
 import static io.evitadb.utils.NumberUtils.join;
 import static io.evitadb.utils.NumberUtils.split;
+import java.io.Serializable;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -241,6 +244,81 @@ class NumberUtilsTest {
 			assertNull(map.get(NumberUtils.normalize(new BigDecimal("-00110.200"))));
 			assertNull(map.get(NumberUtils.normalize(new BigDecimal("110.0200"))));
 			assertNull(map.get(NumberUtils.normalize(new BigDecimal("1010.0200"))));
+		}
+	}
+
+	@Nested
+	@DisplayName("normalizeIfBigDecimal tests")
+	class NormalizeIfBigDecimalTests {
+
+		@Test
+		@DisplayName("Should normalize scalar BigDecimal")
+		void shouldNormalizeScalarBigDecimal() {
+			final Serializable result = NumberUtils.normalizeIfBigDecimal(new BigDecimal("50.00"));
+			assertEquals(new BigDecimal("5E+1"), result);
+		}
+
+		@Test
+		@DisplayName("Should return non-BigDecimal value unchanged")
+		void shouldReturnNonBigDecimalValueUnchanged() {
+			final Serializable intValue = 42;
+			assertSame(intValue, NumberUtils.normalizeIfBigDecimal(intValue));
+
+			final Serializable strValue = "hello";
+			assertSame(strValue, NumberUtils.normalizeIfBigDecimal(strValue));
+		}
+
+		@Test
+		@DisplayName("Should normalize each element in BigDecimal array")
+		void shouldNormalizeEachElementInBigDecimalArray() {
+			final BigDecimal[] input = new BigDecimal[]{
+				new BigDecimal("10.00"), new BigDecimal("20"), new BigDecimal("30.50")
+			};
+			final Serializable result = NumberUtils.normalizeIfBigDecimal(input);
+			final BigDecimal[] normalized = (BigDecimal[]) result;
+
+			assertEquals(new BigDecimal("1E+1"), normalized[0]);
+			assertEquals(new BigDecimal("2E+1"), normalized[1]);
+			assertEquals(new BigDecimal("30.5"), normalized[2]);
+		}
+
+		@Test
+		@DisplayName("Should normalize pre-normalized BigDecimal array elements to equivalent values")
+		void shouldNormalizePreNormalizedBigDecimalArrayToEquivalentValues() {
+			final BigDecimal[] input = new BigDecimal[]{
+				NumberUtils.normalize(new BigDecimal("10")),
+				NumberUtils.normalize(new BigDecimal("20"))
+			};
+			final BigDecimal[] result = (BigDecimal[]) NumberUtils.normalizeIfBigDecimal(input);
+			assertEquals(input[0], result[0]);
+			assertEquals(input[1], result[1]);
+		}
+
+		@Test
+		@DisplayName("Should handle empty BigDecimal array")
+		void shouldHandleEmptyBigDecimalArray() {
+			final BigDecimal[] result = (BigDecimal[]) NumberUtils.normalizeIfBigDecimal(new BigDecimal[0]);
+			assertEquals(0, result.length);
+		}
+
+		@Test
+		@DisplayName("Should produce HashMap-consistent values for array elements")
+		void shouldProduceHashMapConsistentValuesForArrayElements() {
+			final BigDecimal[] input = new BigDecimal[]{
+				new BigDecimal("50.00"), new BigDecimal("50"), new BigDecimal("5E+1")
+			};
+			final BigDecimal[] normalized = (BigDecimal[]) NumberUtils.normalizeIfBigDecimal(input);
+
+			// all three forms of 50 must produce equal and hashCode-consistent values
+			assertEquals(normalized[0], normalized[1]);
+			assertEquals(normalized[1], normalized[2]);
+			assertEquals(normalized[0].hashCode(), normalized[1].hashCode());
+			assertEquals(normalized[1].hashCode(), normalized[2].hashCode());
+
+			// they must work as HashMap keys
+			final Map<BigDecimal, Integer> map = Map.of(normalized[0], 1);
+			assertEquals(1, map.get(normalized[1]));
+			assertEquals(1, map.get(normalized[2]));
 		}
 	}
 }

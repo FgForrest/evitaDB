@@ -287,7 +287,16 @@ public class NumberUtils {
 	 */
 	@Nonnull
 	public static Serializable normalizeIfBigDecimal(@Nonnull Serializable value) {
-		return value instanceof BigDecimal bd ? normalize(bd) : value;
+		if (value instanceof BigDecimal bd) {
+			return normalize(bd);
+		} else if (value instanceof BigDecimal[] bdArray) {
+			final BigDecimal[] normalized = new BigDecimal[bdArray.length];
+			for (int i = 0; i < bdArray.length; i++) {
+				normalized[i] = normalize(bdArray[i]);
+			}
+			return normalized;
+		}
+		return value;
 	}
 
 }

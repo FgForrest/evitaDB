@@ -583,7 +583,6 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = toBucketedHistogramMap(bucketedInScopes);
 		final Map<Scope, Expression> bucketedPartiallyMap = toBucketedPartiallyMap(bucketedPartiallyInScopes);
 		validateScopeSettings(facetedScopes, bucketedMap, indexedScopesMap, indexedComponentsMap);
-		validateHistogramNamesNotCollidingWithAttributes(bucketedMap, attributes);
 
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -765,34 +764,6 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 					throw new InvalidSchemaMutationException(
 						"Indexed component `REFERENCED_GROUP_ENTITY` in scope `" + scope +
 							"` requires a non-null referenced group type on the reference schema."
-					);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Validates that no histogram definition name collides with a reference attribute name. Such a collision
-	 * would make the storage key (AttributeIndexKey) ambiguous, because both the histogram filter index and
-	 * the regular filter attribute index would share the same key.
-	 *
-	 * @param bucketedScopes the per-scope histogram definitions
-	 * @param attributes     the reference attribute schemas
-	 */
-	/* TODO JNO - tohle by se mělo zvážit */
-	static void validateHistogramNamesNotCollidingWithAttributes(
-		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedScopes,
-		@Nonnull Map<String, AttributeSchemaContract> attributes
-	) {
-		if (bucketedScopes.isEmpty() || attributes.isEmpty()) {
-			return;
-		}
-		for (final Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedScopes.entrySet()) {
-			for (final String histogramName : scopeEntry.getValue().keySet()) {
-				if (attributes.containsKey(histogramName)) {
-					throw new InvalidSchemaMutationException(
-						"Histogram index name `" + histogramName + "` in scope `" + scopeEntry.getKey() +
-							"` collides with a reference attribute of the same name."
 					);
 				}
 			}

@@ -138,18 +138,21 @@ public interface ExistingAttributeValueSupplier {
 
 	/**
 	 * Normalizes `BigDecimal` values inside an {@link AttributeValue} by stripping trailing zeros.
+	 * Handles both scalar `BigDecimal` and `BigDecimal[]` array values.
 	 * Returns the original instance unchanged if no normalization is needed.
 	 */
 	@Nonnull
 	private static AttributeValue normalizeAttributeValue(@Nonnull AttributeValue attributeValue) {
 		final Serializable value = attributeValue.value();
-		if (value instanceof BigDecimal bd) {
-			final BigDecimal normalized = NumberUtils.normalize(bd);
-			if (normalized != bd) {
+		if (value == null) {
+			return attributeValue;
+		} else {
+			final Serializable normalized = NumberUtils.normalizeIfBigDecimal(value);
+			if (normalized != value) {
 				return new AttributeValue(attributeValue.version(), attributeValue.key(), normalized);
 			}
+			return attributeValue;
 		}
-		return attributeValue;
 	}
 
 }
