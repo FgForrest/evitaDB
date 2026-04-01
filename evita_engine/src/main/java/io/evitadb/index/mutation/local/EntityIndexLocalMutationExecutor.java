@@ -64,6 +64,10 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
+import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -71,13 +75,7 @@ import io.evitadb.function.QuadriConsumer;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
-import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.mutation.EntityIndexMutation;
-import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
-import io.evitadb.core.expression.trigger.HistogramValueSource;
-import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
-import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
-import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
@@ -92,8 +90,6 @@ import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
-import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
@@ -106,6 +102,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -248,6 +245,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Contains both facet and histogram re-evaluation lambdas (flushed together).
 	 */
 	@Nullable private List<Runnable> deferredExpressionReEvaluations;
+	/**
+	 * Pre-mutation entity attribute values captured during Step 5a (before index updates) for use in
+	 * cross-entity histogram trigger mutations. Keyed by attribute name → locale → raw value. Uses
+	 * `putIfAbsent` to capture only the true pre-mutation value when the same attribute is mutated
+	 * multiple times in one batch. Populated lazily in {@link #applyAttributeMutation}.
+	 */
+	@Nullable private Map<String, Map<Locale, Serializable>> capturedOldEntityAttributeValues;
+	/**
+	 * References whose histogram add was already deferred during reference insertion. When a reference
+	 * attribute mutation follows an insert in the same batch, the histogram re-evaluation must skip
+	 * its own `addHistogramToIndex` call to avoid double-inserting the value (corrupting cardinality).
+	 */
+	@Nonnull private Set<ReferenceKey> referencesWithDeferredHistogramAdd = Collections.emptySet();
 	/**
 	 * Memoized scope of the current entity.
 	 */
@@ -422,60 +432,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Reads an attribute value from a referenced entity's storage part. When `locale` is non-null, reads from
-	 * the locale-specific attribute storage part; otherwise reads from the global (locale-agnostic) part.
-	 * Used by local histogram triggers when the value source is
-	 * {@link HistogramValueSource#REFERENCED_ENTITY_ATTRIBUTE}.
-	 *
-	 * @param entityType    the type of the referenced entity
-	 * @param entityPK      the primary key of the referenced entity
-	 * @param attributeName the name of the attribute to read
-	 * @param locale        the locale for localized attributes, or `null` for non-localized
-	 * @return the attribute value, or null if the attribute doesn't exist or is dropped
-	 */
-	@Nullable
-	public Serializable readReferencedEntityAttribute(
-		@Nonnull String entityType,
-		int entityPK,
-		@Nonnull String attributeName,
-		@Nullable Locale locale
-	) {
-		final AttributesStoragePart attributesPart;
-		if (locale != null) {
-			attributesPart = this.containerAccessor.getAttributeStoragePart(entityType, entityPK, locale);
-		} else {
-			attributesPart = this.containerAccessor.getAttributeStoragePart(entityType, entityPK);
-		}
-		final AttributeKey key = locale != null
-			? new AttributeKey(attributeName, locale)
-			: new AttributeKey(attributeName);
-		final AttributeValue attributeValue = attributesPart.findAttribute(key);
-		if (attributeValue == null || attributeValue.value() == null || attributeValue.dropped()) {
-			return null;
-		}
-		return NumberUtils.normalizeIfBigDecimal(attributeValue.value());
-	}
-
-	/**
-	 * Returns the set of attribute locales for a referenced entity. Used by localized histogram triggers to
-	 * discover all locales for which the referenced entity has localized attribute values.
-	 *
-	 * @param entityType the type of the referenced entity
-	 * @param entityPK   the primary key of the referenced entity
-	 * @return set of locales for which the entity has localized attribute values
-	 */
-	@Nonnull
-	public Set<Locale> getReferencedEntityAttributeLocales(
-		@Nonnull String entityType,
-		int entityPK
-	) {
-		final EntityBodyStoragePart entityBody = this.containerAccessor.getEntityStoragePart(
-			entityType, entityPK, EntityExistence.MUST_EXIST
-		);
-		return entityBody.getAttributeLocales();
-	}
-
-	/**
 	 * Returns list of engine-internal index mutations that were detected during processing of the given
 	 * input mutations. This method is the index-executor analogue of
 	 * {@link ConsistencyCheckingLocalMutationExecutor#popImplicitMutations}.
@@ -543,7 +499,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		Set<String> processedRefAttributes = null;
 
 		for (final LocalMutation<?, ?> mutation : inputMutations) {
-			if (mutation instanceof ReferenceAttributeMutation refAttrMutation) {
+			if (mutation instanceof SetEntityScopeMutation) {
+				// scope change affects entity visibility in all scopes — fire all triggers
+				// unconditionally, same as entity removal
+				return buildRemovalMutations(registry, entityPK);
+			} else if (mutation instanceof ReferenceAttributeMutation refAttrMutation) {
 				final String referenceName = refAttrMutation.getReferenceKey().referenceName();
 				final String attributeName = refAttrMutation.getAttributeKey().attributeName();
 				// deduplicate by (referenceName + '\0' + attributeName) to avoid collisions
@@ -607,7 +567,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					mutationsByTargetType = CollectionUtils.createHashMap(4);
 				}
 				final ReevaluateExpressionMutation mutation = new ReevaluateExpressionMutation(
-					trigger.getReferenceName(), entityPK, dependencyType, trigger.getScope()
+					trigger.getReferenceName(), entityPK, dependencyType, trigger.getScope(),
+					this.capturedOldEntityAttributeValues
 				);
 				final List<IndexMutation> mutations = mutationsByTargetType
 					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4));
@@ -651,7 +612,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				if (mutationsByTargetType == null) {
 					mutationsByTargetType = CollectionUtils.createHashMap(4);
 				}
-				final ReevaluateExpressionMutation mutation = new ReevaluateExpressionMutation(
+				// reference attribute changes on the source entity cannot affect entity-level histogram
+				// value sources — only condition expressions may be affected, so no old values needed
+				final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
 					trigger.getReferenceName(), entityPK, dependencyType, trigger.getScope()
 				);
 				final List<IndexMutation> mutations = mutationsByTargetType
@@ -713,8 +676,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				if (mutationsByTargetType == null) {
 					mutationsByTargetType = CollectionUtils.createHashMap(4);
 				}
+				// entity removal: pass all captured old values so each trigger's value source can be resolved
 				final ReevaluateExpressionMutation mutation = new ReevaluateExpressionMutation(
-					trigger.getReferenceName(), entityPK, dependencyType, trigger.getScope()
+					trigger.getReferenceName(), entityPK, dependencyType, trigger.getScope(),
+					this.capturedOldEntityAttributeValues
 				);
 				final List<IndexMutation> mutations = mutationsByTargetType
 					.computeIfAbsent(trigger.getOwnerEntityType(), k -> new ArrayList<>(4));
@@ -926,32 +891,56 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Defers histogram re-evaluation when a reference attribute changes. For each histogram trigger that
 	 * references the changed attribute — either as the value source or in its condition expression — the
 	 * histogram bucket is removed and re-added with the updated attribute value.
+	 *
+	 * When the changed attribute is the histogram value source, the old attribute value is captured
+	 * BEFORE deferral (while the storage still has pre-mutation data) and passed to the deferred lambda
+	 * for precise surgical removal. This avoids the O(references x buckets) full-reindex fallback.
 	 */
 	private void deferHistogramReEvaluationForReferenceAttribute(
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull String changedAttribute,
 		@Nonnull Scope scope
 	) {
+		// if the reference was just inserted in this batch, the insert path already deferred a
+		// histogram add — skip re-evaluation to avoid double-inserting the value (corrupting cardinality)
+		if (this.referencesWithDeferredHistogramAdd.contains(referenceKey)) {
+			return;
+		}
 		final Collection<HistogramExpressionTrigger> histTriggers =
 			getLocalHistogramTriggers(referenceKey.referenceName(), scope);
 		if (!histTriggers.isEmpty()) {
 			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+			// capture old values BEFORE deferral -- storage still has pre-mutation data at this point
+			// (entityIndexUpdater runs before changeCollector for each mutation)
+			final ExistingAttributeValueSupplier oldSupplier =
+				getStoragePartExistingDataFactory().getNormalizedReferenceAttributeValueSupplier(referenceKey);
+			final PreMutationHistogramSnapshot snapshot =
+				new PreMutationHistogramSnapshot(histTriggers, changedAttribute, oldSupplier);
 			deferExpressionReEvaluation(() -> {
 				final ReferenceContract ref = getReferencesStoragePart()
 					.findReference(referenceKey).orElse(null);
-				final Integer groupPK = ref != null
-					? extractActiveGroupPrimaryKey(ref) : null;
+				final Integer groupPK = ref != null ? extractActiveGroupPrimaryKey(ref) : null;
 				for (final HistogramExpressionTrigger trigger : histTriggers) {
-					final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
-					final boolean valueSourceChanged =
-						resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE
-							&& resolution.sourceAttributeName().equals(changedAttribute);
 					final boolean conditionExpressionAffected =
 						trigger.getLocalReferenceAttributes().contains(changedAttribute);
-					if (valueSourceChanged || conditionExpressionAffected) {
-						ReferenceIndexMutator.removeHistogramFromIndex(
-							this, referenceKey,
-							groupPK, entityPK, scope
+					if (snapshot.isValueSourceChanged(trigger)) {
+						// value source changed: use pre-captured old values for surgical per-locale removal
+						for (final Entry<Locale, Number[]> entry : snapshot.getOldValuesByLocale(trigger).entrySet()) {
+							ReferenceIndexMutator.removeHistogramWithKnownOldValues(
+								this, referenceKey, groupPK, entityPK,
+								entry.getValue(), trigger, entry.getKey(), scope
+							);
+						}
+						ReferenceIndexMutator.addHistogramToIndex(
+							this, referenceKey, groupPK, entityPK,
+							getStoragePartExistingDataFactory()
+								.getNormalizedReferenceAttributeValueSupplier(referenceKey),
+							scope
+						);
+					} else if (conditionExpressionAffected) {
+						// condition changed but value source did not: current value = old value
+						ReferenceIndexMutator.removeHistogramIfPresent(
+							this, referenceKey, groupPK, entityPK, scope
 						);
 						ReferenceIndexMutator.addHistogramToIndex(
 							this, referenceKey, groupPK, entityPK,
@@ -986,6 +975,25 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				updateGlobalIndex,
 				true
 			);
+		final CatalogExpressionTriggerRegistry triggerRegistry = getCatalogExpressionTriggerRegistry();
+		// capture pre-mutation value and defer histogram re-evaluation for entity attribute changes
+		// — capture must happen before mutation; re-evaluation is deferred so placement is irrelevant
+		if (triggerRegistry != null) {
+			final String mutatedAttrName = attributeMutation.getAttributeKey().attributeName();
+			// capture pre-mutation value only when a cross-entity trigger depends on this specific attribute
+			// — avoids map allocation and supplier call for attributes that no trigger references
+			if (triggerRegistry.hasEntityAttributeTrigger(this.entityType, mutatedAttrName)) {
+				captureOldEntityAttributeValue(attributeMutation.getAttributeKey(), entityAttributeValueSupplier);
+			}
+			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
+			deferExpressionReEvaluation(
+				() -> ReferenceIndexMutator.reEvaluateHistogramExpressionsInAllIndexes(
+					globalIndex, this, entityPK,
+					getStoragePartExistingDataFactory(),
+					trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
+				)
+			);
+		}
 		//noinspection DataFlowIssue
 		attributeUpdateApplicator.accept(true, globalIndex, globalIndex, null);
 		final ReferenceIndexConsumer attrConsumer =
@@ -1006,17 +1014,60 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				)
 			);
 		}
-		// defer histogram re-evaluation for entity attribute changes
-		if (getCatalogExpressionTriggerRegistry() != null) {
-			final String mutatedAttrName = attributeMutation.getAttributeKey().attributeName();
-			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-			deferExpressionReEvaluation(
-				() -> ReferenceIndexMutator.reEvaluateHistogramExpressionsInAllIndexes(
-					globalIndex, this, entityPK,
-					getStoragePartExistingDataFactory(),
-					trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
-				)
-			);
+	}
+
+	/**
+	 * Captures the pre-mutation value of an entity attribute for deterministic cross-entity histogram
+	 * removal. Uses `putIfAbsent` to preserve only the true pre-mutation value when the same attribute
+	 * is mutated multiple times in one batch.
+	 *
+	 * @param attributeKey the attribute key identifying the mutated attribute
+	 * @param supplier     pre-mutation attribute value supplier (reads from storage parts before write)
+	 */
+	private void captureOldEntityAttributeValue(
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull ExistingAttributeValueSupplier supplier
+	) {
+		supplier.getAttributeValue(attributeKey).ifPresent(av -> {
+			final Serializable value = av.value();
+			if (value != null) {
+				if (this.capturedOldEntityAttributeValues == null) {
+					this.capturedOldEntityAttributeValues = CollectionUtils.createHashMap(8);
+				}
+				this.capturedOldEntityAttributeValues
+					.computeIfAbsent(attributeKey.attributeName(), k -> CollectionUtils.createHashMap(4))
+					.putIfAbsent(attributeKey.locale(), value);
+			}
+		});
+	}
+
+	/**
+	 * Captures entity attribute values into the pre-mutation map only for attributes referenced by
+	 * cross-entity triggers. Used by scope change paths where captured attributes become unavailable
+	 * in the source FilterIndex after the operation.
+	 *
+	 * @param entity         the full entity whose attribute values should be captured
+	 * @param attributeNames the set of attribute names referenced by triggers (from registry)
+	 */
+	private void captureEntityAttributeValues(@Nonnull Entity entity, @Nonnull Set<String> attributeNames) {
+		for (final AttributeValue attributeValue : entity.getAttributeValues()) {
+			if (!attributeNames.contains(attributeValue.key().attributeName())) {
+				continue;
+			}
+			final Serializable rawValue = attributeValue.value();
+			if (rawValue != null) {
+				// normalize BigDecimal values to match the canonical form used in indexes
+				final Serializable value = NumberUtils.normalizeIfBigDecimal(rawValue);
+				if (this.capturedOldEntityAttributeValues == null) {
+					this.capturedOldEntityAttributeValues = CollectionUtils.createHashMap(8);
+				}
+				this.capturedOldEntityAttributeValues
+					.computeIfAbsent(
+						attributeValue.key().attributeName(),
+						k -> CollectionUtils.createHashMap(4)
+					)
+					.putIfAbsent(attributeValue.key().locale(), value);
+			}
 		}
 	}
 
@@ -1042,10 +1093,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Applies an entity scope mutation — removes the entity from old scope indexes and adds it to the new scope.
+	 * Captures all entity attribute values BEFORE removing from old scope indexes so that cross-entity
+	 * histogram triggers can perform deterministic removal.
 	 */
 	private void applyEntityScopeMutation(@Nonnull SetEntityScopeMutation entityScopeMutation) {
 		final Entity entity = this.fullEntitySupplier.get();
 		if (entity.getScope() != entityScopeMutation.getScope()) {
+			// capture only the attribute values that cross-entity triggers actually reference
+			final CatalogExpressionTriggerRegistry registry = getCatalogExpressionTriggerRegistry();
+			if (registry != null) {
+				final Set<String> triggerAttributes = registry.getEntityAttributeNames(this.entityType);
+				if (!triggerAttributes.isEmpty()) {
+					captureEntityAttributeValues(entity, triggerAttributes);
+				}
+			}
 			// remove the entity from the indexes
 			Assert.isPremiseValid(
 				Objects.equals(entity.getScope(), getScope()),
@@ -1755,7 +1816,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @return An instance of ExistingDataSupplierFactory associated with the current storage part.
 	 */
 	@Nonnull
-	private EntityStoragePartExistingDataFactory getStoragePartExistingDataFactory() {
+	EntityStoragePartExistingDataFactory getStoragePartExistingDataFactory() {
 		if (this.storagePartExistingDataFactory == null) {
 			this.storagePartExistingDataFactory = new EntityStoragePartExistingDataFactory(
 				this.containerAccessor,
@@ -1966,6 +2027,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					epk, globalIndex, referenceKey, referenceSchema, true
 				);
 				if (ReferenceIndexMutator.isIndexedReferenceForFiltering(referenceSchema, scope)) {
+					final Integer groupId = extractActiveGroupPrimaryKey(reference);
+					// histogram: remove histogram entries before facet/component cleanup
+					ReferenceIndexMutator.removeHistogramFromIndex(
+						this, referenceKey, groupId, epk, scope
+					);
 					// global: always — remove facet from global index
 					ReferenceIndexMutator.referenceRemovalGlobal(
 						epk, referenceSchema, globalIndex, referenceKey,
@@ -1978,9 +2044,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 								this, referenceKey.referenceName(), scope
 							);
 						final ReducedEntityIndex mainReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-								this, rrk, scope
-							);
+							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
 						ReferenceIndexMutator.referenceRemovalPerComponent(
 							epk, entitySchema, referenceSchema, this,
 							referenceTypeIndex, mainReferenceIndex, referenceKey,
@@ -2276,6 +2340,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				);
 				if (ReferenceIndexMutator.isIndexedReferenceForFiltering(referenceSchema, scope)) {
 					final Integer groupId = extractActiveGroupPrimaryKey(reference);
+					// prevent referenceInsertGlobal from deferring a histogram add —
+					// indexAllReferences handles histogram directly with the correct groupId
+					if (this.referencesWithDeferredHistogramAdd.isEmpty()) {
+						this.referencesWithDeferredHistogramAdd = CollectionUtils.createHashSet(4);
+					}
+					this.referencesWithDeferredHistogramAdd.add(referenceKey);
 					// global: always — add facet to global index
 					ReferenceIndexMutator.referenceInsertGlobal(
 						epk, referenceSchema, globalIndex, referenceKey, groupId,
@@ -2318,13 +2388,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						}
 					}
 					// group component: independent — group type index + group reduced index
-					if (groupId != null &&
-						ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope)) {
+					if (
+						groupId != null &&
+							ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope)
+					) {
 						insertIntoGroupIndexes(
 							epk, entitySchema, referenceSchema, rrk, referenceKey,
 							groupId, scope, existingDataSupplierFactory
 						);
 					}
+					// histogram: add histogram entries after facet/component setup
+					ReferenceIndexMutator.addHistogramToIndex(
+						this, referenceKey, groupId, epk,
+						existingDataSupplierFactory.getNormalizedReferenceAttributeValueSupplier(referenceKey),
+						scope
+					);
 				}
 			}
 		}
@@ -2670,7 +2748,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		deferFacetExpressionReEvaluation(entityIndex, epk, referenceKey.referenceName());
 		// defer histogram evaluation for same reason as facets — reference data
 		// not yet persisted at this point; groupId is null at insert time
-		if (!getLocalHistogramTriggers(referenceKey.referenceName(), scope).isEmpty()) {
+		// skipped when indexAllReferences already registered this key (handles histogram directly)
+		if (!this.referencesWithDeferredHistogramAdd.contains(referenceKey)
+			&& !getLocalHistogramTriggers(referenceKey.referenceName(), scope).isEmpty()) {
 			deferExpressionReEvaluation(
 				() -> ReferenceIndexMutator.addHistogramToIndex(
 					this, referenceKey, null, epk,
@@ -2678,6 +2758,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					scope
 				)
 			);
+			// track this reference so deferHistogramReEvaluationForReferenceAttribute skips its own add
+			if (this.referencesWithDeferredHistogramAdd.isEmpty()) {
+				this.referencesWithDeferredHistogramAdd = CollectionUtils.createHashSet(4);
+			}
+			this.referencesWithDeferredHistogramAdd.add(referenceKey);
 		}
 	}
 
@@ -2704,12 +2789,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(
 			epk, entityIndex, referenceKey, referenceSchema, true
 		);
-		// histogram removal: unconditional removal by scanning (before reference data removal)
-		final ReferenceContract removedRef = getReferencesStoragePart()
-			.findReference(referenceKey).orElse(null);
-		final Integer removedGroupId = removedRef != null
-			? extractActiveGroupPrimaryKey(removedRef) : null;
-		ReferenceIndexMutator.removeHistogramFromIndex(
+		// histogram removal: surgical removal of value contributed by the removed reference
+		// (storage still has pre-mutation data at this synchronous point)
+		final ReferenceContract removedRef = getReferencesStoragePart().findReference(referenceKey).orElse(null);
+		final Integer removedGroupId = removedRef != null ? extractActiveGroupPrimaryKey(removedRef) : null;
+		ReferenceIndexMutator.removeHistogramIfPresent(
 			this, referenceKey, removedGroupId, epk, scope
 		);
 		// global: always — remove facet from global index
@@ -2802,17 +2886,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			deferExpressionReEvaluation(() -> {
 				if (oldGroupStoragePKs.length > 0) {
 					ReferenceIndexMutator.removeHistogramFromPreResolvedGroupIndexes(
-						this, referenceKey.referenceName(), epk, oldGroupStoragePKs, scope
+						this, referenceKey.referenceName(), referenceKey, epk, oldGroupStoragePKs, scope
 					);
 				} else if (oldGroupPK == null) {
-					ReferenceIndexMutator.removeHistogramFromIndex(
+					// ungrouped: value hasn't changed, only group assignment is being set
+					ReferenceIndexMutator.removeHistogramIfPresent(
 						this, referenceKey, null, epk, scope
 					);
 				}
 				ReferenceIndexMutator.addHistogramToIndex(
 					this, referenceKey, newGroupPK, epk,
-					getStoragePartExistingDataFactory()
-						.getNormalizedReferenceAttributeValueSupplier(referenceKey),
+					getStoragePartExistingDataFactory().getNormalizedReferenceAttributeValueSupplier(referenceKey),
 					scope
 				);
 			});

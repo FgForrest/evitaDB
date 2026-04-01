@@ -110,6 +110,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesSt
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.Setter;
 import org.roaringbitmap.PeekableIntIterator;
@@ -1039,6 +1040,65 @@ public final class ContainerizedLocalMutationExecutor
 				this.catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
 			)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey, locale));
 		}
+	}
+
+	/**
+	 * Reads an attribute value from a referenced entity's storage part. When `locale` is non-null, reads from
+	 * the locale-specific attribute storage part; otherwise reads from the global (locale-agnostic) part.
+	 * Used by local histogram triggers when the value source is
+	 * {@link io.evitadb.core.expression.trigger.HistogramValueSource#REFERENCED_ENTITY_ATTRIBUTE}.
+	 *
+	 * @param entityType    the type of the referenced entity
+	 * @param entityPK      the primary key of the referenced entity
+	 * @param attributeName the name of the attribute to read
+	 * @param locale        the locale for localized attributes, or `null` for non-localized
+	 * @param scope         the expected scope — returns `null` when the referenced entity is in a different scope
+	 * @return the attribute value, or null if the attribute doesn't exist, is dropped, or scope mismatch
+	 */
+	@Nullable
+	public Serializable readReferencedEntityAttribute(
+		@Nonnull String entityType,
+		int entityPK,
+		@Nonnull String attributeName,
+		@Nullable Locale locale,
+		@Nonnull Scope scope
+	) {
+		// scope check: referenced entity must be in the same scope
+		final EntityBodyStoragePart bodyPart = getEntityStoragePart(entityType, entityPK, EntityExistence.MUST_EXIST);
+		if (bodyPart.getScope() != scope) {
+			return null;
+		}
+		final AttributesStoragePart attributesPart;
+		if (locale != null) {
+			attributesPart = getAttributeStoragePart(entityType, entityPK, locale);
+		} else {
+			attributesPart = getAttributeStoragePart(entityType, entityPK);
+		}
+		final AttributeKey key = locale != null
+			? new AttributeKey(attributeName, locale)
+			: new AttributeKey(attributeName);
+		final AttributeValue attributeValue = attributesPart.findAttribute(key);
+		if (attributeValue == null || attributeValue.value() == null || attributeValue.dropped()) {
+			return null;
+		}
+		return NumberUtils.normalizeIfBigDecimal(attributeValue.value());
+	}
+
+	/**
+	 * Returns the set of attribute locales for a referenced entity. Used by localized histogram triggers to
+	 * discover all locales for which the referenced entity has localized attribute values.
+	 *
+	 * @param entityType the type of the referenced entity
+	 * @param entityPK   the primary key of the referenced entity
+	 * @return set of locales for which the entity has localized attribute values
+	 */
+	@Nonnull
+	public Set<Locale> getReferencedEntityAttributeLocales(
+		@Nonnull String entityType,
+		int entityPK
+	) {
+		final EntityBodyStoragePart entityBody = getEntityStoragePart(entityType, entityPK, EntityExistence.MUST_EXIST);
+		return entityBody.getAttributeLocales();
 	}
 
 	@Nonnull

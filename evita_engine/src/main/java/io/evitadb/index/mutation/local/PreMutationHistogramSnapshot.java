@@ -1,0 +1,156 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.mutation.local;
+
+import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
+import io.evitadb.core.expression.trigger.HistogramValueSource;
+import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
+import io.evitadb.utils.Assert;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
+/**
+ * Immutable snapshot of pre-mutation histogram attribute values captured **before** a deferred lambda runs.
+ * When a reference attribute mutation changes the value source of a histogram trigger, the old attribute
+ * values must be read while the storage still holds pre-mutation data. This record captures those values
+ * so they can later be used for precise surgical removal from the histogram FilterIndex — avoiding the
+ * expensive O(references x buckets) full-reindex fallback.
+ *
+ * Only triggers whose {@link HistogramValueDescriptor#source()} is {@link HistogramValueSource#REFERENCE_ATTRIBUTE}
+ * **and** whose {@link HistogramValueDescriptor#sourceAttributeName()} matches the mutated attribute are captured.
+ * For localized attributes a separate entry is stored per locale; for non-localized attributes a single entry
+ * is stored with a `null` locale key.
+ *
+ * @param oldValuesByTrigger map from captured trigger to per-locale old histogram values
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+public record PreMutationHistogramSnapshot(
+	@Nonnull Map<HistogramExpressionTrigger, Map<Locale, Number[]>> oldValuesByTrigger
+) {
+
+	/**
+	 * Builds the internal map by iterating over all triggers and capturing old attribute values
+	 * for those whose value source is a reference attribute matching the changed attribute name.
+	 *
+	 * @param triggers         histogram triggers to inspect
+	 * @param changedAttribute name of the attribute being mutated
+	 * @param oldSupplier      supplier reading pre-mutation attribute values
+	 * @return map from trigger to per-locale captured old values
+	 */
+	@Nonnull
+	private static Map<HistogramExpressionTrigger, Map<Locale, Number[]>> buildOldValuesMap(
+		@Nonnull Collection<HistogramExpressionTrigger> triggers,
+		@Nonnull String changedAttribute,
+		@Nonnull ExistingAttributeValueSupplier oldSupplier
+	) {
+		final Map<HistogramExpressionTrigger, Map<Locale, Number[]>> result = createHashMap(triggers.size());
+		Set<Locale> locales = null;
+		for (final HistogramExpressionTrigger trigger : triggers) {
+			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+			if (
+				resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE
+					&& resolution.sourceAttributeName().equals(changedAttribute)
+			) {
+				if (resolution.localized()) {
+					if (locales == null) {
+						locales = oldSupplier.getEntityExistingAttributeLocales();
+					}
+					final Map<Locale, Number[]> perLocale = createHashMap(locales.size());
+					for (final Locale locale : locales) {
+						final Serializable rawOldValue = ReferenceIndexMutator.readReferenceAttributeValue(
+							oldSupplier, resolution.sourceAttributeName(), locale
+						);
+						perLocale.put(locale, ReferenceIndexMutator.resolveHistogramValues(rawOldValue, resolution));
+					}
+					result.put(trigger, perLocale);
+				} else {
+					final Serializable rawOldValue = ReferenceIndexMutator.readReferenceAttributeValue(
+						oldSupplier, resolution.sourceAttributeName(), null
+					);
+					result.put(
+						trigger,
+						Collections.singletonMap(
+							null, ReferenceIndexMutator.resolveHistogramValues(rawOldValue, resolution))
+					);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Captures pre-mutation histogram values for all triggers whose value source is the attribute being mutated.
+	 * Must be called **before** the mutation is written to storage.
+	 *
+	 * @param triggers         histogram triggers to inspect
+	 * @param changedAttribute name of the attribute being mutated
+	 * @param oldSupplier      supplier reading pre-mutation attribute values from storage
+	 */
+	public PreMutationHistogramSnapshot(
+		@Nonnull Collection<HistogramExpressionTrigger> triggers,
+		@Nonnull String changedAttribute,
+		@Nonnull ExistingAttributeValueSupplier oldSupplier
+	) {
+		this(buildOldValuesMap(triggers, changedAttribute, oldSupplier));
+	}
+
+	/**
+	 * Returns whether the given trigger's value source attribute is the one that was mutated,
+	 * i.e. whether old values were captured for this trigger.
+	 *
+	 * @param trigger the histogram trigger to check
+	 * @return `true` if old values were captured for the trigger
+	 */
+	public boolean isValueSourceChanged(@Nonnull HistogramExpressionTrigger trigger) {
+		return this.oldValuesByTrigger.containsKey(trigger);
+	}
+
+	/**
+	 * Returns the per-locale map of old histogram values for a trigger whose value source was mutated.
+	 * For non-localized attributes the map contains a single entry with a `null` locale key.
+	 *
+	 * @param trigger the histogram trigger to retrieve old values for
+	 * @return unmodifiable map from locale (or `null`) to old numeric values
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if the trigger was not captured
+	 */
+	@Nonnull
+	public Map<Locale, Number[]> getOldValuesByLocale(@Nonnull HistogramExpressionTrigger trigger) {
+		final Map<Locale, Number[]> result = this.oldValuesByTrigger.get(trigger);
+		Assert.isPremiseValid(
+			result != null,
+			"Old values must be captured for value-source trigger: " + trigger.getHistogramIndexName()
+		);
+		return result;
+	}
+
+}

@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
@@ -49,13 +50,17 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.facet.FacetGroupIndex;
+import io.evitadb.index.facet.FacetIdIndex;
+import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -65,10 +70,19 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ObjIntConsumer;
 import java.util.function.Supplier;
+
+import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.and;
+import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.buildWriter;
+import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.getRoaringBitmap;
+import static org.roaringbitmap.RoaringBitmap.and;
+import static org.roaringbitmap.RoaringBitmap.andNot;
+import static org.roaringbitmap.RoaringBitmap.or;
 
 /**
  * Unified executor that re-evaluates both facet and histogram expressions for all owner entities
@@ -108,9 +122,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			}
 			final RoaringBitmap[] bitmaps = new RoaringBitmap[this.groups.size()];
 			for (int i = 0; i < this.groups.size(); i++) {
-				bitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(this.groups.get(i).ownerPKs());
+				bitmaps[i] = getRoaringBitmap(this.groups.get(i).ownerPKs());
 			}
-			return new BaseBitmap(RoaringBitmap.or(bitmaps));
+			return new BaseBitmap(or(bitmaps));
 		}
 
 		/**
@@ -151,25 +165,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Functional interface for removing a histogram value from an entity index. Used to abstract
-	 * over the identical `removeHistogramValue` method signatures on {@link ReducedGroupEntityIndex}
-	 * and {@link ReferencedTypeEntityIndex}, allowing a single scan-and-remove implementation.
+	 * Result of evaluating a trigger's condition against affected owner PKs. Splits the affected set into
+	 * two disjoint bitmaps: entities for which the condition is true (should be indexed) and entities for
+	 * which it is false (should not be indexed).
+	 *
+	 * @param shouldBeIndexed    owner PKs for which the condition is now true
+	 * @param shouldNotBeIndexed owner PKs for which the condition is now false
 	 */
-	@FunctionalInterface
-	private interface HistogramValueRemover {
-
-		/**
-		 * Removes the histogram value associated with the given owner entity PK.
-		 *
-		 * @param histogramName the name of the histogram definition
-		 * @param locale        locale for localized histograms, or `null` for non-localized
-		 * @param value         the histogram bucket value to remove
-		 * @param ownerPK       the primary key of the owner entity
-		 */
-		void remove(
-			@Nonnull String histogramName, @Nullable Locale locale,
-			@Nonnull Serializable value, int ownerPK
-		);
+	record ConditionalSplit(@Nonnull Bitmap shouldBeIndexed, @Nonnull Bitmap shouldNotBeIndexed) {
 	}
 
 	/**
@@ -187,21 +190,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final AffectedEntityResolution affected = resolveAffected(target, mutation);
 		final Bitmap allAffectedOwnerPKs = affected.allOwnerPKs();
 		if (!allAffectedOwnerPKs.isEmpty()) {
-			final ExpressionIndexTrigger facetTrigger = target.getTrigger(
+			final FacetExpressionTrigger facetTrigger = target.getFacetTrigger(
 				mutation.referenceName(), mutation.dependencyType(), mutation.scope()
 			);
-			final Collection<HistogramExpressionTrigger> histogramTriggers = target.getHistogramTriggers(
-				mutation.referenceName(), mutation.scope()
-			);
-
-			if (facetTrigger == null && histogramTriggers.isEmpty()) {
-				return;
-			}
-
 			if (facetTrigger != null) {
 				processFacetTrigger(facetTrigger, mutation, target, affected, allAffectedOwnerPKs);
 			}
 
+			final Collection<HistogramExpressionTrigger> histogramTriggers = target.getHistogramTriggers(
+				mutation.referenceName(), mutation.scope()
+			);
 			if (!histogramTriggers.isEmpty()) {
 				processHistogramTriggers(
 					histogramTriggers, mutation, target, affected, allAffectedOwnerPKs
@@ -221,33 +219,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param allAffectedOwnerPKs  union bitmap of all affected owner PKs
 	 */
 	private static void processFacetTrigger(
-		@Nonnull ExpressionIndexTrigger facetTrigger,
+		@Nonnull FacetExpressionTrigger facetTrigger,
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nonnull IndexMutationTarget target,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull Bitmap allAffectedOwnerPKs
 	) {
-		final FilterBy parameterizedFilter = parameterize(
-			facetTrigger.getFilterByConstraint(), mutation.referenceName(),
-			mutation.mutatedEntityPK(), mutation.dependencyType()
-		);
-		final Bitmap currentlyTruePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
-
-		// Intersection: owner PKs that ARE affected AND for which the expression is now true → add facet.
-		final Bitmap shouldBeFaceted = RoaringBitmapBackedBitmap.and(
-			new RoaringBitmap[]{
-				RoaringBitmapBackedBitmap.getRoaringBitmap(allAffectedOwnerPKs),
-				RoaringBitmapBackedBitmap.getRoaringBitmap(currentlyTruePKs)
-			}
-		);
-		// Complement: owner PKs that ARE affected but for which the expression is now false → remove facet.
-		final Bitmap shouldNotBeFaceted = new BaseBitmap(
-			RoaringBitmap.andNot(
-				RoaringBitmapBackedBitmap.getRoaringBitmap(allAffectedOwnerPKs),
-				RoaringBitmapBackedBitmap.getRoaringBitmap(currentlyTruePKs)
-			)
-		);
-
+		final ConditionalSplit split = evaluateCondition(facetTrigger, mutation, target, allAffectedOwnerPKs);
 		final ReferenceSchemaContract refSchema = target
 			.getEntitySchema()
 			.getReference(mutation.referenceName())
@@ -272,12 +250,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			refTypeIndex = null;
 		}
 
-		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(shouldBeFaceted)) {
+		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
 			globalIndex.addFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
 			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, true);
 		}
-		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(shouldNotBeFaceted)) {
+		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldNotBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
 			globalIndex.removeFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
 			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, false);
@@ -354,36 +332,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
 			final String histogramName = trigger.getHistogramIndexName();
-
-			// unconditional triggers have no FilterBy — all affected PKs should be indexed
-			final Bitmap histogramShouldBeIndexed;
-			final Bitmap histogramShouldNotBeIndexed;
-			if (trigger.getDependencyType() == null || trigger.getMutatedEntityType() == null) {
-				// unconditional: all affected PKs are indexed, none are removed
-				histogramShouldBeIndexed = allAffectedOwnerPKs;
-				histogramShouldNotBeIndexed = new BaseBitmap();
-			} else {
-				// Conditional trigger: parameterize and evaluate the FilterBy to split affected PKs into two sets.
-				final FilterBy parameterizedFilter = parameterize(
-					trigger.getFilterByConstraint(), referenceName,
-					mutation.mutatedEntityPK(), mutation.dependencyType()
-				);
-				final Bitmap histogramTruePKs = target.evaluateFilter(parameterizedFilter, scope);
-				// Intersection: affected PKs for which the condition is now true → index them.
-				histogramShouldBeIndexed = RoaringBitmapBackedBitmap.and(
-					new RoaringBitmap[]{
-						RoaringBitmapBackedBitmap.getRoaringBitmap(allAffectedOwnerPKs),
-						RoaringBitmapBackedBitmap.getRoaringBitmap(histogramTruePKs)
-					}
-				);
-				// Complement: affected PKs for which the condition is now false → remove their entries.
-				histogramShouldNotBeIndexed = new BaseBitmap(
-					RoaringBitmap.andNot(
-						RoaringBitmapBackedBitmap.getRoaringBitmap(allAffectedOwnerPKs),
-						RoaringBitmapBackedBitmap.getRoaringBitmap(histogramTruePKs)
-					)
-				);
-			}
+			final ConditionalSplit split = evaluateCondition(trigger, mutation, target, allAffectedOwnerPKs);
 
 			// Determine the set of locales for localized histograms; for non-localized, use a singleton null set.
 			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
@@ -400,113 +349,266 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				locales = Set.of();
 			}
 
-			// remove stale entries
-			removeHistogramEntries(
-				histogramName, histogramShouldNotBeIndexed, affected, rtei, isGrouped, target
-			);
-			// remove-before-add for value updates: clear any existing value for "should be indexed" PKs
-			// so that the new value (which may differ from the old one) is written cleanly without accumulation
-			removeHistogramEntries(
-				histogramName, histogramShouldBeIndexed, affected, rtei, isGrouped, target
-			);
-			// add current values
-			addHistogramEntries(
-				histogramName, trigger, histogramShouldBeIndexed, affected, rtei, isGrouped,
-				target, referenceName, scope, locales
-			);
+			// remove stale entries + remove-before-add
+			// Scoped removal is safe for all dependency types when the value source is a referenced
+			// entity attribute, because AffectedReferenceGroup.referencedEntityPK() is always correctly
+			// populated — for GROUP deps from rgei.getReferencedEntityPrimaryKeys(), for PARENT deps
+			// from RTEI/RGEI traversal intersected with children bitmap.
+			final boolean canUseScopedRemoval = resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE;
+			if (canUseScopedRemoval) {
+				// Scoped removal: deterministic remove using known values from source FilterIndex
+				// or pre-mutation captured values when the value source attribute itself changed.
+				scopedRemoveForReferencedEntityAttribute(
+					histogramName, resolution, allAffectedOwnerPKs,
+					affected, rtei, isGrouped, target, locales, mutation, scope
+				);
+				addHistogramEntries(
+					histogramName, trigger, split.shouldBeIndexed(), affected, rtei, isGrouped,
+					target, referenceName, scope, locales
+				);
+			} else {
+				// REFERENCE_ATTRIBUTE path: deterministic remove+re-add using values from the
+				// reference attribute FilterIndex (same index the add path reads)
+				removeFromReferenceAttribute(
+					histogramName, resolution, allAffectedOwnerPKs, affected,
+					rtei, isGrouped, target, referenceName, locales
+				);
+				addHistogramEntries(
+					histogramName, trigger, split.shouldBeIndexed(), affected, rtei, isGrouped,
+					target, referenceName, scope, locales
+				);
+			}
 		}
 	}
 
 	/**
-	 * Removes histogram entries for `ownerPKsToRemove` from the RTEI and (for grouped references)
-	 * from each relevant {@link ReducedGroupEntityIndex}. Iterates only the locales that actually
-	 * have data in the histogram index, avoiding the need for external schema locale lookup.
+	 * Evaluates the trigger's FilterBy constraint against affected owner PKs and splits them into two disjoint
+	 * sets: those for which the condition is now true (should be indexed) and those for which it is false
+	 * (should not be indexed). For unconditional triggers (no FilterBy), all affected PKs are in the "true" set.
 	 *
-	 * @param histogramName      name of the histogram definition
-	 * @param ownerPKsToRemove   owner PKs whose histogram entries should be cleared
-	 * @param affected           resolved affected groups
-	 * @param rtei               the top-level referenced-type entity index
-	 * @param isGrouped          `true` when the reference has a group type
-	 * @param target             access to reduced indexes by storage PK
+	 * @param trigger             the expression trigger carrying the optional FilterBy constraint
+	 * @param mutation            the cross-entity re-evaluation signal
+	 * @param target              access to the entity collection's filter evaluator
+	 * @param allAffectedOwnerPKs union bitmap of all affected owner PKs
+	 * @return split result with disjoint shouldBeIndexed / shouldNotBeIndexed bitmaps
 	 */
-	private static void removeHistogramEntries(
+	@Nonnull
+	private static ConditionalSplit evaluateCondition(
+		@Nonnull ExpressionIndexTrigger trigger,
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull Bitmap allAffectedOwnerPKs
+	) {
+		if (!trigger.hasFilterByConstraint()) {
+			return new ConditionalSplit(allAffectedOwnerPKs, new BaseBitmap());
+		}
+		final FilterBy parameterizedFilter = parameterize(
+			trigger.getFilterByConstraint(), mutation.referenceName(),
+			mutation.mutatedEntityPK(), mutation.dependencyType()
+		);
+		final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
+		final Bitmap shouldBeIndexed = and(
+			new RoaringBitmap[]{
+				getRoaringBitmap(allAffectedOwnerPKs),
+				getRoaringBitmap(truePKs)
+			}
+		);
+		final Bitmap shouldNotBeIndexed = new BaseBitmap(
+			andNot(
+				getRoaringBitmap(allAffectedOwnerPKs),
+				getRoaringBitmap(truePKs)
+			)
+		);
+		return new ConditionalSplit(shouldBeIndexed, shouldNotBeIndexed);
+	}
+
+	/**
+	 * Scoped removal for {@link HistogramValueSource#REFERENCED_ENTITY_ATTRIBUTE} sources. Instead
+	 * of scanning all histogram buckets and removing the owner PK from each (which destroys entries
+	 * contributed by non-affected references), this method only removes the specific value contributed
+	 * by each affected referenced entity, identified via the source collection's FilterIndex.
+	 *
+	 * When the affected entity's current value is NOT found in the histogram (indicating a value
+	 * change rather than a condition change), falls back to blanket removal for those owner PKs.
+	 *
+	 * @param histogramName    name of the histogram definition
+	 * @param resolution       value resolution metadata
+	 * @param ownerPKsToRemove owner PKs whose histogram entries should be cleared
+	 * @param affected         resolved affected groups
+	 * @param rtei             the top-level referenced-type entity index
+	 * @param isGrouped        `true` when the reference has a group type
+	 * @param target           access to entity collection indexes
+	 * @param locales          locales for localized histograms; empty set for non-localized
+	 * @param mutation         the cross-entity re-evaluation signal carrying optional pre-mutation values
+	 */
+	private static void scopedRemoveForReferencedEntityAttribute(
 		@Nonnull String histogramName,
+		@Nonnull HistogramValueDescriptor resolution,
 		@Nonnull Bitmap ownerPKsToRemove,
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
-		@Nonnull IndexMutationTarget target
+		@Nonnull IndexMutationTarget target,
+		@Nonnull Set<Locale> locales,
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nonnull Scope scope
 	) {
 		if (ownerPKsToRemove.isEmpty()) {
 			return;
 		}
-		if (isGrouped) {
-			for (final AffectedReferenceGroup group : affected.groups()) {
-				if (group.groupPK() != null) {
-					final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
-					for (int storagePK : storagePKs) {
-						final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
-							target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
-						);
-						final HistogramIndex histogramIndex = rgei.getHistogramIndex(histogramName);
-						if (histogramIndex != null) {
-							histogramIndex.forEachLocale((name, locale) ->
-								scanAndRemoveHistogramEntries(
-									histogramName, locale, ownerPKsToRemove,
-									histogramIndex.getFilterIndex(locale),
-									rgei::removeHistogramValue
-								)
-							);
-						}
-					}
-				}
-			}
+		final String sourceEntityType = resolution.sourceEntityType();
+		if (sourceEntityType == null) {
+			return;
 		}
-		// Always remove from the top-level RTEI histogram index regardless of grouping.
-		final HistogramIndex rteiHistogram = rtei.getHistogramIndex(histogramName);
-		if (rteiHistogram != null) {
-			rteiHistogram.forEachLocale((name, locale) ->
-				scanAndRemoveHistogramEntries(
-					histogramName, locale, ownerPKsToRemove,
-					rteiHistogram.getFilterIndex(locale),
-					rtei::removeHistogramValue
-				)
+		// resolve pre-mutation old values if the value source attribute was itself mutated
+		final Map<Locale, Serializable> preMutationValues = resolvePreMutationValues(
+			resolution, mutation
+		);
+		if (resolution.localized()) {
+			for (final Locale locale : locales) {
+				scopedRemoveForRefEntityAttrForLocale(
+					histogramName, locale, resolution, ownerPKsToRemove,
+					affected, rtei, isGrouped, target, preMutationValues, scope
+				);
+			}
+		} else {
+			scopedRemoveForRefEntityAttrForLocale(
+				histogramName, null, resolution, ownerPKsToRemove,
+				affected, rtei, isGrouped, target, preMutationValues, scope
 			);
 		}
 	}
 
 	/**
-	 * Scans histogram buckets and removes entries for owner PKs present in `ownerPKsToRemove`.
-	 * Uses scan-then-intersect because `FilterIndex` has no reverse PK-to-value mapping.
+	 * Resolves pre-mutation attribute values from the mutation's captured map for the given histogram
+	 * trigger's value source attribute. Returns null when the value source attribute was not mutated
+	 * (condition-only change).
 	 *
-	 * @param histogramName    name of the histogram
-	 * @param locale           locale for the histogram index, or `null` for non-localized
-	 * @param ownerPKsToRemove owner PKs to remove
-	 * @param filterIndex      the filter index to scan, or `null` if not yet created
-	 * @param remover          callback performing the actual removal on the target index
+	 * @param resolution value resolution metadata identifying the histogram's source attribute
+	 * @param mutation   the cross-entity mutation carrying optional pre-mutation values
+	 * @return per-locale old values, or null if the value source was not mutated
 	 */
-	private static void scanAndRemoveHistogramEntries(
+	@Nullable
+	private static Map<Locale, Serializable> resolvePreMutationValues(
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nonnull ReevaluateExpressionMutation mutation
+	) {
+		final Map<String, Map<Locale, Serializable>> preMutationSourceValues = mutation.preMutationSourceValues();
+		return preMutationSourceValues == null ? null : preMutationSourceValues.get(resolution.sourceAttributeName());
+	}
+
+	/**
+	 * Per-locale implementation of scoped histogram removal. For each affected reference group,
+	 * looks up the referenced entity's current value in the source FilterIndex and removes only
+	 * that specific (value, ownerPK) pair from the histogram. Owner PKs whose histogram entry
+	 * does not match the source value (indicating a value change) are collected for full re-index
+	 * by the caller.
+	 *
+	 * @param histogramName    name of the histogram definition
+	 * @param locale           locale for localized histograms, or `null` for non-localized
+	 * @param resolution       value resolution metadata
+	 * @param ownerPKsToRemove   owner PKs whose histogram entries should be cleared
+	 * @param affected           resolved affected groups
+	 * @param rtei               the top-level referenced-type entity index
+	 * @param isGrouped          `true` when the reference has a group type
+	 * @param target             access to entity collection indexes
+	 * @param preMutationValues  per-locale pre-mutation raw values when the value source was mutated, or null
+	 */
+	private static void scopedRemoveForRefEntityAttrForLocale(
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
+		@Nonnull HistogramValueDescriptor resolution,
 		@Nonnull Bitmap ownerPKsToRemove,
-		@Nullable FilterIndex filterIndex,
-		@Nonnull HistogramValueRemover remover
+		@Nonnull AffectedEntityResolution affected,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target,
+		@Nullable Map<Locale, Serializable> preMutationValues,
+		@Nonnull Scope scope
 	) {
-		if (filterIndex != null) {
-			final RoaringBitmap removePKs = RoaringBitmapBackedBitmap.getRoaringBitmap(ownerPKsToRemove);
-			final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
-			for (final ValueToRecordBitmap bucket : buckets) {
-				// Intersect the PKs-to-remove with the PKs that currently carry this bucket value.
-				final RoaringBitmap intersection = RoaringBitmap.and(
-					removePKs, RoaringBitmapBackedBitmap.getRoaringBitmap(bucket.getRecordIds())
-				);
-				if (!intersection.isEmpty()) {
-					final Serializable value = bucket.getValue();
-					for (int ownerPK : intersection) {
-						remover.remove(histogramName, locale, value, ownerPK);
+		final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
+
+		// when the value source attribute was itself mutated, use captured pre-mutation values
+		// for deterministic removal (the source FilterIndex already reflects the NEW values)
+		final Number[] knownOldValues;
+		if (preMutationValues != null) {
+			final Serializable rawOldValue = preMutationValues.get(locale);
+			knownOldValues = ReferenceIndexMutator.resolveHistogramValues(rawOldValue, resolution);
+		} else {
+			knownOldValues = null;
+		}
+
+		final FilterIndex sourceFilterIndex = target.getSourceFilterIndex(
+			sourceEntityType, resolution.sourceAttributeName(), locale, scope
+		);
+		final RoaringBitmap removePKs = getRoaringBitmap(ownerPKsToRemove);
+
+		for (final AffectedReferenceGroup group : affected.groups()) {
+			final RoaringBitmap groupPKs = getRoaringBitmap(group.ownerPKs());
+			final RoaringBitmap matched = and(removePKs, groupPKs);
+
+			if (!matched.isEmpty()) {
+				// determine values to remove: known old values (value-change) or current source values (condition-change)
+				final List<Number> valuesToRemove;
+				if (knownOldValues != null) {
+					// value source changed: use pre-captured old values for deterministic removal
+					valuesToRemove = knownOldValues.length > 0 ? List.of(knownOldValues) : List.of();
+				} else {
+					// condition-only change: current source values == old values (value is unchanged)
+					valuesToRemove = resolveAllRefEntityValues(
+						sourceFilterIndex, group.referencedEntityPK(), resolution.defaultValue()
+					);
+				}
+
+				// remove each (value, ownerPK) pair from both RGEI and RTEI; skip when the histogram
+				// does not contain the entry (never created — condition was false, or different scope)
+				for (final Number value : valuesToRemove) {
+					for (int ownerPK : matched) {
+						removeHistogramValue(
+							histogramName, locale, value, ownerPK,
+							group, rtei, isGrouped, target
+						);
 					}
 				}
 			}
+		}
+	}
+
+	/**
+	 * Resolves ALL histogram values for the given referenced entity PK by scanning the source
+	 * FilterIndex. For scalar attributes returns a singleton list; for array-typed attributes
+	 * the entity may appear in multiple source buckets — all matching values are returned.
+	 * Falls back to a singleton list containing `defaultValue` if the entity is not in any bucket.
+	 *
+	 * @param sourceFilterIndex the source collection's FilterIndex for the value attribute
+	 * @param refEntityPK       primary key of the referenced entity
+	 * @param defaultValue      default value from the histogram descriptor, or `null`
+	 * @return list of resolved numeric values; empty if no value can be determined
+	 */
+	@Nonnull
+	private static List<Number> resolveAllRefEntityValues(
+		@Nullable FilterIndex sourceFilterIndex,
+		int refEntityPK,
+		@Nullable Number defaultValue
+	) {
+		if (sourceFilterIndex == null) {
+			return defaultValue != null ? List.of(defaultValue) : List.of();
+		} else {
+			final ValueToRecordBitmap[] buckets = sourceFilterIndex.getHistogramOfAllRecords().getHistogramBuckets();
+			List<Number> result = null;
+			for (final ValueToRecordBitmap bucket : buckets) {
+				if (bucket.getRecordIds().contains(refEntityPK)
+					&& bucket.getValue() instanceof Number num) {
+					if (result == null) {
+						result = new ArrayList<>(4);
+					}
+					result.add(num);
+				}
+			}
+			if (result != null) {
+				return result;
+			}
+			return defaultValue != null ? List.of(defaultValue) : List.of();
 		}
 	}
 
@@ -526,10 +628,15 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param locales                  locales for localized histograms; empty set for non-localized
 	 */
 	private static void addHistogramEntries(
-		@Nonnull String histogramName, @Nonnull HistogramExpressionTrigger trigger,
-		@Nonnull Bitmap histogramShouldBeIndexed, @Nonnull AffectedEntityResolution affected,
-		@Nonnull ReferencedTypeEntityIndex rtei, boolean isGrouped,
-		@Nonnull IndexMutationTarget target, @Nonnull String referenceName, @Nonnull Scope scope,
+		@Nonnull String histogramName,
+		@Nonnull HistogramExpressionTrigger trigger,
+		@Nonnull Bitmap histogramShouldBeIndexed,
+		@Nonnull AffectedEntityResolution affected,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope,
 		@Nonnull Set<Locale> locales
 	) {
 		if (!histogramShouldBeIndexed.isEmpty()) {
@@ -537,7 +644,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
 				addFromReferencedEntityAttribute(
 					histogramName, resolution, histogramShouldBeIndexed,
-					affected, rtei, isGrouped, target, locales
+					affected, rtei, isGrouped, target, locales, scope
 				);
 			} else {
 				addFromReferenceAttribute(
@@ -570,7 +677,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
-		@Nonnull Set<Locale> locales
+		@Nonnull Set<Locale> locales,
+		@Nonnull Scope scope
 	) {
 		final String sourceEntityType = resolution.sourceEntityType();
 		if (sourceEntityType == null) {
@@ -580,13 +688,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			for (final Locale locale : locales) {
 				addFromReferencedEntityAttributeForLocale(
 					histogramName, locale, resolution, histogramShouldBeIndexed,
-					affected, rtei, isGrouped, target
+					affected, rtei, isGrouped, target, scope
 				);
 			}
 		} else {
 			addFromReferencedEntityAttributeForLocale(
 				histogramName, null, resolution, histogramShouldBeIndexed,
-				affected, rtei, isGrouped, target
+				affected, rtei, isGrouped, target, scope
 			);
 		}
 	}
@@ -613,11 +721,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
-		@Nonnull IndexMutationTarget target
+		@Nonnull IndexMutationTarget target,
+		@Nonnull Scope scope
 	) {
 		final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
 		final FilterIndex sourceFilterIndex = target.getSourceFilterIndex(
-			sourceEntityType, resolution.sourceAttributeName(), locale
+			sourceEntityType, resolution.sourceAttributeName(), locale, scope
 		);
 		if (sourceFilterIndex == null) {
 			if (log.isDebugEnabled()) {
@@ -626,62 +735,56 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					sourceEntityType, resolution.sourceAttributeName(), locale
 				);
 			}
-			return;
-		}
+		} else {
+			final Class<? extends Serializable> plainType = resolution.plainType();
+			final RoaringBitmap shouldBeIndexedBitmap =
+				getRoaringBitmap(histogramShouldBeIndexed);
+			final ValueToRecordBitmap[] sourceBuckets =
+				sourceFilterIndex.getHistogramOfAllRecords().getHistogramBuckets();
+			// Track which referenced entity PKs were matched in at least one bucket so that defaults can be applied.
+			final RoaringBitmapWriter<RoaringBitmap> encounteredRefPKsWriter = buildWriter();
 
-		final Class<? extends Serializable> plainType = resolution.plainType();
-		final boolean localized = resolution.localized();
-		final RoaringBitmap shouldBeIndexedBitmap =
-			RoaringBitmapBackedBitmap.getRoaringBitmap(histogramShouldBeIndexed);
-		final ValueToRecordBitmap[] sourceBuckets =
-			sourceFilterIndex.getHistogramOfAllRecords().getHistogramBuckets();
-		// Track which referenced entity PKs were matched in at least one bucket so that defaults can be applied.
-		final RoaringBitmap encounteredRefPKs = new RoaringBitmap();
+			for (final ValueToRecordBitmap sourceBucket : sourceBuckets) {
+				final Serializable bucketValue = sourceBucket.getValue();
+				// Only numeric attribute values are valid histogram bucket values; skip non-numeric types.
+				if (bucketValue instanceof Number numericValue) {
+					final RoaringBitmap refPKsInBucket = getRoaringBitmap(sourceBucket.getRecordIds());
 
-		for (final ValueToRecordBitmap sourceBucket : sourceBuckets) {
-			final Serializable bucketValue = sourceBucket.getValue();
-			// Only numeric attribute values are valid histogram bucket values; skip non-numeric types.
-			if (!(bucketValue instanceof Number numericValue)) {
-				continue;
-			}
-			final RoaringBitmap refPKsInBucket =
-				RoaringBitmapBackedBitmap.getRoaringBitmap(sourceBucket.getRecordIds());
-
-			for (final AffectedReferenceGroup group : affected.groups()) {
-				// Check whether this group's referenced entity is present in the current source bucket.
-				if (!refPKsInBucket.contains(group.referencedEntityPK())) {
-					continue;
-				}
-				encounteredRefPKs.add(group.referencedEntityPK());
-				final RoaringBitmap ownerPKs =
-					RoaringBitmapBackedBitmap.getRoaringBitmap(group.ownerPKs());
-				// Intersect "should be indexed" with the group's owner PKs to avoid touching unrelated entities.
-				final RoaringBitmap matched = RoaringBitmap.and(shouldBeIndexedBitmap, ownerPKs);
-				for (int ownerPK : matched) {
-					insertHistogramValue(
-						histogramName, localized, locale, numericValue, ownerPK, group, rtei, isGrouped,
-						target, plainType
-					);
+					for (final AffectedReferenceGroup group : affected.groups()) {
+						// Check whether this group's referenced entity is present in the current source bucket.
+						if (refPKsInBucket.contains(group.referencedEntityPK())) {
+							encounteredRefPKsWriter.add(group.referencedEntityPK());
+							final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
+							// Intersect "should be indexed" with the group's owner PKs
+							// to avoid touching unrelated entities.
+							final RoaringBitmap matched = and(shouldBeIndexedBitmap, ownerPKs);
+							for (int ownerPK : matched) {
+								insertHistogramValue(
+									histogramName, locale, numericValue, ownerPK, group, rtei, isGrouped,
+									target, plainType
+								);
+							}
+						}
+					}
 				}
 			}
-		}
 
-		// default values for missing referenced entities (already typed to plainType at build time)
-		final Number defaultValue = resolution.defaultValue();
-		if (defaultValue != null) {
-			for (final AffectedReferenceGroup group : affected.groups()) {
-				// Skip groups whose referenced entity was already found in at least one source bucket.
-				if (encounteredRefPKs.contains(group.referencedEntityPK())) {
-					continue;
-				}
-				final RoaringBitmap ownerPKs =
-					RoaringBitmapBackedBitmap.getRoaringBitmap(group.ownerPKs());
-				final RoaringBitmap matched = RoaringBitmap.and(shouldBeIndexedBitmap, ownerPKs);
-				for (int ownerPK : matched) {
-					insertHistogramValue(
-						histogramName, localized, locale, defaultValue, ownerPK, group, rtei, isGrouped,
-						target, plainType
-					);
+			// default values for missing referenced entities (already typed to plainType at build time)
+			final Number defaultValue = resolution.defaultValue();
+			if (defaultValue != null) {
+				final RoaringBitmap encounteredRefPKs = encounteredRefPKsWriter.get();
+				for (final AffectedReferenceGroup group : affected.groups()) {
+					// Skip groups whose referenced entity was already found in at least one source bucket.
+					if (!encounteredRefPKs.contains(group.referencedEntityPK())) {
+						final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
+						final RoaringBitmap matched = and(shouldBeIndexedBitmap, ownerPKs);
+						for (int ownerPK : matched) {
+							insertHistogramValue(
+								histogramName, locale, defaultValue, ownerPK, group, rtei, isGrouped,
+								target, plainType
+							);
+						}
+					}
 				}
 			}
 		}
@@ -703,10 +806,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param locales                  locales for localized histograms; empty set for non-localized
 	 */
 	private static void addFromReferenceAttribute(
-		@Nonnull String histogramName, @Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap histogramShouldBeIndexed, @Nonnull AffectedEntityResolution affected,
-		@Nonnull ReferencedTypeEntityIndex rtei, boolean isGrouped,
-		@Nonnull IndexMutationTarget target, @Nonnull String referenceName,
+		@Nonnull String histogramName,
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nonnull Bitmap histogramShouldBeIndexed,
+		@Nonnull AffectedEntityResolution affected,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName,
 		@Nonnull Set<Locale> locales
 	) {
 		if (resolution.localized()) {
@@ -740,14 +847,17 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param referenceName            name of the reference
 	 */
 	private static void addFromReferenceAttributeForLocale(
-		@Nonnull String histogramName, @Nullable Locale locale,
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nonnull Bitmap histogramShouldBeIndexed, @Nonnull AffectedEntityResolution affected,
-		@Nonnull ReferencedTypeEntityIndex rtei, boolean isGrouped,
-		@Nonnull IndexMutationTarget target, @Nonnull String referenceName
+		@Nonnull Bitmap histogramShouldBeIndexed,
+		@Nonnull AffectedEntityResolution affected,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName
 	) {
-		final RoaringBitmap shouldBeIndexedBitmap =
-			RoaringBitmapBackedBitmap.getRoaringBitmap(histogramShouldBeIndexed);
+		final RoaringBitmap shouldBeIndexedBitmap = getRoaringBitmap(histogramShouldBeIndexed);
 		final String sourceAttrName = resolution.sourceAttributeName();
 		final AttributeIndexKey attrKey = new AttributeIndexKey(referenceName, sourceAttrName, locale);
 
@@ -755,18 +865,17 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			// For grouped references, the reference attribute FilterIndex is partitioned per group:
 			// each ReducedGroupEntityIndex holds its own per-reference attribute index.
 			for (final AffectedReferenceGroup group : affected.groups()) {
-				if (group.groupPK() == null) {
-					continue;
-				}
-				final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
-				for (int storagePK : storagePKs) {
-					final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
-						target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
-					);
-					processRefAttrFilterIndex(
-						histogramName, locale, resolution, rgei.getFilterIndex(attrKey),
-						shouldBeIndexedBitmap, group, rtei, isGrouped, target
-					);
+				if (group.groupPK() != null) {
+					final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
+					for (int storagePK : storagePKs) {
+						final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
+							target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
+						);
+						processRefAttrFilterIndex(
+							histogramName, locale, resolution, rgei.getFilterIndex(attrKey),
+							shouldBeIndexedBitmap, group, rtei, true, target
+						);
+					}
 				}
 			}
 		} else {
@@ -775,7 +884,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			for (final AffectedReferenceGroup group : affected.groups()) {
 				processRefAttrFilterIndex(
 					histogramName, locale, resolution, refAttrFilterIndex,
-					shouldBeIndexedBitmap, group, rtei, isGrouped, target
+					shouldBeIndexedBitmap, group, rtei, false, target
 				);
 			}
 		}
@@ -797,72 +906,243 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param target                 access to entity collection indexes
 	 */
 	private static void processRefAttrFilterIndex(
-		@Nonnull String histogramName, @Nullable Locale locale,
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
 		@Nonnull HistogramValueDescriptor resolution,
-		@Nullable FilterIndex filterIndex, @Nonnull RoaringBitmap shouldBeIndexedBitmap,
-		@Nonnull AffectedReferenceGroup group, @Nonnull ReferencedTypeEntityIndex rtei,
-		boolean isGrouped, @Nonnull IndexMutationTarget target
+		@Nullable FilterIndex filterIndex,
+		@Nonnull RoaringBitmap shouldBeIndexedBitmap,
+		@Nonnull AffectedReferenceGroup group,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target
 	) {
 		final Class<? extends Serializable> plainType = resolution.plainType();
-		final boolean localized = resolution.localized();
-		final RoaringBitmap ownerPKs = RoaringBitmapBackedBitmap.getRoaringBitmap(group.ownerPKs());
+		processRefAttrFilterIndexBuckets(
+			resolution, filterIndex, shouldBeIndexedBitmap, group,
+			(value, ownerPK) -> insertHistogramValue(
+				histogramName, locale, value, ownerPK, group, rtei, isGrouped,
+				target, plainType
+			)
+		);
+	}
+
+	/**
+	 * Shared bucket iteration logic for reference-attribute FilterIndex processing. Iterates over
+	 * histogram buckets, computes the triple intersection (eligible PKs, group owner PKs, bucket PKs),
+	 * and invokes the given action for each matched (value, ownerPK) pair. Falls back to
+	 * {@link HistogramValueDescriptor#defaultValue()} for eligible PKs that have no matching bucket.
+	 *
+	 * @param resolution   value resolution metadata
+	 * @param filterIndex  the FilterIndex for the reference attribute, or `null`
+	 * @param eligiblePKs  bitmap of owner PKs to process
+	 * @param group        the group being processed
+	 * @param action       callback invoked for each (numericValue, ownerPK) pair
+	 */
+	private static void processRefAttrFilterIndexBuckets(
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nullable FilterIndex filterIndex,
+		@Nonnull RoaringBitmap eligiblePKs,
+		@Nonnull AffectedReferenceGroup group,
+		@Nonnull ObjIntConsumer<Number> action
+	) {
+		final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
 		if (filterIndex == null) {
-			// apply defaults if available (already typed to plainType at build time)
 			final Number defaultValue = resolution.defaultValue();
 			if (defaultValue != null) {
-				final RoaringBitmap matched = RoaringBitmap.and(shouldBeIndexedBitmap, ownerPKs);
+				final RoaringBitmap matched = and(eligiblePKs, ownerPKs);
 				for (int ownerPK : matched) {
-					insertHistogramValue(
-						histogramName, localized, locale, defaultValue, ownerPK, group, rtei, isGrouped,
-						target, plainType
-					);
+					action.accept(defaultValue, ownerPK);
 				}
 			}
-			return;
+		} else {
+			final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
+			final RoaringBitmap encountered = new RoaringBitmap();
+
+			for (final ValueToRecordBitmap bucket : buckets) {
+				final Serializable bucketValue = bucket.getValue();
+				if (bucketValue instanceof Number numericValue) {
+					final RoaringBitmap bucketPKs = getRoaringBitmap(bucket.getRecordIds());
+					final RoaringBitmap matched = and(and(eligiblePKs, ownerPKs), bucketPKs);
+					if (!matched.isEmpty()) {
+						encountered.or(matched);
+						for (int ownerPK : matched) {
+							action.accept(numericValue, ownerPK);
+						}
+					}
+				}
+			}
+
+			final Number defaultValue = resolution.defaultValue();
+			if (defaultValue != null) {
+				final RoaringBitmap eligible = and(eligiblePKs, ownerPKs);
+				final RoaringBitmap missing = andNot(eligible, encountered);
+				for (int ownerPK : missing) {
+					action.accept(defaultValue, ownerPK);
+				}
+			}
 		}
+	}
 
-		final ValueToRecordBitmap[] buckets =
-			filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
-		// Track owner PKs that were matched in at least one bucket so defaults can be applied to the rest.
-		final RoaringBitmap encountered = new RoaringBitmap();
+	/**
+	 * Removes histogram values sourced from a **reference-level attribute** for the given owner PKs.
+	 * Mirrors {@link #addFromReferenceAttribute} — reads the same reference attribute FilterIndex
+	 * on RGEI (grouped) or RTEI (ungrouped) and calls {@link #removeHistogramValue} instead of
+	 * {@link #insertHistogramValue}.
+	 */
+	private static void removeFromReferenceAttribute(
+		@Nonnull String histogramName,
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nonnull Bitmap ownerPKsToRemove,
+		@Nonnull AffectedEntityResolution affected,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName,
+		@Nonnull Set<Locale> locales
+	) {
+		if (!ownerPKsToRemove.isEmpty()) {
+			if (resolution.localized()) {
+				for (final Locale locale : locales) {
+					removeFromReferenceAttributeForLocale(
+						histogramName, locale, resolution, ownerPKsToRemove,
+						affected, rtei, isGrouped, target, referenceName
+					);
+				}
+			} else {
+				removeFromReferenceAttributeForLocale(
+					histogramName, null, resolution, ownerPKsToRemove,
+					affected, rtei, isGrouped, target, referenceName
+				);
+			}
+		}
+	}
 
+	/**
+	 * Removes histogram values from a reference-level attribute for a single locale. Mirrors
+	 * {@link #addFromReferenceAttributeForLocale} — reads the same FilterIndex and routes through
+	 * grouped/ungrouped paths identically.
+	 */
+	private static void removeFromReferenceAttributeForLocale(
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nonnull Bitmap ownerPKsToRemove,
+		@Nonnull AffectedEntityResolution affected,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull String referenceName
+	) {
+		final RoaringBitmap removeBitmap = getRoaringBitmap(ownerPKsToRemove);
+		final String sourceAttrName = resolution.sourceAttributeName();
+		final AttributeIndexKey attrKey = new AttributeIndexKey(referenceName, sourceAttrName, locale);
+
+		if (isGrouped) {
+			for (final AffectedReferenceGroup group : affected.groups()) {
+				if (group.groupPK() != null) {
+					final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
+					for (int storagePK : storagePKs) {
+						final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
+							target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
+						);
+						processRefAttrFilterIndexForRemoval(
+							histogramName, locale, resolution, rgei.getFilterIndex(attrKey),
+							removeBitmap, group, rtei, true, target
+						);
+					}
+				}
+			}
+		} else {
+			final FilterIndex refAttrFilterIndex = rtei.getFilterIndex(attrKey);
+			for (final AffectedReferenceGroup group : affected.groups()) {
+				processRefAttrFilterIndexForRemoval(
+					histogramName, locale, resolution, refAttrFilterIndex,
+					removeBitmap, group, rtei, false, target
+				);
+			}
+		}
+	}
+
+	/**
+	 * Processes a single reference-attribute `FilterIndex` for one group, removing histogram values
+	 * for the given owner PKs. Mirrors {@link #processRefAttrFilterIndex} — handles null FilterIndex,
+	 * default values, non-numeric bucket values identically.
+	 */
+	private static void processRefAttrFilterIndexForRemoval(
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nullable FilterIndex filterIndex,
+		@Nonnull RoaringBitmap ownerPKsToRemove,
+		@Nonnull AffectedReferenceGroup group,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target
+	) {
+		processRefAttrFilterIndexBuckets(
+			resolution, filterIndex, ownerPKsToRemove, group,
+			(value, ownerPK) -> removeHistogramValue(
+				histogramName, locale, value, ownerPK, group, rtei, isGrouped, target
+			)
+		);
+	}
+
+	/**
+	 * Removes a histogram value from the RTEI and (for grouped references) from each matching
+	 * {@link ReducedGroupEntityIndex}. Mirrors {@link #insertHistogramValue}. Skips removal
+	 * when the histogram index does not exist or does not contain the (value, ownerPK) pair
+	 * (the entry was never created — e.g. condition was false, or entity is in a different scope).
+	 */
+	private static void removeHistogramValue(
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Number value, int ownerPK,
+		@Nonnull AffectedReferenceGroup group,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
+		@Nonnull IndexMutationTarget target
+	) {
+		if (isGrouped && group.groupPK() != null) {
+			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
+			for (int storagePK : storagePKs) {
+				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
+					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
+				);
+				if (histogramContainsOwner(rgei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
+					rgei.removeHistogramValue(histogramName, locale, value, ownerPK);
+				}
+			}
+		}
+		if (histogramContainsOwner(rtei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
+			rtei.removeHistogramValue(histogramName, locale, value, ownerPK);
+		}
+	}
+
+	/**
+	 * Checks whether the histogram index contains the given (value, ownerPK) pair. Returns false when
+	 * the histogram index is null, the FilterIndex for the locale is null, or the specific value bucket
+	 * does not contain the ownerPK.
+	 */
+	private static boolean histogramContainsOwner(
+		@Nullable HistogramIndex histogramIndex,
+		@Nullable Locale locale,
+		@Nonnull Number value,
+		int ownerPK
+	) {
+		if (histogramIndex == null) {
+			return false;
+		}
+		final FilterIndex filterIndex = histogramIndex.getFilterIndex(locale);
+		if (filterIndex == null) {
+			return false;
+		}
+		final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
 		for (final ValueToRecordBitmap bucket : buckets) {
-			final Serializable bucketValue = bucket.getValue();
-			// Non-numeric values are not valid histogram bucket values; skip silently.
-			if (!(bucketValue instanceof Number numericValue)) {
-				continue;
-			}
-			final RoaringBitmap bucketPKs =
-				RoaringBitmapBackedBitmap.getRoaringBitmap(bucket.getRecordIds());
-			// Triple intersection: eligible PKs ∩ group's owner PKs ∩ PKs that carry this attribute value.
-			final RoaringBitmap matched = RoaringBitmap.and(
-				RoaringBitmap.and(shouldBeIndexedBitmap, ownerPKs), bucketPKs
-			);
-			if (matched.isEmpty()) {
-				continue;
-			}
-			encountered.or(matched);
-			for (int ownerPK : matched) {
-				insertHistogramValue(
-					histogramName, localized, locale, numericValue, ownerPK, group, rtei, isGrouped,
-					target, plainType
-				);
+			if (bucket.getValue().equals(value)) {
+				return bucket.getRecordIds().contains(ownerPK);
 			}
 		}
-
-		// defaults for missing (already typed to plainType at build time)
-		final Number defaultValue = resolution.defaultValue();
-		if (defaultValue != null) {
-			// Eligible PKs that were never matched in any bucket lack the attribute value.
-			final RoaringBitmap eligible = RoaringBitmap.and(shouldBeIndexedBitmap, ownerPKs);
-			final RoaringBitmap missing = RoaringBitmap.andNot(eligible, encountered);
-			for (int ownerPK : missing) {
-				insertHistogramValue(
-					histogramName, localized, locale, defaultValue, ownerPK, group, rtei, isGrouped,
-					target, plainType
-				);
-			}
-		}
+		return false;
 	}
 
 	/**
@@ -880,9 +1160,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param valueType      the plain numeric type of the attribute
 	 */
 	private static void insertHistogramValue(
-		@Nonnull String histogramName, boolean localized, @Nullable Locale locale,
-		@Nonnull Number value, int ownerPK, @Nonnull AffectedReferenceGroup group,
-		@Nonnull ReferencedTypeEntityIndex rtei, boolean isGrouped,
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Number value,
+		int ownerPK,
+		@Nonnull AffectedReferenceGroup group,
+		@Nonnull ReferencedTypeEntityIndex rtei,
+		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
 		@Nonnull Class<? extends Serializable> valueType
 	) {
@@ -892,13 +1176,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
 					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
 				);
-				rgei.insertHistogramValue(histogramName, localized, locale, value, ownerPK, valueType);
+				rgei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
 			}
 		}
-		rtei.insertHistogramValue(histogramName, localized, locale, value, ownerPK, valueType);
+		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
 	}
-
-	// ---- AFFECTED ENTITY RESOLUTION ----
 
 	/**
 	 * Dispatches to the appropriate resolution method based on {@link DependencyType}.
@@ -1051,21 +1333,47 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			return AffectedEntityResolution.EMPTY;
 		}
 		final int[] storagePKs = rtei.getAllReferenceIndexes(refEntityPK);
-		if (storagePKs.length == 0) {
+		if (storagePKs.length > 0) {
+			// entity component indexes exist — use reduced entity indexes to find owner PKs
+			final List<AffectedReferenceGroup> groups = new ArrayList<>(storagePKs.length);
+			for (int storagePK : storagePKs) {
+				final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
+				if (reducedIndex != null) {
+					final Bitmap ownerPKs = reducedIndex.getAllPrimaryKeys();
+					if (!ownerPKs.isEmpty()) {
+						groups.add(new AffectedReferenceGroup(refEntityPK, null, ownerPKs));
+					}
+				}
+			}
+			return new AffectedEntityResolution(groups);
+		}
+		// entity component indexes not enabled — fall back to global facet index which
+		// stores per-facetId (= refEntityPK) bitmaps of owner PKs
+		final EntityIndex globalIndex = target.getIndexIfExists(
+			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+		);
+		if (globalIndex == null) {
 			return AffectedEntityResolution.EMPTY;
 		}
-		final List<AffectedReferenceGroup> groups = new ArrayList<>(storagePKs.length);
-		for (int storagePK : storagePKs) {
-			final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
-			if (reducedIndex == null) {
-				continue;
-			}
-			final Bitmap ownerPKs = reducedIndex.getAllPrimaryKeys();
-			if (!ownerPKs.isEmpty()) {
-				groups.add(new AffectedReferenceGroup(refEntityPK, null, ownerPKs));
-			}
+		final FacetReferenceIndex facetRefIndex = globalIndex.getFacetingEntities().get(referenceName);
+		if (facetRefIndex == null) {
+			return AffectedEntityResolution.EMPTY;
 		}
-		return new AffectedEntityResolution(groups);
+		final FacetGroupIndex notGrouped = facetRefIndex.getNotGroupedFacets();
+		if (notGrouped == null) {
+			return AffectedEntityResolution.EMPTY;
+		}
+		final FacetIdIndex facetIdIndex = notGrouped.getFacetIdIndex(refEntityPK);
+		if (facetIdIndex == null) {
+			return AffectedEntityResolution.EMPTY;
+		}
+		final Bitmap ownerPKs = facetIdIndex.getRecords();
+		if (ownerPKs.isEmpty()) {
+			return AffectedEntityResolution.EMPTY;
+		}
+		return new AffectedEntityResolution(
+			List.of(new AffectedReferenceGroup(refEntityPK, null, ownerPKs))
+		);
 	}
 
 	/**
@@ -1133,7 +1441,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			return AffectedEntityResolution.EMPTY;
 		}
 		final List<AffectedReferenceGroup> groups = new ArrayList<>(4);
-		final RoaringBitmap childrenRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(childrenPKs);
+		final RoaringBitmap childrenRoaring = getRoaringBitmap(childrenPKs);
 		for (int groupPK : allGroupPKs) {
 			final int[] storagePKs = groupRtei.getAllReferenceIndexes(groupPK);
 			for (int storagePK : storagePKs) {
@@ -1147,9 +1455,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 						// Intersect the group's owner PKs with the hierarchy children bitmap;
 						// only owners that are actually children of the mutated parent are relevant.
 						final Bitmap intersected = new BaseBitmap(
-							RoaringBitmap.and(
+							and(
 								childrenRoaring,
-								RoaringBitmapBackedBitmap.getRoaringBitmap(ownerPKs)
+								getRoaringBitmap(ownerPKs)
 							)
 						);
 						if (!intersected.isEmpty()) {
@@ -1190,7 +1498,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			return AffectedEntityResolution.EMPTY;
 		}
 		final List<AffectedReferenceGroup> groups = new ArrayList<>(allRefPKs.size());
-		final RoaringBitmap childrenRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(childrenPKs);
+		final RoaringBitmap childrenRoaring = getRoaringBitmap(childrenPKs);
 		for (int refPK : allRefPKs) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(refPK);
 			for (int storagePK : storagePKs) {
@@ -1203,9 +1511,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					// Intersect the reduced index's owner PKs with the hierarchy children bitmap;
 					// only owners that are actually children of the mutated parent are relevant.
 					final Bitmap intersected = new BaseBitmap(
-						RoaringBitmap.and(
+						and(
 							childrenRoaring,
-							RoaringBitmapBackedBitmap.getRoaringBitmap(ownerPKs)
+							getRoaringBitmap(ownerPKs)
 						)
 					);
 					if (!intersected.isEmpty()) {
@@ -1385,7 +1693,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			@Nonnull List<AffectedReferenceGroup> groups, @Nonnull Bitmap pks
 		) {
 			this.groups = groups;
-			this.filterBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(pks);
+			this.filterBitmap = getRoaringBitmap(pks);
 			this.groupIdx = 0;
 			this.ownerIdx = 0;
 			this.currentOwnerPKs = null;

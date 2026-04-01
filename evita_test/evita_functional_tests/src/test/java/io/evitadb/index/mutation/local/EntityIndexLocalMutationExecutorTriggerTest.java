@@ -169,6 +169,11 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			return this.dependentAttributes;
 		}
 
+		@Override
+		public boolean hasFilterByConstraint() {
+			return true;
+		}
+
 		@Nonnull
 		@Override
 		public FilterBy getFilterByConstraint() {
@@ -180,7 +185,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			int ownerEntityPK,
 			@Nonnull ReferenceKey referenceKey,
 			@Nonnull WritableEntityStorageContainerAccessor storageAccessor,
-			@Nonnull Function<String, EntitySchemaContract> schemaResolver
+			@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+			@Nonnull Scope scope
 		) {
 			throw new UnsupportedOperationException("Not needed for source-side detection tests.");
 		}
@@ -987,8 +993,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 	}
 
 	@Test
-	@DisplayName("Should ignore scope mutations")
-	void shouldIgnoreScopeMutations() {
+	@DisplayName("Should fire all triggers for scope mutations")
+	void shouldFireAllTriggersForScopeMutations() {
 		final MockStorageContainerAccessor accessor = new MockStorageContainerAccessor();
 
 		final TestTrigger trigger = new TestTrigger(
@@ -1003,7 +1009,9 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 		final IndexImplicitMutations result =
 			executor.popIndexImplicitMutations(List.of(scopeMutation));
 
-		assertEquals(0, result.indexMutations().length);
+		// scope changes affect entity visibility — all cross-entity triggers must fire
+		// to re-evaluate histogram/facet entries in both old and new scope
+		assertEquals(1, result.indexMutations().length);
 	}
 
 	// --- Trigger lookup ---
@@ -1259,6 +1267,11 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			return Set.of();
 		}
 
+		@Override
+		public boolean hasFilterByConstraint() {
+			return false;
+		}
+
 		@Nonnull
 		@Override
 		public FilterBy getFilterByConstraint() {
@@ -1270,7 +1283,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			int ownerEntityPK,
 			@Nonnull ReferenceKey referenceKey,
 			@Nonnull WritableEntityStorageContainerAccessor storageAccessor,
-			@Nonnull Function<String, EntitySchemaContract> schemaResolver
+			@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+			@Nonnull Scope scope
 		) {
 			throw new UnsupportedOperationException("Not needed for trigger lookup tests.");
 		}

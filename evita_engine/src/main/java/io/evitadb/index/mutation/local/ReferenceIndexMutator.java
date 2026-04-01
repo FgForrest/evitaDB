@@ -64,6 +64,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.local.dataAccess.ExistingPriceSupplier;
+import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
@@ -74,6 +75,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -1153,7 +1155,8 @@ public interface ReferenceIndexMutator {
 			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
 			final boolean shouldBeIndexed = trigger == null || trigger.evaluate(
 				entityPrimaryKey, referenceKey,
-				executor.getContainerAccessor(), executor.getSchemaResolver()
+				executor.getContainerAccessor(), executor.getSchemaResolver(),
+				scope
 			);
 			if (shouldBeIndexed) {
 				index.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
@@ -1206,7 +1209,8 @@ public interface ReferenceIndexMutator {
 			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
 			if (trigger != null) {
 				final boolean nowFaceted = trigger.evaluate(
-					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver()
+					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
+					scope
 				);
 				applyFacetDecisionMatrix(
 					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
@@ -1476,7 +1480,8 @@ public interface ReferenceIndexMutator {
 				continue;
 			}
 			final boolean nowFaceted = cachedTrigger.evaluate(
-				entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver()
+				entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
+				scope
 			);
 			final Integer groupId = reference.getGroup()
 				.filter(Droppable::exists)
@@ -1555,7 +1560,7 @@ public interface ReferenceIndexMutator {
 				.filter(Droppable::exists)
 				.map(GroupEntityReference::getPrimaryKey)
 				.orElse(null);
-			// remove then re-add: removeHistogramFromIndex is unconditional,
+			// remove then re-add: removeHistogramFromIndex reads values and removes deterministically,
 			// addHistogramToIndex internally evaluates the condition
 			removeHistogramFromIndex(executor, referenceKey, groupId, entityPrimaryKey, scope);
 			addHistogramToIndex(
@@ -1658,7 +1663,8 @@ public interface ReferenceIndexMutator {
 			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
 			if (trigger != null) {
 				final boolean nowFaceted = trigger.evaluate(
-					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver()
+					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
+					scope
 				);
 				applyFacetDecisionMatrix(
 					index, referenceSchema, referenceKey, null, entityPrimaryKey, nowFaceted, null
@@ -1987,7 +1993,7 @@ public interface ReferenceIndexMutator {
 					}
 					if (cachedTrigger != null && !cachedTrigger.evaluate(
 						entityPrimaryKey, referenceKey, executor.getContainerAccessor(),
-						executor.getSchemaResolver()
+						executor.getSchemaResolver(), scope
 					)) {
 						continue;
 					}
@@ -2417,13 +2423,16 @@ public interface ReferenceIndexMutator {
 		final Collection<HistogramExpressionTrigger> histogramTriggers =
 			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
 		if (!histogramTriggers.isEmpty()) {
+			final ContainerizedLocalMutationExecutor storageAccessor =
+				(ContainerizedLocalMutationExecutor) executor.getContainerAccessor();
 			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
 				final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
 
 				// evaluate condition (proxy instantiation + expression computation)
 				final boolean conditionMet = trigger.evaluate(
 					entityPrimaryKey, referenceKey,
-					executor.getContainerAccessor(), executor.getSchemaResolver()
+					storageAccessor, executor.getSchemaResolver(),
+					scope
 				);
 				if (!conditionMet) {
 					continue;
@@ -2444,15 +2453,16 @@ public interface ReferenceIndexMutator {
 						}
 					} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
 						final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
-						final Set<Locale> locales = executor.getReferencedEntityAttributeLocales(
+						final Set<Locale> locales = storageAccessor.getReferencedEntityAttributeLocales(
 							sourceEntityType, referenceKey.primaryKey()
 						);
 						for (final Locale locale : locales) {
-							final Serializable rawValue = executor.readReferencedEntityAttribute(
+							final Serializable rawValue = storageAccessor.readReferencedEntityAttribute(
 								sourceEntityType,
 								referenceKey.primaryKey(),
 								resolution.sourceAttributeName(),
-								locale
+								locale,
+								scope
 							);
 							insertHistogramValues(
 								executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
@@ -2472,11 +2482,12 @@ public interface ReferenceIndexMutator {
 							existingDataSupplier, resolution.sourceAttributeName(), null
 						);
 					} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
-						rawValue = executor.readReferencedEntityAttribute(
+						rawValue = storageAccessor.readReferencedEntityAttribute(
 							Objects.requireNonNull(resolution.sourceEntityType()),
 							referenceKey.primaryKey(),
 							resolution.sourceAttributeName(),
-							null
+							null,
+							scope
 						);
 					} else {
 						throw new GenericEvitaInternalError(
@@ -2494,9 +2505,93 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Removes histogram entries for a reference being removed. Scans histogram FilterIndex buckets for
-	 * the owner PK and removes entries. No condition evaluation is needed -- removal is unconditional
-	 * (same pattern as facet removal).
+	 * Removes histogram entries using known pre-captured old values. Called when the value source
+	 * attribute changed and old values were captured by {@link PreMutationHistogramSnapshot} before
+	 * the mutation was applied. Performs surgical removal — no scanning, no condition evaluation.
+	 *
+	 * When `oldValues` is empty (attribute was null with no default), the entry was never created
+	 * in the histogram, so no removal is needed.
+	 *
+	 * @param executor         the mutation executor
+	 * @param referenceKey     identifies the specific referenced entity
+	 * @param groupId          the group primary key, or null if not grouped
+	 * @param ownerPK          the primary key of the owner entity
+	 * @param oldValues        pre-captured old histogram values (from PreMutationHistogramSnapshot)
+	 * @param trigger          the histogram trigger whose value source was mutated
+	 * @param locale           the locale for localized histograms, or `null` for non-localized
+	 * @param scope            the current scope
+	 */
+	static void removeHistogramWithKnownOldValues(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int ownerPK,
+		@Nonnull Number[] oldValues,
+		@Nonnull HistogramExpressionTrigger trigger,
+		@Nullable Locale locale,
+		@Nonnull Scope scope
+	) {
+		for (final Number value : oldValues) {
+			removeSingleHistogramValue(
+				executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+				locale, value, ownerPK, groupId, scope
+			);
+		}
+	}
+
+	/**
+	 * Reads current histogram values for all triggers on a reference and removes entries that are
+	 * present in the histogram. Used when the condition attribute changed (but not the value source),
+	 * during reference removal, or during ungrouped→grouped group transfer.
+	 *
+	 * For each trigger, reads the source value, resolves to Number[], and removes each value only
+	 * if it is verified present in the histogram (the condition may have been false when the reference
+	 * was indexed, so the entry may not exist).
+	 *
+	 * @param executor         the mutation executor
+	 * @param referenceKey     identifies the specific referenced entity
+	 * @param groupId          the group primary key, or null if not grouped
+	 * @param ownerPK          the primary key of the owner entity
+	 * @param scope            the current scope
+	 */
+	static void removeHistogramIfPresent(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int ownerPK,
+		@Nonnull Scope scope
+	) {
+		final Collection<HistogramExpressionTrigger> histogramTriggers =
+			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
+		final ExistingAttributeValueSupplier refAttrSupplier =
+			executor.getStoragePartExistingDataFactory()
+				.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+			final Set<Locale> locales = resolveHistogramLocales(
+				executor, referenceKey, resolution, refAttrSupplier
+			);
+			for (final Locale locale : locales) {
+				final Serializable rawValue = readHistogramSourceValue(
+					executor, referenceKey, resolution, refAttrSupplier, locale, scope
+				);
+				final Number[] values = resolveHistogramValues(rawValue, resolution);
+				if (values.length > 0) {
+					removeHistogramValuesWithGuard(
+						executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+						locale, values, ownerPK, groupId, scope
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Removes histogram entries for a reference being removed from indexes (entity removal path).
+	 * Reads the current attribute value for each trigger and performs surgical removal. No condition
+	 * evaluation needed — removal is unconditional (same pattern as facet removal).
+	 *
+	 * Reference data is still available at this synchronous call point (storage has pre-mutation data).
 	 *
 	 * @param executor              the mutation executor
 	 * @param referenceKey          identifies the specific referenced entity
@@ -2513,21 +2608,42 @@ public interface ReferenceIndexMutator {
 	) {
 		final Collection<HistogramExpressionTrigger> histogramTriggers =
 			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
-		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
-			removeHistogramEntryByScanning(
-				executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-				entityPrimaryKey, groupId, scope
-			);
+		if (!histogramTriggers.isEmpty()) {
+			final ExistingAttributeValueSupplier refAttrSupplier =
+				executor.getStoragePartExistingDataFactory()
+					.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+				final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+				final Set<Locale> locales = resolveHistogramLocales(
+					executor, referenceKey, resolution, refAttrSupplier
+				);
+				for (final Locale locale : locales) {
+					final Serializable rawValue = readHistogramSourceValue(
+						executor, referenceKey, resolution, refAttrSupplier, locale, scope
+					);
+					final Number[] values = resolveHistogramValues(rawValue, resolution);
+					if (values.length > 0) {
+						removeHistogramValuesWithGuard(
+							executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+							locale, values, entityPrimaryKey, groupId, scope
+						);
+					}
+				}
+			}
 		}
 	}
 
 	/**
-	 * Removes histogram entries from pre-resolved group reduced entity indexes. Used when the cardinality
-	 * data in the {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} index may have already been cleaned
-	 * up (during deferred group transfer after {@code removeFromGroupIndexes}).
+	 * Removes histogram entries from pre-resolved group reduced entity indexes. Used during deferred
+	 * group transfer when cardinality data in the {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE}
+	 * index may have already been cleaned up.
+	 *
+	 * Reads the current value for each trigger (the value hasn't changed — only the group assignment
+	 * has changed), then removes from each pre-resolved RGEI with a histogram existence guard.
 	 *
 	 * @param executor        the mutation executor
 	 * @param referenceName   the reference name
+	 * @param referenceKey    the full reference key (needed for value reading)
 	 * @param ownerPK         the primary key of the owner entity to remove
 	 * @param groupStoragePKs pre-resolved storage PKs of ReducedGroupEntityIndex instances
 	 * @param scope           the current scope
@@ -2535,46 +2651,196 @@ public interface ReferenceIndexMutator {
 	static void removeHistogramFromPreResolvedGroupIndexes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull String referenceName,
+		@Nonnull ReferenceKey referenceKey,
 		int ownerPK,
 		@Nonnull int[] groupStoragePKs,
 		@Nonnull Scope scope
 	) {
 		final Collection<HistogramExpressionTrigger> histogramTriggers =
 			executor.getLocalHistogramTriggers(referenceName, scope);
+		if (histogramTriggers.isEmpty()) {
+			return;
+		}
+		final ExistingAttributeValueSupplier refAttrSupplier =
+			executor.getStoragePartExistingDataFactory()
+				.getNormalizedReferenceAttributeValueSupplier(referenceKey);
 		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
-			for (final int storagePK : groupStoragePKs) {
-				final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
-				if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-					scanAndRemoveOwnerFromAllLocales(hcei, trigger.getHistogramIndexName(), ownerPK);
+			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+			final Set<Locale> locales = resolveHistogramLocales(
+				executor, referenceKey, resolution, refAttrSupplier
+			);
+			for (final Locale locale : locales) {
+				final Serializable rawValue = readHistogramSourceValue(
+					executor, referenceKey, resolution, refAttrSupplier, locale, scope
+				);
+				final Number[] values = resolveHistogramValues(rawValue, resolution);
+				for (final Number value : values) {
+					for (final int storagePK : groupStoragePKs) {
+						final EntityIndex reducedIndex =
+							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
+						if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
+							if (isValueInHistogram(hcei, trigger.getHistogramIndexName(), locale, value, ownerPK)) {
+								hcei.removeHistogramValue(trigger.getHistogramIndexName(), locale, value, ownerPK);
+							}
+						}
+					}
 				}
 			}
 		}
 	}
 
 	/**
-	 * Scans the histogram FilterIndexes for the specified histogram name across all locales and removes all entries
-	 * for the given owner PK. Used during reference removal and group change (remove from old group).
-	 *
-	 * Uses index look-up by scope-based keys consistent with the existing index key patterns.
+	 * Reads the histogram source attribute value for the given trigger, dispatching to either
+	 * reference attribute or referenced entity attribute depending on the value source.
 	 *
 	 * @param executor         the mutation executor
-	 * @param referenceName    the reference name
-	 * @param histogramName    the histogram definition name
-	 * @param ownerPK          the primary key of the owner entity to remove
-	 * @param groupId          the group primary key (null for ungrouped)
-	 * @param scope            the current scope
+	 * @param referenceKey     the reference key
+	 * @param resolution       the value descriptor specifying source type, attribute name, and entity type
+	 * @param refAttrSupplier  supplier for reference attribute values
+	 * @param locale           the locale for localized attributes, or `null`
+	 * @return the raw attribute value, or null if not present
 	 */
-	private static void removeHistogramEntryByScanning(
+	@Nullable
+	private static Serializable readHistogramSourceValue(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nonnull ExistingAttributeValueSupplier refAttrSupplier,
+		@Nullable Locale locale,
+		@Nonnull Scope scope
+	) {
+		if (resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
+			return readReferenceAttributeValue(refAttrSupplier, resolution.sourceAttributeName(), locale);
+		} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
+			return ((ContainerizedLocalMutationExecutor) executor.getContainerAccessor())
+				.readReferencedEntityAttribute(
+					Objects.requireNonNull(resolution.sourceEntityType()),
+					referenceKey.primaryKey(),
+					resolution.sourceAttributeName(),
+					locale,
+					scope
+				);
+		} else {
+			throw new GenericEvitaInternalError("Unexpected histogram value source: " + resolution.source());
+		}
+	}
+
+	/**
+	 * Resolves the set of locales for a histogram trigger. For non-localized attributes returns a
+	 * singleton set with a `null` locale. For localized attributes, resolves the locale set from
+	 * the appropriate source (reference attribute locales or referenced entity attribute locales).
+	 *
+	 * @param executor         the mutation executor
+	 * @param referenceKey     the reference key
+	 * @param resolution       the value descriptor
+	 * @param refAttrSupplier  supplier for reference attribute locales
+	 * @return set of locales (contains `null` for non-localized)
+	 */
+	@Nonnull
+	private static Set<Locale> resolveHistogramLocales(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull HistogramValueDescriptor resolution,
+		@Nonnull ExistingAttributeValueSupplier refAttrSupplier
+	) {
+		if (!resolution.localized()) {
+			return Collections.singleton(null);
+		}
+		if (resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
+			return refAttrSupplier.getEntityExistingAttributeLocales();
+		} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
+			return ((ContainerizedLocalMutationExecutor) executor.getContainerAccessor())
+				.getReferencedEntityAttributeLocales(
+					Objects.requireNonNull(resolution.sourceEntityType()),
+					referenceKey.primaryKey()
+				);
+		} else {
+			throw new GenericEvitaInternalError("Unexpected histogram value source: " + resolution.source());
+		}
+	}
+
+	/**
+	 * Removes histogram values from the appropriate index (grouped or ungrouped), guarded by
+	 * {@link #isValueInHistogram} to prevent cardinality assertion failures for entries that were
+	 * never inserted (condition was false at index time).
+	 *
+	 * @param executor       the mutation executor
+	 * @param referenceName  the reference name
+	 * @param histogramName  the histogram definition name
+	 * @param locale         the locale, or `null` for non-localized
+	 * @param values         the numeric values to remove
+	 * @param ownerPK        the primary key of the owner entity
+	 * @param groupId        the group primary key (null for ungrouped)
+	 * @param scope          the current scope
+	 */
+	private static void removeHistogramValuesWithGuard(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull String referenceName,
 		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Number[] values,
+		int ownerPK,
+		@Nullable Integer groupId,
+		@Nonnull Scope scope
+	) {
+		for (final Number value : values) {
+			if (groupId != null) {
+				final EntityIndexKey groupTypeKey = new EntityIndexKey(
+					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
+				);
+				final EntityIndex groupTypeIndex = executor.getIndexIfExists(groupTypeKey);
+				if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
+					final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
+					for (final int storagePK : storagePKs) {
+						final EntityIndex reducedIndex =
+							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
+						if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
+							if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+								hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+							}
+						}
+					}
+				}
+			} else {
+				final EntityIndexKey typeKey = new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+				);
+				final EntityIndex typeIndex = executor.getIndexIfExists(typeKey);
+				if (typeIndex instanceof HistogramCapableEntityIndex hcei) {
+					if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+						executor.getOrCreateIndex(typeKey);
+						hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Removes a single histogram value from the appropriate index (grouped or ungrouped) without
+	 * any existence guard. Used by {@link #removeHistogramWithKnownOldValues} where the values are
+	 * known to have been inserted (captured from pre-mutation state).
+	 *
+	 * @param executor       the mutation executor
+	 * @param referenceName  the reference name
+	 * @param histogramName  the histogram definition name
+	 * @param locale         the locale, or `null` for non-localized
+	 * @param value          the numeric value to remove
+	 * @param ownerPK        the primary key of the owner entity
+	 * @param groupId        the group primary key (null for ungrouped)
+	 * @param scope          the current scope
+	 */
+	private static void removeSingleHistogramValue(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull String referenceName,
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Number value,
 		int ownerPK,
 		@Nullable Integer groupId,
 		@Nonnull Scope scope
 	) {
 		if (groupId != null) {
-			// grouped reference: look up the group type index and iterate its reduced indexes
-			// to find the ReducedGroupEntityIndex that contains this group PK
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 			);
@@ -2584,77 +2850,59 @@ public interface ReferenceIndexMutator {
 				for (final int storagePK : storagePKs) {
 					final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
 					if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-						scanAndRemoveOwnerFromAllLocales(hcei, histogramName, ownerPK);
+						hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
 					}
 				}
 			}
 		} else {
-			// ungrouped reference: look in the ReferencedTypeEntityIndex
 			final EntityIndexKey typeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
 			);
 			final EntityIndex typeIndex = executor.getIndexIfExists(typeKey);
 			if (typeIndex instanceof HistogramCapableEntityIndex hcei) {
-				// mark the RTEI dirty — it is modified via removeHistogramValue below
 				executor.getOrCreateIndex(typeKey);
-				scanAndRemoveOwnerFromAllLocales(hcei, histogramName, ownerPK);
+				hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
 			}
 		}
 	}
 
 	/**
-	 * Scans all histogram FilterIndexes for the given histogram name across all locales in the given
-	 * entity index and removes the owner PK from each bucket where it appears.
+	 * Checks whether the histogram index contains the given (value, ownerPK) pair. Returns `false`
+	 * when the histogram index is null, the FilterIndex for the locale is null, or the specific value
+	 * bucket does not contain the ownerPK.
 	 *
-	 * @param entityIndex    the histogram-capable entity index containing the histogram
+	 * This is an O(B) point lookup where B is the number of distinct values (typically 10-200 for
+	 * e-commerce histograms). RoaringBitmap `contains()` is O(1).
+	 *
+	 * @param entityIndex    the histogram-capable entity index
 	 * @param histogramName  the histogram definition name
-	 * @param ownerPK        the owner PK to remove
+	 * @param locale         the locale, or `null` for non-localized
+	 * @param value          the value to check
+	 * @param ownerPK        the owner PK to check
+	 * @return `true` if the histogram contains the (value, ownerPK) pair
 	 */
-	private static void scanAndRemoveOwnerFromAllLocales(
+	private static boolean isValueInHistogram(
 		@Nonnull HistogramCapableEntityIndex entityIndex,
 		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Number value,
 		int ownerPK
 	) {
 		final HistogramIndex histogramIndex = entityIndex.getHistogramIndex(histogramName);
 		if (histogramIndex == null) {
-			return;
+			return false;
 		}
-		histogramIndex.forEachLocale((name, locale) -> {
-			final FilterIndex filterIndex = histogramIndex.getFilterIndex(locale);
-			if (filterIndex != null) {
-				scanAndRemoveOwnerFromFilterIndex(entityIndex, histogramName, locale, filterIndex, ownerPK);
-			}
-		});
-	}
-
-	/**
-	 * Scans all buckets in a histogram FilterIndex for the given owner PK and removes it. This is the
-	 * O(B) scan approach where B is the number of distinct values (typically 10-200 for e-commerce
-	 * histograms). RoaringBitmap `contains()` is O(1), so the total cost is microseconds.
-	 *
-	 * @param index          the histogram-capable entity index
-	 * @param histogramName  the histogram definition name
-	 * @param locale         the locale for localized histograms, or `null` for non-localized
-	 * @param filterIndex    the histogram FilterIndex to scan
-	 * @param ownerPK        the owner PK to remove
-	 */
-	private static void scanAndRemoveOwnerFromFilterIndex(
-		@Nonnull HistogramCapableEntityIndex index,
-		@Nonnull String histogramName,
-		@Nullable Locale locale,
-		@Nonnull FilterIndex filterIndex,
-		int ownerPK
-	) {
+		final FilterIndex filterIndex = histogramIndex.getFilterIndex(locale);
+		if (filterIndex == null) {
+			return false;
+		}
 		final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
 		for (final ValueToRecordBitmap bucket : buckets) {
-			if (bucket.getRecordIds().contains(ownerPK)) {
-				final Serializable value = bucket.getValue();
-				index.removeHistogramValue(histogramName, locale, value, ownerPK);
-				/* TODO JNO - tohle by se mělo ještě zvážit */
-				// owner PK can appear in multiple buckets when cardinality > 1 from different references
-				// so do NOT break here -- continue scanning
+			if (bucket.getValue().equals(value)) {
+				return bucket.getRecordIds().contains(ownerPK);
 			}
 		}
+		return false;
 	}
 
 	/**
@@ -2666,7 +2914,7 @@ public interface ReferenceIndexMutator {
 	 * @return the raw attribute value, or null if not present
 	 */
 	@Nullable
-	private static Serializable readReferenceAttributeValue(
+	static Serializable readReferenceAttributeValue(
 		@Nonnull ExistingAttributeValueSupplier existingDataSupplier,
 		@Nonnull String attributeName,
 		@Nullable Locale locale
@@ -2677,6 +2925,48 @@ public interface ReferenceIndexMutator {
 		return existingDataSupplier.getAttributeValue(key)
 			.map(AttributeValue::value)
 			.orElse(null);
+	}
+
+	/**
+	 * Resolves raw attribute value to an array of Number values for histogram operations.
+	 * Handles scalar numbers, array-typed attributes, null values with defaults, and
+	 * null values without defaults (returns empty array).
+	 *
+	 * @param rawValue   the raw attribute value (may be null)
+	 * @param resolution the value resolution metadata
+	 * @return array of Number values; empty if no values can be determined
+	 */
+	@Nonnull
+	static Number[] resolveHistogramValues(
+		@Nullable Serializable rawValue,
+		@Nonnull HistogramValueDescriptor resolution
+	) {
+		if (rawValue == null) {
+			if (resolution.defaultValue() != null) {
+				return new Number[]{resolution.defaultValue()};
+			}
+			return new Number[0];
+		}
+		if (resolution.arrayType() && rawValue instanceof Serializable[] array) {
+			int count = 0;
+			for (final Serializable element : array) {
+				if (element instanceof Number) {
+					count++;
+				}
+			}
+			final Number[] result = new Number[count];
+			int idx = 0;
+			for (final Serializable element : array) {
+				if (element instanceof Number number) {
+					result[idx++] = number;
+				}
+			}
+			return result;
+		}
+		if (rawValue instanceof Number number) {
+			return new Number[]{number};
+		}
+		return new Number[0];
 	}
 
 	/**
@@ -2706,12 +2996,11 @@ public interface ReferenceIndexMutator {
 		@Nonnull Scope scope
 	) {
 		final Class<? extends Serializable> plainType = resolution.plainType();
-		final boolean localized = resolution.localized();
 		if (rawValue == null) {
 			// apply default value if specified (already converted to plainType at build time)
 			if (resolution.defaultValue() != null) {
 				insertSingleHistogramValue(
-					executor, referenceName, histogramName, localized, locale,
+					executor, referenceName, histogramName, locale,
 					resolution.defaultValue(), ownerPK, groupId, scope, plainType
 				);
 			}
@@ -2720,14 +3009,14 @@ public interface ReferenceIndexMutator {
 			for (final Serializable element : array) {
 				if (element instanceof Number number) {
 					insertSingleHistogramValue(
-						executor, referenceName, histogramName, localized, locale,
+						executor, referenceName, histogramName, locale,
 						number, ownerPK, groupId, scope, plainType
 					);
 				}
 			}
 		} else if (rawValue instanceof Number number) {
 			insertSingleHistogramValue(
-				executor, referenceName, histogramName, localized, locale,
+				executor, referenceName, histogramName, locale,
 				number, ownerPK, groupId, scope, plainType
 			);
 		}
@@ -2751,7 +3040,6 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull String referenceName,
 		@Nonnull String histogramName,
-		boolean localized,
 		@Nullable Locale locale,
 		@Nonnull Number value,
 		int ownerPK,
@@ -2770,7 +3058,7 @@ public interface ReferenceIndexMutator {
 				for (final int storagePK : storagePKs) {
 					final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
 					if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-						hcei.insertHistogramValue(histogramName, localized, locale, value, ownerPK, valueType);
+						hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
 					}
 				}
 			}
@@ -2783,7 +3071,7 @@ public interface ReferenceIndexMutator {
 			if (index instanceof HistogramCapableEntityIndex hcei) {
 				// mark the index dirty — it is modified via insertHistogramValue below
 				executor.getOrCreateIndex(typeKey);
-				hcei.insertHistogramValue(histogramName, localized, locale, value, ownerPK, valueType);
+				hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
 			}
 		}
 	}

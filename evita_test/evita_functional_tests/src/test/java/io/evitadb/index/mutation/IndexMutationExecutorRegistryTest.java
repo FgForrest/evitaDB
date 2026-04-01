@@ -181,7 +181,7 @@ class IndexMutationExecutorRegistryTest {
 	@Test
 	@DisplayName("INSTANCE singleton should contain ReevaluateExpressionMutation executor")
 	void shouldContainReevaluateExpressionMutationEntry() {
-		final ReevaluateExpressionMutation mutation = new ReevaluateExpressionMutation(
+		final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
 			"testRef", 1, DependencyType.GROUP_ENTITY_ATTRIBUTE, Scope.DEFAULT_SCOPE
 		);
 		final IndexMutationTarget target = Mockito.mock(IndexMutationTarget.class);
