@@ -303,20 +303,10 @@ happen to share the same `AttributeIndexKey`. The compressed key includes
 `(attributeKey, indexType)`, so `FILTER` and `HISTOGRAM` entries for the same key
 produce different storage PKs.
 
-**Schema-time validation (bidirectional):** Validate that histogram index names do not
-collide with reference attribute names within the same reference + scope. This must be
-enforced in **both** directions:
-- **Adding a histogram:** reject if histogram name matches an existing reference attribute
-  name. Enforced in the histogram definition schema mutation.
-- **Adding a reference attribute:** reject if attribute name matches an existing histogram
-  name. Enforced in the reference attribute schema mutation.
-
-This is a safety net even though `AttributeIndexType` differentiation prevents storage
-collisions — the validation prevents user confusion. Validated in the `ReferenceSchema`
-constructor alongside existing scope consistency checks. This cross-check must also be
-documented in the multi-histogram schema change spec (`multi-histogram-schema-change.md`)
-for alignment. The validation runs on every schema build, catching collisions from both
-programmatic builders and deserialized schemas.
+**No histogram-vs-attribute name collision check needed:** Histogram names and reference
+attribute names occupy separate namespaces — the `AttributeIndexType` discriminator (`FILTER`
+vs. `HISTOGRAM`) ensures distinct storage PKs even when names coincide. No schema-time
+validation is required for name overlap.
 
 **Storage key stream:** Add histogram FilterIndex keys to
 `getAttributeIndexStorageKeyStream()` in both `ReducedGroupEntityIndex` and
@@ -533,6 +523,16 @@ interface HistogramExpressionTrigger extends ExpressionIndexTrigger {
 
 The inherited `evaluate()` method handles the **condition** expression (same as facets).
 The `getValueDescriptor()` provides the source attribute metadata for value lookups.
+
+**Scope-aware `evaluate()` signature:** The `evaluate()` method accepts a `Scope`
+parameter, which is threaded through `ExpressionProxyInstantiator.instantiate()` →
+`instantiateReferenceProxy()` → `instantiateNestedEntityProxy()`. The nested entity
+proxy instantiation reads the target entity's `EntityBodyStoragePart` and compares its
+scope against the expected scope. When there is a scope mismatch (e.g., the referenced
+entity is in LIVE but the histogram trigger is for ARCHIVED), the nested entity proxy
+is `null`, causing the entire reference proxy to be `null`, and `evaluate()` returns
+`false`. This prevents histogram entries from being indexed when the cross-entity
+chain spans different scopes.
 
 No `evaluateValue()` method on the trigger. Value computation is:
 - Local triggers: resolved from storage parts by the mutator directly (attribute read)
@@ -997,14 +997,23 @@ and histogram processing. The `facetPK` field becomes `referencedEntityPK`.
       ```java
       @Nullable FilterIndex getSourceFilterIndex(
           @Nonnull String entityType,
-          @Nonnull String attributeName
+          @Nonnull String attributeName,
+          @Nullable Locale locale,
+          @Nonnull Scope scope
       )
       ```
 
       Implementation: delegates to
-      `catalogIndex.getGlobalEntityIndex(sourceEntityType)`, then
-      `globalIndex.getFilterIndex(null, sourceAttributeSchema, null)`.
+      `sourceCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope))`,
+      then `globalIndex.getFilterIndex(new AttributeIndexKey(null, attributeName, locale))`.
       Returns `null` if the entity type or attribute FilterIndex doesn't exist.
+
+      **Scope parameter is critical:** The `scope` parameter determines which
+      `GlobalEntityIndex` to query. When both the owner entity and the referenced
+      entity are archived, the ARCHIVED scope's FilterIndex must be used to find
+      the referenced entity's attribute values. Without the scope parameter, the
+      method would always read from the LIVE index, causing archived entities'
+      histogram entries to be missing.
 
       **Why extend `IndexMutationTarget`:** The existing interface only exposes index
       access within the **same** entity collection (`getOrCreateIndex()`,
@@ -1013,7 +1022,7 @@ and histogram processing. The `facetPK` field becomes `referencedEntityPK`.
       FilterIndex while executing within the Product collection). This is the only
       new method needed.
 
-   b. Get source FilterIndex via `target.getSourceFilterIndex(sourceEntityType, sourceAttributeName)`.
+   b. Get source FilterIndex via `target.getSourceFilterIndex(sourceEntityType, sourceAttributeName, locale, scope)`.
       **If null, bail out** — source attribute's filterability may have been removed
       concurrently. Log at DEBUG level and return.
    c. Get `ValueToRecordBitmap[]` from source FilterIndex
@@ -1090,9 +1099,13 @@ When a new reference is created (e.g., Product gains reference to PV #5 in group
    Returns `Map<String, HistogramExpressionTrigger>` — one trigger per histogram name.
    Iterate by histogram name (no deduplication needed — one trigger per name).
 2. For each `(histogramName, trigger)` entry:
-   a. Evaluate condition: `trigger.evaluate(ownerPK, referenceKey, storageAccessor, schemaResolver)`.
+   a. Evaluate condition: `trigger.evaluate(ownerPK, referenceKey, storageAccessor, schemaResolver, scope)`.
       Returns `true` unconditionally when no condition expression exists (handled
-      internally by the trigger — see Section 4.3 step 3b).
+      internally by the trigger — see Section 4.3 step 3b). The `scope` parameter
+      enables scope-aware proxy instantiation — nested entity proxies (referenced
+      entity, group entity) whose storage scope differs from the expected scope
+      produce `null`, causing the entire reference proxy to be `null` and the
+      condition to return `false`.
    b. If condition is true:
       - Read attribute value directly from storage (via `storageAccessor`), **not** from
         the source FilterIndex. Rationale: at local trigger time the referenced entity's
@@ -1102,15 +1115,17 @@ When a new reference is created (e.g., Product gains reference to PV #5 in group
           `ExistingAttributeValueSupplier` (same pattern as existing reference attribute
           reads in `ReferenceIndexMutator`).
         * For `REFERENCED_ENTITY_ATTRIBUTE`: read from referenced entity's storage part.
-          `EntityIndexLocalMutationExecutor` must be extended with a cross-entity
-          attribute reader: `readReferencedEntityAttribute(String entityType, int entityPK,
-          String attributeName)`. This method delegates to
-          `catalog.getCollectionForEntityOrThrow(entityType)` to obtain the entity
-          collection, then reads the attribute from the entity's `AttributeStoragePart`
-          via the collection's `StorageContainerAccessor`. The `Catalog` reference is
-          already available to the executor through the `CatalogContract` passed during
-          `EntityCollection.applyMutations()`. If the referenced entity does not exist,
-          the method returns `null` (handled by default value logic below).
+          `EntityIndexLocalMutationExecutor` must be extended with a scope-aware
+          cross-entity attribute reader: `readReferencedEntityAttribute(String entityType,
+          int entityPK, String attributeName, Locale locale, Scope scope)`. This method
+          reads the entity's `EntityBodyStoragePart` first to verify the referenced entity
+          is in the expected scope — if the scope mismatches, it returns `null` (the
+          referenced entity is in a different scope and should not contribute to this
+          scope's histogram). If the scope matches, it reads the attribute from the
+          entity's `AttributeStoragePart`. The cross-entity read delegates to the
+          `WritableEntityStorageContainerAccessor` which supports reading storage parts
+          from any entity type. If the referenced entity does not exist, the method
+          returns `null` (handled by default value logic below).
       - **Array handling:** If `valueResolution.arrayType()` is true and the raw value
         is `instanceof Serializable[]`, iterate each element through the normalization
         pipeline below and perform cardinality + FilterIndex insert per element. This
@@ -1349,19 +1364,49 @@ new value from mutation. Remove from bucket 10, add to bucket 20.
 **Flow:** `removeEntityFromIndexes(entity, oldScope)` removes all histogram entries,
 then `addEntityToIndexes(entity, newScope)` re-indexes to new scope.
 
-**Histogram cleanup mechanism:** `removeEntityFromIndexes` (line ~1548 in
-`EntityIndexLocalMutationExecutor`) calls `unindexReferences()` which invokes
-`ReferenceIndexMutator` removal methods for each reference on the entity. The histogram
-removal in `ReferenceIndexMutator` (Section 6.3) fires unconditionally for each
-reference being removed — this naturally cleans up all histogram entries. Individual
-histogram entries are removed per-reference via cardinality decrement and FilterIndex
-removal (not by destroying entire index instances). The `ReducedGroupEntityIndex` /
-`ReferencedTypeEntityIndex` instances themselves survive scope changes — only the
-entity's data within them is removed.
+**Histogram cleanup mechanism:** `removeEntityFromIndexes` calls `unindexReferences()`
+which invokes `ReferenceIndexMutator` removal methods for each reference on the entity.
+The histogram removal in `ReferenceIndexMutator` (Section 6.3) fires unconditionally
+for each reference being removed — this naturally cleans up all histogram entries.
+Individual histogram entries are removed per-reference via cardinality decrement and
+FilterIndex removal (not by destroying entire index instances). The
+`ReducedGroupEntityIndex` / `ReferencedTypeEntityIndex` instances themselves survive
+scope changes — only the entity's data within them is removed.
 
-**No histogram-specific scope change code needed** beyond what Section 6.3 already
-describes. The existing `unindexReferences` → `ReferenceIndexMutator.removeReference()`
-call chain handles histograms once Section 6.3's histogram removal logic is implemented.
+**Scope-aware re-indexing in `addEntityToIndexes`:** When re-indexing references in the
+new scope, `indexAllReferences` calls `addHistogramToIndex` which evaluates the
+condition via `trigger.evaluate(..., newScope)`. The scope parameter ensures that
+cross-entity references are scope-checked:
+
+- **Referenced entity in same scope:** Condition evaluates normally, histogram is indexed.
+- **Referenced entity in different scope:** The nested entity proxy instantiation
+  detects the scope mismatch (via `EntityBodyStoragePart.getScope() != expectedScope`),
+  returns `null`, and the condition evaluates to `false` — no histogram entry is created.
+  This is correct: a histogram entry should only exist when the entire entity chain
+  resides in the same scope.
+- **Value resolution is also scope-aware:** `readReferencedEntityAttribute` checks the
+  referenced entity's scope before reading attribute values. If the scope mismatches,
+  it returns `null`, preventing stale cross-scope values from being indexed.
+
+**Cross-entity trigger on scope change:** When a referenced entity changes scope (e.g.,
+ParameterValue is archived), `buildAttributeChangeMutations` detects the
+`SetEntityScopeMutation` and delegates to `buildRemovalMutations`, which fires all
+cross-entity triggers unconditionally (same as entity removal). The
+`ReevaluateExpressionExecutor` processes these triggers using scope-aware evaluation:
+
+- `evaluateFilter(filterBy, scope)` injects `scope(scope)` into the query, so
+  referenced entities in the wrong scope are excluded from the condition evaluation.
+- `getSourceFilterIndex(entityType, attributeName, locale, scope)` reads from the
+  correct scope's `GlobalEntityIndex`, so the add path finds the referenced entity's
+  attribute values only if it is in the same scope.
+- The removal path uses pre-mutation captured values (`capturedOldEntityAttributeValues`)
+  for deterministic removal of the old histogram entries.
+
+**Double-insertion prevention during `indexAllReferences`:** When `indexAllReferences`
+processes a scope change, it adds each `referenceKey` to `referencesWithDeferredHistogramAdd`
+before calling `referenceInsertGlobal`. This prevents `referenceInsertGlobal` from
+scheduling a deferred histogram add (which would duplicate the direct
+`addHistogramToIndex` call at the end of the loop).
 
 ### 8.5 Entity Created / Removed
 
@@ -1477,7 +1522,9 @@ Symmetric with facet re-evaluation in `applyAttributeMutation` (Section 6.5).
 8. Repeat for `ReferencedTypeEntityIndex`
 9. Add `AttributeIndexType.HISTOGRAM` enum value (nested enum in
    `AttributeIndexStoragePart` in `evita_engine` — same module as the index classes).
-10. Schema-time validation: histogram name vs attribute name collision
+10. ~~Schema-time validation: histogram name vs attribute name collision~~ — removed;
+    `AttributeIndexType` discriminator ensures distinct storage PKs, no name collision
+    check needed.
 11. Update `toString()` in both index classes to include histogram index names,
     bucket counts, and cardinality index sizes for debugging visibility
 12. Add `DEBUG`-level logging at key decision points for production debugging:
