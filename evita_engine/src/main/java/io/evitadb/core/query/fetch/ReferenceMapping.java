@@ -105,8 +105,9 @@ class ReferenceMapping {
 				// we need to skip predicate, because named reference content is not considered a predicate
 				for (ReferenceContract reference : entityDecorator.getReferencesWithoutCheckingPredicate(referenceName)) {
 					if (reference.getGroup().isPresent()) {
+						final ReferenceKey refKey = reference.getReferenceKey();
 						container.compute(
-							reference.getReferenceKey(),
+							new ReferenceKey(refKey.referenceName(), refKey.primaryKey()),
 							(referenceKey, existingValue) -> {
 								final int epk = richEnoughEntity.getPrimaryKeyOrThrowException();
 								final int groupPrimaryKey = reference.getGroup()

@@ -328,7 +328,7 @@ public interface ReferenceIndexMutator {
 						bothKeys.stored() : bothKeys.current();
 
 					final ReducedGroupEntityIndex groupIndex = getOrCreateReferencedGroupEntityIndex(
-						executor, entityRRK, scope
+						executor, entityRRK, groupPK, scope
 					);
 					referenceIndexConsumer.accept(referenceSchema, groupIndex, groupIndex);
 				}
@@ -418,29 +418,33 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Returns (or lazily creates) the {@link AbstractReducedEntityIndex} of type
-	 * {@link EntityIndexType#REFERENCED_GROUP_ENTITY} for the given group reference key and scope.
+	 * Returns (or lazily creates) the {@link ReducedGroupEntityIndex} of type
+	 * {@link EntityIndexType#REFERENCED_GROUP_ENTITY} for the given group PK and scope.
 	 *
-	 * The group index uses the same keying as {@link EntityIndexType#REFERENCED_ENTITY} — the discriminator
-	 * contains the **referenced entity** primary key, not the group PK. The group PK is tracked internally
-	 * by the {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} type-level index, which maps group PKs
-	 * to storage PKs of individual group indexes. It is only created when the reference schema has group
-	 * indexing enabled ({@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY}) for the scope.
+	 * The method constructs a new {@link RepresentativeReferenceKey} by combining the reference name and
+	 * representative attribute values from `entityLevelKey` with the provided `groupPK`. The resulting
+	 * discriminator therefore contains the **group PK** (not the referenced entity PK).
 	 *
-	 * @param executor         the mutation executor that manages index lifecycle
-	 * @param groupReferenceKey the representative key for the referenced entity within a group context
-	 * @param scope             the scope in which the index is maintained
+	 * @param executor       the mutation executor that manages index lifecycle
+	 * @param entityLevelKey the entity-level representative key supplying reference name and attribute values
+	 * @param groupPK        the primary key of the group entity
+	 * @param scope          the scope in which the index is maintained
 	 * @return the existing or newly created group reduced entity index
 	 */
 	@Nonnull
 	static ReducedGroupEntityIndex getOrCreateReferencedGroupEntityIndex(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull RepresentativeReferenceKey groupReferenceKey,
+		@Nonnull RepresentativeReferenceKey entityLevelKey,
+		int groupPK,
 		@Nonnull Scope scope
 	) {
+		final RepresentativeReferenceKey groupScopedKey = new RepresentativeReferenceKey(
+			new ReferenceKey(entityLevelKey.referenceName(), groupPK),
+			entityLevelKey.representativeAttributeValues()
+		);
 		final EntityIndexKey entityIndexKey = new EntityIndexKey(
 			EntityIndexType.REFERENCED_GROUP_ENTITY, scope,
-			groupReferenceKey
+			groupScopedKey
 		);
 		return (ReducedGroupEntityIndex) executor.getOrCreateIndex(entityIndexKey);
 	}

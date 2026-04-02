@@ -2129,6 +2129,170 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				}
 			);
 		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should remove facet entries when product is deleted after group type change")
+		void shouldRemoveFacetEntriesWhenProductDeletedAfterGroupTypeChange(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalFacetSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_GROUP, 1)
+						.setAttribute(ATTR_WIDGET_TYPE, "CHECKBOX")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 1).upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 2).upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1))
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 2,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1))
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 2, 1, 1);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 2);
+
+					// delete product 1
+					session.deleteEntity(ENTITY_PRODUCT, 1);
+
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 2, 1, 1);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 2);
+
+					// flip group 1: CHECKBOX -> RADIO -> CHECKBOX
+					session.getEntity(ENTITY_PARAMETER_GROUP, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.setAttribute(ATTR_WIDGET_TYPE, "RADIO")
+						.upsertVia(session);
+					session.getEntity(ENTITY_PARAMETER_GROUP, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.setAttribute(ATTR_WIDGET_TYPE, "CHECKBOX")
+						.upsertVia(session);
+
+					// product 1 must NOT reappear after group type flip
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 2, 1, 1);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 2);
+				}
+			);
+		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should remove facets when group type flips and product is deleted in same session")
+		void shouldRemoveFacetsWhenGroupFlipsAndProductDeletedInSameSession(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalFacetSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_GROUP, 1)
+						.setAttribute(ATTR_WIDGET_TYPE, "CHECKBOX")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 1).upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 2).upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1))
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 2,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1))
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+
+					// flip group to RADIO, back to CHECKBOX, then delete product 1
+					session.getEntity(ENTITY_PARAMETER_GROUP, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.setAttribute(ATTR_WIDGET_TYPE, "RADIO")
+						.upsertVia(session);
+					session.getEntity(ENTITY_PARAMETER_GROUP, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.setAttribute(ATTR_WIDGET_TYPE, "CHECKBOX")
+						.upsertVia(session);
+					session.deleteEntity(ENTITY_PRODUCT, 1);
+
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 2, 1, 1);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 2);
+				}
+			);
+		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should handle multi-group product deletion with interleaved group type changes")
+		void shouldHandleMultiGroupProductDeletionWithInterleavedGroupTypeChanges(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalFacetSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_GROUP, 1)
+						.setAttribute(ATTR_WIDGET_TYPE, "CHECKBOX")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_GROUP, 2)
+						.setAttribute(ATTR_WIDGET_TYPE, "RADIO")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 1).upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 2).upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 3).upsertVia(session);
+
+					// product 1 has refs in group 1 AND group 2
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1))
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 2,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 2))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setReference(REF_PARAM_BY_GROUP_ATTR, 3,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 2))
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					// group 1=CHECKBOX: product 1 faceted for param 1
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+					// group 2=RADIO: no facets
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 2, 2, 1);
+
+					// flip group 2 to CHECKBOX, then delete product 2, then flip back to RADIO
+					session.getEntity(ENTITY_PARAMETER_GROUP, 2, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.setAttribute(ATTR_WIDGET_TYPE, "CHECKBOX")
+						.upsertVia(session);
+					session.deleteEntity(ENTITY_PRODUCT, 2);
+					session.getEntity(ENTITY_PARAMETER_GROUP, 2, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.setAttribute(ATTR_WIDGET_TYPE, "RADIO")
+						.upsertVia(session);
+
+					// product 2 deleted — no stale entries
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 3, 2, 2);
+					// product 1 in group 2 (RADIO) — not faceted
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 2, 2, 1);
+					// product 1 in group 1 (CHECKBOX) — still faceted
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+				}
+			);
+		}
 	}
 
 	/**

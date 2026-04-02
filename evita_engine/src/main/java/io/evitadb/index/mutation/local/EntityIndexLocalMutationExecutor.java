@@ -1257,10 +1257,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
 					this, rrk.referenceName(), scope
 				);
-			// use rrk (with referenced entity PK) as the discriminator — the type index
-			// mapping is keyed by groupPK separately via the referencedPrimaryKey parameter
 			final AbstractReducedEntityIndex groupIndex = ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
-				this, rrk, scope
+				this, rrk, groupPK, scope
 			);
 			ReferenceIndexMutator.referenceRemovalPerComponent(
 				epk, entitySchema, referenceSchema, this,
@@ -1298,11 +1296,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
 				this, rrk.referenceName(), scope
 			);
-		// use rrk (with referenced entity PK) as the discriminator — the type index
-		// mapping is keyed by groupPK separately via the referencedPrimaryKey parameter
 		final AbstractReducedEntityIndex groupIndex =
 			ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
-				this, rrk, scope
+				this, rrk, groupPK, scope
 			);
 		ReferenceIndexMutator.referenceInsertPerComponent(
 			epk, entitySchema, referenceSchema, this,
@@ -1441,18 +1437,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						if (reference != null) {
 							final Integer groupPK = extractActiveGroupPrimaryKey(reference);
 							if (groupPK != null) {
-								// use entity-level RRKs (with referenced entity PK) as group index discriminator
 								final ReferencedTypeEntityIndex groupTypeIndex =
 									ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
 										this, referenceKey.referenceName(), scope
 									);
 								final ReducedGroupEntityIndex formerGroupIndex =
 									ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
-										this, bothKeys.stored(), scope
+										this, bothKeys.stored(), groupPK, scope
 									);
 								final ReducedGroupEntityIndex newGroupIndex =
 									ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
-										this, bothKeys.current(), scope
+										this, bothKeys.current(), groupPK, scope
 									);
 								ReferenceIndexMutator.referenceRemovalPerComponent(
 									entityPrimaryKey, entitySchema, referenceSchema, this,
@@ -2679,14 +2674,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			if (existingReference != null) {
 				final Integer groupPK = extractActiveGroupPrimaryKey(existingReference);
 				if (groupPK != null) {
-					// use rrk (with referenced entity PK) as the group index discriminator
 					final ReferencedTypeEntityIndex groupTypeIndex =
 						ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
 							this, referenceKey.referenceName(), scope
 						);
 					final ReducedGroupEntityIndex groupIndex =
 						ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
-							this, rrk, scope
+							this, rrk, groupPK, scope
 						);
 					ReferenceIndexMutator.attributeUpdate(
 						this, existingStoragePartFactory,

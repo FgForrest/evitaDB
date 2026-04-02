@@ -1549,32 +1549,77 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			|| dependencyType == DependencyType.PARENT_ENTITY_REFERENCE_ATTRIBUTE) {
 			return triggerFilterBy;
 		}
-		// Build the PK-scoping clause appropriate for the type of cross-entity dependency.
-		final FilterConstraint pkScope = switch (dependencyType) {
-			case GROUP_ENTITY_ATTRIBUTE, GROUP_ENTITY_REFERENCE_ATTRIBUTE ->
-				new GroupHaving(new EntityPrimaryKeyInSet(mutatedEntityPK));
-			case REFERENCED_ENTITY_ATTRIBUTE, REFERENCED_ENTITY_REFERENCE_ATTRIBUTE ->
-				new EntityHaving(new EntityPrimaryKeyInSet(mutatedEntityPK));
-			case PARENT_ENTITY_ATTRIBUTE, PARENT_ENTITY_REFERENCE_ATTRIBUTE ->
-				throw new IllegalStateException("Unreachable");
-		};
+		// The raw PK constraint to inject into the appropriate scope container.
+		final EntityPrimaryKeyInSet pkConstraint = new EntityPrimaryKeyInSet(mutatedEntityPK);
+		final boolean isGroupScope = dependencyType == DependencyType.GROUP_ENTITY_ATTRIBUTE
+			|| dependencyType == DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
 		// Walk the top-level children and inject the PK-scope into the matching referenceHaving clause.
 		final FilterConstraint[] topChildren = triggerFilterBy.getChildren();
 		final FilterConstraint[] newTopChildren = new FilterConstraint[topChildren.length];
 		for (int i = 0; i < topChildren.length; i++) {
 			if (topChildren[i] instanceof ReferenceHaving rh
 				&& rh.getReferenceName().equals(referenceName)) {
-				// Wrap existing referenceHaving children together with the new PK-scope inside an And.
-				final FilterConstraint[] rhChildren = rh.getChildren();
-				final FilterConstraint[] andChildren = new FilterConstraint[rhChildren.length + 1];
-				System.arraycopy(rhChildren, 0, andChildren, 0, rhChildren.length);
-				andChildren[rhChildren.length] = pkScope;
-				newTopChildren[i] = new ReferenceHaving(referenceName, new And(andChildren));
+				newTopChildren[i] = injectPkScope(rh, referenceName, pkConstraint, isGroupScope);
 			} else {
 				newTopChildren[i] = topChildren[i];
 			}
 		}
 		return new FilterBy(newTopChildren);
+	}
+
+	/**
+	 * Injects the given PK constraint into the matching {@link ReferenceHaving} clause. If the clause already
+	 * contains an {@link EntityHaving} (or {@link GroupHaving} for group-scoped dependencies), the PK constraint
+	 * is merged into that existing scope container so that only a single scope shift is used. Otherwise, a new
+	 * scope container wrapping the PK constraint is appended as an additional And-sibling.
+	 *
+	 * @param rh            the original referenceHaving clause
+	 * @param referenceName the reference name for the new ReferenceHaving
+	 * @param pkConstraint  the PK constraint to inject
+	 * @param isGroupScope  `true` when the scope container is {@link GroupHaving}, `false` for
+	 *                      {@link EntityHaving}
+	 * @return a new {@link ReferenceHaving} with the PK constraint injected
+	 */
+	@Nonnull
+	private static ReferenceHaving injectPkScope(
+		@Nonnull ReferenceHaving rh,
+		@Nonnull String referenceName,
+		@Nonnull EntityPrimaryKeyInSet pkConstraint,
+		boolean isGroupScope
+	) {
+		final FilterConstraint[] rhChildren = rh.getChildren();
+		// Find an existing EntityHaving or GroupHaving to merge the PK constraint into.
+		int scopeIndex = -1;
+		for (int j = 0; j < rhChildren.length; j++) {
+			if (isGroupScope ? rhChildren[j] instanceof GroupHaving : rhChildren[j] instanceof EntityHaving) {
+				scopeIndex = j;
+				break;
+			}
+		}
+		if (scopeIndex >= 0) {
+			// Merge PK constraint into the existing scope container to avoid multiple scope shifts.
+			final FilterConstraint[] updatedChildren = new FilterConstraint[rhChildren.length];
+			System.arraycopy(rhChildren, 0, updatedChildren, 0, rhChildren.length);
+			if (isGroupScope) {
+				final GroupHaving existing = (GroupHaving) rhChildren[scopeIndex];
+				updatedChildren[scopeIndex] = new GroupHaving(new And(existing.getChild(), pkConstraint));
+			} else {
+				final EntityHaving existing = (EntityHaving) rhChildren[scopeIndex];
+				updatedChildren[scopeIndex] = new EntityHaving(new And(existing.getChild(), pkConstraint));
+			}
+			return updatedChildren.length == 1
+				? new ReferenceHaving(referenceName, updatedChildren[0])
+				: new ReferenceHaving(referenceName, new And(updatedChildren));
+		} else {
+			// No existing scope container — wrap PK in a new one and add as an And-sibling.
+			final FilterConstraint pkScope = isGroupScope
+				? new GroupHaving(pkConstraint)
+				: new EntityHaving(pkConstraint);
+			final FilterConstraint[] andChildren = new FilterConstraint[rhChildren.length + 1];
+			System.arraycopy(rhChildren, 0, andChildren, 0, rhChildren.length);
+			andChildren[rhChildren.length] = pkScope;
+			return new ReferenceHaving(referenceName, new And(andChildren));
+		}
 	}
 
 	/**
