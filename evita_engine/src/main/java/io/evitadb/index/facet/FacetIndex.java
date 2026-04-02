@@ -147,16 +147,18 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		@Nullable Integer groupId,
 		int entityPrimaryKey
 	) {
-		// we need to keep track of created internal transactional memory related data structures
-		final FacetIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity type
-		final FacetReferenceIndex facetEntityTypeIndex = this.facetingEntities.computeIfAbsent(
-			referenceKey.referenceName(),
-			referencedEntityType -> {
-				final FacetReferenceIndex fetIx = new FacetReferenceIndex(referenceKey.referenceName());
-				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(fetIx));
-				return fetIx;
-			});
+		final FacetReferenceIndex existingRefIndex = this.facetingEntities.get(referenceKey.referenceName());
+		final FacetReferenceIndex facetEntityTypeIndex;
+		if (existingRefIndex == null) {
+			// only create transactional layer when we actually need to register a new FacetReferenceIndex
+			final FacetIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+			facetEntityTypeIndex = new FacetReferenceIndex(referenceKey.referenceName());
+			this.facetingEntities.put(referenceKey.referenceName(), facetEntityTypeIndex);
+			ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(facetEntityTypeIndex));
+		} else {
+			facetEntityTypeIndex = existingRefIndex;
+		}
 		// now add the facet relation for entity primary key
 		final boolean added = facetEntityTypeIndex.addFacet(referenceKey.primaryKey(), groupId, entityPrimaryKey);
 		// if anything was changed mark the entity type index dirty

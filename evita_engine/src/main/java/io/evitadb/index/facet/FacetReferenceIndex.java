@@ -157,11 +157,11 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, @Nullable Integer groupId, int entityPrimaryKey) {
-		final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final FacetGroupIndex facetGroupIndex;
 		if (groupId == null) {
 			final FacetGroupIndex existingNonGroupedFacetsIndex = this.notGroupedFacets.get();
 			if (existingNonGroupedFacetsIndex == null) {
+				final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 				facetGroupIndex = new FacetGroupIndex();
 				this.notGroupedFacets.set(facetGroupIndex);
 				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(facetGroupIndex));
@@ -175,11 +175,16 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 				(oldValues, newValues) -> ArrayUtils.insertIntIntoOrderedArray(newValues[0], oldValues)
 			);
 			// fetch or create index for referenced entity id (inside correct type)
-			facetGroupIndex = this.groupedFacets.computeIfAbsent(groupId, gPK -> {
-				final FacetGroupIndex fgIx = new FacetGroupIndex(gPK);
+			final FacetGroupIndex existingGroupedIndex = this.groupedFacets.get(groupId);
+			if (existingGroupedIndex == null) {
+				final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+				final FacetGroupIndex fgIx = new FacetGroupIndex(groupId);
+				this.groupedFacets.put(groupId, fgIx);
 				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(fgIx));
-				return fgIx;
-			});
+				facetGroupIndex = fgIx;
+			} else {
+				facetGroupIndex = existingGroupedIndex;
+			}
 		}
 
 		return facetGroupIndex.addFacet(facetPrimaryKey, entityPrimaryKey);

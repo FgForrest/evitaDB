@@ -109,15 +109,18 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, int entityPrimaryKey) {
-		final FacetGroupIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity id (inside correct type)
-		final FacetIdIndex facetIdIndex = this.facetIdIndexes.computeIfAbsent(
-			facetPrimaryKey,
-			fPK -> {
-				final FacetIdIndex fgIx = new FacetIdIndex(fPK);
-				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(fgIx));
-				return fgIx;
-			});
+		final FacetIdIndex existingIndex = this.facetIdIndexes.get(facetPrimaryKey);
+		final FacetIdIndex facetIdIndex;
+		if (existingIndex == null) {
+			// only create transactional layer when we actually need to register a new FacetIdIndex
+			final FacetGroupIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+			facetIdIndex = new FacetIdIndex(facetPrimaryKey);
+			this.facetIdIndexes.put(facetPrimaryKey, facetIdIndex);
+			ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(facetIdIndex));
+		} else {
+			facetIdIndex = existingIndex;
+		}
 
 		return facetIdIndex.addFacet(entityPrimaryKey);
 	}
