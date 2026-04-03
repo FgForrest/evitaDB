@@ -93,6 +93,7 @@ The central dispatcher. Each `LocalMutation` is pattern-matched to its handler:
 | `SetReferenceGroupMutation`         | facet group swap + group indexes  |          Yes           |
 | `RemoveReferenceGroupMutation`      | facet group clear + group indexes |          Yes           |
 | `ReferenceAttributeMutation`        | `attributeUpdate` on ref indexes  |          Yes           |
+| `ReevaluateExpressionMutation`      | facet + histogram re-evaluation   |          Yes           |
 | `UpsertAttributeMutation`           | `executeAttributeUpsert`          |          Yes           |
 | `RemoveAttributeMutation`           | `executeAttributeRemoval`         |          Yes           |
 | `ApplyDeltaAttributeMutation`       | `executeAttributeDelta`           |          Yes           |
@@ -726,6 +727,205 @@ relationship that existed before removal.
   hierarchy indexing enabled, even if the entity schema declares `isWithHierarchy() = true`.
 - **Invariant:** After rollback, the hierarchy index must reflect the exact parent relationships
   that existed before the mutation batch.
+
+---
+
+---
+
+## Expression-Based Conditional Indexing (facetedPartially / bucketedPartially)
+
+**Primary classes:**
+`ReferenceIndexMutator` (local trigger evaluation),
+`ReevaluateExpressionMutationExecutor` (cross-entity re-evaluation),
+`CatalogExpressionTriggerRegistryImpl` (trigger storage and lookup),
+`FacetExpressionTriggerFactory` / `HistogramExpressionTriggerFactory` (trigger construction).
+
+### Architecture Overview
+
+Both `facetedPartially` and `bucketedPartially` share a common expression trigger infrastructure.
+A boolean condition expression on a reference schema controls whether each individual reference
+instance participates in the facet index or histogram index. The infrastructure has two execution
+paths:
+
+- **Local triggers** — evaluated inline during reference mutations on the owner entity.
+- **Cross-entity triggers** — fire when an attribute on a remote entity (group entity, referenced
+  entity, or parent entity) changes, requiring bulk re-evaluation of all affected owner entities.
+
+### CatalogExpressionTriggerRegistry
+
+The singleton registry stores triggers in two index structures:
+
+**Cross-entity trigger index:**
+```
+mutatedEntityType → DependencyType → List<ExpressionIndexTrigger>
+```
+Consulted when `EntityIndexLocalMutationExecutor` processes an attribute mutation and detects that
+the mutated entity type is a dependency target for expression triggers. An attribute-name reverse
+index (`entityAttributeIndex`) maps `(entityType, attributeName)` to a boolean, enabling O(1)
+filtering to skip pre-mutation value capture when no trigger cares about the changed attribute.
+
+**Local trigger indexes (separate for facets and histograms):**
+```
+ownerEntityType → referenceName → scope → FacetExpressionTrigger      (3-deep)
+ownerEntityType → referenceName → scope → histogramName → HistogramExpressionTrigger  (4-deep)
+```
+Consulted inline during reference insert/remove/group-change operations in `ReferenceIndexMutator`.
+
+The registry is **immutable after construction**. Schema changes trigger
+`rebuildForEntityType()` which performs copy-on-write: deep-copies both indexes into mutable
+builders, removes entries for the changing entity type, inserts new triggers from both
+`FacetExpressionTriggerFactory` and `HistogramExpressionTriggerFactory`, and returns a frozen
+instance. Concurrent readers continue using the old instance.
+
+### Trigger Construction (FacetExpressionTriggerFactory)
+
+For each reference with a `facetedPartially` expression in a given scope:
+
+1. **Parse data paths** — `AccessedDataFinder.findAccessedPaths(expression)` extracts all
+   `$entity.attributes[...]`, `$reference.attributes[...]`, `$reference.groupEntity?.attributes[...]`,
+   etc.
+2. **Classify dependencies** — `ExpressionDependencyClassifier` maps each path to a
+   `DependencyKey(DependencyType, referenceName)`. Five dependency types exist:
+
+   | DependencyType | Fires When |
+   |---|---|
+   | `REFERENCED_ENTITY_ATTRIBUTE` | Referenced entity's attribute changes |
+   | `GROUP_ENTITY_ATTRIBUTE` | Group entity's attribute changes |
+   | `PARENT_ENTITY_ATTRIBUTE` | Parent entity's attribute changes |
+   | `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` | Reference attribute on the referenced entity changes |
+   | `GROUP_ENTITY_REFERENCE_ATTRIBUTE` | Reference attribute on the group entity changes |
+
+3. **Build proxy descriptor** — `ExpressionProxyFactory` creates metadata for instantiating
+   Proxycian proxy objects that bind `$entity` and `$reference` to entity storage parts.
+4. **Translate to FilterBy** — `ExpressionToQueryTranslator` converts the expression AST to an
+   EvitaQL `FilterBy` constraint tree, used for cross-entity evaluation.
+5. **Create triggers** — one per unique `DependencyKey`, all sharing the same proxy descriptor
+   and `FilterBy` tree. Local-only expressions (no cross-entity paths) produce a single trigger
+   with `DependencyType == null`.
+
+### AbstractExpressionIndexTriggerImpl
+
+The shared base class for `FacetExpressionTriggerImpl` and `HistogramExpressionTriggerImpl`.
+Carries 13+ immutable fields and implements the `evaluate()` method:
+
+- **Unconditional** (expression is null): returns `true` immediately.
+- **Conditional**: instantiates `$entity` and `$reference` proxy objects from entity storage parts
+  via `ExpressionProxyInstantiator`, binds variables, evaluates the compiled expression, converts
+  the result to boolean via `convertResult()`. Returns `false` if required proxy objects cannot
+  be instantiated (e.g., group entity doesn't exist).
+
+### Local Trigger Evaluation in ReferenceIndexMutator
+
+| Operation | Trigger Consulted | Behavior |
+|---|---|---|
+| Reference insert (`addFacetToIndex`) | Local facet trigger | Evaluate condition; add facet only if true |
+| Reference group change (`setFacetGroupInIndex`) | Local facet trigger | Re-evaluate; add/remove facet based on new condition result |
+| Reference removal (`removeFacetInIndex`) | None | Remove unconditionally |
+| Reference attribute change | Generates `ReevaluateExpressionMutation` if attribute is in trigger's dependency set | Cross-entity path handles re-evaluation |
+
+### Cross-Entity Re-evaluation (ReevaluateExpressionMutation)
+
+```java
+record ReevaluateExpressionMutation(
+    String referenceName,
+    int mutatedEntityPK,
+    DependencyType dependencyType,
+    Scope scope
+) implements IndexMutation
+```
+
+**Source-side detection** (in `EntityIndexLocalMutationExecutor`):
+
+When an attribute is mutated on any entity, `collectEntityAttributeTriggers()` queries the registry
+for triggers that depend on the mutated entity type and attribute name. For each match, a
+`ReevaluateExpressionMutation` is created. Pre-mutation attribute values are captured when the
+trigger includes histogram value source attributes (needed for old-value removal from histogram
+FilterIndex).
+
+**Execution** (in `ReevaluateExpressionMutationExecutor`):
+
+1. **Resolve affected owner PKs** — dispatches on `DependencyType`:
+   - `GROUP_ENTITY_ATTRIBUTE`: Lookup group PK in `REFERENCED_GROUP_ENTITY_TYPE` index → iterate
+     referenced entity buckets → yield `(refPK, groupPK, ownerPKs)` tuples.
+   - `REFERENCED_ENTITY_ATTRIBUTE` (ungrouped): Lookup ref PK in `REFERENCED_ENTITY_TYPE` index →
+     merge owner PKs from reduced indexes.
+   - `REFERENCED_ENTITY_ATTRIBUTE` (grouped): Iterate all groups in the group type index → lookup
+     ref PK in each group's reduced index.
+   - `PARENT_ENTITY_ATTRIBUTE`: Use hierarchy to get parent's children, then resolve their
+     references.
+
+2. **Re-evaluate condition** — for each `(ownerPK, refPK, groupPK)` tuple, evaluate the
+   trigger's `FilterBy` constraint using the entity's current state.
+
+3. **Apply changes** — add/remove facets and histogram entries based on condition result changes.
+
+### Deduplication
+
+Multiple attribute changes on the same entity within one transaction batch may trigger the same
+`(referenceName, mutatedEntityPK, dependencyType, scope)` combination. The mutation is
+deduplicated — equal mutations are collapsed, and only one re-evaluation pass occurs per unique
+tuple.
+
+---
+
+## Histogram Mutations (Conditional Bucketed Indexing)
+
+**Primary classes:**
+`ReferenceIndexMutator` (histogram insert/remove within reference processing),
+`ReevaluateExpressionMutationExecutor` (cross-entity re-evaluation).
+
+### Trigger Architecture
+
+Histogram indexing uses a two-expression trigger system registered in
+`CatalogExpressionTriggerRegistry`:
+
+- **Condition expression** (`bucketedPartially`) — determines whether a reference participates in
+  the histogram. Shared across all histogram definitions on the same reference in the same scope.
+- **Value expression** (`bucketed`) — identifies which attribute's value to store. Resolved via
+  `HistogramValueDescriptor` metadata.
+
+Triggers fire through `HistogramExpressionTrigger` instances (extending
+`AbstractExpressionIndexTriggerImpl`) that share the same base infrastructure as
+`FacetExpressionTrigger`.
+
+### Local Triggers (same-entity mutations)
+
+When an entity attribute, reference attribute, or reference itself changes, local
+`HistogramExpressionTrigger`s are evaluated inline during the mutation batch. The trigger:
+
+1. Evaluates the condition expression against the current entity state.
+2. If true, resolves the value from the `HistogramValueDescriptor` source.
+3. Performs cardinality-tracked insert/remove on the target `HistogramIndex`
+   (`ReducedGroupEntityIndex` for grouped references, `ReferencedTypeEntityIndex` for ungrouped).
+
+### Cross-Entity Triggers (ReevaluateExpressionMutation)
+
+When an attribute changes on a **different** entity type (e.g., group entity's `inputWidgetType`
+or referenced entity's `basicUnitValue`), the system fires `ReevaluateExpressionMutation`. This
+unified mutation (shared with facet re-evaluation) carries:
+
+```java
+record ReevaluateExpressionMutation(
+    String referenceName,
+    int mutatedEntityPK,
+    DependencyType dependencyType,
+    Scope scope
+) implements IndexMutation
+```
+
+The executor iterates all owning entities that reference the mutated entity, re-evaluates both
+condition and value, and performs bulk histogram index updates via FilterIndex JOIN operations.
+
+### Test Blueprint Hints -- Histogram Mutations
+
+- **Invariant:** After inserting a reference where the condition expression evaluates to `true` and
+  the value expression resolves to a non-null numeric value, the target `HistogramIndex` must
+  contain the owning entity PK in the bucket for that value.
+- **Invariant:** After the condition expression flips from `true` to `false` (e.g., group
+  attribute change), all histogram entries for affected owner PKs must be removed.
+- **Invariant:** After a value change on the referenced entity, all histogram entries for owner
+  PKs referencing that entity must reflect the new value (old bucket removed, new bucket added).
+- **Invariant:** Histogram state must survive Evita restart (Kryo serialization round-trip).
 
 ---
 

@@ -149,6 +149,12 @@ new immutable snapshot of each modified index
 | `ReducedEntityIndex` | evita_engine | Per-referenced-entity <Term>partitioned view</Term> with `PriceRefIndex` |
 | `ReducedGroupEntityIndex` | evita_engine | Per-group <Term>partitioned view</Term> with PK and attribute cardinality tracking |
 | `ReferencedTypeEntityIndex` | evita_engine | Per-reference-name type-level index with cardinality tracking |
+| `CatalogExpressionTriggerRegistryImpl` | evita_engine | Singleton registry for expression-based index triggers (facet + histogram) |
+| `AbstractExpressionIndexTriggerImpl` | evita_engine | Shared base for `FacetExpressionTriggerImpl` and `HistogramExpressionTriggerImpl` |
+| `FacetExpressionTriggerFactory` | evita_engine | Builds facet triggers from `facetedPartially` expressions |
+| `HistogramExpressionTriggerFactory` | evita_engine | Builds histogram triggers from `bucketedPartially` expressions |
+| `ReevaluateExpressionMutation` | evita_engine | Unified cross-entity re-evaluation mutation for both facets and histograms |
+| `HistogramIndex` | evita_engine | Abstract base for named histogram indexes (`SimpleHistogramIndex`, `LocalizedHistogramIndex`) |
 
 
 ## Three-Axis Mental Model
@@ -183,6 +189,8 @@ Each `EntityIndex` composes several inner data structures:
   in ReferencedType (see [data-structures.md](data-structures.md#price-indexes))
 - **CardinalityIndexes** -- `ReferenceTypeCardinalityIndex` and `AttributeCardinalityIndex`
   in ReferencedType (see [data-structures.md](data-structures.md#cardinality-indexes))
+- **HistogramIndex** -- `FilterIndex`-based bucketed histogram data in ReducedGroupEntityIndex
+  and ReferencedTypeEntityIndex (see [data-structures.md](data-structures.md#histogram-indexes))
 
 ### Axis 3 -- Schema Settings & Scope (what controls index creation)
 
@@ -255,6 +263,30 @@ graph TD
     RTEI --> ACI
     RGEI --> ACI
     RGEI --> PKCI
+
+    subgraph "Histogram Indexes"
+        HII["HistogramIndex<br/><i>(per named histogram definition)</i>"]
+        HFI["FilterIndex<br/><i>(bucketed values → owner PKs)</i>"]
+        HACI["AttributeCardinalityIndex<br/><i>(value cardinality tracking)</i>"]
+    end
+
+    RGEI --> HII
+    RTEI --> HII
+    HII --> HFI
+    HII --> HACI
+
+    subgraph "Expression Trigger Infrastructure"
+        CETR["CatalogExpressionTriggerRegistry<br/><i>cross-entity + local trigger indexes</i>"]
+        AEIT["AbstractExpressionIndexTriggerImpl<br/><i>shared base with evaluate()</i>"]
+        FETI["FacetExpressionTriggerImpl"]
+        HETI["HistogramExpressionTriggerImpl"]
+        REEM["ReevaluateExpressionMutation<br/><i>cross-entity re-evaluation</i>"]
+    end
+
+    AEIT --> FETI
+    AEIT --> HETI
+    CETR --> AEIT
+    REEM -. "fires" .-> CETR
 
     subgraph "EntityIndexType enum values"
         T1["GLOBAL"]
