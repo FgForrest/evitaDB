@@ -44,7 +44,7 @@ import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
-import io.evitadb.utils.CollectionUtils;
+import io.evitadb.api.GenerationalTestSupport.TestState;
 import lombok.extern.apachecommons.CommonsLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,7 +81,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @CommonsLog
 @DisplayName("Conditional facet generational tests")
-class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport {
+class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport, GenerationalTestSupport {
 	private static final String DIR_TEST = "conditionalFacetGenerationalTest";
 	private static final String DIR_TEST_EXPORT = "conditionalFacetGenerationalTest_export";
 
@@ -289,7 +289,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 					final int productPK = entry.getKey();
 					for (int paramPK : entry.getValue()) {
 						final int priority = refPriority.getOrDefault(
-							encodeRefKey(productPK, paramPK), 0
+							GenerationalTestSupport.encodeRefKey(productPK, paramPK), 0
 						);
 						if (priority > 0) {
 							expected.computeIfAbsent(paramPK, k -> new HashSet<>()).add(productPK);
@@ -779,7 +779,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("TOGGLE_ATTR (no-op: no products)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productIsActive);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productIsActive);
 		final boolean oldValue = Boolean.TRUE.equals(productIsActive.get(productPK));
 		final boolean newValue = !oldValue;
 		session.getEntity(ENTITY_PRODUCT, productPK, entityFetchAllContent())
@@ -805,7 +805,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("ADD_REF (no-op: no products)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productIsActive);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productIsActive);
 		final int paramPK = random.nextInt(maxParams) + 1;
 		final Set<Integer> refs = productRefs.computeIfAbsent(productPK, k -> new HashSet<>());
 		if (refs.add(paramPK)) {
@@ -828,7 +828,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Map<Integer, Set<Integer>> productRefs
 	) {
-		final int[] pair = pickRandomRef(random, productRefs);
+		final int[] pair = GenerationalTestSupport.pickRandomRef(random, productRefs);
 		if (pair == null) {
 			logOp("REMOVE_REF (no-op: no refs)");
 			return;
@@ -883,7 +883,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("DELETE_PRODUCT (no-op: no products)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productIsActive);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productIsActive);
 		session.deleteEntity(ENTITY_PRODUCT, productPK);
 		productIsActive.remove(productPK);
 		final Set<Integer> removedRefs = productRefs.remove(productPK);
@@ -901,12 +901,12 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 		@Nonnull Map<Integer, Set<Integer>> productRefs,
 		@Nonnull Map<Long, Integer> refPriority
 	) {
-		final int[] pair = pickRandomRef(random, productRefs);
+		final int[] pair = GenerationalTestSupport.pickRandomRef(random, productRefs);
 		if (pair == null) {
 			logOp("CHANGE_PRIORITY (no-op: no refs)");
 			return;
 		}
-		final int oldPriority = refPriority.getOrDefault(encodeRefKey(pair[0], pair[1]), 0);
+		final int oldPriority = refPriority.getOrDefault(GenerationalTestSupport.encodeRefKey(pair[0], pair[1]), 0);
 		final int newPriority = random.nextInt(11) - 3; // range [-3, 7]
 		session.getEntity(ENTITY_PRODUCT, pair[0], entityFetchAllContent())
 			.orElseThrow()
@@ -916,7 +916,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 				whichIs -> whichIs.setAttribute(ATTR_PRIORITY, newPriority)
 			)
 			.upsertVia(session);
-		refPriority.put(encodeRefKey(pair[0], pair[1]), newPriority);
+		refPriority.put(GenerationalTestSupport.encodeRefKey(pair[0], pair[1]), newPriority);
 		logOp("CHANGE_PRIORITY product=" + pair[0] + " param=" + pair[1] +
 			" priority: " + oldPriority + " -> " + newPriority);
 	}
@@ -935,7 +935,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("ADD_REF_PRIORITY (no-op: no products)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productRefs);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productRefs);
 		final int paramPK = random.nextInt(maxParams) + 1;
 		final Set<Integer> refs = productRefs.computeIfAbsent(productPK, k -> new HashSet<>());
 		if (refs.add(paramPK)) {
@@ -948,7 +948,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 					whichIs -> whichIs.setAttribute(ATTR_PRIORITY, priority)
 				)
 				.upsertVia(session);
-			refPriority.put(encodeRefKey(productPK, paramPK), priority);
+			refPriority.put(GenerationalTestSupport.encodeRefKey(productPK, paramPK), priority);
 			logOp("ADD_REF_PRIORITY product=" + productPK + " -> param=" + paramPK +
 				" priority=" + priority);
 		} else {
@@ -966,18 +966,18 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 		@Nonnull Map<Integer, Set<Integer>> productRefs,
 		@Nonnull Map<Long, Integer> refPriority
 	) {
-		final int[] pair = pickRandomRef(random, productRefs);
+		final int[] pair = GenerationalTestSupport.pickRandomRef(random, productRefs);
 		if (pair == null) {
 			logOp("REMOVE_REF_PRIORITY (no-op: no refs)");
 			return;
 		}
-		final int oldPriority = refPriority.getOrDefault(encodeRefKey(pair[0], pair[1]), 0);
+		final int oldPriority = refPriority.getOrDefault(GenerationalTestSupport.encodeRefKey(pair[0], pair[1]), 0);
 		session.getEntity(ENTITY_PRODUCT, pair[0], entityFetchAllContent())
 			.orElseThrow()
 			.openForWrite()
 			.removeReference(ENTITY_PARAMETER, pair[1])
 			.upsertVia(session);
-		refPriority.remove(encodeRefKey(pair[0], pair[1]));
+		refPriority.remove(GenerationalTestSupport.encodeRefKey(pair[0], pair[1]));
 		final Set<Integer> refs = productRefs.get(pair[0]);
 		refs.remove(pair[1]);
 		if (refs.isEmpty()) {
@@ -1019,12 +1019,12 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("DELETE_PRODUCT (no-op: no products)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productRefs);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productRefs);
 		session.deleteEntity(ENTITY_PRODUCT, productPK);
 		final Set<Integer> refs = productRefs.remove(productPK);
 		if (refs != null) {
 			for (int paramPK : refs) {
-				refPriority.remove(encodeRefKey(productPK, paramPK));
+				refPriority.remove(GenerationalTestSupport.encodeRefKey(productPK, paramPK));
 			}
 		}
 		logOp("DELETE_PRODUCT pk=" + productPK + " (had refs: " + (refs != null ? refs : "[]") + ")");
@@ -1045,7 +1045,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("CHANGE_GROUP_TYPE (no-op: no groups)");
 			return;
 		}
-		final int groupPK = pickRandomFromSet(random, existingGroups);
+		final int groupPK = GenerationalTestSupport.pickRandomFromSet(random, existingGroups);
 		final String oldType = groupWidgetType.get(groupPK);
 		final String newType = random.nextBoolean() ? "CHECKBOX" : "RADIO";
 		session.getEntity(ENTITY_PARAMETER_GROUP, groupPK, entityFetchAllContent())
@@ -1074,9 +1074,9 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("ADD_GROUPED_REF (no-op: no products or groups)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productRefGroups);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productRefGroups);
 		final int paramPK = random.nextInt(maxParams) + 1;
-		final int groupPK = pickRandomFromSet(random, existingGroups);
+		final int groupPK = GenerationalTestSupport.pickRandomFromSet(random, existingGroups);
 		final Map<Integer, Integer> refs = productRefGroups.computeIfAbsent(
 			productPK, k -> new HashMap<>()
 		);
@@ -1112,13 +1112,13 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("REMOVE_GROUPED_REF (no-op: no products)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productRefGroups);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productRefGroups);
 		final Map<Integer, Integer> refs = productRefGroups.get(productPK);
 		if (refs == null || refs.isEmpty()) {
 			logOp("REMOVE_GROUPED_REF (no-op: product=" + productPK + " has no refs)");
 			return;
 		}
-		final int paramPK = pickRandomKey(random, refs);
+		final int paramPK = GenerationalTestSupport.pickRandomKey(random, refs);
 		final int groupPK = refs.get(paramPK);
 		session.getEntity(ENTITY_PRODUCT, productPK, entityFetchAllContent())
 			.orElseThrow()
@@ -1165,7 +1165,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("DELETE_PRODUCT (no-op: no products)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productRefGroups);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productRefGroups);
 		final Map<Integer, Integer> removedRefs = productRefGroups.get(productPK);
 		session.deleteEntity(ENTITY_PRODUCT, productPK);
 		productRefGroups.remove(productPK);
@@ -1189,7 +1189,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("DELETE_GROUP (no-op: no groups)");
 			return;
 		}
-		final int groupPK = pickRandomFromSet(random, existingGroups);
+		final int groupPK = GenerationalTestSupport.pickRandomFromSet(random, existingGroups);
 		// first, remove all references that point to this group
 		for (Entry<Integer, Map<Integer, Integer>> productEntry : productRefGroups.entrySet()) {
 			final int productPK = productEntry.getKey();
@@ -1234,7 +1234,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("CHANGE_PARAM_STATUS (no-op: no params)");
 			return;
 		}
-		final int paramPK = pickRandomFromSet(random, existingParameters);
+		final int paramPK = GenerationalTestSupport.pickRandomFromSet(random, existingParameters);
 		final String oldStatus = paramStatus.get(paramPK);
 		final String newStatus = random.nextBoolean() ? "ACTIVE" : "INACTIVE";
 		session.getEntity(ENTITY_PARAMETER, paramPK, entityFetchAllContent())
@@ -1259,8 +1259,8 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("ADD_REF (no-op: no products or params)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productRefs);
-		final int paramPK = pickRandomFromSet(random, existingParameters);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productRefs);
+		final int paramPK = GenerationalTestSupport.pickRandomFromSet(random, existingParameters);
 		final Set<Integer> refs = productRefs.computeIfAbsent(productPK, k -> new HashSet<>());
 		if (refs.add(paramPK)) {
 			session.getEntity(ENTITY_PRODUCT, productPK, entityFetchAllContent())
@@ -1282,7 +1282,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Map<Integer, Set<Integer>> productRefs
 	) {
-		final int[] pair = pickRandomRef(random, productRefs);
+		final int[] pair = GenerationalTestSupport.pickRandomRef(random, productRefs);
 		if (pair == null) {
 			logOp("REMOVE_REF (no-op: no refs)");
 			return;
@@ -1331,7 +1331,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("DELETE_PRODUCT (no-op: no products)");
 			return;
 		}
-		final int productPK = pickRandomKey(random, productRefs);
+		final int productPK = GenerationalTestSupport.pickRandomKey(random, productRefs);
 		final Set<Integer> removedRefs = productRefs.get(productPK);
 		session.deleteEntity(ENTITY_PRODUCT, productPK);
 		productRefs.remove(productPK);
@@ -1354,7 +1354,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("DELETE_PARAM (no-op: no params)");
 			return;
 		}
-		final int paramPK = pickRandomFromSet(random, existingParameters);
+		final int paramPK = GenerationalTestSupport.pickRandomFromSet(random, existingParameters);
 		// first, remove all references pointing to this parameter from products
 		for (Entry<Integer, Set<Integer>> entry : productRefs.entrySet()) {
 			final int productPK = entry.getKey();
@@ -1389,7 +1389,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("CHANGE_PARENT_CODE (no-op: no parents)");
 			return;
 		}
-		final int parentPK = pickRandomKey(random, productCode);
+		final int parentPK = GenerationalTestSupport.pickRandomKey(random, productCode);
 		if (!existingProducts.contains(parentPK)) {
 			logOp("CHANGE_PARENT_CODE (no-op: parent=" + parentPK + " not in existingProducts)");
 			return;
@@ -1420,7 +1420,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			return;
 		}
 		// pick a child product that has refs tracked
-		final int childPK = pickRandomKey(random, productParent);
+		final int childPK = GenerationalTestSupport.pickRandomKey(random, productParent);
 		if (!existingProducts.contains(childPK)) {
 			logOp("CHANGE_PARENT (no-op: child=" + childPK + " not in existingProducts)");
 			return;
@@ -1431,7 +1431,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("CHANGE_PARENT (no-op: no parent-eligible products)");
 			return;
 		}
-		final int parentPK = pickRandomFromSet(random, parentEligible);
+		final int parentPK = GenerationalTestSupport.pickRandomFromSet(random, parentEligible);
 		if (parentPK == childPK) {
 			logOp("CHANGE_PARENT (no-op: self-reference child=" + childPK + ")");
 			return; // avoid self-reference
@@ -1462,7 +1462,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			return;
 		}
 		// pick a child product that exists
-		final int childPK = pickRandomKey(random, productParent);
+		final int childPK = GenerationalTestSupport.pickRandomKey(random, productParent);
 		if (!existingProducts.contains(childPK)) {
 			logOp("ADD_REF (no-op: child=" + childPK + " not in existingProducts)");
 			return;
@@ -1489,7 +1489,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Map<Integer, Set<Integer>> productRefs
 	) {
-		final int[] pair = pickRandomRef(random, productRefs);
+		final int[] pair = GenerationalTestSupport.pickRandomRef(random, productRefs);
 		if (pair == null) {
 			logOp("REMOVE_REF (no-op: no refs)");
 			return;
@@ -1527,7 +1527,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 		final var builder = session.createNewEntity(ENTITY_PRODUCT, pk);
 		Integer parentPK = null;
 		if (!productCode.isEmpty() && random.nextBoolean()) {
-			parentPK = pickRandomFromSet(random, productCode.keySet());
+			parentPK = GenerationalTestSupport.pickRandomFromSet(random, productCode.keySet());
 			builder.setParent(parentPK);
 		}
 		builder.upsertVia(session);
@@ -1554,7 +1554,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("DELETE_CHILD (no-op: no children)");
 			return;
 		}
-		final int childPK = pickRandomKey(random, productParent);
+		final int childPK = GenerationalTestSupport.pickRandomKey(random, productParent);
 		if (!existingProducts.contains(childPK)) {
 			productParent.remove(childPK);
 			logOp("DELETE_CHILD (cleanup: child=" + childPK + " already gone from existingProducts)");
@@ -1593,7 +1593,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 			logOp("DELETE_PARENT (no-op: no parents)");
 			return;
 		}
-		final int parentPK = pickRandomKey(random, productCode);
+		final int parentPK = GenerationalTestSupport.pickRandomKey(random, productCode);
 		if (!existingProducts.contains(parentPK)) {
 			logOp("DELETE_PARENT (no-op: parent=" + parentPK + " not in existingProducts)");
 			return;
@@ -1974,91 +1974,4 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 		});
 	}
 
-	// ==================== Generic Utilities ====================
-
-	/**
-	 * Picks a random key from a map.
-	 *
-	 * @param random the random number generator
-	 * @param map    the map to pick from
-	 * @return a random key, or throws if the map is empty
-	 */
-	private static <K> K pickRandomKey(@Nonnull Random random, @Nonnull Map<K, ?> map) {
-		final int index = random.nextInt(map.size());
-		int i = 0;
-		for (K key : map.keySet()) {
-			if (i == index) {
-				return key;
-			}
-			i++;
-		}
-		throw new IllegalStateException("Should not happen");
-	}
-
-	/**
-	 * Picks a random element from a set.
-	 *
-	 * @param random the random number generator
-	 * @param set    the set to pick from
-	 * @return a random element
-	 */
-	private static <T> T pickRandomFromSet(@Nonnull Random random, @Nonnull Set<T> set) {
-		final int index = random.nextInt(set.size());
-		int i = 0;
-		for (T item : set) {
-			if (i == index) {
-				return item;
-			}
-			i++;
-		}
-		throw new IllegalStateException("Should not happen");
-	}
-
-	/**
-	 * Picks a random (productPK, paramPK) pair from the references map.
-	 *
-	 * @return [productPK, paramPK] or null if no references exist
-	 */
-	@Nullable
-	private static int[] pickRandomRef(
-		@Nonnull Random random,
-		@Nonnull Map<Integer, Set<Integer>> productRefs
-	) {
-		if (productRefs.isEmpty()) {
-			return null;
-		}
-		// filter to products that have at least one ref
-		final Map<Integer, Set<Integer>> nonEmpty = CollectionUtils.createHashMap(productRefs.size());
-		for (Entry<Integer, Set<Integer>> entry : productRefs.entrySet()) {
-			if (!entry.getValue().isEmpty()) {
-				nonEmpty.put(entry.getKey(), entry.getValue());
-			}
-		}
-		if (nonEmpty.isEmpty()) {
-			return null;
-		}
-		final int productPK = pickRandomKey(random, nonEmpty);
-		final Set<Integer> refs = nonEmpty.get(productPK);
-		final int paramPK = pickRandomFromSet(random, refs);
-		return new int[]{productPK, paramPK};
-	}
-
-	/**
-	 * Encodes a (productPK, paramPK) pair into a single long for use as a map key.
-	 *
-	 * @param productPK the product primary key
-	 * @param paramPK   the parameter primary key
-	 * @return the encoded key
-	 */
-	private static long encodeRefKey(int productPK, int paramPK) {
-		return ((long) productPK << 32) | (paramPK & 0xFFFFFFFFL);
-	}
-
-	/**
-	 * Generational test state.
-	 *
-	 * @param generation total count of generations that were correctly created
-	 */
-	private record TestState(int generation) {
-	}
 }
