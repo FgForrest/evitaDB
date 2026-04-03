@@ -523,8 +523,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedGroupEntityIndex> missingIndexSupplier
 	) {
 		final String referenceName = referenceSchema.getName();
-		// always use the type index path — group index discriminator uses referenced entity PK,
-		// not group PK, so direct key construction by groupEntityId is not possible
+		// always use the type index path to locate all reduced group indexes for a given group PK
 		final EntityIndexKey entityIndexKey = new EntityIndexKey(
 			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 		);

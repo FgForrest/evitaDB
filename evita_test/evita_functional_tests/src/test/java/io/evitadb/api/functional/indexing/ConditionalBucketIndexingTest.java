@@ -434,28 +434,28 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	 * Asserts that the owner entity is present in the histogram FilterIndex bucket for the given value
 	 * in the specified group's ReducedGroupEntityIndex.
 	 *
-	 * @param collection        the entity collection to inspect
-	 * @param referenceName     the reference schema name
-	 * @param referencedEntityPK the referenced entity primary key (group index discriminator)
-	 * @param histogramName     the histogram definition name
-	 * @param value             the expected histogram bucket value
-	 * @param ownerPK           the primary key of the owner entity (Product PK)
+	 * @param collection    the entity collection to inspect
+	 * @param referenceName the reference schema name
+	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param histogramName the histogram definition name
+	 * @param value         the expected histogram bucket value
+	 * @param ownerPK       the primary key of the owner entity (Product PK)
 	 */
 	private static void assertHistogramBucketContains(
 		@Nonnull EntityCollectionContract collection,
 		@Nonnull String referenceName,
-		int referencedEntityPK,
+		int groupPK,
 		@Nonnull String histogramName,
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
 		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
-			collection, Scope.LIVE, referenceName, referencedEntityPK
+			collection, Scope.LIVE, referenceName, groupPK
 		);
 		assertNotNull(
 			entityIndex,
 			"ReducedGroupEntityIndex for ref '" + referenceName
-				+ "' referencedEntityPK " + referencedEntityPK + " must exist"
+				+ "' groupPK " + groupPK + " must exist"
 		);
 		assertInstanceOf(
 			ReducedGroupEntityIndex.class, entityIndex,
@@ -466,12 +466,12 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 		assertNotNull(
 			filterIndex,
 			"Histogram FilterIndex '" + histogramName
-				+ "' in referencedEntityPK " + referencedEntityPK + " must exist"
+				+ "' in groupPK " + groupPK + " must exist"
 		);
 		assertTrue(
 			filterIndex.getRecordsEqualTo(EvitaDataTypes.toSupportedType(value)).contains(ownerPK),
 			"Owner PK " + ownerPK + " should be in histogram '" + histogramName
-				+ "' bucket " + value + " referencedEntityPK " + referencedEntityPK
+				+ "' bucket " + value + " groupPK " + groupPK
 		);
 	}
 
@@ -479,23 +479,23 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	 * Asserts that the owner entity is NOT present in the histogram FilterIndex bucket for the given value
 	 * in the specified group's ReducedGroupEntityIndex.
 	 *
-	 * @param collection         the entity collection to inspect
-	 * @param referenceName      the reference schema name
-	 * @param referencedEntityPK the referenced entity primary key (group index discriminator)
-	 * @param histogramName      the histogram definition name
-	 * @param value              the histogram bucket value that should NOT contain the owner
-	 * @param ownerPK            the primary key of the owner entity (Product PK)
+	 * @param collection    the entity collection to inspect
+	 * @param referenceName the reference schema name
+	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param histogramName the histogram definition name
+	 * @param value         the histogram bucket value that should NOT contain the owner
+	 * @param ownerPK       the primary key of the owner entity (Product PK)
 	 */
 	private static void assertHistogramBucketNotContains(
 		@Nonnull EntityCollectionContract collection,
 		@Nonnull String referenceName,
-		int referencedEntityPK,
+		int groupPK,
 		@Nonnull String histogramName,
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
 		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
-			collection, Scope.LIVE, referenceName, referencedEntityPK
+			collection, Scope.LIVE, referenceName, groupPK
 		);
 		if (entityIndex == null) {
 			return; // no group index = not indexed
@@ -512,7 +512,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 		assertFalse(
 			filterIndex.getRecordsEqualTo(EvitaDataTypes.toSupportedType(value)).contains(ownerPK),
 			"Owner PK " + ownerPK + " should NOT be in histogram '" + histogramName
-				+ "' bucket " + value + " referencedEntityPK " + referencedEntityPK
+				+ "' bucket " + value + " groupPK " + groupPK
 		);
 	}
 
@@ -520,21 +520,21 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	 * Asserts that the owner entity is NOT present in any histogram FilterIndex bucket
 	 * in the specified group's ReducedGroupEntityIndex.
 	 *
-	 * @param collection        the entity collection to inspect
-	 * @param referenceName     the reference schema name
-	 * @param referencedEntityPK the referenced entity primary key (group index discriminator)
-	 * @param histogramName     the histogram definition name
-	 * @param ownerPK           the primary key of the owner entity (Product PK)
+	 * @param collection    the entity collection to inspect
+	 * @param referenceName the reference schema name
+	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param histogramName the histogram definition name
+	 * @param ownerPK       the primary key of the owner entity (Product PK)
 	 */
 	private static void assertHistogramNotIndexed(
 		@Nonnull EntityCollectionContract collection,
 		@Nonnull String referenceName,
-		int referencedEntityPK,
+		int groupPK,
 		@Nonnull String histogramName,
 		int ownerPK
 	) {
 		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
-			collection, Scope.LIVE, referenceName, referencedEntityPK
+			collection, Scope.LIVE, referenceName, groupPK
 		);
 		if (entityIndex == null) {
 			return; // no group index = not indexed
@@ -551,7 +551,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 		assertFalse(
 			filterIndex.getAllRecords().contains(ownerPK),
 			"Owner PK " + ownerPK + " should NOT be in histogram '" + histogramName
-				+ "' referencedEntityPK " + referencedEntityPK
+				+ "' groupPK " + groupPK
 		);
 	}
 
@@ -960,11 +960,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 2
 					);
 					assertReferenceStillIndexed(
@@ -1134,11 +1134,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_UNCONDITIONAL, 1,
+						productCollection, REF_PARAM_UNCONDITIONAL, 10,
 						HISTOGRAM_UNCONDITIONAL, new BigDecimal("50"), 1
 					);
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_UNCONDITIONAL, 1,
+						productCollection, REF_PARAM_UNCONDITIONAL, 10,
 						HISTOGRAM_UNCONDITIONAL, new BigDecimal("50"), 2
 					);
 				}
@@ -1173,11 +1173,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST1, new BigDecimal("50"), 1
 					);
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST2, 10, 1
 					);
 				}
@@ -1212,7 +1212,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					final EntityCollectionContract productCollection = getProductCollection();
 					// value expression has ?? 0, so null → default 0
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
 						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
 					);
 				}
@@ -1247,7 +1247,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					final EntityCollectionContract productCollection = getProductCollection();
 					// no default → no histogram entry
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 1
 					);
 				}
@@ -1464,7 +1464,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					final EntityCollectionContract productCollection = getProductCollection();
 					// no group → should not be in any histogram
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 1
 					);
 
@@ -1479,7 +1479,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 
@@ -1491,7 +1491,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 1
 					);
 				}
@@ -1725,7 +1725,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 
@@ -1737,11 +1737,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("75"), 1
 					);
 					assertHistogramBucketNotContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 				}
@@ -1849,11 +1849,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST1, new BigDecimal("50"), 1
 					);
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST2, 10, 1
 					);
 
@@ -1865,12 +1865,12 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST1, new BigDecimal("75"), 1
 					);
 					// hist2 should remain unchanged
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST2, 10, 1
 					);
 				}
@@ -1916,7 +1916,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					final EntityCollectionContract productCollection = getProductCollection();
 					for (int i = 1; i <= 3; i++) {
 						assertHistogramBucketContains(
-							productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+							productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 							HISTOGRAM_VALUE, new BigDecimal("50"), i
 						);
 					}
@@ -1930,7 +1930,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					for (int i = 1; i <= 3; i++) {
 						assertHistogramNotIndexed(
-							productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+							productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 							HISTOGRAM_VALUE, i
 						);
 					}
@@ -1944,7 +1944,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					for (int i = 1; i <= 3; i++) {
 						assertHistogramBucketContains(
-							productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+							productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 							HISTOGRAM_VALUE, new BigDecimal("50"), i
 						);
 					}
@@ -1985,11 +1985,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 2
 					);
 
@@ -1997,11 +1997,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					session.deleteEntity(ENTITY_PARAMETER, 10);
 
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 1
 					);
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 2
 					);
 				}
@@ -2032,7 +2032,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 1
 					);
 
@@ -2042,7 +2042,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 				}
@@ -2102,7 +2102,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					);
 					// Product#1: NOT in histogram
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 1,
+						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 10,
 						HISTOGRAM_DUAL, 1
 					);
 
@@ -2112,7 +2112,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					);
 					// Product#2: in histogram bucket 50
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 1,
+						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 20,
 						HISTOGRAM_DUAL, new BigDecimal("50"), 2
 					);
 				}
@@ -2151,7 +2151,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 1, 10, 1
 					);
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 1,
+						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 10,
 						HISTOGRAM_DUAL, 1
 					);
 
@@ -2166,7 +2166,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 1, 10, 1
 					);
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 1,
+						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 10,
 						HISTOGRAM_DUAL, new BigDecimal("50"), 1
 					);
 
@@ -2181,7 +2181,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 1, 10, 1
 					);
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 1,
+						productCollection, REF_PARAM_DUAL_FACET_HISTOGRAM, 10,
 						HISTOGRAM_DUAL, 1
 					);
 				}
@@ -2225,7 +2225,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_MIXED_AND, 1,
+						productCollection, REF_PARAM_BY_MIXED_AND, 10,
 						HISTOGRAM_MIXED, new BigDecimal("50"), 1
 					);
 
@@ -2237,7 +2237,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_MIXED_AND, 1,
+						productCollection, REF_PARAM_BY_MIXED_AND, 10,
 						HISTOGRAM_MIXED, 1
 					);
 
@@ -2255,7 +2255,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_MIXED_AND, 1,
+						productCollection, REF_PARAM_BY_MIXED_AND, 10,
 						HISTOGRAM_MIXED, 1
 					);
 
@@ -2267,7 +2267,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_MIXED_AND, 1,
+						productCollection, REF_PARAM_BY_MIXED_AND, 10,
 						HISTOGRAM_MIXED, new BigDecimal("50"), 1
 					);
 				}
@@ -2302,7 +2302,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					final EntityCollectionContract productCollection = getProductCollection();
 					// both branches true
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_MULTI_SOURCE_OR, 1,
+						productCollection, REF_PARAM_BY_MULTI_SOURCE_OR, 10,
 						HISTOGRAM_OR, new BigDecimal("50"), 1
 					);
 
@@ -2314,7 +2314,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_MULTI_SOURCE_OR, 1,
+						productCollection, REF_PARAM_BY_MULTI_SOURCE_OR, 10,
 						HISTOGRAM_OR, new BigDecimal("50"), 1
 					);
 
@@ -2326,7 +2326,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_MULTI_SOURCE_OR, 1,
+						productCollection, REF_PARAM_BY_MULTI_SOURCE_OR, 10,
 						HISTOGRAM_OR, 1
 					);
 
@@ -2338,7 +2338,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_MULTI_SOURCE_OR, 1,
+						productCollection, REF_PARAM_BY_MULTI_SOURCE_OR, 10,
 						HISTOGRAM_OR, new BigDecimal("50"), 1
 					);
 				}
@@ -2369,7 +2369,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 1
 					);
 
@@ -2379,7 +2379,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 
@@ -2387,7 +2387,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					session.deleteEntity(ENTITY_PARAMETER, 10);
 
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 1
 					);
 				}
@@ -2421,7 +2421,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				session -> {
 					final EntityCollectionContract productCollection = getProductCollection();
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 
@@ -2434,7 +2434,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					// should still be indexed — no spurious state change
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 				}
@@ -2907,7 +2907,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					final EntityCollectionContract productCollection = getProductCollection();
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST2, 10, 1
 					);
 
@@ -2919,11 +2919,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST2, 25, 1
 					);
 					assertHistogramBucketNotContains(
-						productCollection, REF_PARAM_MULTI_HISTOGRAM, 1,
+						productCollection, REF_PARAM_MULTI_HISTOGRAM, 10,
 						HISTOGRAM_HIST2, 10, 1
 					);
 				}
@@ -2976,11 +2976,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					// Product#1 (null PV -> default 0) and Product#2 (explicit 0) in same bucket
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
 						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
 					);
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 2,
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
 						HISTOGRAM_VALUE, BigDecimal.ZERO, 2
 					);
 				}
@@ -3034,7 +3034,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					// verify initial indexing across multiple reference types
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 					assertUngroupedHistogramBucketContains(
@@ -3051,7 +3051,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					// all histogram entries should be cleaned up
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, 1
 					);
 					assertUngroupedHistogramNotIndexed(
@@ -3115,12 +3115,12 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					// grouped PV#1 via INTERVAL group - in histogram
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 					// grouped PV#2 via CHECKBOX group - NOT in histogram
 					assertHistogramNotIndexed(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 2,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 20,
 						HISTOGRAM_VALUE, 1
 					);
 					// ungrouped ref with isActive=true - in histogram
@@ -3178,7 +3178,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					// initially in histogram via group#10
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 
@@ -3194,7 +3194,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 					// should still be in histogram (new group is also INTERVAL)
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 20,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 				}
@@ -3244,11 +3244,11 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					final EntityCollectionContract productCollection = getProductCollection();
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 20,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 2
 					);
 
@@ -3260,19 +3260,19 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.upsertVia(session);
 
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("75"), 1
 					);
 					assertHistogramBucketContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 20,
 						HISTOGRAM_VALUE, new BigDecimal("75"), 2
 					);
 					assertHistogramBucketNotContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 1
 					);
 					assertHistogramBucketNotContains(
-						productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 						HISTOGRAM_VALUE, new BigDecimal("50"), 2
 					);
 				}
@@ -3331,7 +3331,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 
 			// grouped histogram via group entity attribute
 			assertHistogramBucketContains(
-				productCollection, REF_PARAM_BY_GROUP_ATTR, 1,
+				productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
 				HISTOGRAM_VALUE, new BigDecimal("50"), 1
 			);
 			// ungrouped histogram via entity attribute condition

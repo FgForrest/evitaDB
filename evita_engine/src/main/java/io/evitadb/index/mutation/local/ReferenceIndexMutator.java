@@ -40,8 +40,13 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
+import io.evitadb.core.expression.trigger.HistogramValueSource;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -51,16 +56,12 @@ import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
-import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.RepresentativeReferenceKeys;
-import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
-import io.evitadb.core.expression.trigger.HistogramValueSource;
-import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.local.dataAccess.ExistingPriceSupplier;
@@ -68,7 +69,6 @@ import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -161,13 +161,13 @@ public interface ReferenceIndexMutator {
 	 * {@link #executeWithReferenceIndexes(ReferenceIndexType, EntityIndexLocalMutationExecutor, ReferenceIndexConsumer,
 	 * Predicate, boolean)}.
 	 *
-	 * @param indexType                  minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                   the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer     callback invoked with the reference schema and the matching
-	 *                                   {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
-	 *                                   and `indexForUpsert`)
-	 * @param referencePresenceExpected  whether the referenced entity's primary key is expected to already be present
-	 *                                   in the index (used to resolve the correct {@link RepresentativeReferenceKey})
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked with the reference schema and the matching
+	 *                                  {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
+	 *                                  and `indexForUpsert`)
+	 * @param referencePresenceExpected whether the referenced entity's primary key is expected to already be present
+	 *                                  in the index (used to resolve the correct {@link RepresentativeReferenceKey})
 	 */
 	static void executeWithReferenceIndexes(
 		@Nonnull ReferenceIndexType indexType,
@@ -197,15 +197,15 @@ public interface ReferenceIndexMutator {
 	 * (already-known) primary key resolve the stored {@link RepresentativeReferenceKey}; newly assigned external
 	 * primary keys resolve the current one.
 	 *
-	 * @param indexType                  minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                   the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer     callback invoked with the reference schema and the matching
-	 *                                   {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
-	 *                                   and `indexForUpsert`)
-	 * @param referencePredicate         additional filter applied after the schema-level check; use
-	 *                                   `referenceContract -> true` to process all matching references
-	 * @param referencePresenceExpected  whether the referenced entity's primary key is expected to already be present
-	 *                                   in the index (used to resolve the correct {@link RepresentativeReferenceKey})
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked with the reference schema and the matching
+	 *                                  {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
+	 *                                  and `indexForUpsert`)
+	 * @param referencePredicate        additional filter applied after the schema-level check; use
+	 *                                  `referenceContract -> true` to process all matching references
+	 * @param referencePresenceExpected whether the referenced entity's primary key is expected to already be present
+	 *                                  in the index (used to resolve the correct {@link RepresentativeReferenceKey})
 	 */
 	static void executeWithReferenceIndexes(
 		@Nonnull ReferenceIndexType indexType,
@@ -249,12 +249,12 @@ public interface ReferenceIndexMutator {
 	 * {@link #executeWithGroupReferenceIndexes(ReferenceIndexType, EntityIndexLocalMutationExecutor,
 	 * ReferenceIndexConsumer, Predicate, boolean)}.
 	 *
-	 * @param indexType                  minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                   the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer     callback invoked with the reference schema and the matching group-level
-	 *                                   {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
-	 *                                   and `indexForUpsert`)
-	 * @param referencePresenceExpected  whether the group primary key is expected to already be present in the index
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked with the reference schema and the matching group-level
+	 *                                  {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
+	 *                                  and `indexForUpsert`)
+	 * @param referencePresenceExpected whether the group primary key is expected to already be present in the index
 	 */
 	static void executeWithGroupReferenceIndexes(
 		@Nonnull ReferenceIndexType indexType,
@@ -284,14 +284,14 @@ public interface ReferenceIndexMutator {
 	 * is obtained (or created) using a {@link RepresentativeReferenceKey} derived from the entity-level key by
 	 * substituting the entity primary key with the group primary key.
 	 *
-	 * @param indexType                  minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                   the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer     callback invoked with the reference schema and the matching group-level
-	 *                                   {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
-	 *                                   and `indexForUpsert`)
-	 * @param referencePredicate         additional filter applied after the schema-level check; use
-	 *                                   `referenceContract -> true` to process all matching references
-	 * @param referencePresenceExpected  whether the group primary key is expected to already be present in the index
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked with the reference schema and the matching group-level
+	 *                                  {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
+	 *                                  and `indexForUpsert`)
+	 * @param referencePredicate        additional filter applied after the schema-level check; use
+	 *                                  `referenceContract -> true` to process all matching references
+	 * @param referencePresenceExpected whether the group primary key is expected to already be present in the index
 	 */
 	static void executeWithGroupReferenceIndexes(
 		@Nonnull ReferenceIndexType indexType,
@@ -344,11 +344,11 @@ public interface ReferenceIndexMutator {
 	 * Equivalent to calling {@link #executeWithReferenceIndexes} followed by
 	 * {@link #executeWithGroupReferenceIndexes} with the same arguments.
 	 *
-	 * @param indexType                  minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                   the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer     callback invoked for each matching reference and its reduced index
-	 * @param referencePresenceExpected  whether the referenced/group primary key is expected to already be present
-	 *                                   in the index
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked for each matching reference and its reduced index
+	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already be present
+	 *                                  in the index
 	 */
 	static void executeWithAllReferenceIndexes(
 		@Nonnull ReferenceIndexType indexType,
@@ -368,12 +368,12 @@ public interface ReferenceIndexMutator {
 	 * Equivalent to calling {@link #executeWithReferenceIndexes} followed by
 	 * {@link #executeWithGroupReferenceIndexes} with the same arguments.
 	 *
-	 * @param indexType                  minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                   the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer     callback invoked for each matching reference and its reduced index
-	 * @param referencePredicate         additional filter applied after the schema-level check
-	 * @param referencePresenceExpected  whether the referenced/group primary key is expected to already be present
-	 *                                   in the index
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked for each matching reference and its reduced index
+	 * @param referencePredicate        additional filter applied after the schema-level check
+	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already be present
+	 *                                  in the index
 	 */
 	static void executeWithAllReferenceIndexes(
 		@Nonnull ReferenceIndexType indexType,
@@ -519,7 +519,7 @@ public interface ReferenceIndexMutator {
 	 * @param referenceName the name of the reference type (e.g. `"brand"`)
 	 * @param scope         the scope in which the index resides
 	 * @return a fully-constructed entity index key ready to be passed to
-	 *         {@link EntityIndexLocalMutationExecutor#getOrCreateIndex(EntityIndexKey)}
+	 * {@link EntityIndexLocalMutationExecutor#getOrCreateIndex(EntityIndexKey)}
 	 */
 	@Nonnull
 	static EntityIndexKey getReferencedTypeIndexKey(
@@ -537,7 +537,7 @@ public interface ReferenceIndexMutator {
 	 * @param referenceName the name of the reference type (e.g. `"brand"`)
 	 * @param scope         the scope in which the index resides
 	 * @return a fully-constructed entity index key ready to be passed to
-	 *         {@link EntityIndexLocalMutationExecutor#getOrCreateIndex(EntityIndexKey)}
+	 * {@link EntityIndexLocalMutationExecutor#getOrCreateIndex(EntityIndexKey)}
 	 */
 	@Nonnull
 	static EntityIndexKey getReferencedGroupTypeIndexKey(
@@ -584,32 +584,13 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Extracts and returns the {@link RepresentativeReferenceKey} discriminator from the given
-	 * reduced entity index, asserting that the discriminator has the expected type.
-	 *
-	 * @param targetIndex the reduced entity index whose discriminator is extracted
-	 * @return the representative reference key discriminator
-	 */
-	@Nonnull
-	private static RepresentativeReferenceKey extractRepresentativeReferenceKey(
-		@Nonnull AbstractReducedEntityIndex targetIndex
-	) {
-		final Serializable discriminator = targetIndex.getIndexKey().discriminator();
-		Assert.isPremiseValid(
-			discriminator instanceof RepresentativeReferenceKey,
-			"Entity index key discriminator must be RepresentativeReferenceKey!"
-		);
-		return (RepresentativeReferenceKey) discriminator;
-	}
-
-	/**
 	 * Returns `true` if the reference schema's configured {@link ReferenceIndexType} in the given scope has an ordinal
 	 * at least as large as the requested `referenceIndexType`. This implements a "minimum level" check across
 	 * the ordered enum: `NONE` < `FOR_FILTERING` < `FOR_FILTERING_AND_PARTITIONING`.
 	 *
-	 * @param referenceSchema     the reference schema to evaluate
-	 * @param scope               the scope in which to check the index type
-	 * @param referenceIndexType  the minimum required index level
+	 * @param referenceSchema    the reference schema to evaluate
+	 * @param scope              the scope in which to check the index type
+	 * @param referenceIndexType the minimum required index level
 	 * @return `true` if the configured level is equal to or above the requested level
 	 */
 	static boolean isIndexedReferenceFor(
@@ -651,6 +632,1276 @@ public interface ReferenceIndexMutator {
 		@Nonnull Scope scope
 	) {
 		return referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
+	}
+
+	/**
+	 * Propagates a single reference-attribute mutation into both the type-level index and the per-reference reduced
+	 * index.
+	 *
+	 * The attribute is looked up via the reference schema (not the entity schema), since reference attributes are
+	 * scoped to the reference, not to the owning entity. The method delegates to
+	 * {@link EntityIndexLocalMutationExecutor#updateAttribute(ReferenceSchemaContract, AttributeMutation,
+	 * AttributeAndCompoundSchemaProvider, ExistingAttributeValueSupplier, EntityIndex, EntityIndex, boolean, boolean)}
+	 * twice: once for the type index (keyed by the internal reduced-index primary key) and once for the reduced
+	 * entity index (keyed by the owning entity's primary key, or by the referenced entity's primary key when the
+	 * attribute type is {@link ReferencedEntityPredecessor}).
+	 *
+	 * @param executor                 the mutation executor coordinating the index updates
+	 * @param attributeSupplierFactory factory for reading existing reference attribute values from storage
+	 * @param referenceTypeIndex       the type-level index receiving the attribute change (keyed by referenced PK)
+	 * @param indexForRemoval          the reduced index from which old attribute data is removed; typically the
+	 *                                 same object as `indexForUpsert` but passed separately for correct ordering
+	 * @param indexForUpsert           the reduced index into which updated attribute data is inserted
+	 * @param referenceSchema          the schema describing the reference and its attributes
+	 * @param referenceKey             identifies the specific reference instance being updated
+	 * @param attributeMutation        the attribute-level mutation to apply (upsert, remove, or delta)
+	 */
+	static void attributeUpdate(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ExistingDataSupplierFactory attributeSupplierFactory,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull AbstractReducedEntityIndex indexForRemoval,
+		@Nonnull AbstractReducedEntityIndex indexForUpsert,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull AttributeMutation attributeMutation
+	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
+
+		// use different existing attribute value accessor - attributes needs to be looked up in ReferencesStoragePart
+		final ExistingAttributeValueSupplier existingValueAccessorFactory = attributeSupplierFactory
+			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+
+		// we access attributes and sortable compounds from the reference schema
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
+				entitySchema, referenceSchema
+			);
+
+		executor.executeWithDifferentPrimaryKeyToIndex(
+			(indexType, target) ->
+				switch (target) {
+					case EXISTING -> indexForRemoval.getPrimaryKey();
+					case NEW -> indexForUpsert.getPrimaryKey();
+				},
+			() -> executor.updateAttribute(
+				referenceSchema,
+				attributeMutation,
+				attributeSchemaProvider,
+				existingValueAccessorFactory,
+				referenceTypeIndex,
+				referenceTypeIndex,
+				false,
+				false
+			)
+		);
+
+		executeWithProperPrimaryKey(
+			executor,
+			referenceKey.primaryKey(),
+			attributeMutation.getAttributeKey().attributeName(),
+			attributeSchemaProvider::getAttributeSchema,
+			() -> executor.updateAttribute(
+				referenceSchema,
+				attributeMutation,
+				attributeSchemaProvider,
+				existingValueAccessorFactory,
+				indexForRemoval,
+				indexForUpsert,
+				false,
+				true
+			)
+		);
+	}
+
+	/**
+	 * Performs the global-only indexing operation for a reference insertion.
+	 * This adds the facet to the global entity index and must be called exactly once
+	 * per reference insert, regardless of how many indexed components are configured.
+	 *
+	 * @param entityPrimaryKey   the primary key of the entity being indexed
+	 * @param referenceSchema    the schema of the reference being inserted
+	 * @param globalIndex        the global entity index to add the facet to
+	 * @param referenceKey       the reference key identifying the reference
+	 * @param groupId            the group primary key, or null if not grouped
+	 * @param executor           the mutation executor
+	 * @param undoActionConsumer consumer for undo actions, or null if not needed
+	 */
+	static void referenceInsertGlobal(
+		int entityPrimaryKey,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndex globalIndex,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		addFacetToIndex(
+			globalIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor, undoActionConsumer);
+	}
+
+	/**
+	 * Performs per-component indexing for a reference insertion. This registers the PK mapping in
+	 * the type index, indexes reference attributes, populates the reduced index with entity data,
+	 * and adds the facet to the reduced index. Called once per indexed component (entity and/or group).
+	 *
+	 * @param entityPrimaryKey            the primary key of the entity being indexed
+	 * @param entitySchema                the entity schema
+	 * @param referenceSchema             the schema of the reference being inserted
+	 * @param executor                    the mutation executor
+	 * @param referenceTypeIndex          the type-level index for this component
+	 * @param referenceIndex              the reduced entity index for this component
+	 * @param referenceKey                the original reference key — used for facets and reference attribute lookup
+	 * @param referencedPrimaryKey        the target primary key for type index mapping (entity PK or group PK)
+	 * @param groupId                     the group primary key, or null if not grouped
+	 * @param existingDataSupplierFactory factory to supply existing data needed for indexing
+	 * @param undoActionConsumer          consumer for undo actions, or null if not needed
+	 */
+	static void referenceInsertPerComponent(
+		int entityPrimaryKey,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		@Nonnull ReferenceKey referenceKey,
+		int referencedPrimaryKey,
+		@Nullable Integer groupId,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		// register reduced index PK → referenced primary key mapping in the type index
+		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
+		if (referenceTypeIndex.insertPrimaryKeyIfMissing(
+			pkForReferenceTypeIndex, referencedPrimaryKey) && undoActionConsumer != null) {
+			undoActionConsumer.accept(
+				() -> referenceTypeIndex.removePrimaryKey(pkForReferenceTypeIndex, referencedPrimaryKey));
+		}
+
+		// we access attributes and sortable compounds from the reference schema
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
+				entitySchema, referenceSchema
+			);
+
+		// index all reference attributes to the reference type index
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
+			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+
+		executor.executeWithDifferentPrimaryKeyToIndex(
+			(indexType, target) -> pkForReferenceTypeIndex,
+			() -> referenceAttributeValueSupplier
+				.getAttributeValues()
+				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeUpsert(
+					executor,
+					referenceSchema,
+					attributeSchemaProvider,
+					NO_EXISTING_VALUE_SUPPLIER,
+					referenceTypeIndex,
+					referenceTypeIndex,
+					attributeValue.key(),
+					Objects.requireNonNull(attributeValue.value()),
+					false,
+					false,
+					undoActionConsumer
+				))
+		);
+
+		// index entity primary key into the reduced index and populate with existing data
+		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
+			// group indexes need cardinality tracking — use two-arg version
+			if (rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())) {
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
+					);
+				}
+				// index all previously added global entity attributes, prices and facets
+				indexAllExistingData(
+					executor, referenceIndex,
+					entitySchema, referenceSchema,
+					referenceKey,
+					entityPrimaryKey,
+					existingDataSupplierFactory,
+					undoActionConsumer
+				);
+			}
+		} else {
+			if (referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey)) {
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(() -> referenceIndex.removePrimaryKey(entityPrimaryKey));
+				}
+				// index all previously added global entity attributes, prices and facets
+				indexAllExistingData(
+					executor, referenceIndex,
+					entitySchema, referenceSchema,
+					referenceKey,
+					entityPrimaryKey,
+					existingDataSupplierFactory,
+					undoActionConsumer
+				);
+			}
+		}
+
+		// add facet to reduced index
+		addFacetToIndex(
+			referenceIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor, undoActionConsumer
+		);
+	}
+
+	/**
+	 * Fully indexes a newly created reference for the entity-level component. Combines the global facet registration
+	 * (via {@link #referenceInsertGlobal}) and the per-component registration in the type index and reduced entity
+	 * index (via {@link #referenceInsertPerComponent}).
+	 *
+	 * Use this method when inserting a reference for the entity component only. For group-component indexing, call
+	 * {@link #referenceInsertPerComponent} separately with the group primary key and group-specific indexes.
+	 *
+	 * @param entityPrimaryKey            the primary key of the owning entity
+	 * @param entitySchema                the entity schema of the owning entity
+	 * @param referenceSchema             the schema describing the reference being inserted
+	 * @param executor                    the mutation executor coordinating the index updates
+	 * @param entityIndex                 the global entity index to which the facet is registered once
+	 * @param referenceTypeIndex          the type-level index ({@link EntityIndexType#REFERENCED_ENTITY_TYPE})
+	 * @param referenceIndex              the per-reference reduced index ({@link EntityIndexType#REFERENCED_ENTITY})
+	 * @param referenceKey                identifies the specific referenced entity
+	 * @param groupId                     the group primary key to associate with the facet, or `null` if not grouped
+	 * @param existingDataSupplierFactory factory for reading existing entity data to populate the reduced index
+	 * @param undoActionConsumer          if non-null, receives inverse operations to undo every index change; used
+	 *                                    during scope migration and speculative indexing
+	 */
+	static void referenceInsert(
+		int entityPrimaryKey,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		// global operation — add facet to global index (once per reference)
+		referenceInsertGlobal(
+			entityPrimaryKey, referenceSchema, entityIndex, referenceKey, groupId,
+			executor, undoActionConsumer
+		);
+		// per-component operation — type index + reduced index
+		referenceInsertPerComponent(
+			entityPrimaryKey, entitySchema, referenceSchema, executor,
+			referenceTypeIndex, referenceIndex, referenceKey,
+			referenceKey.primaryKey(), groupId,
+			existingDataSupplierFactory, undoActionConsumer
+		);
+	}
+
+	/**
+	 * Performs the global-only operation for a reference removal.
+	 * This removes the facet from the global entity index and must be called exactly once
+	 * per reference removal, regardless of how many indexed components are configured.
+	 *
+	 * @param entityPrimaryKey   the primary key of the entity being removed
+	 * @param referenceSchema    the schema of the reference being removed
+	 * @param globalIndex        the global entity index to remove the facet from
+	 * @param referenceKey       the reference key identifying the reference
+	 * @param executor           the mutation executor
+	 * @param undoActionConsumer consumer for undo actions, or null if not needed
+	 */
+	static void referenceRemovalGlobal(
+		int entityPrimaryKey,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndex globalIndex,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		removeFacetInIndex(globalIndex, referenceSchema, referenceKey, entityPrimaryKey, executor, undoActionConsumer);
+	}
+
+	/**
+	 * Performs per-component removal from the type index and reduced index. Called once per indexed
+	 * component (entity and/or group).
+	 *
+	 * @param entityPrimaryKey            the primary key of the entity being removed
+	 * @param entitySchema                the entity schema
+	 * @param referenceSchema             the schema of the reference being removed
+	 * @param executor                    the mutation executor
+	 * @param referenceTypeIndex          the type-level index for this component
+	 * @param referenceIndex              the reduced entity index for this component
+	 * @param referenceKey                the original reference key — for attribute lookup
+	 * @param referencedPrimaryKey        the target primary key for type index mapping (entity PK or group PK)
+	 * @param existingDataSupplierFactory factory to supply existing data
+	 * @param undoActionConsumer          consumer for undo actions, or null if not needed
+	 */
+	static void referenceRemovalPerComponent(
+		int entityPrimaryKey,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull AbstractReducedEntityIndex referenceIndex,
+		@Nonnull ReferenceKey referenceKey,
+		int referencedPrimaryKey,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		// remove reduced index PK → referenced primary key mapping from the type index
+		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
+		if (referenceTypeIndex.removePrimaryKey(
+			pkForReferenceTypeIndex, referencedPrimaryKey) && undoActionConsumer != null) {
+			undoActionConsumer.accept(() -> referenceTypeIndex.insertPrimaryKeyIfMissing(
+				pkForReferenceTypeIndex,
+				referencedPrimaryKey
+			));
+		}
+
+		// we access attributes and sortable compounds from the reference schema
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
+				entitySchema, referenceSchema
+			);
+
+		// remove all reference attributes from the reference type index
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
+			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+		executor.executeWithDifferentPrimaryKeyToIndex(
+			(indexType, target) -> pkForReferenceTypeIndex,
+			() -> referenceAttributeValueSupplier
+				.getAttributeValues()
+				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeRemoval(
+					executor,
+					referenceSchema,
+					attributeSchemaProvider,
+					referenceAttributeValueSupplier,
+					referenceTypeIndex,
+					referenceTypeIndex,
+					attributeValue.key(),
+					false,
+					false,
+					undoActionConsumer
+				))
+		);
+
+		// remove entity primary key from the reduced index
+		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
+			// group indexes need cardinality tracking — use two-arg version
+			if (rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())) {
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
+					);
+				}
+				// remove all entity attributes and prices
+				removeAllExistingData(
+					executor, referenceIndex,
+					entitySchema, referenceSchema,
+					referenceKey,
+					entityPrimaryKey,
+					existingDataSupplierFactory,
+					undoActionConsumer
+				);
+			}
+		} else {
+			if (referenceIndex.removePrimaryKey(entityPrimaryKey)) {
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(() -> referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey));
+				}
+				// remove all entity attributes and prices
+				removeAllExistingData(
+					executor, referenceIndex,
+					entitySchema, referenceSchema,
+					referenceKey,
+					entityPrimaryKey,
+					existingDataSupplierFactory,
+					undoActionConsumer
+				);
+			}
+		}
+	}
+
+	/**
+	 * Adds a facet entry for the given entity to `index`, but only when both of the following conditions hold:
+	 *
+	 * 1. The target index should receive facet data for this reference (governed by
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} for reduced indexes; always `true` for the
+	 * global entity index).
+	 * 2. The reference schema marks the reference as faceted in the index's scope.
+	 *
+	 * If `undoActionConsumer` is provided, the corresponding removal operation is registered so that the change
+	 * can be rolled back (used during speculative indexing and scope migration).
+	 *
+	 * @param index              the target entity index (global or reduced)
+	 * @param referenceSchema    the schema of the reference; used to check faceting and schema name resolution
+	 * @param referenceKey       identifies the specific referenced entity for the facet entry
+	 * @param groupId            the group primary key for this facet, or `null` if no group is assigned
+	 * @param entityPrimaryKey   the primary key of the entity owning the reference
+	 * @param executor           the mutation executor; used for schema look-ups and scope access
+	 * @param undoActionConsumer if non-null, receives a `removeFacet` lambda for undoing this operation
+	 */
+	static void addFacetToIndex(
+		@Nonnull EntityIndex index,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		final Scope scope = index.getIndexKey().scope();
+		if (
+			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
+				isFaceted(referenceKey, referenceSchema, scope, executor)
+		) {
+			// evaluate facet expression if one exists — skip facet add when expression returns false
+			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+			final boolean shouldBeIndexed = trigger == null || trigger.evaluate(
+				entityPrimaryKey, referenceKey,
+				executor.getContainerAccessor(), executor.getSchemaResolver(),
+				scope
+			);
+			if (shouldBeIndexed) {
+				index.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> index.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Atomically replaces the group assignment of an existing facet entry in `index`. The current group (read from
+	 * the persisted {@link ReferencesStoragePart}) is first removed and then re-added with the new `groupId`.
+	 *
+	 * This method is a no-op when the reference schema does not mark the reference as faceted in the index's scope,
+	 * or when the target index is an {@link AbstractReducedEntityIndex} for a different reference schema that is not
+	 * configured for {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 *
+	 * During cross-reference propagation, the facet may have already been added with the new group by
+	 * direct processing (e.g. via {@link #referenceInsertPerComponent}). In that case, the storage-derived
+	 * old group is stale and the facet does not exist in the old group bucket. The method handles this
+	 * gracefully by checking facet presence before removal.
+	 *
+	 * Note: no `undoActionConsumer` is supported here because this operation is always called in the context of
+	 * a {@link io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation} which is not
+	 * subject to speculative undoing in the same way as insertions.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity owning the reference
+	 * @param index            the target entity index (global or reduced)
+	 * @param referenceSchema  the schema of the reference; used to check faceting
+	 * @param referenceKey     identifies the specific referenced entity
+	 * @param groupId          the new group primary key to assign
+	 * @param executor         the mutation executor; used for reading the existing reference and schema access
+	 */
+	static void setFacetGroupInIndex(
+		int entityPrimaryKey,
+		@Nonnull EntityIndex index,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Integer groupId,
+		@Nonnull EntityIndexLocalMutationExecutor executor
+	) {
+		final Scope scope = index.getIndexKey().scope();
+		if (
+			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
+				isFaceted(referenceKey, referenceSchema, scope, executor)
+		) {
+			// evaluate facet expression if one exists — apply decision matrix for group change
+			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+			if (trigger != null) {
+				final boolean nowFaceted = trigger.evaluate(
+					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
+					scope
+				);
+				applyFacetDecisionMatrix(
+					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+				);
+			} else {
+				// no expression — unconditionally move the facet to the new group
+				applyFacetDecisionMatrix(
+					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, true, null
+				);
+			}
+		}
+	}
+
+	/**
+	 * Applies the facet was/now decision matrix, handling both facet presence changes **and** group transitions
+	 * in a single method. Every facet operation inherently involves a group (or `null` for ungrouped), and every
+	 * group change may affect whether the facet should exist at all — so both concerns are handled together.
+	 *
+	 * Decision matrix:
+	 *
+	 * | Was faceted? | Now faceted? | In target group? | Action                              |
+	 * |--------------|--------------|------------------|-------------------------------------|
+	 * | yes          | no           | —                | Remove from current group           |
+	 * | no           | yes          | —                | Add with target group               |
+	 * | yes          | yes          | yes              | no-op                               |
+	 * | yes          | yes          | no               | Move (remove current + add target)  |
+	 * | no           | no           | —                | no-op                               |
+	 *
+	 * @param index              the target entity index
+	 * @param referenceSchema    the reference schema
+	 * @param referenceKey       the reference key
+	 * @param targetGroupId      the group the facet should end up in (null for ungrouped)
+	 * @param entityPrimaryKey   the entity PK
+	 * @param nowFaceted         result of the expression evaluation
+	 * @param undoActionConsumer if non-null, receives undo operations (supported for add/remove, not for move)
+	 */
+	static void applyFacetDecisionMatrix(
+		@Nonnull EntityIndex index,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer targetGroupId,
+		int entityPrimaryKey,
+		boolean nowFaceted,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		final boolean wasFaceted = wasFaceted(index, referenceKey, entityPrimaryKey);
+		if (wasFaceted && !nowFaceted) {
+			// was faceted, now not — remove from whichever group it currently resides in
+			removeFromCurrentGroup(index, referenceSchema, referenceKey, entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey)
+				);
+			}
+		} else if (!wasFaceted && nowFaceted) {
+			// was not faceted, now is — add under target group
+			index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> index.removeFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey)
+				);
+			}
+		} else if (wasFaceted && !isFacetPresentInGroup(index, referenceKey, targetGroupId, entityPrimaryKey)) {
+			// was faceted, still faceted, but in a different group — move to target group
+			removeFromCurrentGroup(index, referenceSchema, referenceKey, entityPrimaryKey);
+			index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey);
+		}
+		// was==now and already in target group → no-op
+	}
+
+	/**
+	 * Re-evaluates facet expressions for all references of the owning entity on **both** the
+	 * {@link EntityIndex global index} and all applicable {@link ReducedEntityIndex} instances. Used from
+	 * all deferred facet re-evaluation call sites to keep both index levels consistent.
+	 *
+	 * The method performs a single pass over stored references. For each reference whose trigger matches
+	 * the relevance predicate, it:
+	 *
+	 * 1. evaluates the expression
+	 * 2. applies the was/now decision matrix to the global index
+	 * 3. if the reference schema is indexed at
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level with entity-component indexing,
+	 * looks up (or creates) the corresponding {@link ReducedEntityIndex} and applies the same decision
+	 * matrix there
+	 *
+	 * @param globalIndex               the global entity index (must be a global-scoped index)
+	 * @param executor                  the mutation executor; provides references storage and schema access
+	 * @param entityPrimaryKey          the primary key of the entity owning the references
+	 * @param triggerRelevancePredicate predicate that returns `true` when a trigger depends on the changed data
+	 */
+	static void reEvaluateFacetExpressionsInAllIndexes(
+		@Nonnull EntityIndex globalIndex,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		int entityPrimaryKey,
+		@Nonnull Predicate<FacetExpressionTrigger> triggerRelevancePredicate
+	) {
+		final Scope scope = globalIndex.getIndexKey().scope();
+		final ReferencesStoragePart referencesStoragePart = executor.getReferencesStoragePart();
+
+		ReferenceSchemaContract cachedSchema = null;
+		FacetExpressionTrigger cachedTrigger = null;
+		boolean cachedTriggerResolved = false;
+		// cache whether the current schema requires reduced-index facet propagation
+		boolean cachedNeedsReducedIndex = false;
+		for (final ReferenceContract reference : referencesStoragePart.getReferences()) {
+			if (!reference.exists()) {
+				continue;
+			}
+			final ReferenceKey referenceKey = reference.getReferenceKey();
+			// cache schema and trigger lookups across consecutive references of the same type
+			// (references are sorted by name in storage part)
+			if (cachedSchema == null || !cachedSchema.getName().equals(referenceKey.referenceName())) {
+				cachedSchema = executor.getEntitySchema()
+					.getReferenceOrThrowException(referenceKey.referenceName());
+				cachedTriggerResolved = false;
+				cachedNeedsReducedIndex =
+					isIndexedReferenceFor(cachedSchema, scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+						&& isIndexedForEntityComponent(cachedSchema, scope);
+			}
+			if (!cachedSchema.isFacetedInScope(scope)) {
+				continue;
+			}
+			if (!cachedTriggerResolved) {
+				cachedTrigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+				cachedTriggerResolved = true;
+			}
+			if (cachedTrigger == null || !triggerRelevancePredicate.test(cachedTrigger)) {
+				continue;
+			}
+			final boolean nowFaceted = cachedTrigger.evaluate(
+				entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
+				scope
+			);
+			final Integer groupId = reference.getGroup()
+				.filter(Droppable::exists)
+				.map(GroupEntityReference::getPrimaryKey)
+				.orElse(null);
+
+			// apply to global index
+			applyFacetDecisionMatrix(
+				globalIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+			);
+
+			// apply to reduced entity index when the schema requires partitioning-level indexing
+			if (cachedNeedsReducedIndex) {
+				final RepresentativeReferenceKeys bothKeys =
+					executor.getRepresentativeReferenceKeys(referenceKey, true);
+				final ReducedEntityIndex reducedIndex = referenceKey.isKnownInternalPrimaryKey()
+					? getOrCreateReferencedEntityIndex(executor, bothKeys.stored(), scope)
+					: getOrCreateReferencedEntityIndex(executor, bothKeys.current(), scope);
+				applyFacetDecisionMatrix(
+					reducedIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+				);
+			}
+		}
+	}
+
+	/**
+	 * Re-evaluates histogram expressions for all references of an entity after an entity-level
+	 * change (e.g., entity attribute mutation). Mirrors {@link #reEvaluateFacetExpressionsInAllIndexes}
+	 * for the histogram indexing path.
+	 *
+	 * For each reference whose histogram triggers match the relevance predicate, removes existing
+	 * histogram entries and re-adds them based on current condition evaluation. The remove+add
+	 * pattern handles all state transitions correctly (was/was-not indexed vs should/should-not be).
+	 *
+	 * @param globalIndex               the global entity index (used to derive scope)
+	 * @param executor                  the mutation executor providing access to storage, triggers, and indexes
+	 * @param entityPrimaryKey          the primary key of the entity whose attribute changed
+	 * @param existingDataFactory       factory for creating per-reference attribute value suppliers
+	 * @param triggerRelevancePredicate filters histogram triggers to only those affected by the change
+	 */
+	static void reEvaluateHistogramExpressionsInAllIndexes(
+		@Nonnull EntityIndex globalIndex,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		int entityPrimaryKey,
+		@Nonnull ExistingDataSupplierFactory existingDataFactory,
+		@Nonnull Predicate<HistogramExpressionTrigger> triggerRelevancePredicate
+	) {
+		final Scope scope = globalIndex.getIndexKey().scope();
+		final ReferencesStoragePart referencesStoragePart = executor.getReferencesStoragePart();
+
+		String cachedReferenceName = null;
+		boolean cachedHasRelevantTrigger = false;
+		for (final ReferenceContract reference : referencesStoragePart.getReferences()) {
+			if (!reference.exists()) {
+				continue;
+			}
+			final ReferenceKey referenceKey = reference.getReferenceKey();
+			// cache trigger lookups across consecutive references of the same type
+			// (references are sorted by name in storage part)
+			if (cachedReferenceName == null || !cachedReferenceName.equals(referenceKey.referenceName())) {
+				cachedReferenceName = referenceKey.referenceName();
+				cachedHasRelevantTrigger = false;
+				final Collection<HistogramExpressionTrigger> triggers =
+					executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
+				for (final HistogramExpressionTrigger trigger : triggers) {
+					if (triggerRelevancePredicate.test(trigger)) {
+						cachedHasRelevantTrigger = true;
+						break;
+					}
+				}
+			}
+			if (!cachedHasRelevantTrigger) {
+				continue;
+			}
+			final Integer groupId = reference.getGroup()
+				.filter(Droppable::exists)
+				.map(GroupEntityReference::getPrimaryKey)
+				.orElse(null);
+			// remove then re-add: removeHistogramFromIndex reads values and removes deterministically,
+			// addHistogramToIndex internally evaluates the condition
+			removeHistogramFromIndex(executor, referenceKey, groupId, entityPrimaryKey, scope);
+			addHistogramToIndex(
+				executor, referenceKey, groupId, entityPrimaryKey,
+				existingDataFactory.getNormalizedReferenceAttributeValueSupplier(referenceKey),
+				scope
+			);
+		}
+	}
+
+	/**
+	 * Removes the facet entry for the given entity from `index`. The existing group assignment is read from the
+	 * persisted {@link ReferencesStoragePart} so the removal can use the correct (current) group primary key.
+	 *
+	 * This method is a no-op when the reference schema does not mark the reference as faceted in the index's scope,
+	 * or when the target index is an {@link AbstractReducedEntityIndex} for a different reference schema that is not
+	 * configured for {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 *
+	 * If `undoActionConsumer` is provided, the corresponding `addFacet` operation is registered so that the removal
+	 * can be rolled back.
+	 *
+	 * @param index              the target entity index (global or reduced)
+	 * @param referenceSchema    the schema of the reference; used to check faceting and schema name resolution
+	 * @param referenceKey       identifies the specific referenced entity whose facet is to be removed
+	 * @param entityPrimaryKey   the primary key of the entity owning the reference
+	 * @param executor           the mutation executor; used for reading the existing reference and schema access
+	 * @param undoActionConsumer if non-null, receives an `addFacet` lambda for undoing this operation
+	 */
+	static void removeFacetInIndex(
+		@Nonnull EntityIndex index,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		int entityPrimaryKey,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		final Scope scope = index.getIndexKey().scope();
+		if (
+			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
+				isFaceted(referenceKey, referenceSchema, scope, executor)
+		) {
+			// when expression is defined, only remove if the entity was actually faceted
+			// (expression may have evaluated to false at insert time, so no facet was ever added)
+			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+			if (trigger != null) {
+				if (wasFaceted(index, referenceKey, entityPrimaryKey)) {
+					final ReferenceContract existingReference = executor.getReferencesStoragePart()
+						.findReferenceOrThrowException(referenceKey);
+					removeFacetInIndexInternal(
+						index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer
+					);
+				}
+			} else {
+				final ReferenceContract existingReference = executor.getReferencesStoragePart()
+					.findReferenceOrThrowException(referenceKey);
+				removeFacetInIndexInternal(
+					index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer
+				);
+			}
+		}
+	}
+
+	/**
+	 * Atomically clears the group assignment of an existing facet entry in `index`. The current group is read from
+	 * the persisted {@link ReferencesStoragePart}, the entry is removed under that group, and then re-added with
+	 * a `null` group (ungrouped).
+	 *
+	 * This method validates via {@link Assert#isPremiseValid} that a non-null group is actually present on the
+	 * stored reference — it is a programming error to call this when no group is assigned.
+	 *
+	 * This method is a no-op when the reference schema does not mark the reference as faceted in the index's scope,
+	 * or when the target index is an {@link AbstractReducedEntityIndex} for a reference not configured for
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 *
+	 * During cross-reference propagation, the facet may have already been moved to a different group by
+	 * direct processing (e.g. via {@link #referenceInsertPerComponent}). In that case, the storage-derived
+	 * group is stale and the facet does not exist in the old group bucket. The method handles this
+	 * gracefully by checking facet presence before removal via {@link #isFacetPresentInGroup}.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity owning the reference
+	 * @param index            the target entity index (global or reduced)
+	 * @param referenceSchema  the schema of the reference; used to check faceting
+	 * @param referenceKey     identifies the specific referenced entity
+	 * @param executor         the mutation executor; used for reading the existing reference and schema access
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if the stored reference has no non-dropped group assigned
+	 */
+	static void removeFacetGroupInIndex(
+		int entityPrimaryKey,
+		@Nonnull EntityIndex index,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull EntityIndexLocalMutationExecutor executor
+	) {
+		final Scope scope = index.getIndexKey().scope();
+		if (
+			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
+				isFaceted(referenceKey, referenceSchema, scope, executor)
+		) {
+			// evaluate facet expression if one exists — apply decision matrix for group removal
+			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
+			if (trigger != null) {
+				final boolean nowFaceted = trigger.evaluate(
+					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
+					scope
+				);
+				applyFacetDecisionMatrix(
+					index, referenceSchema, referenceKey, null, entityPrimaryKey, nowFaceted, null
+				);
+			} else {
+				// no expression — unconditionally move the facet to ungrouped
+				final ReferenceContract existingReference = executor.getReferencesStoragePart()
+					.findReferenceOrThrowException(referenceKey);
+				isPremiseValid(
+					existingReference.getGroup().filter(Droppable::exists).isPresent(),
+					"Group is expected to be non-null when RemoveReferenceGroupMutation is about to be executed."
+				);
+				applyFacetDecisionMatrix(
+					index, referenceSchema, referenceKey, null, entityPrimaryKey, true, null
+				);
+			}
+		}
+	}
+
+	/**
+	 * Builds and inserts the full suite of sortable attribute compounds for the entity–reference combination
+	 * represented by `targetIndex`.
+	 *
+	 * When `locale` is non-null, only compounds that include at least one attribute for that locale are created.
+	 * When `locale` is `null`, only locale-independent (non-localized) compounds are created.
+	 *
+	 * The method processes two attribute scopes:
+	 *
+	 * - **Entity-level** compound schemas (from the owning entity schema) — only when the reference schema is
+	 * configured for {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 * - **Reference-level** compound schemas (from the reference schema) — always, regardless of index type.
+	 *
+	 * If `undoActionConsumer` is provided, the inverse removal operations are registered for each compound.
+	 *
+	 * @param executor                    the mutation executor providing entity schema and index access
+	 * @param referenceSchema             the schema describing the reference (determines attribute scope and index level)
+	 * @param targetIndex                 the reduced entity index into which compounds are inserted
+	 * @param referenceKey                the actual reference key identifying the referenced entity (used instead of the
+	 *                                    index discriminator, which may contain the group PK for group-level indexes)
+	 * @param locale                      if non-null, restrict insertion to compounds for this locale only
+	 * @param existingDataSupplierFactory factory for reading existing attribute values from storage
+	 * @param undoActionConsumer          if non-null, receives inverse compound removal operations for rollback
+	 */
+	static void insertInitialSuiteOfSortableAttributeCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AbstractReducedEntityIndex targetIndex,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Locale locale,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		applySortableAttributeCompoundSuite(
+			executor, referenceSchema, targetIndex, referenceKey, locale,
+			existingDataSupplierFactory, undoActionConsumer,
+			AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds,
+			AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds
+		);
+	}
+
+	/**
+	 * Removes the full suite of sortable attribute compounds for the entity–reference combination represented by
+	 * `targetIndex`. This is the exact inverse of
+	 * {@link #insertInitialSuiteOfSortableAttributeCompounds(EntityIndexLocalMutationExecutor, ReferenceSchemaContract,
+	 * AbstractReducedEntityIndex, ReferenceKey, Locale, ExistingDataSupplierFactory, Consumer)}.
+	 *
+	 * When `locale` is non-null, only compounds that include at least one attribute for that locale are removed.
+	 * When `locale` is `null`, only locale-independent (non-localized) compounds are removed.
+	 *
+	 * @param executor                    the mutation executor providing entity schema and index access
+	 * @param referenceSchema             the schema describing the reference
+	 * @param targetIndex                 the reduced entity index from which compounds are removed
+	 * @param referenceKey                the actual reference key identifying the referenced entity (used instead of the
+	 *                                    index discriminator, which may contain the group PK for group-level indexes)
+	 * @param locale                      if non-null, restrict removal to compounds for this locale only
+	 * @param existingDataSupplierFactory factory for reading existing attribute values from storage
+	 * @param undoActionConsumer          if non-null, receives inverse compound insertion operations for rollback
+	 */
+	static void removeEntireSuiteOfSortableAttributeCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AbstractReducedEntityIndex targetIndex,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Locale locale,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		applySortableAttributeCompoundSuite(
+			executor, referenceSchema, targetIndex, referenceKey, locale,
+			existingDataSupplierFactory, undoActionConsumer,
+			AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds,
+			AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds
+		);
+	}
+
+	/**
+	 * Evaluates local histogram triggers for a reference insertion and adds histogram entries to the appropriate
+	 * index. Called after facet processing in {@link #referenceInsertPerComponent} to populate histogram indexes
+	 * for newly created references.
+	 *
+	 * For each histogram trigger whose condition evaluates to `true`, reads the source attribute value
+	 * and inserts it into the group or type index using the attribute's original numeric type. Handles both
+	 * `REFERENCE_ATTRIBUTE` (read from reference storage) and `REFERENCED_ENTITY_ATTRIBUTE` (read from the
+	 * referenced entity's global attribute storage) value sources.
+	 *
+	 * For localized source attributes, iterates all available locales for the source and inserts a separate
+	 * histogram entry per locale. For non-localized attributes, a single entry with `locale = null` is inserted.
+	 *
+	 * @param executor             the mutation executor providing schema, storage access, and index operations
+	 * @param referenceKey         identifies the specific referenced entity
+	 * @param groupId              the group primary key, or null if not grouped
+	 * @param entityPrimaryKey     the primary key of the owner entity
+	 * @param existingDataSupplier supplies existing reference attribute values
+	 * @param scope                the current scope
+	 */
+	static void addHistogramToIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey,
+		@Nonnull ExistingAttributeValueSupplier existingDataSupplier,
+		@Nonnull Scope scope
+	) {
+		final Collection<HistogramExpressionTrigger> histogramTriggers =
+			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
+		if (!histogramTriggers.isEmpty()) {
+			final ContainerizedLocalMutationExecutor storageAccessor =
+				(ContainerizedLocalMutationExecutor) executor.getContainerAccessor();
+			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+				final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+
+				// evaluate condition (proxy instantiation + expression computation)
+				final boolean conditionMet = trigger.evaluate(
+					entityPrimaryKey, referenceKey,
+					storageAccessor, executor.getSchemaResolver(),
+					scope
+				);
+				if (!conditionMet) {
+					continue;
+				}
+
+				if (resolution.localized()) {
+					// localized source: iterate all available locales and insert per-locale entries
+					if (resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
+						final Set<Locale> locales = existingDataSupplier.getEntityExistingAttributeLocales();
+						for (final Locale locale : locales) {
+							final Serializable rawValue = readReferenceAttributeValue(
+								existingDataSupplier, resolution.sourceAttributeName(), locale
+							);
+							insertHistogramValues(
+								executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+								locale, resolution, rawValue, entityPrimaryKey, groupId, scope
+							);
+						}
+					} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
+						final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
+						final Set<Locale> locales = storageAccessor.getReferencedEntityAttributeLocales(
+							sourceEntityType, referenceKey.primaryKey()
+						);
+						for (final Locale locale : locales) {
+							final Serializable rawValue = storageAccessor.readReferencedEntityAttribute(
+								sourceEntityType,
+								referenceKey.primaryKey(),
+								resolution.sourceAttributeName(),
+								locale,
+								scope
+							);
+							insertHistogramValues(
+								executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+								locale, resolution, rawValue, entityPrimaryKey, groupId, scope
+							);
+						}
+					} else {
+						throw new GenericEvitaInternalError(
+							"Unexpected histogram value source: " + resolution.source()
+						);
+					}
+				} else {
+					// non-localized: single read, single insert with locale = null
+					final Serializable rawValue;
+					if (resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
+						rawValue = readReferenceAttributeValue(
+							existingDataSupplier, resolution.sourceAttributeName(), null
+						);
+					} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
+						rawValue = storageAccessor.readReferencedEntityAttribute(
+							Objects.requireNonNull(resolution.sourceEntityType()),
+							referenceKey.primaryKey(),
+							resolution.sourceAttributeName(),
+							null,
+							scope
+						);
+					} else {
+						throw new GenericEvitaInternalError(
+							"Unexpected histogram value source: " + resolution.source()
+						);
+					}
+
+					insertHistogramValues(
+						executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+						null, resolution, rawValue, entityPrimaryKey, groupId, scope
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Removes histogram entries using known pre-captured old values. Called when the value source
+	 * attribute changed and old values were captured by {@link PreMutationHistogramSnapshot} before
+	 * the mutation was applied. Performs surgical removal — no scanning, no condition evaluation.
+	 *
+	 * When `oldValues` is empty (attribute was null with no default), the entry was never created
+	 * in the histogram, so no removal is needed.
+	 *
+	 * @param executor     the mutation executor
+	 * @param referenceKey identifies the specific referenced entity
+	 * @param groupId      the group primary key, or null if not grouped
+	 * @param ownerPK      the primary key of the owner entity
+	 * @param oldValues    pre-captured old histogram values (from PreMutationHistogramSnapshot)
+	 * @param trigger      the histogram trigger whose value source was mutated
+	 * @param locale       the locale for localized histograms, or `null` for non-localized
+	 * @param scope        the current scope
+	 */
+	static void removeHistogramWithKnownOldValues(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int ownerPK,
+		@Nonnull Number[] oldValues,
+		@Nonnull HistogramExpressionTrigger trigger,
+		@Nullable Locale locale,
+		@Nonnull Scope scope
+	) {
+		for (final Number value : oldValues) {
+			removeSingleHistogramValue(
+				executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+				locale, value, ownerPK, groupId, scope
+			);
+		}
+	}
+
+	/**
+	 * Reads current histogram values for all triggers on a reference and removes entries that are
+	 * present in the histogram. Used when the condition attribute changed (but not the value source),
+	 * during reference removal, or during ungrouped→grouped group transfer.
+	 *
+	 * For each trigger, reads the source value, resolves to Number[], and removes each value only
+	 * if it is verified present in the histogram (the condition may have been false when the reference
+	 * was indexed, so the entry may not exist).
+	 *
+	 * @param executor     the mutation executor
+	 * @param referenceKey identifies the specific referenced entity
+	 * @param groupId      the group primary key, or null if not grouped
+	 * @param ownerPK      the primary key of the owner entity
+	 * @param scope        the current scope
+	 */
+	static void removeHistogramIfPresent(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int ownerPK,
+		@Nonnull Scope scope
+	) {
+		final Collection<HistogramExpressionTrigger> histogramTriggers =
+			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
+		final ExistingAttributeValueSupplier refAttrSupplier =
+			executor.getStoragePartExistingDataFactory()
+				.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+			final Set<Locale> locales = resolveHistogramLocales(
+				executor, referenceKey, resolution, refAttrSupplier
+			);
+			for (final Locale locale : locales) {
+				final Serializable rawValue = readHistogramSourceValue(
+					executor, referenceKey, resolution, refAttrSupplier, locale, scope
+				);
+				final Number[] values = resolveHistogramValues(rawValue, resolution);
+				if (values.length > 0) {
+					removeHistogramValuesWithGuard(
+						executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+						locale, values, ownerPK, groupId, scope
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Removes histogram entries for a reference being removed from indexes (entity removal path).
+	 * Reads the current attribute value for each trigger and performs surgical removal. No condition
+	 * evaluation needed — removal is unconditional (same pattern as facet removal).
+	 *
+	 * Reference data is still available at this synchronous call point (storage has pre-mutation data).
+	 *
+	 * @param executor         the mutation executor
+	 * @param referenceKey     identifies the specific referenced entity
+	 * @param groupId          the group primary key, or null if not grouped
+	 * @param entityPrimaryKey the primary key of the owner entity
+	 * @param scope            the current scope
+	 */
+	static void removeHistogramFromIndex(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey,
+		@Nonnull Scope scope
+	) {
+		final Collection<HistogramExpressionTrigger> histogramTriggers =
+			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
+		if (!histogramTriggers.isEmpty()) {
+			final ExistingAttributeValueSupplier refAttrSupplier =
+				executor.getStoragePartExistingDataFactory()
+					.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+				final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+				final Set<Locale> locales = resolveHistogramLocales(
+					executor, referenceKey, resolution, refAttrSupplier
+				);
+				for (final Locale locale : locales) {
+					final Serializable rawValue = readHistogramSourceValue(
+						executor, referenceKey, resolution, refAttrSupplier, locale, scope
+					);
+					final Number[] values = resolveHistogramValues(rawValue, resolution);
+					if (values.length > 0) {
+						removeHistogramValuesWithGuard(
+							executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+							locale, values, entityPrimaryKey, groupId, scope
+						);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Removes histogram entries from pre-resolved group reduced entity indexes. Used during deferred
+	 * group transfer when cardinality data in the {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE}
+	 * index may have already been cleaned up.
+	 *
+	 * Reads the current value for each trigger (the value hasn't changed — only the group assignment
+	 * has changed), then removes from each pre-resolved RGEI with a histogram existence guard.
+	 *
+	 * @param executor        the mutation executor
+	 * @param referenceName   the reference name
+	 * @param referenceKey    the full reference key (needed for value reading)
+	 * @param ownerPK         the primary key of the owner entity to remove
+	 * @param groupStoragePKs pre-resolved storage PKs of ReducedGroupEntityIndex instances
+	 * @param scope           the current scope
+	 */
+	static void removeHistogramFromPreResolvedGroupIndexes(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull String referenceName,
+		@Nonnull ReferenceKey referenceKey,
+		int ownerPK,
+		@Nonnull int[] groupStoragePKs,
+		@Nonnull Scope scope
+	) {
+		final Collection<HistogramExpressionTrigger> histogramTriggers =
+			executor.getLocalHistogramTriggers(referenceName, scope);
+		if (histogramTriggers.isEmpty()) {
+			return;
+		}
+		final ExistingAttributeValueSupplier refAttrSupplier =
+			executor.getStoragePartExistingDataFactory()
+				.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+			final Set<Locale> locales = resolveHistogramLocales(
+				executor, referenceKey, resolution, refAttrSupplier
+			);
+			for (final Locale locale : locales) {
+				final Serializable rawValue = readHistogramSourceValue(
+					executor, referenceKey, resolution, refAttrSupplier, locale, scope
+				);
+				final Number[] values = resolveHistogramValues(rawValue, resolution);
+				for (final Number value : values) {
+					for (final int storagePK : groupStoragePKs) {
+						final EntityIndex reducedIndex =
+							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
+						if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
+							if (isValueInHistogram(hcei, trigger.getHistogramIndexName(), locale, value, ownerPK)) {
+								hcei.removeHistogramValue(trigger.getHistogramIndexName(), locale, value, ownerPK);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Reads a reference attribute value from the existing data supplier by attribute name and optional locale.
+	 *
+	 * @param existingDataSupplier the supplier of existing reference attribute values
+	 * @param attributeName        the name of the attribute to read
+	 * @param locale               the locale for localized attributes, or `null` for non-localized
+	 * @return the raw attribute value, or null if not present
+	 */
+	@Nullable
+	static Serializable readReferenceAttributeValue(
+		@Nonnull ExistingAttributeValueSupplier existingDataSupplier,
+		@Nonnull String attributeName,
+		@Nullable Locale locale
+	) {
+		final AttributeKey key = locale != null
+			? new AttributeKey(attributeName, locale)
+			: new AttributeKey(attributeName);
+		return existingDataSupplier.getAttributeValue(key)
+			.map(AttributeValue::value)
+			.orElse(null);
+	}
+
+	/**
+	 * Resolves raw attribute value to an array of Number values for histogram operations.
+	 * Handles scalar numbers, array-typed attributes, null values with defaults, and
+	 * null values without defaults (returns empty array).
+	 *
+	 * @param rawValue   the raw attribute value (may be null)
+	 * @param resolution the value resolution metadata
+	 * @return array of Number values; empty if no values can be determined
+	 */
+	@Nonnull
+	static Number[] resolveHistogramValues(
+		@Nullable Serializable rawValue,
+		@Nonnull HistogramValueDescriptor resolution
+	) {
+		if (rawValue == null) {
+			if (resolution.defaultValue() != null) {
+				return new Number[]{resolution.defaultValue()};
+			}
+			return new Number[0];
+		}
+		if (resolution.arrayType() && rawValue instanceof Serializable[] array) {
+			int count = 0;
+			for (final Serializable element : array) {
+				if (element instanceof Number) {
+					count++;
+				}
+			}
+			final Number[] result = new Number[count];
+			int idx = 0;
+			for (final Serializable element : array) {
+				if (element instanceof Number number) {
+					result[idx++] = number;
+				}
+			}
+			return result;
+		}
+		if (rawValue instanceof Number number) {
+			return new Number[]{number};
+		}
+		return new Number[0];
+	}
+
+	/**
+	 * Extracts and returns the {@link RepresentativeReferenceKey} discriminator from the given
+	 * reduced entity index, asserting that the discriminator has the expected type.
+	 *
+	 * @param targetIndex the reduced entity index whose discriminator is extracted
+	 * @return the representative reference key discriminator
+	 */
+	@Nonnull
+	private static RepresentativeReferenceKey extractRepresentativeReferenceKey(
+		@Nonnull AbstractReducedEntityIndex targetIndex
+	) {
+		final Serializable discriminator = targetIndex.getIndexKey().discriminator();
+		Assert.isPremiseValid(
+			discriminator instanceof RepresentativeReferenceKey,
+			"Entity index key discriminator must be RepresentativeReferenceKey!"
+		);
+		return (RepresentativeReferenceKey) discriminator;
 	}
 
 	/**
@@ -724,9 +1975,9 @@ public interface ReferenceIndexMutator {
 	 * the {@code referenceSchema} is returned. Otherwise, the method retrieves the appropriate schema from
 	 * the {@link EntityIndexLocalMutationExecutor}.
 	 *
-	 * @param referenceKey the key that specifies the reference name to locate the schema for
+	 * @param referenceKey    the key that specifies the reference name to locate the schema for
 	 * @param referenceSchema the current schema to compare against the reference key
-	 * @param executor the executor used to fetch the entity schema in case the provided schema name does not match
+	 * @param executor        the executor used to fetch the entity schema in case the provided schema name does not match
 	 * @return the resolved {@link ReferenceSchemaContract} corresponding to the specified {@link ReferenceKey}
 	 */
 	@Nonnull
@@ -738,494 +1989,6 @@ public interface ReferenceIndexMutator {
 		return referenceKey.referenceName().equals(referenceSchema.getName()) ?
 			referenceSchema :
 			executor.getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
-	}
-
-	/**
-	 * Propagates a single reference-attribute mutation into both the type-level index and the per-reference reduced
-	 * index.
-	 *
-	 * The attribute is looked up via the reference schema (not the entity schema), since reference attributes are
-	 * scoped to the reference, not to the owning entity. The method delegates to
-	 * {@link EntityIndexLocalMutationExecutor#updateAttribute(ReferenceSchemaContract, AttributeMutation,
-	 * AttributeAndCompoundSchemaProvider, ExistingAttributeValueSupplier, EntityIndex, EntityIndex, boolean, boolean)}
-	 * twice: once for the type index (keyed by the internal reduced-index primary key) and once for the reduced
-	 * entity index (keyed by the owning entity's primary key, or by the referenced entity's primary key when the
-	 * attribute type is {@link ReferencedEntityPredecessor}).
-	 *
-	 * @param executor                the mutation executor coordinating the index updates
-	 * @param attributeSupplierFactory factory for reading existing reference attribute values from storage
-	 * @param referenceTypeIndex      the type-level index receiving the attribute change (keyed by referenced PK)
-	 * @param indexForRemoval         the reduced index from which old attribute data is removed; typically the
-	 *                                same object as `indexForUpsert` but passed separately for correct ordering
-	 * @param indexForUpsert          the reduced index into which updated attribute data is inserted
-	 * @param referenceSchema         the schema describing the reference and its attributes
-	 * @param referenceKey            identifies the specific reference instance being updated
-	 * @param attributeMutation       the attribute-level mutation to apply (upsert, remove, or delta)
-	 */
-	static void attributeUpdate(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ExistingDataSupplierFactory attributeSupplierFactory,
-		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull AbstractReducedEntityIndex indexForRemoval,
-		@Nonnull AbstractReducedEntityIndex indexForUpsert,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferenceKey referenceKey,
-		@Nonnull AttributeMutation attributeMutation
-	) {
-		final EntitySchema entitySchema = executor.getEntitySchema();
-
-		// use different existing attribute value accessor - attributes needs to be looked up in ReferencesStoragePart
-		final ExistingAttributeValueSupplier existingValueAccessorFactory = attributeSupplierFactory
-			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
-
-		// we access attributes and sortable compounds from the reference schema
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
-			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-				entitySchema, referenceSchema
-			);
-
-		executor.executeWithDifferentPrimaryKeyToIndex(
-			(indexType, target) ->
-				switch (target) {
-					case EXISTING -> indexForRemoval.getPrimaryKey();
-					case NEW -> indexForUpsert.getPrimaryKey();
-				},
-			() -> executor.updateAttribute(
-				referenceSchema,
-				attributeMutation,
-				attributeSchemaProvider,
-				existingValueAccessorFactory,
-				referenceTypeIndex,
-				referenceTypeIndex,
-				false,
-				false
-			)
-		);
-
-		executeWithProperPrimaryKey(
-			executor,
-			referenceKey.primaryKey(),
-			attributeMutation.getAttributeKey().attributeName(),
-			attributeSchemaProvider::getAttributeSchema,
-			() -> executor.updateAttribute(
-				referenceSchema,
-				attributeMutation,
-				attributeSchemaProvider,
-				existingValueAccessorFactory,
-				indexForRemoval,
-				indexForUpsert,
-				false,
-				true
-			)
-		);
-	}
-
-	/**
-	 * Performs the global-only indexing operation for a reference insertion.
-	 * This adds the facet to the global entity index and must be called exactly once
-	 * per reference insert, regardless of how many indexed components are configured.
-	 *
-	 * @param entityPrimaryKey     the primary key of the entity being indexed
-	 * @param referenceSchema      the schema of the reference being inserted
-	 * @param globalIndex          the global entity index to add the facet to
-	 * @param referenceKey         the reference key identifying the reference
-	 * @param groupId              the group primary key, or null if not grouped
-	 * @param executor             the mutation executor
-	 * @param undoActionConsumer   consumer for undo actions, or null if not needed
-	 */
-	static void referenceInsertGlobal(
-		int entityPrimaryKey,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndex globalIndex,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		addFacetToIndex(globalIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor, undoActionConsumer);
-	}
-
-	/**
-	 * Performs per-component indexing for a reference insertion. This registers the PK mapping in
-	 * the type index, indexes reference attributes, populates the reduced index with entity data,
-	 * and adds the facet to the reduced index. Called once per indexed component (entity and/or group).
-	 *
-	 * @param entityPrimaryKey       the primary key of the entity being indexed
-	 * @param entitySchema           the entity schema
-	 * @param referenceSchema        the schema of the reference being inserted
-	 * @param executor               the mutation executor
-	 * @param referenceTypeIndex     the type-level index for this component
-	 * @param referenceIndex         the reduced entity index for this component
-	 * @param referenceKey           the original reference key — used for facets and reference attribute lookup
-	 * @param referencedPrimaryKey   the target primary key for type index mapping (entity PK or group PK)
-	 * @param groupId                the group primary key, or null if not grouped
-	 * @param existingDataSupplierFactory factory to supply existing data needed for indexing
-	 * @param undoActionConsumer     consumer for undo actions, or null if not needed
-	 */
-	static void referenceInsertPerComponent(
-		int entityPrimaryKey,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull AbstractReducedEntityIndex referenceIndex,
-		@Nonnull ReferenceKey referenceKey,
-		int referencedPrimaryKey,
-		@Nullable Integer groupId,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		// register reduced index PK → referenced primary key mapping in the type index
-		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
-		if (referenceTypeIndex.insertPrimaryKeyIfMissing(
-			pkForReferenceTypeIndex, referencedPrimaryKey) && undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> referenceTypeIndex.removePrimaryKey(pkForReferenceTypeIndex, referencedPrimaryKey));
-		}
-
-		// we access attributes and sortable compounds from the reference schema
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
-			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-				entitySchema, referenceSchema
-			);
-
-		// index all reference attributes to the reference type index
-		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
-			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
-
-		executor.executeWithDifferentPrimaryKeyToIndex(
-			(indexType, target) -> pkForReferenceTypeIndex,
-			() -> referenceAttributeValueSupplier
-				.getAttributeValues()
-				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeUpsert(
-					executor,
-					referenceSchema,
-					attributeSchemaProvider,
-					NO_EXISTING_VALUE_SUPPLIER,
-					referenceTypeIndex,
-					referenceTypeIndex,
-					attributeValue.key(),
-					Objects.requireNonNull(attributeValue.value()),
-					false,
-					false,
-					undoActionConsumer
-				))
-		);
-
-		// index entity primary key into the reduced index and populate with existing data
-		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
-			// group indexes need cardinality tracking — use two-arg version
-			if (rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())) {
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(
-						() -> rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
-					);
-				}
-				// index all previously added global entity attributes, prices and facets
-				indexAllExistingData(
-					executor, referenceIndex,
-					entitySchema, referenceSchema,
-					entityPrimaryKey,
-					existingDataSupplierFactory,
-					undoActionConsumer
-				);
-			}
-		} else {
-			if (referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey)) {
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(() -> referenceIndex.removePrimaryKey(entityPrimaryKey));
-				}
-				// index all previously added global entity attributes, prices and facets
-				indexAllExistingData(
-					executor, referenceIndex,
-					entitySchema, referenceSchema,
-					entityPrimaryKey,
-					existingDataSupplierFactory,
-					undoActionConsumer
-				);
-			}
-		}
-
-		// add facet to reduced index
-		addFacetToIndex(
-			referenceIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor, undoActionConsumer
-		);
-	}
-
-	/**
-	 * Fully indexes a newly created reference for the entity-level component. Combines the global facet registration
-	 * (via {@link #referenceInsertGlobal}) and the per-component registration in the type index and reduced entity
-	 * index (via {@link #referenceInsertPerComponent}).
-	 *
-	 * Use this method when inserting a reference for the entity component only. For group-component indexing, call
-	 * {@link #referenceInsertPerComponent} separately with the group primary key and group-specific indexes.
-	 *
-	 * @param entityPrimaryKey         the primary key of the owning entity
-	 * @param entitySchema             the entity schema of the owning entity
-	 * @param referenceSchema          the schema describing the reference being inserted
-	 * @param executor                 the mutation executor coordinating the index updates
-	 * @param entityIndex              the global entity index to which the facet is registered once
-	 * @param referenceTypeIndex       the type-level index ({@link EntityIndexType#REFERENCED_ENTITY_TYPE})
-	 * @param referenceIndex           the per-reference reduced index ({@link EntityIndexType#REFERENCED_ENTITY})
-	 * @param referenceKey             identifies the specific referenced entity
-	 * @param groupId                  the group primary key to associate with the facet, or `null` if not grouped
-	 * @param existingDataSupplierFactory factory for reading existing entity data to populate the reduced index
-	 * @param undoActionConsumer       if non-null, receives inverse operations to undo every index change; used
-	 *                                 during scope migration and speculative indexing
-	 */
-	static void referenceInsert(
-		int entityPrimaryKey,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex entityIndex,
-		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull AbstractReducedEntityIndex referenceIndex,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		// global operation — add facet to global index (once per reference)
-		referenceInsertGlobal(
-			entityPrimaryKey, referenceSchema, entityIndex, referenceKey, groupId,
-			executor, undoActionConsumer
-		);
-		// per-component operation — type index + reduced index
-		referenceInsertPerComponent(
-			entityPrimaryKey, entitySchema, referenceSchema, executor,
-			referenceTypeIndex, referenceIndex, referenceKey,
-			referenceKey.primaryKey(), groupId,
-			existingDataSupplierFactory, undoActionConsumer
-		);
-	}
-
-	/**
-	 * Performs the global-only operation for a reference removal.
-	 * This removes the facet from the global entity index and must be called exactly once
-	 * per reference removal, regardless of how many indexed components are configured.
-	 *
-	 * @param entityPrimaryKey     the primary key of the entity being removed
-	 * @param referenceSchema      the schema of the reference being removed
-	 * @param globalIndex          the global entity index to remove the facet from
-	 * @param referenceKey         the reference key identifying the reference
-	 * @param executor             the mutation executor
-	 * @param undoActionConsumer   consumer for undo actions, or null if not needed
-	 */
-	static void referenceRemovalGlobal(
-		int entityPrimaryKey,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndex globalIndex,
-		@Nonnull ReferenceKey referenceKey,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		removeFacetInIndex(globalIndex, referenceSchema, referenceKey, entityPrimaryKey, executor, undoActionConsumer);
-	}
-
-	/**
-	 * Performs per-component removal from the type index and reduced index. Called once per indexed
-	 * component (entity and/or group).
-	 *
-	 * @param entityPrimaryKey       the primary key of the entity being removed
-	 * @param entitySchema           the entity schema
-	 * @param referenceSchema        the schema of the reference being removed
-	 * @param executor               the mutation executor
-	 * @param referenceTypeIndex     the type-level index for this component
-	 * @param referenceIndex         the reduced entity index for this component
-	 * @param referenceKey           the original reference key — for attribute lookup
-	 * @param referencedPrimaryKey   the target primary key for type index mapping (entity PK or group PK)
-	 * @param existingDataSupplierFactory factory to supply existing data
-	 * @param undoActionConsumer     consumer for undo actions, or null if not needed
-	 */
-	static void referenceRemovalPerComponent(
-		int entityPrimaryKey,
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull AbstractReducedEntityIndex referenceIndex,
-		@Nonnull ReferenceKey referenceKey,
-		int referencedPrimaryKey,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		// remove reduced index PK → referenced primary key mapping from the type index
-		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
-		if (referenceTypeIndex.removePrimaryKey(
-			pkForReferenceTypeIndex, referencedPrimaryKey) && undoActionConsumer != null) {
-			undoActionConsumer.accept(() -> referenceTypeIndex.insertPrimaryKeyIfMissing(
-				pkForReferenceTypeIndex,
-				referencedPrimaryKey
-			));
-		}
-
-		// we access attributes and sortable compounds from the reference schema
-		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
-			new ReferenceSchemaAttributeAndCompoundSchemaProvider(
-				entitySchema, referenceSchema
-			);
-
-		// remove all reference attributes from the reference type index
-		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
-			.getNormalizedReferenceAttributeValueSupplier(referenceKey);
-		executor.executeWithDifferentPrimaryKeyToIndex(
-			(indexType, target) -> pkForReferenceTypeIndex,
-			() -> referenceAttributeValueSupplier
-				.getAttributeValues()
-				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeRemoval(
-					executor,
-					referenceSchema,
-					attributeSchemaProvider,
-					referenceAttributeValueSupplier,
-					referenceTypeIndex,
-					referenceTypeIndex,
-					attributeValue.key(),
-					false,
-					false,
-					undoActionConsumer
-				))
-		);
-
-		// remove entity primary key from the reduced index
-		if (referenceIndex instanceof ReducedGroupEntityIndex rgei) {
-			// group indexes need cardinality tracking — use two-arg version
-			if (rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())) {
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(
-						() -> rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
-					);
-				}
-				// remove all entity attributes and prices
-				removeAllExistingData(
-					executor, referenceIndex,
-					entitySchema, referenceSchema,
-					entityPrimaryKey,
-					existingDataSupplierFactory,
-					undoActionConsumer
-				);
-			}
-		} else {
-			if (referenceIndex.removePrimaryKey(entityPrimaryKey)) {
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(() -> referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey));
-				}
-				// remove all entity attributes and prices
-				removeAllExistingData(
-					executor, referenceIndex,
-					entitySchema, referenceSchema,
-					entityPrimaryKey,
-					existingDataSupplierFactory,
-					undoActionConsumer
-				);
-			}
-		}
-	}
-
-	/**
-	 * Adds a facet entry for the given entity to `index`, but only when both of the following conditions hold:
-	 *
-	 * 1. The target index should receive facet data for this reference (governed by
-	 *    {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} for reduced indexes; always `true` for the
-	 *    global entity index).
-	 * 2. The reference schema marks the reference as faceted in the index's scope.
-	 *
-	 * If `undoActionConsumer` is provided, the corresponding removal operation is registered so that the change
-	 * can be rolled back (used during speculative indexing and scope migration).
-	 *
-	 * @param index               the target entity index (global or reduced)
-	 * @param referenceSchema     the schema of the reference; used to check faceting and schema name resolution
-	 * @param referenceKey        identifies the specific referenced entity for the facet entry
-	 * @param groupId             the group primary key for this facet, or `null` if no group is assigned
-	 * @param entityPrimaryKey    the primary key of the entity owning the reference
-	 * @param executor            the mutation executor; used for schema look-ups and scope access
-	 * @param undoActionConsumer  if non-null, receives a `removeFacet` lambda for undoing this operation
-	 */
-	static void addFacetToIndex(
-		@Nonnull EntityIndex index,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId,
-		int entityPrimaryKey,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		final Scope scope = index.getIndexKey().scope();
-		if (
-			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
-				isFaceted(referenceKey, referenceSchema, scope, executor)
-		) {
-			// evaluate facet expression if one exists — skip facet add when expression returns false
-			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
-			final boolean shouldBeIndexed = trigger == null || trigger.evaluate(
-				entityPrimaryKey, referenceKey,
-				executor.getContainerAccessor(), executor.getSchemaResolver(),
-				scope
-			);
-			if (shouldBeIndexed) {
-				index.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(
-						() -> index.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey));
-				}
-			}
-		}
-	}
-
-	/**
-	 * Atomically replaces the group assignment of an existing facet entry in `index`. The current group (read from
-	 * the persisted {@link ReferencesStoragePart}) is first removed and then re-added with the new `groupId`.
-	 *
-	 * This method is a no-op when the reference schema does not mark the reference as faceted in the index's scope,
-	 * or when the target index is an {@link AbstractReducedEntityIndex} for a different reference schema that is not
-	 * configured for {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
-	 *
-	 * During cross-reference propagation, the facet may have already been added with the new group by
-	 * direct processing (e.g. via {@link #referenceInsertPerComponent}). In that case, the storage-derived
-	 * old group is stale and the facet does not exist in the old group bucket. The method handles this
-	 * gracefully by checking facet presence before removal.
-	 *
-	 * Note: no `undoActionConsumer` is supported here because this operation is always called in the context of
-	 * a {@link io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation} which is not
-	 * subject to speculative undoing in the same way as insertions.
-	 *
-	 * @param entityPrimaryKey  the primary key of the entity owning the reference
-	 * @param index             the target entity index (global or reduced)
-	 * @param referenceSchema   the schema of the reference; used to check faceting
-	 * @param referenceKey      identifies the specific referenced entity
-	 * @param groupId           the new group primary key to assign
-	 * @param executor          the mutation executor; used for reading the existing reference and schema access
-	 */
-	static void setFacetGroupInIndex(
-		int entityPrimaryKey,
-		@Nonnull EntityIndex index,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferenceKey referenceKey,
-		@Nonnull Integer groupId,
-		@Nonnull EntityIndexLocalMutationExecutor executor
-	) {
-		final Scope scope = index.getIndexKey().scope();
-		if (
-			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
-				isFaceted(referenceKey, referenceSchema, scope, executor)
-		) {
-			// evaluate facet expression if one exists — apply decision matrix for group change
-			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
-			if (trigger != null) {
-				final boolean nowFaceted = trigger.evaluate(
-					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
-					scope
-				);
-				applyFacetDecisionMatrix(
-					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
-				);
-			} else {
-				// no expression — unconditionally move the facet to the new group
-				applyFacetDecisionMatrix(
-					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, true, null
-				);
-			}
-		}
 	}
 
 	/**
@@ -1333,10 +2096,10 @@ public interface ReferenceIndexMutator {
 	 * group transitions with expression evaluation, where the old group is not known from the storage part (it may
 	 * have already been updated).
 	 *
-	 * @param index              the entity index containing the facet data
-	 * @param referenceSchema    the schema of the reference
-	 * @param referenceKey       the reference key identifying the facet
-	 * @param entityPrimaryKey   the entity PK to remove
+	 * @param index            the entity index containing the facet data
+	 * @param referenceSchema  the schema of the reference
+	 * @param referenceKey     the reference key identifying the facet
+	 * @param entityPrimaryKey the entity PK to remove
 	 */
 	private static void removeFromCurrentGroup(
 		@Nonnull EntityIndex index,
@@ -1368,397 +2131,6 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Applies the facet was/now decision matrix, handling both facet presence changes **and** group transitions
-	 * in a single method. Every facet operation inherently involves a group (or `null` for ungrouped), and every
-	 * group change may affect whether the facet should exist at all — so both concerns are handled together.
-	 *
-	 * Decision matrix:
-	 *
-	 * | Was faceted? | Now faceted? | In target group? | Action                              |
-	 * |--------------|--------------|------------------|-------------------------------------|
-	 * | yes          | no           | —                | Remove from current group           |
-	 * | no           | yes          | —                | Add with target group               |
-	 * | yes          | yes          | yes              | no-op                               |
-	 * | yes          | yes          | no               | Move (remove current + add target)  |
-	 * | no           | no           | —                | no-op                               |
-	 *
-	 * @param index              the target entity index
-	 * @param referenceSchema    the reference schema
-	 * @param referenceKey       the reference key
-	 * @param targetGroupId      the group the facet should end up in (null for ungrouped)
-	 * @param entityPrimaryKey   the entity PK
-	 * @param nowFaceted         result of the expression evaluation
-	 * @param undoActionConsumer if non-null, receives undo operations (supported for add/remove, not for move)
-	 */
-	static void applyFacetDecisionMatrix(
-		@Nonnull EntityIndex index,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer targetGroupId,
-		int entityPrimaryKey,
-		boolean nowFaceted,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		final boolean wasFaceted = wasFaceted(index, referenceKey, entityPrimaryKey);
-		if (wasFaceted && !nowFaceted) {
-			// was faceted, now not — remove from whichever group it currently resides in
-			removeFromCurrentGroup(index, referenceSchema, referenceKey, entityPrimaryKey);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey)
-				);
-			}
-		} else if (!wasFaceted && nowFaceted) {
-			// was not faceted, now is — add under target group
-			index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> index.removeFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey)
-				);
-			}
-		} else if (wasFaceted && !isFacetPresentInGroup(index, referenceKey, targetGroupId, entityPrimaryKey)) {
-			// was faceted, still faceted, but in a different group — move to target group
-			removeFromCurrentGroup(index, referenceSchema, referenceKey, entityPrimaryKey);
-			index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey);
-		}
-		// was==now and already in target group → no-op
-	}
-
-	/**
-	 * Re-evaluates facet expressions for all references of the owning entity on **both** the
-	 * {@link EntityIndex global index} and all applicable {@link ReducedEntityIndex} instances. Used from
-	 * all deferred facet re-evaluation call sites to keep both index levels consistent.
-	 *
-	 * The method performs a single pass over stored references. For each reference whose trigger matches
-	 * the relevance predicate, it:
-	 *
-	 * 1. evaluates the expression
-	 * 2. applies the was/now decision matrix to the global index
-	 * 3. if the reference schema is indexed at
-	 *    {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} level with entity-component indexing,
-	 *    looks up (or creates) the corresponding {@link ReducedEntityIndex} and applies the same decision
-	 *    matrix there
-	 *
-	 * @param globalIndex                the global entity index (must be a global-scoped index)
-	 * @param executor                   the mutation executor; provides references storage and schema access
-	 * @param entityPrimaryKey           the primary key of the entity owning the references
-	 * @param triggerRelevancePredicate  predicate that returns `true` when a trigger depends on the changed data
-	 */
-	static void reEvaluateFacetExpressionsInAllIndexes(
-		@Nonnull EntityIndex globalIndex,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		int entityPrimaryKey,
-		@Nonnull Predicate<FacetExpressionTrigger> triggerRelevancePredicate
-	) {
-		final Scope scope = globalIndex.getIndexKey().scope();
-		final ReferencesStoragePart referencesStoragePart = executor.getReferencesStoragePart();
-
-		ReferenceSchemaContract cachedSchema = null;
-		FacetExpressionTrigger cachedTrigger = null;
-		boolean cachedTriggerResolved = false;
-		// cache whether the current schema requires reduced-index facet propagation
-		boolean cachedNeedsReducedIndex = false;
-		for (final ReferenceContract reference : referencesStoragePart.getReferences()) {
-			if (!reference.exists()) {
-				continue;
-			}
-			final ReferenceKey referenceKey = reference.getReferenceKey();
-			// cache schema and trigger lookups across consecutive references of the same type
-			// (references are sorted by name in storage part)
-			if (cachedSchema == null || !cachedSchema.getName().equals(referenceKey.referenceName())) {
-				cachedSchema = executor.getEntitySchema()
-					.getReferenceOrThrowException(referenceKey.referenceName());
-				cachedTriggerResolved = false;
-				cachedNeedsReducedIndex =
-					isIndexedReferenceFor(cachedSchema, scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
-						&& isIndexedForEntityComponent(cachedSchema, scope);
-			}
-			if (!cachedSchema.isFacetedInScope(scope)) {
-				continue;
-			}
-			if (!cachedTriggerResolved) {
-				cachedTrigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
-				cachedTriggerResolved = true;
-			}
-			if (cachedTrigger == null || !triggerRelevancePredicate.test(cachedTrigger)) {
-				continue;
-			}
-			final boolean nowFaceted = cachedTrigger.evaluate(
-				entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
-				scope
-			);
-			final Integer groupId = reference.getGroup()
-				.filter(Droppable::exists)
-				.map(GroupEntityReference::getPrimaryKey)
-				.orElse(null);
-
-			// apply to global index
-			applyFacetDecisionMatrix(
-				globalIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
-			);
-
-			// apply to reduced entity index when the schema requires partitioning-level indexing
-			if (cachedNeedsReducedIndex) {
-				final RepresentativeReferenceKeys bothKeys =
-					executor.getRepresentativeReferenceKeys(referenceKey, true);
-				final ReducedEntityIndex reducedIndex = referenceKey.isKnownInternalPrimaryKey()
-					? getOrCreateReferencedEntityIndex(executor, bothKeys.stored(), scope)
-					: getOrCreateReferencedEntityIndex(executor, bothKeys.current(), scope);
-				applyFacetDecisionMatrix(
-					reducedIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
-				);
-			}
-		}
-	}
-
-	/**
-	 * Re-evaluates histogram expressions for all references of an entity after an entity-level
-	 * change (e.g., entity attribute mutation). Mirrors {@link #reEvaluateFacetExpressionsInAllIndexes}
-	 * for the histogram indexing path.
-	 *
-	 * For each reference whose histogram triggers match the relevance predicate, removes existing
-	 * histogram entries and re-adds them based on current condition evaluation. The remove+add
-	 * pattern handles all state transitions correctly (was/was-not indexed vs should/should-not be).
-	 *
-	 * @param globalIndex                the global entity index (used to derive scope)
-	 * @param executor                   the mutation executor providing access to storage, triggers, and indexes
-	 * @param entityPrimaryKey           the primary key of the entity whose attribute changed
-	 * @param existingDataFactory        factory for creating per-reference attribute value suppliers
-	 * @param triggerRelevancePredicate  filters histogram triggers to only those affected by the change
-	 */
-	static void reEvaluateHistogramExpressionsInAllIndexes(
-		@Nonnull EntityIndex globalIndex,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		int entityPrimaryKey,
-		@Nonnull ExistingDataSupplierFactory existingDataFactory,
-		@Nonnull Predicate<HistogramExpressionTrigger> triggerRelevancePredicate
-	) {
-		final Scope scope = globalIndex.getIndexKey().scope();
-		final ReferencesStoragePart referencesStoragePart = executor.getReferencesStoragePart();
-
-		String cachedReferenceName = null;
-		boolean cachedHasRelevantTrigger = false;
-		for (final ReferenceContract reference : referencesStoragePart.getReferences()) {
-			if (!reference.exists()) {
-				continue;
-			}
-			final ReferenceKey referenceKey = reference.getReferenceKey();
-			// cache trigger lookups across consecutive references of the same type
-			// (references are sorted by name in storage part)
-			if (cachedReferenceName == null || !cachedReferenceName.equals(referenceKey.referenceName())) {
-				cachedReferenceName = referenceKey.referenceName();
-				cachedHasRelevantTrigger = false;
-				final Collection<HistogramExpressionTrigger> triggers =
-					executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
-				for (final HistogramExpressionTrigger trigger : triggers) {
-					if (triggerRelevancePredicate.test(trigger)) {
-						cachedHasRelevantTrigger = true;
-						break;
-					}
-				}
-			}
-			if (!cachedHasRelevantTrigger) {
-				continue;
-			}
-			final Integer groupId = reference.getGroup()
-				.filter(Droppable::exists)
-				.map(GroupEntityReference::getPrimaryKey)
-				.orElse(null);
-			// remove then re-add: removeHistogramFromIndex reads values and removes deterministically,
-			// addHistogramToIndex internally evaluates the condition
-			removeHistogramFromIndex(executor, referenceKey, groupId, entityPrimaryKey, scope);
-			addHistogramToIndex(
-				executor, referenceKey, groupId, entityPrimaryKey,
-				existingDataFactory.getNormalizedReferenceAttributeValueSupplier(referenceKey),
-				scope
-			);
-		}
-	}
-
-	/**
-	 * Removes the facet entry for the given entity from `index`. The existing group assignment is read from the
-	 * persisted {@link ReferencesStoragePart} so the removal can use the correct (current) group primary key.
-	 *
-	 * This method is a no-op when the reference schema does not mark the reference as faceted in the index's scope,
-	 * or when the target index is an {@link AbstractReducedEntityIndex} for a different reference schema that is not
-	 * configured for {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
-	 *
-	 * If `undoActionConsumer` is provided, the corresponding `addFacet` operation is registered so that the removal
-	 * can be rolled back.
-	 *
-	 * @param index               the target entity index (global or reduced)
-	 * @param referenceSchema     the schema of the reference; used to check faceting and schema name resolution
-	 * @param referenceKey        identifies the specific referenced entity whose facet is to be removed
-	 * @param entityPrimaryKey    the primary key of the entity owning the reference
-	 * @param executor            the mutation executor; used for reading the existing reference and schema access
-	 * @param undoActionConsumer  if non-null, receives an `addFacet` lambda for undoing this operation
-	 */
-	static void removeFacetInIndex(
-		@Nonnull EntityIndex index,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferenceKey referenceKey,
-		int entityPrimaryKey,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		final Scope scope = index.getIndexKey().scope();
-		if (
-			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
-				isFaceted(referenceKey, referenceSchema, scope, executor)
-		) {
-			// when expression is defined, only remove if the entity was actually faceted
-			// (expression may have evaluated to false at insert time, so no facet was ever added)
-			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
-			if (trigger != null) {
-				if (wasFaceted(index, referenceKey, entityPrimaryKey)) {
-					final ReferenceContract existingReference = executor.getReferencesStoragePart()
-						.findReferenceOrThrowException(referenceKey);
-					removeFacetInIndexInternal(
-						index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer
-					);
-				}
-			} else {
-				final ReferenceContract existingReference = executor.getReferencesStoragePart()
-					.findReferenceOrThrowException(referenceKey);
-				removeFacetInIndexInternal(
-					index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer
-				);
-			}
-		}
-	}
-
-	/**
-	 * Atomically clears the group assignment of an existing facet entry in `index`. The current group is read from
-	 * the persisted {@link ReferencesStoragePart}, the entry is removed under that group, and then re-added with
-	 * a `null` group (ungrouped).
-	 *
-	 * This method validates via {@link Assert#isPremiseValid} that a non-null group is actually present on the
-	 * stored reference — it is a programming error to call this when no group is assigned.
-	 *
-	 * This method is a no-op when the reference schema does not mark the reference as faceted in the index's scope,
-	 * or when the target index is an {@link AbstractReducedEntityIndex} for a reference not configured for
-	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
-	 *
-	 * During cross-reference propagation, the facet may have already been moved to a different group by
-	 * direct processing (e.g. via {@link #referenceInsertPerComponent}). In that case, the storage-derived
-	 * group is stale and the facet does not exist in the old group bucket. The method handles this
-	 * gracefully by checking facet presence before removal via {@link #isFacetPresentInGroup}.
-	 *
-	 * @param entityPrimaryKey  the primary key of the entity owning the reference
-	 * @param index             the target entity index (global or reduced)
-	 * @param referenceSchema   the schema of the reference; used to check faceting
-	 * @param referenceKey      identifies the specific referenced entity
-	 * @param executor          the mutation executor; used for reading the existing reference and schema access
-	 * @throws io.evitadb.exception.GenericEvitaInternalError if the stored reference has no non-dropped group assigned
-	 */
-	static void removeFacetGroupInIndex(
-		int entityPrimaryKey,
-		@Nonnull EntityIndex index,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferenceKey referenceKey,
-		@Nonnull EntityIndexLocalMutationExecutor executor
-	) {
-		final Scope scope = index.getIndexKey().scope();
-		if (
-			shouldIndexFacetToTargetIndex(index, referenceSchema, scope, executor) &&
-				isFaceted(referenceKey, referenceSchema, scope, executor)
-		) {
-			// evaluate facet expression if one exists — apply decision matrix for group removal
-			final FacetExpressionTrigger trigger = executor.getTriggerFor(referenceKey.referenceName(), scope);
-			if (trigger != null) {
-				final boolean nowFaceted = trigger.evaluate(
-					entityPrimaryKey, referenceKey, executor.getContainerAccessor(), executor.getSchemaResolver(),
-					scope
-				);
-				applyFacetDecisionMatrix(
-					index, referenceSchema, referenceKey, null, entityPrimaryKey, nowFaceted, null
-				);
-			} else {
-				// no expression — unconditionally move the facet to ungrouped
-				final ReferenceContract existingReference = executor.getReferencesStoragePart()
-					.findReferenceOrThrowException(referenceKey);
-				isPremiseValid(
-					existingReference.getGroup().filter(Droppable::exists).isPresent(),
-					"Group is expected to be non-null when RemoveReferenceGroupMutation is about to be executed."
-				);
-				applyFacetDecisionMatrix(
-					index, referenceSchema, referenceKey, null, entityPrimaryKey, true, null
-				);
-			}
-		}
-	}
-
-	/**
-	 * Builds and inserts the full suite of sortable attribute compounds for the entity–reference combination
-	 * represented by `targetIndex`.
-	 *
-	 * When `locale` is non-null, only compounds that include at least one attribute for that locale are created.
-	 * When `locale` is `null`, only locale-independent (non-localized) compounds are created.
-	 *
-	 * The method processes two attribute scopes:
-	 *
-	 * - **Entity-level** compound schemas (from the owning entity schema) — only when the reference schema is
-	 *   configured for {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
-	 * - **Reference-level** compound schemas (from the reference schema) — always, regardless of index type.
-	 *
-	 * If `undoActionConsumer` is provided, the inverse removal operations are registered for each compound.
-	 *
-	 * @param executor                  the mutation executor providing entity schema and index access
-	 * @param referenceSchema           the schema describing the reference (determines attribute scope and index level)
-	 * @param targetIndex               the reduced entity index into which compounds are inserted
-	 * @param locale                    if non-null, restrict insertion to compounds for this locale only
-	 * @param existingDataSupplierFactory factory for reading existing attribute values from storage
-	 * @param undoActionConsumer        if non-null, receives inverse compound removal operations for rollback
-	 */
-	static void insertInitialSuiteOfSortableAttributeCompounds(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull AbstractReducedEntityIndex targetIndex,
-		@Nullable Locale locale,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		applySortableAttributeCompoundSuite(
-			executor, referenceSchema, targetIndex, locale,
-			existingDataSupplierFactory, undoActionConsumer,
-			AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds,
-			AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds
-		);
-	}
-
-	/**
-	 * Removes the full suite of sortable attribute compounds for the entity–reference combination represented by
-	 * `targetIndex`. This is the exact inverse of
-	 * {@link #insertInitialSuiteOfSortableAttributeCompounds(EntityIndexLocalMutationExecutor, ReferenceSchemaContract,
-	 * AbstractReducedEntityIndex, Locale, ExistingDataSupplierFactory, Consumer)}.
-	 *
-	 * When `locale` is non-null, only compounds that include at least one attribute for that locale are removed.
-	 * When `locale` is `null`, only locale-independent (non-localized) compounds are removed.
-	 *
-	 * @param executor                  the mutation executor providing entity schema and index access
-	 * @param referenceSchema           the schema describing the reference
-	 * @param targetIndex               the reduced entity index from which compounds are removed
-	 * @param locale                    if non-null, restrict removal to compounds for this locale only
-	 * @param existingDataSupplierFactory factory for reading existing attribute values from storage
-	 * @param undoActionConsumer        if non-null, receives inverse compound insertion operations for rollback
-	 */
-	static void removeEntireSuiteOfSortableAttributeCompounds(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull AbstractReducedEntityIndex targetIndex,
-		@Nullable Locale locale,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		applySortableAttributeCompoundSuite(
-			executor, referenceSchema, targetIndex, locale,
-			existingDataSupplierFactory, undoActionConsumer,
-			AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds,
-			AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds
-		);
-	}
-
-	/**
 	 * Common skeleton for both inserting and removing sortable attribute compound suites.
 	 * Applies `primaryOp` to both entity-level and reference-level attribute compound schemas,
 	 * and registers `undoOp` as the inverse for each.
@@ -1767,6 +2139,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
+		@Nonnull ReferenceKey referenceKey,
 		@Nullable Locale locale,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer,
@@ -1774,7 +2147,10 @@ public interface ReferenceIndexMutator {
 		@Nonnull SortableCompoundOperation undoOp
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final RepresentativeReferenceKey rrk = extractRepresentativeReferenceKey(targetIndex);
+		final RepresentativeReferenceKey indexRrk = extractRepresentativeReferenceKey(targetIndex);
+		final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
+			referenceKey, indexRrk.representativeAttributeValues()
+		);
 
 		// if the reference is indexed for filtering and partitioning, index attributes from the entity schema
 		final Scope scope = targetIndex.getIndexKey().scope();
@@ -1816,46 +2192,6 @@ public interface ReferenceIndexMutator {
 				)
 			);
 		}
-	}
-
-	/**
-	 * Functional interface capturing the shared signature of the two sortable-attribute-compound lifecycle
-	 * operations defined in {@link AttributeIndexMutator}:
-	 * {@link AttributeIndexMutator#insertInitialSuiteOfSortableAttributeCompounds} and
-	 * {@link AttributeIndexMutator#removeEntireSuiteOfSortableAttributeCompounds}.
-	 *
-	 * Used internally by {@link ReferenceIndexMutator#insertInitialSuiteOfSortableAttributeCompounds} and
-	 * {@link ReferenceIndexMutator#removeEntireSuiteOfSortableAttributeCompounds} to avoid duplicating the
-	 * entity-schema vs. reference-schema dispatch logic.
-	 */
-	@FunctionalInterface
-	interface SortableCompoundOperation {
-
-		/**
-		 * Applies a sortable attribute compound insert or remove to the given entity index.
-		 *
-		 * @param executor               the mutation executor coordinating index operations
-		 * @param referenceSchema        the reference schema providing the indexing context, or `null` for entity-only
-		 *                               operations
-		 * @param entityIndex            the target index (always an {@link AbstractReducedEntityIndex} in practice)
-		 * @param locale                 if non-null, restrict the operation to compounds for this locale
-		 * @param attributeSchemaProvider provides attribute and compound schemas for the relevant scope
-		 * @param compoundProvider       provides the sortable attribute compound schemas to operate on
-		 * @param attributeValueSupplier supplies the current attribute values needed to build/remove compounds
-		 * @param undoActionConsumer     if non-null, receives inverse operations to undo this compound change
-		 */
-		void apply(
-			@Nonnull EntityIndexLocalMutationExecutor executor,
-			@Nullable ReferenceSchemaContract referenceSchema,
-			@Nonnull EntityIndex entityIndex,
-			@Nullable Locale locale,
-			@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
-			@Nonnull SortableAttributeCompoundSchemaProvider<?,
-				? extends SortableAttributeCompoundSchemaContract> compoundProvider,
-			@Nonnull ExistingAttributeValueSupplier attributeValueSupplier,
-			@Nullable Consumer<Runnable> undoActionConsumer
-		);
-
 	}
 
 	/**
@@ -1905,19 +2241,22 @@ public interface ReferenceIndexMutator {
 	 * - all indexed entity-level and reference-level attributes, and
 	 * - all sortable attribute compounds.
 	 *
-	 * @param executor                  the mutation executor providing entity schema, container access and index ops
-	 * @param targetIndex               the newly populated reduced entity index
-	 * @param entitySchema              the entity schema of the owning entity
-	 * @param referenceSchema           the schema of the reference being inserted
-	 * @param entityPrimaryKey          the primary key of the owning entity being indexed into the reduced index
+	 * @param executor                    the mutation executor providing entity schema, container access and index ops
+	 * @param targetIndex                 the newly populated reduced entity index
+	 * @param entitySchema                the entity schema of the owning entity
+	 * @param referenceSchema             the schema of the reference being inserted
+	 * @param referenceKey                the actual reference key identifying the referenced entity (used instead of the
+	 *                                    index discriminator, which may contain the group PK for group-level indexes)
+	 * @param entityPrimaryKey            the primary key of the owning entity being indexed into the reduced index
 	 * @param existingDataSupplierFactory factory that supplies the entity's current attributes, prices and references
-	 * @param undoActionConsumer        if non-null, receives inverse operations for every change made
+	 * @param undoActionConsumer          if non-null, receives inverse operations for every change made
 	 */
 	private static void indexAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
 		int entityPrimaryKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
@@ -1937,15 +2276,18 @@ public interface ReferenceIndexMutator {
 		}
 		for (Locale locale : entityCnt.getAttributeLocales()) {
 			executor.upsertEntityAttributeLocaleInTargetIndex(
-				locale, entitySchema, targetIndex, existingDataSupplierFactory
+				locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
 			);
 		}
 
 		indexAllPrices(
 			executor, referenceSchema, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer);
-		indexAllAttributes(executor, referenceSchema, targetIndex, existingDataSupplierFactory, undoActionConsumer);
+		indexAllAttributes(
+			executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory, undoActionConsumer);
 		insertInitialSuiteOfSortableAttributeCompounds(
-			executor, referenceSchema, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
+			executor, referenceSchema, targetIndex, referenceKey, null, existingDataSupplierFactory,
+			undoActionConsumer
+		);
 	}
 
 	/**
@@ -1958,12 +2300,12 @@ public interface ReferenceIndexMutator {
 	 *
 	 * This method is called from {@link #indexAllExistingData} when an entity is first inserted into a reduced index.
 	 *
-	 * @param executor            the mutation executor; provides the references storage part and schema access
-	 * @param referenceSchema     the reference schema for which the reduced index was just created; used as a hint
-	 *                            to avoid re-fetching when the current reference name matches
-	 * @param targetIndex         the reduced entity index receiving the facet entries
-	 * @param entityPrimaryKey    the primary key of the owning entity
-	 * @param undoActionConsumer  if non-null, receives inverse `removeFacet` operations for rollback
+	 * @param executor           the mutation executor; provides the references storage part and schema access
+	 * @param referenceSchema    the reference schema for which the reduced index was just created; used as a hint
+	 *                           to avoid re-fetching when the current reference name matches
+	 * @param targetIndex        the reduced entity index receiving the facet entries
+	 * @param entityPrimaryKey   the primary key of the owning entity
+	 * @param undoActionConsumer if non-null, receives inverse `removeFacet` operations for rollback
 	 */
 	private static void indexAllFacets(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2073,21 +2415,27 @@ public interface ReferenceIndexMutator {
 	 *
 	 * Called from {@link #indexAllExistingData} when an entity is first inserted into a reduced index.
 	 *
-	 * @param executor                  the mutation executor coordinating attribute index updates
-	 * @param referenceSchema           the reference schema; determines attribute scope and index level
-	 * @param targetIndex               the reduced entity index into which attributes are inserted
+	 * @param executor                    the mutation executor coordinating attribute index updates
+	 * @param referenceSchema             the reference schema; determines attribute scope and index level
+	 * @param targetIndex                 the reduced entity index into which attributes are inserted
+	 * @param referenceKey                the actual reference key identifying the referenced entity (used instead of the
+	 *                                    index discriminator, which may contain the group PK for group-level indexes)
 	 * @param existingDataSupplierFactory factory for reading existing entity and reference attribute values
-	 * @param undoActionConsumer        if non-null, receives inverse attribute removal operations for rollback
+	 * @param undoActionConsumer          if non-null, receives inverse attribute removal operations for rollback
 	 */
 	private static void indexAllAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
+		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final RepresentativeReferenceKey rrk = extractRepresentativeReferenceKey(targetIndex);
+		final RepresentativeReferenceKey indexRrk = extractRepresentativeReferenceKey(targetIndex);
+		final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
+			referenceKey, indexRrk.representativeAttributeValues()
+		);
 
 		// if the reference is indexed for filtering and partitioning, we need to index attributes from the entity schema
 		final Scope scope = targetIndex.getIndexKey().scope();
@@ -2154,19 +2502,22 @@ public interface ReferenceIndexMutator {
 	 * This is the symmetric counterpart of {@link #indexAllExistingData} and follows the same ordering in reverse:
 	 * facets, locales, prices, entity-level and reference-level attributes, and sortable attribute compounds.
 	 *
-	 * @param executor                  the mutation executor providing entity schema, container access and index ops
-	 * @param targetIndex               the reduced entity index from which data is removed
-	 * @param entitySchema              the entity schema of the owning entity
-	 * @param referenceSchema           the schema of the reference being removed
-	 * @param entityPrimaryKey          the primary key of the owning entity being de-indexed from the reduced index
+	 * @param executor                    the mutation executor providing entity schema, container access and index ops
+	 * @param targetIndex                 the reduced entity index from which data is removed
+	 * @param entitySchema                the entity schema of the owning entity
+	 * @param referenceSchema             the schema of the reference being removed
+	 * @param referenceKey                the actual reference key identifying the referenced entity (used instead of the
+	 *                                    index discriminator, which may contain the group PK for group-level indexes)
+	 * @param entityPrimaryKey            the primary key of the owning entity being de-indexed from the reduced index
 	 * @param existingDataSupplierFactory factory supplying the entity's current attributes, prices and references
-	 * @param undoActionConsumer        if non-null, receives inverse operations for every change made
+	 * @param undoActionConsumer          if non-null, receives inverse operations for every change made
 	 */
 	private static void removeAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
 		int entityPrimaryKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
@@ -2185,15 +2536,20 @@ public interface ReferenceIndexMutator {
 		}
 		for (Locale locale : entityCnt.getAttributeLocales()) {
 			executor.removeEntityAttributeLocaleInTargetIndex(
-				locale, entitySchema, targetIndex, existingDataSupplierFactory
+				locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
 			);
 		}
 
 		removeAllPrices(
-			executor, referenceSchema, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer);
-		removeAllAttributes(executor, referenceSchema, targetIndex, existingDataSupplierFactory, undoActionConsumer);
+			executor, referenceSchema, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer
+		);
+		removeAllAttributes(
+			executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory, undoActionConsumer
+		);
 		removeEntireSuiteOfSortableAttributeCompounds(
-			executor, referenceSchema, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
+			executor, referenceSchema, targetIndex, referenceKey, null, existingDataSupplierFactory,
+			undoActionConsumer
+		);
 	}
 
 	/**
@@ -2203,11 +2559,11 @@ public interface ReferenceIndexMutator {
 	 * scope are processed. The same sorted-iteration schema-caching optimization as in {@link #indexAllFacets} is
 	 * applied to avoid redundant schema look-ups.
 	 *
-	 * @param executor            the mutation executor; provides the references storage part and schema access
-	 * @param referenceSchema     the reference schema for which the reduced index is being cleaned up; used as a hint
-	 * @param targetIndex         the reduced entity index from which facet entries are removed
-	 * @param entityPrimaryKey    the primary key of the owning entity
-	 * @param undoActionConsumer  if non-null, receives inverse `addFacet` operations for rollback
+	 * @param executor           the mutation executor; provides the references storage part and schema access
+	 * @param referenceSchema    the reference schema for which the reduced index is being cleaned up; used as a hint
+	 * @param targetIndex        the reduced entity index from which facet entries are removed
+	 * @param entityPrimaryKey   the primary key of the owning entity
+	 * @param undoActionConsumer if non-null, receives inverse `addFacet` operations for rollback
 	 */
 	private static void removeAllFacets(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2248,10 +2604,10 @@ public interface ReferenceIndexMutator {
 	 * group is stale and the facet does not exist in the old group bucket. The method handles this
 	 * gracefully by checking facet presence before removal via {@link #isFacetPresentInGroup}.
 	 *
-	 * @param index the entity index where the facet is to be removed
-	 * @param referenceSchema the schema of the reference that identifies the facet
-	 * @param entityPrimaryKey the primary key of the entity whose facet is to be removed
-	 * @param existingReference the existing reference containing the facet key and optional group information
+	 * @param index              the entity index where the facet is to be removed
+	 * @param referenceSchema    the schema of the reference that identifies the facet
+	 * @param entityPrimaryKey   the primary key of the entity whose facet is to be removed
+	 * @param existingReference  the existing reference containing the facet key and optional group information
 	 * @param undoActionConsumer a consumer to handle undo actions; if not null, an operation to re-add the
 	 *                           facet will be passed for potential execution
 	 */
@@ -2323,21 +2679,27 @@ public interface ReferenceIndexMutator {
 	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} in the index's scope. Reference-level attributes
 	 * are always de-indexed regardless of index level.
 	 *
-	 * @param executor                  the mutation executor coordinating attribute index updates
-	 * @param referenceSchema           the reference schema; determines attribute scope and index level
-	 * @param targetIndex               the reduced entity index from which attributes are removed
+	 * @param executor                    the mutation executor coordinating attribute index updates
+	 * @param referenceSchema             the reference schema; determines attribute scope and index level
+	 * @param targetIndex                 the reduced entity index from which attributes are removed
+	 * @param referenceKey                the actual reference key identifying the referenced entity (used instead of the
+	 *                                    index discriminator, which may contain the group PK for group-level indexes)
 	 * @param existingDataSupplierFactory factory for reading existing entity and reference attribute values
-	 * @param undoActionConsumer        if non-null, receives inverse attribute insertion operations for rollback
+	 * @param undoActionConsumer          if non-null, receives inverse attribute insertion operations for rollback
 	 */
 	private static void removeAllAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
+		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final RepresentativeReferenceKey rrk = extractRepresentativeReferenceKey(targetIndex);
+		final RepresentativeReferenceKey indexRrk = extractRepresentativeReferenceKey(targetIndex);
+		final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
+			referenceKey, indexRrk.representativeAttributeValues()
+		);
 
 		// if the reference is indexed for filtering and partitioning, we need to index attributes from the entity schema
 		final Scope scope = targetIndex.getIndexKey().scope();
@@ -2397,311 +2759,14 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Evaluates local histogram triggers for a reference insertion and adds histogram entries to the appropriate
-	 * index. Called after facet processing in {@link #referenceInsertPerComponent} to populate histogram indexes
-	 * for newly created references.
-	 *
-	 * For each histogram trigger whose condition evaluates to `true`, reads the source attribute value
-	 * and inserts it into the group or type index using the attribute's original numeric type. Handles both
-	 * `REFERENCE_ATTRIBUTE` (read from reference storage) and `REFERENCED_ENTITY_ATTRIBUTE` (read from the
-	 * referenced entity's global attribute storage) value sources.
-	 *
-	 * For localized source attributes, iterates all available locales for the source and inserts a separate
-	 * histogram entry per locale. For non-localized attributes, a single entry with `locale = null` is inserted.
-	 *
-	 * @param executor              the mutation executor providing schema, storage access, and index operations
-	 * @param referenceKey          identifies the specific referenced entity
-	 * @param groupId               the group primary key, or null if not grouped
-	 * @param entityPrimaryKey      the primary key of the owner entity
-	 * @param existingDataSupplier  supplies existing reference attribute values
-	 * @param scope                 the current scope
-	 */
-	static void addHistogramToIndex(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId,
-		int entityPrimaryKey,
-		@Nonnull ExistingAttributeValueSupplier existingDataSupplier,
-		@Nonnull Scope scope
-	) {
-		final Collection<HistogramExpressionTrigger> histogramTriggers =
-			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
-		if (!histogramTriggers.isEmpty()) {
-			final ContainerizedLocalMutationExecutor storageAccessor =
-				(ContainerizedLocalMutationExecutor) executor.getContainerAccessor();
-			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
-				final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
-
-				// evaluate condition (proxy instantiation + expression computation)
-				final boolean conditionMet = trigger.evaluate(
-					entityPrimaryKey, referenceKey,
-					storageAccessor, executor.getSchemaResolver(),
-					scope
-				);
-				if (!conditionMet) {
-					continue;
-				}
-
-				if (resolution.localized()) {
-					// localized source: iterate all available locales and insert per-locale entries
-					if (resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
-						final Set<Locale> locales = existingDataSupplier.getEntityExistingAttributeLocales();
-						for (final Locale locale : locales) {
-							final Serializable rawValue = readReferenceAttributeValue(
-								existingDataSupplier, resolution.sourceAttributeName(), locale
-							);
-							insertHistogramValues(
-								executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-								locale, resolution, rawValue, entityPrimaryKey, groupId, scope
-							);
-						}
-					} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
-						final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
-						final Set<Locale> locales = storageAccessor.getReferencedEntityAttributeLocales(
-							sourceEntityType, referenceKey.primaryKey()
-						);
-						for (final Locale locale : locales) {
-							final Serializable rawValue = storageAccessor.readReferencedEntityAttribute(
-								sourceEntityType,
-								referenceKey.primaryKey(),
-								resolution.sourceAttributeName(),
-								locale,
-								scope
-							);
-							insertHistogramValues(
-								executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-								locale, resolution, rawValue, entityPrimaryKey, groupId, scope
-							);
-						}
-					} else {
-						throw new GenericEvitaInternalError(
-							"Unexpected histogram value source: " + resolution.source()
-						);
-					}
-				} else {
-					// non-localized: single read, single insert with locale = null
-					final Serializable rawValue;
-					if (resolution.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
-						rawValue = readReferenceAttributeValue(
-							existingDataSupplier, resolution.sourceAttributeName(), null
-						);
-					} else if (resolution.source() == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
-						rawValue = storageAccessor.readReferencedEntityAttribute(
-							Objects.requireNonNull(resolution.sourceEntityType()),
-							referenceKey.primaryKey(),
-							resolution.sourceAttributeName(),
-							null,
-							scope
-						);
-					} else {
-						throw new GenericEvitaInternalError(
-							"Unexpected histogram value source: " + resolution.source()
-						);
-					}
-
-					insertHistogramValues(
-						executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-						null, resolution, rawValue, entityPrimaryKey, groupId, scope
-					);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Removes histogram entries using known pre-captured old values. Called when the value source
-	 * attribute changed and old values were captured by {@link PreMutationHistogramSnapshot} before
-	 * the mutation was applied. Performs surgical removal — no scanning, no condition evaluation.
-	 *
-	 * When `oldValues` is empty (attribute was null with no default), the entry was never created
-	 * in the histogram, so no removal is needed.
-	 *
-	 * @param executor         the mutation executor
-	 * @param referenceKey     identifies the specific referenced entity
-	 * @param groupId          the group primary key, or null if not grouped
-	 * @param ownerPK          the primary key of the owner entity
-	 * @param oldValues        pre-captured old histogram values (from PreMutationHistogramSnapshot)
-	 * @param trigger          the histogram trigger whose value source was mutated
-	 * @param locale           the locale for localized histograms, or `null` for non-localized
-	 * @param scope            the current scope
-	 */
-	static void removeHistogramWithKnownOldValues(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId,
-		int ownerPK,
-		@Nonnull Number[] oldValues,
-		@Nonnull HistogramExpressionTrigger trigger,
-		@Nullable Locale locale,
-		@Nonnull Scope scope
-	) {
-		for (final Number value : oldValues) {
-			removeSingleHistogramValue(
-				executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-				locale, value, ownerPK, groupId, scope
-			);
-		}
-	}
-
-	/**
-	 * Reads current histogram values for all triggers on a reference and removes entries that are
-	 * present in the histogram. Used when the condition attribute changed (but not the value source),
-	 * during reference removal, or during ungrouped→grouped group transfer.
-	 *
-	 * For each trigger, reads the source value, resolves to Number[], and removes each value only
-	 * if it is verified present in the histogram (the condition may have been false when the reference
-	 * was indexed, so the entry may not exist).
-	 *
-	 * @param executor         the mutation executor
-	 * @param referenceKey     identifies the specific referenced entity
-	 * @param groupId          the group primary key, or null if not grouped
-	 * @param ownerPK          the primary key of the owner entity
-	 * @param scope            the current scope
-	 */
-	static void removeHistogramIfPresent(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId,
-		int ownerPK,
-		@Nonnull Scope scope
-	) {
-		final Collection<HistogramExpressionTrigger> histogramTriggers =
-			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
-		final ExistingAttributeValueSupplier refAttrSupplier =
-			executor.getStoragePartExistingDataFactory()
-				.getNormalizedReferenceAttributeValueSupplier(referenceKey);
-		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
-			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
-			final Set<Locale> locales = resolveHistogramLocales(
-				executor, referenceKey, resolution, refAttrSupplier
-			);
-			for (final Locale locale : locales) {
-				final Serializable rawValue = readHistogramSourceValue(
-					executor, referenceKey, resolution, refAttrSupplier, locale, scope
-				);
-				final Number[] values = resolveHistogramValues(rawValue, resolution);
-				if (values.length > 0) {
-					removeHistogramValuesWithGuard(
-						executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-						locale, values, ownerPK, groupId, scope
-					);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Removes histogram entries for a reference being removed from indexes (entity removal path).
-	 * Reads the current attribute value for each trigger and performs surgical removal. No condition
-	 * evaluation needed — removal is unconditional (same pattern as facet removal).
-	 *
-	 * Reference data is still available at this synchronous call point (storage has pre-mutation data).
-	 *
-	 * @param executor              the mutation executor
-	 * @param referenceKey          identifies the specific referenced entity
-	 * @param groupId               the group primary key, or null if not grouped
-	 * @param entityPrimaryKey      the primary key of the owner entity
-	 * @param scope                 the current scope
-	 */
-	static void removeHistogramFromIndex(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable Integer groupId,
-		int entityPrimaryKey,
-		@Nonnull Scope scope
-	) {
-		final Collection<HistogramExpressionTrigger> histogramTriggers =
-			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
-		if (!histogramTriggers.isEmpty()) {
-			final ExistingAttributeValueSupplier refAttrSupplier =
-				executor.getStoragePartExistingDataFactory()
-					.getNormalizedReferenceAttributeValueSupplier(referenceKey);
-			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
-				final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
-				final Set<Locale> locales = resolveHistogramLocales(
-					executor, referenceKey, resolution, refAttrSupplier
-				);
-				for (final Locale locale : locales) {
-					final Serializable rawValue = readHistogramSourceValue(
-						executor, referenceKey, resolution, refAttrSupplier, locale, scope
-					);
-					final Number[] values = resolveHistogramValues(rawValue, resolution);
-					if (values.length > 0) {
-						removeHistogramValuesWithGuard(
-							executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-							locale, values, entityPrimaryKey, groupId, scope
-						);
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Removes histogram entries from pre-resolved group reduced entity indexes. Used during deferred
-	 * group transfer when cardinality data in the {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE}
-	 * index may have already been cleaned up.
-	 *
-	 * Reads the current value for each trigger (the value hasn't changed — only the group assignment
-	 * has changed), then removes from each pre-resolved RGEI with a histogram existence guard.
-	 *
-	 * @param executor        the mutation executor
-	 * @param referenceName   the reference name
-	 * @param referenceKey    the full reference key (needed for value reading)
-	 * @param ownerPK         the primary key of the owner entity to remove
-	 * @param groupStoragePKs pre-resolved storage PKs of ReducedGroupEntityIndex instances
-	 * @param scope           the current scope
-	 */
-	static void removeHistogramFromPreResolvedGroupIndexes(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull String referenceName,
-		@Nonnull ReferenceKey referenceKey,
-		int ownerPK,
-		@Nonnull int[] groupStoragePKs,
-		@Nonnull Scope scope
-	) {
-		final Collection<HistogramExpressionTrigger> histogramTriggers =
-			executor.getLocalHistogramTriggers(referenceName, scope);
-		if (histogramTriggers.isEmpty()) {
-			return;
-		}
-		final ExistingAttributeValueSupplier refAttrSupplier =
-			executor.getStoragePartExistingDataFactory()
-				.getNormalizedReferenceAttributeValueSupplier(referenceKey);
-		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
-			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
-			final Set<Locale> locales = resolveHistogramLocales(
-				executor, referenceKey, resolution, refAttrSupplier
-			);
-			for (final Locale locale : locales) {
-				final Serializable rawValue = readHistogramSourceValue(
-					executor, referenceKey, resolution, refAttrSupplier, locale, scope
-				);
-				final Number[] values = resolveHistogramValues(rawValue, resolution);
-				for (final Number value : values) {
-					for (final int storagePK : groupStoragePKs) {
-						final EntityIndex reducedIndex =
-							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
-						if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-							if (isValueInHistogram(hcei, trigger.getHistogramIndexName(), locale, value, ownerPK)) {
-								hcei.removeHistogramValue(trigger.getHistogramIndexName(), locale, value, ownerPK);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	/**
 	 * Reads the histogram source attribute value for the given trigger, dispatching to either
 	 * reference attribute or referenced entity attribute depending on the value source.
 	 *
-	 * @param executor         the mutation executor
-	 * @param referenceKey     the reference key
-	 * @param resolution       the value descriptor specifying source type, attribute name, and entity type
-	 * @param refAttrSupplier  supplier for reference attribute values
-	 * @param locale           the locale for localized attributes, or `null`
+	 * @param executor        the mutation executor
+	 * @param referenceKey    the reference key
+	 * @param resolution      the value descriptor specifying source type, attribute name, and entity type
+	 * @param refAttrSupplier supplier for reference attribute values
+	 * @param locale          the locale for localized attributes, or `null`
 	 * @return the raw attribute value, or null if not present
 	 */
 	@Nullable
@@ -2734,10 +2799,10 @@ public interface ReferenceIndexMutator {
 	 * singleton set with a `null` locale. For localized attributes, resolves the locale set from
 	 * the appropriate source (reference attribute locales or referenced entity attribute locales).
 	 *
-	 * @param executor         the mutation executor
-	 * @param referenceKey     the reference key
-	 * @param resolution       the value descriptor
-	 * @param refAttrSupplier  supplier for reference attribute locales
+	 * @param executor        the mutation executor
+	 * @param referenceKey    the reference key
+	 * @param resolution      the value descriptor
+	 * @param refAttrSupplier supplier for reference attribute locales
 	 * @return set of locales (contains `null` for non-localized)
 	 */
 	@Nonnull
@@ -2768,14 +2833,14 @@ public interface ReferenceIndexMutator {
 	 * {@link #isValueInHistogram} to prevent cardinality assertion failures for entries that were
 	 * never inserted (condition was false at index time).
 	 *
-	 * @param executor       the mutation executor
-	 * @param referenceName  the reference name
-	 * @param histogramName  the histogram definition name
-	 * @param locale         the locale, or `null` for non-localized
-	 * @param values         the numeric values to remove
-	 * @param ownerPK        the primary key of the owner entity
-	 * @param groupId        the group primary key (null for ungrouped)
-	 * @param scope          the current scope
+	 * @param executor      the mutation executor
+	 * @param referenceName the reference name
+	 * @param histogramName the histogram definition name
+	 * @param locale        the locale, or `null` for non-localized
+	 * @param values        the numeric values to remove
+	 * @param ownerPK       the primary key of the owner entity
+	 * @param groupId       the group primary key (null for ungrouped)
+	 * @param scope         the current scope
 	 */
 	private static void removeHistogramValuesWithGuard(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2825,14 +2890,14 @@ public interface ReferenceIndexMutator {
 	 * any existence guard. Used by {@link #removeHistogramWithKnownOldValues} where the values are
 	 * known to have been inserted (captured from pre-mutation state).
 	 *
-	 * @param executor       the mutation executor
-	 * @param referenceName  the reference name
-	 * @param histogramName  the histogram definition name
-	 * @param locale         the locale, or `null` for non-localized
-	 * @param value          the numeric value to remove
-	 * @param ownerPK        the primary key of the owner entity
-	 * @param groupId        the group primary key (null for ungrouped)
-	 * @param scope          the current scope
+	 * @param executor      the mutation executor
+	 * @param referenceName the reference name
+	 * @param histogramName the histogram definition name
+	 * @param locale        the locale, or `null` for non-localized
+	 * @param value         the numeric value to remove
+	 * @param ownerPK       the primary key of the owner entity
+	 * @param groupId       the group primary key (null for ungrouped)
+	 * @param scope         the current scope
 	 */
 	private static void removeSingleHistogramValue(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2878,11 +2943,11 @@ public interface ReferenceIndexMutator {
 	 * This is an O(B) point lookup where B is the number of distinct values (typically 10-200 for
 	 * e-commerce histograms). RoaringBitmap `contains()` is O(1).
 	 *
-	 * @param entityIndex    the histogram-capable entity index
-	 * @param histogramName  the histogram definition name
-	 * @param locale         the locale, or `null` for non-localized
-	 * @param value          the value to check
-	 * @param ownerPK        the owner PK to check
+	 * @param entityIndex   the histogram-capable entity index
+	 * @param histogramName the histogram definition name
+	 * @param locale        the locale, or `null` for non-localized
+	 * @param value         the value to check
+	 * @param ownerPK       the owner PK to check
 	 * @return `true` if the histogram contains the (value, ownerPK) pair
 	 */
 	private static boolean isValueInHistogram(
@@ -2910,83 +2975,19 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Reads a reference attribute value from the existing data supplier by attribute name and optional locale.
-	 *
-	 * @param existingDataSupplier the supplier of existing reference attribute values
-	 * @param attributeName        the name of the attribute to read
-	 * @param locale               the locale for localized attributes, or `null` for non-localized
-	 * @return the raw attribute value, or null if not present
-	 */
-	@Nullable
-	static Serializable readReferenceAttributeValue(
-		@Nonnull ExistingAttributeValueSupplier existingDataSupplier,
-		@Nonnull String attributeName,
-		@Nullable Locale locale
-	) {
-		final AttributeKey key = locale != null
-			? new AttributeKey(attributeName, locale)
-			: new AttributeKey(attributeName);
-		return existingDataSupplier.getAttributeValue(key)
-			.map(AttributeValue::value)
-			.orElse(null);
-	}
-
-	/**
-	 * Resolves raw attribute value to an array of Number values for histogram operations.
-	 * Handles scalar numbers, array-typed attributes, null values with defaults, and
-	 * null values without defaults (returns empty array).
-	 *
-	 * @param rawValue   the raw attribute value (may be null)
-	 * @param resolution the value resolution metadata
-	 * @return array of Number values; empty if no values can be determined
-	 */
-	@Nonnull
-	static Number[] resolveHistogramValues(
-		@Nullable Serializable rawValue,
-		@Nonnull HistogramValueDescriptor resolution
-	) {
-		if (rawValue == null) {
-			if (resolution.defaultValue() != null) {
-				return new Number[]{resolution.defaultValue()};
-			}
-			return new Number[0];
-		}
-		if (resolution.arrayType() && rawValue instanceof Serializable[] array) {
-			int count = 0;
-			for (final Serializable element : array) {
-				if (element instanceof Number) {
-					count++;
-				}
-			}
-			final Number[] result = new Number[count];
-			int idx = 0;
-			for (final Serializable element : array) {
-				if (element instanceof Number number) {
-					result[idx++] = number;
-				}
-			}
-			return result;
-		}
-		if (rawValue instanceof Number number) {
-			return new Number[]{number};
-		}
-		return new Number[0];
-	}
-
-	/**
 	 * Inserts a raw attribute value into the histogram index, preserving the attribute's original numeric type.
 	 * Handles both scalar and array attribute values. If the raw value is null and a default is defined in the
 	 * resolution, the default is used. If both are null, no entry is created.
 	 *
-	 * @param executor        the mutation executor
-	 * @param referenceName   the reference name
-	 * @param histogramName   the histogram definition name
-	 * @param locale          the locale for localized histograms, or `null` for non-localized
-	 * @param resolution      the value resolution metadata
-	 * @param rawValue        the raw attribute value (may be null)
-	 * @param ownerPK         the primary key of the owner entity
-	 * @param groupId         the group primary key (null for ungrouped)
-	 * @param scope           the current scope
+	 * @param executor      the mutation executor
+	 * @param referenceName the reference name
+	 * @param histogramName the histogram definition name
+	 * @param locale        the locale for localized histograms, or `null` for non-localized
+	 * @param resolution    the value resolution metadata
+	 * @param rawValue      the raw attribute value (may be null)
+	 * @param ownerPK       the primary key of the owner entity
+	 * @param groupId       the group primary key (null for ungrouped)
+	 * @param scope         the current scope
 	 */
 	private static void insertHistogramValues(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -3030,15 +3031,15 @@ public interface ReferenceIndexMutator {
 	 * Inserts a single value into the histogram index in the appropriate index (grouped or ungrouped).
 	 * The value is in the attribute's original numeric type.
 	 *
-	 * @param executor       the mutation executor
-	 * @param referenceName  the reference name
-	 * @param histogramName  the histogram definition name
-	 * @param locale         the locale for localized histograms, or `null` for non-localized
-	 * @param value          the histogram value in its original numeric type
-	 * @param ownerPK        the primary key of the owner entity
-	 * @param groupId        the group primary key (null for ungrouped)
-	 * @param scope          the current scope
-	 * @param valueType      the numeric type of the value (used for lazy index creation)
+	 * @param executor      the mutation executor
+	 * @param referenceName the reference name
+	 * @param histogramName the histogram definition name
+	 * @param locale        the locale for localized histograms, or `null` for non-localized
+	 * @param value         the histogram value in its original numeric type
+	 * @param ownerPK       the primary key of the owner entity
+	 * @param groupId       the group primary key (null for ungrouped)
+	 * @param scope         the current scope
+	 * @param valueType     the numeric type of the value (used for lazy index creation)
 	 */
 	private static void insertSingleHistogramValue(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -3078,6 +3079,46 @@ public interface ReferenceIndexMutator {
 				hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
 			}
 		}
+	}
+
+	/**
+	 * Functional interface capturing the shared signature of the two sortable-attribute-compound lifecycle
+	 * operations defined in {@link AttributeIndexMutator}:
+	 * {@link AttributeIndexMutator#insertInitialSuiteOfSortableAttributeCompounds} and
+	 * {@link AttributeIndexMutator#removeEntireSuiteOfSortableAttributeCompounds}.
+	 *
+	 * Used internally by {@link ReferenceIndexMutator#insertInitialSuiteOfSortableAttributeCompounds} and
+	 * {@link ReferenceIndexMutator#removeEntireSuiteOfSortableAttributeCompounds} to avoid duplicating the
+	 * entity-schema vs. reference-schema dispatch logic.
+	 */
+	@FunctionalInterface
+	interface SortableCompoundOperation {
+
+		/**
+		 * Applies a sortable attribute compound insert or remove to the given entity index.
+		 *
+		 * @param executor                the mutation executor coordinating index operations
+		 * @param referenceSchema         the reference schema providing the indexing context, or `null` for entity-only
+		 *                                operations
+		 * @param entityIndex             the target index (always an {@link AbstractReducedEntityIndex} in practice)
+		 * @param locale                  if non-null, restrict the operation to compounds for this locale
+		 * @param attributeSchemaProvider provides attribute and compound schemas for the relevant scope
+		 * @param compoundProvider        provides the sortable attribute compound schemas to operate on
+		 * @param attributeValueSupplier  supplies the current attribute values needed to build/remove compounds
+		 * @param undoActionConsumer      if non-null, receives inverse operations to undo this compound change
+		 */
+		void apply(
+			@Nonnull EntityIndexLocalMutationExecutor executor,
+			@Nullable ReferenceSchemaContract referenceSchema,
+			@Nonnull EntityIndex entityIndex,
+			@Nullable Locale locale,
+			@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
+			@Nonnull SortableAttributeCompoundSchemaProvider<?,
+				? extends SortableAttributeCompoundSchemaContract> compoundProvider,
+			@Nonnull ExistingAttributeValueSupplier attributeValueSupplier,
+			@Nullable Consumer<Runnable> undoActionConsumer
+		);
+
 	}
 
 }

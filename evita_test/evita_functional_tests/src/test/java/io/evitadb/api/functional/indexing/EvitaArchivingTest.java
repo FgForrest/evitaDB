@@ -673,7 +673,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 					session.defineEntitySchema(Entities.PRODUCT)
 						.withoutGeneratedPrimaryKey()
-						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.filterable())
+						.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
 						.withReferenceToEntity(
 							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 							thatIs -> thatIs
@@ -708,7 +708,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 			assertNotNull(
 				getReferencedGroupEntityIndex(
-					productCollection1, Scope.LIVE, Entities.CATEGORY, 20
+					productCollection1, Scope.LIVE, Entities.CATEGORY, 10
 				),
 				"Group entity index should exist in LIVE before archiving"
 			);
@@ -735,7 +735,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 			assertNull(
 				getReferencedGroupEntityIndex(
-					productCollection2, Scope.LIVE, Entities.CATEGORY, 20
+					productCollection2, Scope.LIVE, Entities.CATEGORY, 10
 				),
 				"Group entity index should be removed from LIVE after archiving"
 			);
@@ -762,7 +762,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 			assertNotNull(
 				getReferencedGroupEntityIndex(
-					productCollection3, Scope.LIVE, Entities.CATEGORY, 20
+					productCollection3, Scope.LIVE, Entities.CATEGORY, 10
 				),
 				"Group entity index should be rebuilt in LIVE after restore"
 			);
@@ -797,7 +797,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 					session.defineEntitySchema(Entities.PRODUCT)
 						.withoutGeneratedPrimaryKey()
-						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.filterable())
+						.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
 						.withReferenceToEntity(
 							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 							thatIs -> thatIs
@@ -840,19 +840,19 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 			assertNotNull(
 				getReferencedGroupEntityIndex(
-					productColl1, Scope.LIVE, Entities.CATEGORY, 20
+					productColl1, Scope.LIVE, Entities.CATEGORY, 10
 				),
 				"Group entity index should exist for both products"
 			);
 			assertTrue(
 				getReferencedGroupEntityIndex(
-					productColl1, Scope.LIVE, Entities.CATEGORY, 20
+					productColl1, Scope.LIVE, Entities.CATEGORY, 10
 				).getAllPrimaryKeys().contains(100),
 				"Group entity index should contain product 100"
 			);
 			assertTrue(
 				getReferencedGroupEntityIndex(
-					productColl1, Scope.LIVE, Entities.CATEGORY, 20
+					productColl1, Scope.LIVE, Entities.CATEGORY, 10
 				).getAllPrimaryKeys().contains(200),
 				"Group entity index should contain product 200"
 			);
@@ -873,19 +873,19 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 			assertNotNull(
 				getReferencedGroupEntityIndex(
-					productColl2, Scope.LIVE, Entities.CATEGORY, 20
+					productColl2, Scope.LIVE, Entities.CATEGORY, 10
 				),
 				"Group entity index should still exist after archiving one product"
 			);
 			assertFalse(
 				getReferencedGroupEntityIndex(
-					productColl2, Scope.LIVE, Entities.CATEGORY, 20
+					productColl2, Scope.LIVE, Entities.CATEGORY, 10
 				).getAllPrimaryKeys().contains(100),
 				"Product 100 should be removed from group entity index"
 			);
 			assertTrue(
 				getReferencedGroupEntityIndex(
-					productColl2, Scope.LIVE, Entities.CATEGORY, 20
+					productColl2, Scope.LIVE, Entities.CATEGORY, 10
 				).getAllPrimaryKeys().contains(200),
 				"Product 200 should still be in group entity index"
 			);
@@ -906,13 +906,13 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 			assertTrue(
 				getReferencedGroupEntityIndex(
-					productColl3, Scope.LIVE, Entities.CATEGORY, 20
+					productColl3, Scope.LIVE, Entities.CATEGORY, 10
 				).getAllPrimaryKeys().contains(100),
 				"Product 100 should be back in group entity index after restore"
 			);
 			assertTrue(
 				getReferencedGroupEntityIndex(
-					productColl3, Scope.LIVE, Entities.CATEGORY, 20
+					productColl3, Scope.LIVE, Entities.CATEGORY, 10
 				).getAllPrimaryKeys().contains(200),
 				"Product 200 should still be in group entity index"
 			);

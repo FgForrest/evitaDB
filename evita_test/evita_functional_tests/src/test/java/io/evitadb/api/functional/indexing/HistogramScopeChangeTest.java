@@ -352,30 +352,30 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 	 * Asserts that the owner entity is present in the grouped histogram FilterIndex bucket
 	 * for the given value in the specified scope.
 	 *
-	 * @param collection         the entity collection to inspect
-	 * @param scope              the scope to check
-	 * @param referenceName      the reference schema name
-	 * @param referencedEntityPK the referenced entity primary key (group index discriminator)
-	 * @param histogramName      the histogram definition name
-	 * @param value              the expected histogram bucket value
-	 * @param ownerPK            the primary key of the owner entity (Product PK)
+	 * @param collection    the entity collection to inspect
+	 * @param scope         the scope to check
+	 * @param referenceName the reference schema name
+	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param histogramName the histogram definition name
+	 * @param value         the expected histogram bucket value
+	 * @param ownerPK       the primary key of the owner entity (Product PK)
 	 */
 	private static void assertHistogramBucketContainsInScope(
 		@Nonnull EntityCollectionContract collection,
 		@Nonnull Scope scope,
 		@Nonnull String referenceName,
-		int referencedEntityPK,
+		int groupPK,
 		@Nonnull String histogramName,
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
 		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
-			collection, scope, referenceName, referencedEntityPK
+			collection, scope, referenceName, groupPK
 		);
 		assertNotNull(
 			entityIndex,
 			"ReducedGroupEntityIndex for ref '" + referenceName
-				+ "' referencedEntityPK " + referencedEntityPK + " in scope " + scope + " must exist"
+				+ "' groupPK " + groupPK + " in scope " + scope + " must exist"
 		);
 		assertInstanceOf(
 			ReducedGroupEntityIndex.class, entityIndex,
@@ -386,12 +386,12 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 		assertNotNull(
 			filterIndex,
 			"Histogram FilterIndex '" + histogramName
-				+ "' in referencedEntityPK " + referencedEntityPK + " scope " + scope + " must exist"
+				+ "' in groupPK " + groupPK + " scope " + scope + " must exist"
 		);
 		assertTrue(
 			filterIndex.getRecordsEqualTo(EvitaDataTypes.toSupportedType(value)).contains(ownerPK),
 			"Owner PK " + ownerPK + " should be in histogram '" + histogramName
-				+ "' bucket " + value + " referencedEntityPK " + referencedEntityPK + " scope " + scope
+				+ "' bucket " + value + " groupPK " + groupPK + " scope " + scope
 		);
 	}
 
@@ -399,23 +399,23 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 	 * Asserts that the owner entity is NOT present in any grouped histogram FilterIndex bucket
 	 * in the specified scope.
 	 *
-	 * @param collection         the entity collection to inspect
-	 * @param scope              the scope to check
-	 * @param referenceName      the reference schema name
-	 * @param referencedEntityPK the referenced entity primary key (group index discriminator)
-	 * @param histogramName      the histogram definition name
-	 * @param ownerPK            the primary key of the owner entity (Product PK)
+	 * @param collection    the entity collection to inspect
+	 * @param scope         the scope to check
+	 * @param referenceName the reference schema name
+	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param histogramName the histogram definition name
+	 * @param ownerPK       the primary key of the owner entity (Product PK)
 	 */
 	private static void assertHistogramNotIndexedInScope(
 		@Nonnull EntityCollectionContract collection,
 		@Nonnull Scope scope,
 		@Nonnull String referenceName,
-		int referencedEntityPK,
+		int groupPK,
 		@Nonnull String histogramName,
 		int ownerPK
 	) {
 		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
-			collection, scope, referenceName, referencedEntityPK
+			collection, scope, referenceName, groupPK
 		);
 		if (entityIndex == null) {
 			return; // no group index = not indexed
@@ -432,7 +432,7 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 		assertFalse(
 			filterIndex.getAllRecords().contains(ownerPK),
 			"Owner PK " + ownerPK + " should NOT be in histogram '" + histogramName
-				+ "' referencedEntityPK " + referencedEntityPK + " scope " + scope
+				+ "' groupPK " + groupPK + " scope " + scope
 		);
 	}
 	/**
@@ -547,14 +547,14 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 					// initially: histogram in LIVE scope
 					assertHistogramBucketContainsInScope(
 						productCollection, Scope.LIVE, REF_PARAM_GROUPED,
-						1, HISTOGRAM_GROUPED, new BigDecimal("50"), 1
+						10, HISTOGRAM_GROUPED, new BigDecimal("50"), 1
 					);
 
 					// archive PV#1 — cross-entity trigger removes histogram from LIVE
 					session.archiveEntity(ENTITY_PARAMETER_VALUE, 1);
 					assertHistogramNotIndexedInScope(
 						productCollection, Scope.LIVE, REF_PARAM_GROUPED,
-						1, HISTOGRAM_GROUPED, 1
+						10, HISTOGRAM_GROUPED, 1
 					);
 
 					// archive Parameter#10 and Product#1 — full chain in ARCHIVED
@@ -562,7 +562,7 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 					session.archiveEntity(ENTITY_PRODUCT, 1);
 					assertHistogramBucketContainsInScope(
 						productCollection, Scope.ARCHIVED, REF_PARAM_GROUPED,
-						1, HISTOGRAM_GROUPED, new BigDecimal("50"), 1
+						10, HISTOGRAM_GROUPED, new BigDecimal("50"), 1
 					);
 
 					// restore all — histogram back in LIVE
@@ -571,7 +571,7 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 					session.restoreEntity(ENTITY_PARAMETER_VALUE, 1);
 					assertHistogramBucketContainsInScope(
 						productCollection, Scope.LIVE, REF_PARAM_GROUPED,
-						1, HISTOGRAM_GROUPED, new BigDecimal("50"), 1
+						10, HISTOGRAM_GROUPED, new BigDecimal("50"), 1
 					);
 				}
 			);
