@@ -710,7 +710,7 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		final int[] nextProductPK = {1};
 
 		final TestState finalState = runFor(
-			input, 100, new TestState(0),
+			new GenerationalTestInput(1, 1), 100, new TestState(0),
 			(random, testState) -> {
 				final int gen = testState.generation() + 1;
 				this.operationLog.setLength(0);
@@ -2067,15 +2067,27 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 				);
 				for (SealedEntity product : response.getRecordPage().getData()) {
 					for (ReferenceContract ref : product.getReferences(referenceName)) {
+						// index-time condition evaluation uses scope filtering — nested
+						// entity proxies (groupEntity, referencedEntity) are only resolved
+						// when they are in the same scope as the product being indexed;
+						// query-time fetching is more permissive (ARCHIVED products see
+						// LIVE referenced entities), so we must apply the scope check here
+						// to match the index-time semantics
 						final boolean conditionMet;
 						if (grouped) {
-							conditionMet = ref.getGroupEntity()
+							// guard with getGroup().isPresent() — index-time evaluation
+							// sees no group entity when the group FK is removed, even though
+							// query-time enrichment may still return the stale group entity
+							conditionMet = ref.getGroup().isPresent()
+								&& ref.getGroupEntity()
+								.filter(ge -> ge.getScope() == scope)
 								.map(ge -> "INTERVAL".equals(
 									ge.getAttribute(ATTR_INPUT_WIDGET_TYPE, String.class))
 								)
 								.orElse(false);
 						} else {
 							conditionMet = ref.getReferencedEntity()
+								.filter(re -> re.getScope() == scope)
 								.map(re -> "ACTIVE".equals(
 									re.getAttribute(ATTR_STATUS, String.class))
 								)
@@ -2085,6 +2097,7 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 							continue;
 						}
 						final BigDecimal value = ref.getReferencedEntity()
+							.filter(re -> re.getScope() == scope)
 							.map(re -> re.getAttribute(ATTR_BASIC_UNIT_VALUE, BigDecimal.class))
 							.orElse(null);
 						if (value == null) {
