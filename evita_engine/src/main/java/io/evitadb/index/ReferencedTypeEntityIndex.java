@@ -365,10 +365,29 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull Set<PriceIndexKey> priceIndexKeys,
 		@Nonnull Set<String> facetIndexReferencedEntities
 	) {
+		// the base class collects UNIQUE, FILTER, SORT, CHAIN keys from AttributeIndex — we must
+		// also include CARDINALITY keys so they appear in the EntityIndexStoragePart manifest and
+		// are loaded back during catalog restart
+		final Set<AttributeIndexStorageKey> allAttributeKeys;
+		if (this.cardinalityIndexes.isEmpty()) {
+			allAttributeKeys = attributeIndexStorageKeys;
+		} else {
+			allAttributeKeys = CollectionUtils.createHashSet(
+				attributeIndexStorageKeys.size() + this.cardinalityIndexes.size()
+			);
+			allAttributeKeys.addAll(attributeIndexStorageKeys);
+			for (AttributeIndexKey key : this.cardinalityIndexes.keySet()) {
+				allAttributeKeys.add(
+					new AttributeIndexStorageKey(
+						this.indexKey, AttributeIndexType.CARDINALITY, key
+					)
+				);
+			}
+		}
 		return new EntityIndexStoragePart(
 			this.primaryKey, this.version, this.indexKey,
 			this.entityIds, this.entityIdsByLanguage,
-			attributeIndexStorageKeys,
+			allAttributeKeys,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,

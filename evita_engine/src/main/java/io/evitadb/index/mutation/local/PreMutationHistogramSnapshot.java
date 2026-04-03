@@ -23,10 +23,14 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
+import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -36,6 +40,7 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -51,11 +56,14 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * For localized attributes a separate entry is stored per locale; for non-localized attributes a single entry
  * is stored with a `null` locale key.
  *
- * @param oldValuesByTrigger map from captured trigger to per-locale old histogram values
+ * @param oldValuesByTrigger    map from captured trigger to per-locale old histogram values
+ * @param oldConditionByTrigger map from each trigger to its pre-mutation condition result (`true` = the reference
+ *                              was contributing to the histogram before the mutation)
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record PreMutationHistogramSnapshot(
-	@Nonnull Map<HistogramExpressionTrigger, Map<Locale, Number[]>> oldValuesByTrigger
+	@Nonnull Map<HistogramExpressionTrigger, Map<Locale, Number[]>> oldValuesByTrigger,
+	@Nonnull Map<HistogramExpressionTrigger, Boolean> oldConditionByTrigger
 ) {
 
 	/**
@@ -109,8 +117,37 @@ public record PreMutationHistogramSnapshot(
 	}
 
 	/**
-	 * Captures pre-mutation histogram values for all triggers whose value source is the attribute being mutated.
-	 * Must be called **before** the mutation is written to storage.
+	 * Evaluates each trigger's condition against the current (pre-mutation) storage state and
+	 * returns a map from trigger to its condition result.
+	 *
+	 * @param triggers        histogram triggers to evaluate
+	 * @param ownerPK         the primary key of the owner entity
+	 * @param referenceKey    identifies the specific reference
+	 * @param storageAccessor accessor for reading pre-mutation storage data
+	 * @param schemaResolver  resolver for entity schemas
+	 * @param scope           the current scope
+	 * @return map from each trigger to its pre-mutation condition result
+	 */
+	@Nonnull
+	private static Map<HistogramExpressionTrigger, Boolean> evaluateOldConditions(
+		@Nonnull Collection<HistogramExpressionTrigger> triggers,
+		int ownerPK,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ContainerizedLocalMutationExecutor storageAccessor,
+		@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+		@Nonnull Scope scope
+	) {
+		final Map<HistogramExpressionTrigger, Boolean> result = createHashMap(triggers.size());
+		for (final HistogramExpressionTrigger trigger : triggers) {
+			result.put(trigger, trigger.evaluate(ownerPK, referenceKey, storageAccessor, schemaResolver, scope));
+		}
+		return result;
+	}
+
+	/**
+	 * Captures pre-mutation histogram values only (no condition evaluation). Used when condition
+	 * results are not needed — e.g. in tests or when the caller handles condition evaluation
+	 * separately.
 	 *
 	 * @param triggers         histogram triggers to inspect
 	 * @param changedAttribute name of the attribute being mutated
@@ -121,7 +158,36 @@ public record PreMutationHistogramSnapshot(
 		@Nonnull String changedAttribute,
 		@Nonnull ExistingAttributeValueSupplier oldSupplier
 	) {
-		this(buildOldValuesMap(triggers, changedAttribute, oldSupplier));
+		this(buildOldValuesMap(triggers, changedAttribute, oldSupplier), Collections.emptyMap());
+	}
+
+	/**
+	 * Captures pre-mutation histogram values and condition results for all triggers. Must be called
+	 * **before** the mutation is written to storage.
+	 *
+	 * @param triggers         histogram triggers to inspect
+	 * @param changedAttribute name of the attribute being mutated
+	 * @param oldSupplier      supplier reading pre-mutation attribute values from storage
+	 * @param ownerPK          the primary key of the owner entity
+	 * @param referenceKey     identifies the specific reference
+	 * @param storageAccessor  accessor for reading pre-mutation storage data
+	 * @param schemaResolver   resolver for entity schemas
+	 * @param scope            the current scope
+	 */
+	public PreMutationHistogramSnapshot(
+		@Nonnull Collection<HistogramExpressionTrigger> triggers,
+		@Nonnull String changedAttribute,
+		@Nonnull ExistingAttributeValueSupplier oldSupplier,
+		int ownerPK,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ContainerizedLocalMutationExecutor storageAccessor,
+		@Nonnull Function<String, EntitySchemaContract> schemaResolver,
+		@Nonnull Scope scope
+	) {
+		this(
+			buildOldValuesMap(triggers, changedAttribute, oldSupplier),
+			evaluateOldConditions(triggers, ownerPK, referenceKey, storageAccessor, schemaResolver, scope)
+		);
 	}
 
 	/**
@@ -151,6 +217,18 @@ public record PreMutationHistogramSnapshot(
 			"Old values must be captured for value-source trigger: " + trigger.getHistogramIndexName()
 		);
 		return result;
+	}
+
+	/**
+	 * Returns whether the trigger's condition was met (evaluated to `true`) in pre-mutation storage
+	 * state. If the condition was `false`, the reference never contributed to the histogram and
+	 * removal must be skipped to avoid corrupting another reference's cardinality.
+	 *
+	 * @param trigger the histogram trigger to check
+	 * @return `true` if the trigger's condition was met before the mutation
+	 */
+	public boolean isOldConditionMet(@Nonnull HistogramExpressionTrigger trigger) {
+		return Boolean.TRUE.equals(this.oldConditionByTrigger.get(trigger));
 	}
 
 }

@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.GenerationalTestSupport.TestState;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
@@ -75,7 +74,6 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
 import static org.apache.commons.io.FileUtils.sizeOfDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Generational tests for the conditional bucketed histogram indexing feature (`bucketedPartially`
@@ -316,9 +314,9 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 					for (int i = 0; i < ops; i++) {
 						final int roll = random.nextInt(100);
 						if (roll < 30) {
-							changeRefPriority(random, session, productRefs, refPriority);
+							changeRefPriority(random, session, productRefs, refPriority, refSomeValue);
 						} else if (roll < 50) {
-							changeRefSomeValue(random, session, productRefs, refSomeValue);
+							changeRefSomeValue(random, session, productRefs, refPriority, refSomeValue);
 						} else if (roll < 65) {
 							addRefWithAttributes(
 								random, session, productRefs, refPriority, refSomeValue
@@ -1027,13 +1025,16 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	// ==================== Test 2 Helpers: Reference Attribute ====================
 
 	/**
-	 * Changes the `priority` attribute on a random existing reference.
+	 * Changes the `priority` attribute on a random existing reference. Uses `setReference` (RESET mode)
+	 * with all attributes preserved to avoid transactional race between trunk incorporation and new
+	 * transactions where cardinality indexes may not yet be visible.
 	 */
 	private void changeRefPriority(
 		@Nonnull Random random,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Map<Integer, Set<Integer>> productRefs,
-		@Nonnull Map<Long, Integer> refPriority
+		@Nonnull Map<Long, Integer> refPriority,
+		@Nonnull Map<Long, BigDecimal> refSomeValue
 	) {
 		final int[] pair = GenerationalTestSupport.pickRandomRef(random, productRefs);
 		if (pair == null) {
@@ -1043,12 +1044,18 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		final long refKey = GenerationalTestSupport.encodeRefKey(pair[0], pair[1]);
 		final int oldPriority = refPriority.getOrDefault(refKey, 0);
 		final int newPriority = random.nextInt(11) - 3; // range [-3, 7]
+		final BigDecimal existingSomeValue = refSomeValue.get(refKey);
 		session.getEntity(ENTITY_PRODUCT, pair[0], entityFetchAllContent())
 			.orElseThrow()
 			.openForWrite()
 			.setReference(
 				REF_BY_REF_ATTR, pair[1],
-				whichIs -> whichIs.setAttribute(ATTR_PRIORITY, newPriority)
+				whichIs -> {
+					whichIs.setAttribute(ATTR_PRIORITY, newPriority);
+					if (existingSomeValue != null) {
+						whichIs.setAttribute(ATTR_SOME_VALUE, existingSomeValue);
+					}
+				}
 			)
 			.upsertVia(session);
 		refPriority.put(refKey, newPriority);
@@ -1057,12 +1064,15 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	}
 
 	/**
-	 * Changes the `someValue` attribute on a random existing reference.
+	 * Changes the `someValue` attribute on a random existing reference. Uses `setReference` (RESET mode)
+	 * with all attributes preserved to avoid transactional race between trunk incorporation and new
+	 * transactions where cardinality indexes may not yet be visible.
 	 */
 	private void changeRefSomeValue(
 		@Nonnull Random random,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Map<Integer, Set<Integer>> productRefs,
+		@Nonnull Map<Long, Integer> refPriority,
 		@Nonnull Map<Long, BigDecimal> refSomeValue
 	) {
 		final int[] pair = GenerationalTestSupport.pickRandomRef(random, productRefs);
@@ -1075,12 +1085,18 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		final BigDecimal newValue = normalize(
 			GenerationalTestSupport.pickRandomValue(random, VALUE_POOL)
 		);
+		final int existingPriority = refPriority.getOrDefault(refKey, 0);
 		session.getEntity(ENTITY_PRODUCT, pair[0], entityFetchAllContent())
 			.orElseThrow()
 			.openForWrite()
 			.setReference(
 				REF_BY_REF_ATTR, pair[1],
-				whichIs -> whichIs.setAttribute(ATTR_SOME_VALUE, newValue)
+				whichIs -> {
+					whichIs.setAttribute(ATTR_PRIORITY, existingPriority);
+					if (newValue != null) {
+						whichIs.setAttribute(ATTR_SOME_VALUE, newValue);
+					}
+				}
 			)
 			.upsertVia(session);
 		if (newValue != null) {

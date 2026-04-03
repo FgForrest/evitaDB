@@ -1674,7 +1674,7 @@ public interface ReferenceIndexMutator {
 	/**
 	 * Reads current histogram values for all triggers on a reference and removes entries that are
 	 * present in the histogram. Used when the condition attribute changed (but not the value source),
-	 * during reference removal, or during ungrouped→grouped group transfer.
+	 * during reference removal, or during ungrouped-to-grouped group transfer.
 	 *
 	 * For each trigger, reads the source value, resolves to Number[], and removes each value only
 	 * if it is verified present in the histogram (the condition may have been false when the reference
@@ -1695,25 +1695,55 @@ public interface ReferenceIndexMutator {
 	) {
 		final Collection<HistogramExpressionTrigger> histogramTriggers =
 			executor.getLocalHistogramTriggers(referenceKey.referenceName(), scope);
-		final ExistingAttributeValueSupplier refAttrSupplier =
-			executor.getStoragePartExistingDataFactory()
-				.getNormalizedReferenceAttributeValueSupplier(referenceKey);
-		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
-			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
-			final Set<Locale> locales = resolveHistogramLocales(
-				executor, referenceKey, resolution, refAttrSupplier
+		if (!histogramTriggers.isEmpty()) {
+			final ExistingAttributeValueSupplier refAttrSupplier =
+				executor.getStoragePartExistingDataFactory().getNormalizedReferenceAttributeValueSupplier(referenceKey);
+			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+				removeHistogramForTrigger(executor, referenceKey, groupId, ownerPK, trigger, refAttrSupplier, scope);
+			}
+		}
+	}
+
+	/**
+	 * Removes histogram entries contributed by a single trigger for the given reference. Reads the
+	 * current attribute value, resolves to Number[], and removes each value only if it is verified
+	 * present in the histogram.
+	 *
+	 * Extracted as a separate method so that callers needing per-trigger condition evaluation (e.g.,
+	 * the synchronous reference removal path) can iterate triggers themselves, evaluate conditions,
+	 * and call this method only for triggers whose condition is met.
+	 *
+	 * @param executor        the mutation executor
+	 * @param referenceKey    identifies the specific referenced entity
+	 * @param groupId         the group primary key, or null if not grouped
+	 * @param ownerPK         the primary key of the owner entity
+	 * @param trigger         the histogram trigger to process
+	 * @param refAttrSupplier supplier for reading reference attribute values
+	 * @param scope           the current scope
+	 */
+	static void removeHistogramForTrigger(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int ownerPK,
+		@Nonnull HistogramExpressionTrigger trigger,
+		@Nonnull ExistingAttributeValueSupplier refAttrSupplier,
+		@Nonnull Scope scope
+	) {
+		final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
+		final Set<Locale> locales = resolveHistogramLocales(
+			executor, referenceKey, resolution, refAttrSupplier
+		);
+		for (final Locale locale : locales) {
+			final Serializable rawValue = readHistogramSourceValue(
+				executor, referenceKey, resolution, refAttrSupplier, locale, scope
 			);
-			for (final Locale locale : locales) {
-				final Serializable rawValue = readHistogramSourceValue(
-					executor, referenceKey, resolution, refAttrSupplier, locale, scope
+			final Number[] values = resolveHistogramValues(rawValue, resolution);
+			if (values.length > 0) {
+				removeHistogramValuesWithGuard(
+					executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
+					locale, values, ownerPK, groupId, scope
 				);
-				final Number[] values = resolveHistogramValues(rawValue, resolution);
-				if (values.length > 0) {
-					removeHistogramValuesWithGuard(
-						executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-						locale, values, ownerPK, groupId, scope
-					);
-				}
 			}
 		}
 	}
@@ -2886,9 +2916,11 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Removes a single histogram value from the appropriate index (grouped or ungrouped) without
-	 * any existence guard. Used by {@link #removeHistogramWithKnownOldValues} where the values are
-	 * known to have been inserted (captured from pre-mutation state).
+	 * Removes a single histogram value from the appropriate index (grouped or ungrouped) with an
+	 * existence guard. Used by {@link #removeHistogramWithKnownOldValues} where the old values are
+	 * captured from pre-mutation storage state. The guard is necessary because the condition
+	 * expression may have been `false` when the value was originally indexed — the attribute existed
+	 * in storage but was never added to the histogram.
 	 *
 	 * @param executor      the mutation executor
 	 * @param referenceName the reference name
@@ -2919,7 +2951,9 @@ public interface ReferenceIndexMutator {
 				for (final int storagePK : storagePKs) {
 					final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
 					if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-						hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+						if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+							hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+						}
 					}
 				}
 			}
@@ -2929,8 +2963,10 @@ public interface ReferenceIndexMutator {
 			);
 			final EntityIndex typeIndex = executor.getIndexIfExists(typeKey);
 			if (typeIndex instanceof HistogramCapableEntityIndex hcei) {
-				executor.getOrCreateIndex(typeKey);
-				hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+				if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+					executor.getOrCreateIndex(typeKey);
+					hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+				}
 			}
 		}
 	}

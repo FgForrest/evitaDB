@@ -1435,12 +1435,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			getLocalHistogramTriggers(referenceKey.referenceName(), scope);
 		if (!histTriggers.isEmpty()) {
 			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-			// capture old values BEFORE deferral -- storage still has pre-mutation data at this point
-			// (entityIndexUpdater runs before changeCollector for each mutation)
+			// capture old values and condition results BEFORE deferral — storage still has
+			// pre-mutation data at this point (entityIndexUpdater runs before changeCollector)
 			final ExistingAttributeValueSupplier oldSupplier =
 				getStoragePartExistingDataFactory().getNormalizedReferenceAttributeValueSupplier(referenceKey);
-			final PreMutationHistogramSnapshot snapshot =
-				new PreMutationHistogramSnapshot(histTriggers, changedAttribute, oldSupplier);
+			final ContainerizedLocalMutationExecutor storageAccessor =
+				(ContainerizedLocalMutationExecutor) getContainerAccessor();
+			final PreMutationHistogramSnapshot snapshot = new PreMutationHistogramSnapshot(
+				histTriggers, changedAttribute, oldSupplier,
+				entityPK, referenceKey, storageAccessor, getSchemaResolver(), scope
+			);
 			deferExpressionReEvaluation(() -> {
 				final ReferenceContract ref = getReferencesStoragePart()
 					.findReference(referenceKey).orElse(null);
@@ -1449,12 +1453,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					final boolean conditionExpressionAffected =
 						trigger.getLocalReferenceAttributes().contains(changedAttribute);
 					if (snapshot.isValueSourceChanged(trigger)) {
-						// value source changed: use pre-captured old values for surgical per-locale removal
-						for (final Entry<Locale, Number[]> entry : snapshot.getOldValuesByLocale(trigger).entrySet()) {
-							ReferenceIndexMutator.removeHistogramWithKnownOldValues(
-								this, referenceKey, groupPK, entityPK,
-								entry.getValue(), trigger, entry.getKey(), scope
-							);
+						// value source changed: use pre-captured old values for surgical removal
+						if (snapshot.isOldConditionMet(trigger)) {
+							for (final Entry<Locale, Number[]> entry : snapshot.getOldValuesByLocale(trigger).entrySet()) {
+								ReferenceIndexMutator.removeHistogramWithKnownOldValues(
+									this, referenceKey, groupPK, entityPK,
+									entry.getValue(), trigger, entry.getKey(), scope
+								);
+							}
 						}
 						ReferenceIndexMutator.addHistogramToIndex(
 							this, referenceKey, groupPK, entityPK,
@@ -1464,9 +1470,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						);
 					} else if (conditionExpressionAffected) {
 						// condition changed but value source did not: current value = old value
-						ReferenceIndexMutator.removeHistogramIfPresent(
-							this, referenceKey, groupPK, entityPK, scope
-						);
+						if (snapshot.isOldConditionMet(trigger)) {
+							ReferenceIndexMutator.removeHistogramIfPresent(
+								this, referenceKey, groupPK, entityPK, scope
+							);
+						}
 						ReferenceIndexMutator.addHistogramToIndex(
 							this, referenceKey, groupPK, entityPK,
 							getStoragePartExistingDataFactory()
@@ -2993,13 +3001,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(
 			epk, entityIndex, referenceKey, referenceSchema, true
 		);
-		// histogram removal: surgical removal of value contributed by the removed reference
+		// histogram removal: surgical removal of values contributed by the removed reference
 		// (storage still has pre-mutation data at this synchronous point)
-		final ReferenceContract removedRef = getReferencesStoragePart().findReference(referenceKey).orElse(null);
-		final Integer removedGroupId = removedRef != null ? extractActiveGroupPrimaryKey(removedRef) : null;
-		ReferenceIndexMutator.removeHistogramIfPresent(
-			this, referenceKey, removedGroupId, epk, scope
-		);
+		removeHistogramWithConditionGuard(referenceKey, epk, scope);
 		// global: always — remove facet from global index
 		ReferenceIndexMutator.referenceRemovalGlobal(
 			epk, referenceSchema, entityIndex, referenceKey,
@@ -3027,6 +3031,46 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				epk, entitySchema, referenceSchema, rrk, referenceKey,
 				scope, getStoragePartExistingDataFactory()
 			);
+		}
+	}
+
+	/**
+	 * Removes histogram entries for a reference being removed, evaluating each trigger's condition
+	 * against the current (pre-mutation) storage state. Triggers whose condition evaluates to `false`
+	 * are skipped — the reference never contributed to the histogram, so removing values would
+	 * incorrectly decrement another reference's cardinality for the same `(value, ownerPK)` pair.
+	 *
+	 * Must only be called synchronously when storage still contains pre-mutation data.
+	 *
+	 * @param referenceKey the reference being removed
+	 * @param ownerPK      the primary key of the owner entity
+	 * @param scope        the current scope
+	 */
+	private void removeHistogramWithConditionGuard(
+		@Nonnull ReferenceKey referenceKey,
+		int ownerPK,
+		@Nonnull Scope scope
+	) {
+		final Collection<HistogramExpressionTrigger> histogramTriggers =
+			getLocalHistogramTriggers(referenceKey.referenceName(), scope);
+		if (!histogramTriggers.isEmpty()) {
+			final ReferenceContract removedRef = getReferencesStoragePart()
+				.findReference(referenceKey).orElse(null);
+			final Integer groupId = removedRef != null ? extractActiveGroupPrimaryKey(removedRef) : null;
+			final ContainerizedLocalMutationExecutor storageAccessor =
+				(ContainerizedLocalMutationExecutor) getContainerAccessor();
+			final ExistingAttributeValueSupplier refAttrSupplier = getStoragePartExistingDataFactory()
+				.getNormalizedReferenceAttributeValueSupplier(referenceKey);
+			for (final HistogramExpressionTrigger trigger : histogramTriggers) {
+				final boolean conditionMet = trigger.evaluate(
+					ownerPK, referenceKey, storageAccessor, getSchemaResolver(), scope
+				);
+				if (conditionMet) {
+					ReferenceIndexMutator.removeHistogramForTrigger(
+						this, referenceKey, groupId, ownerPK, trigger, refAttrSupplier, scope
+					);
+				}
+			}
 		}
 	}
 
