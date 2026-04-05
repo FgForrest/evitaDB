@@ -90,7 +90,7 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 	@Nullable private Long prefetchEstimatedCost;
 
 	public SelectionFormula(@Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {
-		Assert.notNull(!(delegate instanceof SkipFormula), "The delegate formula cannot be a skip formula!");
+		Assert.isTrue(!(delegate instanceof SkipFormula), "The delegate formula cannot be a skip formula!");
 		this.alternative = alternative;
 		this.initFields(delegate);
 	}
@@ -206,13 +206,14 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 				// otherwise collect the filtered records from the delegate
 				.orElseGet(() -> {
 					// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
-					final Formula[] filteredOutRecords = FormulaFinder.findAmongChildren(
-							this, FilteredOutPriceRecordAccessor.class, LookUp.SHALLOW
-						)
-						.stream()
-						.map(FilteredOutPriceRecordAccessor::getCloneWithPricePredicateFilteredOutResults)
-						.toArray(Formula[]::new);
-
+					final Collection<FilteredOutPriceRecordAccessor> accessors = FormulaFinder.findAmongChildren(
+						this, FilteredOutPriceRecordAccessor.class, LookUp.SHALLOW
+					);
+					final Formula[] filteredOutRecords = new Formula[accessors.size()];
+					int index = 0;
+					for (FilteredOutPriceRecordAccessor accessor : accessors) {
+						filteredOutRecords[index++] = accessor.getCloneWithPricePredicateFilteredOutResults();
+					}
 					return FormulaFactory.or(filteredOutRecords);
 				});
 		}
