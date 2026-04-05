@@ -623,6 +623,98 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		logFinished(finalState);
 	}
 
+	// --- Focused test for conditional histogram stale evaluateFilter after group attribute change ---
+
+	@org.junit.jupiter.api.Test
+	@DisplayName("Conditional histogram should not retain entries after group attribute disqualifies condition")
+	void shouldReturnEmptyWhenGroupAttributeChangedToNonMatchingValue() {
+		// Step 1: schema with conditional histogram + seed data — group 3 starts as INTERVAL
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(ENTITY_PARAMETER)
+				.withAttribute(ATTR_INPUT_WIDGET_TYPE, String.class,
+					whichIs -> whichIs.filterableInScope(Scope.LIVE).nullable())
+				.updateVia(session);
+			session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+				.withAttribute(ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+					whichIs -> whichIs.filterableInScope(Scope.LIVE).nullable())
+				.updateVia(session);
+			session.defineEntitySchema(ENTITY_PRODUCT)
+				.withReferenceToEntity(
+					REF_BY_GROUP_ATTR, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs
+						.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+						.indexedWithComponentsInScope(Scope.LIVE, ReferenceIndexedComponents.values())
+						.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+						.bucketedInScope(
+							Scope.LIVE, HISTOGRAM_GROUP,
+							ExpressionFactory.parse(
+								"$reference.referencedEntity?.attributes['basicUnitValue']"
+							)
+						)
+						.bucketedPartiallyInScope(
+							Scope.LIVE,
+							ExpressionFactory.parse(
+								"($reference.groupEntity?.attributes['inputWidgetType'] ?? '') == 'INTERVAL'"
+							)
+						)
+				)
+				.updateVia(session);
+
+			// groups: 1=INTERVAL, 2=CHECKBOX, 3=INTERVAL
+			session.createNewEntity(ENTITY_PARAMETER, 1)
+				.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL").upsertVia(session);
+			session.createNewEntity(ENTITY_PARAMETER, 2)
+				.setAttribute(ATTR_INPUT_WIDGET_TYPE, "CHECKBOX").upsertVia(session);
+			session.createNewEntity(ENTITY_PARAMETER, 3)
+				.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL").upsertVia(session);
+
+			// parameter values with histogram values
+			session.createNewEntity(ENTITY_PARAMETER_VALUE, 3)
+				.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("5.0"))
+				.upsertVia(session);
+
+			// product 21 references pv=3 in group=3 → condition is true (group 3 = INTERVAL)
+			// so histogram should contain: group 3 → {5.0 → [21]}
+			session.createNewEntity(ENTITY_PRODUCT, 21)
+				.setReference(REF_BY_GROUP_ATTR, 3, thatIs -> thatIs.setGroup(ENTITY_PARAMETER, 3))
+				.upsertVia(session);
+
+			session.goLiveAndClose();
+		});
+
+		// Step 2: verify histogram is populated, then force trunk incorporation
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			// unrelated mutation to force WAL entry → trunk incorporation → new catalog version
+			session.createNewEntity(ENTITY_PARAMETER_VALUE, 99)
+				.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("1.0"))
+				.upsertVia(session);
+		});
+
+		// verify histogram before the mutation: group 3 should have entries
+		assertHistogramMatchesExpected(
+			REF_BY_GROUP_ATTR, HISTOGRAM_GROUP,
+			Map.of(3, Map.of(new BigDecimal("5"), Set.of(21))),
+			Map.of()
+		);
+
+		// Step 3: change group 3 from INTERVAL→CHECKBOX and commit
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
+			session.upsertEntity(
+				session.getEntity(ENTITY_PARAMETER, 3, entityFetchAllContent()).orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTR_INPUT_WIDGET_TYPE, "CHECKBOX")
+			);
+		});
+
+		// Step 4: verify histogram AFTER the mutation — group 3 condition is now false,
+		// so histogram entries for group 3 should be gone
+		assertHistogramMatchesExpected(
+			REF_BY_GROUP_ATTR, HISTOGRAM_GROUP,
+			Map.of(),
+			Map.of()
+		);
+	}
+
 	// --- Test 5: Scope Changes (LIVE ↔ ARCHIVED) ---
 
 	@ParameterizedTest(name = "Histogram indexing should survive scope changes in generational test")
