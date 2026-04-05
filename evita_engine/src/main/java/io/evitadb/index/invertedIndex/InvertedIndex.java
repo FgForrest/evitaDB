@@ -54,8 +54,11 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Histogram index is based on <a href="https://en.wikipedia.org/wiki/Histogram">Histogram data structure</a>. It's
@@ -282,6 +285,28 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Returns records associated with the given already-normalized value via direct binary search
+	 * on the current array. Unlike position-based access via `getRecordsAtIndex`, this method is
+	 * safe to call even when a cached position map may be stale due to concurrent transactional
+	 * modifications.
+	 *
+	 * @param normalizedValue the value already normalized by the caller (via FilterIndex normalizer)
+	 */
+	@Nonnull
+	public Bitmap getRecordsEqualTo(@Nullable Serializable normalizedValue) {
+		if (normalizedValue == null) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final ValueToRecordBitmap[] pointsArray = this.valueToRecordBitmap.getArray();
+		final int index = Arrays.binarySearch(pointsArray, new ValueToRecordBitmap(normalizedValue));
+		if (index >= 0) {
+			return pointsArray[index].getRecordIds();
+		} else {
+			return EmptyBitmap.INSTANCE;
+		}
+	}
+
+	/**
 	 * Returns set of record ids that are present at bucket at the specific index.
 	 */
 	@Nonnull
@@ -369,6 +394,24 @@ public class InvertedIndex implements
 	public InvertedIndexSubSet getSortedRecordsExclusive(@Nullable Serializable moreThan, @Nullable Serializable lessThan) {
 		final ValueToRecordBitmap[] records = getRecordsInternal(moreThan, lessThan, BoundsHandling.EXCLUSIVE);
 		return convertToSortedResult(records);
+	}
+
+	/**
+	 * Returns subset of this histogram with buckets whose values match the given predicate.
+	 * Records returned by this {@link InvertedIndexSubSet} are sorted by record id value.
+	 *
+	 * @see #getSortedRecords()
+	 */
+	@Nonnull
+	public InvertedIndexSubSet getSortedRecordsMatching(@Nonnull Predicate<Serializable> valuePredicate) {
+		final ValueToRecordBitmap[] pointsArray = this.valueToRecordBitmap.getArray();
+		final List<ValueToRecordBitmap> result = new ArrayList<>(Math.min(64, pointsArray.length));
+		for (ValueToRecordBitmap bucket : pointsArray) {
+			if (valuePredicate.test(bucket.getValue()) && !bucket.isEmpty()) {
+				result.add(bucket);
+			}
+		}
+		return convertToSortedResult(result.toArray(ValueToRecordBitmap[]::new));
 	}
 
 	/**
