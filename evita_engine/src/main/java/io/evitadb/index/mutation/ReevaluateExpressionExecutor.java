@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -225,7 +226,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull AffectedEntityResolution affected,
 		@Nonnull Bitmap allAffectedOwnerPKs
 	) {
-		final ConditionalSplit split = evaluateCondition(facetTrigger, mutation, target, allAffectedOwnerPKs);
+		final ConditionalSplit split = evaluateCondition(facetTrigger, mutation, target, affected, allAffectedOwnerPKs);
 		final ReferenceSchemaContract refSchema = target
 			.getEntitySchema()
 			.getReference(mutation.referenceName())
@@ -332,7 +333,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 		for (final HistogramExpressionTrigger trigger : histogramTriggers) {
 			final String histogramName = trigger.getHistogramIndexName();
-			final ConditionalSplit split = evaluateCondition(trigger, mutation, target, allAffectedOwnerPKs);
+			final ConditionalSplit split = evaluateCondition(trigger, mutation, target, affected, allAffectedOwnerPKs);
 
 			// Determine the set of locales for localized histograms; for non-localized, use a singleton null set.
 			final HistogramValueDescriptor resolution = trigger.getValueDescriptor();
@@ -386,9 +387,17 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * sets: those for which the condition is now true (should be indexed) and those for which it is false
 	 * (should not be indexed). For unconditional triggers (no FilterBy), all affected PKs are in the "true" set.
 	 *
+	 * When the condition filter contains a `groupHaving` clause and the mutation fires for a referenced entity
+	 * attribute change (not a group entity change), the evaluation is performed per-group to avoid cross-reference
+	 * false positives. Without per-group scoping, a product with references in multiple groups (e.g., PV=3 in
+	 * group=2/CHECKBOX and PV=5 in group=1/INTERVAL) could incorrectly match because `groupHaving(INTERVAL)`
+	 * matches via group=1 while `entityHaving(PK=3)` matches via a different reference — the `and` doesn't
+	 * enforce same-reference semantics.
+	 *
 	 * @param trigger             the expression trigger carrying the optional FilterBy constraint
 	 * @param mutation            the cross-entity re-evaluation signal
 	 * @param target              access to the entity collection's filter evaluator
+	 * @param affected            resolved affected groups with per-group owner PKs
 	 * @param allAffectedOwnerPKs union bitmap of all affected owner PKs
 	 * @return split result with disjoint shouldBeIndexed / shouldNotBeIndexed bitmaps
 	 */
@@ -397,11 +406,41 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull ExpressionIndexTrigger trigger,
 		@Nonnull ReevaluateExpressionMutation mutation,
 		@Nonnull IndexMutationTarget target,
+		@Nonnull AffectedEntityResolution affected,
 		@Nonnull Bitmap allAffectedOwnerPKs
 	) {
 		if (!trigger.hasFilterByConstraint()) {
 			return new ConditionalSplit(allAffectedOwnerPKs, new BaseBitmap());
 		}
+		final DependencyType depType = mutation.dependencyType();
+		final boolean needsPerGroupEvaluation =
+			(depType == DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+				|| depType == DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE)
+				&& affected.groups().stream().anyMatch(g -> g.groupPK() != null)
+				&& FinderVisitor.findConstraint(
+					trigger.getFilterByConstraint(),
+					GroupHaving.class::isInstance
+				) != null;
+
+		if (needsPerGroupEvaluation) {
+			return evaluateConditionPerGroup(trigger, mutation, target, affected);
+		} else {
+			return evaluateConditionGlobal(trigger, mutation, target, allAffectedOwnerPKs);
+		}
+	}
+
+	/**
+	 * Global evaluation: runs a single parameterized filter against all affected owner PKs.
+	 * Used when per-group scoping is not needed (no groupHaving in the condition, or the mutation
+	 * already scopes by group PK).
+	 */
+	@Nonnull
+	private static ConditionalSplit evaluateConditionGlobal(
+		@Nonnull ExpressionIndexTrigger trigger,
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull Bitmap allAffectedOwnerPKs
+	) {
 		final FilterBy parameterizedFilter = parameterize(
 			trigger.getFilterByConstraint(), mutation.referenceName(),
 			mutation.mutatedEntityPK(), mutation.dependencyType()
@@ -420,6 +459,77 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			)
 		);
 		return new ConditionalSplit(shouldBeIndexed, shouldNotBeIndexed);
+	}
+
+	/**
+	 * Per-group evaluation: for each affected group, parameterizes the filter with both the referenced
+	 * entity PK AND the group entity PK, ensuring that `groupHaving` checks only the specific group
+	 * of the reference being evaluated, not other groups of the same owner entity.
+	 */
+	@Nonnull
+	private static ConditionalSplit evaluateConditionPerGroup(
+		@Nonnull ExpressionIndexTrigger trigger,
+		@Nonnull ReevaluateExpressionMutation mutation,
+		@Nonnull IndexMutationTarget target,
+		@Nonnull AffectedEntityResolution affected
+	) {
+		final RoaringBitmapWriter<RoaringBitmap> shouldBeWriter = buildWriter();
+		final RoaringBitmapWriter<RoaringBitmap> shouldNotBeWriter = buildWriter();
+		for (final AffectedReferenceGroup group : affected.groups()) {
+			final FilterBy parameterizedFilter = parameterizeWithGroupScope(
+				trigger.getFilterByConstraint(), mutation.referenceName(),
+				mutation.mutatedEntityPK(), mutation.dependencyType(),
+				group.groupPK()
+			);
+			final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
+			final RoaringBitmap groupOwnerPKs = getRoaringBitmap(group.ownerPKs());
+			final RoaringBitmap matched = and(groupOwnerPKs, getRoaringBitmap(truePKs));
+			final RoaringBitmap notMatched = andNot(groupOwnerPKs, getRoaringBitmap(truePKs));
+			shouldBeWriter.addMany(matched.toArray());
+			shouldNotBeWriter.addMany(notMatched.toArray());
+		}
+		return new ConditionalSplit(
+			new BaseBitmap(shouldBeWriter.get()),
+			new BaseBitmap(shouldNotBeWriter.get())
+		);
+	}
+
+	/**
+	 * Extended parameterization that injects both the referenced entity PK (via `entityHaving`)
+	 * and the group entity PK (via `groupHaving(entityPrimaryKeyInSet)`) into the filter.
+	 * The group PK is injected into the ORIGINAL filter FIRST (before entity PK scoping) so that
+	 * the `GroupHaving` clause is still directly accessible for merging. This ensures that the
+	 * resulting filter has a single `GroupHaving(and(condition, entityPrimaryKeyInSet(groupPK)))`,
+	 * preventing cross-reference false positives.
+	 */
+	@Nonnull
+	private static FilterBy parameterizeWithGroupScope(
+		@Nonnull FilterBy triggerFilterBy,
+		@Nonnull String referenceName,
+		int mutatedEntityPK,
+		@Nonnull DependencyType dependencyType,
+		@Nullable Integer groupPK
+	) {
+		if (groupPK == null) {
+			return parameterize(triggerFilterBy, referenceName, mutatedEntityPK, dependencyType);
+		}
+		// inject group PK scope into the ORIGINAL filter first (before entity PK injection),
+		// so that injectPkScope can find the GroupHaving at the top of ReferenceHaving's children
+		final EntityPrimaryKeyInSet groupPkConstraint = new EntityPrimaryKeyInSet(groupPK);
+		final FilterConstraint[] topChildren = triggerFilterBy.getChildren();
+		final FilterConstraint[] newTopChildren = new FilterConstraint[topChildren.length];
+		for (int i = 0; i < topChildren.length; i++) {
+			if (topChildren[i] instanceof ReferenceHaving rh
+				&& rh.getReferenceName().equals(referenceName)
+			) {
+				newTopChildren[i] = injectPkScope(rh, referenceName, groupPkConstraint, true);
+			} else {
+				newTopChildren[i] = topChildren[i];
+			}
+		}
+		final FilterBy groupScoped = new FilterBy(newTopChildren);
+		// then apply the standard entity PK scoping
+		return parameterize(groupScoped, referenceName, mutatedEntityPK, dependencyType);
 	}
 
 	/**
