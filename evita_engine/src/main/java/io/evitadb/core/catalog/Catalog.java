@@ -1937,7 +1937,7 @@ public final class Catalog
 		if (registry instanceof DefaultCatalogExpressionTriggerRegistry impl) {
 			final int triggerCount = impl.getTriggerCount();
 			if (triggerCount > 0) {
-				log.info(
+				log.debug(
 					"Expression trigger registry initialized with {} triggers for catalog '{}'.",
 					triggerCount, this.getName()
 				);
