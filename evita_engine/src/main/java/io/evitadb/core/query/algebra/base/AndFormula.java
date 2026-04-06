@@ -149,17 +149,11 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		if (this.bitmaps == null) {
 			return super.getEstimatedBaseCost();
 		}
-		if (this.bitmaps.length == 0) {
-			return 0L;
+		long sum = 0L;
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
 		}
-		long min = this.bitmaps[0].size();
-		for (int i = 1; i < this.bitmaps.length; i++) {
-			final long size = this.bitmaps[i].size();
-			if (size < min) {
-				min = size;
-			}
-		}
-		return min * getOperationCost();
+		return sum;
 	}
 
 	@Override
