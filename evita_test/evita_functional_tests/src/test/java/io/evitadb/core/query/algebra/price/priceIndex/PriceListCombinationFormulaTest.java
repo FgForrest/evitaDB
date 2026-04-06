@@ -39,11 +39,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Currency;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link PriceListCombinationFormula} verifying NOT-like subtraction semantics,
@@ -68,7 +64,7 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should subtract entities present in subtracted formula from superset")
 		void shouldSubtractEntitiesPresentInSubtractedFromSuperset() {
 			final PriceListCombinationFormula formula = createFormula(
-				"subtracted", "superset", DEFAULT_CONTEXT,
+				"subtracted", "superset",
 				new int[]{2, 4}, new int[]{1, 2, 3, 4, 5}
 			);
 
@@ -81,7 +77,7 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should return full superset when subtracted is disjoint")
 		void shouldReturnFullSupersetWhenSubtractedIsDisjoint() {
 			final PriceListCombinationFormula formula = createFormula(
-				"subtracted", "superset", DEFAULT_CONTEXT,
+				"subtracted", "superset",
 				new int[]{10, 20}, new int[]{1, 2, 3}
 			);
 
@@ -94,7 +90,7 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should return empty when subtracted contains all superset elements")
 		void shouldReturnEmptyWhenSubtractedContainsAllSupersetElements() {
 			final PriceListCombinationFormula formula = createFormula(
-				"subtracted", "superset", DEFAULT_CONTEXT,
+				"subtracted", "superset",
 				new int[]{1, 2, 3, 4, 5}, new int[]{1, 2, 3}
 			);
 
@@ -107,7 +103,7 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should expose price list names via getters")
 		void shouldExposePriceListNamesViaGetters() {
 			final PriceListCombinationFormula formula = createFormula(
-				"vip", "basic", DEFAULT_CONTEXT,
+				"vip", "basic",
 				new int[]{1}, new int[]{1, 2, 3}
 			);
 
@@ -119,7 +115,7 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should expose price evaluation context")
 		void shouldExposePriceEvaluationContext() {
 			final PriceListCombinationFormula formula = createFormula(
-				"subtracted", "superset", DEFAULT_CONTEXT,
+				"subtracted", "superset",
 				new int[]{1}, new int[]{1, 2}
 			);
 
@@ -130,7 +126,7 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should return combined price list names")
 		void shouldReturnCombinedPriceListNames() {
 			final PriceListCombinationFormula formula = createFormula(
-				"vip", "basic", DEFAULT_CONTEXT,
+				"vip", "basic",
 				new int[]{1}, new int[]{1, 2}
 			);
 
@@ -146,11 +142,11 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should return empty when superset is empty")
 		void shouldReturnEmptyWhenSupersetIsEmpty() {
 			final PriceListCombinationFormula formula = createFormula(
-				"subtracted", "superset", DEFAULT_CONTEXT,
-				new int[]{1, 2}, new int[]{3}
+				"subtracted", "superset",
+				new int[]{1, 2}, new int[]{}
 			);
 
-			assertArrayEquals(new int[]{3}, formula.compute().getArray());
+			assertEquals(0, formula.compute().size());
 		}
 	}
 
@@ -162,7 +158,7 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should preserve price list names and context in clone")
 		void shouldPreservePriceListNamesAndContextInClone() {
 			final PriceListCombinationFormula original = createFormula(
-				"vip", "basic", DEFAULT_CONTEXT,
+				"vip", "basic",
 				new int[]{1}, new int[]{1, 2, 3}
 			);
 
@@ -170,7 +166,7 @@ class PriceListCombinationFormulaTest {
 			final ConstantFormula newSuperset = createConstantFormula(1, 2, 3, 4);
 			final Formula clone = original.getCloneWithInnerFormulas(newSubtracted, newSuperset);
 
-			assertTrue(clone instanceof PriceListCombinationFormula);
+			assertInstanceOf(PriceListCombinationFormula.class, clone);
 			final PriceListCombinationFormula typedClone = (PriceListCombinationFormula) clone;
 			assertEquals("vip", typedClone.getSubtractedPriceListName());
 			assertEquals("basic", typedClone.getPriceListName());
@@ -186,11 +182,11 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should produce identical hash for identical construction")
 		void shouldProduceIdenticalHashForIdenticalConstruction() {
 			final PriceListCombinationFormula a = createFormula(
-				"sub", "super", DEFAULT_CONTEXT,
+				"sub", "super",
 				new int[]{1, 2}, new int[]{1, 2, 3}
 			);
 			final PriceListCombinationFormula b = createFormula(
-				"sub", "super", DEFAULT_CONTEXT,
+				"sub", "super",
 				new int[]{1, 2}, new int[]{1, 2, 3}
 			);
 
@@ -206,11 +202,11 @@ class PriceListCombinationFormulaTest {
 		@DisplayName("should produce different hash for different inner data")
 		void shouldProduceDifferentHashForDifferentInnerData() {
 			final long hashA = createFormula(
-				"sub", "super", DEFAULT_CONTEXT,
+				"sub", "super",
 				new int[]{1, 2}, new int[]{1, 2, 3}
 			).getHash();
 			final long hashB = createFormula(
-				"sub", "super", DEFAULT_CONTEXT,
+				"sub", "super",
 				new int[]{4, 5}, new int[]{4, 5, 6}
 			).getHash();
 
@@ -254,7 +250,6 @@ class PriceListCombinationFormulaTest {
 	 *
 	 * @param subtractedName the name of the subtracted price list
 	 * @param supersetName   the name of the superset price list
-	 * @param context        the price evaluation context
 	 * @param subtracted     the values for the subtracted formula
 	 * @param superset       the values for the superset formula
 	 * @return new formula instance
@@ -263,12 +258,12 @@ class PriceListCombinationFormulaTest {
 	private static PriceListCombinationFormula createFormula(
 		@Nonnull String subtractedName,
 		@Nonnull String supersetName,
-		@Nonnull PriceEvaluationContext context,
 		@Nonnull int[] subtracted,
 		@Nonnull int[] superset
 	) {
 		return new PriceListCombinationFormula(
-			subtractedName, supersetName, context,
+			subtractedName, supersetName,
+			PriceListCombinationFormulaTest.DEFAULT_CONTEXT,
 			createConstantFormula(subtracted),
 			createConstantFormula(superset)
 		);

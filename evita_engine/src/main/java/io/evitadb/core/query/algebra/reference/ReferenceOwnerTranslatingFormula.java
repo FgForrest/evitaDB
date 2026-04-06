@@ -56,7 +56,7 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
-	private static final long CLASS_ID = 6841111737856593641L;
+	private static final long CLASS_ID = 3838085621297258621L;
 	/**
 	 * Error message thrown when {@link #getCloneWithInnerFormulas(Formula...)} receives more than one inner formula.
 	 */
