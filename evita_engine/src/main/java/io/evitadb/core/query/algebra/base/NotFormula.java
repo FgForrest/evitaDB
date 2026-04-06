@@ -40,7 +40,7 @@ import java.util.Arrays;
 import java.util.function.Consumer;
 
 /**
- * And formula will perform boolean negation (NOT) on two bitmaps: superset and subtracted one
+ * Not formula will perform boolean negation (NOT) on two bitmaps: superset and subtracted one
  * Example input:
  *
  * superset:   [   2, 3, 4, 5, 8]

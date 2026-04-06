@@ -257,7 +257,7 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	protected long getEstimatedCostInternal() {
 		try {
-			long costs = getEstimatedBaseCost();
+			long costs = 0L;
 			for (Formula innerFormula : this.innerFormulas) {
 				costs = Math.addExact(costs, innerFormula.getEstimatedCost());
 			}

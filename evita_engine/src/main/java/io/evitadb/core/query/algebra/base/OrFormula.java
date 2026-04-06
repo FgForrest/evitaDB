@@ -40,7 +40,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * And formula will perform boolean disjunction (OR) on multiple bitmaps at once.
+ * Or formula will perform boolean disjunction (OR) on multiple bitmaps at once.
  * Example input:
  *
  * [1,    3, 4, 5, 8]
