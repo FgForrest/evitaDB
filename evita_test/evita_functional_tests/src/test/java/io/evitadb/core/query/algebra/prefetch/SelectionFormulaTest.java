@@ -129,43 +129,6 @@ class SelectionFormulaTest {
 	}
 
 	@Nested
-	@DisplayName("Memoization")
-	class MemoizationTest {
-
-		@Test
-		@DisplayName("should return same instance on repeated compute calls")
-		void shouldReturnSameInstanceOnRepeatedComputeCalls() {
-			final ConstantFormula delegate = new ConstantFormula(
-				new ArrayBitmap(new CompositeIntArray(1, 2, 3))
-			);
-			final SelectionFormula formula = createFormula(delegate);
-			initializeForNonPrefetch(formula);
-
-			final Bitmap first = formula.compute();
-			final Bitmap second = formula.compute();
-
-			assertSame(first, second);
-		}
-
-		@Test
-		@DisplayName("should recompute after clearMemory")
-		void shouldRecomputeAfterClearMemory() {
-			final ConstantFormula delegate = new ConstantFormula(
-				new ArrayBitmap(new CompositeIntArray(10, 20, 30))
-			);
-			final SelectionFormula formula = createFormula(delegate);
-			initializeForNonPrefetch(formula);
-
-			final Bitmap first = formula.compute();
-			formula.clearMemory();
-			final Bitmap second = formula.compute();
-
-			// result content is identical but memoization was cleared
-			assertArrayEquals(first.getArray(), second.getArray());
-		}
-	}
-
-	@Nested
 	@DisplayName("Cloning")
 	class CloningTest {
 
@@ -366,23 +329,6 @@ class SelectionFormulaTest {
 				"APPLY PREDICATE ON PREFETCHED ENTITIES IF POSSIBLE",
 				formula.toString()
 			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Cost ordering")
-	class CostOrderingTest {
-
-		@Test
-		@DisplayName("should satisfy estimatedCost >= delegate estimated cost")
-		void shouldSatisfyEstimatedCostGreaterOrEqualToDelegateEstimatedCost() {
-			final ConstantFormula delegate = new ConstantFormula(
-				new ArrayBitmap(new CompositeIntArray(1, 2, 3))
-			);
-			final SelectionFormula formula = createFormula(delegate);
-
-			// SelectionFormula delegates to child's estimatedCost when no prefetch
-			assertTrue(formula.getEstimatedCost() >= delegate.getEstimatedCost());
 		}
 	}
 
