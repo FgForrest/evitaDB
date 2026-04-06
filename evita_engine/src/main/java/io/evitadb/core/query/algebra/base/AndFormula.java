@@ -27,7 +27,6 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -138,12 +137,6 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		this.sortedFormulasByComplexity = null;
 	}
 
-	@Nonnull
-	@Override
-	protected long[] gatherBitmapIdsInternal() {
-		return sortAndDeduplicateLongArray(super.gatherBitmapIdsInternal());
-	}
-
 	@Override
 	protected long getEstimatedBaseCost() {
 		if (this.bitmaps == null) {
@@ -166,13 +159,16 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		if (this.bitmaps != null) {
 			long cost = 0L;
 			for (final Bitmap bitmap : this.bitmaps) {
-				if (bitmap == EmptyBitmap.INSTANCE) {
+				if (bitmap.isEmpty()) {
 					break;
 				}
 				cost += bitmap.size() * getOperationCost();
 			}
 			return cost;
 		} else {
+			if (this.sortedFormulasByComplexity == null) {
+				this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
+			}
 			return computeSortedConjunctionCost(this.sortedFormulasByComplexity, getOperationCost());
 		}
 	}
@@ -182,6 +178,9 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		if (this.bitmaps != null) {
 			return getCost() / Math.max(1, compute().size());
 		} else {
+			if (this.sortedFormulasByComplexity == null) {
+				this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
+			}
 			return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
 				+ getCost() / Math.max(1, compute().size());
 		}

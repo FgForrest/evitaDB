@@ -384,8 +384,9 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	@Nonnull
 	protected static RoaringBitmap[] computeSortedConjunctionBitmaps(@Nonnull List<Formula> sortedFormulas) {
-		final RoaringBitmap[] theBitmaps = new RoaringBitmap[sortedFormulas.size()];
-		for (int i = 0; i < sortedFormulas.size(); i++) {
+		final int size = sortedFormulas.size();
+		final RoaringBitmap[] theBitmaps = new RoaringBitmap[size];
+		for (int i = 0; i < size; i++) {
 			final Bitmap computedBitmap = sortedFormulas.get(i).compute();
 			if (computedBitmap.isEmpty()) {
 				return EMPTY_ROARING_BITMAP_ARRAY;
