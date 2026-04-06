@@ -129,7 +129,11 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 		for (final Bitmap bitmap : this.bitmaps) {
 			sum += bitmap.size();
 		}
-		return sum;
+		// multiply by operation cost: baseCost represents the full work on direct bitmap data
+		// (scanning all elements and applying the AND operation to each). Without this multiplier,
+		// the estimated cost would fall below actual cost because `getEstimatedCardinality()` returns
+		// `min` (output bound), which underestimates the total per-element work of `sum * opCost`.
+		return sum * getOperationCost();
 	}
 
 	@Override

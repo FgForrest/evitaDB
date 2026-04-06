@@ -26,6 +26,7 @@ package io.evitadb.core.query.algebra.price.priceIndex;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -162,8 +163,8 @@ class PriceListCombinationFormulaTest {
 				new int[]{1}, new int[]{1, 2, 3}
 			);
 
-			final ConstantFormula newSubtracted = createConstantFormula(2);
-			final ConstantFormula newSuperset = createConstantFormula(1, 2, 3, 4);
+			final Formula newSubtracted = createConstantFormula(2);
+			final Formula newSuperset = createConstantFormula(1, 2, 3, 4);
 			final Formula clone = original.getCloneWithInnerFormulas(newSubtracted, newSuperset);
 
 			assertInstanceOf(PriceListCombinationFormula.class, clone);
@@ -221,8 +222,8 @@ class PriceListCombinationFormulaTest {
 		@Test
 		@DisplayName("should have different hash than NotFormula with same children")
 		void shouldHaveDifferentHashThanNotFormulaWithSameChildren() {
-			final ConstantFormula subtracted = createConstantFormula(1, 2);
-			final ConstantFormula superset = createConstantFormula(1, 2, 3, 4);
+			final Formula subtracted = createConstantFormula(1, 2);
+			final Formula superset = createConstantFormula(1, 2, 3, 4);
 
 			final long notFormulaHash = new NotFormula(subtracted, superset).getHash();
 			final long priceListComboHash = new PriceListCombinationFormula(
@@ -234,13 +235,17 @@ class PriceListCombinationFormulaTest {
 	}
 
 	/**
-	 * Creates a {@link ConstantFormula} wrapping the given bitmap values.
+	 * Creates a {@link ConstantFormula} wrapping the given bitmap values, or {@link EmptyFormula#INSTANCE}
+	 * when the values array is empty (because {@code ConstantFormula} rejects empty bitmaps).
 	 *
 	 * @param values the bitmap values
-	 * @return new constant formula
+	 * @return new constant formula, or {@link EmptyFormula#INSTANCE} for empty input
 	 */
 	@Nonnull
-	private static ConstantFormula createConstantFormula(int... values) {
+	private static Formula createConstantFormula(int... values) {
+		if (values.length == 0) {
+			return EmptyFormula.INSTANCE;
+		}
 		return new ConstantFormula(new ArrayBitmap(new CompositeIntArray(values)));
 	}
 
