@@ -88,7 +88,11 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 		// estimate capacity: bitmap IDs + inner formula IDs
 		int bitmapIdCount;
 		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
-			bitmapIdCount = this.indexTransactionId == null ? 0 : this.indexTransactionId.length;
+			Assert.isPremiseValid(
+				this.indexTransactionId != null,
+				"High-cardinality bitmaps require a non-null indexTransactionId!"
+			);
+			bitmapIdCount = this.indexTransactionId.length;
 		} else {
 			bitmapIdCount = 0;
 			for (final Bitmap bitmap : this.bitmaps) {
@@ -104,15 +108,9 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 		final long[] result = new long[bitmapIdCount + innerIdCount];
 		int pos = 0;
 		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
-			Assert.isPremiseValid(
-				this.indexTransactionId != null,
-				"High-cardinality bitmaps require a non-null indexTransactionId!"
-			);
-		}
-		if (this.indexTransactionId != null && this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
 			System.arraycopy(this.indexTransactionId, 0, result, 0, this.indexTransactionId.length);
 			pos = this.indexTransactionId.length;
-		} else if (this.bitmaps.length <= EXCESSIVE_HIGH_CARDINALITY) {
+		} else {
 			for (final Bitmap bitmap : this.bitmaps) {
 				if (bitmap instanceof TransactionalLayerProducer) {
 					result[pos++] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();

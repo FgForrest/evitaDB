@@ -41,7 +41,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -291,7 +290,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 				? this.mainBitmap.iterator()
 				: this.innerFormulas[0].compute().iterator();
 			int number;
-			final AtomicInteger controlNumberRef = new AtomicInteger(END_OF_STREAM);
+			final int[] controlNumberRef = {END_OF_STREAM};
 			while ((number = computeNextInt(mainIt, controlIt, controlNumberRef)) != END_OF_STREAM) {
 				writer.add(number);
 			}
@@ -303,24 +302,24 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 		PRIVATE METHODS
 	 */
 
-	private static int computeNextInt(OfInt mainIt, OfInt controlIt, AtomicInteger controlNumberRef) {
+	private static int computeNextInt(OfInt mainIt, OfInt controlIt, int[] controlNumberRef) {
 		if (mainIt.hasNext()) {
 			do {
 				final int nextNumberAdept = mainIt.next();
-				if (!controlIt.hasNext() && controlNumberRef.get() == END_OF_STREAM) {
+				if (!controlIt.hasNext() && controlNumberRef[0] == END_OF_STREAM) {
 					return nextNumberAdept;
 				}
-				while (controlIt.hasNext() && (controlNumberRef.get() == END_OF_STREAM || controlNumberRef.get() < nextNumberAdept)) {
-					controlNumberRef.set(controlIt.next());
+				while (controlIt.hasNext() && (controlNumberRef[0] == END_OF_STREAM || controlNumberRef[0] < nextNumberAdept)) {
+					controlNumberRef[0] = controlIt.next();
 				}
 
-				if (nextNumberAdept == controlNumberRef.get()) {
+				if (nextNumberAdept == controlNumberRef[0]) {
 					// swallow in control list and repeat
 					if (mainIt.hasNext()) {
 						if (controlIt.hasNext()) {
-							controlNumberRef.set(controlIt.next());
+							controlNumberRef[0] = controlIt.next();
 						} else {
-							controlNumberRef.set(END_OF_STREAM);
+							controlNumberRef[0] = END_OF_STREAM;
 						}
 					} else {
 						return END_OF_STREAM;
