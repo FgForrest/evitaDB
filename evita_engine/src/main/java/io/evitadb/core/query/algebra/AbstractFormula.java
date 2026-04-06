@@ -51,6 +51,10 @@ import java.util.List;
  */
 public abstract class AbstractFormula implements Formula {
 	/**
+	 * Shared empty array returned by {@link #computeSortedConjunctionBitmaps(List)} on short-circuit.
+	 */
+	protected static final RoaringBitmap[] EMPTY_ROARING_BITMAP_ARRAY = new RoaringBitmap[0];
+	/**
 	 * Execution context from initialization phase.
 	 */
 	protected QueryExecutionContext executionContext;
@@ -113,10 +117,8 @@ public abstract class AbstractFormula implements Formula {
 		}
 		this.hash = HASH_FUNCTION.hashLongs(hashArray);
 
-		this.transactionalIds = gatherBitmapIdsInternal();
-		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
-			sortAndDeduplicateLongArray(this.transactionalIds)
-		);
+		this.transactionalIds = sortAndDeduplicateLongArray(gatherBitmapIdsInternal());
+		this.transactionalIdHash = HASH_FUNCTION.hashLongs(this.transactionalIds);
 		this.estimatedCost = getEstimatedCostInternal();
 	}
 
@@ -386,7 +388,7 @@ public abstract class AbstractFormula implements Formula {
 		for (int i = 0; i < sortedFormulas.size(); i++) {
 			final Bitmap computedBitmap = sortedFormulas.get(i).compute();
 			if (computedBitmap.isEmpty()) {
-				return new RoaringBitmap[0];
+				return EMPTY_ROARING_BITMAP_ARRAY;
 			}
 			theBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(computedBitmap);
 		}

@@ -105,7 +105,7 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 		if (this.indexTransactionId != null && this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
 			System.arraycopy(this.indexTransactionId, 0, result, 0, this.indexTransactionId.length);
 			pos = this.indexTransactionId.length;
-		} else {
+		} else if (this.bitmaps.length <= EXCESSIVE_HIGH_CARDINALITY) {
 			for (final Bitmap bitmap : this.bitmaps) {
 				if (bitmap instanceof TransactionalLayerProducer) {
 					result[pos++] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();
