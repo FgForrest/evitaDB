@@ -157,6 +157,8 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 	@Override
 	protected long getCostInternal() {
 		if (this.bitmaps != null) {
+			// bitmaps are iterated in array order — short-circuit on empty is a best-effort
+			// optimization; callers are expected to filter empties during construction
 			long cost = 0L;
 			for (final Bitmap bitmap : this.bitmaps) {
 				if (bitmap.isEmpty()) {

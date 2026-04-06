@@ -148,10 +148,10 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 			return super.getCostInternal();
 		}
 		long sum = 0L;
-		for (int i = 0; i < this.bitmaps.length; i++) {
-			sum += this.bitmaps[i].size();
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
 		}
-		return sum;
+		return sum * getOperationCost();
 	}
 
 	@Override

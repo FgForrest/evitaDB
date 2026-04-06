@@ -71,7 +71,7 @@ public abstract class AbstractCacheableFormula extends AbstractFormula implement
 		return new FlattenedFormula(
 			formulaHash,
 			getTransactionalIdHash(),
-			AbstractFormula.sortAndDeduplicateLongArray(gatherTransactionalIds()),
+			gatherTransactionalIds(),
 			compute()
 		);
 	}
