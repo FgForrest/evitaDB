@@ -27,6 +27,7 @@ import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.utils.Assert;
 import io.evitadb.index.bitmap.Bitmap;
 import net.openhft.hashing.LongHashFunction;
 
@@ -102,6 +103,12 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 		}
 		final long[] result = new long[bitmapIdCount + innerIdCount];
 		int pos = 0;
+		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
+			Assert.isPremiseValid(
+				this.indexTransactionId != null,
+				"High-cardinality bitmaps require a non-null indexTransactionId!"
+			);
+		}
 		if (this.indexTransactionId != null && this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
 			System.arraycopy(this.indexTransactionId, 0, result, 0, this.indexTransactionId.length);
 			pos = this.indexTransactionId.length;
