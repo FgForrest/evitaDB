@@ -281,17 +281,11 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	protected long getEstimatedBaseCost() {
-		if (this.bitmaps.length == 0) {
-			return 0L;
+		long sum = 0L;
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
 		}
-		long min = Long.MAX_VALUE;
-		for (Bitmap bitmap : this.bitmaps) {
-			final long size = bitmap.size();
-			if (size < min) {
-				min = size;
-			}
-		}
-		return min;
+		return sum;
 	}
 
 	@Override

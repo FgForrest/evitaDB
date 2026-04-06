@@ -125,17 +125,11 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 
 	@Override
 	protected long getEstimatedBaseCost() {
-		if (this.bitmaps.length == 0) {
-			return 0L;
-		}
-		long min = Long.MAX_VALUE;
+		long sum = 0L;
 		for (final Bitmap bitmap : this.bitmaps) {
-			final long size = bitmap.size();
-			if (size < min) {
-				min = size;
-			}
+			sum += bitmap.size();
 		}
-		return min;
+		return sum;
 	}
 
 	@Override
