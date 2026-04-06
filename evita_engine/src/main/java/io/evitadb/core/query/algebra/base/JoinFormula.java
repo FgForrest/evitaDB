@@ -299,23 +299,15 @@ public class JoinFormula extends AbstractFormula {
 		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
 			return hashFunction.hashLongs(this.indexTransactionId);
 		} else {
-			int count = 0;
-			for (Bitmap bitmap : this.bitmaps) {
-				if (bitmap != null) {
-					count++;
-				}
-			}
-			final long[] hashes = new long[count];
-			int idx = 0;
-			for (Bitmap bitmap : this.bitmaps) {
-				if (bitmap != null) {
-					if (bitmap instanceof TransactionalLayerProducer) {
-						hashes[idx++] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();
-					} else {
-						// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-						// bitmaps located in indexes and represented by "transactional id"
-						hashes[idx++] = hashFunction.hashInts(bitmap.getArray());
-					}
+			final long[] hashes = new long[this.bitmaps.length];
+			for (int i = 0; i < this.bitmaps.length; i++) {
+				final Bitmap bitmap = this.bitmaps[i];
+				if (bitmap instanceof TransactionalLayerProducer) {
+					hashes[i] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();
+				} else {
+					// this shouldn't happen for long arrays - these are expected to be always linked to transactional
+					// bitmaps located in indexes and represented by "transactional id"
+					hashes[i] = hashFunction.hashInts(bitmap.getArray());
 				}
 			}
 			return hashFunction.hashLongs(hashes);
@@ -329,7 +321,7 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	protected long getCostInternal() {
-		if (this.bitmaps != null) {
+		if (this.bitmaps.length > 0) {
 			long sum = 0L;
 			for (Bitmap bitmap : this.bitmaps) {
 				sum += bitmap.size();

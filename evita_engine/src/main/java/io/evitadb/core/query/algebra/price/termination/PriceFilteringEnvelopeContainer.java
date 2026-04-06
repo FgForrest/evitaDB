@@ -137,23 +137,6 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 		);
 	}
 
-	@Nonnull
-	@Override
-	public long[] gatherBitmapIdsInternal() {
-		int totalLength = 0;
-		for (int i = 0; i < this.innerFormulas.length; i++) {
-			totalLength += this.innerFormulas[i].gatherTransactionalIds().length;
-		}
-		final long[] result = new long[totalLength];
-		int offset = 0;
-		for (int i = 0; i < this.innerFormulas.length; i++) {
-			final long[] ids = this.innerFormulas[i].gatherTransactionalIds();
-			System.arraycopy(ids, 0, result, offset, ids.length);
-			offset += ids.length;
-		}
-		return result;
-	}
-
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return 0L;

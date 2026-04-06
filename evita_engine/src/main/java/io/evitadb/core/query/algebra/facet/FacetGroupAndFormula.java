@@ -125,43 +125,26 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 
 	@Override
 	protected long getEstimatedBaseCost() {
-		if (this.bitmaps != null) {
-			long sum = 0L;
-			for (Bitmap bitmap : this.bitmaps) {
-				sum += bitmap.size();
-			}
-			return sum;
+		long sum = 0L;
+		for (Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
 		}
-		return super.getEstimatedBaseCost();
+		return sum;
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		if (this.bitmaps == null) {
-			if (this.innerFormulas.length == 0) {
-				return 0;
-			}
-			int min = Integer.MAX_VALUE;
-			for (Formula innerFormula : this.innerFormulas) {
-				final int cardinality = innerFormula.getEstimatedCardinality();
-				if (cardinality < min) {
-					min = cardinality;
-				}
-			}
-			return min;
-		} else {
-			if (this.bitmaps.length == 0) {
-				return 0;
-			}
-			int min = Integer.MAX_VALUE;
-			for (Bitmap bitmap : this.bitmaps) {
-				final int size = bitmap.size();
-				if (size < min) {
-					min = size;
-				}
-			}
-			return min;
+		if (this.bitmaps.length == 0) {
+			return 0;
 		}
+		int min = Integer.MAX_VALUE;
+		for (Bitmap bitmap : this.bitmaps) {
+			final int size = bitmap.size();
+			if (size < min) {
+				min = size;
+			}
+		}
+		return min;
 	}
 
 	@Override
