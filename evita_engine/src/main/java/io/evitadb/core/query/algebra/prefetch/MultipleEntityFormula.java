@@ -46,8 +46,17 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class MultipleEntityFormula extends AbstractFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 7381005856920907843L;
+	/**
+	 * Contains the bitmap of virtual entity primary keys that were translated from entity references.
+	 */
 	@Getter private final Bitmap directEntityReferences;
+	/**
+	 * Contains the transactional ids of the bitmaps that contributed to this formula for cache invalidation.
+	 */
 	private final long[] transactionalIds;
 
 	public MultipleEntityFormula(@Nonnull long[] transactionalIds, @Nonnull Bitmap directEntityReferences) {

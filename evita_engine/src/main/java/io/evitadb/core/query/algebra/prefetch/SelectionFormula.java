@@ -67,6 +67,9 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class SelectionFormula extends AbstractFormula implements ChildrenDependentFormula, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, RequirementsDefiner {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 3311110127363103780L;
 	/**
 	 * Contains the alternative computation based on entity contents filtering.
