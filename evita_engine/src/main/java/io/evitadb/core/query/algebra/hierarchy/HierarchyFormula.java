@@ -46,7 +46,13 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -7910610363796304904L;
+	/**
+	 * Error message thrown when the formula does not contain exactly one inner formula.
+	 */
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 
 	public HierarchyFormula(@Nonnull Formula innerFormula) {

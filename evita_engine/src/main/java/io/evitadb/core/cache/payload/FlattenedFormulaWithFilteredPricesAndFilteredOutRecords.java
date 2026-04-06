@@ -54,6 +54,9 @@ import java.math.BigDecimal;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecords extends FlattenedFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula, Formula {
+	/**
+	 * Serial version UID for serialization compatibility.
+	 */
 	@Serial private static final long serialVersionUID = -6052882250380556441L;
 	/**
 	 * Contains information about price records leading to a computed result.

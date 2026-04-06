@@ -39,9 +39,21 @@ import java.util.function.BiFunction;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class FormulaWrapper implements BitmapSupplier {
+	/**
+	 * The delegate formula whose computation is wrapped by this supplier.
+	 */
 	private final Formula formula;
+	/**
+	 * Lambda invoked on the first call to {@link #get()} to compute and memoize the bitmap result.
+	 */
 	private final BiFunction<QueryExecutionContext, Formula, Bitmap> firstInvocation;
+	/**
+	 * Execution context from initialization phase.
+	 */
 	private QueryExecutionContext executionContext;
+	/**
+	 * Memoized bitmap result computed by {@link #firstInvocation}, `null` until first access.
+	 */
 	private Bitmap computed;
 
 	public FormulaWrapper(

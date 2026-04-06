@@ -46,14 +46,23 @@ import java.util.Comparator;
 import java.util.Random;
 
 /**
- * No extra information provided - see (selfexplanatory) method signatures.
- * I have the best intention to write more detailed documentation but if you see this, there was not enough time or will to do so.
+ * JMH benchmark state providing histogram bucket data and attribute filter indices for histogram
+ * benchmarks ({@link io.evitadb.spike.FormulaCostMeasurement#histogramBitmapSupplier},
+ * {@link io.evitadb.spike.FormulaCostMeasurement#attributeHistogramComputer}).
+ *
+ * Generates {@link #BUCKET_COUNT} value-to-record buckets with ~{@link #VALUE_COUNT}/{@link #BUCKET_COUNT}
+ * records each (monotonically increasing record IDs with small random gaps). For the attribute
+ * histogram benchmark, 5 {@link FilterIndex} instances are created with the same bucket structure
+ * but 1/5th of the value count each. A separate entity ID bitmap of {@link #VALUE_COUNT} entries
+ * serves as the filtering baseline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @State(Scope.Benchmark)
 public class BucketsRecordState {
+	/** Number of histogram buckets (value-to-record mappings). */
 	private static final int BUCKET_COUNT = 2000;
+	/** Total number of records across all buckets. */
 	private static final int VALUE_COUNT = 100_000;
 	private static final Random random = new Random(42);
 	@Getter private ValueToRecordBitmap[] buckets;
@@ -62,7 +71,8 @@ public class BucketsRecordState {
 	@Getter private Formula formula;
 
 	/**
-	 * This setup is called once for each `valueCount`.
+	 * Generates histogram buckets, filter indices, entity ID bitmap, and wraps IDs in
+	 * a {@link ConstantFormula}.
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {

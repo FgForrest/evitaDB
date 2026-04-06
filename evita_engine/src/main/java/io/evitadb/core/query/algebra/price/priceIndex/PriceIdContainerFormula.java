@@ -49,6 +49,9 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PriceIdContainerFormula extends AbstractFormula implements PriceIndexProvidingFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -1448590239158197683L;
 
 	/**
