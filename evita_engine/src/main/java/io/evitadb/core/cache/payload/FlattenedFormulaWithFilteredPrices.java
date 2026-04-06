@@ -45,7 +45,13 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class FlattenedFormulaWithFilteredPrices extends FlattenedFormula implements FilteredPriceRecordAccessor, Formula {
+	/**
+	 * Estimated in-memory size of a single price record used for memory consumption calculations.
+	 */
 	public static final int PRICE_RECORD_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BYTE_SIZE * 2;
+	/**
+	 * Serial version UID for serialization compatibility.
+	 */
 	@Serial private static final long serialVersionUID = 29711505428272096L;
 	/**
 	 * Contains information about price records leading to a computed result.

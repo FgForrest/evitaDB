@@ -43,9 +43,6 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-import java.util.stream.Stream;
 
 /**
  * Formula container that behaves exactly as {@link OrFormula}, but carries information about price lists, currency and
@@ -55,10 +52,25 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -1722354238488401487L;
+	/**
+	 * Array of price list names used as filter criteria for the enclosed price formulas.
+	 */
 	@Nullable @Getter private final String[] priceLists;
+	/**
+	 * Currency used as filter criteria for the enclosed price formulas.
+	 */
 	@Nullable @Getter private final Currency currency;
+	/**
+	 * Date and time used to filter prices by their validity period.
+	 */
 	@Nullable @Getter private final OffsetDateTime validIn;
+	/**
+	 * Callback operator invoked when the formula computation result is available for caching.
+	 */
 	@Nullable Consumer<CacheableFormula> selfOperator;
 
 	public PriceFilteringEnvelopeContainer(
@@ -101,7 +113,11 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		int sum = 0;
+		for (int i = 0; i < this.innerFormulas.length; i++) {
+			sum += this.innerFormulas[i].getEstimatedCardinality();
+		}
+		return sum;
 	}
 
 	@Override
@@ -124,9 +140,18 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		return Arrays.stream(this.innerFormulas)
-			.flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
-			.toArray();
+		int totalLength = 0;
+		for (int i = 0; i < this.innerFormulas.length; i++) {
+			totalLength += this.innerFormulas[i].gatherTransactionalIds().length;
+		}
+		final long[] result = new long[totalLength];
+		int offset = 0;
+		for (int i = 0; i < this.innerFormulas.length; i++) {
+			final long[] ids = this.innerFormulas[i].gatherTransactionalIds();
+			System.arraycopy(ids, 0, result, offset, ids.length);
+			offset += ids.length;
+		}
+		return result;
 	}
 
 	@Override
@@ -157,14 +182,10 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	@Override
 	public String toString() {
 		return "PRICE FILTER CONTAINER - OR (" +
-			Stream.of(
-					(this.priceLists == null ? "" : Arrays.toString(this.priceLists)) +
-						(this.currency == null ? "" : this.currency.getCurrencyCode()) +
-						(this.validIn == null ? "" : this.validIn)
-				)
-				.filter(it -> !it.isEmpty())
-				.collect(Collectors.joining(", "))
-			+ ")";
+			(this.priceLists == null ? "" : Arrays.toString(this.priceLists)) +
+			(this.currency == null ? "" : this.currency.getCurrencyCode()) +
+			(this.validIn == null ? "" : this.validIn) +
+			")";
 	}
 
 	/*
@@ -173,10 +194,12 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 
 	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
-		return Arrays.stream(getInnerFormulas())
-			.map(Formula::compute)
-			.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-			.toArray(RoaringBitmap[]::new);
+		final Formula[] formulas = getInnerFormulas();
+		final RoaringBitmap[] bitmaps = new RoaringBitmap[formulas.length];
+		for (int i = 0; i < formulas.length; i++) {
+			bitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(formulas[i].compute());
+		}
+		return bitmaps;
 	}
 
 }
