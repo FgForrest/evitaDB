@@ -124,7 +124,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 
 	@Nonnull
 	@Override
-	public long[] gatherBitmapIdsInternal() {
+	protected long[] gatherBitmapIdsInternal() {
 		int bitmapIdCount = 0;
 		if (this.mainBitmap instanceof TransactionalLayerProducer) {
 			bitmapIdCount++;

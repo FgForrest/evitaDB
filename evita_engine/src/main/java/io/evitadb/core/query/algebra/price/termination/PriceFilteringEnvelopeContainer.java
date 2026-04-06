@@ -53,7 +53,7 @@ import java.util.function.Consumer;
  */
 public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	/**
-	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
 	 */
 	private static final long CLASS_ID = -1722354238488401487L;
 	/**

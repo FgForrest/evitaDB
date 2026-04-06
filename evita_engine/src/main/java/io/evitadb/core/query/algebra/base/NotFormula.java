@@ -151,7 +151,7 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Nonnull
 	@Override
-	public long[] gatherBitmapIdsInternal() {
+	protected long[] gatherBitmapIdsInternal() {
 		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
 			int idx = 0;
 			final long[] ids = new long[2];
@@ -168,7 +168,7 @@ public class NotFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
-	public long getEstimatedCostInternal() {
+	protected long getEstimatedCostInternal() {
 		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
 			try {
 				long costs = this.subtractedBitmap.size();

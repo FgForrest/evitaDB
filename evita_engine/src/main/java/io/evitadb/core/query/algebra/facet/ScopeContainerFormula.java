@@ -108,7 +108,7 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 
 	@Nonnull
 	@Override
-	public long[] gatherBitmapIdsInternal() {
+	protected long[] gatherBitmapIdsInternal() {
 		return sortAndDeduplicateLongArray(super.gatherBitmapIdsInternal());
 	}
 
