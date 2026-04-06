@@ -26,8 +26,6 @@ package io.evitadb.core.query.algebra.base;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -37,8 +35,6 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -104,17 +100,7 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 	@Override
 	public int getEstimatedCardinality() {
 		if (this.bitmaps == null) {
-			if (this.innerFormulas.length == 0) {
-				return 0;
-			}
-			int min = this.innerFormulas[0].getEstimatedCardinality();
-			for (int i = 1; i < this.innerFormulas.length; i++) {
-				final int cardinality = this.innerFormulas[i].getEstimatedCardinality();
-				if (cardinality < min) {
-					min = cardinality;
-				}
-			}
-			return min;
+			return getMinEstimatedCardinality(this.innerFormulas);
 		} else {
 			if (this.bitmaps.length == 0) {
 				return 0;
@@ -150,16 +136,7 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 	@Override
 	protected long[] gatherBitmapIdsInternal() {
 		if (this.bitmaps == null) {
-			// collect all transactional IDs from inner formulas, then deduplicate
-			final long[] collected = super.gatherBitmapIdsInternal();
-			Arrays.sort(collected);
-			int unique = 0;
-			for (int i = 0; i < collected.length; i++) {
-				if (i == 0 || collected[i] != collected[i - 1]) {
-					collected[unique++] = collected[i];
-				}
-			}
-			return unique == collected.length ? collected : Arrays.copyOf(collected, unique);
+			return sortAndDeduplicateLongArray(super.gatherBitmapIdsInternal());
 		}
 		return super.gatherBitmapIdsInternal();
 	}
@@ -199,15 +176,7 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 			}
 			return cost;
 		} else {
-			long cost = 0L;
-			for (final Formula innerFormula : this.sortedFormulasByComplexity) {
-				final Bitmap innerResult = innerFormula.compute();
-				cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
-				if (innerResult == EmptyBitmap.INSTANCE) {
-					break;
-				}
-			}
-			return cost;
+			return computeSortedConjunctionCost(this.sortedFormulasByComplexity, getOperationCost());
 		}
 	}
 
@@ -216,40 +185,15 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		if (this.bitmaps != null) {
 			return getCost() / Math.max(1, compute().size());
 		} else {
-			long costToPerformance = 0L;
-			for (final Formula innerFormula : this.sortedFormulasByComplexity) {
-				final Bitmap innerResult = innerFormula.compute();
-				if (innerResult == EmptyBitmap.INSTANCE) {
-					break;
-				}
-				costToPerformance += innerFormula.getCostToPerformanceRatio();
-			}
-			return costToPerformance + getCost() / Math.max(1, compute().size());
+			return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
+				+ getCost() / Math.max(1, compute().size());
 		}
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final Bitmap theResult;
-		final RoaringBitmap[] theBitmaps = getRoaringBitmaps();
-		boolean hasEmpty = theBitmaps.length == 0;
-		if (!hasEmpty) {
-			for (final RoaringBitmap theBitmap : theBitmaps) {
-				if (theBitmap.isEmpty()) {
-					hasEmpty = true;
-					break;
-				}
-			}
-		}
-		if (hasEmpty) {
-			theResult = EmptyBitmap.INSTANCE;
-		} else if (theBitmaps.length == 1) {
-			theResult = new BaseBitmap(theBitmaps[0]);
-		} else {
-			theResult = RoaringBitmapBackedBitmap.and(theBitmaps);
-		}
-		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
+		return computeConjunctionResult(getRoaringBitmaps());
 	}
 
 	@Override
@@ -283,25 +227,9 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 			return result;
 		} else {
 			if (this.sortedFormulasByComplexity == null) {
-				final Formula[] formulas = getInnerFormulas();
-				final Formula[] sorted = new Formula[formulas.length];
-				System.arraycopy(formulas, 0, sorted, 0, formulas.length);
-				Arrays.sort(sorted, Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost));
-				this.sortedFormulasByComplexity = List.of(sorted);
+				this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 			}
-			final RoaringBitmap[] theBitmaps = new RoaringBitmap[this.sortedFormulasByComplexity.size()];
-			// go from the cheapest formula to the more expensive and compute one by one
-			for (int i = 0; i < this.sortedFormulasByComplexity.size(); i++) {
-				final Formula formula = this.sortedFormulasByComplexity.get(i);
-				final Bitmap computedBitmap = formula.compute();
-				// if you encounter formula that returns nothing immediately return nothing - hence AND
-				if (computedBitmap.isEmpty()) {
-					return new RoaringBitmap[0];
-				} else {
-					theBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(computedBitmap);
-				}
-			}
-			return theBitmaps;
+			return computeSortedConjunctionBitmaps(this.sortedFormulasByComplexity);
 		}
 	}
 

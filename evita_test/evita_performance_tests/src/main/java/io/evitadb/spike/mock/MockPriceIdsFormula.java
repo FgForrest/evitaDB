@@ -39,7 +39,13 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class MockPriceIdsFormula extends PriceIdContainerFormula {
+	/**
+	 * Pre-built bitmap of price record IDs returned directly by {@link #computeInternal()}.
+	 */
 	private final Bitmap priceIds;
+	/**
+	 * Mock price index wrapping pre-generated price records, returned by {@link #getPriceIndex()}.
+	 */
 	private final PriceListAndCurrencyPriceIndex priceList;
 
 	public MockPriceIdsFormula(PriceListAndCurrencyPriceIndex priceIndex, Bitmap priceIds, PriceRecordContract[] priceRecords) {
