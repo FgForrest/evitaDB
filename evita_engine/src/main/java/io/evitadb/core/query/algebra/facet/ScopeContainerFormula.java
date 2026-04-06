@@ -80,6 +80,12 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
+	public void clearMemory() {
+		super.clearMemory();
+		this.sortedFormulasByComplexity = null;
+	}
+
+	@Override
 	public int getEstimatedCardinality() {
 		return getMinEstimatedCardinality(this.innerFormulas);
 	}

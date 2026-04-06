@@ -132,13 +132,16 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 		);
 	}
 
+	@Override
+	public void clearMemory() {
+		super.clearMemory();
+		this.sortedFormulasByComplexity = null;
+	}
+
 	@Nonnull
 	@Override
 	protected long[] gatherBitmapIdsInternal() {
-		if (this.bitmaps == null) {
-			return sortAndDeduplicateLongArray(super.gatherBitmapIdsInternal());
-		}
-		return super.gatherBitmapIdsInternal();
+		return sortAndDeduplicateLongArray(super.gatherBitmapIdsInternal());
 	}
 
 	@Override

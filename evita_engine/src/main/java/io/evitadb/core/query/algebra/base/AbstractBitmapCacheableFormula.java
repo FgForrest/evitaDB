@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.base;
 
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.Bitmap;
 import net.openhft.hashing.LongHashFunction;
@@ -96,7 +97,7 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 			}
 		}
 		int innerIdCount = 0;
-		for (final io.evitadb.core.query.algebra.Formula formula : this.innerFormulas) {
+		for (final Formula formula : this.innerFormulas) {
 			innerIdCount += formula.gatherTransactionalIds().length;
 		}
 		final long[] result = new long[bitmapIdCount + innerIdCount];
@@ -111,7 +112,7 @@ public abstract class AbstractBitmapCacheableFormula extends AbstractCacheableFo
 				}
 			}
 		}
-		for (final io.evitadb.core.query.algebra.Formula innerFormula : this.innerFormulas) {
+		for (final Formula innerFormula : this.innerFormulas) {
 			final long[] ids = innerFormula.gatherTransactionalIds();
 			System.arraycopy(ids, 0, result, pos, ids.length);
 			pos += ids.length;

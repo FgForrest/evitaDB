@@ -187,13 +187,10 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 
 	@Override
 	protected long getCostInternal() {
-		if (this.bitmaps != null) {
-			long sum = 0L;
-			for (Bitmap bitmap : this.bitmaps) {
-				sum += bitmap.size();
-			}
-			return sum;
+		long sum = 0L;
+		for (Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
 		}
-		return super.getCostInternal();
+		return sum;
 	}
 }

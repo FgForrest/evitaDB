@@ -231,15 +231,15 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	@Nonnull
 	protected long[] gatherBitmapIdsInternal() {
-		// pre-compute total length to avoid resizing
+		final long[][] allIds = new long[this.innerFormulas.length][];
 		int totalLength = 0;
-		for (final Formula formula : this.innerFormulas) {
-			totalLength += formula.gatherTransactionalIds().length;
+		for (int i = 0; i < this.innerFormulas.length; i++) {
+			allIds[i] = this.innerFormulas[i].gatherTransactionalIds();
+			totalLength += allIds[i].length;
 		}
 		final long[] result = new long[totalLength];
 		int offset = 0;
-		for (final Formula innerFormula : this.innerFormulas) {
-			final long[] ids = innerFormula.gatherTransactionalIds();
+		for (final long[] ids : allIds) {
 			System.arraycopy(ids, 0, result, offset, ids.length);
 			offset += ids.length;
 		}
@@ -261,7 +261,10 @@ public abstract class AbstractFormula implements Formula {
 			for (Formula innerFormula : this.innerFormulas) {
 				costs = Math.addExact(costs, innerFormula.getEstimatedCost());
 			}
-			return getEstimatedBaseCost() + getOperationCost() * getEstimatedCardinality() + costs;
+			return Math.addExact(
+				Math.addExact(getEstimatedBaseCost(), Math.multiplyExact(getOperationCost(), getEstimatedCardinality())),
+				costs
+			);
 		} catch (ArithmeticException ex) {
 			return Long.MAX_VALUE;
 		}
@@ -428,7 +431,7 @@ public abstract class AbstractFormula implements Formula {
 		for (final Formula innerFormula : sortedFormulas) {
 			final Bitmap innerResult = innerFormula.compute();
 			cost += innerFormula.getCost() + innerResult.size() * operationCost;
-			if (innerResult == EmptyBitmap.INSTANCE) {
+			if (innerResult.isEmpty()) {
 				break;
 			}
 		}
@@ -447,7 +450,7 @@ public abstract class AbstractFormula implements Formula {
 		long costToPerformance = 0L;
 		for (final Formula innerFormula : sortedFormulas) {
 			final Bitmap innerResult = innerFormula.compute();
-			if (innerResult == EmptyBitmap.INSTANCE) {
+			if (innerResult.isEmpty()) {
 				break;
 			}
 			costToPerformance += innerFormula.getCostToPerformanceRatio();

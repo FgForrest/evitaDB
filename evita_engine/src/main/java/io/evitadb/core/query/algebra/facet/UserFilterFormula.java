@@ -60,6 +60,12 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 		this.initFields(innerFormulas);
 	}
 
+	@Override
+	public void clearMemory() {
+		super.clearMemory();
+		this.sortedFormulasByComplexity = null;
+	}
+
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
