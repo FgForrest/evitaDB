@@ -178,16 +178,6 @@ public final class ReferenceSchemaBuilder
 			.forEach(this.mutations::add);
 	}
 
-	public ReferenceSchemaBuilder(
-		@Nonnull CatalogSchemaContract catalogSchema,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract existingSchema
-	) {
-		this.catalogSchema = catalogSchema;
-		this.entitySchema = entitySchema;
-		this.baseSchema = existingSchema;
-	}
-
 	@Override
 	@Nonnull
 	public ReferenceSchemaBuilder withDescription(@Nullable String description) {
