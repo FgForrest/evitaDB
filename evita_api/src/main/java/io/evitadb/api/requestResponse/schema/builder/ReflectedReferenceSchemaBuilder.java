@@ -93,10 +93,14 @@ public final class ReflectedReferenceSchemaBuilder
 	) {
 		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
-		this.baseSchema = existingSchema == null ?
-			ReflectedReferenceSchema._internalBuild(name, entityType, reflectedReferenceName) :
-			(ReflectedReferenceSchema) existingSchema;
 		if (createNew) {
+			// caller promises there is no reflected reference persisted under `name` yet, so the
+			// base is either the caller-supplied hint (e.g. a standard reference being replaced)
+			// or a freshly built placeholder that the CreateReflectedReferenceSchemaMutation below
+			// will hydrate during replay.
+			this.baseSchema = existingSchema == null ?
+				ReflectedReferenceSchema._internalBuild(name, entityType, reflectedReferenceName) :
+				(ReflectedReferenceSchema) existingSchema;
 			this.mutations.add(
 				new CreateReflectedReferenceSchemaMutation(
 					this.baseSchema.getName(),
@@ -118,6 +122,21 @@ public final class ReflectedReferenceSchemaBuilder
 					this.baseSchema.getAttributeInheritanceFilter()
 				)
 			);
+		} else {
+			// baseSchema MUST be the raw persisted reflected reference, never the caller-supplied
+			// `existingSchema`. The caller builds `existingSchema` from `toInstance()`, so it
+			// already reflects every pending entity-level mutation targeting this reference —
+			// the very same mutations that are copied into `this.mutations` below. Starting the
+			// replay from an already-mutated base would re-apply those mutations on top of
+			// themselves (e.g. a bare CreateAttributeSchemaMutation clashing with the same
+			// attribute already enriched by a follow-up ModifyAttributeSchemaDescriptionMutation).
+			// The caller's `createNew == false` guarantees the persisted lookup is present and
+			// is a reflected reference (the caller computes `createNew` from that very check).
+			this.baseSchema = (ReflectedReferenceSchema) entitySchema.getReference(name)
+				.orElseThrow(() -> new GenericEvitaInternalError(
+					"Reflected reference `" + name + "` is expected to exist in the persisted entity" +
+						" schema when the builder is constructed with createNew=false, but was not found."
+				));
 		}
 		mutations.stream()
 			.filter(
