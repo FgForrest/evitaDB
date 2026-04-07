@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
-import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -32,7 +31,6 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -104,14 +102,18 @@ public final class ReferenceSchemaBuilder
 	) {
 		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
-		this.baseSchema = existingSchema == null ?
-			ReferenceSchema._internalBuild(
-				name, entityType, referencedEntityTypeManaged, cardinality,
-				null, false,
-				ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
-			) :
-			existingSchema;
 		if (createNew) {
+			// caller promises there is no standard reference persisted under `name` yet, so the
+			// base is either the caller-supplied hint (e.g. a reflected reference being replaced)
+			// or a freshly built placeholder that the CreateReferenceSchemaMutation below will
+			// hydrate during replay.
+			this.baseSchema = existingSchema == null ?
+				ReferenceSchema._internalBuild(
+					name, entityType, referencedEntityTypeManaged, cardinality,
+					null, false,
+					ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
+				) :
+				existingSchema;
 			this.mutations.add(
 				new CreateReferenceSchemaMutation(
 					this.baseSchema.getName(),
@@ -135,6 +137,19 @@ public final class ReferenceSchemaBuilder
 				existingSchema != null,
 				"When not creating new reference schema, the existing schema must be provided!"
 			);
+			// baseSchema MUST be the raw persisted reference, never the caller-supplied
+			// `existingSchema`. The caller builds `existingSchema` from `toInstance()`, so it
+			// already reflects every pending entity-level mutation targeting this reference —
+			// the very same mutations that are copied into `this.mutations` below. Starting the
+			// replay from an already-mutated base would re-apply those mutations on top of
+			// themselves (e.g. a bare CreateAttributeSchemaMutation clashing with the same
+			// attribute already enriched by a follow-up ModifyAttributeSchemaDescriptionMutation).
+			// The caller's `createNew == false` guarantees the persisted lookup is present.
+			this.baseSchema = entitySchema.getReference(name)
+				.orElseThrow(() -> new GenericEvitaInternalError(
+					"Reference `" + name + "` is expected to exist in the persisted entity schema" +
+						" when the builder is constructed with createNew=false, but was not found."
+				));
 			if (referencedEntityTypeManaged != existingSchema.isReferencedEntityTypeManaged() || !entityType.equals(existingSchema.getReferencedEntityType())) {
 				this.mutations.add(
 					new ModifyReferenceSchemaRelatedEntityMutation(

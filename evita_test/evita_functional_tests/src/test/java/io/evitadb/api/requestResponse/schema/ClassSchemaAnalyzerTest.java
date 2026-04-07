@@ -120,7 +120,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
 		}
-		assertEquals(expectedType, attributeSchema.getType());
+		assertSame(expectedType, attributeSchema.getType());
 		if (global) {
 			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
 		}
@@ -188,7 +188,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, associatedData.getDeprecationNotice());
 		}
-		assertEquals(
+		assertSame(
 			expectedType, associatedData.getType(),
 			"Associated data `" + associatedDataName + "` is expected to be `" + expectedType + "`, but is `" + associatedData.getType() + "`."
 		);
@@ -537,7 +537,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
 		}
-		assertEquals(expectedType, attributeSchema.getType());
+		assertSame(expectedType, attributeSchema.getType());
 		if (global) {
 			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
 		}
@@ -3274,10 +3274,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				).orElseThrow();
 
 				final AttributeSchemaContract priorityAttr = schema.getAttribute("priority").orElseThrow();
-				assertEquals(
-					String.class, priorityAttr.getType(),
-					"Enum attribute should be converted to String type"
-				);
+				assertSame(String.class, priorityAttr.getType(), "Enum attribute should be converted to String type");
 			}
 		);
 	}
@@ -3311,6 +3308,61 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Expected CreateAttributeSchemaMutation for brandNote attribute"
 				);
 				assertEquals("brandNote", mutation.get().getName());
+			}
+		);
+	}
+
+	@DisplayName("@Reference + @ReferenceRef on the same reference must not corrupt attribute schema")
+	@Test
+	void shouldDefineReferenceWithDescriptionWhenAlsoMappedViaReferenceRef() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// V1 persists the entity with the reference but no attributes on the reference DTO
+				// so that the "update round" (V2) is the one that actually creates the attribute.
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReferenceAndReferenceRef.MarketingBrand.class
+				);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReferenceAndReferenceRefV1.class
+				);
+
+				// V2 adds the `market` attribute via two getters pointing at the same reference:
+				// - mandatory `getMarketingBrand()`           with `@Reference` (carries description)
+				// - optional  `getMarketingBrandIfExists()`   with `@ReferenceRef("marketingBrand")`
+				// The first analyzer pass (`@Reference`) creates the attribute with a follow-up
+				// `ModifyAttributeSchemaDescriptionMutation`; the second pass (`@ReferenceRef`)
+				// re-scans the reference DTO and must reuse the already-created attribute schema
+				// instead of re-creating it with a conflicting `CreateAttributeSchemaMutation`.
+				analyzeAndCaptureMutations(session, GetterBasedEntityWithReferenceAndReferenceRef.class);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					GetterBasedEntityWithReferenceAndReferenceRef.ENTITY_NAME
+				).orElseThrow();
+
+				final ReferenceSchemaContract reference = entitySchema
+					.getReference(GetterBasedEntityWithReferenceAndReferenceRef.REFERENCE_NAME)
+					.orElseThrow();
+
+				assertEquals(
+					GetterBasedEntityWithReferenceAndReferenceRef.REFERENCE_DESCRIPTION,
+					reference.getDescription(),
+					"Reference description from @Reference annotation must be preserved."
+				);
+
+				final AttributeSchemaContract attribute = reference
+					.getAttribute(GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_NAME)
+					.orElseThrow();
+
+				assertEquals(
+					GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_DESCRIPTION,
+					attribute.getDescription(),
+					"Attribute description from the reference DTO must be preserved."
+				);
+				assertSame(
+					String.class, attribute.getType(),
+					"Attribute type must remain String after the second analyzer pass."
+				);
 			}
 		);
 	}
@@ -3441,10 +3493,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final AttributeSchemaContract tagsAttribute = entitySchema
 					.getAttribute("tags")
 					.orElseThrow();
-				assertEquals(
-					String[].class, tagsAttribute.getType(),
-					"List<String> field should be resolved to String[]"
-				);
+				assertSame(
+					String[].class, tagsAttribute.getType(), "List<String> field should be resolved to String[]");
 			}
 		);
 	}
@@ -3475,9 +3525,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final AttributeSchemaContract tagsAttribute = entitySchema
 					.getAttribute("tags")
 					.orElseThrow();
-				assertEquals(
-					String[].class, tagsAttribute.getType(),
-					"List<String> record component should be " +
+				assertSame(
+					String[].class, tagsAttribute.getType(), "List<String> record component should be " +
 						"resolved to String[]"
 				);
 			}
