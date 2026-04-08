@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
@@ -120,7 +121,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
 		}
-		assertEquals(expectedType, attributeSchema.getType());
+		assertSame(expectedType, attributeSchema.getType());
 		if (global) {
 			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
 		}
@@ -188,7 +189,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, associatedData.getDeprecationNotice());
 		}
-		assertEquals(
+		assertSame(
 			expectedType, associatedData.getType(),
 			"Associated data `" + associatedDataName + "` is expected to be `" + expectedType + "`, but is `" + associatedData.getType() + "`."
 		);
@@ -537,7 +538,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		} else {
 			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
 		}
-		assertEquals(expectedType, attributeSchema.getType());
+		assertSame(expectedType, attributeSchema.getType());
 		if (global) {
 			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
 		}
@@ -641,15 +642,18 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Finds a specific mutation type within entity schema mutations.
+	 * Streams every mutation of the requested type found at any nesting level inside the captured
+	 * catalog mutation array. Walks top-level mutations, the entity-level children of
+	 * `ModifyEntitySchemaMutation`, and the attribute-level mutations wrapped inside
+	 * `ModifyReferenceAttributeSchemaMutation`.
 	 *
 	 * @param mutations    the array of catalog mutations to search
 	 * @param mutationType the expected mutation class
 	 * @param <T>          the mutation type
-	 * @return optional containing the found mutation, or empty if not found
+	 * @return stream of all matching mutations in iteration order
 	 */
 	@Nonnull
-	private static <T extends EntitySchemaMutation> Optional<T> findEntitySchemaMutation(
+	private static <T extends EntitySchemaMutation> Stream<T> streamEntitySchemaMutations(
 		@Nonnull LocalCatalogSchemaMutation[] mutations,
 		@Nonnull Class<T> mutationType
 	) {
@@ -666,11 +670,27 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					.filter(ModifyReferenceAttributeSchemaMutation.class::isInstance)
 					.map(ModifyReferenceAttributeSchemaMutation.class::cast)
 					.map(ModifyReferenceAttributeSchemaMutation::getAttributeSchemaMutation)
-				)
+			)
 			.flatMap(Function.identity())
 			.filter(mutationType::isInstance)
-			.map(mutationType::cast)
-			.findFirst();
+			.map(mutationType::cast);
+	}
+
+	/**
+	 * Finds the first mutation of the requested type at any nesting level inside the captured
+	 * catalog mutation array.
+	 *
+	 * @param mutations    the array of catalog mutations to search
+	 * @param mutationType the expected mutation class
+	 * @param <T>          the mutation type
+	 * @return optional containing the first found mutation, or empty if not found
+	 */
+	@Nonnull
+	private static <T extends EntitySchemaMutation> Optional<T> findEntitySchemaMutation(
+		@Nonnull LocalCatalogSchemaMutation[] mutations,
+		@Nonnull Class<T> mutationType
+	) {
+		return streamEntitySchemaMutations(mutations, mutationType).findFirst();
 	}
 
 	@BeforeEach
@@ -3274,10 +3294,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				).orElseThrow();
 
 				final AttributeSchemaContract priorityAttr = schema.getAttribute("priority").orElseThrow();
-				assertEquals(
-					String.class, priorityAttr.getType(),
-					"Enum attribute should be converted to String type"
-				);
+				assertSame(String.class, priorityAttr.getType(), "Enum attribute should be converted to String type");
 			}
 		);
 	}
@@ -3311,6 +3328,166 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Expected CreateAttributeSchemaMutation for brandNote attribute"
 				);
 				assertEquals("brandNote", mutation.get().getName());
+			}
+		);
+	}
+
+	@DisplayName("@Reference + @ReferenceRef on the same reference must not corrupt attribute schema")
+	@Test
+	void shouldDefineReferenceWithDescriptionWhenAlsoMappedViaReferenceRef() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// V1 persists the entity with the reference but no attributes on the reference DTO
+				// so that the "update round" (V2) is the one that actually creates the attribute.
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReferenceAndReferenceRef.MarketingBrand.class
+				);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReferenceAndReferenceRefV1.class
+				);
+
+				// V2 adds the `market` attribute via two getters pointing at the same reference:
+				// - mandatory `getMarketingBrand()`           with `@Reference` (carries description)
+				// - optional  `getMarketingBrandIfExists()`   with `@ReferenceRef("marketingBrand")`
+				// The first analyzer pass (`@Reference`) creates the attribute with a follow-up
+				// `ModifyAttributeSchemaDescriptionMutation`; the second pass (`@ReferenceRef`)
+				// re-scans the reference DTO and must reuse the already-created attribute schema
+				// instead of re-creating it with a conflicting `CreateAttributeSchemaMutation`.
+				final LocalCatalogSchemaMutation[] mutations =
+					analyzeAndCaptureMutations(session, GetterBasedEntityWithReferenceAndReferenceRef.class);
+
+				// Exactly one CreateAttributeSchemaMutation for `market` — guards against the
+				// duplicate-create regression that originally surfaced this bug.
+				final long createMarketCount = streamEntitySchemaMutations(mutations, CreateAttributeSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					1L, createMarketCount,
+					"Expected exactly one CreateAttributeSchemaMutation for `market`, found " + createMarketCount
+				);
+
+				// No RemoveAttributeSchemaMutation should be emitted — the second analyzer pass must
+				// not scrub-and-recreate the attribute the first pass already created.
+				final long removeMarketCount = streamEntitySchemaMutations(mutations, RemoveAttributeSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					0L, removeMarketCount,
+					"No RemoveAttributeSchemaMutation for `market` expected, found " + removeMarketCount
+				);
+
+				// V1 already created `marketingBrand`, so the V2 analyzer round must not emit any
+				// further CreateReferenceSchemaMutation for it.
+				final long createReferenceCount = streamEntitySchemaMutations(mutations, CreateReferenceSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReferenceAndReferenceRef.REFERENCE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					0L, createReferenceCount,
+					"No CreateReferenceSchemaMutation for `marketingBrand` expected (V1 already created it)," +
+						" found " + createReferenceCount
+				);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					GetterBasedEntityWithReferenceAndReferenceRef.ENTITY_NAME
+				).orElseThrow();
+
+				final ReferenceSchemaContract reference = entitySchema
+					.getReference(GetterBasedEntityWithReferenceAndReferenceRef.REFERENCE_NAME)
+					.orElseThrow();
+
+				assertEquals(
+					GetterBasedEntityWithReferenceAndReferenceRef.REFERENCE_DESCRIPTION,
+					reference.getDescription(),
+					"Reference description from @Reference annotation must be preserved."
+				);
+
+				final AttributeSchemaContract attribute = reference
+					.getAttribute(GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_NAME)
+					.orElseThrow();
+
+				assertEquals(
+					GetterBasedEntityWithReferenceAndReferenceRef.ATTRIBUTE_DESCRIPTION,
+					attribute.getDescription(),
+					"Attribute description from the reference DTO must be preserved."
+				);
+				assertSame(
+					String.class, attribute.getType(),
+					"Attribute type must remain String after the second analyzer pass."
+				);
+			}
+		);
+	}
+
+	@DisplayName("@ReflectedReference + @ReferenceRef on the same reference must not corrupt attribute schema")
+	@Test
+	void shouldDefineReflectedReferenceWithDescriptionWhenAlsoMappedViaReferenceRef() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Persist Brand (the source entity holding the standard `products` reference) and the
+				// V1 entity with the reflected `marketingBrand` mirror, which carries no attributes
+				// yet. The "update round" (V2) is the one that actually creates the `market` attribute
+				// on the reflected reference.
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedReferenceAndReferenceRef.Brand.class
+				);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedReferenceAndReferenceRefV1.class
+				);
+
+				// V2 adds the `market` attribute via two getters pointing at the same reflected
+				// reference:
+				// - mandatory `getMarketingBrand()`           with `@ReflectedReference("products")`
+				// - optional  `getMarketingBrandIfExists()`   with `@ReferenceRef("marketingBrand")`
+				// The first analyzer pass (`@ReflectedReference`) calls `withReflectedReferenceToEntity`
+				// once, the second pass (`@ReferenceRef`) calls it a second time. The second call must
+				// not re-emit the inherited attribute create on top of an already-mutated base — the
+				// reflected counterpart of the original ReferenceSchemaBuilder bug.
+				final LocalCatalogSchemaMutation[] mutations =
+					analyzeAndCaptureMutations(session, GetterBasedEntityWithReflectedReferenceAndReferenceRef.class);
+
+				// Exactly one CreateAttributeSchemaMutation for `market` — guards against the
+				// duplicate-create regression on the reflected sibling builder.
+				final long createMarketCount = streamEntitySchemaMutations(mutations, CreateAttributeSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReflectedReferenceAndReferenceRef.ATTRIBUTE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					1L, createMarketCount,
+					"Expected exactly one CreateAttributeSchemaMutation for `market` on the reflected reference," +
+						" found " + createMarketCount
+				);
+
+				// No RemoveAttributeSchemaMutation should be emitted on the reflected reference either.
+				final long removeMarketCount = streamEntitySchemaMutations(mutations, RemoveAttributeSchemaMutation.class)
+					.filter(it -> GetterBasedEntityWithReflectedReferenceAndReferenceRef.ATTRIBUTE_NAME.equals(it.getName()))
+					.count();
+				assertEquals(
+					0L, removeMarketCount,
+					"No RemoveAttributeSchemaMutation for `market` expected, found " + removeMarketCount
+				);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					GetterBasedEntityWithReflectedReferenceAndReferenceRef.ENTITY_NAME
+				).orElseThrow();
+
+				final ReferenceSchemaContract reference = entitySchema
+					.getReference(GetterBasedEntityWithReflectedReferenceAndReferenceRef.REFERENCE_NAME)
+					.orElseThrow();
+
+				final AttributeSchemaContract attribute = reference
+					.getAttribute(GetterBasedEntityWithReflectedReferenceAndReferenceRef.ATTRIBUTE_NAME)
+					.orElseThrow();
+
+				assertEquals(
+					GetterBasedEntityWithReflectedReferenceAndReferenceRef.ATTRIBUTE_DESCRIPTION,
+					attribute.getDescription(),
+					"Attribute description from the reflected DTO must be preserved."
+				);
+				assertSame(
+					String.class, attribute.getType(),
+					"Attribute type must remain String after the second analyzer pass."
+				);
 			}
 		);
 	}
@@ -3441,10 +3618,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final AttributeSchemaContract tagsAttribute = entitySchema
 					.getAttribute("tags")
 					.orElseThrow();
-				assertEquals(
-					String[].class, tagsAttribute.getType(),
-					"List<String> field should be resolved to String[]"
-				);
+				assertSame(
+					String[].class, tagsAttribute.getType(), "List<String> field should be resolved to String[]");
 			}
 		);
 	}
@@ -3475,9 +3650,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				final AttributeSchemaContract tagsAttribute = entitySchema
 					.getAttribute("tags")
 					.orElseThrow();
-				assertEquals(
-					String[].class, tagsAttribute.getType(),
-					"List<String> record component should be " +
+				assertSame(
+					String[].class, tagsAttribute.getType(), "List<String> record component should be " +
 						"resolved to String[]"
 				);
 			}
