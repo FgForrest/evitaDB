@@ -206,30 +206,65 @@ jobs:
         echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
         echo "Resolved milestone: ${MILESTONE:-<none>}"
 
+    # Cache the Claude Code CLI binary so we don't re-download it on every
+    # release run. The cache key is pinned to CLAUDE_CODE_VERSION below; bump
+    # that version to roll forward and auto-invalidate the cache.
+    - name: Cache Claude Code CLI
+      id: cache_claude_cli
+      if: success()
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/bin/claude
+          ~/.local/share/claude
+        key: claude-code-cli-${{ runner.os }}-2.1.89
+
+    # Install Claude Code CLI for headless invocation. We can't use
+    # anthropics/claude-code-action here because that action only accepts
+    # issue/PR/workflow_dispatch events and errors on `push` (which is what
+    # triggers this workflow). DISABLE_AUTOUPDATER keeps the cached binary
+    # pinned so the cache key stays valid across runs.
+    - name: Install Claude Code CLI
+      if: success() && steps.cache_claude_cli.outputs.cache-hit != 'true'
+      run: curl -fsSL https://claude.ai/install.sh | bash -s 2.1.89
+
+    - name: Add Claude Code CLI to PATH
+      if: success()
+      run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
     # Generate enriched release notes via the .claude/skills/release-notes
     # skill. The release-drafter draft from the previous step is the safety
     # net — this step is allowed to fail without affecting the release build.
+    # Uses Sonnet (cheaper than Opus) because release-notes enrichment is a
+    # straightforward summarise/rewrite task.
     - name: Generate enriched release notes with Claude
       id: claude_notes
       if: success()
       continue-on-error: true
-      uses: anthropics/claude-code-action@88c168b39e7e64da0286d812b6e9fbebb6708185 # v1.0.55
-      with:
-        claude_code_oauth_token: ${{ secrets.ANTHROPIC_API_KEY }}
-        show_full_output: true
-        prompt: |
-          You are generating release notes for evitaDB ${{ steps.release_version.outputs.version }}.
+      env:
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.ANTHROPIC_API_KEY }}
+        DISABLE_AUTOUPDATER: "1"
+        RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        BASE_VERSION: ${{ steps.notes_inputs.outputs.prev_tag }}
+        MILESTONE: ${{ steps.notes_inputs.outputs.milestone }}
+      run: |
+        PROMPT=$(cat <<EOF
+        You are generating release notes for evitaDB ${RELEASE_VERSION}.
 
-          RELEASE_VERSION=${{ steps.release_version.outputs.version }}
-          BASE_VERSION=${{ steps.notes_inputs.outputs.prev_tag }}
-          MILESTONE=${{ steps.notes_inputs.outputs.milestone }}
+        RELEASE_VERSION=${RELEASE_VERSION}
+        BASE_VERSION=${BASE_VERSION}
+        MILESTONE=${MILESTONE}
 
-          Read `.claude/skills/release-notes/SKILL.md` and follow its workflow
-          exactly. Pass the values above as inputs (Step 1 of the skill).
-          Write the final notes to `release-notes.md` in the working directory.
-          Do not modify any other file. Do not commit, push, or create branches.
-        claude_args: |
-          --max-turns 30 --allowedTools "Read,Write,Bash(./tools/generate-release-notes.sh:*),Bash(./tools/list-issues.sh:*),Bash(./tools/list-commits.sh:*),Bash(git tag:*),Bash(git log:*),Bash(git describe:*),Bash(git rev-parse:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh api:*)"
+        Read .claude/skills/release-notes/SKILL.md and follow its workflow
+        exactly. Pass the values above as inputs (Step 1 of the skill).
+        Write the final notes to release-notes.md in the working directory.
+        Do not modify any other file. Do not commit, push, or create branches.
+        EOF
+        )
+        claude -p "$PROMPT" \
+          --model claude-sonnet-4-6 \
+          --max-turns 30 \
+          --allowedTools "Read,Write,Bash(./tools/generate-release-notes.sh:*),Bash(./tools/list-issues.sh:*),Bash(./tools/list-commits.sh:*),Bash(git tag:*),Bash(git log:*),Bash(git describe:*),Bash(git rev-parse:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh api:*)"
 
     # Always-print diagnostic — surfaces the generated body and Claude outcome
     # in the build log even when the PATCH step is skipped, so failures are
