@@ -40,8 +40,8 @@
 #
 # --version    Required. The release being prepared (e.g. v2026.1.3 or v2026.1.0).
 # --base       Optional. Previous release tag to compare against. If omitted,
-#              the script picks the chronologically previous v* tag using
-#              `git tag --sort=-version:refname`.
+#              the script picks the highest v* tag strictly less than --version
+#              by listing matching tags and version-sorting them with `sort -V`.
 # --milestone  Optional. GitHub milestone title (e.g. "2026.1"). When provided
 #              and the milestone exists, the script runs in MAJOR mode and pulls
 #              issues from list-issues.sh + supplements with commits. When
@@ -49,6 +49,7 @@
 #              PATCH mode and uses commits only.
 
 set -e
+set -o pipefail
 
 REPO="FgForrest/evitaDB"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -119,18 +120,23 @@ BASE_BARE="${BASE#v}"
 VERSION_BARE="${VERSION#v}"
 
 # Decide MAJOR vs PATCH mode. If a milestone is supplied, verify it exists in
-# the repository before trusting it; an invalid milestone falls back to PATCH
+# the repository before trusting it. An invalid milestone falls back to PATCH
 # mode rather than aborting (the workflow always treats the prose pipeline as
-# best-effort).
+# best-effort), but we distinguish a real "not found" answer from a gh API
+# failure (auth, rate-limit, network) so CI diagnostics show the actual cause.
 mode="patch"
 if [ -n "$MILESTONE" ]; then
   if command -v gh >/dev/null 2>&1; then
-    if gh api --paginate -H "Accept: application/vnd.github+json" \
-        "/repos/$REPO/milestones?state=all&per_page=100" 2>/dev/null \
-        | jq -e ".[] | select(.title == \"$MILESTONE\")" >/dev/null 2>&1; then
-      mode="major"
+    if milestones_json=$(gh api --paginate -H "Accept: application/vnd.github+json" \
+        "/repos/$REPO/milestones?state=all&per_page=100"); then
+      if printf '%s\n' "$milestones_json" | jq -e --arg milestone "$MILESTONE" \
+          '.[] | select(.title == $milestone)' >/dev/null 2>&1; then
+        mode="major"
+      else
+        echo "Warning: milestone '$MILESTONE' not found — falling back to patch mode." >&2
+      fi
     else
-      echo "Warning: milestone '$MILESTONE' not found — falling back to patch mode." >&2
+      echo "Warning: failed to query milestones for '$REPO' via gh CLI — falling back to patch mode." >&2
     fi
   else
     echo "Warning: gh CLI unavailable — falling back to patch mode." >&2
@@ -139,14 +145,17 @@ fi
 
 # Run the underlying generators and capture their output. Both scripts print
 # their own '## What's Changed' header and section blocks; we strip those and
-# re-emit a single header so we can merge them.
+# re-emit a single header so we can merge them. Failures from either helper
+# must propagate (they return 0 on legitimately empty output, so a non-zero
+# exit always indicates a real error worth surfacing) and stderr is left
+# untouched so the build log shows the actual cause.
 issues_output=""
 commits_output=""
 
 if [ "$mode" = "major" ]; then
-  issues_output=$("$SCRIPT_DIR/list-issues.sh" "$MILESTONE" "$BASE_BARE" 2>/dev/null || true)
+  issues_output=$("$SCRIPT_DIR/list-issues.sh" "$MILESTONE" "$BASE_BARE")
 fi
-commits_output=$("$SCRIPT_DIR/list-commits.sh" "$BASE_BARE" "$VERSION_BARE" 2>/dev/null || true)
+commits_output=$("$SCRIPT_DIR/list-commits.sh" "$BASE_BARE" "$VERSION_BARE")
 
 # Helper: extract a section from a script's output. Sections are introduced by
 # `### <emoji> <name>` and terminated by the next `### ` line or EOF. Trims
@@ -199,21 +208,23 @@ _dedupe_bullets() {
 
 # Helper: filter commit-derived bullets to drop non-user-facing items
 # (CI/CD, build infrastructure, internal refactors, compilation fixes, etc.).
-# This is a conservative pass — uncertain items are kept.
+# This is a conservative pass — uncertain items are kept. The patterns are
+# unique enough that POSIX-style substring matching works (no gawk-specific
+# word boundaries) and the script remains portable to BSD/macOS awk.
 _filter_user_facing() {
   printf "%s\n" "$1" | awk '
     /^\* / {
       lc = tolower($0)
-      if (lc ~ /\<ci\/cd\>/) next
-      if (lc ~ /\<github actions?\>/) next
-      if (lc ~ /\<workflow file/) next
-      if (lc ~ /\<workflow yaml/) next
-      if (lc ~ /\<docker( |-)?(file|workflow|build)/) next
-      if (lc ~ /\<compilation fix\>/) next
-      if (lc ~ /\<tostring\>/) next
-      if (lc ~ /\<code style\>/) next
-      if (lc ~ /\<dependabot\>/) next
-      if (lc ~ /\<bump .* version\>/ && lc !~ /\<dependency\>/) next
+      if (lc ~ /ci\/cd/) next
+      if (lc ~ /github actions?/) next
+      if (lc ~ /workflow file/) next
+      if (lc ~ /workflow yaml/) next
+      if (lc ~ /docker( |-)?(file|workflow|build)/) next
+      if (lc ~ /compilation fix/) next
+      if (lc ~ /tostring/) next
+      if (lc ~ /code style/) next
+      if (lc ~ /dependabot/) next
+      if (lc ~ /bump .* version/ && lc !~ /dependency/) next
       print
       next
     }
