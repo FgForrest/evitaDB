@@ -123,6 +123,10 @@ public final class ReflectedReferenceSchemaBuilder
 				)
 			);
 		} else {
+			Assert.isPremiseValid(
+				existingSchema != null,
+				"When not creating new reflected reference schema, the existing schema must be provided!"
+			);
 			// baseSchema MUST be the raw persisted reflected reference, never the caller-supplied
 			// `existingSchema`. The caller builds `existingSchema` from `toInstance()`, so it
 			// already reflects every pending entity-level mutation targeting this reference —
@@ -132,11 +136,18 @@ public final class ReflectedReferenceSchemaBuilder
 			// attribute already enriched by a follow-up ModifyAttributeSchemaDescriptionMutation).
 			// The caller's `createNew == false` guarantees the persisted lookup is present and
 			// is a reflected reference (the caller computes `createNew` from that very check).
-			this.baseSchema = (ReflectedReferenceSchema) entitySchema.getReference(name)
+			final ReferenceSchemaContract persistedReference = entitySchema.getReference(name)
 				.orElseThrow(() -> new GenericEvitaInternalError(
 					"Reflected reference `" + name + "` is expected to exist in the persisted entity" +
 						" schema when the builder is constructed with createNew=false, but was not found."
 				));
+			Assert.isPremiseValid(
+				persistedReference instanceof ReflectedReferenceSchema,
+				() -> "Persisted reference `" + name + "` is expected to be a reflected reference" +
+					" when the builder is constructed with createNew=false, but found `" +
+					persistedReference.getClass().getSimpleName() + "`."
+			);
+			this.baseSchema = (ReflectedReferenceSchema) persistedReference;
 		}
 		mutations.stream()
 			.filter(
