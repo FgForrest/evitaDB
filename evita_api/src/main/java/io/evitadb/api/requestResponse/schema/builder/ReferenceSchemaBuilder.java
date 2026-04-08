@@ -150,6 +150,12 @@ public final class ReferenceSchemaBuilder
 					"Reference `" + name + "` is expected to exist in the persisted entity schema" +
 						" when the builder is constructed with createNew=false, but was not found."
 				));
+			// Intentional asymmetry: `baseSchema` is the raw persisted reference (see comment above),
+			// but the comparisons below deliberately read `existingSchema` (the post-mutation view).
+			// Any prior entity-type / cardinality change is already present in the `mutations` list
+			// copied a few lines further down, and therefore already reflected in `existingSchema`.
+			// Comparing against the post-mutation view prevents re-emitting a Modify*Mutation that
+			// is already queued.
 			if (referencedEntityTypeManaged != existingSchema.isReferencedEntityTypeManaged() || !entityType.equals(existingSchema.getReferencedEntityType())) {
 				this.mutations.add(
 					new ModifyReferenceSchemaRelatedEntityMutation(
