@@ -37,7 +37,13 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class EmptyFormula extends AbstractFormula {
+	/**
+	 * Singleton instance representing an empty result set with no matching records.
+	 */
 	public static final EmptyFormula INSTANCE = new EmptyFormula();
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 7864590390866911682L;
 
 	private EmptyFormula() {

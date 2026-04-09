@@ -40,7 +40,13 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class FlattenedFormula extends CachePayloadHeader implements Formula {
+	/**
+	 * Serial version UID for serialization compatibility.
+	 */
 	@Serial private static final long serialVersionUID = -1183017816058041094L;
+	/**
+	 * Empty formula array constant reused when returning inner formulas of this leaf formula.
+	 */
 	private static final Formula[] EMPTY_FORMULAS = Formula.EMPTY_FORMULA_ARRAY;
 	/**
 	 * Memoized result of the original formula.

@@ -27,23 +27,16 @@ import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator.InScopeFormulaPostProcessor;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.stream.LongStream;
 
 /**
  * This formula has almost identical implementation as {@link AndFormula} but it accepts only set of
@@ -54,12 +47,22 @@ import java.util.stream.LongStream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class ScopeContainerFormula extends AbstractCacheableFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractCacheableFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -5387565378948662756L;
 	/**
 	 * The scope that is used to filter the data.
 	 */
 	@Getter private final Scope scope;
+	/**
+	 * Array of transactional ids of the indexes that were used to build this formula, used for cache invalidation.
+	 */
 	private final long[] indexTransactionId;
+	/**
+	 * Lazily initialized list of inner formulas sorted by their estimated cost in ascending order, used to
+	 * short-circuit AND evaluation starting from the cheapest formula.
+	 */
 	private List<Formula> sortedFormulasByComplexity;
 
 	public ScopeContainerFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Scope scope, @Nonnull Formula[] innerFormulas, @Nonnull long[] indexTransactionId) {
@@ -77,8 +80,14 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
+	public void clearMemory() {
+		super.clearMemory();
+		this.sortedFormulasByComplexity = null;
+	}
+
+	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
+		return getMinEstimatedCardinality(this.innerFormulas);
 	}
 
 	@Override
@@ -97,15 +106,6 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 		);
 	}
 
-	@Nonnull
-	@Override
-	public long[] gatherBitmapIdsInternal() {
-		return Arrays.stream(this.innerFormulas)
-			.flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
-			.distinct()
-			.toArray();
-	}
-
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return 0L;
@@ -118,43 +118,28 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long getCostInternal() {
-		long cost = 0L;
-		for (Formula innerFormula : this.sortedFormulasByComplexity) {
-			final Bitmap innerResult = innerFormula.compute();
-			cost += innerFormula.getCost() + innerResult.size() * getOperationCost();
-			if (innerResult == EmptyBitmap.INSTANCE) {
-				break;
-			}
+		if (this.sortedFormulasByComplexity == null) {
+			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 		}
-		return cost;
+		return computeSortedConjunctionCost(this.sortedFormulasByComplexity, getOperationCost());
 	}
 
 	@Override
 	protected long getCostToPerformanceInternal() {
-		long costToPerformance = 0L;
-		for (Formula innerFormula : this.sortedFormulasByComplexity) {
-			final Bitmap innerResult = innerFormula.compute();
-			if (innerResult == EmptyBitmap.INSTANCE) {
-				break;
-			}
-			costToPerformance += innerFormula.getCostToPerformanceRatio();
+		if (this.sortedFormulasByComplexity == null) {
+			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 		}
-		return costToPerformance + getCost() / Math.max(1, compute().size());
+		return computeSortedConjunctionCostToPerformance(this.sortedFormulasByComplexity)
+			+ getCost() / Math.max(1, compute().size());
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final Bitmap theResult;
-		final RoaringBitmap[] theBitmaps = getRoaringBitmaps();
-		if (theBitmaps.length == 0 || Arrays.stream(theBitmaps).anyMatch(RoaringBitmap::isEmpty)) {
-			theResult = EmptyBitmap.INSTANCE;
-		} else if (theBitmaps.length == 1) {
-			theResult = new BaseBitmap(theBitmaps[0]);
-		} else {
-			theResult = RoaringBitmapBackedBitmap.and(theBitmaps);
+		if (this.sortedFormulasByComplexity == null) {
+			this.sortedFormulasByComplexity = sortFormulasByComplexity(getInnerFormulas());
 		}
-		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
+		return computeConjunctionResult(computeSortedConjunctionBitmaps(this.sortedFormulasByComplexity));
 	}
 
 	@Override
@@ -165,33 +150,10 @@ public class ScopeContainerFormula extends AbstractCacheableFormula {
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
+		if (innerFormulas.length == 0) {
+			return EmptyFormula.INSTANCE;
+		}
 		return new ScopeContainerFormula(this.scope, innerFormulas);
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
-
-	@Nonnull
-	private RoaringBitmap[] getRoaringBitmaps() {
-		if (this.sortedFormulasByComplexity == null) {
-			this.sortedFormulasByComplexity = Arrays.stream(getInnerFormulas())
-				.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
-				.toList();
-		}
-		final RoaringBitmap[] theBitmaps = new RoaringBitmap[this.sortedFormulasByComplexity.size()];
-		// go from the cheapest formula to the more expensive and compute one by one
-		for (int i = 0; i < this.sortedFormulasByComplexity.size(); i++) {
-			final Formula formula = this.sortedFormulasByComplexity.get(i);
-			final Bitmap computedBitmap = formula.compute();
-			// if you encounter formula that returns nothing immediately return nothing - hence AND
-			if (computedBitmap.isEmpty()) {
-				return new RoaringBitmap[0];
-			} else {
-				theBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(computedBitmap);
-			}
-		}
-		return theBitmaps;
 	}
 
 }

@@ -41,16 +41,28 @@ import org.openjdk.jmh.annotations.State;
 import java.util.Random;
 
 /**
- * No extra information provided - see (selfexplanatory) method signatures.
- * I have the best intention to write more detailed documentation but if you see this, there was not enough time or will to do so.
+ * JMH benchmark state providing three entity ID bitmaps with associated price records, combined
+ * into an {@link OrFormula} tree via {@link MockEntityIdsFormula} leaves. Used by
+ * price termination benchmarks that operate on entity-level IDs
+ * ({@link io.evitadb.spike.FormulaCostMeasurement#plainPriceTermination},
+ * {@link io.evitadb.spike.FormulaCostMeasurement#plainPriceTerminationWithPriceFilter}).
+ *
+ * Each of the three datasets generates {@link #PRICE_COUNT} price records distributed randomly
+ * across {@link #ENTITY_COUNT} entities. Price records use {@link PriceRecordInnerRecordSpecific}
+ * with inner record IDs offset beyond the entity ID range. The {@link OrFormula} is pre-computed
+ * during setup so that benchmark iterations measure only the termination formula cost, not the
+ * underlying bitmap union.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @State(Scope.Benchmark)
 public class EntityIdsWithPriceRecordsRecordState {
+	/** Number of distinct entities to distribute prices across. */
 	private static final int ENTITY_COUNT = 10_000;
+	/** Number of price records per dataset (3 datasets total = 300K records). */
 	private static final int PRICE_COUNT = 100_000;
 	private static final Random random = new Random(42);
+	/** Monotonic price ID generator — shared across all instances within the same JVM fork. */
 	private static int PRICE_ID_SEQ;
 
 	@Getter private PriceRecordContract[] entitiesPriceRecordsA;
@@ -62,7 +74,8 @@ public class EntityIdsWithPriceRecordsRecordState {
 	@Getter private Formula formula;
 
 	/**
-	 * This setup is called once for each `valueCount`.
+	 * Generates three entity-price datasets, wraps each in a {@link MockEntityIdsFormula},
+	 * combines them via {@link OrFormula}, and pre-computes the union bitmap.
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
@@ -81,7 +94,7 @@ public class EntityIdsWithPriceRecordsRecordState {
 		this.formula = new OrFormula(
 			new MockEntityIdsFormula(this.entitiesA, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsA, SortingForm.NOT_SORTED)),
 			new MockEntityIdsFormula(this.entitiesB, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsB, SortingForm.NOT_SORTED)),
-			new MockEntityIdsFormula(this.entitiesB, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsC, SortingForm.NOT_SORTED))
+			new MockEntityIdsFormula(this.entitiesC, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsC, SortingForm.NOT_SORTED))
 		);
 		this.formula.compute();
 	}

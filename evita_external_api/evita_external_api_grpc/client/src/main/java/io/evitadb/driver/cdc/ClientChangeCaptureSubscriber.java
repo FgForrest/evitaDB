@@ -299,7 +299,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			}
 			// if the delegate is closeable, close it quietly
 			if (this.delegate instanceof AutoCloseable closeable) {
-				IOUtils.closeQuietly(closeable::close);
+				this.subscription.getExecutorService().execute(() -> IOUtils.closeQuietly(closeable::close));
 			}
 		}
 	}

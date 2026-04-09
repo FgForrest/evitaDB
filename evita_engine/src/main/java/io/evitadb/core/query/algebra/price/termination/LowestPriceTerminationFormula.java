@@ -63,7 +63,6 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Objects;
@@ -81,7 +80,13 @@ import java.util.function.Predicate;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class LowestPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -4905806490462655316L;
+	/**
+	 * Default predicate that accepts all price records without any filtering.
+	 */
 	private static final Predicate<PriceRecordContract> ALL_MATCHING_PREDICATE = priceContract -> true;
 
 	/**
@@ -270,13 +275,11 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 
 	@Override
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
+		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
 		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
 			formulaHash,
 			getTransactionalIdHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
+			sortedDistinctIds,
 			compute(),
 			getFilteredPriceRecords(this.executionContext),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
@@ -311,11 +314,12 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 				getDelegate(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
 			);
 			// collect price iterators ordered by price list importance
-			final PriceRecordLookup[] priceRecordIterators = filteredPriceRecordAccessors
-				.stream()
-				.map(it -> it.getFilteredPriceRecords(this.executionContext))
-				.map(FilteredPriceRecords::getPriceRecordsLookup)
-				.toArray(PriceRecordLookup[]::new);
+			final PriceRecordLookup[] priceRecordIterators = new PriceRecordLookup[filteredPriceRecordAccessors.size()];
+			int idx = 0;
+			for (FilteredPriceRecordAccessor accessor : filteredPriceRecordAccessors) {
+				priceRecordIterators[idx++] = accessor.getFilteredPriceRecords(this.executionContext)
+					.getPriceRecordsLookup();
+			}
 			// create array for the lowest prices by entity
 			final CompositeObjectArray<PriceRecordContract> priceRecordsFunnel = new CompositeObjectArray<>(PriceRecordContract.class, false);
 			// create helper associative index for looking up index of the lowest price by entity id in the priceRecordsFunnel
@@ -407,7 +411,11 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		int sum = 0;
+		for (int i = 0; i < this.innerFormulas.length; i++) {
+			sum += this.innerFormulas[i].getEstimatedCardinality();
+		}
+		return sum;
 	}
 
 	@Override

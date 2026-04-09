@@ -30,21 +30,24 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 
 /**
  * This formula has almost identical implementation as {@link OrFormula} but it accepts only set of
- * {@link Formula} as a children and allows containing even single child (on the contrary to the {@link OrFormula}).
- * The formula envelopes both AND joined facet formulas and OR joined facet formulas and allows to distinguish between
- * them and so that newly added formulas for clone can target proper container in this formula.
+ * {@link Formula} as a child and allows containing even single child (on the contrary to the {@link OrFormula}).
+ * The formula envelops both AND joined facet formulas and OR joined facet formulas and allows to distinguish between
+ * them and so that newly added formulas for clone can target the proper container in this formula.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class CombinedFacetFormula extends AbstractFormula implements NonCacheableFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 523840934350100709L;
 
 	public CombinedFacetFormula(@Nonnull Formula andFormula, @Nonnull Formula orFormula) {
@@ -58,6 +61,10 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
+		Assert.isPremiseValid(
+			innerFormulas.length == 2,
+			"CombinedFacetFormula requires exactly 2 inner formulas (AND + OR), but got " + innerFormulas.length + "."
+		);
 		return new CombinedFacetFormula(innerFormulas);
 	}
 
@@ -76,20 +83,22 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		int sum = 0;
+		for (Formula innerFormula : this.innerFormulas) {
+			sum += innerFormula.getEstimatedCardinality();
+		}
+		return sum;
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		return new BaseBitmap(
-			RoaringBitmap.or(
-				Arrays.stream(getInnerFormulas())
-					.map(Formula::compute)
-					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-					.toArray(RoaringBitmap[]::new)
-			)
-		);
+		final Formula[] formulas = getInnerFormulas();
+		final RoaringBitmap[] roaringBitmaps = new RoaringBitmap[formulas.length];
+		for (int i = 0; i < formulas.length; i++) {
+			roaringBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(formulas[i].compute());
+		}
+		return new BaseBitmap(RoaringBitmap.or(roaringBitmaps));
 	}
 
 	@Override

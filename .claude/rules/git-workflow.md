@@ -39,7 +39,30 @@ Do not write (co)author name or date in the PR request.
   ```
 - Link issues in PR description (e.g., "Closes #1075")
 
-## Review Comments
+## Reviewing a PR
+
+Before writing any review comments, gather the full review history so you don't repeat resolved concerns or ignore prior discussion:
+
+```shell
+# All prior review rounds (who reviewed, state, body)
+gh api repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/reviews
+
+# All review comments including reply threads (in_reply_to_id links replies to parents)
+gh api repos/FgForrest/evitaDB/pulls/<PR_NUMBER>/comments
+
+# Top-level PR conversation comments
+gh api repos/FgForrest/evitaDB/issues/<PR_NUMBER>/comments
+```
+
+Build a threaded view by grouping comments via `in_reply_to_id`. For each thread, read the original complaint **and** all replies/reactions. Take into account:
+
+- Whether the author already addressed or explained a concern in a reply
+- Whether a previous reviewer withdrew, softened, or refined their complaint after discussion
+- Whether a concern from an earlier review round was already fixed in a subsequent commit
+
+Do not raise issues that were already resolved or adequately answered. Focus new review comments on genuinely unaddressed problems.
+
+## Addressing Review Comments
 
 Fetch all unresolved review comments with `gh` CLI and address them one by one (ignore already resolved).
 
