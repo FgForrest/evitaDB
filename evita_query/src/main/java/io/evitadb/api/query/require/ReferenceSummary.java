@@ -46,7 +46,7 @@ import java.util.Optional;
 
 /**
  * The `referenceSummary` requirement triggers the calculation of the
- * {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} extra result, which contains reference statistics for
+ * {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary} extra result, which contains reference statistics for
  * all entity references that are marked as **faceted** in the entity schema. The reference summary is computed as a side
  * effect of the main entity query and always reflects the same filtering scope — it only counts entities that would
  * actually be returned by the current query.

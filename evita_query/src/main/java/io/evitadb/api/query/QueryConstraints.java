@@ -9976,7 +9976,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("b279b48460da86ca232260da30de183a")
 	@Nonnull
 	static FacetSummary facetSummary() {
@@ -9998,7 +10000,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("6ff5fd5e9ef298d9ab371bfaaf0be53c")
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
@@ -10023,7 +10027,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("4d4f1aa0bdd23775ff9f60cd5608a03b")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10050,7 +10056,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("8870f732516794e5e107ae2f82afbd23")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10081,7 +10089,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("fbbadb7b5d37c1b91cad13a085c3512f")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10112,7 +10122,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("97bddd46753aaae340ebc2fbcb26b981")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10143,7 +10155,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("7ce163f20df1005cca5377b605daab3c")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10172,7 +10186,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("0a62e26c5b95a6aa2016b7f9fc0f9ce8")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10200,7 +10216,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("416fb7edd4896b0417f769d1c2585548")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10228,7 +10246,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("fc3b488b188fc7604b7c1f708df3fbff")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10251,7 +10271,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("7b7c4d485c3aa82d284d7c27bf913bcc")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10268,7 +10290,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("cf7b1db1de2e1172f996696cb59fee5f")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10293,7 +10317,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("6a263c4a352c2bbf289d8331c03aa160")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10312,7 +10338,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("7613d65b0566b0f38bb96b7c559445c2")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10341,7 +10369,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("943d0318a23a9bbc45252550352fb47d")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10369,7 +10399,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("e51ff0f5dabcfcfb48740903b6583070")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10400,7 +10432,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("4c88bb0086094051cfd0dca10969c8a5")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10443,7 +10477,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("eb5f7cca528cde1d94fac7368dda1b63")
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable EntityFetchRequire... requirements) {
@@ -10464,7 +10500,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("4f94a019e1179ee56779f5a8056826e2")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10480,7 +10518,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("2f32030f266096c171cd31b0e05d2124")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10509,7 +10549,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("8b3c2e198f6187dc45a93a26becd98d6")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10538,7 +10580,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("0a58ffb6515ee08d750599e11201c1be")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10565,7 +10609,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("f9d53f9ecd3487f6afa338477df4722d")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10593,7 +10639,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("f4d86828957f8b15f13364d7024cc351")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10610,7 +10658,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("e1871e1bf32ae260c57f403fb7a4de4b")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10636,7 +10686,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("c4762843267c315836c65b05e9558d67")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10661,7 +10713,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("735697c3bfa23f9c815f657787ace946")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10677,7 +10731,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("a088b97fb0147df77153b6fcf7e4975a")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10700,7 +10756,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("1ebd4c7d2fe7d841e5b043c9bd6d2176")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10726,7 +10784,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("64b5751fa5425f656a8b0f55a040b7fa")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10753,7 +10813,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("c6ee01706e5e912dc76ab256ce5a4f02")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10778,7 +10840,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("91839eb46ddb6234b40eac61e0c0f33c")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10806,7 +10870,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummary
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("c6de73febd52604de3cbb21f8844bdcb")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10830,14 +10896,15 @@ public interface QueryConstraints {
 			requirements
 		);
 	}
-
 	/**
 	 * Calculates a facet summary for a single named reference, overriding any generic `facetSummary` for that reference. Only the specified reference is affected; all filter, order, and fetch requirements target properties of the referenced entity. Use this to customize facet stats, filtering, and loading for one reference without impacting others.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("4e78aea8ee1ee28e8902026726e66c9b")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityFetchRequire... requirements) {
@@ -10860,7 +10927,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("5428761dbfd45b28757eda959aba0f9e")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
@@ -10889,7 +10958,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("6ab9542b9d85af05d91b60366c8a9f65")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -10922,7 +10993,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("ede4b947263da7ce86196d6c60e0357f")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -10956,7 +11029,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("d0617b06c20ac9a3e2d0f13bcb4b26c5")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -10987,7 +11062,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("176b2cdd5fc52b3f5a1ad62f8462afc0")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11021,7 +11098,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("73f6e0a71ebf0b693819dff4a0cd0780")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11054,7 +11133,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("5ef41365a00ff03111ceb4881cd13d82")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11074,7 +11155,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("8c892f31d6e474ce5e89a913ea06e24e")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11103,7 +11186,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("1a58d772bd7fbf065ea3c99431655b24")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11122,7 +11207,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("35fd4a069541bd5f7274f0fabe2009b9")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11141,7 +11228,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("af266a1d02473f5b090094185517ab59")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11160,7 +11249,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("d7c25389f3bdb9bb2dcc8cf95c42f7ad")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11191,7 +11282,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("c6b5a5ac705187d90d04b303747a2449")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11223,7 +11316,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("c58b1640e014dab92defe49ec6fe08ce")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11255,7 +11350,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("426705d57190ebf38a205f0dc0236ce0")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11289,7 +11386,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("dcfe8f70833591fb61121d4bca919a25")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11339,7 +11438,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("905fb2301a5afb116c26e9449495add1")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11370,7 +11471,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("486a5b3c38a00683af151e5bb61143d4")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11389,7 +11492,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("12ecd008112f34be1dfd9f310c9e2232")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11420,7 +11525,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("5de1172be901e054d321545897f1620a")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11440,7 +11547,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("b93463f355149ed7151e950b091ec8e6")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11460,7 +11569,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("418c09ce1e225ce245964b05e749ded5")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11478,7 +11589,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("cc63437a2bf6810996f3d4af9d62adad")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11497,7 +11610,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("c64dd53142a228f969efbe2f09512ee0")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11515,7 +11630,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("e7fb5befe389be22453a614a76ff05a5")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11542,7 +11659,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("a3263ecefbb83a89e409012c13a66fdf")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11560,7 +11679,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("26ec2cd37ebe49e23f82ec5f306c167b")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11578,7 +11699,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("0d722532dc70ce0b4a414e2442a6013e")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11597,7 +11720,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("467570c5c779d8c4cc8feb9902abac4d")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11616,7 +11741,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("cc477fcbfb6476dd21cf22770ee9d791")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11646,7 +11773,9 @@ public interface QueryConstraints {
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
+	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
+	@Deprecated
 	@SourceHash("89334d19a21bd5d49286428fbce66549")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11668,6 +11797,1724 @@ public interface QueryConstraints {
 			);
 		}
 		return new FacetSummaryOfReference(
+			referenceName,
+			FacetStatisticsDepth.COUNTS,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			requirements
+		);
+	}
+
+	/**
+	 * Triggers calculation of a summary of all faceted references in the result set, providing counts of matching entities for each reference option and group. Only entities matching the current query are included. Use for basic faceted navigation UIs.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("fd287c6cc2911128727e2503e5da6c0e")
+	@Nonnull
+	static ReferenceSummary referenceSummary() {
+		return new ReferenceSummary();
+	}
+
+	/**
+	 * Triggers calculation of a facet summary for all faceted references in the result, providing counts (or impact predictions) for each selectable option and group, scoped to the current query. Supports filtering, sorting, and fetch customization for reference and group entities. Use filters to limit summary size and improve performance.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(IMPACT, entityFetch(attributeContent("name")))
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("4d8f0e0779aec0754c1a60820130eeb5")
+	@Nonnull
+	static ReferenceSummary referenceSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
+		return statisticsDepth == null ?
+			new ReferenceSummary(FacetStatisticsDepth.COUNTS, requirements) :
+			new ReferenceSummary(statisticsDepth, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a facet summary for all faceted references in the result set, providing per-option statistics (counts or impact predictions) scoped to the current query. Supports filtering, ordering, and fetch customization for reference options and groups. Use filters to limit summary size; per-reference overrides use `referenceSummaryOfReference`.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("7b4e3e9cc4bdc491a1f6ae59cd7e8d91")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a summary of all faceted references in the result set, providing counts (or impact predictions) for each selectable option and group, filtered and ordered as specified. Only entities matching the main query are counted; filters/orderings apply to the summary output, not the entity set. Attach at most one entity/group fetch constraint. For reference-specific filtering, use `referenceSummaryOfReference` instead.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("bd2f5639ffa5d95d1c126b315298d84a")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary with customizable statistics depth (`COUNTS` or `IMPACT`), group-level filtering, and ordering for both reference options and groups. Attach at most one `entityFetch` and one `entityGroupFetch` to control fetched data. Filters and ordering apply across all faceted references and only affect the summary, not the main query result. For reference-specific filtering, use `referenceSummaryOfReference` instead.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("1800b19b7db265646f28521aca381f62")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a facet summary for all faceted references in the schema, reporting counts (or impact predictions) for each reference and group, scoped to the current query result. Supports filtering and ordering of reference options/groups, and custom entity/group fetches. Use filters to limit large summaries; per-reference overrides use `referenceSummaryOfReference`.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeEquals("code", "a")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("411f302c0521474c40e03f4f94f88f5e")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a summary of all faceted references in the current query result, providing counts (or impact predictions) for each selectable reference option and group. You can filter and order which reference options and groups appear, and control which data is fetched for referenced entities and their groups. Use this for building dynamic faceted navigation UIs; for reference-specific customization, combine with `referenceSummaryOfReference`.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("75b157758210418a350f93150ada2855")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * Requests calculation of a faceted reference summary, providing counts (or impact predictions) for each faceted reference and group based on the current query result. Supports filtering, ordering, and fetch customization for reference options and groups. Use filters to limit summary size; only one fetch constraint per type is allowed.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("6d4f9692dc00ada326fbbabf22f0d6ab")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a reference summary with statistics for all faceted references in the query result, using the specified statistics depth (counts or impact prediction), and allows ordering of both reference options and groups. Attach at most one entityFetch and one entityGroupFetch; ordering and filtering apply only to shared properties across all references. For reference-specific customization, use referenceSummaryOfReference.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("6e3a9bd3b05798c790a32b0c243e802c")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for each faceted reference option among entities matching the current query. Supports filtering, sorting, and fetch customization for references/groups. Use filters to limit summary size; only one fetch per type allowed.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("48c37e3f289e8ef41bcde7134e29f319")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, filterBy, null, null, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a reference summary with statistics for all faceted references in the result set, using the specified statistics depth and ordering. Only entities matching the main query are counted. Attach fetch requirements to load reference or group data as needed.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(IMPACT, orderBy(attributeNatural("name", ASC)), entityFetch(attributeContent("name")))
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("1267f294bf6072e3667d11476485c17f")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, null, null, orderBy, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a facet summary for all faceted references in the result set, providing per-option entity counts or impact predictions. Supports filtering and sorting of reference options/groups, and fetch customization for referenced entities.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("2d42944ccc9f1fdb100743c372400f55")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a facet summary with statistics for all faceted references in the current query scope, using the specified statistics depth and group ordering. Only one entity/group fetch constraint of each type is allowed; filters and ordering apply to all references. For large datasets, limit summary size with filters to maintain performance.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("078acffb2bad4746ebbe69458e2bb49c")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a summary of all faceted references in the current query result, providing counts or impact predictions for each selectable option, with optional filtering, ordering, and fetch requirements. Filters and ordering apply across all references, and only one entity/group fetch constraint of each type is allowed.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("6e8a2fe65d46e1d9a4ea1a1dbff01867")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for all faceted references in the current query scope. Supports filtering and ordering of reference options/groups, and can fetch reference/group entity data. Only one EntityFetch and one EntityGroupFetch allowed; filters/orderings apply across all references. For reference-specific filtering, use `referenceSummaryOfReference`.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeEquals("visible", true)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("9ce2d46cfa04ca883d37006a20e8efcf")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for all faceted references in the current query scope. You can filter and order reference groups, and fetch extra data for referenced entities or groups. Only one entityFetch and one entityGroupFetch are allowed. Reference-specific filtering is not supported; use ReferenceSummaryOfReference for that.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("b7c63498b6dfaa3d94a4290341e0aac4")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for all faceted references in the current query result. Supports filtering, ordering, and fetch customization for reference options and groups. Only one fetch constraint per type is allowed; filters/orderings apply across all references. Use `IMPACT` for predictive UI, or `COUNTS` (default) for basic counts.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("bd758928205e0f546830f375adc7dc6a")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		if (statisticsDepth == null) {
+			statisticsDepth = FacetStatisticsDepth.COUNTS;
+		}
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
+			return new ReferenceSummary(
+				statisticsDepth,
+				facetFilterBy, facetGroupFilterBy,
+				facetOrderBy, facetGroupOrderBy
+			);
+		}
+		return new ReferenceSummary(
+			statisticsDepth,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			requirements
+		);
+	}
+
+	/**
+	 * Triggers calculation of a summary with statistics for all faceted references in the result set, counting only entities matching the current query. You can attach at most one `entityFetch` and one `entityGroupFetch` to control which data is loaded for referenced entities and their groups.  
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("7e1326779a9dcbe579d1b2a5339a9f8c")
+	@Nonnull
+	static ReferenceSummary referenceSummary(@Nullable EntityFetchRequire... requirements) {
+		return new ReferenceSummary(FacetStatisticsDepth.COUNTS, requirements);
+	}
+
+	/**
+	 * Calculates a summary of all faceted references in the current query scope, providing counts (and optionally impact predictions) for each selectable reference option. You can filter and order which reference options appear in the summary using `facetFilterBy` and `facetOrderBy`, and control which data is fetched for referenced entities. Only entities matching the main query are counted; filters here do not affect the main result set.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("b86d73bc29a2556d65bfb89799a11998")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterBy facetFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, facetFilterBy, null, facetOrderBy, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a facet summary for all faceted references, reporting counts (or impacts) of matching entities per reference option and group, scoped to the current query. You can filter, order, and fetch data for both reference options and groups; filters only affect the summary, not the main result. For reference-specific filtering, use `referenceSummaryOfReference` instead.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("c1f776cc16bc8e95dc70aab561dc2042")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary for all faceted references in the entity schema, reporting counts (by default) or impact predictions for each option, grouped and ordered as specified. Filters and fetches can be applied to control which reference options and groups appear and what data is loaded, but do not affect entity counts. Use for building faceted navigation UIs over the current query result.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("2e788fe0705caf4acae360296ffa9f14")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a facet summary for all faceted references in the schema, reflecting only entities matching the current query. Allows filtering and ordering of reference options and groups, and fetch customization for referenced entities. Use filters to limit summary size; filters only affect summary content, not entity counts.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("148834e67a8c5f3d1f7fa7a247d4cbf2")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, returning grouped statistics for all faceted references in the current query result. You can filter and order reference options/groups, and control which data is fetched for reference entities and groups. Filters only affect which options appear, not the counted entities. Only one entityFetch and one entityGroupFetch allowed; supplying more throws an exception.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("90c331e70b641c1af452e860d52b4959")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, returning counts (and optionally impact predictions) for all faceted references in the current query scope. You can filter or order the summary, and control which reference/group data is fetched. Filters only affect which options appear, not the counted entities.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("8c17da770d74a0d3b89c7d1f8039a90e")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * Calculates a summary of all faceted references in the current query result, organizing them by reference and group, and including counts or impact predictions for each option. You can control the sorting of both reference options and groups, and optionally fetch additional data for referenced entities or their groups. Only one entityFetch and one entityGroupFetch may be attached; duplicates throw an exception. Filtering and ordering apply uniformly across all faceted references.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("c6e34ea0b8ad6306b4f6d5ebbbc4e5ae")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, null, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a summary of all faceted references for entities matching the current query, reporting counts (and optionally impact predictions) for each reference option and group. You can filter or sort which reference options appear, and fetch extra data for referenced entities or groups. Filters here only affect the summary, not the main entity result. For reference-specific filtering, use `referenceSummaryOfReference`.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("d59c612ffd5d1389d04e1ad45dcc6277")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, filterBy, null, null, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, returning counts (and optionally impact predictions) for all faceted references in the current query scope. You can control the sort order of reference options with `orderBy` and specify entity/group fetch requirements.  
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("bf5d26920960a43460eb7de90b6d51b5")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, null, null, orderBy, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a summary with statistics for all faceted references in the result set, grouped by reference and group, reflecting only entities matching the current query. You can filter which reference groups appear and specify fetch requirements for referenced entities or groups.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("c74a0c2d6cedd242e7e284692b68f0f7")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, returning grouped statistics for all faceted references in the current query scope. You can specify ordering of reference groups and attach fetch/filter constraints for reference/group entities. Only one fetch constraint per type is allowed.  
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("cd64b050474e1da13265f759f50c22f5")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, null, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a faceted reference summary, providing statistics (counts by default) for all faceted references in the current query result. You can filter reference groups, order reference options, and specify which data to fetch for referenced entities or groups. Use filters and ordering only on properties shared by all referenced types; for per-reference customization, use `referenceSummaryOfReference`.  
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("e57a7065c27dec022fdfa1ccf0de14d1")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a facet summary for all faceted references in the result set, reporting counts (and optionally impact predictions) for each reference option and group, filtered and ordered as specified. Only entities matching the query are counted.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterBy(attributeEquals("visible", true)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("25bb87d2d8508a5c0b7c1ae5afd469f5")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterBy filterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, filterBy, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Triggers calculation of a summary of all faceted references in the result set, organized by reference and group, counting matching entities per option. You can filter or order groups using `FilterGroupBy` and `OrderGroupBy`, and fetch reference/group data with `EntityFetchRequire`.  
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("9f53c1d92afd0299101fa70cd9a535a5")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceSummary(FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Computes a summary of all faceted references in the current query scope, providing counts (and optionally impact predictions) for each selectable option, grouped and ordered as specified. You can filter and sort which reference options and groups appear, and control which data is fetched for referenced entities and their groups. Filters only affect the summary display, not the counted entities. For reference-specific filtering, use `referenceSummaryOfReference`.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@SourceHash("bf1e0e11c32b84afe18e203116ccd729")
+	@Nonnull
+	static ReferenceSummary referenceSummary(
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
+			return new ReferenceSummary(
+				FacetStatisticsDepth.COUNTS,
+				facetFilterBy, facetGroupFilterBy,
+				facetOrderBy, facetGroupOrderBy
+			);
+		}
+		return new ReferenceSummary(
+			FacetStatisticsDepth.COUNTS,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			requirements
+		);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows fine-grained control over statistics depth, filtering, ordering, and entity fetches for the targeted reference only; constraints are never merged.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("e1fe254a3a5b36cad555576a522ad6df")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(@Nullable String referenceName, @Nullable EntityFetchRequire... requirements) {
+		return referenceName == null ? null : new ReferenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
+	}
+
+	/**
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`) and attach fetch requirements for referenced entities or groups. Filters and ordering can target any property of the referenced entity, enabling fine-grained control per reference. If both generic and per-reference constraints are present, the per-reference one fully replaces the generic for its target.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("a3c2f98a6db6878c9760e01c17286b8c")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
+		if (referenceName == null) {
+			return null;
+		}
+		return statisticsDepth == null ?
+			new ReferenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements) :
+			new ReferenceSummaryOfReference(referenceName, statisticsDepth, requirements);
+	}
+
+	/**
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), filter and order constraints targeting properties of the referenced entity, and fetch requirements for reference entities. Other references remain unaffected unless explicitly targeted.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterBy(attributeEquals("country", "US")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("5f16f68585d1190e13ff7d2852874dc6")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
+	}
+
+	/**
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), filters, and ordering specific to the referenced entity, plus fetch requirements for referenced entities and groups. All filter/order constraints target the referenced entity, not the reference relation. Use to tailor facet summaries per reference type.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "parameterValues",
+	 *         IMPACT,
+	 *         filterBy(attributeContains("code", "memory")),
+	 *         filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("code", "name")),
+	 *         entityGroupFetch(attributeContent("code"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("9125a1f30fa02eb8be39504b7f07285e")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), group filtering, and custom ordering for reference options and groups, plus fetch requirements for referenced entities or groups. Filter and order constraints can target any property of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` are allowed.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterGroupBy(attributeEquals("country", "DE")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("fc2d5fe5d29b1bea86c16b485664bf35")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), and apply filters and ordering specific to the referenced entity type. Only one `EntityFetch` and one `EntityGroupFetch` can be attached. Use this to tailor facet summaries for individual references with custom filtering, sorting, and data loading.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "parameterValues",
+	 *         IMPACT,
+	 *         filterBy(attributeContains("code", "memory")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("code", "name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("5dcea4f9d88ee69727b88e90feefeb41")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (COUNTS or IMPACT), and filter/order constraints on properties of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` allowed. Use when you need per-reference customization of facet statistics, filtering, or ordering.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterBy(attributeEquals("active", true)),
+	 *         null,
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("ab325e253e772a24ff63fb2fedbd15d4")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), and apply filters, group filters, and fetch requirements specific to the referenced entity type. Constraints are never merged—this fully replaces the generic summary for the targeted reference.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterBy(attributeEquals("country", "US")),
+	 *         filterGroupBy(attributeInSet("type", "premium")),
+	 *         entityFetch(attributeContent("name", "logo"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("940e7ba1ed0fde3ce7f8dc4dded02561")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), custom ordering for reference options and groups, and fetch requirements for referenced entities or groups. Filters and ordering can target any property of the referenced entity type. Use this to customize summary behavior for specific references without affecting others.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("564866182970c5a348339e1fdd887d65")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Overrides the generic `referenceSummary` for a single named reference, computing statistics (counts or impact) and allowing fine-grained filtering, ordering, and entity fetch settings for that reference only. Filters and sorting target properties of the referenced entity, not the reference relation. Use to customize facet summaries per reference without affecting others.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterBy(attributeEquals("country", "DE")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("2c4bacf64431b67e0061757f7f8406f0")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify the statistics depth (`COUNTS` or `IMPACT`), custom ordering for reference options, and fetch requirements for referenced entities. Only affects the targeted reference; constraints are not merged with generic settings.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("fc746658f15a7de51b923d9cef077aad")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (COUNTS or IMPACT), group filtering, and entity fetch requirements, all targeting the referenced entity type. Other faceted references remain unaffected unless explicitly configured.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterGroupBy(attributeInSet("code", "premium", "budget")),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("787ff35c5e509865bf85cab310288939")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` settings for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), custom group ordering, and fetch requirements for referenced/group entities. Use when you need per-reference control over summary output and data loading.  
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("35e3b565c12b1040be3f528417d1891e")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), group filtering, option ordering, and fetch requirements for the targeted reference only. Constraints apply to properties of the referenced entity, not the reference relation. Use when you need per-reference facet summaries with custom filters, ordering, or fetches.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterGroupBy(attributeInSet("code", "premium", "budget")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("79bea86749ba28805bfea710700170ba")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify statistics depth (`COUNTS` or `IMPACT`), and apply filters, group ordering, and fetches specific to the referenced entity type. Constraints are never merged; this replaces the generic baseline for the targeted reference. Useful for per-reference customization of stats, filtering, or sorting.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterBy(attributeEquals("country", "US")),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("23ec097ee52f457bb20ab2c482e5af12")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), group filtering and ordering, and fetch requirements for referenced/group entities. Filters and ordering can target any property of the referenced entity. Use when you need custom summary logic for a specific reference type.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         IMPACT,
+	 *         filterGroupBy(attributeInSet("popularity")),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("5d9809403f3fa90c81396f2097259580")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify the statistics depth (COUNTS or IMPACT), and apply filters, groupings, and ordering using properties of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` can be attached. Use when you need per-reference facet control beyond the global baseline.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "parameterValues",
+	 *         IMPACT,
+	 *         filterBy(attributeContains("code", "memory")),
+	 *         filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("code", "name")),
+	 *         entityGroupFetch(attributeContent("code"))
+	 *     )
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("eabdf4ac301e05fb60fcdbabccc47e94")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		if (referenceName == null) {
+			return null;
+		}
+		if (statisticsDepth == null) {
+			statisticsDepth = FacetStatisticsDepth.COUNTS;
+		}
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
+			return new ReferenceSummaryOfReference(
+				referenceName, statisticsDepth,
+				facetFilterBy, facetGroupFilterBy,
+				facetOrderBy, facetGroupOrderBy
+			);
+		}
+		return new ReferenceSummaryOfReference(
+			referenceName,
+			statisticsDepth,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			requirements
+		);
+	}
+
+	/**
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows filtering and ordering by any property of the referenced entity, and supports custom entity fetch requirements. Only affects the targeted reference; others remain unchanged.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeEquals("country", "US")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("ccbd125e33327e81fafd3732c022c263")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, facetFilterBy, null, facetOrderBy, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you filter, group, and order reference options using properties of the referenced entity, and specify fetch requirements for entities or groups.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeEquals("country", "US")),
+	 *         filterGroupBy(attributeInSet("type", "premium")),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("b0ae28cde4450e9c17b478be591f4fe4")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a facet summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom filtering and ordering of reference options and groups using properties of the referenced entity. Only one `EntityFetch` and one `EntityGroupFetch` can be attached; duplicates throw an exception. Use to tailor facet stats and display for a specific reference without affecting others.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("2ccf4501e8a694846a97530d3fa96df6")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you filter and order reference options and groups using any property of the referenced entity, and attach fetch requirements for entity/group data. Only affects the specified reference; others are unaffected unless targeted separately.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("50eda46e18897738c04a7720ec23d2e2")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom filtering and ordering on the referenced entity, and supports attaching fetch requirements for reference or group entities. Use this to tailor facet statistics and output for a specific reference type without affecting others.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeEquals("country", "US")),
+	 *         filterGroupBy(attributeInSet("type", "premium")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("82df988ac9c0d29d49dc1d6a067b601e")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you filter and group reference options using any filterable property of the referenced entity, and attach fetch requirements for reference or group entities. Other faceted references remain unaffected unless explicitly targeted.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("ae3473c2affb1edb03920eb107bea1b5")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * Calculates a summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom ordering of reference options and groups, plus fine-grained entity/group fetch requirements. Only affects the specified reference; constraints are not merged with generic settings.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("77da54cabe5b4ec06642544f2a21de84")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, fully overriding any generic `referenceSummary` for that reference. Only the specified reference is affected; others remain unchanged. Allows filtering and fetching data for the referenced entity using any of its filterable properties.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("18242def6a21362344b0fdb4118cc187")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Only the specified reference is affected; others remain unchanged. Allows custom ordering and fetch requirements for the referenced entity, with all filter/order constraints targeting properties of the referenced entity type. 
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("bc1b378ffddc7e8400d328368240add3")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom group filtering and fetch requirements for the targeted reference, affecting only that reference and not others.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("8e042fc24111ceaf0fddb06a4b27fadc")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you control group ordering and specify fetch requirements for referenced entities or groups. Only affects the targeted reference; other references remain unaffected.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("947dfad132c4f2ad067cc6770b8bfca4")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows custom filter and order constraints targeting properties of the referenced entity, plus optional entity and group fetch requirements. Other faceted references remain unaffected unless explicitly configured.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("22f6b20557463955947a0bd092f77339")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows filtering and ordering based on properties of the referenced entity or group, and supports custom entity/group fetch requirements. Other references remain unaffected unless individually targeted.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("41c3c7ff73a2dd32e49f2493f0da44ac")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Overrides generic facet summary settings for a single named reference, allowing custom group filtering and ordering for that reference only. Use this to target specific referenced entity or group properties with per-reference fetch requirements.  
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("fd01baee54d5487cddecc4fc6aa2088b")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Lets you specify custom filters, group filters, and ordering for the referenced entity, plus fetch requirements for entities and groups. Use when you need per-reference facet stats or want to target reference-specific properties.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         filterBy(attributeEquals("active", true)),
+	 *         filterGroupBy(attributeInSet("type", "premium")),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("type", DESC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@SourceHash("db13bf6a32c3cd9cacee726c72b836ca")
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		if (referenceName == null) {
+			return null;
+		}
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
+			return new ReferenceSummaryOfReference(
+				referenceName, FacetStatisticsDepth.COUNTS,
+				facetFilterBy, facetGroupFilterBy,
+				facetOrderBy, facetGroupOrderBy
+			);
+		}
+		return new ReferenceSummaryOfReference(
 			referenceName,
 			FacetStatisticsDepth.COUNTS,
 			facetFilterBy, facetGroupFilterBy,
