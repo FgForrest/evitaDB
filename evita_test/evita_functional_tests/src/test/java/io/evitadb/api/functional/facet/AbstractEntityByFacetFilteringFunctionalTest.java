@@ -46,8 +46,9 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -3039,9 +3040,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull Function<FacetStatistics, String> facetRenderer
 	) {
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return this.facetSummary.prettyPrint(this.groupRenderer, this.facetRenderer);
+			// TODO: remove this cast after FacetSummary is removed
+			//noinspection unchecked
+			return this.facetSummary.prettyPrint((Function<ReferenceGroupStatistics, String>) (Function<?, ?>) this.groupRenderer, this.facetRenderer);
 		}
 
 	}

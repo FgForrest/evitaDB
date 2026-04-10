@@ -27,13 +27,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -45,9 +50,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.dto.QueryTelemetryDto;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -89,9 +95,12 @@ public class ExtraResultsJsonSerializer {
 	 * @return serialized entity or list of entities
 	 */
 	@Nonnull
-	public JsonNode serialize(@Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults,
-	                          @Nonnull EntitySchemaContract resultEntitySchema,
-	                          @Nonnull CatalogSchemaContract catalogSchema) {
+	public JsonNode serialize(
+		@Nonnull Query query,
+		@Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults,
+		@Nonnull EntitySchemaContract resultEntitySchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 		for (EvitaResponseExtraResult extraResult : extraResults.values()) {
 			if (extraResult instanceof QueryTelemetry queryTelemetry) {
@@ -102,13 +111,138 @@ public class ExtraResultsJsonSerializer {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.PRICE_HISTOGRAM.name(), serializePriceHistogram(priceHistogram));
 			} else if (extraResult instanceof Hierarchy hierarchyStats) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchy(hierarchyStats, catalogSchema, resultEntitySchema));
-			} else if (extraResult instanceof FacetSummary facetSummary) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.FACET_SUMMARY.name(), serializeFacetSummary(facetSummary, catalogSchema, resultEntitySchema));
+			} else if (extraResult instanceof FacetSummary facetSummary) { // TODO: replace with ReferenceSummary when the FacetSummary constraint is removed
+				if (query.getRequire() == null) {
+					throw new RestQueryResolvingInternalError(
+						"Reference summary / Facet summary extra result is present but require constraint is not present in query.",
+						"Internal error during reference summary / facet summary extra result serialization."
+					);
+				}
+
+				final io.evitadb.api.query.require.FacetSummary facetSummaryRequire = QueryUtils.findConstraint(
+					query.getRequire(),
+					io.evitadb.api.query.require.FacetSummary.class
+				);
+				final List<FacetSummaryOfReference> facetSummaryOfReferencesRequire = QueryUtils.findConstraints(
+					query.getRequire(),
+					FacetSummaryOfReference.class
+				);
+
+				if (facetSummaryRequire != null || !facetSummaryOfReferencesRequire.isEmpty()) {
+					rootNode.putIfAbsent(
+						ExtraResultsDescriptor.FACET_SUMMARY.name(),
+						serializeFacetSummary(facetSummary, catalogSchema, resultEntitySchema)
+					);
+				} else {
+					// TODO: simplify this instanceof branch only to the following lines when FacetSummary constraint removed
+					rootNode.putIfAbsent(
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name(),
+						serializeReferenceSummary(facetSummary, catalogSchema, resultEntitySchema)
+					);
+				}
 			}
 		}
 		return rootNode;
 	}
 
+	@Nonnull
+	private JsonNode serializeReferenceSummary(
+		@Nonnull ReferenceSummary referenceSummary,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema
+	) {
+		final Collection<? extends ReferenceGroupStatistics> referenceGroupStatistics = referenceSummary.getReferenceStatistics();
+		final Map<String, List<ReferenceGroupStatistics>> groupedStats = createHashMap(entitySchema.getReferences().size());
+		for (ReferenceGroupStatistics referenceGroupStatistic : referenceGroupStatistics) {
+			if (groupedStats.containsKey(referenceGroupStatistic.getReferenceName())) {
+				groupedStats.get(referenceGroupStatistic.getReferenceName()).add(referenceGroupStatistic);
+			} else {
+				final List<ReferenceGroupStatistics> groupedByReference = new LinkedList<>();
+				groupedByReference.add(referenceGroupStatistic);
+				groupedStats.put(referenceGroupStatistic.getReferenceName(), groupedByReference);
+			}
+		}
+
+		final ObjectNode referenceGroupStatsNode = this.objectJsonSerializer.objectNode();
+		groupedStats.forEach((key, value) -> {
+			final String serializableReferenceName = entitySchema.getReference(key)
+				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find reference schema for `" + key + "` in entity schema `" + entitySchema.getName() + "`."));
+
+			referenceGroupStatsNode.putIfAbsent(
+				serializableReferenceName,
+				serializeReferenceSameGroupStatistics(
+					value,
+					entitySchema.getReference(key).orElseThrow(() -> new RestInternalError("Could not find referenc schema for `" + key + "`.")),
+					catalogSchema
+				)
+			);
+		});
+		return referenceGroupStatsNode;
+	}
+
+	@Nonnull
+	private JsonNode serializeReferenceSameGroupStatistics(
+		@Nonnull List<ReferenceGroupStatistics> groupStatistics,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
+		if (referenceSchema.getReferencedGroupType() != null) {
+			final ArrayNode sameGroupStatsNode = this.objectJsonSerializer.arrayNode();
+			groupStatistics
+				.forEach(
+					stats ->
+				         sameGroupStatsNode.add(
+							 serializeReferenceGroupStatistics(
+								 stats,
+								 referenceSchema,
+								 catalogSchema
+							 )
+				         )
+				);
+			return sameGroupStatsNode;
+		} else {
+			Assert.isPremiseValid(
+				groupStatistics.size() == 1,
+				() -> new RestInternalError("There should be only one non-grouped facet group for reference `" + referenceSchema.getName() + "` but found `" + groupStatistics.size() + "`.")
+			);
+			return serializeReferenceGroupStatistics(groupStatistics.get(0), referenceSchema, catalogSchema);
+		}
+	}
+
+	@Nonnull
+	private JsonNode serializeReferenceGroupStatistics(
+		@Nonnull ReferenceGroupStatistics groupStatistics,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
+		final ObjectNode groupStatsNode = this.objectJsonSerializer.objectNode();
+		groupStatsNode.put(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount());
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			groupStatsNode.putIfAbsent(
+				ReferenceGroupStatisticsDescriptor.GROUP_ENTITY.name(),
+                groupStatistics.getGroupEntity() != null ? serializeEntity(groupStatistics.getGroupEntity(), catalogSchema) : null
+			);
+		}
+
+		final ArrayNode jsonNodes = this.objectJsonSerializer.arrayNode();
+		groupStatistics
+			.getFacetStatistics()
+			.forEach(
+				facetStats ->
+					jsonNodes.add(
+						serializeFacetStatistics(
+							facetStats,
+							catalogSchema
+						)
+					)
+			);
+		groupStatsNode.putIfAbsent(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), jsonNodes);
+		return groupStatsNode;
+	}
+
+	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	private JsonNode serializeFacetSummary(@Nonnull FacetSummary facetSummary, @Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
 		final Collection<FacetGroupStatistics> facetGroupStatistics = facetSummary.getReferenceStatistics();
@@ -139,9 +273,9 @@ public class ExtraResultsJsonSerializer {
 			);
 		});
 		return facetGroupStatsNode;
-
 	}
 
+	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	private JsonNode serializeFacetSameGroupStatistics(@Nonnull List<FacetGroupStatistics> groupStatistics,
 	                                                   @Nonnull ReferenceSchemaContract referenceSchema,
@@ -159,6 +293,7 @@ public class ExtraResultsJsonSerializer {
 		}
 	}
 
+	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	private JsonNode serializeFacetGroupStatistics(@Nonnull FacetGroupStatistics groupStatistics,
 	                                               @Nonnull ReferenceSchemaContract referenceSchema,

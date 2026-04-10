@@ -37,12 +37,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHis
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
@@ -209,6 +211,7 @@ public class FullResponseObjectBuilder {
 
 		buildAttributeHistogramProperty(entitySchema).ifPresent(extraResultProperties::add);
 		buildPriceHistogramProperty(entitySchema).ifPresent(extraResultProperties::add);
+		buildReferenceSummaryProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		buildFacetSummaryProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		buildHierarchyProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		extraResultProperties.add(ExtraResultsDescriptor.QUERY_TELEMETRY.to(this.propertyBuilderTransformer).build());
@@ -281,6 +284,119 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
+	private Optional<OpenApiProperty> buildReferenceSummaryProperty(
+		@Nonnull EntitySchemaContract entitySchema,
+		boolean localized
+	) {
+		final Optional<OpenApiTypeReference> referenceSummaryObject = buildReferenceSummaryObject(entitySchema, localized);
+		if (referenceSummaryObject.isEmpty()) {
+			return Optional.empty();
+		}
+
+		return Optional.of(
+			ExtraResultsDescriptor.REFERENCE_SUMMARY
+				.to(this.propertyBuilderTransformer)
+				.type(referenceSummaryObject.get())
+				.build()
+		);
+	}
+
+	@Nonnull
+	private Optional<OpenApiTypeReference> buildReferenceSummaryObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		boolean localized
+	) {
+		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
+			.getReferences()
+			.values()
+			.stream()
+			.filter(ReferenceSchemaContract::isFacetedInAnyScope)
+			.toList();
+
+		if (referenceSchemas.isEmpty()) {
+			return Optional.empty();
+		}
+
+		final OpenApiObject.Builder referenceSummaryObjectBuilder = ReferenceSummaryDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(constructReferenceSummaryObjectName(entitySchema, localized));
+
+		referenceSchemas.forEach(referenceSchema ->
+             referenceSummaryObjectBuilder.property(buildReferenceGroupStatisticsProperty(entitySchema, referenceSchema, localized)));
+
+		return Optional.of(this.buildingContext.registerType(referenceSummaryObjectBuilder.build()));
+	}
+
+	@Nonnull
+	private OpenApiProperty buildReferenceGroupStatisticsProperty(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean localized
+	) {
+		final OpenApiTypeReference referenceGroupStatisticsObject = buildReferenceGroupStatisticsObject(
+			entitySchema,
+			referenceSchema,
+			localized
+		);
+
+		final boolean isGrouped = referenceSchema.getReferencedGroupType() != null;
+
+		final OpenApiProperty.Builder referenceGroupStatisticsFieldBuilder = newProperty()
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION));
+		if (isGrouped) {
+			referenceGroupStatisticsFieldBuilder.type(arrayOf(referenceGroupStatisticsObject));
+		} else {
+			referenceGroupStatisticsFieldBuilder.type(referenceGroupStatisticsObject);
+		}
+
+		return referenceGroupStatisticsFieldBuilder
+			.build();
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildReferenceGroupStatisticsObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean localized
+	) {
+		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
+			Optional.ofNullable(referenceSchema.getReferencedGroupType())
+				.flatMap(groupType -> this.buildingContext
+					.getSchema()
+					.getEntitySchema(groupType))
+				.orElse(null) :
+			null;
+
+		final OpenApiTypeReference groupEntityObject = buildReferencedEntityObject(groupEntitySchema, localized);
+		final OpenApiTypeReference facetStatisticsObject = buildFacetStatisticsObject(
+			entitySchema,
+			referenceSchema,
+			localized
+		);
+
+		final OpenApiObject.Builder facetGroupStatisticsObjectBuilder = FacetGroupStatisticsDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(constructReferenceGroupStatisticsObjectName(entitySchema, referenceSchema, localized));
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			facetGroupStatisticsObjectBuilder
+				.property(
+					ReferenceGroupStatisticsDescriptor.GROUP_ENTITY
+						.to(this.propertyBuilderTransformer)
+			            .type(groupEntityObject));
+		}
+
+		facetGroupStatisticsObjectBuilder
+			.property(
+				ReferenceGroupStatisticsDescriptor.FACET_STATISTICS
+					.to(this.propertyBuilderTransformer)
+					.type(nonNull(arrayOf(facetStatisticsObject))));
+
+		return this.buildingContext.registerType(facetGroupStatisticsObjectBuilder.build());
+	}
+
+	// TODO: remove when FacetSummary constraint is removed
+	@Nonnull
 	private Optional<OpenApiProperty> buildFacetSummaryProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                            boolean localized) {
 		final Optional<OpenApiTypeReference> facetSummaryObject = buildFacetSummaryObject(entitySchema, localized);
@@ -296,6 +412,7 @@ public class FullResponseObjectBuilder {
 		);
 	}
 
+	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	private Optional<OpenApiTypeReference> buildFacetSummaryObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                               boolean localized) {
@@ -320,6 +437,7 @@ public class FullResponseObjectBuilder {
 		return Optional.of(this.buildingContext.registerType(facetSummaryObjectBuilder.build()));
 	}
 
+	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	private OpenApiProperty buildFacetGroupStatisticsProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema,
@@ -344,7 +462,7 @@ public class FullResponseObjectBuilder {
 			.build();
 	}
 
-
+	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	private OpenApiTypeReference buildFacetGroupStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                             @Nonnull ReferenceSchemaContract referenceSchema,
@@ -358,10 +476,8 @@ public class FullResponseObjectBuilder {
 			null;
 
 		final OpenApiTypeReference groupEntityObject = buildReferencedEntityObject(groupEntitySchema, localized);
-		final OpenApiTypeReference facetStatisticsObject = buildFacetStatisticsObject(
-			entitySchema,
-			referenceSchema,
-			localized
+		final OpenApiTypeReference facetStatisticsObject = typeRefTo(
+			constructFacetStatisticsObjectName(entitySchema, referenceSchema, localized)
 		);
 
 		final OpenApiObject.Builder facetGroupStatisticsObjectBuilder = FacetGroupStatisticsDescriptor.THIS

@@ -57,6 +57,8 @@ import io.evitadb.core.query.extraResult.translator.RequireInScopeTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyChildrenTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyFromNodeTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyFromRootTranslator;
@@ -117,6 +119,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(Require.class, new RequireTranslator());
 		TRANSLATORS.put(FacetSummary.class, new FacetSummaryTranslator());
 		TRANSLATORS.put(FacetSummaryOfReference.class, new FacetSummaryOfReferenceTranslator());
+		TRANSLATORS.put(ReferenceSummary.class, new ReferenceSummaryTranslator());
+		TRANSLATORS.put(ReferenceSummaryOfReference.class, new ReferenceSummaryOfReferenceTranslator());
 		TRANSLATORS.put(AttributeHistogram.class, new AttributeHistogramTranslator());
 		TRANSLATORS.put(PriceHistogram.class, new PriceHistogramTranslator());
 		TRANSLATORS.put(HierarchyOfSelf.class, new HierarchyOfSelfTranslator());

@@ -115,7 +115,7 @@ enum GrpcAttributeSpecialValue {
   NOT_NULL = 1;
 }
 
-// This enum controls whether FacetSummary should contain only basic statistics about facets - e.g. count only,
+// This enum controls whether ReferenceSummary should contain only basic statistics about facets - e.g. count only,
 // or whether the selection impact should be computed as well.
 enum GrpcFacetStatisticsDepth {
   // Only counts of facets will be computed.

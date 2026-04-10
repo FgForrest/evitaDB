@@ -29,22 +29,21 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * This DTO contains information about single facet group and statistics of the facets that relates to it.
- * TODO: remove when FacetSummary constraint is removed
+ * This DTO contains information about single reference group and statistics of the references that relates to it.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics}
  */
-@java.lang.Deprecated public final class GrpcFacetGroupStatistics extends
+public final class GrpcReferenceGroupStatistics extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics)
-    GrpcFacetGroupStatisticsOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics)
+    GrpcReferenceGroupStatisticsOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcFacetGroupStatistics.newBuilder() to construct.
-  private GrpcFacetGroupStatistics(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcReferenceGroupStatistics.newBuilder() to construct.
+  private GrpcReferenceGroupStatistics(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcFacetGroupStatistics() {
+  private GrpcReferenceGroupStatistics() {
     referenceName_ = "";
     facetStatistics_ = java.util.Collections.emptyList();
   }
@@ -53,20 +52,20 @@ private static final long serialVersionUID = 0L;
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcFacetGroupStatistics();
+    return new GrpcReferenceGroupStatistics();
   }
 
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.class, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.class, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder.class);
   }
 
   private int bitField0_;
@@ -336,10 +335,10 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics other = (io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics other = (io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics) obj;
 
     if (!getReferenceName()
         .equals(other.getReferenceName())) return false;
@@ -389,44 +388,44 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -434,26 +433,26 @@ private static final long serialVersionUID = 0L;
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -466,7 +465,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -483,30 +482,29 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * This DTO contains information about single facet group and statistics of the facets that relates to it.
-   * TODO: remove when FacetSummary constraint is removed
+   * This DTO contains information about single reference group and statistics of the references that relates to it.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics)
-      io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics)
+      io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatisticsOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.class, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.class, io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -553,17 +551,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics build() {
-      io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics build() {
+      io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -571,15 +569,15 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics result = new io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics result = new io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics(this);
       buildPartialRepeatedFields(result);
       if (bitField0_ != 0) { buildPartial0(result); }
       onBuilt();
       return result;
     }
 
-    private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics result) {
+    private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics result) {
       if (facetStatisticsBuilder_ == null) {
         if (((bitField0_ & 0x00000010) != 0)) {
           facetStatistics_ = java.util.Collections.unmodifiableList(facetStatistics_);
@@ -591,7 +589,7 @@ private static final long serialVersionUID = 0L;
       }
     }
 
-    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics result) {
+    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics result) {
       int from_bitField0_ = bitField0_;
       if (((from_bitField0_ & 0x00000001) != 0)) {
         result.referenceName_ = referenceName_;
@@ -649,16 +647,16 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.getDefaultInstance()) return this;
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics.getDefaultInstance()) return this;
       if (!other.getReferenceName().isEmpty()) {
         referenceName_ = other.referenceName_;
         bitField0_ |= 0x00000001;
@@ -1553,23 +1551,23 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcFacetGroupStatistics>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcFacetGroupStatistics>() {
+  private static final com.google.protobuf.Parser<GrpcReferenceGroupStatistics>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcReferenceGroupStatistics>() {
     @java.lang.Override
-    public GrpcFacetGroupStatistics parsePartialFrom(
+    public GrpcReferenceGroupStatistics parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
@@ -1588,17 +1586,17 @@ private static final long serialVersionUID = 0L;
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcFacetGroupStatistics> parser() {
+  public static com.google.protobuf.Parser<GrpcReferenceGroupStatistics> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcFacetGroupStatistics> getParserForType() {
+  public com.google.protobuf.Parser<GrpcReferenceGroupStatistics> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

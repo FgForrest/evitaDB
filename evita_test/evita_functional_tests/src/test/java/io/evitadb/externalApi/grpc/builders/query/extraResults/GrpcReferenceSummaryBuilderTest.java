@@ -24,13 +24,15 @@
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -52,12 +54,79 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.facetSummary;
+import static io.evitadb.api.query.QueryConstraints.referenceSummary;
+import static io.evitadb.api.query.QueryConstraints.require;
+
 /**
- * This test verifies functionalities of methods in {@link GrpcFacetSummaryBuilder} class.
+ * This test verifies functionalities of methods in {@link GrpcReferenceSummaryBuilder} class.
  *
  * @author Tomáš Pozler, 2022
  */
-public class GrpcFacetSummaryBuilderTest {
+public class GrpcReferenceSummaryBuilderTest {
+
+	@Test
+	void buildReferenceSummary() {
+		final ReferenceSchema[] types = {
+			ReferenceSchema._internalBuild(
+				"test1", "test1", false, Cardinality.ONE_OR_MORE, "testGroup1", false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }
+			),
+			ReferenceSchema._internalBuild(
+				"test2", "test2", false, Cardinality.ONE_OR_MORE, "testGroup2", false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }
+			),
+			ReferenceSchema._internalBuild(
+				"test3", "test3", false, Cardinality.ONE_OR_MORE, null, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }
+			),
+		};
+
+		final FacetSummary facetSummary = new FacetSummary(
+			List.of(
+				new FacetGroupStatistics(
+					types[0],
+					new EntityReference(Objects.requireNonNull(types[0].getReferencedGroupType()), 1),
+					15,
+					List.of(
+						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 1), true, 5, new RequestImpact(1, 7, true)),
+						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 2), false, 4, new RequestImpact(5, 6, true)),
+						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 3), false, 5, new RequestImpact(6, 6, true)),
+						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 4), false, 1, new RequestImpact(4, 58, true))
+					)
+				),
+				new FacetGroupStatistics(
+					types[1],
+					createGroupEntity("testGroup2"),
+					15,
+					List.of(
+						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 1, "phone1"), true, 5, new RequestImpact(55, 7, true)),
+						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 2, "phone2"), false, 4, new RequestImpact(7, 8, true)),
+						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 3, "phone3"), false, 5, new RequestImpact(6, 6, true)),
+						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 4, "phone4"), false, 1, new RequestImpact(7, 4, true))
+					)
+				),
+				new FacetGroupStatistics(
+					types[2],
+					null,
+					29,
+					List.of(
+						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 1), true, 8, new RequestImpact(1, 5, true)),
+						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 2), false, 9, new RequestImpact(2, 66, true)),
+						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 3), false, 7, new RequestImpact(3, 76, true)),
+						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 4), false, 5, new RequestImpact(4, 8, true))
+					)
+				)
+			)
+		);
+
+		final Query sourceQuery = Query.query(
+			collection("Product"),
+			require(referenceSummary())
+		);
+		final Builder extraResults = GrpcExtraResults.newBuilder();
+		GrpcReferenceSummaryBuilder.buildReferenceSummary(sourceQuery, extraResults, facetSummary, null);
+
+		GrpcAssertions.assertReferenceSummary((ReferenceSummary) facetSummary, extraResults.getReferenceGroupStatisticsList());
+	}
 
 	@Test
 	void buildFacetSummary() {
@@ -111,8 +180,12 @@ public class GrpcFacetSummaryBuilderTest {
 			)
 		);
 
+		final Query sourceQuery = Query.query(
+			collection("Product"),
+			require(facetSummary())
+		);
 		final Builder extraResults = GrpcExtraResults.newBuilder();
-		GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, facetSummary, null);
+		GrpcReferenceSummaryBuilder.buildReferenceSummary(sourceQuery, extraResults, facetSummary, null);
 
 		GrpcAssertions.assertFacetSummary(facetSummary, extraResults.getFacetGroupStatisticsList());
 	}

@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * This enum controls whether FacetSummary should contain only basic statistics about facets - e.g. count only,
+ * This enum controls whether ReferenceSummary should contain only basic statistics about facets - e.g. count only,
  * or whether the selection impact should be computed as well.
  * </pre>
  *

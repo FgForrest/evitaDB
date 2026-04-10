@@ -131,8 +131,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 		.name("facetedInScopes")
 		.description("""
 			Whether the statistics data for this reference should be maintained and this allowing to get
-			`facetSummary` for this reference or use `facet_{reference name}_inSet`
-			filtering query.
+			`referenceSummary` for this reference or use filtering query.
 			
 			Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
 			occupies (memory/disk) space in the form of index.

@@ -42,10 +42,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetGroupStatisticsHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetStatisticsHeaderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.ReferenceGroupStatisticsHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.ReferenceStatisticsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -61,6 +61,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.facetSummaryOfReference;
@@ -83,7 +84,7 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
  * - Resolves details related to grouped facets and facet statistics based on the provided selection set.
  */
 @RequiredArgsConstructor
-public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver {
+public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResolver {
 
 	@Nonnull private final EntitySchemaContract entitySchema;
 	/**
@@ -96,14 +97,21 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 
 	@Nonnull
-	public Collection<RequireConstraint> resolve(@Nonnull SelectionSetAggregator extraResultsSelectionSet,
-	                                             @Nullable Locale desiredLocale) {
-		final List<SelectedField> facetSummaryFields = extraResultsSelectionSet.getImmediateFields(ExtraResultsDescriptor.FACET_SUMMARY.name());
-		if (facetSummaryFields.isEmpty()) {
+	public Collection<RequireConstraint> resolve(
+		@Nonnull SelectionSetAggregator extraResultsSelectionSet,
+		@Nullable Locale desiredLocale
+	) {
+		final List<SelectedField> referenceSummaryFields = extraResultsSelectionSet.getImmediateFields(
+			Set.of(
+				ExtraResultsDescriptor.REFERENCE_SUMMARY.name(),
+				ExtraResultsDescriptor.FACET_SUMMARY.name() // TODO: remove this line after FacetSummary constraint is removed
+			)
+		);
+		if (referenceSummaryFields.isEmpty()) {
 			return List.of();
 		}
 
-		return facetSummaryFields.stream()
+		return referenceSummaryFields.stream()
 			.flatMap(facetSummaryField -> {
 				final Scope scope = resolveScope(facetSummaryField);
 				final DataFetchingFieldSelectionSet nestedFields = facetSummaryField.getSelectionSet();
@@ -153,10 +161,10 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 			orderGroupBy = null;
 		}
 
-		final List<SelectedField> facetStatisticsFields = SelectionSetAggregator.getImmediateFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet());
+		final List<SelectedField> facetStatisticsFields = SelectionSetAggregator.getImmediateFields(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet());
 		Assert.isTrue(
 			facetStatisticsFields.size() <= 1,
-			() -> new GraphQLInvalidResponseUsageException("There can be only one `" + FacetGroupStatisticsDescriptor.FACET_STATISTICS.name() + "` field for reference `" + referenceName + "`.")
+			() -> new GraphQLInvalidResponseUsageException("There can be only one `" + ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name() + "` field for reference `" + referenceName + "`.")
 		);
 		final Optional<SelectedField> facetStatisticsField = facetStatisticsFields.stream().findFirst();
 		final FilterBy filterBy;
@@ -192,7 +200,7 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 
 	@Nonnull
 	private static FacetStatisticsDepth resolveStatisticsDepth(@Nonnull SelectedField field) {
-		final boolean impactNeeded = SelectionSetAggregator.getImmediateFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet())
+		final boolean impactNeeded = SelectionSetAggregator.getImmediateFields(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet())
 			.stream()
 			.anyMatch(f2 -> SelectionSetAggregator.containsImmediate(EntityFacetStatisticsDescriptor.IMPACT.name(), f2.getSelectionSet()));
 		return impactNeeded ? FacetStatisticsDepth.IMPACT : FacetStatisticsDepth.COUNTS;
@@ -200,37 +208,37 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 
 	@Nonnull
 	private Optional<FilterGroupBy> resolveGroupFilterBy(@Nonnull SelectedField field, @Nonnull DataLocator groupEntityDataLocator) {
-		return Optional.ofNullable(field.getArguments().get(FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY.name()))
-			.map(it -> (FilterGroupBy) this.filterConstraintResolver.resolve(groupEntityDataLocator, FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY.name(), it));
+		return Optional.ofNullable(field.getArguments().get(ReferenceGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY.name()))
+			.map(it -> (FilterGroupBy) this.filterConstraintResolver.resolve(groupEntityDataLocator, ReferenceGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY.name(), it));
 	}
 
 	@Nonnull
 	private Optional<OrderGroupBy> resolveGroupOrderBy(@Nonnull SelectedField field, @Nonnull DataLocator groupEntityDataLocator) {
-		return Optional.ofNullable(field.getArguments().get(FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY.name()))
-			.map(it -> (OrderGroupBy) this.orderConstraintResolver.resolve(groupEntityDataLocator, FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY.name(), it));
+		return Optional.ofNullable(field.getArguments().get(ReferenceGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY.name()))
+			.map(it -> (OrderGroupBy) this.orderConstraintResolver.resolve(groupEntityDataLocator, ReferenceGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY.name(), it));
 	}
 
 
 	@Nonnull
 	private Optional<FilterBy> resolveFacetFilterBy(@Nonnull SelectedField field, @Nonnull DataLocator facetEntityDataLocator) {
-		return Optional.ofNullable(field.getArguments().get(FacetStatisticsHeaderDescriptor.FILTER_BY.name()))
-			.map(it -> (FilterBy) this.filterConstraintResolver.resolve(facetEntityDataLocator, FacetStatisticsHeaderDescriptor.FILTER_BY.name(), it));
+		return Optional.ofNullable(field.getArguments().get(ReferenceStatisticsHeaderDescriptor.FILTER_BY.name()))
+			.map(it -> (FilterBy) this.filterConstraintResolver.resolve(facetEntityDataLocator, ReferenceStatisticsHeaderDescriptor.FILTER_BY.name(), it));
 	}
 
 	@Nonnull
 	private Optional<OrderBy> resolveFacetOrderBy(@Nonnull SelectedField field, @Nonnull DataLocator facetEntityDataLocator) {
-		return Optional.ofNullable(field.getArguments().get(FacetStatisticsHeaderDescriptor.ORDER_BY.name()))
-			.map(it -> (OrderBy) this.orderConstraintResolver.resolve(facetEntityDataLocator, FacetStatisticsHeaderDescriptor.ORDER_BY.name(), it));
+		return Optional.ofNullable(field.getArguments().get(ReferenceStatisticsHeaderDescriptor.ORDER_BY.name()))
+			.map(it -> (OrderBy) this.orderConstraintResolver.resolve(facetEntityDataLocator, ReferenceStatisticsHeaderDescriptor.ORDER_BY.name(), it));
 	}
 
 	@Nonnull
 	private Optional<EntityFetch> resolveFacetEntityFetch(@Nonnull SelectedField field,
 	                                                      @Nullable Locale desiredLocale,
 	                                                      @Nonnull String referenceName) {
-		final List<SelectedField> facetStatisticsFields = SelectionSetAggregator.getImmediateFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet());
+		final List<SelectedField> facetStatisticsFields = SelectionSetAggregator.getImmediateFields(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet());
 		Assert.isTrue(
 			facetStatisticsFields.size() <= 1,
-			() -> new GraphQLInvalidResponseUsageException("There can be only one `" + FacetGroupStatisticsDescriptor.FACET_STATISTICS.name() + "` field for reference `" + referenceName + "`.")
+			() -> new GraphQLInvalidResponseUsageException("There can be only one `" + ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name() + "` field for reference `" + referenceName + "`.")
 		);
 
 		return facetStatisticsFields.stream()
@@ -256,10 +264,13 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 	private Optional<EntityGroupFetch> resolveGroupEntityFetch(@Nonnull SelectedField field,
 	                                                           @Nullable Locale desiredLocale,
 	                                                           @Nonnull String referenceName) {
-		final List<SelectedField> groupEntityFields = SelectionSetAggregator.getImmediateFields(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), field.getSelectionSet());
+		final List<SelectedField> groupEntityFields = SelectionSetAggregator.getImmediateFields(
+			ReferenceGroupStatisticsDescriptor.GROUP_ENTITY.name(),
+			field.getSelectionSet()
+		);
 		Assert.isTrue(
 			groupEntityFields.size() <= 1,
-			() -> new GraphQLInvalidResponseUsageException("There can be only one `" + FacetGroupStatisticsDescriptor.GROUP_ENTITY.name() + "` field for reference `" + referenceName + "`.")
+			() -> new GraphQLInvalidResponseUsageException("There can be only one `" + ReferenceGroupStatisticsDescriptor.GROUP_ENTITY.name() + "` field for reference `" + referenceName + "`.")
 		);
 
 		return groupEntityFields.stream()

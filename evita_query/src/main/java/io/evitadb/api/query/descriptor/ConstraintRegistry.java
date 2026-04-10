@@ -165,6 +165,8 @@ class ConstraintRegistry {
 		DefaultAccompanyingPriceLists.class,
 		// references
 		ReferenceContent.class,
+		ReferenceSummary.class,
+		ReferenceSummaryOfReference.class,
 		// hierarchy
 		HierarchyContent.class,
 		HierarchyChildren.class,

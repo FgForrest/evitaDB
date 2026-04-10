@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
@@ -56,8 +56,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcFacetSummaryBuilderTest.createFacetEntity;
-import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcFacetSummaryBuilderTest.createGroupEntity;
+import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcReferenceSummaryBuilderTest.createFacetEntity;
+import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcReferenceSummaryBuilderTest.createGroupEntity;
 import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcHierarchyBuilderTest.createHierarchyEntity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -90,7 +90,8 @@ class GrpcExtraResultsBuilderTest {
 						entityFetchAll(),
 						statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 					)
-				)
+				),
+				facetSummary()
 			)
 		);
 		final Histogram histogram = new Histogram(

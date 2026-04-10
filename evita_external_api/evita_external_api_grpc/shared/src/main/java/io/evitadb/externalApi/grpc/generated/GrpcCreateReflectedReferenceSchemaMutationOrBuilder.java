@@ -187,7 +187,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -204,7 +204,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -221,7 +221,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -421,7 +421,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -436,7 +436,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -451,7 +451,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -467,7 +467,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -483,7 +483,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference

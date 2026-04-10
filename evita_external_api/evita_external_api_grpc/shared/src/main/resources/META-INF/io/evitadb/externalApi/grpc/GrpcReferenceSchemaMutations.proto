@@ -50,7 +50,7 @@ message GrpcCreateReferenceSchemaMutation {
   // deprecated in favor of `indexedInScopes`
   bool filterable = 9 [deprecated = true];
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facetInSet`
+  // `referenceSummary` for this reference or use `facetInSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -69,7 +69,7 @@ message GrpcCreateReferenceSchemaMutation {
   // deprecated in favor of `scopedIndexTypes`
   repeated GrpcEntityScope indexedInScopes = 11 [deprecated = true];
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facetInSet`
+  // `referenceSummary` for this reference or use `facetInSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -107,7 +107,7 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // entity must be managed on both sides of the relation.
   string reflectedReferenceName = 6;
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facetInSet`
+  // `referenceSummary` for this reference or use `facetInSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -136,7 +136,7 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // reference.
   bool facetedInherited = 12;
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facetInSet`
+  // `referenceSummary` for this reference or use `facetInSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -255,7 +255,7 @@ message GrpcSetReferenceSchemaFacetedMutation {
   // Name of the reference the mutation is targeting.
   string name = 1;
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facet_{reference name}_inSet`
+  // `referenceSummary` for this reference or use `facet_{reference name}_inSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -268,7 +268,7 @@ message GrpcSetReferenceSchemaFacetedMutation {
   // must be left as false. When set to TRUE the value of `faceted` field is ignored.
   bool inherited = 3;
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facet_{reference name}_inSet`
+  // `referenceSummary` for this reference or use `facet_{reference name}_inSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference

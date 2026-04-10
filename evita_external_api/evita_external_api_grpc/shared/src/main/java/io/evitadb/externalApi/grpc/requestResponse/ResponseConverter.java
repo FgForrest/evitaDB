@@ -31,6 +31,7 @@ import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
+import io.evitadb.api.query.require.ReferenceSummaryOfReference;
 import io.evitadb.api.query.require.RootHierarchyConstraint;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -39,8 +40,10 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
@@ -190,65 +193,198 @@ public class ResponseConverter {
 				)
 			);
 		}
-		if (extraResults.getFacetGroupStatisticsCount() > 0) {
-			final io.evitadb.api.query.require.FacetSummary facetSummaryRequirementDefaults = QueryUtils.findRequire(
-				evitaRequest.getQuery(), io.evitadb.api.query.require.FacetSummary.class
-			);
-			final EntityFetch defaultEntityFetch = Optional.ofNullable(facetSummaryRequirementDefaults)
-				.map(io.evitadb.api.query.require.FacetSummary::getFacetEntityRequirement)
-				.filter(Optional::isPresent)
-				.map(Optional::get)
-				.orElse(null);
-			final EntityGroupFetch defaultEntityGroupFetch = Optional.ofNullable(facetSummaryRequirementDefaults)
-				.map(io.evitadb.api.query.require.FacetSummary::getGroupEntityRequirement)
-				.filter(Optional::isPresent)
-				.map(Optional::get)
-				.orElse(null);
-
-			final Map<String, FacetSummaryOfReference> facetSummaryRequestIndex = QueryUtils.findRequires(
-				evitaRequest.getQuery(), FacetSummaryOfReference.class
-			)
-				.stream()
-				.collect(
-					Collectors.toMap(
-						FacetSummaryOfReference::getReferenceName,
-						Function.identity()
-					)
-				);
-
+		if (extraResults.getReferenceGroupStatisticsCount() > 0) {
 			result.add(
-				new FacetSummary(
-					extraResults.getFacetGroupStatisticsList()
-						.stream()
-						.map(it -> {
-							final String referenceName = it.getReferenceName();
-							final EntityFetch entityFetch = Optional.ofNullable(facetSummaryRequestIndex.get(referenceName))
-								.map(io.evitadb.api.query.require.FacetSummaryOfReference::getFacetEntityRequirement)
-								.filter(Optional::isPresent)
-								.map(Optional::get)
-								.orElse(defaultEntityFetch);
-							final EntityGroupFetch entityGroupFetch = Optional.ofNullable(facetSummaryRequestIndex.get(referenceName))
-								.map(io.evitadb.api.query.require.FacetSummaryOfReference::getGroupEntityRequirement)
-								.filter(Optional::isPresent)
-								.map(Optional::get)
-								.orElse(defaultEntityGroupFetch);
-
-							return toFacetGroupStatistics(
-								entitySchemaFetcher, evitaRequest,
-								entityFetch, entityGroupFetch,
-								it
-							);
-						})
-						.toList()
+				toReferenceSummary(
+					entitySchemaFetcher,
+					evitaRequest,
+					extraResults
+				)
+			);
+		} else if (extraResults.getFacetGroupStatisticsCount() > 0) {
+			// fallback for backward-compatibility
+			// TODO: remove this branch after the FacetSummary constraint is removed
+			result.add(
+				toFacetSummary(
+					entitySchemaFetcher,
+					evitaRequest,
+					extraResults
 				)
 			);
 		}
+
 		return result.toArray(EvitaResponseExtraResult[]::new);
+	}
+
+	@Nonnull
+	private static ReferenceSummary toReferenceSummary(
+		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull GrpcExtraResults extraResults
+	) {
+		final io.evitadb.api.query.require.ReferenceSummary referenceSummaryRequirementDefaults =
+			QueryUtils.findRequire(
+				evitaRequest.getQuery(),
+				io.evitadb.api.query.require.ReferenceSummary.class
+			);
+
+		final EntityFetch defaultEntityFetch = Optional.ofNullable(referenceSummaryRequirementDefaults)
+			.map(io.evitadb.api.query.require.ReferenceSummary::getReferenceEntityRequirement)
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.orElse(null);
+		final EntityGroupFetch defaultEntityGroupFetch = Optional.ofNullable(referenceSummaryRequirementDefaults)
+			.map(io.evitadb.api.query.require.ReferenceSummary::getGroupEntityRequirement)
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.orElse(null);
+
+		final Map<String, ReferenceSummaryOfReference> facetSummaryRequestIndex = QueryUtils.findRequires(
+				evitaRequest.getQuery(),
+				ReferenceSummaryOfReference.class
+			)
+			.stream()
+			.collect(
+				Collectors.toMap(
+					ReferenceSummaryOfReference::getReferenceName,
+					Function.identity()
+				)
+			);
+
+		return new ReferenceSummary(
+			extraResults.getReferenceGroupStatisticsList()
+				.stream()
+				.map(it -> {
+					final String referenceName = it.getReferenceName();
+					final EntityFetch entityFetch = Optional.ofNullable(facetSummaryRequestIndex.get(referenceName))
+						.map(io.evitadb.api.query.require.ReferenceSummaryOfReference::getReferenceEntityRequirement)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.orElse(defaultEntityFetch);
+					final EntityGroupFetch entityGroupFetch = Optional.ofNullable(facetSummaryRequestIndex.get(referenceName))
+						.map(io.evitadb.api.query.require.ReferenceSummaryOfReference::getGroupEntityRequirement)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.orElse(defaultEntityGroupFetch);
+
+					return toReferenceGroupStatistics(
+						entitySchemaFetcher, evitaRequest,
+						entityFetch, entityGroupFetch,
+						it
+					);
+				})
+				.toList()
+		);
+	}
+
+	@Nonnull
+	private static FacetSummary toFacetSummary(
+		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull GrpcExtraResults extraResults
+	) {
+		final io.evitadb.api.query.require.FacetSummary facetSummaryRequirementDefaults =
+			QueryUtils.findRequire(
+				evitaRequest.getQuery(),
+				io.evitadb.api.query.require.FacetSummary.class
+			);
+
+		final EntityFetch defaultEntityFetch = Optional.ofNullable(facetSummaryRequirementDefaults)
+			.map(io.evitadb.api.query.require.FacetSummary::getFacetEntityRequirement)
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.orElse(null);
+		final EntityGroupFetch defaultEntityGroupFetch = Optional.ofNullable(facetSummaryRequirementDefaults)
+			.map(io.evitadb.api.query.require.FacetSummary::getGroupEntityRequirement)
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.orElse(null);
+
+		final Map<String, FacetSummaryOfReference> facetSummaryRequestIndex = QueryUtils.findRequires(
+				evitaRequest.getQuery(),
+				FacetSummaryOfReference.class
+			)
+			.stream()
+			.collect(
+				Collectors.toMap(
+					FacetSummaryOfReference::getReferenceName,
+					Function.identity()
+				)
+			);
+
+		return new FacetSummary(
+			extraResults.getFacetGroupStatisticsList()
+				.stream()
+				.map(it -> {
+					final String referenceName = it.getReferenceName();
+					final EntityFetch entityFetch = Optional.ofNullable(facetSummaryRequestIndex.get(referenceName))
+						.map(io.evitadb.api.query.require.FacetSummaryOfReference::getFacetEntityRequirement)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.orElse(defaultEntityFetch);
+					final EntityGroupFetch entityGroupFetch = Optional.ofNullable(facetSummaryRequestIndex.get(referenceName))
+						.map(io.evitadb.api.query.require.FacetSummaryOfReference::getGroupEntityRequirement)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.orElse(defaultEntityGroupFetch);
+
+					return toFacetGroupStatistics(
+						entitySchemaFetcher, evitaRequest,
+						entityFetch, entityGroupFetch,
+						it
+					);
+				})
+				.toList()
+		);
+	}
+
+	/**
+	 * Method converts {@link GrpcReferenceGroupStatistics} to {@link ReferenceGroupStatistics}.
+	 */
+	@Nonnull
+	private static ReferenceGroupStatistics toReferenceGroupStatistics(
+		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nonnull GrpcReferenceGroupStatistics grpcReferenceGroupStatistics
+	) {
+		return new ReferenceGroupStatistics(
+			grpcReferenceGroupStatistics.getReferenceName(),
+			grpcReferenceGroupStatistics.hasGroupEntity() ?
+				EntityConverter.toEntity(
+					entitySchemaFetcher,
+					evitaRequest.deriveCopyWith(
+						grpcReferenceGroupStatistics.getGroupEntity().getEntityType(), entityGroupFetch
+					),
+					grpcReferenceGroupStatistics.getGroupEntity(),
+					SealedEntity.class,
+					SEALED_ENTITY_TYPE_CONVERTER
+				) :
+				(grpcReferenceGroupStatistics.hasGroupEntityReference() ? toEntityReference(grpcReferenceGroupStatistics.getGroupEntityReference()) : null),
+			grpcReferenceGroupStatistics.getCount(),
+			grpcReferenceGroupStatistics.getFacetStatisticsList()
+				.stream()
+				.map(
+					it -> toFacetStatistics(entitySchemaFetcher, evitaRequest, entityFetch, it)
+				)
+				.collect(
+					Collectors.toMap(
+						it -> it.getFacetEntity().getPrimaryKey(),
+						Function.identity(),
+						(o, o2) -> {
+							throw new GenericEvitaInternalError("Duplicate facet statistics for entity " + o.getFacetEntity().getPrimaryKey());
+						},
+						LinkedHashMap::new
+					)
+				)
+		);
 	}
 
 	/**
 	 * Method converts {@link GrpcFacetGroupStatistics} to {@link FacetGroupStatistics}.
 	 */
+	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	private static FacetGroupStatistics toFacetGroupStatistics(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,

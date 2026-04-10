@@ -31,6 +31,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
+import io.evitadb.core.query.extraResult.translator.reference.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;

@@ -25,7 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithDefaults;
-import io.evitadb.api.query.FacetConstraint;
+import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -48,58 +48,58 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * The `facetSummaryOfReference` requirement triggers the calculation of the facet summary for a **single named
- * reference**, overriding all corresponding constraints that would otherwise come from a generic {@link FacetSummary}
- * present in the same `require()` container. When both constraints appear together, the generic `facetSummary` defines
- * the baseline for every faceted reference, while each `facetSummaryOfReference` **completely replaces** that baseline
+ * The `referenceSummaryOfReference` requirement triggers the calculation of the reference summary for a **single named
+ * reference**, overriding all corresponding constraints that would otherwise come from a generic {@link ReferenceSummary}
+ * present in the same `require()` container. When both constraints appear together, the generic `referenceSummary` defines
+ * the baseline for every faceted reference, while each `referenceSummaryOfReference` **completely replaces** that baseline
  * for the reference it targets — the constraints are never merged.
  *
- * This constraint can also stand alone (without a generic `facetSummary`) when you only want statistics for a single
+ * This constraint can also stand alone (without a generic `referenceSummary`) when you only want statistics for a single
  * specific reference.
  *
  * ## Targeting a reference
  *
  * The first mandatory argument is the reference name as defined in the entity schema (e.g. `"parameterValues"`,
  * `"brand"`). The constraint only produces output for that reference; all other faceted references in the schema are
- * unaffected unless they have their own `facetSummaryOfReference`.
+ * unaffected unless they have their own `referenceSummaryOfReference`.
  *
  * ## Statistics depth
  *
- * The second argument selects the depth of statistics computed for each facet option:
+ * The second argument selects the depth of statistics computed for each reference option:
  *
  * - `COUNTS` *(default, implicit)* — count of matching entities only
- * - `IMPACT` — additionally predicts how many results would remain if the user selected that facet
+ * - `IMPACT` — additionally predicts how many results would remain if the user selected that reference
  *
  * ## Filtering and ordering
  *
  * Because this constraint targets exactly one reference type, its filter and order constraints can reference
  * **any filterable or sortable property of that specific referenced entity**, not just properties shared across all
- * referenced entity types. This is the primary reason to use `facetSummaryOfReference` instead of (or alongside) the
- * generic `facetSummary`:
+ * referenced entity types. This is the primary reason to use `referenceSummaryOfReference` instead of (or alongside) the
+ * generic `referenceSummary`:
  *
- * - {@link FilterBy} — restricts which individual facet options appear in the summary
- * - {@link FilterGroupBy} — restricts which facet groups appear in the summary
- * - {@link OrderBy} — controls the sort order of facet options within each group
+ * - {@link FilterBy} — restricts which individual reference options appear in the summary
+ * - {@link FilterGroupBy} — restricts which reference groups appear in the summary
+ * - {@link OrderBy} — controls the sort order of reference options within each group
  * - {@link OrderGroupBy} — controls the sort order of groups within the reference
  *
- * All filter and order constraints target properties on the **referenced entity** (facet entity or group entity);
+ * All filter and order constraints target properties on the **referenced entity** (reference entity or group entity);
  * they cannot reference attributes on the reference relation itself.
  *
  * ## Entity fetch requirements
  *
- * You can attach at most one {@link EntityFetch} (controls data loaded for facet entities) and at most one
+ * You can attach at most one {@link EntityFetch} (controls data loaded for reference entities) and at most one
  * {@link EntityGroupFetch} (controls data loaded for group entities). Providing two constraints of the same type
  * throws an exception at construction time.
  *
  * ## Default calculation rules
  *
  * Unless overridden by {@link FacetCalculationRules} or per-group behavior constraints, the same defaults apply as
- * for `facetSummary`:
+ * for `referenceSummary`:
  *
  * 1. Only entities in the current query result are counted.
  * 2. Filters outside `userFilter` are always respected.
- * 3. Facets within the same group are combined with logical OR.
- * 4. Facets across different groups or references are combined with logical AND.
+ * 3. References within the same group are combined with logical OR.
+ * 4. References across different groups or references are combined with logical AND.
  *
  * ## Example — combining generic and per-reference settings
  *
@@ -111,8 +111,8 @@ import java.util.Optional;
  *         entityLocaleEquals("en")
  *     ),
  *     require(
- *         facetSummary(COUNTS, entityFetch(attributeContent("name"))),
- *         facetSummaryOfReference(
+ *         referenceSummary(COUNTS, entityFetch(attributeContent("name"))),
+ *         referenceSummaryOfReference(
  *             "parameterValues",
  *             IMPACT,
  *             filterBy(attributeContains("code", "memory")),
@@ -131,26 +131,23 @@ import java.util.Optional;
  *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
  *
- * @see FacetSummary
+ * @see ReferenceSummary
  * @see FacetStatisticsDepth
  * @see FacetCalculationRules
  *
- * @deprecated Use {@link ReferenceSummary} instead. ReferenceSummary is extended version of the FacetSummary constraint.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated
 @ConstraintDefinition(
 	name = "summary",
-	shortDescription = "The constraint triggers computation of facet summary statistics for a single named reference with custom fetching, filtering, and ordering settings.",
-	userDocsLink = "/documentation/query/requirements/facet#facet-summary-of-reference",
-	deprecated = "Use `referenceSummary` instead. ReferenceSummary is extended version of the FacetSummary constraint."
+	shortDescription = "The constraint triggers computation of reference summary statistics for a single named reference with custom fetching, filtering, and ordering settings.",
+	userDocsLink = "/documentation/query/requirements/facet#facet-summary-of-reference"
 )
-public class FacetSummaryOfReference
+public class ReferenceSummaryOfReference
 	extends AbstractRequireConstraintContainer
-	implements ConstraintWithDefaults<RequireConstraint>, FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
-	@Serial private static final long serialVersionUID = 2377379601711709241L;
+	implements ConstraintWithDefaults<RequireConstraint>, ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+	@Serial private static final long serialVersionUID = 4912384501711709245L;
 
-	private FacetSummaryOfReference(
+	private ReferenceSummaryOfReference(
 		@Nonnull Serializable[] arguments,
 		@Nonnull RequireConstraint[] children,
 		@Nonnull Constraint<?>... additionalChildren
@@ -158,26 +155,26 @@ public class FacetSummaryOfReference
 		super(arguments, children, additionalChildren);
 		Assert.notNull(
 			getReferenceName(),
-			"Facet summary requires reference name."
+			"Reference summary requires reference name."
 		);
 		Assert.notNull(
 			getStatisticsDepth(),
-			"Facet summary requires a facet statistics depth specification."
+			"Reference summary requires a statistics depth specification."
 		);
 		for (RequireConstraint child : getChildren()) {
 			Assert.isTrue(
 				child instanceof EntityFetch ||
 					child instanceof EntityGroupFetch,
-				"Facet summary accepts only `EntityFetch` and `EntityGroupFetch` constraints."
+				"Reference summary accepts only `EntityFetch` and `EntityGroupFetch` constraints."
 			);
 		}
 		Assert.isTrue(
 			Arrays.stream(getChildren()).filter(EntityFetch.class::isInstance).count() <= 1,
-			"Facet summary accepts only one `EntityFetch` constraint."
+			"Reference summary accepts only one `EntityFetch` constraint."
 		);
 		Assert.isTrue(
 			Arrays.stream(getChildren()).filter(EntityGroupFetch.class::isInstance).count() <= 1,
-			"Facet summary accepts only one `EntityGroupFetch` constraint."
+			"Reference summary accepts only one `EntityGroupFetch` constraint."
 		);
 		for (Constraint<?> child : additionalChildren) {
 			Assert.isTrue(
@@ -185,16 +182,16 @@ public class FacetSummaryOfReference
 					child instanceof FilterGroupBy ||
 					child instanceof OrderBy ||
 					child instanceof OrderGroupBy,
-				"Facet summary accepts only `FilterBy`, `FilterGroupBy`, `OrderBy` and `OrderGroupBy` constraints."
+				"Reference summary accepts only `FilterBy`, `FilterGroupBy`, `OrderBy` and `OrderGroupBy` constraints."
 			);
 		}
 	}
 
-	public FacetSummaryOfReference(@Nonnull String referenceName) {
+	public ReferenceSummaryOfReference(@Nonnull String referenceName) {
 		super(new Serializable[]{referenceName, FacetStatisticsDepth.COUNTS});
 	}
 
-	public FacetSummaryOfReference(
+	public ReferenceSummaryOfReference(
 		@Nonnull String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nonnull EntityFetchRequire... requirements
@@ -206,7 +203,7 @@ public class FacetSummaryOfReference
 	}
 
 	@Creator
-	public FacetSummaryOfReference(
+	public ReferenceSummaryOfReference(
 		@Nonnull @Classifier String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
@@ -231,7 +228,7 @@ public class FacetSummaryOfReference
 	}
 
 	/**
-	 * Name of reference to which this facet summary settings relates to.
+	 * Name of reference to which this reference summary settings relates to.
 	 */
 	@Nonnull
 	public String getReferenceName() {
@@ -239,7 +236,7 @@ public class FacetSummaryOfReference
 	}
 
 	/**
-	 * The mode controls whether FacetSummary should contain only basic statistics about facets - e.g. count only,
+	 * The mode controls whether ReferenceSummary should contain only basic statistics about references - e.g. count only,
 	 * or whether the selection impact should be computed as well.
 	 */
 	@Nonnull
@@ -248,10 +245,10 @@ public class FacetSummaryOfReference
 	}
 
 	/**
-	 * Returns content requirements for facet entities.
+	 * Returns content requirements for reference entities.
 	 */
 	@Nonnull
-	public Optional<EntityFetch> getFacetEntityRequirement() {
+	public Optional<EntityFetch> getReferenceEntityRequirement() {
 		return Arrays.stream(getChildren())
 			.filter(EntityFetch.class::isInstance)
 			.map(EntityFetch.class::cast)
@@ -270,7 +267,7 @@ public class FacetSummaryOfReference
 	}
 
 	/**
-	 * Returns filtering constraints for facets.
+	 * Returns filtering constraints for references.
 	 */
 	@Nonnull
 	public Optional<FilterBy> getFilterBy() {
@@ -278,7 +275,7 @@ public class FacetSummaryOfReference
 	}
 
 	/**
-	 * Returns filtering constraints for facet groups.
+	 * Returns filtering constraints for reference groups.
 	 */
 	@Nonnull
 	public Optional<FilterGroupBy> getFilterGroupBy() {
@@ -286,7 +283,7 @@ public class FacetSummaryOfReference
 	}
 
 	/**
-	 * Returns ordering constraints for facets.
+	 * Returns ordering constraints for references.
 	 */
 	@Nonnull
 	public Optional<OrderBy> getOrderBy() {
@@ -294,7 +291,7 @@ public class FacetSummaryOfReference
 	}
 
 	/**
-	 * Returns ordering constraints for facet groups.
+	 * Returns ordering constraints for reference groups.
 	 */
 	@Nonnull
 	public Optional<OrderGroupBy> getOrderGroupBy() {
@@ -332,13 +329,13 @@ public class FacetSummaryOfReference
 		@Nonnull RequireConstraint[] children,
 		@Nonnull Constraint<?>[] additionalChildren
 	) {
-		return new FacetSummaryOfReference(getArguments(), children, additionalChildren);
+		return new ReferenceSummaryOfReference(getArguments(), children, additionalChildren);
 	}
 
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetSummaryOfReference(
+		return new ReferenceSummaryOfReference(
 			newArguments,
 			getChildren(),
 			getAdditionalChildren()

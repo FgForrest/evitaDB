@@ -25,33 +25,41 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
+import javax.annotation.Nullable;
 import java.util.Objects;
 
 /**
- * Extracts list of all {@link FacetGroupStatistics} of certain reference name from {@link FacetSummary}.
+ * Extracts {@link ReferenceSummary} from {@link EvitaResponse}'s extra results requested by
+ * {@link io.evitadb.api.query.require.ReferenceSummary}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class FacetGroupStatisticsDataFetcher implements DataFetcher<Collection<FacetGroupStatistics>> {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class ReferenceSummaryDataFetcher implements DataFetcher<ReferenceSummary> {
+
+	@Nullable
+	private static ReferenceSummaryDataFetcher INSTANCE;
 
 	@Nonnull
-	private final ReferenceSchemaContract referenceSchema;
+	public static ReferenceSummaryDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new ReferenceSummaryDataFetcher();
+		}
+		return INSTANCE;
+	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public Collection<FacetGroupStatistics> get(DataFetchingEnvironment environment) throws Exception {
-		final FacetSummary facetSummary = Objects.requireNonNull(environment.getSource());
-		return facetSummary.getReferenceStatistics()
-			.stream()
-			.filter(it -> it.getReferenceName().equals(this.referenceSchema.getName()))
-			.toList();
+	public ReferenceSummary get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
+		// TODO: rewrite the extra result type to ReferenceSummary after FacetSummary is removed
+		return response.getExtraResult(FacetSummary.class);
 	}
 }

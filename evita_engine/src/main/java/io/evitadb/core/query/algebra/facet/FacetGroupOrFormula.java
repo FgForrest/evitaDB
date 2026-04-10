@@ -24,7 +24,7 @@
 package io.evitadb.core.query.algebra.facet;
 
 import io.evitadb.api.query.filter.FacetHaving;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.OrFormula;
@@ -51,7 +51,7 @@ import static java.util.Optional.ofNullable;
  * This formula has almost identical implementation as {@link OrFormula} but it accepts only set of
  * {@link Formula} as a children and allows containing even single child (on the contrary to the {@link OrFormula}).
  * The formula envelopes "facet filtering" part of the formula so that it could be easily located during
- * {@link FacetSummary} computation.
+ * {@link ReferenceSummary} computation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
