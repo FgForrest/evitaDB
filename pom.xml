@@ -272,6 +272,13 @@
 				<version>${micrometer.version}</version>
 			</dependency>
 			<dependency>
+				<groupId>io.prometheus</groupId>
+				<artifactId>prometheus-metrics-bom</artifactId>
+				<version>${prometheus.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
 				<groupId>com.google.guava</groupId>
 				<artifactId>guava</artifactId>
 				<version>33.5.0-jre</version>

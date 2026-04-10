@@ -141,7 +141,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -1409,7 +1408,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		Files.write(filePath, new byte[]{0}, java.nio.file.StandardOpenOption.APPEND);
 
 		assertThrows(
-			CompletionException.class,
+			EvitaInvalidUsageException.class,
 			() -> {
 				try (final InputStream is = management.fetchFile(fileForFetch.fileId())) {
 					is.readAllBytes();
