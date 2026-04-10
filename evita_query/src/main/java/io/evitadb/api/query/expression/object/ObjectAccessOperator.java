@@ -53,10 +53,7 @@ public class ObjectAccessOperator extends AbstractUnaryOperator {
 
 	@Serial private static final long serialVersionUID = 2269901980432598797L;
 
-	@Nonnull private final ExpressionNode operandOperator;
 	@Nonnull @Getter private final ObjectOperationStep accessChain;
-	@Getter
-	private final ExpressionNode[] children;
 
 	public ObjectAccessOperator(
 		@Nonnull ExpressionNode operandOperator,
