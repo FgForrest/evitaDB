@@ -189,6 +189,69 @@ When there are multiple references (e.g. `categories`), the result is a list.
 | `$ref.attributes` | Access to non-localized reference attributes |
 | `$ref.localizedAttributes` | Access to localized reference attributes |
 
+## Method Invocation
+
+EvitaEL supports invoking methods on objects using the dot-notation syntax
+`object.method(args)`. Inside predicate arguments, the bare `$` variable refers to the
+current element being tested (same as in [spread expressions](#spread-operator-expr)).
+
+### Collection Methods
+
+| Method | Supported on | Args | Description |
+|---|---|---|---|
+| `size()` | lists, arrays, maps | 0 | Returns the number of elements/entries |
+| `any(predicate)` | lists, arrays | 1 | Returns `true` if any element matches the predicate |
+| `all(predicate)` | lists, arrays | 1 | Returns `true` if all elements match the predicate |
+| `none(predicate)` | lists, arrays | 1 | Returns `true` if no element matches the predicate |
+
+### Examples
+
+**Size:**
+
+```
+$entity.references['categories'].size()
+$entity.attributes['tags'].size()
+```
+
+**Predicate methods on lists:**
+
+```
+$entity.references['categories'].any($.referencedPrimaryKey > 5)
+// true if any category reference has a primary key greater than 5
+
+$entity.references['categories'].all($.attributes['priority'] < 100)
+// true if all category references have priority below 100
+
+$entity.references['categories'].none($.referencedPrimaryKey == 0)
+// true if no category reference has a primary key of 0
+```
+
+**Predicate methods on arrays:**
+
+```
+$entity.attributes['tags'].any($ == 'sale')
+// true if any tag equals 'sale'
+
+$entity.attributes['scores'].all($ > 0)
+// true if all scores are positive
+```
+
+**Methods with object navigation:**
+
+```
+$entity.references['categories'].any($.attributes['name'] != null)
+// true if any category reference has a non-null name attribute
+```
+
+### Null-Safe Method Invocation
+
+Use `?.` before the method call when the target object might be `null`:
+
+```
+$entity.references['brand']?.size()
+// returns null if there are no brand references, otherwise returns the count
+```
+
 ## Spread Operator (`.*[expr]`)
 
 The spread operator applies a mapping expression to each element of a collection, or map.
@@ -384,7 +447,7 @@ Operators are listed from highest to lowest precedence:
 | Precedence | Operators | Description |
 |---|---|---|
 | 1 | `()` | Parenthesized grouping |
-| 2 | `.` `?.` `[]` `?[]` `.*[]` `?.*[]` | Object access, element access, spread |
+| 2 | `.` `?.` `[]` `?[]` `.*[]` `?.*[]` `.method()` `?.method()` | Object access, element access, spread, method invocation |
 | 3 | `!` `+` (unary) `-` (unary) | Negation, unary plus/minus |
 | 4 | `*` `/` `%` | Multiplication, division, modulo |
 | 5 | `+` `-` | Addition, subtraction |
