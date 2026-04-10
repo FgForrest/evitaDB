@@ -471,19 +471,41 @@ ordered by `LocalMutation#compareTo` and `ContainerizedLocalMutationExecutor` ca
 values locally — so attribute mutations sort before reference mutations and the expression
 sees the updated value.
 
-#### `ReflectedReferenceSchema` and inherited expressions
+#### `ReflectedReferenceSchema` and `facetedPartially` inheritance restriction
 
-`ReflectedReferenceSchema` can inherit `facetedPartially` from the source `ReferenceSchema`.
-Trigger registration must account for inherited expressions:
+`ReflectedReferenceSchema` **cannot** inherit `facetedPartially` from the source
+`ReferenceSchema`. This is because `facetedPartially` expressions contain direction-specific
+paths — most notably `$reference.referencedEntity` — that resolve to different entity types
+depending on which side of the reference the expression is evaluated from. When a reflected
+reference inherits such an expression verbatim, `$reference.referencedEntity` resolves to the
+**wrong** entity type in the reflected direction, causing runtime `AttributeNotFoundException`.
 
-- When building triggers at schema load time, `EntityCollection` processes both direct and
-  reflected reference schemas. For reflected schemas that inherit `facetedPartially`, the
-  trigger is built from the inherited expression and registered under the reflected schema's
-  entity type.
-- When the source schema's `facetedPartially` expression changes, all reflected schemas that
-  inherit it must have their triggers rebuilt. The `CatalogExpressionTriggerRegistry` rebuild
-  for the source entity type must cascade to all entity types with reflected references that
-  inherit from the changed source.
+The rule is enforced at multiple layers:
+
+- **`ReflectedReferenceSchema.withReferencedSchema()`** — primary guard. Called both during
+  initial reflected reference creation (via `CreateReflectedReferenceSchemaMutation`) and during
+  source reference updates (via `notifyAboutExternalReferenceUpdate()`). Throws
+  `InvalidSchemaMutationException` if `facetedInherited == true` and the source has any
+  `facetedPartially` expressions.
+- **`SetReferenceSchemaFacetedMutation.mutate()`** — mutation guard. In the "both null" branch
+  (transitioning to inherited), checks `isSourceFacetedPartiallyDefined()` before allowing the
+  transition.
+- **`ReflectedReferenceSchema.validate()`** — defense-in-depth. Inside the `facetedInherited`
+  validation block, rejects inheritance when the source has `facetedPartially`.
+
+Scenarios covered:
+
+| Scenario | Outcome |
+|----------|---------|
+| Source has `facetedPartially`, reflected created with `withFacetedInherited()` | `InvalidSchemaMutationException` (via `withReferencedSchema()`) |
+| Source has `facetedPartially`, mutation transitions reflected to inherited | `InvalidSchemaMutationException` (via mutation guard) |
+| Source adds `facetedPartially` after reflected already inherits | `InvalidSchemaMutationException` (via `notifyAboutExternalReferenceUpdate()` → `withReferencedSchema()`) |
+| Source has only `faceted=true` (no partial), reflected inherits | OK — simple boolean inheritance is safe |
+| Source has `facetedPartially`, reflected defines own explicit `facetedInScope()` | OK — no inheritance |
+
+When the source has `facetedPartially`, the reflected reference must explicitly define its own
+faceted settings (e.g., `facetedInScope(Scope.LIVE)` with its own `facetedPartially` expression
+written for the reflected direction, or simple `faceted()` without a partial expression).
 
 #### Trigger architecture
 
@@ -1994,7 +2016,7 @@ None — all resolved.
 | 15 | **FilterBy parameterization required** — without PK-scoping, entity with refs to multiple groups gets false positives             | High     | Executor injects `entityGroupHaving(entityPrimaryKeyInSet(mutatedPK))` / `entityHaving(entityPrimaryKeyInSet(mutatedPK))` at trigger time to scope to the specific changed entity. |
 | 16 | **Dynamic attribute paths in expressions** — `$entity.attributes[variable]` prevents static analysis                              | Medium   | `AccessedDataFinder` / `ExpressionToQueryTranslator` throws exception at schema load time. Dynamic paths are not supported in `facetedPartially` expressions. |
 | 17 | **Entity removal as cross-entity trigger** — group/referenced entity removal changes expression results                           | Medium   | `EntityRemoveMutation` classified as cross-entity trigger source in Domain 2b/2c. Creates `ReevaluateExpressionMutation` same as attribute changes. |
-| 18 | **ReflectedReferenceSchema inheritance** — reflected references inherit `facetedPartially` from source schema                     | Medium   | Trigger registration processes both direct and reflected schemas. Source expression change cascades trigger rebuild to all inheriting reflected schemas. |
+| 18 | **ReflectedReferenceSchema `facetedPartially` inheritance blocked** — reflected references cannot inherit `facetedPartially` from source schema because expressions contain direction-specific paths (`$reference.referencedEntity`) that resolve to the wrong entity type in the reflected direction | Medium   | `InvalidSchemaMutationException` thrown at three layers: `withReferencedSchema()` (primary), `SetReferenceSchemaFacetedMutation.mutate()` (mutation guard), `validate()` (defense-in-depth). Reflected references must define explicit faceted settings when source has `facetedPartially`. See AD 23. |
 | 19 | **Reference-level dependencies on referenced/group entity** — expression accesses `$reference.referencedEntity.references['r']*.attributes['x']`, creating a dependency on reference mutations (not entity attributes) on the referenced entity | Medium | New `DependencyType` values (`REFERENCED_ENTITY_REFERENCE_ATTRIBUTE`, `GROUP_ENTITY_REFERENCE_ATTRIBUTE`) with `getDependentReferenceName()` to distinguish from entity-attribute dependencies. Trigger dispatch must watch for `InsertReferenceMutation`, `RemoveReferenceMutation`, `UpsertReferenceAttributeMutation` on the target entity. FilterBy translation produces nested `referenceHaving` inside `entityHaving`/`groupHaving`. See AD-22. |
 
 ---
@@ -2216,6 +2238,24 @@ None — all resolved.
       on the target entity, not just entity attribute mutations
     - The FilterBy translation: `referenceHaving('ownerRef', entityHaving(referenceHaving('r',
       attributeGreaterThan('x', v))))` — standard nested evitaQL, no new constraint types needed
+
+23. **`facetedPartially` inheritance blocked for reflected references** —
+    `ReflectedReferenceSchema` cannot inherit `facetedPartially` from the source
+    `ReferenceSchema`. The root cause: `facetedPartially` expressions use direction-specific
+    paths like `$reference.referencedEntity.attributes['priority']`. In a source reference
+    `item.category` (where `referencedEntityType=category`), `$reference.referencedEntity`
+    resolves to a `category` entity. But when the reflected reference `category.items`
+    (where `referencedEntityType=item`) inherits the same expression verbatim,
+    `$reference.referencedEntity` resolves to an `item` entity — which does not have the
+    `priority` attribute, causing `AttributeNotFoundException`. Rather than attempting
+    automatic expression rewriting (complex and error-prone for arbitrary expressions), we
+    reject inheritance outright and require the reflected reference to define its own explicit
+    faceted settings. Three validation layers enforce this:
+    - `withReferencedSchema()` — catches initial creation and source update cascades
+    - `SetReferenceSchemaFacetedMutation.mutate()` — catches explicit "switch to inherited"
+    - `validate()` — defense-in-depth for any edge case
+    The `isSourceFacetedPartiallyDefined()` method on `ReflectedReferenceSchema` exposes
+    whether the attached source reference has `facetedPartially`, enabling the mutation guard.
 
 ### Still open
 

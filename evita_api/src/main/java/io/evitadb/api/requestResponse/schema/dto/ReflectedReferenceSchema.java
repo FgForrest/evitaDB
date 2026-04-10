@@ -845,6 +845,20 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		return this.facetedInherited;
 	}
 
+	/**
+	 * Returns true if the source reference (the one this reflected reference points to) has
+	 * `facetedPartially` expressions defined in any scope. Direction-specific expressions in
+	 * `facetedPartially` cannot be inherited because `$reference.referencedEntity` resolves to
+	 * the wrong entity type in the reflected direction.
+	 *
+	 * @return true if the source reference has facetedPartially defined,
+	 *         false if the source is not available or has no such expressions
+	 */
+	public boolean isSourceFacetedPartiallyDefined() {
+		return this.reflectedReference != null
+			&& !this.reflectedReference.getFacetedPartiallyInScopes().isEmpty();
+	}
+
 	@Nonnull
 	@Override
 	public AttributeInheritanceBehavior getAttributesInheritanceBehavior() {
@@ -1070,6 +1084,18 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					}
 				}
 				if (this.facetedInherited) {
+					if (!theReflectedReference.getFacetedPartiallyInScopes().isEmpty()) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Reflected reference `" + this.getName() + "` cannot " +
+									"inherit faceted settings because source reference `" +
+									this.reflectedReferenceName + "` in entity `" +
+									referencedEntityType + "` defines facetedPartially " +
+									"expressions with direction-specific paths."
+							)
+						);
+					}
 					final Set<Scope> originalFacetedScopes = theReflectedReference.getFacetedInScopes();
 					if (!this.facetedInScopes.equals(originalFacetedScopes)) {
 						referenceErrors = Stream.concat(
@@ -1951,6 +1977,18 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		final Map<Scope, Map<String, HistogramIndexDefinition>> resolvedBucketed = this.bucketedInScopes;
 		final Map<Scope, Expression> resolvedBucketedPartially = this.bucketedPartiallyInScopes;
 		validateScopeSettings(facetedScopes, resolvedBucketed, indexedScopes, indexedComponents);
+		Assert.isTrue(
+			!this.facetedInherited || originalReference.getFacetedPartiallyInScopes().isEmpty(),
+			() -> new InvalidSchemaMutationException(
+				"Reflected reference `" + getName() + "` cannot inherit faceted settings " +
+					"from source reference `" + originalReference.getName() + "` because " +
+					"the source defines facetedPartially expressions containing " +
+					"direction-specific paths (e.g. `$reference.referencedEntity`) that " +
+					"resolve to the wrong entity type in the reflected direction. " +
+					"Define explicit faceted/facetedPartially settings on the reflected " +
+					"reference instead."
+			)
+		);
 
 		return new ReflectedReferenceSchema(
 			this.name,
