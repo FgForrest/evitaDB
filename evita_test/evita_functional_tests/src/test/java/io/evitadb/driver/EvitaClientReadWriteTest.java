@@ -89,6 +89,8 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.driver.cdc.HeartBeatSensor;
+import io.evitadb.driver.config.ClientTlsOptions;
+import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
@@ -225,11 +227,19 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
-			.mtlsEnabled(false)
-			.certificateFolderPath(clientCertificates)
-			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-			.timeout(10, TimeUnit.MINUTES)
+			.tls(
+				ClientTlsOptions.builder()
+					.mtlsEnabled(false)
+					.certificateFolderPath(clientCertificates)
+					.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+					.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+					.build()
+			)
+			.timeouts(
+				ClientTimeoutOptions.builder()
+					.timeout(10, TimeUnit.MINUTES)
+					.build()
+			)
 			.build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();
@@ -419,11 +429,19 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
-			.mtlsEnabled(false)
-			.certificateFolderPath(clientCertificates)
-			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-			.timeout(10, TimeUnit.MINUTES)
+			.tls(
+				ClientTlsOptions.builder()
+					.mtlsEnabled(false)
+					.certificateFolderPath(clientCertificates)
+					.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+					.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+					.build()
+			)
+			.timeouts(
+				ClientTimeoutOptions.builder()
+					.timeout(10, TimeUnit.MINUTES)
+					.build()
+			)
 			.build();
 
 		return new EvitaClient(evitaClientConfiguration);
@@ -3464,7 +3482,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					.host(evitaClient.getConfiguration().host())
 					.port(evitaClient.getConfiguration().port())
 					.systemApiPort(evitaClient.getConfiguration().systemApiPort())
-					.streamingTimeout(6, TimeUnit.SECONDS)
+					.timeouts(
+						ClientTimeoutOptions.builder()
+							.streamingTimeout(6, TimeUnit.SECONDS)
+							.build()
+					)
 					.build()
 			);
 
@@ -3525,6 +3547,105 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		} finally {
 			// Clean up the test catalog
 			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	@Test
+	@DisplayName("CDC publishers for different catalogs with identical request criteria should be independent")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldNotLeakCdcEventsBetweenCatalogsWithIdenticalCaptureRequests(EvitaClient evitaClient) {
+		final String catalogA = "testCatalogCdcA";
+		final String catalogB = "testCatalogCdcB";
+
+		try {
+			// create two separate catalogs and make them go live
+			evitaClient.defineCatalog(catalogA);
+			evitaClient.updateCatalog(catalogA, session -> {
+				session.goLiveAndClose();
+				return null;
+			});
+
+			evitaClient.defineCatalog(catalogB);
+			evitaClient.updateCatalog(catalogB, session -> {
+				session.goLiveAndClose();
+				return null;
+			});
+
+			// build identical CDC request criteria for both catalogs
+			final ChangeCatalogCaptureRequest identicalRequest = ChangeCatalogCaptureRequest
+				.builder()
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					ChangeCatalogCaptureCriteria
+						.builder()
+						.schemaArea()
+						.build()
+				)
+				.build();
+
+			final MockCatalogChangeCaptureSubscriber subscriberA =
+				new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+			final MockCatalogChangeCaptureSubscriber subscriberB =
+				new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+
+			// register CDC on catalog A
+			evitaClient.updateCatalog(catalogA, session -> {
+				session.registerChangeCatalogCapture(identicalRequest)
+					.subscribe(subscriberA);
+				return null;
+			});
+
+			// register CDC on catalog B with the same request
+			evitaClient.updateCatalog(catalogB, session -> {
+				session.registerChangeCatalogCapture(identicalRequest)
+					.subscribe(subscriberB);
+				return null;
+			});
+
+			// trigger schema change only in catalog A
+			evitaClient.updateCatalog(catalogA, session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.updateVia(session);
+				return null;
+			});
+
+			// subscriber A should receive the event
+			assertEquals(
+				1,
+				subscriberA.getEntityCollectionCreated(Entities.BRAND, 10, TimeUnit.SECONDS, 1),
+				"Subscriber on catalog A should receive schema change from catalog A"
+			);
+
+			// subscriber B must NOT receive the event from catalog A
+			assertEquals(
+				0,
+				subscriberB.getEntityCollectionCreated(Entities.BRAND),
+				"Subscriber on catalog B must not receive events from catalog A"
+			);
+
+			// trigger schema change only in catalog B
+			evitaClient.updateCatalog(catalogB, session -> {
+				session.defineEntitySchema(Entities.STORE)
+					.updateVia(session);
+				return null;
+			});
+
+			// subscriber B should receive its own event
+			assertEquals(
+				1,
+				subscriberB.getEntityCollectionCreated(Entities.STORE, 10, TimeUnit.SECONDS, 1),
+				"Subscriber on catalog B should receive schema change from catalog B"
+			);
+
+			// subscriber A must NOT receive the event from catalog B
+			assertEquals(
+				0,
+				subscriberA.getEntityCollectionCreated(Entities.STORE),
+				"Subscriber on catalog A must not receive events from catalog B"
+			);
+		} finally {
+			evitaClient.deleteCatalogIfExists(catalogA);
+			evitaClient.deleteCatalogIfExists(catalogB);
 		}
 	}
 

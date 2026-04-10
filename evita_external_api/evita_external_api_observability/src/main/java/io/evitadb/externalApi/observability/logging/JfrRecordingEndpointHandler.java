@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponseWriter;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -64,8 +65,8 @@ public abstract class JfrRecordingEndpointHandler extends EndpointHandler<JfrRec
 
 	@Nonnull
 	@Override
-	protected JfrRecordingEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
-		return new JfrRecordingEndpointExecutionContext(httpRequest, this.evita);
+	protected JfrRecordingEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext) {
+		return new JfrRecordingEndpointExecutionContext(httpRequest, this.evita, serviceRequestContext);
 	}
 
 	@Nonnull

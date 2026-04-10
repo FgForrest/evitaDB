@@ -41,14 +41,14 @@ do svého projektu:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_test_support</artifactId>
-    <version>2025.8.0</version>
+    <version>2026.1.0</version>
     <scope>test</scope>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_test_support:2025.8.0'
+implementation 'io.evitadb:evita_test_support:2026.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>

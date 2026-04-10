@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -167,7 +167,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder>
       getCriteriaOrBuilderList() {
     return criteria_;
   }
@@ -630,7 +630,7 @@ private static final long serialVersionUID = 0L;
             criteriaBuilder_ = null;
             criteria_ = other.criteria_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            criteriaBuilder_ = 
+            criteriaBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCriteriaFieldBuilder() : null;
           } else {
@@ -860,7 +860,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getSinceVersionFieldBuilder() {
       if (sinceVersionBuilder_ == null) {
         sinceVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1017,7 +1017,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getSinceIndexFieldBuilder() {
       if (sinceIndexBuilder_ == null) {
         sinceIndexBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1285,7 +1285,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder>
          getCriteriaOrBuilderList() {
       if (criteriaBuilder_ != null) {
         return criteriaBuilder_.getMessageOrBuilderList();
@@ -1323,12 +1323,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder>
          getCriteriaBuilderList() {
       return getCriteriaFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder>
         getCriteriaFieldBuilder() {
       if (criteriaBuilder_ == null) {
         criteriaBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

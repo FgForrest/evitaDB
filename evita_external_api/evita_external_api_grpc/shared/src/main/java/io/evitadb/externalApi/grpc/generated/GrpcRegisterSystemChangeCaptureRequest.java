@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -727,7 +727,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getSinceVersionFieldBuilder() {
       if (sinceVersionBuilder_ == null) {
         sinceVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -884,7 +884,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getSinceIndexFieldBuilder() {
       if (sinceIndexBuilder_ == null) {
         sinceIndexBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

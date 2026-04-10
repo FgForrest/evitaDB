@@ -30,6 +30,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
@@ -40,6 +41,12 @@ import java.util.function.Supplier;
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public class DefaultExternalApiTracingContext implements ExternalApiTracingContext<Object> {
 	public final static DefaultExternalApiTracingContext INSTANCE = new DefaultExternalApiTracingContext();
+
+	@Nonnull
+	@Override
+	public Class<Object> contextType() {
+		return Object.class;
+	}
 
 	@Override
 	public void configureHeaders(@Nonnull HeaderOptions headerOptions) {
@@ -75,5 +82,15 @@ public class DefaultExternalApiTracingContext implements ExternalApiTracingConte
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda) {
 		return lambda.get();
+	}
+
+	@Nonnull
+	@Override
+	public <T> CompletableFuture<T> executeWithinBlockAsync(
+		@Nonnull String protocolName,
+		@Nonnull Object context,
+		@Nonnull Supplier<CompletableFuture<T>> asyncLambda
+	) {
+		return asyncLambda.get();
 	}
 }

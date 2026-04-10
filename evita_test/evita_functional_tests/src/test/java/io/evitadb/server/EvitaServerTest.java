@@ -39,6 +39,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.cluster.mock.configuration.MockClusterOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
+import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.certificate.LoadedCertificates;
@@ -366,7 +367,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					.host("localhost")
 					.port(servicePorts.get(ObservabilityProvider.CODE))
 					.systemApiPort(servicePorts.get(SystemProvider.CODE))
-					.tlsEnabled(false)
+					.tls(ClientTlsOptions.builder().tlsEnabled(false).build())
 					.build()
 			);
 
@@ -398,7 +399,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					.host("localhost")
 					.port(servicePorts.get(GrpcProvider.CODE))
 					.systemApiPort(servicePorts.get(SystemProvider.CODE))
-					.tlsEnabled(false)
+					.tls(ClientTlsOptions.builder().tlsEnabled(false).build())
 					.build()
 			);
 
@@ -410,7 +411,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					.host("localhost")
 					.port(servicePorts.get(LabProvider.CODE))
 					.systemApiPort(servicePorts.get(SystemProvider.CODE))
-					.tlsEnabled(false)
+					.tls(ClientTlsOptions.builder().tlsEnabled(false).build())
 					.build()
 			);
 
@@ -546,14 +547,18 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					.host("localhost")
 					.port(servicePorts.get(GrpcProvider.CODE))
 					.systemApiPort(servicePorts.get(SystemProvider.CODE))
-					.tlsEnabled(true)
-					.mtlsEnabled(true)
-					.certificateFolderPath(Path.of("evita-server-certificates"))
-					.serverCertificatePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
-					.certificateFileName(Path.of(getGeneratedOtherCertificateFileName()))
-					.certificateKeyFileName(Path.of(getGeneratedOtherCertificateKeyFileName()))
-					.useGeneratedCertificate(false)
-					.trustCertificate(false)
+					.tls(
+						ClientTlsOptions.builder()
+							.tlsEnabled(true)
+							.mtlsEnabled(true)
+							.certificateFolderPath(Path.of("evita-server-certificates"))
+							.serverCertificatePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
+							.certificateFileName(Path.of(getGeneratedOtherCertificateFileName()))
+							.certificateKeyFileName(Path.of(getGeneratedOtherCertificateKeyFileName()))
+							.useGeneratedCertificate(false)
+							.trustCertificate(false)
+							.build()
+					)
 					.build()
 			);
 
@@ -570,14 +575,18 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					.host("localhost")
 					.port(servicePorts.get(GrpcProvider.CODE))
 					.systemApiPort(servicePorts.get(SystemProvider.CODE))
-					.tlsEnabled(true)
-					.mtlsEnabled(true)
-					.certificateFolderPath(Path.of("evita-server-certificates"))
-					.serverCertificatePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
-					.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-					.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-					.useGeneratedCertificate(false)
-					.trustCertificate(false)
+					.tls(
+						ClientTlsOptions.builder()
+							.tlsEnabled(true)
+							.mtlsEnabled(true)
+							.certificateFolderPath(Path.of("evita-server-certificates"))
+							.serverCertificatePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
+							.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+							.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+							.useGeneratedCertificate(false)
+							.trustCertificate(false)
+							.build()
+					)
 					.build()
 			);
 
@@ -698,7 +707,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					.host("localhost")
 					.port(servicePorts.get(GrpcProvider.CODE))
 					.systemApiPort(servicePorts.get(SystemProvider.CODE))
-					.tlsEnabled(false)
+					.tls(ClientTlsOptions.builder().tlsEnabled(false).build())
 					.build()
 			);
 

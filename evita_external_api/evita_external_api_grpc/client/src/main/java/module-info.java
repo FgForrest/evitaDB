@@ -26,5 +26,6 @@ module evita.java.driver {
 	requires com.linecorp.armeria;
 	requires org.reactivestreams;
 	requires io.netty.codec.http2;
+	requires io.netty.transport;
 
 }

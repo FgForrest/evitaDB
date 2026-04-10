@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.driver.EvitaClient;
+import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.test.client.query.graphql.GraphQLQueryConverter;
 import io.evitadb.test.client.query.rest.RestQueryConverter;
@@ -62,17 +63,25 @@ public class EvitaTestContext implements TestContext {
 				EvitaClientConfiguration.builder()
 					.host("localhost")
 					.port(5555)
-					.useGeneratedCertificate(true)
-					.mtlsEnabled(false)
+					.tls(
+						ClientTlsOptions.builder()
+							.useGeneratedCertificate(true)
+							.mtlsEnabled(false)
+							.build()
+					)
 					.build()
 				:
 				EvitaClientConfiguration.builder()
 					.host("demo.evitadb.io")
 					.port(5555)
-					// demo server provides Let's encrypt trusted certificate
-					.useGeneratedCertificate(false)
-					// the client will not be mutually verified by the server side
-					.mtlsEnabled(false)
+					.tls(
+						ClientTlsOptions.builder()
+							// demo server provides Let's encrypt trusted certificate
+							.useGeneratedCertificate(false)
+							// the client will not be mutually verified by the server side
+							.mtlsEnabled(false)
+							.build()
+					)
 					.build()
 		);
 

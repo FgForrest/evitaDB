@@ -23,31 +23,24 @@
 
 package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.AbstractCacheableFormula;
+import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import net.openhft.hashing.LongHashFunction;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
-import static java.util.Optional.ofNullable;
 
 /**
- * And formula will perform boolean disjunction (OR) on multiple bitmaps at once.
+ * Or formula will perform boolean disjunction (OR) on multiple bitmaps at once.
  * Example input:
  *
  * [1,    3, 4, 5, 8]
@@ -60,42 +53,31 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class OrFormula extends AbstractCacheableFormula {
+public class OrFormula extends AbstractBitmapCacheableFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -7493244674442362190L;
-	private static final Bitmap[] EMPTY_BITMAP_ARRAY = new Bitmap[0];
-	private final Bitmap[] bitmaps;
-	private final long[] indexTransactionId;
 
 	OrFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback);
+		super(computationCallback, indexTransactionId, bitmaps);
 		Assert.isTrue(
 			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
 			"Or formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
 		);
-		this.bitmaps = bitmaps;
-		this.indexTransactionId = indexTransactionId;
 		this.initFields(innerFormulas);
 	}
 
 	public OrFormula(@Nonnull Formula... innerFormulas) {
-		super(null);
+		super(null, null, null);
 		Assert.isTrue(innerFormulas.length > 1, "Or formula has no sense with " + innerFormulas.length + " inner formulas!");
-		this.bitmaps = null;
-		this.indexTransactionId = null;
 		this.initFields(innerFormulas);
 	}
 
 	public OrFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
-		super(null);
+		super(null, indexTransactionId, bitmaps);
 		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + bitmaps.length + " inner bitmaps!");
-		this.bitmaps = bitmaps;
-		this.indexTransactionId = indexTransactionId;
 		this.initFields();
-	}
-
-	@Nonnull
-	public Bitmap[] getBitmaps() {
-		return this.bitmaps == null ? EMPTY_BITMAP_ARRAY : this.bitmaps;
 	}
 
 	@Nonnull
@@ -126,59 +108,32 @@ public class OrFormula extends AbstractCacheableFormula {
 		);
 	}
 
-	@Nonnull
-	@Override
-	public long[] gatherBitmapIdsInternal() {
-		if (this.bitmaps == null) {
-			return Arrays.stream(this.innerFormulas)
-				.flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
-				.toArray();
-		} else {
-			return LongStream.concat(
-				this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY ?
-					LongStream.of(this.indexTransactionId) :
-					Arrays.stream(this.bitmaps)
-						.filter(TransactionalLayerProducer.class::isInstance)
-						.mapToLong(it -> ((TransactionalLayerProducer<?, ?>) it).getId()),
-				Arrays.stream(this.innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
-			).toArray();
-		}
-	}
-
 	@Override
 	protected long getEstimatedBaseCost() {
-		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getEstimatedBaseCost);
+		if (this.bitmaps == null) {
+			return super.getEstimatedBaseCost();
+		}
+		long sum = 0L;
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
+		}
+		return sum;
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
 		if (this.bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+			int sum = 0;
+			for (int i = 0; i < this.innerFormulas.length; i++) {
+				sum += this.innerFormulas[i].getEstimatedCardinality();
+			}
+			return sum;
 		} else {
-			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
-		}
-	}
-
-	@Override
-	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.bitmaps == null) {
-			return 0L;
-		} else {
-			return hashFunction.hashLongs(
-				Arrays.stream(this.bitmaps).mapToLong(it -> {
-						if (it instanceof TransactionalLayerProducer) {
-							return ((TransactionalLayerProducer<?, ?>) it).getId();
-						} else {
-							// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-							// bitmaps located in indexes and represented by "transactional id"
-							return hashFunction.hashInts(it.getArray());
-						}
-					})
-					.sorted()
-					.toArray()
-			);
+			int sum = 0;
+			for (int i = 0; i < this.bitmaps.length; i++) {
+				sum += this.bitmaps[i].size();
+			}
+			return sum;
 		}
 	}
 
@@ -189,9 +144,14 @@ public class OrFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long getCostInternal() {
-		return ofNullable(this.bitmaps)
-			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(super::getCostInternal);
+		if (this.bitmaps == null) {
+			return super.getCostInternal();
+		}
+		long sum = 0L;
+		for (final Bitmap bitmap : this.bitmaps) {
+			sum += bitmap.size();
+		}
+		return sum * getOperationCost();
 	}
 
 	@Override
@@ -199,7 +159,15 @@ public class OrFormula extends AbstractCacheableFormula {
 		if (ArrayUtils.isEmpty(this.bitmaps)) {
 			return "OR";
 		} else {
-			return "OR: " + Arrays.stream(this.bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
+			final StringBuilder sb = new StringBuilder(this.bitmaps.length * 16 + 8);
+			sb.append("OR: ");
+			for (int i = 0; i < this.bitmaps.length; i++) {
+				if (i > 0) {
+					sb.append(", ");
+				}
+				sb.append(this.bitmaps[i].toString());
+			}
+			return sb.toString();
 		}
 	}
 
@@ -224,17 +192,20 @@ public class OrFormula extends AbstractCacheableFormula {
 
 	@Nonnull
 	private RoaringBitmap[] getRoaringBitmaps() {
-		return ofNullable(this.bitmaps)
-			.map(it -> Arrays
-				.stream(it).map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-				.toArray(RoaringBitmap[]::new)
-			)
-			.orElseGet(
-				() -> Arrays.stream(getInnerFormulas())
-					.map(Formula::compute)
-					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-					.toArray(RoaringBitmap[]::new)
-			);
+		if (this.bitmaps != null) {
+			final RoaringBitmap[] result = new RoaringBitmap[this.bitmaps.length];
+			for (int i = 0; i < this.bitmaps.length; i++) {
+				result[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(this.bitmaps[i]);
+			}
+			return result;
+		} else {
+			final Formula[] formulas = getInnerFormulas();
+			final RoaringBitmap[] result = new RoaringBitmap[formulas.length];
+			for (int i = 0; i < formulas.length; i++) {
+				result[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(formulas[i].compute());
+			}
+			return result;
+		}
 	}
 
 }

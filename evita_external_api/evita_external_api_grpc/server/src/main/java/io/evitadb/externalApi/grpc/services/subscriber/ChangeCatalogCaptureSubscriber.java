@@ -35,7 +35,9 @@ import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRes
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -45,6 +47,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
@@ -67,17 +71,59 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture>, AutoCloseable {
+	/**
+	 * Flag ensuring the gRPC stream is finalized (via `onError` or `onCompleted`) exactly once
+	 * across all termination paths ({@link #onError}, {@link #onComplete}, {@link #close}).
+	 */
+	private final AtomicBoolean streamFinalized = new AtomicBoolean(false);
+	/**
+	 * The gRPC stream observer used to send responses to the client.
+	 */
 	private final StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
+	/**
+	 * Future that is completed when the subscription is established, allowing the gRPC cancel
+	 * handler to obtain the subscription reference for cancellation.
+	 */
 	private final CompletableFuture<Subscription> subscriptionFuture;
+	/**
+	 * The semantic version of the connected client, used to adapt the response format
+	 * for backward compatibility. May be null if the client did not report its version.
+	 */
 	private final SemVer clientVersion;
+	/**
+	 * Supplier that provides the current catalog version for heartbeat messages.
+	 */
 	private final LongSupplier versionSupplier;
+	/**
+	 * The Armeria service request context, used to extend the request timeout on activity.
+	 */
 	private final ServiceRequestContext serviceContext;
+	/**
+	 * The original response timeout in milliseconds, used to extend the timeout after each
+	 * message or heartbeat.
+	 */
 	private final long responseTimeoutMillis;
+	/**
+	 * The delay between heartbeat messages in milliseconds — computed as 5 seconds less than
+	 * the response timeout, clamped to [1 second, 5 minutes].
+	 */
 	private final long heartBeatDelay;
+	/**
+	 * Scheduled task that periodically sends heartbeat messages to keep the gRPC stream alive.
+	 */
 	private final ScheduledTask heartBeatTask;
+	/**
+	 * The active subscription from the publisher, set during {@link #onSubscribe(Subscription)}.
+	 */
 	private Subscription subscription;
-	private long index = 0L;
+	/**
+	 * Monotonically increasing counter for heartbeat message indexing. Atomic because
+	 * it is accessed from both the publisher thread ({@link #onNext}) and the scheduler
+	 * thread ({@link #sendHeartbeat}) via {@link #buildHeartBeatMessage()}.
+	 */
+	private final AtomicLong index = new AtomicLong(0L);
 
 	public ChangeCatalogCaptureSubscriber(
 		@Nonnull Scheduler scheduler,
@@ -117,42 +163,81 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 		if (subscription instanceof ChangeCaptureSubscription ccs) {
 			response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
 		}
-		this.responseObserver.onNext(
-			response
-				.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
-				.setHeartBeat(buildHeartBeatMessage())
-				.build()
-		);
+		try {
+			this.responseObserver.onNext(
+				response
+					.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
+					.setHeartBeat(buildHeartBeatMessage())
+					.build()
+			);
+		} catch (Exception ex) {
+			log.debug("CDC acknowledgement failed (stream already terminated): {}", ex.getMessage());
+			if (this.streamFinalized.compareAndSet(false, true)) {
+				IOUtils.closeQuietly(this.heartBeatTask::close);
+			}
+			// Defer cancellation — this method is called from DefaultChangeCaptureSubscription constructor
+			// inside ConcurrentHashMap.computeIfAbsent; synchronous cancel would re-enter the map.
+			CompletableFuture.runAsync(subscription::cancel);
+			return;
+		}
 		subscription.request(1);
 	}
 
 	@Override
 	public void onNext(ChangeCatalogCapture item) {
-		this.responseObserver.onNext(
-			GrpcRegisterChangeCatalogCaptureResponse
-				.newBuilder()
-				.setCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(item, this.clientVersion))
-				.setResponseType(GrpcCaptureResponseType.CHANGE)
-				.build()
-		);
+		if (this.streamFinalized.get()) {
+			return;
+		}
+		try {
+			this.responseObserver.onNext(
+				GrpcRegisterChangeCatalogCaptureResponse
+					.newBuilder()
+					.setCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(item, this.clientVersion))
+					.setResponseType(GrpcCaptureResponseType.CHANGE)
+					.build()
+			);
+		} catch (Exception ex) {
+			log.debug("CDC onNext failed (stream likely finalized concurrently): {}", ex.getMessage());
+			this.subscription.cancel();
+			return;
+		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 		this.subscription.request(1);
 	}
 
 	@Override
 	public void onError(Throwable throwable) {
-		this.subscriptionFuture.completeExceptionally(throwable);
-		this.responseObserver.onError(throwable);
+		if (this.streamFinalized.compareAndSet(false, true)) {
+			IOUtils.closeQuietly(this.heartBeatTask::close);
+			this.subscriptionFuture.completeExceptionally(throwable);
+			this.responseObserver.onError(throwable);
+		}
 	}
 
 	@Override
 	public void onComplete() {
-		this.responseObserver.onCompleted();
+		if (this.streamFinalized.compareAndSet(false, true)) {
+			IOUtils.closeQuietly(this.heartBeatTask::close);
+			this.responseObserver.onCompleted();
+		}
 	}
 
 	@Override
 	public void close() {
-		IOUtils.closeQuietly(this.heartBeatTask::close);
+		// signal the gRPC client that the stream was forcibly terminated
+		// (e.g. when the catalog is replaced or deleted while subscribers are listening)
+		if (this.streamFinalized.compareAndSet(false, true)) {
+			IOUtils.closeQuietly(this.heartBeatTask::close);
+			try {
+				this.responseObserver.onError(
+					Status.UNAVAILABLE
+						.withDescription("CDC stream has been terminated by the server.")
+						.asRuntimeException()
+				);
+			} catch (Exception ex) {
+				log.debug("Failed to send UNAVAILABLE error to CDC client: {}", ex.getMessage(), ex);
+			}
+		}
 	}
 
 	/**
@@ -163,17 +248,25 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 	 * @return the delay (in milliseconds) until the next heartbeat is scheduled
 	 */
 	private long sendHeartbeat() {
+		if (this.streamFinalized.get()) {
+			return -1L;
+		}
 		final GrpcRegisterChangeCatalogCaptureResponse.Builder response = GrpcRegisterChangeCatalogCaptureResponse
 			.newBuilder();
 		if (this.subscription instanceof ChangeCaptureSubscription ccs) {
 			response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
 		}
-		this.responseObserver.onNext(
-			response
-				.setResponseType(GrpcCaptureResponseType.HEARTBEAT)
-				.setHeartBeat(buildHeartBeatMessage())
-				.build()
-		);
+		try {
+			this.responseObserver.onNext(
+				response
+					.setResponseType(GrpcCaptureResponseType.HEARTBEAT)
+					.setHeartBeat(buildHeartBeatMessage())
+					.build()
+			);
+		} catch (Exception ex) {
+			log.debug("Heartbeat send failed (stream likely finalized concurrently): {}", ex.getMessage());
+			return -1L;
+		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 		// plan the next heartbeat at regular interval
 		return 0L;
@@ -189,7 +282,7 @@ public class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogC
 	@Nonnull
 	private GrpcHeartBeat buildHeartBeatMessage() {
 		return GrpcHeartBeat.newBuilder()
-			.setIndex(this.index++)
+			.setIndex(this.index.getAndIncrement())
 			.setTimestamp(toGrpcOffsetDateTime(OffsetDateTime.now()))
 			.setLastObservedVersion(this.versionSupplier.getAsLong())
 			.setMillisToNextHeartbeat(this.heartBeatDelay)

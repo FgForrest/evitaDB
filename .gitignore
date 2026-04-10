@@ -87,10 +87,11 @@ fabric.properties
 ### VisualStudioCode ###
 .vscode/*
 
-### Junie settings
-.junie/*
+### Hole
+.hole/*
 
 ### Claude settings
+/.claude/agent-memory/
 /.claude/settings.local.json
 
 ### Data
@@ -101,5 +102,3 @@ fabric.properties
 /evita_test/evita_functional_tests/evita-server-certificates/*
 /evita_test/evita_functional_tests/export/*
 /evita_test/evita_functional_tests/data/*
-/.claude/agent-memory/*
-/evita-server-certificates/*

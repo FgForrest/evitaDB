@@ -74,7 +74,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 
 	public EvitaTrafficRecordingService(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions) {
 		this.evita = evita;
-		this.tracingContext = ExternalApiTracingContextProvider.getContext(headerOptions);
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(Metadata.class, headerOptions);
 	}
 
 	/**

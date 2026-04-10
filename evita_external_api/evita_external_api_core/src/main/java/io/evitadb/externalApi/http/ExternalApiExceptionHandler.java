@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,16 +23,19 @@
 
 package io.evitadb.externalApi.http;
 
-import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpResponseBuilder;
+import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.common.stream.ClosedStreamException;
 import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.RequestTimeoutException;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.SimpleDecoratingHttpService;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.externalApi.exception.HttpExchangeException;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -69,16 +72,28 @@ public abstract class ExternalApiExceptionHandler extends SimpleDecoratingHttpSe
             return handleException(exception, httpRequest);
         }
 
-        // Handle exceptions thrown by the CompletableFuture
-	    // Handle the aggregated response if needed
-	    return HttpResponse.of(
-            httpResponse.aggregate()
-                .thenApply(AggregatedHttpResponse::toHttpResponse)
-                .exceptionally(cause -> handleException(cause, httpRequest))
-        );
+        // Use recover() to intercept errors from the streaming response without
+        // aggregating/buffering it. This preserves the streaming nature of the response
+        // so that Armeria's CancellationScheduler can start immediately on subscription.
+        // recover() catches errors signaled before ResponseHeaders are written (i.e., errors
+        // during request processing) and replaces the failed stream with a formatted error response.
+        return httpResponse.recover(cause -> handleException(cause, httpRequest));
     }
 
     private HttpResponse handleException(Throwable exception, HttpRequest httpRequest) {
+        // Armeria request timeout — convert to HttpExchangeException so that
+        // API-specific renderers format a proper 408 response
+        if (exception instanceof RequestTimeoutException) {
+            return handleError(
+                new HttpExchangeException(HttpStatus.REQUEST_TIMEOUT.code(), "Request timed out."),
+                httpRequest
+            );
+        }
+        // Client disconnected — no point formatting an error, return minimal response
+        if (exception instanceof ClosedStreamException) {
+            return HttpResponse.of(HttpStatus.REQUEST_TIMEOUT);
+        }
+
         final EvitaError evitaError;
         if (exception instanceof EvitaError) {
             evitaError = (EvitaError) exception;

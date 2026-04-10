@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext>
 
 	@Nonnull
 	@Override
-	protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
+	protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext) {
 		final RestInstanceType instanceType;
 		if (this.restHandlingContext instanceof SystemRestHandlingContext) {
 			instanceType = RestInstanceType.SYSTEM;
@@ -104,6 +104,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext>
 		return new RestEndpointExecutionContext(
 			httpRequest,
 			this.restHandlingContext.getEvita(),
+			serviceRequestContext,
 			new ExecutedEvent(
 				instanceType,
 				modifiesData() ? OperationType.MUTATION : OperationType.QUERY,

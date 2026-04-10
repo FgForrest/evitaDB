@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -366,7 +366,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList() {
     return locales_;
   }
@@ -430,7 +430,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
       getCurrenciesOrBuilderList() {
     return currencies_;
   }
@@ -475,7 +475,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -618,7 +618,7 @@ io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema defaultValue) {
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AssociatedDataEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AssociatedDataEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -745,7 +745,7 @@ io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema defaultValue) {
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_ReferencesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_ReferencesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -992,7 +992,7 @@ io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema defaultValue) {
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_SortableAttributeCompoundsEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_SortableAttributeCompoundsEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1103,7 +1103,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList() {
     return nameVariant_;
   }
@@ -2168,7 +2168,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
             localesBuilder_ = null;
             locales_ = other.locales_;
             bitField0_ = (bitField0_ & ~0x00000100);
-            localesBuilder_ = 
+            localesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLocalesFieldBuilder() : null;
           } else {
@@ -2194,7 +2194,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
             currenciesBuilder_ = null;
             currencies_ = other.currencies_;
             bitField0_ = (bitField0_ & ~0x00000200);
-            currenciesBuilder_ = 
+            currenciesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCurrenciesFieldBuilder() : null;
           } else {
@@ -2242,7 +2242,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
             nameVariantBuilder_ = null;
             nameVariant_ = other.nameVariant_;
             bitField0_ = (bitField0_ & ~0x00008000);
-            nameVariantBuilder_ = 
+            nameVariantBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getNameVariantFieldBuilder() : null;
           } else {
@@ -2526,7 +2526,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -2788,7 +2788,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2972,7 +2972,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3509,7 +3509,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
          getLocalesOrBuilderList() {
       if (localesBuilder_ != null) {
         return localesBuilder_.getMessageOrBuilderList();
@@ -3550,12 +3550,12 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder>
          getLocalesBuilderList() {
       return getLocalesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getLocalesFieldBuilder() {
       if (localesBuilder_ == null) {
         localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -3824,7 +3824,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
          getCurrenciesOrBuilderList() {
       if (currenciesBuilder_ != null) {
         return currenciesBuilder_.getMessageOrBuilderList();
@@ -3862,12 +3862,12 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder>
          getCurrenciesBuilderList() {
       return getCurrenciesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
         getCurrenciesFieldBuilder() {
       if (currenciesBuilder_ == null) {
         currenciesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -5384,7 +5384,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
          getNameVariantOrBuilderList() {
       if (nameVariantBuilder_ != null) {
         return nameVariantBuilder_.getMessageOrBuilderList();
@@ -5422,12 +5422,12 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
          getNameVariantBuilderList() {
       return getNameVariantFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
         getNameVariantFieldBuilder() {
       if (nameVariantBuilder_ == null) {
         nameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

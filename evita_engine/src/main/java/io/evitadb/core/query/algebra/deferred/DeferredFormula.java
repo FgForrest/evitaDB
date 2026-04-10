@@ -40,7 +40,13 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class DeferredFormula extends AbstractFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 8831456737770154017L;
+	/**
+	 * Supplier providing the lazily computed bitmap result of this deferred formula.
+	 */
 	protected final BitmapSupplier retrieveLambda;
 
 	public DeferredFormula(@Nonnull BitmapSupplier retrieveLambda) {

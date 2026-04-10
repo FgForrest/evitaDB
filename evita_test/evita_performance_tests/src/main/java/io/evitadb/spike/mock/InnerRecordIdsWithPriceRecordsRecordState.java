@@ -42,15 +42,25 @@ import java.util.Comparator;
 import java.util.Random;
 
 /**
- * No extra information provided - see (selfexplanatory) method signatures.
- * I have the best intention to write more detailed documentation but if you see this, there was not enough time or will to do so.
+ * JMH benchmark state providing three entity ID bitmaps with inner-record-specific price records,
+ * combined into an {@link OrFormula} tree via {@link MockInnerRecordIdsFormula} leaves. Used by
+ * inner-record price termination benchmarks
+ * ({@link io.evitadb.spike.FormulaCostMeasurement#firstVariantPriceTermination},
+ * {@link io.evitadb.spike.FormulaCostMeasurement#sumPriceTermination}).
+ *
+ * Each dataset generates {@link #PRICE_COUNT} price records with entity IDs spaced by random gaps
+ * (up to 512) and inner record IDs incrementing within each entity. Price records are sorted by
+ * entity primary key for efficient lookup during termination. The {@link OrFormula} is pre-computed
+ * during setup so that benchmark iterations measure only the termination formula cost.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @State(Scope.Benchmark)
 public class InnerRecordIdsWithPriceRecordsRecordState {
+	/** Number of price records per dataset (3 datasets total = 300K records). */
 	private static final int PRICE_COUNT = 100_000;
 	private static final Random random = new Random(42);
+	/** Monotonic price ID generator — shared across all instances within the same JVM fork. */
 	private static int PRICE_ID_SEQ;
 
 	@Getter private PriceRecordInnerRecordSpecific[] entitiesPriceRecordsA;
@@ -62,7 +72,8 @@ public class InnerRecordIdsWithPriceRecordsRecordState {
 	@Getter private Formula formula;
 
 	/**
-	 * This setup is called once for each `valueCount`.
+	 * Generates three inner-record price datasets, wraps each in a {@link MockInnerRecordIdsFormula},
+	 * combines them via {@link OrFormula}, and pre-computes the union bitmap.
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
@@ -84,7 +95,7 @@ public class InnerRecordIdsWithPriceRecordsRecordState {
 		this.formula = new OrFormula(
 			new MockInnerRecordIdsFormula(this.entitiesA, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsA, SortingForm.ENTITY_PK)),
 			new MockInnerRecordIdsFormula(this.entitiesB, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsB, SortingForm.ENTITY_PK)),
-			new MockInnerRecordIdsFormula(this.entitiesB, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsC, SortingForm.ENTITY_PK))
+			new MockInnerRecordIdsFormula(this.entitiesC, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsC, SortingForm.ENTITY_PK))
 		);
 		this.formula.compute();
 	}

@@ -80,8 +80,37 @@ public interface TracingBlockReference extends AutoCloseable {
 	void setError(@Nonnull Throwable error);
 
 	/**
+	 * Detaches the thread-local scope (and clears MDC) without ending the span. Must be called
+	 * on the **same thread** that created this block. After this call, the span remains open for
+	 * asynchronous completion via {@link #end()}.
+	 *
+	 * **Async Pattern:**
+	 * ```java
+	 * TracingBlockReference block = tracingContext.createAndActivateBlock("op");
+	 * CompletableFuture<?> future = startAsyncWork();
+	 * block.detachScope();  // same thread as createAndActivateBlock
+	 * future.whenComplete((r, e) -> {
+	 *     if (e != null) block.setError(e);
+	 *     block.end();  // any thread
+	 * });
+	 * ```
+	 */
+	void detachScope();
+
+	/**
+	 * Ends the span, records final status and attributes, and invokes any close callbacks.
+	 * Thread-safe — can be called from any thread. In async flows, call this after
+	 * {@link #detachScope()} when the asynchronous operation completes.
+	 *
+	 * For synchronous use, prefer {@link #close()} which combines both operations.
+	 */
+	void end();
+
+	/**
 	 * Ends the trace span and releases any associated resources. In OpenTelemetry implementations,
 	 * this marks the span end time and exports it to the configured trace backend.
+	 *
+	 * Equivalent to calling {@link #detachScope()} followed by {@link #end()}.
 	 *
 	 * Safe to call multiple times (subsequent calls are no-ops). Calling `close()` does NOT throw
 	 * exceptions, making it safe for use in try-with-resources blocks.

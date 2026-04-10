@@ -27,6 +27,7 @@ import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
+import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
@@ -70,6 +71,9 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, CacheablePriceFormula, Formula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -8575853054010280485L;
 
 	/**
@@ -121,13 +125,11 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Override
 	public FlattenedFormula toSerializableFormula(long formulaHash, @Nonnull LongHashFunction hashFunction) {
+		final long[] sortedDistinctIds = sortAndDeduplicateLongArray(gatherTransactionalIds());
 		return new FlattenedFormulaWithFilteredPrices(
 			formulaHash,
 			getTransactionalIdHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
+			sortedDistinctIds,
 			compute(),
 			getFilteredPriceRecords(this.executionContext),
 			getPriceEvaluationContext()
@@ -140,12 +142,12 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 			getDelegate(), PriceIdContainerFormula.class, LookUp.SHALLOW
 		);
 
-		return new PriceEvaluationContext(
-			null,
-			priceIdFormulas.stream()
-				.map(it -> it.getPriceIndex().getPriceIndexKey())
-				.toArray(PriceIndexKey[]::new)
-		);
+		final PriceIndexKey[] keys = new PriceIndexKey[priceIdFormulas.size()];
+		int idx = 0;
+		for (PriceIdContainerFormula formula : priceIdFormulas) {
+			keys[idx++] = formula.getPriceIndex().getPriceIndexKey();
+		}
+		return new PriceEvaluationContext(null, keys);
 	}
 
 	@Override
@@ -239,7 +241,11 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		int sum = 0;
+		for (int i = 0; i < this.innerFormulas.length; i++) {
+			sum += this.innerFormulas[i].getEstimatedCardinality();
+		}
+		return sum;
 	}
 
 	@Override

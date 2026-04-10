@@ -74,7 +74,7 @@ import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
-import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.ObservableExecutorServiceWithCancellationSupport;
 import io.evitadb.core.executor.ObservableThreadExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.EvitaManagement;
@@ -294,15 +294,11 @@ public final class Evita implements EvitaContract {
 			new Scheduler(configuration.server().serviceThreadPool());
 		this.requestExecutor = new ObservableThreadExecutor(
 			"request", configuration.server().requestThreadPool(),
-			this.serviceExecutor,
-			configuration.server().queryTimeoutInMilliseconds(),
 			configuration.server().directExecutor()
 		);
 		this.transactionExecutor = new ObservableThreadExecutor(
 			"transaction",
 			configuration.server().transactionThreadPool(),
-			this.serviceExecutor,
-			configuration.server().transactionTimeoutInMilliseconds(),
 			// transaction handling must always run in a separate thread pool, even in tests
 			// because it uses thread local variables for transaction management
 			false
@@ -710,8 +706,9 @@ public final class Evita implements EvitaContract {
 	public void scheduleInitialCatalogLoading() {
 		final ProgressingFuture<Catalog>[] progressingFutures = this.initialLoadCatalogFutures.get();
 		if (progressingFutures != null) {
+			final Executor unrejectableExecutor = ProgressingFuture.unrejectableExecutor(this.engineTransactionManager.getExecutor());
 			for (ProgressingFuture<Catalog> loadCatalogFuture : progressingFutures) {
-				loadCatalogFuture.execute(this.engineTransactionManager.getExecutor());
+				loadCatalogFuture.execute(unrejectableExecutor);
 			}
 		}
 	}
@@ -735,11 +732,11 @@ public final class Evita implements EvitaContract {
 	 * for managing and executing request-level operations with hard deadlines
 	 * within the Evita instance.
 	 *
-	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline}
+	 * @return An instance of {@link ObservableExecutorServiceWithCancellationSupport}
 	 * that handles request execution with hard deadlines for tasks.
 	 */
 	@Nonnull
-	public ObservableExecutorServiceWithHardDeadline getRequestExecutor() {
+	public ObservableExecutorServiceWithCancellationSupport getRequestExecutor() {
 		return this.requestExecutor;
 	}
 
@@ -747,11 +744,11 @@ public final class Evita implements EvitaContract {
 	 * Provides access to the transaction executor service, which is responsible for managing
 	 * and executing transactional operations within the Evita instance.
 	 *
-	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline} that handles
+	 * @return An instance of {@link ObservableExecutorServiceWithCancellationSupport} that handles
 	 * transaction execution with hard deadlines for tasks.
 	 */
 	@Nonnull
-	public ObservableExecutorServiceWithHardDeadline getTransactionExecutor() {
+	public ObservableExecutorServiceWithCancellationSupport getTransactionExecutor() {
 		return this.transactionExecutor;
 	}
 
@@ -1343,9 +1340,10 @@ public final class Evita implements EvitaContract {
 				this.engineState.set(null);
 				this.engineTransactionManager.close();
 				return null;
-			}
+			},
+			Functions.noOpConsumer()
 		);
-		closedFuture.execute(executor);
+		closedFuture.execute(ProgressingFuture.unrejectableExecutor(executor));
 		return closedFuture;
 	}
 

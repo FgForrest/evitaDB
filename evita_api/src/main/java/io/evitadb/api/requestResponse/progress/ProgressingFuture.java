@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,17 +48,15 @@ import java.util.function.Supplier;
  * and allows consumers to monitor the completion status of complex asynchronous operations.
  *
  * The ProgressingFuture supports two main usage patterns:
- *
  * - **Simple execution:** Execute a single supplier with progress tracking
  * - **Nested execution:** Coordinate multiple nested futures and aggregate their progress
  *
- * Progress is reported through a {@link BiIntConsumer} that receives the current number of completed steps and
- * the total number of steps. The progress consumer is called whenever progress is updated, either directly through
- * {@link #updateProgress(int)} or indirectly through nested future completion.
+ * Progress is reported through a {@link BiIntConsumer} that receives the current number of completed steps
+ * and the total number of steps. The progress consumer is called whenever progress is updated, either directly
+ * through {@link #updateProgress(int)} or indirectly through nested future completion.
  *
  * **Example usage with simple execution:**
- *
- * {@code
+ * ```java
  * ProgressingFuture<String, Void> future = new ProgressingFuture<>(
  *     100, // total steps
  *     (stepsDone, totalSteps) -> System.out.println("Progress: " + stepsDone + "/" + totalSteps),
@@ -68,11 +66,10 @@ import java.util.function.Supplier;
  *     },
  *     executor
  * );
- * }
+ * ```
  *
  * **Example usage with nested futures:**
- *
- * {@code
+ * ```java
  * ProgressingFuture<List<String>, String> future = new ProgressingFuture<>(
  *     10, // additional steps for this level
  *     (stepsDone, totalSteps) -> System.out.println("Overall progress: " + stepsDone + "/" + totalSteps),
@@ -80,7 +77,7 @@ import java.util.function.Supplier;
  *     (progress, results) -> results,
  *     executor
  * );
- * }
+ * ```
  *
  * The class automatically handles progress aggregation from nested futures, ensuring that the total progress
  * reflects the completion status of all nested operations. When the future completes (either successfully or
@@ -147,15 +144,27 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	private int[] nestedStepsDone;
 
 	/**
+	 * Creates an {@link Executor} wrapper that marks all submitted runnables as {@link UnrejectableTask},
+	 * causing them to bypass the bounded queue rejection in the underlying executor.
+	 *
+	 * @param executor the executor to wrap
+	 * @return an executor whose submitted runnables implement {@link UnrejectableTask}
+	 */
+	@Nonnull
+	public static Executor unrejectableExecutor(@Nonnull Executor executor) {
+		return new UnrejectableExecutorWrapper(executor);
+	}
+
+	/**
 	 * Creates a ProgressingFuture that coordinates multiple nested futures and aggregates their progress.
 	 * This constructor is used for complex operations that consist of multiple sub-operations, each represented
 	 * by a nested ProgressingFuture.
 	 *
-	 * The total steps for this future will be the sum of actionSteps and the total steps of all nested futures.
-	 * Progress updates from nested futures are automatically aggregated and reported through the progress consumer.
+	 * The total steps for this future will be the sum of actionSteps and the total steps of all
+	 * nested futures. Progress updates from nested futures are automatically aggregated and reported
+	 * through the progress consumer.
 	 *
 	 * The execution flow:
-	 *
 	 * 1. All nested futures are created using the provided factories
 	 * 2. The futures are executed concurrently
 	 * 3. When all nested futures complete, the result mapper is called
@@ -191,7 +200,6 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * Progress updates from nested futures are automatically aggregated and reported through the progress consumer.
 	 *
 	 * The execution flow:
-	 *
 	 * 1. All nested futures are created using the provided factories
 	 * 2. The futures are executed concurrently
 	 * 3. When all nested futures complete, the result mapper is called
@@ -279,7 +287,6 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * Progress updates from nested futures are automatically aggregated and reported through the progress consumer.
 	 *
 	 * The execution flow:
-	 *
 	 * 1. All nested futures are created using the provided factories
 	 * 2. The futures are executed concurrently
 	 * 3. When all nested futures complete, the result mapper is called
@@ -344,12 +351,11 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * Creates a ProgressingFuture for simple execution of a single supplier with progress tracking. This constructor
 	 * is used for operations that don't require nested futures but still need progress reporting capabilities.
 	 *
-	 * The supplier is executed asynchronously using the provided executor. Progress updates must be manually reported
-	 * by calling {@link #updateProgress(int)} from within the supplier or from external code that monitors
-	 * the operation.
+	 * The supplier is executed asynchronously using the provided executor. Progress updates
+	 * must be manually reported by calling {@link #updateProgress(int)} from within the supplier
+	 * or from external code that monitors the operation.
 	 *
 	 * The execution flow:
-	 *
 	 * 1. The supplier is executed asynchronously
 	 * 2. Progress can be updated manually during execution
 	 * 3. When the supplier completes, this future is completed with the result
@@ -375,12 +381,11 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * handler. This constructor is used for operations that don't require nested futures but still need progress
 	 * reporting capabilities and explicit failure handling.
 	 *
-	 * The supplier is executed asynchronously using the provided executor. Progress updates must be manually reported
-	 * by calling {@link #updateProgress(int)} from within the supplier or from external code that monitors
-	 * the operation.
+	 * The supplier is executed asynchronously using the provided executor. Progress updates
+	 * must be manually reported by calling {@link #updateProgress(int)} from within the supplier
+	 * or from external code that monitors the operation.
 	 *
 	 * The execution flow:
-	 *
 	 * 1. The supplier is executed asynchronously
 	 * 2. Progress can be updated manually during execution
 	 * 3. When the supplier completes, this future is completed with the result
@@ -450,6 +455,9 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * Executes the ProgressingFuture using the provided Executor. This method requires an execution lambda to be
 	 * set for the ProgressingFuture to define the operation to be performed.
 	 *
+	 * For system-critical operations that must not be rejected by the executor's queue limit,
+	 * wrap the executor with {@link #unrejectableExecutor(Executor)} before passing it here.
+	 *
 	 * Preconditions:
 	 *
 	 * 1. The execution lambda must not be null.
@@ -474,8 +482,8 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * Updates the progress of this future's direct operations (not including nested futures). This method should
 	 * be called to report progress during the execution of the operation.
 	 *
-	 * The progress consumer (if present) will be notified with the total progress including both this future's
-	 * progress and the aggregated progress from all nested futures.
+	 * The progress consumer (if present) will be notified with the total progress including
+	 * both this future's progress and the aggregated progress from all nested futures.
 	 *
 	 * @param stepsDone the number of steps completed by this future's direct operations; should be between 0
 	 *                  and the actionSteps provided in the constructor
@@ -495,8 +503,8 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * Updates the progress of a specific nested future. This method is called internally when nested futures
 	 * report their progress.
 	 *
-	 * The progress consumer (if present) will be notified with the total aggregated progress from this future
-	 * and all nested futures.
+	 * The progress consumer (if present) will be notified with the total aggregated progress
+	 * from this future and all nested futures.
 	 *
 	 * @param index     the index of the nested future in the nestedFutures array
 	 * @param stepsDone the number of steps completed by the nested future
@@ -566,5 +574,27 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 			// with the original exception, so we don't change the exception here.
 		}
 		return super.completeExceptionally(ex);
+	}
+
+	/**
+	 * A {@link Runnable} wrapper that also implements {@link UnrejectableTask}, causing the
+	 * bounded queue check in {@code ObservableThreadExecutor} to be bypassed.
+	 */
+	private record UnrejectableRunnableWrapper(@Nonnull Runnable delegate) implements Runnable, UnrejectableTask {
+		@Override
+		public void run() {
+			this.delegate.run();
+		}
+	}
+
+	/**
+	 * An {@link Executor} wrapper that wraps every submitted {@link Runnable} in an
+	 * {@link UnrejectableRunnableWrapper}, ensuring all tasks bypass queue limit rejection.
+	 */
+	private record UnrejectableExecutorWrapper(@Nonnull Executor delegate) implements Executor {
+		@Override
+		public void execute(@Nonnull Runnable command) {
+			this.delegate.execute(new UnrejectableRunnableWrapper(command));
+		}
 	}
 }

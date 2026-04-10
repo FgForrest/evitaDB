@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -950,7 +950,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getFacetEntityReferenceFieldBuilder() {
       if (facetEntityReferenceBuilder_ == null) {
         facetEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1107,7 +1107,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getFacetEntityFieldBuilder() {
       if (facetEntityBuilder_ == null) {
         facetEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1361,7 +1361,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getImpactFieldBuilder() {
       if (impactBuilder_ == null) {
         impactBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1518,7 +1518,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getMatchCountFieldBuilder() {
       if (matchCountBuilder_ == null) {
         matchCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

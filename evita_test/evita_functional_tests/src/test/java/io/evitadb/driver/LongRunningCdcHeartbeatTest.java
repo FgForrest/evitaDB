@@ -35,6 +35,8 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.cdc.HeartBeatSensor;
+import io.evitadb.driver.config.ClientTlsOptions;
+import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
@@ -186,9 +188,17 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 				.host(grpcHost.hostAddress())
 				.port(grpcHost.port())
 				.systemApiPort(systemHost.port())
-				.mtlsEnabled(false)
-				.certificateFolderPath(clientCertificates)
-				.streamingTimeout(CLIENT_STREAMING_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+				.tls(
+					ClientTlsOptions.builder()
+						.mtlsEnabled(false)
+						.certificateFolderPath(clientCertificates)
+						.build()
+				)
+				.timeouts(
+					ClientTimeoutOptions.builder()
+						.streamingTimeout(CLIENT_STREAMING_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+						.build()
+				)
 				.build()
 		);
 	}

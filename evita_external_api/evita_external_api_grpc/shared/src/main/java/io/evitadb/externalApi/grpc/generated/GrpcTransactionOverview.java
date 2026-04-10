@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -250,7 +250,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges transactionChanges = 7;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionChangesOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionChangesOrBuilder>
       getTransactionChangesOrBuilderList() {
     return transactionChanges_;
   }
@@ -761,7 +761,7 @@ private static final long serialVersionUID = 0L;
             transactionChangesBuilder_ = null;
             transactionChanges_ = other.transactionChanges_;
             bitField0_ = (bitField0_ & ~0x00000040);
-            transactionChangesBuilder_ = 
+            transactionChangesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getTransactionChangesFieldBuilder() : null;
           } else {
@@ -1049,7 +1049,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getTransactionIdFieldBuilder() {
       if (transactionIdBuilder_ == null) {
         transactionIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1206,7 +1206,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime commitTimestamp = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getCommitTimestampFieldBuilder() {
       if (commitTimestampBuilder_ == null) {
         commitTimestampBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1363,7 +1363,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime processedTimestamp = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getProcessedTimestampFieldBuilder() {
       if (processedTimestampBuilder_ == null) {
         processedTimestampBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1722,7 +1722,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges transactionChanges = 7;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionChangesOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionChangesOrBuilder>
          getTransactionChangesOrBuilderList() {
       if (transactionChangesBuilder_ != null) {
         return transactionChangesBuilder_.getMessageOrBuilderList();
@@ -1760,12 +1760,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges transactionChanges = 7;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges.Builder>
          getTransactionChangesBuilderList() {
       return getTransactionChangesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges, io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionChangesOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges, io.evitadb.externalApi.grpc.generated.GrpcTransactionChanges.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionChangesOrBuilder>
         getTransactionChangesFieldBuilder() {
       if (transactionChangesBuilder_ == null) {
         transactionChangesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

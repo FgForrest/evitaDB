@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -188,7 +188,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       if (valueCase_ == 1) {
@@ -212,7 +212,7 @@ private static final long serialVersionUID = 0L;
       ref = value_;
     }
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       if (valueCase_ == 1) {
@@ -2696,7 +2696,7 @@ private static final long serialVersionUID = 0L;
         ref = value_;
       }
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         if (valueCase_ == 1) {
@@ -3093,7 +3093,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getBigDecimalValueFieldBuilder() {
       if (bigDecimalValueBuilder_ == null) {
         if (!(valueCase_ == 5)) {
@@ -3271,7 +3271,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder>
         getDateTimeRangeValueFieldBuilder() {
       if (dateTimeRangeValueBuilder_ == null) {
         if (!(valueCase_ == 6)) {
@@ -3449,7 +3449,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
         getIntegerNumberRangeValueFieldBuilder() {
       if (integerNumberRangeValueBuilder_ == null) {
         if (!(valueCase_ == 7)) {
@@ -3627,7 +3627,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder>
         getLongNumberRangeValueFieldBuilder() {
       if (longNumberRangeValueBuilder_ == null) {
         if (!(valueCase_ == 8)) {
@@ -3805,7 +3805,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder>
         getBigDecimalNumberRangeValueFieldBuilder() {
       if (bigDecimalNumberRangeValueBuilder_ == null) {
         if (!(valueCase_ == 9)) {
@@ -3983,7 +3983,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getOffsetDateTimeValueFieldBuilder() {
       if (offsetDateTimeValueBuilder_ == null) {
         if (!(valueCase_ == 10)) {
@@ -4161,7 +4161,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getLocaleValueFieldBuilder() {
       if (localeValueBuilder_ == null) {
         if (!(valueCase_ == 11)) {
@@ -4339,7 +4339,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
         getCurrencyValueFieldBuilder() {
       if (currencyValueBuilder_ == null) {
         if (!(valueCase_ == 12)) {
@@ -4517,7 +4517,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getUuidValueFieldBuilder() {
       if (uuidValueBuilder_ == null) {
         if (!(valueCase_ == 13)) {
@@ -4695,7 +4695,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcPredecessor, io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder, io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcPredecessor, io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder, io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder>
         getPredecessorValueFieldBuilder() {
       if (predecessorValueBuilder_ == null) {
         if (!(valueCase_ == 14)) {
@@ -4873,7 +4873,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder>
         getStringArrayValueFieldBuilder() {
       if (stringArrayValueBuilder_ == null) {
         if (!(valueCase_ == 50)) {
@@ -5051,7 +5051,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder>
         getIntegerArrayValueFieldBuilder() {
       if (integerArrayValueBuilder_ == null) {
         if (!(valueCase_ == 51)) {
@@ -5229,7 +5229,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder>
         getLongArrayValueFieldBuilder() {
       if (longArrayValueBuilder_ == null) {
         if (!(valueCase_ == 52)) {
@@ -5407,7 +5407,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder>
         getBooleanArrayValueFieldBuilder() {
       if (booleanArrayValueBuilder_ == null) {
         if (!(valueCase_ == 53)) {
@@ -5585,7 +5585,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder>
         getBigDecimalArrayValueFieldBuilder() {
       if (bigDecimalArrayValueBuilder_ == null) {
         if (!(valueCase_ == 54)) {
@@ -5763,7 +5763,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder>
         getDateTimeRangeArrayValueFieldBuilder() {
       if (dateTimeRangeArrayValueBuilder_ == null) {
         if (!(valueCase_ == 55)) {
@@ -5941,7 +5941,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder>
         getIntegerNumberRangeArrayValueFieldBuilder() {
       if (integerNumberRangeArrayValueBuilder_ == null) {
         if (!(valueCase_ == 56)) {
@@ -6119,7 +6119,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder>
         getLongNumberRangeArrayValueFieldBuilder() {
       if (longNumberRangeArrayValueBuilder_ == null) {
         if (!(valueCase_ == 57)) {
@@ -6297,7 +6297,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder>
         getBigDecimalNumberRangeArrayValueFieldBuilder() {
       if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
         if (!(valueCase_ == 58)) {
@@ -6475,7 +6475,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder>
         getOffsetDateTimeArrayValueFieldBuilder() {
       if (offsetDateTimeArrayValueBuilder_ == null) {
         if (!(valueCase_ == 59)) {
@@ -6653,7 +6653,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder>
         getLocaleArrayValueFieldBuilder() {
       if (localeArrayValueBuilder_ == null) {
         if (!(valueCase_ == 60)) {
@@ -6831,7 +6831,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder>
         getCurrencyArrayValueFieldBuilder() {
       if (currencyArrayValueBuilder_ == null) {
         if (!(valueCase_ == 61)) {
@@ -7009,7 +7009,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuidArray, io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuidArray, io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidArrayOrBuilder>
         getUuidArrayValueFieldBuilder() {
       if (uuidArrayValueBuilder_ == null) {
         if (!(valueCase_ == 62)) {
@@ -7253,7 +7253,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value version = 101;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getVersionFieldBuilder() {
       if (versionBuilder_ == null) {
         versionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

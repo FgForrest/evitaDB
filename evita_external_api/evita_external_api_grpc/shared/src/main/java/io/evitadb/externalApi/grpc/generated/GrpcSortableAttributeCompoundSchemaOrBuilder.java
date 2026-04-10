@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -127,7 +127,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>
       getAttributeElementsList();
   /**
    * <pre>
@@ -155,7 +155,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
       getAttributeElementsOrBuilderList();
   /**
    * <pre>
@@ -175,7 +175,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getNameVariantList();
   /**
    * <pre>
@@ -200,7 +200,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList();
   /**
    * <pre>

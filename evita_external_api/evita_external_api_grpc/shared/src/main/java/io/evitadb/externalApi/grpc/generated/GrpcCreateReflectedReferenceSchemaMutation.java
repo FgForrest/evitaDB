@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -115,7 +115,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -259,7 +259,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       referencedEntityType_ = s;
@@ -280,7 +280,7 @@ private static final long serialVersionUID = 0L;
       getReferencedEntityTypeBytes() {
     java.lang.Object ref = referencedEntityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       referencedEntityType_ = b;
@@ -309,7 +309,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       reflectedReferenceName_ = s;
@@ -331,7 +331,7 @@ private static final long serialVersionUID = 0L;
       getReflectedReferenceNameBytes() {
     java.lang.Object ref = reflectedReferenceName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       reflectedReferenceName_ = b;
@@ -778,7 +778,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 14;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
       getScopedIndexTypesOrBuilderList() {
     return scopedIndexTypes_;
   }
@@ -1484,7 +1484,7 @@ private static final long serialVersionUID = 0L;
             scopedIndexTypesBuilder_ = null;
             scopedIndexTypes_ = other.scopedIndexTypes_;
             bitField0_ = (bitField0_ & ~0x00002000);
-            scopedIndexTypesBuilder_ = 
+            scopedIndexTypesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getScopedIndexTypesFieldBuilder() : null;
           } else {
@@ -1677,7 +1677,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -1889,7 +1889,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2055,7 +2055,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2196,7 +2196,7 @@ private static final long serialVersionUID = 0L;
         getReferencedEntityTypeBytes() {
       java.lang.Object ref = referencedEntityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         referencedEntityType_ = b;
@@ -2295,7 +2295,7 @@ private static final long serialVersionUID = 0L;
         getReflectedReferenceNameBytes() {
       java.lang.Object ref = reflectedReferenceName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         reflectedReferenceName_ = b;
@@ -2562,7 +2562,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> 
+        com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder>
         getFacetedFieldBuilder() {
       if (facetedBuilder_ == null) {
         facetedBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3751,7 +3751,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 14;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
          getScopedIndexTypesOrBuilderList() {
       if (scopedIndexTypesBuilder_ != null) {
         return scopedIndexTypesBuilder_.getMessageOrBuilderList();
@@ -3795,12 +3795,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 14;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder>
          getScopedIndexTypesBuilderList() {
       return getScopedIndexTypesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
         getScopedIndexTypesFieldBuilder() {
       if (scopedIndexTypesBuilder_ == null) {
         scopedIndexTypesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

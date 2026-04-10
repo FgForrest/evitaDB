@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+  public java.util.List<? extends com.google.protobuf.StringValueOrBuilder>
       getOriginOrBuilderList() {
     return origin_;
   }
@@ -609,7 +609,7 @@ private static final long serialVersionUID = 0L;
             originBuilder_ = null;
             origin_ = other.origin_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            originBuilder_ = 
+            originBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getOriginFieldBuilder() : null;
           } else {
@@ -1080,7 +1080,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
-    public java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+    public java.util.List<? extends com.google.protobuf.StringValueOrBuilder>
          getOriginOrBuilderList() {
       if (originBuilder_ != null) {
         return originBuilder_.getMessageOrBuilderList();
@@ -1121,12 +1121,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
-    public java.util.List<com.google.protobuf.StringValue.Builder> 
+    public java.util.List<com.google.protobuf.StringValue.Builder>
          getOriginBuilderList() {
       return getOriginFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getOriginFieldBuilder() {
       if (originBuilder_ == null) {
         originBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

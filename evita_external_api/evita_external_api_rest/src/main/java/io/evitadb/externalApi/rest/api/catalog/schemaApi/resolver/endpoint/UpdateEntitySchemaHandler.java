@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		return parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class)
-			.thenApply(requestData -> {
+			.thenCompose(requestData -> {
 				requestExecutedEvent.finishInputDeserialization();
 
 				final ModifyEntitySchemaMutation entitySchemaMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
@@ -91,14 +91,16 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 					);
 				});
 
-				final EntitySchemaContract updatedEntitySchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					executionContext.session().updateAndFetchEntitySchema(entitySchemaMutation));
-				requestExecutedEvent.finishOperationExecution();
+				return executionContext.executeAsyncInTransactionThreadPool(() -> {
+					final EntitySchemaContract updatedEntitySchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+						executionContext.session().updateAndFetchEntitySchema(entitySchemaMutation));
+					requestExecutedEvent.finishOperationExecution();
 
-				final Object result = convertResultIntoSerializableObject(executionContext, updatedEntitySchema);
-				requestExecutedEvent.finishResultSerialization();
+					final Object result = convertResultIntoSerializableObject(executionContext, updatedEntitySchema);
+					requestExecutedEvent.finishResultSerialization();
 
-				return new SuccessEndpointResponse(result);
+					return new SuccessEndpointResponse(result);
+				});
 			});
 	}
 
