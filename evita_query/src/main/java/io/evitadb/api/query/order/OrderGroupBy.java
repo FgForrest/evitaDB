@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,17 +38,16 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The `entityGroupProperty` ordering constraint can only be used within the {@link ReferenceContent} requirement.
- * It allows the context of the reference ordering to be changed from attributes of the reference itself to attributes
- * of the group entity within which the reference is aggregated.
+ * The `orderGroupBy` is a container for ordering constraints applied to facet group entities within
+ * {@link ReferenceContent} requirement. While `orderBy` controls the order of referenced entities themselves,
+ * `orderGroupBy` controls the order of the groups under which those references are aggregated.
  *
- * In other words, if the Product entity has multiple references to ParameterValue entities that are grouped by their
- * assignment to the Parameter entity, you can sort those references primarily by the name attribute of the grouping
- * entity, and secondarily by the name attribute of the referenced entity. Let's look at an example:
+ * This is useful when you want to control how reference groups (e.g., Parameter groups containing ParameterValue
+ * references) are sorted in the output, independently of how individual references within each group are sorted.
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
@@ -78,15 +77,15 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/basics#order-by)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "orderGroupBy",
-	shortDescription = "The container encapsulates order constraints that control the order of the facet groups in facet summary.",
+	shortDescription = "Container for ordering constraints that control the sort order of reference groups within reference content.",
 	userDocsLink = "/documentation/query/basics#order-by",
 	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
@@ -105,7 +104,10 @@ public class OrderGroupBy extends AbstractOrderConstraintContainer implements Ge
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new OrderGroupBy(children);
 	}
 

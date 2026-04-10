@@ -25,12 +25,14 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
  * Descriptor representing {@link SetReferenceSchemaFacetedMutation}.
@@ -57,6 +59,22 @@ public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSc
 		.type(nullable(Scope[].class))
 		.build();
 
+	PropertyDescriptor FACETED_PARTIALLY_IN_SCOPES = PropertyDescriptor.builder()
+		.name("facetedPartiallyInScopes")
+		.description("""
+			Per-scope expressions that narrow which entities participate in faceting.
+			Each entry associates a scope with a boolean expression that is evaluated against
+			the entity data. Only entities for which the expression evaluates to true will
+			participate in facet statistics for the given scope.
+
+			When null (for reflected references), the expressions are inherited from the reflected reference.
+			""")
+		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS))
+		.build();
+	PropertyDescriptor FACETED_PARTIALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(FACETED_PARTIALLY_IN_SCOPES)
+		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS_INPUT))
+		.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
 		.representedClass(SetReferenceSchemaFacetedMutation.class)
 		.description("""
@@ -66,8 +84,10 @@ public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSc
 			""")
 		.staticProperty(NAME)
 		.staticProperty(FACETED_IN_SCOPES)
+		.staticProperty(FACETED_PARTIALLY_IN_SCOPES)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetReferenceSchemaFacetedMutationInput")
+		.staticProperty(FACETED_PARTIALLY_IN_SCOPES_INPUT)
 		.build();
 }

@@ -40,3 +40,10 @@ See "How this repository is organized" in README.md for module descriptions and 
 ### MCP
 
 Always use Context7 MCP when you need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+Always use JDWP MCP for debugging test failures if error is not clearly visible.
+
+## Defensive Design
+
+- **Never silently skip unexpected states.** If a code path should be unreachable (e.g., an `else` after exhaustive enum checks, a `default` in a switch over a closed enum), it must throw an exception (`GenericEvitaInternalError` or equivalent) — never `continue`, `return`, `break`, or no-op.
+- For assertion logic (expectation failed) use: `Assert.isPremiseValid(...)`
+- Treat every unhandled enum value, unexpected type, or impossible branch as a programming error that must surface immediately at runtime.

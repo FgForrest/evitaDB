@@ -43,27 +43,35 @@ import java.util.Iterator;
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 
-
 /**
- * This array keeps unique (distinct) Comparable values in strictly ordered fashion (naturally ordered - ascending).
+ * This array keeps unique (distinct) Comparable values in strictly ordered
+ * fashion (naturally ordered - ascending).
  *
- * This class envelopes simple primitive int array and makes it transactional. This means, that the array can be updated
- * by multiple writers and also multiple readers can read from it's original array without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * This class envelops a Comparable object array and makes it transactional.
+ * This means, that the array can be updated by multiple writers and also
+ * multiple readers can read from its original array without spotting the
+ * changes made in transactional access. Each transaction is bound to the
+ * same thread and different threads don't see changes in other threads.
  *
- * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
- * safe for multiple writers!
+ * If no transaction is opened, changes are applied directly to the delegate
+ * array. In such case the class is not thread safe for multiple writers!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, Serializable {
+public class TransactionalObjArray<T>
+	implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, Serializable {
 	@Serial private static final long serialVersionUID = 3207853222537134300L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	@Nonnull private T[] delegate;
 	@Nonnull private final Comparator<T> comparator;
 
+	/**
+	 * Creates a transactional object array backed by the given sorted delegate.
+	 *
+	 * @param delegate   the initial sorted array
+	 * @param comparator the comparator defining element order
+	 */
 	public TransactionalObjArray(@Nonnull T[] delegate, @Nonnull Comparator<T> comparator) {
 		this.delegate = delegate;
 		this.comparator = comparator;
@@ -100,7 +108,9 @@ public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjA
 	public void add(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.delegate, this.comparator);
+			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(
+				recordId, this.delegate, this.comparator
+			);
 		} else {
 			layer.addRecordId(recordId, this.comparator);
 		}
@@ -121,7 +131,9 @@ public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjA
 	public void remove(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate, this.comparator);
+			this.delegate = ArrayUtils.removeRecordFromOrderedArray(
+				recordId, this.delegate, this.comparator
+			);
 		} else {
 			layer.removeRecordId(recordId, this.comparator);
 		}
@@ -217,7 +229,7 @@ public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjA
 	}
 
 	/*
-		TRANSACTIONAL OBJECT IMPLEMENTATION
+		TransactionalLayerProducer implementation
 	 */
 
 	@Nullable
@@ -228,7 +240,10 @@ public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjA
 
 	@Nonnull
 	@Override
-	public T[] createCopyWithMergedTransactionalMemory(@Nullable ObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public T[] createCopyWithMergedTransactionalMemory(
+		@Nullable ObjArrayChanges<T> layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		if (layer == null) {
 			return this.delegate;
 		} else {

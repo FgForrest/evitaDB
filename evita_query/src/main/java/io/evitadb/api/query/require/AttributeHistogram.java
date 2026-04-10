@@ -41,46 +41,72 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 
 /**
- * The `attributeHistogram` can be computed from any filterable attribute whose type is numeric. The histogram is
- * computed only from the attributes of elements that match the current mandatory part of the filter. The interval
- * related constraints - i.e. {@link AttributeBetween} and {@link PriceBetween} in the userFilter part are excluded for
- * the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range based on
- * the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
+ * The `attributeHistogram` require constraint triggers computation of a value-distribution histogram for one or more
+ * numeric filterable attributes. The resulting histogram is included in the extra-results section of the response and
+ * can be used to render a range-filter UI widget (e.g. a price slider) that guides users toward meaningful value ranges.
  *
- * It accepts two plus arguments:
+ * **How it works**
  *
- * 1. The number of buckets (columns) the histogram should contain.
- * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
- *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
- *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
- * 3. variable number of attribute names for which the histogram should be computed.
+ * The histogram is calculated only over the entities that pass the *mandatory* part of the `filterBy` constraint
+ * (i.e. the filter outside any `userFilter` container). Crucially, {@link AttributeBetween} and {@link PriceBetween}
+ * constraints placed inside `userFilter` are intentionally excluded from the histogram calculation. Without this
+ * exclusion, a user narrowing the filter range via the histogram would progressively shrink the available range until
+ * reaching a dead end where no further selection is possible.
  *
- * Example:
+ * **Arguments**
  *
- * <pre>
+ * 1. `requestedBucketCount` (int, required) — the number of histogram buckets (columns) to produce. Typical values
+ *    are 10–50, chosen to match the pixel width of the histogram widget in the UI.
+ * 2. `behavior` ({@link HistogramBehavior}, optional, default `STANDARD`) — controls how bucket boundaries are
+ *    positioned and whether empty buckets are suppressed:
+ *    - `STANDARD`: exactly the requested number of equal-width buckets, even if some are empty.
+ *    - `OPTIMIZED`: up to the requested count, but empty buckets are dropped for a denser result.
+ *    - `EQUALIZED`: exactly the requested count with frequency-equalised boundaries (each bucket covers roughly
+ *      the same number of entities), ideal for skewed data distributions.
+ *    - `EQUALIZED_OPTIMIZED`: frequency-equalised boundaries with empty-bucket suppression combined.
+ * 3. `attributeNames` (String..., required, at least one) — names of the numeric filterable attributes for which
+ *    histograms should be computed. Each named attribute produces a separate histogram in the response.
+ *
+ * The constraint is applicable only when at least one attribute name is provided; an instance with no attribute names
+ * is not applicable and is ignored during query evaluation.
+ *
+ * **ConstraintWithDefaults behaviour**
+ *
+ * `STANDARD` is an implicit (default) argument and is omitted from the EvitaQL string representation
+ * (`attributeHistogram(20,'width')` rather than `attributeHistogram(20,STANDARD,'width')`).
+ *
+ * **Example**
+ *
+ * ```evitaql
  * attributeHistogram(5, "width", "height")
  * attributeHistogram(5, OPTIMIZED, "width", "height")
- * </pre>
+ * attributeHistogram(20, EQUALIZED, "price")
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "histogram",
-	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of specified attributes into response.",
+	shortDescription = "The constraint triggers computation of the histogram of specified numeric attributes into response extra results.",
 	userDocsLink = "/documentation/query/requirements/histogram#attribute-histogram",
 	supportedValues = @ConstraintSupportedValues(supportedTypes = {Byte.class, Short.class, Integer.class, Long.class, BigDecimal.class})
 )
-public class AttributeHistogram extends AbstractRequireConstraintLeaf implements ConstraintWithDefaults<RequireConstraint>, AttributeConstraint<RequireConstraint>, ExtraResultRequireConstraint {
+public class AttributeHistogram extends AbstractRequireConstraintLeaf
+	implements ConstraintWithDefaults<RequireConstraint>, AttributeConstraint<RequireConstraint>, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = -3462067705883466799L;
 
-	private AttributeHistogram(Serializable... arguments) {
+	private AttributeHistogram(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
 	@Creator
-	public AttributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nonnull String... attributeNames) {
+	public AttributeHistogram(
+		int requestedBucketCount,
+		@Nullable HistogramBehavior behavior,
+		@Nonnull String... attributeNames
+	) {
 		super(
 			ArrayUtils.mergeArrays(
 				new Serializable[]{

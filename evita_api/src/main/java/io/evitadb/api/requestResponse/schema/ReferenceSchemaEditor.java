@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,9 +29,11 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -109,6 +111,37 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	T indexedInScope(@Nullable Scope... inScope);
 
 	/**
+	 * Configures which components of this reference are indexed in the {@link Scope#DEFAULT_SCOPE}.
+	 * Components determine which parts of the reference relationship (entity, group entity, or both)
+	 * are maintained in the index for querying.
+	 *
+	 * @param components one or more indexed components to configure
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T indexedWithComponents(@Nonnull ReferenceIndexedComponents... components) {
+		return indexedWithComponentsInScope(Scope.DEFAULT_SCOPE, components);
+	}
+
+	/**
+	 * Configures which components of this reference are indexed in the given scope.
+	 * Components determine which parts of the reference relationship (entity, group entity, or both)
+	 * are maintained in the index for querying in the specified scope.
+	 *
+	 * If the reference is not yet indexed in the given scope, it is automatically promoted to
+	 * {@link ReferenceIndexType#FOR_FILTERING}. This mirrors the behavior of {@link #facetedInScope(Scope...)}
+	 * which also auto-promotes non-indexed scopes. If a different index type is desired, call
+	 * {@link #indexedForFilteringInScope(Scope...)} or {@link #indexedForFilteringAndPartitioningInScope(Scope...)}
+	 * either before or after this method — both orderings are supported and preserve each other's settings.
+	 *
+	 * @param scope      the scope where the indexed components should be applied
+	 * @param components one or more indexed components to configure
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T indexedWithComponentsInScope(@Nonnull Scope scope, @Nonnull ReferenceIndexedComponents... components);
+
+	/**
 	 * Makes reference as non-faceted in all scopes. This means reference information will be available on entity when
 	 * loaded but cannot be used in filtering.
 	 *
@@ -183,8 +216,154 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	T nonFaceted(@Nonnull Scope... inScope);
 
 	/**
+	 * Sets the expression that narrows which entities participate in faceting in the
+	 * {@link Scope#DEFAULT_SCOPE}. Only meaningful when the reference is faceted in that scope.
+	 *
+	 * @param expression the expression narrowing facet participation
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T facetedPartially(@Nonnull Expression expression) {
+		return facetedPartiallyInScope(Scope.DEFAULT_SCOPE, expression);
+	}
+
+	/**
+	 * Sets the expression that narrows which entities participate in faceting in the given scope.
+	 * Only meaningful when the reference is faceted in that scope.
+	 *
+	 * @param scope      the scope to set the expression for
+	 * @param expression the expression narrowing facet participation
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T facetedPartiallyInScope(@Nonnull Scope scope, @Nonnull Expression expression);
+
+	/**
+	 * Clears the facetedPartially expression in the {@link Scope#DEFAULT_SCOPE}, reverting to
+	 * full faceting where all faceted entities participate.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonFacetedPartially() {
+		return nonFacetedPartially(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Clears the facetedPartially expression in the given scope(s), reverting to full faceting
+	 * where all faceted entities participate.
+	 *
+	 * @param inScope one or more scopes to clear the expression for
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonFacetedPartially(@Nonnull Scope... inScope);
+
+	/**
+	 * Enables bucketed histogram indexing for this reference in the {@link Scope#DEFAULT_SCOPE}.
+	 * When a reference is bucketed, evitaDB creates and maintains a histogram index that allows
+	 * computation of bucketed histogram statistics for the reference.
+	 *
+	 * @param nameOfTheIndex the name identifying the histogram index
+	 * @param valueExpression the expression computing the histogram bucket value
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T bucketed(@Nonnull String nameOfTheIndex, @Nullable Expression valueExpression) {
+		return bucketedInScope(Scope.DEFAULT_SCOPE, nameOfTheIndex, valueExpression);
+	}
+
+	/**
+	 * Enables bucketed histogram indexing for this reference in the specified scope.
+	 * When a reference is bucketed, evitaDB creates and maintains a histogram index that allows
+	 * computation of bucketed histogram statistics for the reference.
+	 *
+	 * @param scope the scope where the bucketed histogram should be enabled
+	 * @param nameOfTheIndex the name identifying the histogram index
+	 * @param valueExpression the expression computing the histogram bucket value
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T bucketedInScope(@Nonnull Scope scope, @Nonnull String nameOfTheIndex, @Nullable Expression valueExpression);
+
+	/**
+	 * Disables bucketed histogram indexing in all scopes.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonBucketed() {
+		return nonBucketed(Scope.values());
+	}
+
+	/**
+	 * Disables bucketed histogram indexing in the specified scopes. All named histogram
+	 * definitions in the given scopes are removed.
+	 *
+	 * @param inScope one or more scopes where bucketed histogram indexing should be disabled
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonBucketed(@Nonnull Scope... inScope);
+
+	/**
+	 * Removes a single named histogram definition from the given scope. If the scope
+	 * becomes empty (no more histogram definitions), the scope is removed entirely.
+	 *
+	 * @param scope the scope to remove the histogram from
+	 * @param nameOfTheIndex the name of the histogram index to remove
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonBucketedByName(@Nonnull Scope scope, @Nonnull String nameOfTheIndex);
+
+	/**
+	 * Sets the expression that narrows which entities participate in bucketed histogram computation
+	 * in the {@link Scope#DEFAULT_SCOPE}. Only meaningful when the reference is bucketed in that scope.
+	 *
+	 * @param expression the expression narrowing bucketed participation
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T bucketedPartially(@Nonnull Expression expression) {
+		return bucketedPartiallyInScope(Scope.DEFAULT_SCOPE, expression);
+	}
+
+	/**
+	 * Sets the expression that narrows which entities participate in bucketed histogram computation
+	 * in the given scope. Only meaningful when the reference is bucketed in that scope.
+	 *
+	 * @param scope the scope to set the expression for
+	 * @param expression the expression narrowing bucketed participation
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T bucketedPartiallyInScope(@Nonnull Scope scope, @Nonnull Expression expression);
+
+	/**
+	 * Clears the bucketedPartially expression in the {@link Scope#DEFAULT_SCOPE}, reverting to
+	 * full bucketed histogram computation where all bucketed entities participate.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonBucketedPartially() {
+		return nonBucketedPartially(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Clears the bucketedPartially expression in the given scope(s), reverting to full bucketed
+	 * histogram computation where all bucketed entities participate.
+	 *
+	 * @param inScope one or more scopes to clear the expression for
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonBucketedPartially(@Nonnull Scope... inScope);
+
+	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with
-	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING} type allowing to filter by
+	 * {@link ReferenceIndexType#FOR_FILTERING} type allowing to filter by
 	 * {@link ReferenceHaving} filtering constraints. This is the minimal indexing level that allows filtering by
 	 * reference existence and reference attributes.
 	 *
@@ -204,13 +383,16 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with
-	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING} type allowing to filter by
+	 * {@link ReferenceIndexType#FOR_FILTERING} type allowing to filter by
 	 * {@link ReferenceHaving} filtering constraints. This is the minimal indexing level that allows filtering by
 	 * reference existence and reference attributes.
 	 *
 	 * Use this type when you need basic reference filtering capabilities but want to minimize memory and disk usage.
 	 * This is suitable for references that are not frequently used in complex queries or when storage optimization
 	 * is more important than query performance.
+	 *
+	 * Any previously configured indexed components (via {@link #indexedWithComponentsInScope(Scope,
+	 * ReferenceIndexedComponents...)}) are preserved when changing the index type.
 	 *
 	 * @param inScope one or more scopes where the reference should be indexed for filtering
 	 * @return builder to continue with configuration
@@ -220,7 +402,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with
-	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
 	 * This creates basic index for {@link ReferenceHaving} constraint interpretation, and also partitioning
 	 * indexes for the main entity type, which may greatly speed up the query execution when the reference is part
 	 * of the query filtering.
@@ -245,7 +427,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Makes evitaDB create and maintain searchable index for this reference with
-	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
 	 * This creates basic index for {@link ReferenceHaving} constraint interpretation, and also partitioning
 	 * indexes for the main entity type, which may greatly speed up the query execution when the reference is part
 	 * of the query filtering.
@@ -256,6 +438,9 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 *
 	 * Use this type when reference filtering is frequently used in queries and query performance is critical.
 	 * Be aware that this option requires more memory and disk space compared to {@link #indexedForFiltering()}.
+	 *
+	 * Any previously configured indexed components (via {@link #indexedWithComponentsInScope(Scope,
+	 * ReferenceIndexedComponents...)}) are preserved when changing the index type.
 	 *
 	 * @param inScope one or more scopes where the reference should be indexed for filtering and partitioning
 	 * @return builder to continue with configuration
@@ -273,6 +458,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * Mutation allows Evita to perform surgical updates on the latest version of the {@link EntitySchemaContract}
 	 * object that is in the database at the time update request arrives.
 	 */
+	@SuppressWarnings("InterfaceWithOnlyOneDirectInheritor")
 	interface ReferenceSchemaBuilder extends ReferenceSchemaEditor<ReferenceSchemaBuilder> {
 
 		/**

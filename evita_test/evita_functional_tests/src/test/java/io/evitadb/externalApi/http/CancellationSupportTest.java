@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
  * tasks in both synchronous ({@code submitWithCancellation})
  * and asynchronous ({@code submitAsyncWithCancellation}) modes.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName(
 	"CancellationSupport - request cancellation wiring"

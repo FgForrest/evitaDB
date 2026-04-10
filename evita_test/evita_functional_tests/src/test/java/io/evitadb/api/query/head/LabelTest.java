@@ -23,7 +23,13 @@
 
 package io.evitadb.api.query.head;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.Test;
+
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import static io.evitadb.api.query.QueryConstraints.label;
 import static org.junit.jupiter.api.Assertions.*;
@@ -68,6 +74,54 @@ class LabelTest {
 		assertEquals(label("a", "b"), label("a", "b"));
 		assertNotEquals(label("a", "b"), label("a", "c"));
 		assertNotEquals(label("a", "b"), label("b", "b"));
+	}
+
+	@Test
+	void shouldCloneWithArguments() {
+		final Label original = label("a", "b");
+		final Label cloned = (Label) original.cloneWithArguments(new Serializable[]{"x", "y"});
+
+		assertEquals("x", cloned.getLabelName());
+		assertEquals("y", cloned.getLabelValue());
+	}
+
+	@Test
+	void shouldRejectUnsupportedValueType() {
+		// Double is Comparable & Serializable but NOT in EvitaDataTypes.SUPPORTED_QUERY_DATA_TYPES
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> new Label("key", 3.14)
+		);
+	}
+
+	@Test
+	void shouldAcceptSupportedValueTypes() {
+		final Label withInt = label("key", 42);
+		assertEquals(42, withInt.getLabelValue());
+
+		final Label withBigDecimal = label("key", new BigDecimal("1.5"));
+		assertEquals(new BigDecimal("1.5"), withBigDecimal.getLabelValue());
+
+		final Label withString = label("key", "value");
+		assertEquals("value", withString.getLabelValue());
+
+		final OffsetDateTime dateTime = OffsetDateTime.of(2025, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		final Label withDateTime = label("key", dateTime);
+		assertEquals(dateTime, withDateTime.getLabelValue());
+	}
+
+	@Test
+	void shouldThrowWhenAccessingMissingName() {
+		final Label empty = new Label();
+
+		assertThrows(EvitaInvalidUsageException.class, empty::getLabelName);
+	}
+
+	@Test
+	void shouldThrowWhenAccessingMissingValue() {
+		final Label nameOnly = new Label(new Serializable[]{"a"});
+
+		assertThrows(EvitaInvalidUsageException.class, nameOnly::getLabelValue);
 	}
 
 }

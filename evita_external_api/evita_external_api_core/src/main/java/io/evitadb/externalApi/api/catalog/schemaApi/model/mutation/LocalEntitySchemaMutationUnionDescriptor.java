@@ -113,6 +113,7 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS)
 		.type(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS)
 		.type(RemoveReferenceSchemaMutationDescriptor.THIS)
+		.type(SetReferenceSchemaBucketedMutationDescriptor.THIS)
 		.type(SetReferenceSchemaFacetedMutationDescriptor.THIS)
 		.type(SetReferenceSchemaIndexedMutationDescriptor.THIS)
 

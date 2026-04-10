@@ -204,6 +204,53 @@ class ConstraintDescriptorTest {
 	}
 
 	@Nested
+	@DisplayName("Deprecation")
+	class DeprecationTest {
+
+		@Test
+		@DisplayName("should accept null deprecated value")
+		void shouldAcceptNullDeprecated() {
+			final ConstraintDescriptor descriptor = createComparableDescriptor(
+				ConstraintType.FILTER, ConstraintPropertyType.GENERIC, "and", false, false
+			);
+			assertNull(descriptor.deprecated());
+		}
+
+		@Test
+		@DisplayName("should accept non-empty deprecated reason")
+		void shouldAcceptNonEmptyDeprecatedReason() {
+			final ConstraintDescriptor descriptor = createDescriptorWithDeprecated("Use xyz instead.");
+			assertEquals("Use xyz instead.", descriptor.deprecated());
+		}
+
+		@Test
+		@DisplayName("should reject empty deprecated reason")
+		void shouldRejectEmptyDeprecatedReason() {
+			assertThrows(
+				EvitaInternalError.class,
+				() -> createDescriptorWithDeprecated("")
+			);
+		}
+
+		@Nonnull
+		@SneakyThrows
+		private ConstraintDescriptor createDescriptorWithDeprecated(@Nonnull String deprecated) {
+			return new ConstraintDescriptor(
+				And.class,
+				ConstraintType.FILTER,
+				ConstraintPropertyType.GENERIC,
+				"and",
+				"This is a description.",
+				"/link",
+				deprecated,
+				Set.of(ConstraintDomain.ENTITY),
+				null,
+				createCreator()
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("User docs link")
 	class UserDocsLinkTest {
 
@@ -358,6 +405,7 @@ class ConstraintDescriptorTest {
 			name,
 			"This is a description.",
 			"/link",
+			null,
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			creator
@@ -406,6 +454,7 @@ class ConstraintDescriptorTest {
 			name,
 			"This is a description.",
 			"/link",
+			null,
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			creator

@@ -32,6 +32,7 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -42,45 +43,73 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * The `page` requirement controls the number and slice of entities returned in the query response. If no page
- * requirement is used in the query, the default page 1 with the default page size 20 is used. If the requested page
- * exceeds the number of available pages, a result with the first page is returned. An empty result is only returned if
- * the query returns no result at all or the page size is set to zero. By automatically returning the first page result
- * when the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
+ * The `page` requirement controls the number and slice of entities returned in the query response using classic
+ * page-number–based pagination. It is one of two {@link ChunkingRequireConstraint} implementations, the other being
+ * {@link Strip}, which uses an offset/limit model instead.
  *
- * The information about the actual returned page and data statistics can be found in the query response, which is
- * wrapped in a so-called data chunk object. In case of the page constraint, the {@link PaginatedList} is used as data
- * chunk object.
+ * ## Defaults and out-of-range behaviour
  *
- * Example:
+ * Both arguments accept `null`, in which case defaults are applied: page number defaults to `1` and page size
+ * defaults to `20`. If no `page` (or `strip`) requirement is present in the query at all, those same defaults apply.
+ * Page number must be greater than zero; page size must be greater than or equal to zero (size `0` produces an empty
+ * result while still returning total count metadata).
  *
- * <pre>
- * page(1, 24)
- * </pre>
+ * When the requested page exceeds the last available page, the engine returns the **first page** instead of an empty
+ * result. This avoids the need for a secondary corrective request when the result set shrinks between two calls
+ * (e.g., concurrent deletions between navigating to a deep page).
  *
- * Page also allows to insert artificial gaps instead of entities on particular pages. The gaps are defined by the
- * {@link Spacing} sub-constraints, which specify the number of entities that should be skipped on the page when the
- * `onPage` expression is evaluated to true.
+ * ## Response structure
  *
- * Example:
+ * The result is wrapped in a {@link PaginatedList} data-chunk object, which exposes:
  *
- * <pre>
- * page(
- *    1, 20,
- *    spacing(
- *       gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
- *       gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+ * - `pageNumber` — the actually returned page (may differ from the requested page when clamped)
+ * - `pageSize` — the requested page size
+ * - `lastPageNumber` — the index of the last available page
+ * - `totalRecordCount` — total number of matching entities
+ * - `isFirst()`, `isLast()`, `hasNext()`, `hasPrevious()` — navigation flags
+ * - `data` — the list of entities on this page
+ *
+ * ## Spacing support
+ *
+ * An optional {@link Spacing} child constraint allows reserving a configurable number of visual slots per page for
+ * non-entity content such as advertisements, banners, or promotional inserts. Each {@link SpacingGap} rule inside
+ * `spacing` reduces the number of entities returned on pages that match its boolean expression. The gap rules are
+ * evaluated for each page independently, and their sizes are additive when multiple rules match the same page.
+ *
+ * ## Usage examples
+ *
+ * Basic page request:
+ *
+ * ```evitaql
+ * require(
+ *    page(1, 24)
+ * )
+ * ```
+ *
+ * Page with spacing for ads on selected pages:
+ *
+ * ```evitaql
+ * require(
+ *    page(
+ *       1, 20,
+ *       spacing(
+ *          gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+ *          gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+ *       )
  *    )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/paging#page)
  *
+ * @see Strip
+ * @see Spacing
+ * @see PaginatedList
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "page",
-	shortDescription = "The constraint specifies which page of found entities will be returned.",
+	shortDescription = "The constraint specifies which page of found entities will be returned using page-number-based pagination.",
 	userDocsLink = "/documentation/query/requirements/paging#page",
 	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE }
 )
@@ -151,13 +180,20 @@ public class Page extends AbstractRequireConstraintContainer implements GenericC
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		Assert.isTrue(
-			additionalChildren.length <= 1 && additionalChildren[0] instanceof Spacing,
-			"Page constraint supports only one additional child of type Spacing."
+			ArrayUtils.isEmpty(additionalChildren),
+			"Page constraint doesn't support additional children!"
 		);
+		Spacing spacing = null;
+		for (RequireConstraint child : children) {
+			if (child instanceof Spacing spacingChild) {
+				spacing = spacingChild;
+				break;
+			}
+		}
 		return new Page(
 			getPageNumber(),
 			getPageSize(),
-			(Spacing) children[0]
+			spacing
 		);
 	}
 

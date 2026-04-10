@@ -27,7 +27,21 @@ import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 
 /**
- * This interface marks all top level hierarchy constraints.
+ * Marker interface for the top-level hierarchy require constraints that are placed directly in the `require` clause
+ * of a query to trigger computation of one or more hierarchy output segments.
+ *
+ * A query may include at most one `HierarchyOfSelf` and multiple `HierarchyOfReference` constraints (one per
+ * distinct reference type). The engine's `ExtraResultPlanningVisitor` identifies all `RootHierarchyConstraint`
+ * instances in the require clause and schedules the appropriate `HierarchyStatisticsProducer` computations.
+ *
+ * Concrete implementations:
+ * - {@link HierarchyOfSelf} — requests hierarchy data for the *queried entity type itself* (applicable when the
+ *   queried entity is a hierarchical entity, e.g. a category browsing its own category tree)
+ * - {@link HierarchyOfReference} — requests hierarchy data for a *referenced hierarchical entity type*
+ *   (e.g. a product query computing the category tree for all referenced categories)
+ *
+ * Each root hierarchy constraint carries one or more {@link HierarchyRequireConstraint} children that describe
+ * the individual named output segments (e.g. `fromRoot("menu", ...)`, `children("submenu", ...)`).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

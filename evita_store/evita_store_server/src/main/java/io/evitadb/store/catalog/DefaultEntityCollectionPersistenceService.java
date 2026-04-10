@@ -25,8 +25,6 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
@@ -66,7 +64,11 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.HistogramIndex;
+import io.evitadb.index.LocalizedHistogramIndex;
+import io.evitadb.index.SimpleHistogramIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
@@ -76,6 +78,7 @@ import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
@@ -97,7 +100,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStorag
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -129,8 +131,10 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
+import java.math.BigDecimal;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -249,28 +253,41 @@ public class DefaultEntityCollectionPersistenceService
 
 			// load additional containers only when requested
 			final ReferencesStoragePart referencesStorageContainer = fetchReferences(
-				null, new ReferenceContractSerializablePredicate(evitaRequest),
-				() -> Arrays.stream(storageParts)
-					.filter(ReferencesStoragePart.class::isInstance)
-					.map(ReferencesStoragePart.class::cast)
-					.findFirst()
-					.orElseGet(
-						() -> ioFetchStatistics.record(
-							dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
-						)
-					)
+				null,
+				new ReferenceContractSerializablePredicate(evitaRequest),
+				new Supplier<>() {
+					@Nullable
+					@Override
+					public ReferencesStoragePart get() {
+						return Arrays.stream(storageParts)
+							.filter(ReferencesStoragePart.class::isInstance)
+							.map(ReferencesStoragePart.class::cast)
+							.findFirst()
+							.orElseGet(
+								() -> ioFetchStatistics.record(
+									dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
+								)
+							);
+					}
+				}
 			);
 			final PricesStoragePart priceStorageContainer = fetchPrices(
 				null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
-				() -> Arrays.stream(storageParts)
-					.filter(PricesStoragePart.class::isInstance)
-					.map(PricesStoragePart.class::cast)
-					.findFirst()
-					.orElseGet(
-						() -> ioFetchStatistics.record(
-							dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
-						)
-					)
+				new Supplier<>() {
+					@Nullable
+					@Override
+					public PricesStoragePart get() {
+						return Arrays.stream(storageParts)
+							.filter(PricesStoragePart.class::isInstance)
+							.map(PricesStoragePart.class::cast)
+							.findFirst()
+							.orElseGet(
+								() -> ioFetchStatistics.record(
+									dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
+								)
+							);
+					}
+				}
 			);
 
 			final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
@@ -469,6 +486,102 @@ public class DefaultEntityCollectionPersistenceService
 	}
 
 	/**
+	 * Fetches all {@link HistogramIndexStoragePart} entries from persistent storage and reconstructs
+	 * {@link HistogramIndex} instances. Non-localized histograms (null locale) produce
+	 * {@link SimpleHistogramIndex}, localized histograms produce {@link LocalizedHistogramIndex}.
+	 *
+	 * @param catalogVersion    the catalog version to fetch from
+	 * @param entityIndexId     the entity index primary key
+	 * @param entityIndexKey    the entity index key (used to derive reference name)
+	 * @param histogramKeys     the set of histogram storage keys to fetch
+	 * @param persistenceService the persistence service for fetching storage parts
+	 * @return histogram index map keyed by histogram name
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	private static Map<String, HistogramIndex> fetchHistogramIndexes(
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull EntityIndexKey entityIndexKey,
+		@Nonnull Set<HistogramIndexStorageKey> histogramKeys,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService
+	) {
+		if (histogramKeys.isEmpty()) {
+			return CollectionUtils.createHashMap(0);
+		}
+		final String referenceName;
+		final Serializable discriminator = entityIndexKey.discriminator();
+		if (discriminator instanceof String strDiscriminator) {
+			referenceName = strDiscriminator;
+		} else if (discriminator instanceof RepresentativeReferenceKey rrk) {
+			referenceName = rrk.referenceName();
+		} else {
+			referenceName = "";
+		}
+		// group fetched parts by histogram name
+		final Map<String, Map<Locale, HistogramIndexStoragePart>> partsByName =
+			CollectionUtils.createHashMap(histogramKeys.size());
+		for (HistogramIndexStorageKey histogramKey : histogramKeys) {
+			final long primaryKey = histogramKey.computeUniquePartId(
+				entityIndexId, persistenceService.getReadOnlyKeyCompressor()
+			);
+			final HistogramIndexStoragePart part = persistenceService.getStoragePart(
+				catalogVersion, primaryKey, HistogramIndexStoragePart.class
+			);
+			if (part != null) {
+				partsByName
+					.computeIfAbsent(histogramKey.histogramName(), k -> CollectionUtils.createHashMap(4))
+					.put(histogramKey.locale(), part);
+			}
+		}
+		// build histogram indexes from fetched parts
+		final Map<String, HistogramIndex> result = CollectionUtils.createHashMap(partsByName.size());
+		for (Map.Entry<String, Map<Locale, HistogramIndexStoragePart>> entry : partsByName.entrySet()) {
+			final String histogramName = entry.getKey();
+			final Map<Locale, HistogramIndexStoragePart> parts = entry.getValue();
+			if (parts.containsKey(null) && parts.size() == 1) {
+				// non-localized histogram
+				final HistogramIndexStoragePart part = parts.get(null);
+				result.put(histogramName, new SimpleHistogramIndex(
+					histogramName, referenceName,
+					(Class<? extends Serializable>) part.getValueType(),
+					new FilterIndex(
+						new AttributeIndexKey(referenceName, histogramName, null),
+						part.getHistogramPoints(), part.getRangeIndex(), part.getValueType()
+					),
+					part.getCardinalityIndex()
+				));
+			} else {
+				// localized histogram
+				final Map<Locale, FilterIndex> filterIndexes = CollectionUtils.createHashMap(parts.size());
+				final Map<Locale, AttributeCardinalityIndex> cardinalities = CollectionUtils.createHashMap(parts.size());
+				Class<? extends Serializable> valueType = null;
+				for (Map.Entry<Locale, HistogramIndexStoragePart> partEntry : parts.entrySet()) {
+					final Locale locale = partEntry.getKey();
+					if (locale == null) {
+						continue;
+					}
+					final HistogramIndexStoragePart part = partEntry.getValue();
+					if (valueType == null) {
+						valueType = (Class<? extends Serializable>) part.getValueType();
+					}
+					filterIndexes.put(locale, new FilterIndex(
+						new AttributeIndexKey(referenceName, histogramName, locale),
+						part.getHistogramPoints(), part.getRangeIndex(), part.getValueType()
+					));
+					cardinalities.put(locale, part.getCardinalityIndex());
+				}
+				if (valueType != null) {
+					result.put(histogramName, new LocalizedHistogramIndex(
+						histogramName, referenceName, valueType, filterIndexes, cardinalities
+					));
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
 	 * Fetches {@link ReferenceTypeCardinalityIndex} from the {@link OffsetIndex} and returns it.
 	 */
 	@Nonnull
@@ -485,6 +598,31 @@ public class DefaultEntityCollectionPersistenceService
 			"Cardinality index with id `" + entityIndexId + "` with key `" + referenceName + "` was not found in persistent storage!"
 		);
 		return cardinalityIndexCnt.getCardinalityIndex();
+	}
+
+	/**
+	 * Fetches {@link GroupCardinalityIndexStoragePart} from the {@link OffsetIndex} and returns the
+	 * PK cardinalities and referenced primary keys index maps.
+	 */
+	@Nonnull
+	private static GroupCardinalityIndexStoragePart fetchGroupCardinalityIndex(
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
+		@Nonnull String referenceName
+	) {
+		final long primaryKey = GroupCardinalityIndexStoragePart.computeUniquePartId(
+			entityIndexId, referenceName, persistenceService.getReadOnlyKeyCompressor()
+		);
+		final GroupCardinalityIndexStoragePart storagePart = persistenceService.getStoragePart(
+			catalogVersion, primaryKey, GroupCardinalityIndexStoragePart.class
+		);
+		isPremiseValid(
+			storagePart != null,
+			"Group cardinality index with id `" + entityIndexId + "` with key `" +
+				referenceName + "` was not found in persistent storage!"
+		);
+		return storagePart;
 	}
 
 	/**
@@ -1116,7 +1254,9 @@ public class DefaultEntityCollectionPersistenceService
 				case SORT -> sortIndexCount++;
 				case CHAIN -> chainIndexCount++;
 				case CARDINALITY -> cardinalityIndexCount++;
-				default -> throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndex.indexType());
+				default -> throw new GenericEvitaInternalError(
+					"Unknown attribute index type: " + attributeIndex.indexType()
+				);
 			}
 		}
 
@@ -1125,6 +1265,7 @@ public class DefaultEntityCollectionPersistenceService
 		final Map<AttributeIndexKey, SortIndex> sortIndexes = CollectionUtils.createHashMap(sortIndexCount);
 		final Map<AttributeIndexKey, ChainIndex> chainIndexes = CollectionUtils.createHashMap(chainIndexCount);
 		final Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes = CollectionUtils.createHashMap(cardinalityIndexCount);
+		final Set<HistogramIndexStorageKey> histogramKeys = entityIndexCnt.getHistogramIndexes();
 
 		/* TOBEDONE #538 - REMOVE IN FUTURE VERSIONS */
 		//noinspection rawtypes
@@ -1139,7 +1280,10 @@ public class DefaultEntityCollectionPersistenceService
 				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), entitySchema));
 		} else {
 			final String referenceName;
-			if (entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+			if (
+				entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+					entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+			) {
 				referenceKey = null;
 				referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			} else {
@@ -1173,6 +1317,10 @@ public class DefaultEntityCollectionPersistenceService
 			}
 		}
 
+		final Map<String, HistogramIndex> histogramIndexMap = fetchHistogramIndexes(
+			catalogVersion, entityIndexId, entityIndexKey, histogramKeys, this.storagePartPersistenceService
+		);
+
 		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
 		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
 
@@ -1196,7 +1344,10 @@ public class DefaultEntityCollectionPersistenceService
 				hierarchyIndex,
 				facetIndex
 			);
-		} else if (entityIndexType == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+		} else if (
+			entityIndexType == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+				entityIndexType == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+		) {
 			final String referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			final ReferenceTypeCardinalityIndex referenceTypeCardinalityIndex = fetchReferenceTypeCardinalityIndex(
 				catalogVersion, entityIndexId, this.storagePartPersistenceService, referenceName
@@ -1215,7 +1366,38 @@ public class DefaultEntityCollectionPersistenceService
 				hierarchyIndex,
 				facetIndex,
 				referenceTypeCardinalityIndex,
-				cardinalityIndexes
+				cardinalityIndexes,
+				histogramIndexMap
+			);
+		} else if (entityIndexType == EntityIndexType.REFERENCED_GROUP_ENTITY) {
+			final Scope scope = entityIndexKey.scope();
+			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
+				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
+			);
+			final String referenceName = Objects.requireNonNull(
+				((RepresentativeReferenceKey) entityIndexKey.discriminator()).referenceName()
+			);
+			final GroupCardinalityIndexStoragePart groupCardinalityPart = fetchGroupCardinalityIndex(
+				catalogVersion, entityIndexId, this.storagePartPersistenceService, referenceName
+			);
+			return new ReducedGroupEntityIndex(
+				entityIndexCnt.getPrimaryKey(),
+				entityIndexKey,
+				entityIndexCnt.getVersion(),
+				entityIndexCnt.getEntityIds(),
+				entityIndexCnt.getEntityIdsByLanguage(),
+				new AttributeIndex(
+					entitySchema.getName(),
+					referenceKey,
+					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				),
+				new PriceRefIndex(scope, priceIndexes),
+				hierarchyIndex,
+				facetIndex,
+				groupCardinalityPart.getPkCardinalities(),
+				groupCardinalityPart.getReferencedPrimaryKeysIndex(),
+				cardinalityIndexes,
+				histogramIndexMap
 			);
 		} else {
 			final Scope scope = entityIndexKey.scope();

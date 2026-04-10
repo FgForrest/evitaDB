@@ -26,11 +26,34 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * Determines which prices will be fetched along with entity.
+ * Controls which price records are loaded and returned along with a fetched entity, as specified by the
+ * {@link PriceContent} require constraint placed inside `entityFetch`.
+ *
+ * evitaDB stores multiple prices per entity (one per price-list / currency / validity combination). Returning all
+ * of them is rarely necessary and can add significant payload, so this enum allows callers to balance completeness
+ * against response size:
+ *
+ * - `NONE` — no prices are returned; useful when price data is not needed by the caller.
+ * - `RESPECTING_FILTER` — only prices that are visible given the active {@link io.evitadb.api.query.filter.PriceInPriceLists}
+ *   and related filter constraints are returned. This is the recommended mode for most queries: the client receives
+ *   exactly the prices it can potentially display, without unnecessary data.
+ * - `ALL` — all prices of the entity are returned regardless of any filter constraints. This mode is useful for
+ *   back-office UIs or administrative tools that need to inspect the complete price structure of an entity.
  */
 @SupportedEnum
 public enum PriceContentMode {
 
-	NONE, RESPECTING_FILTER, ALL
+	/**
+	 * No prices are returned with the entity.
+	 */
+	NONE,
+	/**
+	 * Only prices matching the {@link io.evitadb.api.query.filter.PriceInPriceLists} filter constraint are returned.
+	 */
+	RESPECTING_FILTER,
+	/**
+	 * All prices of the entity are returned regardless of the filter constraints.
+	 */
+	ALL
 
 }

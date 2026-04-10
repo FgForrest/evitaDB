@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,11 +29,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
-import io.evitadb.core.transaction.Transaction;
-import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
-import io.evitadb.index.ReferencedTypeEntityIndex.ReferencedTypeEntityIndexChanges;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -43,11 +40,16 @@ import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
+import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
@@ -71,16 +73,15 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
-import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
+import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.index.attribute.AttributeIndex.createAttributeKey;
 import static java.util.Optional.ofNullable;
 
 /**
  * Referenced type entity index exists once per {@link EntitySchemaContract#getReference(String)} and indexes not
  * the owner entity primary key, but the referenced entity primary key with attributes that lay on the reference
- * relation. We need this index to be able to navigate to {@link ReducedEntityIndex} that were specially created to
+ * relation. We need this index to be able to navigate to {@link AbstractReducedEntityIndex} that were specially created to
  * speed up queries that involve the references.
  *
  * This index doesn't maintain the prices of entities - only the attributes present on relations.
@@ -88,8 +89,9 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ReferencedTypeEntityIndex extends EntityIndex implements
-	TransactionalLayerProducer<ReferencedTypeEntityIndexChanges, ReferencedTypeEntityIndex>,
-	IndexDataStructure
+	VoidTransactionMemoryProducer<ReferencedTypeEntityIndex>,
+	IndexDataStructure,
+	HistogramCapableEntityIndex
 {
 	/**
 	 * Matcher for all Object.class methods that just delegates calls to super implementation.
@@ -111,7 +113,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateThrowing> GET_ID_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"getId",
-		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReducedEntityIndex.class, "getId"),
+		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, AbstractReducedEntityIndex.class, "getId"),
 		(method, state) -> null,
 		(proxy, method, args, methodContext, proxyState, invokeSuper) -> 0L
 	);
@@ -170,6 +172,11 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
 	 */
 	@Nonnull private final TransactionalMap<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes;
+	/**
+	 * Per-histogram-name index storing bucketed histogram data (filter indexes + cardinality tracking)
+	 * for all locale variants of each histogram definition.
+	 */
+	@Nonnull private final TransactionalMap<String, HistogramIndex> histogramIndexes;
 
 	/**
 	 * Creates a proxy instance of {@link ReferencedTypeEntityIndex} that throws a {@link ReferenceNotIndexedException}
@@ -217,7 +224,12 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	) {
 		super(primaryKey, entityType, entityIndexKey);
 		this.indexPrimaryKeyCardinality = new ReferenceTypeCardinalityIndex();
-		this.cardinalityIndexes = new TransactionalMap<>(CollectionUtils.createHashMap(16), AttributeCardinalityIndex.class, Function.identity());
+		this.cardinalityIndexes = new TransactionalMap<>(
+			CollectionUtils.createHashMap(16), AttributeCardinalityIndex.class, Function.identity()
+		);
+		this.histogramIndexes = new TransactionalMap<>(
+			CollectionUtils.createHashMap(4), HistogramIndex.class, Function.identity()
+		);
 	}
 
 	public ReferencedTypeEntityIndex(
@@ -230,7 +242,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality,
-		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes
+		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
+		@Nonnull Map<String, HistogramIndex> histogramIndexes
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
@@ -238,7 +251,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			attributeIndex, hierarchyIndex, facetIndex, VoidPriceIndex.INSTANCE
 		);
 		this.indexPrimaryKeyCardinality = indexPrimaryKeyCardinality;
-		this.cardinalityIndexes = new TransactionalMap<>(cardinalityIndexes, AttributeCardinalityIndex.class, Function.identity());
+		this.cardinalityIndexes = new TransactionalMap<>(
+			cardinalityIndexes, AttributeCardinalityIndex.class, Function.identity()
+		);
+		this.histogramIndexes = new TransactionalMap<>(
+			histogramIndexes, HistogramIndex.class, Function.identity()
+		);
+		collectAttributeIndexStorageKeys();
 	}
 
 	/**
@@ -267,8 +286,23 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public boolean isEmpty() {
-		return super.isEmpty() &&
-			this.indexPrimaryKeyCardinality.isEmpty();
+		// null check required: parent constructor calls isEmpty() before subclass fields are initialized
+		return super.isEmpty() && this.indexPrimaryKeyCardinality.isEmpty() && this.histogramIndexes.isEmpty();
+	}
+
+	/**
+	 * Returns an unmodifiable view of all referenced entity primary keys tracked by this index. For a
+	 * `REFERENCED_GROUP_ENTITY_TYPE` index these are the group entity PKs; for a `REFERENCED_ENTITY_TYPE`
+	 * index these are the referenced (facet) entity PKs.
+	 *
+	 * Used by ReevaluateExpressionExecutor to iterate all groups when resolving group PKs
+	 * for {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} dependencies on grouped references.
+	 *
+	 * @return unmodifiable set of all tracked referenced entity primary keys
+	 */
+	@Nonnull
+	public Set<Integer> getAllTrackedReferencedEntityPrimaryKeys() {
+		return this.indexPrimaryKeyCardinality.getAllTrackedReferencedEntityPrimaryKeys();
 	}
 
 	/**
@@ -282,18 +316,82 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		return this.indexPrimaryKeyCardinality.getAllReferenceIndexes(referencedEntityPrimaryKey);
 	}
 
+	/**
+	 * Returns the referenced entity primary keys (forward-mapping keys) whose reduced-index PK bitmaps
+	 * overlap with the given set of index primary keys. This is the reverse lookup of
+	 * {@link #getIndexPrimaryKeys(RoaringBitmap)}.
+	 *
+	 * For a `REFERENCED_GROUP_ENTITY_TYPE` index this translates reduced-group-index PKs back to
+	 * group entity primary keys.
+	 *
+	 * @param indexPrimaryKeys bitmap of reduced-index primary keys to look up
+	 * @return bitmap of referenced entity primary keys whose index PKs overlap with the input
+	 */
 	@Nonnull
+	public Bitmap getReferencedPrimaryKeysForIndexPks(@Nonnull Bitmap indexPrimaryKeys) {
+		return this.indexPrimaryKeyCardinality.getReferencedPrimaryKeysForIndexPks(indexPrimaryKeys);
+	}
+
+	/**
+	 * Populates {@link #originalAttributeIndexes} with cardinality storage keys reconstructed
+	 * from persisted data. Called at the end of the deserialization constructor.
+	 */
+	private void collectAttributeIndexStorageKeys() {
+		for (AttributeIndexKey attributeKey : this.cardinalityIndexes.keySet()) {
+			this.originalAttributeIndexes.add(new AttributeIndexStorageKey(
+				this.indexKey, AttributeIndexType.CARDINALITY, attributeKey
+			));
+		}
+	}
+
+	/**
+	 * Returns the current set of histogram index storage keys for storage part creation.
+	 */
+	@Nonnull
+	private Set<HistogramIndexStorageKey> getHistogramIndexStorageKeys() {
+		final Set<HistogramIndexStorageKey> result = CollectionUtils.createHashSet(
+			this.histogramIndexes.size()
+		);
+		for (HistogramIndex histogramIndex : this.histogramIndexes.values()) {
+			histogramIndex.collectStorageKeys(this.indexKey, result);
+		}
+		return result;
+	}
+
 	@Override
-	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
-		return Stream.concat(
-			super.getAttributeIndexStorageKeyStream(),
-			ofNullable(this.cardinalityIndexes)
-				.map(TransactionalMap::keySet)
-				.stream()
-				.flatMap(
-					set -> set.stream()
-						.map(attributeKey -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CARDINALITY, attributeKey))
-				)
+	protected StoragePart createStoragePart(
+		boolean hierarchyIndexEmpty,
+		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
+		@Nonnull Set<PriceIndexKey> priceIndexKeys,
+		@Nonnull Set<String> facetIndexReferencedEntities
+	) {
+		// the base class collects UNIQUE, FILTER, SORT, CHAIN keys from AttributeIndex — we must
+		// also include CARDINALITY keys so they appear in the EntityIndexStoragePart manifest and
+		// are loaded back during catalog restart
+		final Set<AttributeIndexStorageKey> allAttributeKeys;
+		if (this.cardinalityIndexes.isEmpty()) {
+			allAttributeKeys = attributeIndexStorageKeys;
+		} else {
+			allAttributeKeys = CollectionUtils.createHashSet(
+				attributeIndexStorageKeys.size() + this.cardinalityIndexes.size()
+			);
+			allAttributeKeys.addAll(attributeIndexStorageKeys);
+			for (AttributeIndexKey key : this.cardinalityIndexes.keySet()) {
+				allAttributeKeys.add(
+					new AttributeIndexStorageKey(
+						this.indexKey, AttributeIndexType.CARDINALITY, key
+					)
+				);
+			}
+		}
+		return new EntityIndexStoragePart(
+			this.primaryKey, this.version, this.indexKey,
+			this.entityIds, this.entityIdsByLanguage,
+			allAttributeKeys,
+			priceIndexKeys,
+			!hierarchyIndexEmpty,
+			facetIndexReferencedEntities,
+			getHistogramIndexStorageKeys()
 		);
 	}
 
@@ -309,13 +407,17 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			ofNullable(entry.getValue().createStoragePart(this.primaryKey, entry.getKey()))
 				.ifPresent(trappedChanges::addChangeToStore);
 		}
+
+		// add all modified histogram storage parts
+		for (HistogramIndex histogramIndex : this.histogramIndexes.values()) {
+			histogramIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
+		}
 	}
 
 	/**
-	 * This method delegates call to {@link super#insertPrimaryKeyIfMissing(int)}
-	 * but tracks the cardinality of the referenced primary key in {@link #indexPrimaryKeyCardinality}.
+	 * Single-arg version is unsupported - use {@link #insertPrimaryKeyIfMissing(int, int)} instead.
 	 *
-	 * @see #indexPrimaryKeyCardinality
+	 * @throws UnsupportedOperationException always
 	 */
 	@Override
 	public boolean insertPrimaryKeyIfMissing(int indexPrimaryKey) {
@@ -336,11 +438,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * This method delegates call to {@link super#removePrimaryKey(int)} but tracks
-	 * the cardinality of the referenced primary key in {@link #indexPrimaryKeyCardinality} and removes the referenced
-	 * primary key from {@link #entityIds} only when the cardinality reaches 0.
+	 * Single-arg version is unsupported - use {@link #removePrimaryKey(int, int)} instead.
 	 *
-	 * @see #indexPrimaryKeyCardinality
+	 * @throws UnsupportedOperationException always
 	 */
 	@Override
 	public boolean removePrimaryKey(int indexPrimaryKey) {
@@ -350,7 +450,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * This method should be called instead of {@link #insertPrimaryKeyIfMissing(int)} because it tracks the cardinality
+	 * This method should be called instead of {@link #removePrimaryKey(int)} because it tracks the cardinality
 	 * both of the indexed primary key and the referenced primary key.
 	 */
 	public boolean removePrimaryKey(int indexPrimaryKey, int referencedEntityPrimaryKey) {
@@ -392,12 +492,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// first retrieve or create the cardinality index for given attribute
 		final AttributeCardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
 			createAttributeKey(referenceSchema, attributeSchema, allowedLocales, locale, value),
-			lookupKey -> {
-				final AttributeCardinalityIndex newCardinalityIndex = new AttributeCardinalityIndex(attributeSchema.getPlainType());
-				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
-					.ifPresent(it -> it.addCreatedItem(newCardinalityIndex));
-				return newCardinalityIndex;
-			}
+			lookupKey -> new AttributeCardinalityIndex(attributeSchema.getPlainType())
 		);
 		if (value instanceof Serializable[] valueArray) {
 			// for array values we need to add only new items to the index (their former cardinality was zero)
@@ -435,7 +530,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		// first retrieve or create the cardinality index for given attribute
+		// first retrieve the cardinality index for given attribute
 		final AttributeIndexKey attributeKey = createAttributeKey(referenceSchema, attributeSchema, allowedLocales, locale, value);
 		final AttributeCardinalityIndex theCardinalityIndex = this.cardinalityIndexes.get(attributeKey);
 
@@ -471,8 +566,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 		if (theCardinalityIndex.isEmpty()) {
 			final AttributeCardinalityIndex removedIndex = this.cardinalityIndexes.remove(attributeKey);
-			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
-				.ifPresent(it -> it.addRemovedItem(removedIndex));
+			if (removedIndex != null) {
+				ofNullable(getTransactionalLayerMaintainer())
+					.ifPresent(removedIndex::removeLayer);
+			}
 		}
 	}
 
@@ -529,27 +626,88 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// entities and the sort index couldn't handle multiple values
 	}
 
-	@Override
-	public String toString() {
-		return "ReducedEntityTypeIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
-	}
-
-	/*
-		TransactionalLayerCreator implementation
+	/**
+	 * Returns the {@link HistogramIndex} for the given histogram name, or `null` if none exists.
+	 *
+	 * @param histogramName the name of the histogram definition
+	 * @return the histogram index, or `null`
 	 */
+	@Nullable
+	@Override
+	public HistogramIndex getHistogramIndex(@Nonnull String histogramName) {
+		return this.histogramIndexes.get(histogramName);
+	}
 
 	@Nullable
 	@Override
-	public ReferencedTypeEntityIndexChanges createLayer() {
-		return isTransactionAvailable() ? new ReferencedTypeEntityIndexChanges() : null;
+	public FilterIndex getHistogramFilterIndex(@Nonnull String histogramName, @Nullable Locale locale) {
+		final HistogramIndex histogramIndex = this.histogramIndexes.get(histogramName);
+		return histogramIndex == null ? null : histogramIndex.getFilterIndex(locale);
+	}
+
+	@Override
+	public void insertHistogramValue(
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Number value,
+		int ownerPK,
+		@Nonnull Class<? extends Serializable> valueType
+	) {
+		final String referenceName = getReferenceName();
+		final HistogramIndex histogramIndex = this.histogramIndexes.computeIfAbsent(
+			histogramName,
+			k -> locale != null
+				? new LocalizedHistogramIndex(histogramName, referenceName, valueType)
+				: new SimpleHistogramIndex(histogramName, referenceName, valueType)
+		);
+		histogramIndex.insertValue(locale, value, ownerPK);
+		this.dirty.setToTrue();
+	}
+
+	@Override
+	public void removeHistogramValue(
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int ownerPK
+	) {
+		final HistogramIndex histogramIndex = this.histogramIndexes.get(histogramName);
+		Assert.isPremiseValid(
+			histogramIndex != null,
+			() -> "Histogram index for histogram " + histogramName + " not found."
+		);
+		histogramIndex.removeValue(locale, value, ownerPK);
+		this.dirty.setToTrue();
+		// if the histogram index is now empty, remove it from the map and clean up transactional layers
+		if (histogramIndex.isEmpty()) {
+			final HistogramIndex removed = this.histogramIndexes.remove(histogramName);
+			if (removed != null) {
+				ofNullable(getTransactionalLayerMaintainer()).ifPresent(removed::removeLayer);
+			}
+		}
+	}
+
+	@Override
+	public String toString() {
+		return "ReducedEntityTypeIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) +
+			", histograms=" + this.histogramIndexes.size() + ")";
+	}
+
+	@Override
+	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
+		removeOwnTransactionalLayers(transactionalLayer);
 	}
 
 	@Nonnull
 	@Override
-	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(ReferencedTypeEntityIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		final ReferencedTypeEntityIndex referencedTypeEntityIndex = new ReferencedTypeEntityIndex(
+		return new ReferencedTypeEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
@@ -557,74 +715,24 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexPrimaryKeyCardinality),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes)
 		);
-
-		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-		return referencedTypeEntityIndex;
 	}
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.indexPrimaryKeyCardinality.removeLayer(transactionalLayer);
-		this.cardinalityIndexes.removeLayer(transactionalLayer);
-
-		final ReferencedTypeEntityIndexChanges changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
+		removeOwnTransactionalLayers(transactionalLayer);
 	}
 
 	/**
-	 * This class collects changes in {@link #cardinalityIndexes} transactional maps.
+	 * Removes transactional layers for all fields owned by this class.
 	 */
-	public static class ReferencedTypeEntityIndexChanges {
-		/**
-		 * The container manages additions, removals, and updates of {@link AttributeCardinalityIndex} instances during
-		 * a transaction. This ensures that the changes are captured and can be committed or rolled back
-		 * atomically.
-		 */
-		private final TransactionalContainerChanges<Void, AttributeCardinalityIndex, AttributeCardinalityIndex> cardinalityIndexChanges =
-			new TransactionalContainerChanges<>();
-
-		/**
-		 * Registers a newly created cardinality index into the transactional changes for tracking.
-		 *
-		 * @param cardinalityIndex the cardinality index to be added as a created item, must not be null
-		 */
-		public void addCreatedItem(@Nonnull AttributeCardinalityIndex cardinalityIndex) {
-			this.cardinalityIndexChanges.addCreatedItem(cardinalityIndex);
-		}
-
-		/**
-		 * Registers a cardinality index as a removed item in the transactional changes for tracking.
-		 *
-		 * @param cardinalityIndex the cardinality index to be added as a removed item, must not be null
-		 */
-		public void addRemovedItem(@Nonnull AttributeCardinalityIndex cardinalityIndex) {
-			this.cardinalityIndexChanges.addRemovedItem(cardinalityIndex);
-		}
-
-		/**
-		 * Cleans up the transactional changes associated with cardinality indexes
-		 * using the provided transactional layer maintainer.
-		 *
-		 * @param transactionalLayer the transactional layer maintainer used to perform the cleaning operation, must not be null
-		 */
-		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			this.cardinalityIndexChanges.clean(transactionalLayer);
-		}
-
-		/**
-		 * Cleans up all the transactional changes related to the cardinality indexes
-		 * using the provided transactional layer maintainer. This ensures that all
-		 * recorded changes are cleared, resetting the state.
-		 *
-		 * @param transactionalLayer the transactional layer maintainer used to perform the cleaning operation, must not be null
-		 */
-		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			this.cardinalityIndexChanges.cleanAll(transactionalLayer);
-		}
-
+	private void removeOwnTransactionalLayers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		this.indexPrimaryKeyCardinality.removeLayer(transactionalLayer);
+		this.cardinalityIndexes.removeLayer(transactionalLayer);
+		this.histogramIndexes.removeLayer(transactionalLayer);
 	}
 
 	/**

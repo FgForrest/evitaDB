@@ -44,76 +44,88 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
- * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
- * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
- * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
- * in same group or different groups (depending on level argument).
+ * The `facetGroupsConjunction` requirement overrides the default **logical OR** relation between facets within a
+ * group (or across groups) and replaces it with **logical AND** (conjunction) for the specified reference and
+ * relation level.
  *
- * This require constraint changes default behavior of the facet calculation rules.
- * Constraint has sense only when [facet](#facet) constraint is part of the query.
+ * By default, when a user selects multiple facets within the same group evitaDB treats them as alternatives (OR):
+ * show products that are *blue* **or** *red*. This constraint changes that behaviour for targeted groups so that
+ * all selected facets must match simultaneously: show products that are *blue* **and** *red*.
  *
- * Example:
+ * ## Arguments
  *
- * <pre>
+ * - **referenceName** *(mandatory)* — the name of the faceted reference this constraint applies to (e.g.
+ *   `"parameterValues"`, `"brand"`)
+ * - **facetGroupRelationLevel** *(optional, default `WITH_DIFFERENT_FACETS_IN_GROUP`)* — the level at which
+ *   conjunction is applied:
+ *   - `WITH_DIFFERENT_FACETS_IN_GROUP` — conjunction between individual facets **within** the same group
+ *   - `WITH_DIFFERENT_GROUPS` — conjunction between facets **across** different groups of this reference
+ * - **filterBy** *(optional)* — a {@link FilterBy} constraint targeting properties of the **group entity** to select
+ *   which groups the conjunction applies to; when omitted, conjunction applies to all groups of the reference
+ *
+ * ## Effect on impact calculations
+ *
+ * This constraint affects both actual filtering (when facets are selected inside `userFilter`) and the impact
+ * predictions in the {@link FacetSummary} / {@link FacetSummaryOfReference} extra result. Switching from OR to AND
+ * within a group typically **reduces** the predicted result count, because the query becomes more restrictive.
+ *
+ * ## Relationship to FacetCalculationRules
+ *
+ * {@link FacetCalculationRules} can set the global default conjunction/disjunction behaviour for all references at
+ * once. `facetGroupsConjunction` takes precedence over that global default for the specific groups it targets.
+ *
+ * ## Example
+ *
+ * ```evitaql
  * query(
- *    entities("product"),
- *    filterBy(
- *       userFilter(
- *          facet("group", 1, 2),
- *          facet(
- *             "parameterType",
- *             entityPrimaryKeyInSet(11, 12, 22)
- *          )
- *       )
- *    ),
- *    require(
- *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
- *    )
+ *     collection("Product"),
+ *     filterBy(
+ *         userFilter(
+ *             facetHaving("parameterValues", entityPrimaryKeyInSet(11, 12))
+ *         )
+ *     ),
+ *     require(
+ *         facetSummary(IMPACT),
+ *         facetGroupsConjunction(
+ *             "parameterValues",
+ *             WITH_DIFFERENT_FACETS_IN_GROUP,
+ *             filterBy(attributeInSet("code", "color"))
+ *         )
+ *     )
  * )
- * </pre>
+ * ```
  *
- * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
- * selected.
+ * With this setting, selecting both `blue` (id 11) and `red` (id 12) from the `color` group returns only products
+ * that have **both** colour attributes — instead of the default behaviour of returning products with either.
  *
- * Let's have this facet/group situation:
- *
- * Color `parameterType` (group id: 1):
- *
- * - blue (facet id: 11)
- * - red (facet id: 12)
- *
- * Size `parameterType` (group id: 2):
- *
- * - small (facet id: 21)
- * - large (facet id: 22)
- *
- * Flags `tag` (group id: 3):
- *
- * - action products (facet id: 31)
- * - new products (facet id: 32)
- *
- * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
- * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
- * be composed as: blue(11) AND red(12)
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction)
  *
  * @see FacetGroupRelationLevel
+ * @see FacetGroupsDisjunction
+ * @see FacetGroupsNegation
+ * @see FacetGroupsExclusivity
+ * @see FacetCalculationRules
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupsConjunction",
-	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction).",
+	shortDescription = "The constraint overrides facet relation to logical AND (conjunction) for specified reference groups, meaning all selected facets must match.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-conjunction"
 )
-public class FacetGroupsConjunction extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
+public class FacetGroupsConjunction extends AbstractRequireConstraintContainer
+	implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = -584073466325272463L;
 
-	private FacetGroupsConjunction(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
+	private FacetGroupsConjunction(
+		@Nonnull Serializable[] arguments,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(arguments, NO_CHILDREN, additionalChildren);
 		for (Constraint<?> child : additionalChildren) {
-			Assert.isPremiseValid(child instanceof FilterBy, "Only FilterBy constraints are allowed in FacetGroupsConjunction.");
+			Assert.isPremiseValid(
+				child instanceof FilterBy,
+				"Only FilterBy constraints are allowed in FacetGroupsConjunction."
+			);
 		}
 	}
 
@@ -197,7 +209,10 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isPremiseValid(ArrayUtils.isEmpty(children), "Children must be empty");
 		return new FacetGroupsConjunction(getArguments(), additionalChildren);
 	}

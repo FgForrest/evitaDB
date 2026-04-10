@@ -44,37 +44,55 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * This `dataInLocales` query is require query that accepts zero or more {@link Locale} arguments. When this
- * require query is used, result contains [entity attributes and associated data](../model/entity_model.md)
- * localized in required languages as well as global ones. If query contains no argument, global data and data
- * localized to all languages are returned. If query is not present in the query, only global attributes and
- * associated data are returned.
+ * The `dataInLocales` requirement controls which localized attribute and associated data variants are included in
+ * the returned entity bodies. By default (without this requirement and without an {@link EntityLocaleEquals} filter),
+ * only non-localized (global) attributes and associated data are returned.
  *
- * **Note:** if {@link EntityLocaleEquals}is used in the filter part of the query and `dataInLanguage`
- * require query is missing, the system implicitly uses `dataInLanguage` matching the language in filter query.
+ * ## Interaction with the locale filter
  *
- * Only single `dataInLanguage` query can be used in the query.
+ * When {@link EntityLocaleEquals} is present in the filter part of the query, it implicitly establishes a single
+ * locale context. In that case, `dataInLocales` is optional — if omitted, the engine automatically fetches data
+ * for the locale specified in the filter. Use `dataInLocales` explicitly when:
  *
- * Example that fetches only global and `en-US` localized attributes and associated data (considering there are multiple
- * language localizations):
+ * - No locale filter is present but you still need localized content.
+ * - You need localized data for **multiple locales** in a single query (e.g., to build a multilingual export).
  *
- * <pre>
+ * ## Wildcard form
+ *
+ * `dataInLocalesAll()` (zero-argument form) returns global data together with all localized variants stored on the
+ * entity, regardless of how many locales exist. This is primarily useful for data export or administrative UIs
+ * where every translation must be visible at once.
+ *
+ * ## Constraint cardinality
+ *
+ * Only one `dataInLocales` requirement may appear in a single query. It applies to all {@link AttributeContent} and
+ * {@link AssociatedDataContent} requirements within the same `entityFetch`.
+ *
+ * Example — fetching global data plus English-US localized content:
+ *
+ * ```
  * dataInLocales("en-US")
- * </pre>
+ * ```
  *
- * Example that fetches all available global and localized data:
+ * Example — fetching global data plus both English and Czech translations:
  *
- * <pre>
+ * ```
+ * dataInLocales(Locale.forLanguageTag("en"), Locale.forLanguageTag("cs"))
+ * ```
+ *
+ * Example — fetching all available localized variants:
+ *
+ * ```
  * dataInLocalesAll()
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#data-in-locales)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "dataInLocales",
-	shortDescription = "The constraint triggers fetching of the localized attributes or associated data in different/additional locales than the locale specified in filtering constraints (if any at all).",
+	shortDescription = "The constraint triggers fetching localized attributes and associated data in additional locales beyond (or instead of) the locale specified in filtering constraints.",
 	userDocsLink = "/documentation/query/requirements/fetching#data-in-locales",
 	supportedIn = ConstraintDomain.ENTITY
 )
@@ -85,7 +103,7 @@ public class DataInLocales extends AbstractRequireConstraintLeaf
 	private LinkedHashSet<Locale> localesAsSet;
 	private Locale[] locales;
 
-	private DataInLocales(Serializable... arguments) {
+	private DataInLocales(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -105,9 +123,10 @@ public class DataInLocales extends AbstractRequireConstraintLeaf
 	}
 
 	/**
-	 * Returns zero or more locales that should be used for retrieving localized data. Is no locale is returned all
+	 * Returns zero or more locales that should be used for retrieving localized data. If no locale is returned all
 	 * available localized data are expected to be returned.
 	 */
+	@Nonnull
 	public Locale[] getLocales() {
 		if (this.locales == null) {
 			this.locales = getLocalesAsSet().toArray(Locale[]::new);

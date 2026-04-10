@@ -37,98 +37,220 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The constraint `anyHaving` is a constraint that can only be used within {@link HierarchyWithin} or
- * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
- * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
- * that are transitively or directly related to them, and the parent node itself.
+ * The `anyHaving` constraint filters hierarchy subtrees by requiring at least one node within each subtree to satisfy
+ * specified filter conditions. Unlike {@link HierarchyHaving} which stops at the first failing node, `anyHaving`
+ * examines entire subtrees to determine whether they contain any matching nodes. This enables "existence" queries over
+ * hierarchy trees and can only be used within {@link HierarchyWithin} or {@link HierarchyWithinRoot} parent
+ * constraints.
  *
- * The `anyHaving` constraint allows you to set a constraint that must be fulfilled by at least one nested (child)
- * hierarchical entity to be accepted by the filter. Imagine you want to have a category tree, and you want to verify
- * if certain categories anywhere in the tree contain directly or transitively via their subcategories at least one
- * valid product. This situation can be solved by using the `anyHaving` constraint in your query.
+ * **Syntax**
  *
- * The constraint accepts following arguments:
+ * ```evitaql
+ * anyHaving(
+ *     filtering: FilterConstraint+
+ * )
+ * ```
  *
- * - one or more mandatory constraints that must be satisfied by at least one child node of the examined hierarchy node
- *   or directly by that examined hierarchy node, the implicit relation between constraints is logical conjunction
- *   (boolean AND)
+ * **Arguments**
  *
- * When the hierarchy constraint targets the hierarchy entity, the children having no child satisfying the inner
- * constraints are excluded from the result.
+ * - `filtering` (required): one or more filter constraints that must be satisfied by at least one node in the subtree
+ *   (including the subtree root node itself) for the subtree to remain visible. Multiple constraints are combined with
+ *   implicit logical AND. The lookup examines the entire subtree before making the inclusion decision (no early
+ *   termination).
  *
- * As an example, let's write the query for the above-defined situation.
+ * **Full Subtree Evaluation**
  *
- * <pre>
+ * Unlike `having` and `excluding` which use early termination, `anyHaving` evaluates entire subtrees:
+ * 1. For each potential subtree root, traverse all descendants
+ * 2. Check if any node (including the root) satisfies the `anyHaving` filter
+ * 3. If at least one node matches, include the entire subtree in results
+ * 4. If no nodes match, exclude the entire subtree from results
+ *
+ * This "bottom-up" evaluation allows parent nodes to remain visible based on properties of their descendants, even if
+ * the parents themselves don't satisfy the filter.
+ *
+ * **Difference from Having**
+ *
+ * | Aspect | HierarchyHaving | HierarchyAnyHaving |
+ * |--------|-----------------|---------------------|
+ * | Evaluation strategy | Top-down with early termination | Bottom-up with full subtree scan |
+ * | Requirement | Every ancestor must satisfy filter | At least one node in subtree must satisfy filter |
+ * | Parent visibility | Parent must pass filter to be visible | Parent visible if any descendant passes filter |
+ * | Performance | Fast (early termination) | Slower (full subtree evaluation) |
+ * | Use case | Gate-keeper filtering (all ancestors must be valid) | Existence queries (subtree contains matching nodes) |
+ *
+ * **Query Mode Behavior**
+ *
+ * The constraint behaves differently depending on whether the query is self-hierarchical or reference-hierarchical:
+ *
+ * 1. **Self-hierarchical mode**: evaluates against the queried entities themselves. Categories are included if they or
+ *    any of their descendants satisfy the `anyHaving` filter.
+ *
+ * 2. **Reference-hierarchical mode**: evaluates against the referenced hierarchical entities but affects the queried
+ *    non-hierarchical entities. Products are included if they reference categories within subtrees where at least one
+ *    category satisfies the `anyHaving` filter.
+ *
+ * **Combining with Having**
+ *
+ * The `having` and `anyHaving` constraints can be combined to express complex filtering logic:
+ * - `having`: ensures every ancestor in the path passes a filter (e.g., all categories must be active)
+ * - `anyHaving`: ensures at least one node in the subtree passes a different filter (e.g., subtree contains featured
+ *   products)
+ *
+ * ```java
+ * hierarchyWithinRoot(
+ *     "categories",
+ *     having(attributeEquals("status", "ACTIVE")),  // All ancestors must be active
+ *     anyHaving(
+ *         referenceHaving(
+ *             "products",
+ *             entityHaving(attributeEquals("featured", true))  // At least one product must be featured
+ *         )
+ *     )
+ * )
+ * // Returns: active categories containing at least one featured product (directly or in descendants)
+ * ```
+ *
+ * **Use Cases**
+ *
+ * Common scenarios for `anyHaving`:
+ * - **Non-empty subtrees**: show only categories that contain products (directly or transitively)
+ * - **Featured content**: display category trees where at least one item is marked as featured/promoted
+ * - **Search results**: show category hierarchies containing search matches
+ * - **Availability filtering**: include category trees with at least one in-stock product
+ * - **Parent-child relationships**: find parent categories based on child properties
+ *
+ * **Examples**
+ *
+ * ```java
+ * // Self-hierarchical: categories containing active products (directly or in descendants)
  * query(
  *     collection("Category"),
  *     filterBy(
  *         hierarchyWithinSelf(
- *             entityPrimaryKeyIn(1, 2, 3),
- *             having(
- *                 attributeEquals("status", "ACTIVE")
- *             ),
+ *             entityPrimaryKeyInSet(1, 2, 3),
+ *             having(attributeEquals("status", "ACTIVE")),
  *             anyHaving(
  *                 referenceHaving(
- *                     entityHaving(
- *                         attributeEquals("status", "ACTIVE")
- *                     )
+ *                     "products",
+ *                     entityHaving(attributeEquals("status", "ACTIVE"))
  *                 )
- *             ),
+ *             )
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent("code")
- *         )
+ *         entityFetch(attributeContent("code"))
  *     )
  * )
- * </pre>
+ * // Returns: categories 1, 2, 3 that are ACTIVE and contain at least one ACTIVE product
+ * // Includes parent categories if their descendants have active products
  *
- * The query returns only a subset of categories with primary key 1 or 2 or 3, which either directly of any of their
- * sub-categories labeled as "ACTIVE" or have at least one product that is labeled as "ACTIVE".
- *
- * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
- * is a product assigned to a category), the having constraint is evaluated against the hierarchical entity (category),
- * but affects the queried non-hierarchical entities (products). It excludes all products referencing categories that
- * don't satisfy the `anyHaving` inner constraints.
- *
- * Let's say that some categories in the tree are labeled as "favorites" and you want to list all products that relate
- * to those categories or any of their parent categories, but only within root category with `code="accessories"`.
- * You can use the `anyHaving` constraint to achieve that:
- *
- * <pre>
+ * // Reference-hierarchical: products in categories marked as "favorites" or parent of such
  * query(
  *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
  *             "categories",
  *             attributeEquals("code", "accessories"),
- *             having(
- *                 attributeEquals("status", "ACTIVE")
- *             ),
+ *             having(attributeEquals("status", "ACTIVE")),
+ *             anyHaving(attributeEquals("favorite", true))
+ *         )
+ *     ),
+ *     require(
+ *         entityFetch(attributeContent("code"))
+ *     )
+ * )
+ * // Returns: products in category trees containing at least one "favorite" category
+ * // If "Smartwatches" is favorite, includes products in parent "Electronics" too
+ *
+ * // Non-empty categories: only categories with products
+ * query(
+ *     collection("Category"),
+ *     filterBy(
+ *         hierarchyWithinRootSelf(
+ *             anyHaving(
+ *                 referenceHaving("products", entityPrimaryKeyInSet())  // Has any products
+ *             )
+ *         )
+ *     )
+ * )
+ *
+ * // Search-driven hierarchy: categories containing search matches
+ * query(
+ *     collection("Category"),
+ *     filterBy(
+ *         hierarchyWithinRootSelf(
  *             anyHaving(
  *                 referenceHaving(
- *                     entityHaving(
- *                         attributeEquals("status", "ACTIVE")
- *                         attributeEquals("favorite", true)
- *                     )
+ *                     "products",
+ *                     entityHaving(attributeContains("name", "wireless"))
+ *                 )
+ *             )
+ *         )
+ *     )
+ * )
+ * // Returns: categories (and their ancestors) containing products with "wireless" in name
+ *
+ * // Combine multiple specifications
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             attributeEquals("code", "electronics"),
+ *             having(attributeEquals("status", "ACTIVE")),  // All categories must be active
+ *             excluding(attributeEquals("clearance", true)),  // Exclude clearance subtrees
+ *             anyHaving(attributeEquals("featured", true))  // Must contain featured category
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * **Practical Example: Category Tree with Product Counts**
+ *
+ * Consider building a navigation menu where empty categories (categories with no products in their subtree) should be
+ * hidden:
+ *
+ * ```java
+ * // Show only categories with at least one product (directly or in descendants)
+ * query(
+ *     collection("Category"),
+ *     filterBy(
+ *         hierarchyWithinRootSelf(
+ *             anyHaving(
+ *                 referenceHaving(
+ *                     "products",
+ *                     entityPrimaryKeyInSet()  // Non-empty product reference
  *                 )
  *             )
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent("code")
+ *         entityFetch(attributeContent("name")),
+ *         hierarchyOfSelf(
+ *             fromRoot(
+ *                 "megaMenu",
+ *                 entityFetch(attributeContent("name")),
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
+ *             )
  *         )
  *     )
  * )
- * </pre>
+ * // Returns: full category tree excluding leaf categories with no products
+ * // Parent categories remain visible if descendants have products
+ * ```
  *
- * The query will still consider only categories and products that are labeled as "ACTIVE", but it will also include
- * only those products that relate to the categories that are either labeled "favorite" or are parent of such a category.
+ * **Multiple Category Assignment**
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#anyHaving">Visit detailed user documentation</a></p>
+ * In reference-hierarchical mode, if a product is assigned to multiple categories and only some are within subtrees
+ * satisfying `anyHaving`, the product remains in the result if at least one assignment is within a visible subtree.
  *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/hierarchy#anyHaving)
+ *
+ * @see HierarchyHaving constraint requiring every ancestor to satisfy filter
+ * @see HierarchyExcluding constraint for excluding subtrees based on filter
+ * @see HierarchyWithin primary hierarchy filter constraint
+ * @see HierarchyWithinRoot hierarchy filter for entire tree
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
@@ -137,7 +259,8 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/hierarchy#anyHaving",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
-public class HierarchyAnyHaving extends AbstractFilterConstraintContainer implements HierarchySpecificationFilterConstraint {
+public class HierarchyAnyHaving extends AbstractFilterConstraintContainer
+	implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -7926794636918674168L;
 	private static final String CONSTRAINT_NAME = "anyHaving";
 
@@ -147,8 +270,8 @@ public class HierarchyAnyHaving extends AbstractFilterConstraintContainer implem
 	}
 
 	/**
-	 * Returns filtering constraints that return entities whose trees should be excluded from {@link HierarchyWithin}
-	 * query.
+	 * Returns filtering constraints that must be satisfied by at least one child (or the node itself) for the
+	 * hierarchy subtree to be included in the {@link HierarchyWithin} query result.
 	 */
 	@Nonnull
 	public FilterConstraint[] getFiltering() {
@@ -168,12 +291,15 @@ public class HierarchyAnyHaving extends AbstractFilterConstraintContainer implem
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return this;
+		return new HierarchyAnyHaving(getChildren());
 	}
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public FilterConstraint getCopyWithNewChildren(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint HierarchyAnyHaving doesn't accept other than filtering constraints!"

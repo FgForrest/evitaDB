@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
@@ -30,30 +31,69 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `lessThanEquals` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
- * Type of the attribute value and second argument must be convertible one to another otherwise `lessThanEquals` function
- * returns false.
+ * Filters entities where a named attribute value is less than or equal to a specified threshold value, establishing an
+ * inclusive upper bound for range-based queries. This constraint differs from {@link AttributeLessThan} by including
+ * the boundary value itself in the match set, making it suitable for closed and half-closed intervals.
  *
- * Function returns true if value in a filterable attribute of such a name is lesser than value in second argument or
- * equal.
+ * The constraint performs type-safe comparison via {@link EvitaDataTypes} conversion. Both the
+ * attribute value and threshold must be convertible to a common comparable type, or the constraint evaluates to false.
+ * String comparisons follow alphabetical ordering (locale-specific collation for localized attributes). Range types
+ * compare left boundary first, then right boundary. Boolean values are treated as numeric (true=1, false=0).
  *
- * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
- * query is used in combination with array type attribute. This may however change in the future.
+ * **EvitaQL syntax:**
  *
- * Example:
+ * ```
+ * attributeLessThanEquals(attributeName:string!, value:comparable!)
+ * ```
  *
- * <pre>
- * lessThanEquals("age", 20)
- * </pre>
+ * **Constraint classification:**
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than-equals">Visit detailed user documentation</a></p>
+ * - Implements {@link FilterConstraint} - usable in filterBy clauses
+ * - Implements {@link AttributeConstraint} - operates on named attributes
+ * - Supported in: {@link ConstraintDomain#ENTITY}, {@link ConstraintDomain#REFERENCE},
+ *   {@link ConstraintDomain#INLINE_REFERENCE}
+ *
+ * **Array attribute limitations:**
+ *
+ * When the attribute is array-typed, the constraint matches if **any** element in the array is lesser than or equal to
+ * the threshold value.
+ *
+ * **Common use cases:**
+ *
+ * - Inclusive maximum budgets: `attributeLessThanEquals("price", 100.00)` (includes exactly $100.00)
+ * - Date range upper bounds: `attributeLessThanEquals("endDate", "2024-12-31")`
+ * - Age limits: `attributeLessThanEquals("age", 64)` (includes exactly 64-year-olds)
+ * - Inventory thresholds: `attributeLessThanEquals("stock", 5)` (includes items with exactly 5 in stock)
+ * - Rating upper bounds: `attributeLessThanEquals("rating", 3.0)` (includes exactly 3-star ratings)
+ *
+ * **Difference from AttributeLessThan:**
+ *
+ * ```
+ * attributeLessThan("age", 65)         // Matches 0, 1, ..., 63, 64 (exclusive)
+ * attributeLessThanEquals("age", 65)   // Matches 0, 1, ..., 64, 65 (inclusive)
+ * ```
+ *
+ * **Combining with other constraints:**
+ *
+ * Commonly paired with lower-bound constraints for closed intervals:
+ *
+ * ```
+ * and(
+ *     attributeGreaterThanEquals("price", 50.00),
+ *     attributeLessThanEquals("price", 100.00)
+ * )
+ * ```
+ *
+ * For such closed intervals, {@link AttributeBetween} offers better readability and performance.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than-equals)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -67,7 +107,7 @@ import java.io.Serializable;
 public class AttributeLessThanEquals extends AbstractAttributeFilterComparisonConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -6991102136613476099L;
 
-	private AttributeLessThanEquals(Serializable... arguments) {
+	private AttributeLessThanEquals(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -78,7 +118,7 @@ public class AttributeLessThanEquals extends AbstractAttributeFilterComparisonCo
 	}
 
 	/**
-	 * Returns value that must be less than or equals attribute value.
+	 * Returns the threshold value that the attribute value must be less than or equal to.
 	 */
 	@Nonnull
 	public <T extends Serializable> T getAttributeValue() {

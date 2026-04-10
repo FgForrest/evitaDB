@@ -38,38 +38,49 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The `gap` constraint can only be used within the {@link Spacing} container and defines a single rule that makes
- * the necessary gap on particular page when the `onPage` expression is evaluated to true. The gap is defined by the
- * `size` argument, which specifies the number of entities that should be skipped on the page.
+ * The `gap` constraint is a leaf rule inside a {@link Spacing} container that reserves a fixed number of visual
+ * slots on a specific page (or set of pages). It is only valid as a direct child of {@link Spacing} and cannot be
+ * used anywhere else in the query tree. The EvitaQL name for this constraint is `gap` (not `spacingGap`), because
+ * nesting inside `spacing` already provides sufficient disambiguation.
  *
- * See following example:
+ * ## Arguments
  *
- * 1. one ad block on each page, up to page 6
- * 2. an additional block of blog post teasers on the first three even pages
+ * - `size` — the number of entity slots to reserve on matching pages. Must be greater than zero.
+ * - `onPage` — a boolean expression evaluated against `$pageNumber` (one-based integer). The gap is applied only
+ *   when this expression returns `true`. The expression is parsed into an {@link io.evitadb.dataType.expression.Expression}
+ *   at constraint construction time, so any syntax errors are reported immediately rather than at query execution.
  *
- * <pre>
- * require(
- *    page(
- *       1, 20,
- *       spacing(
- *          gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
- *          gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
- *       )
- *    )
+ * ## Additive semantics
+ *
+ * Multiple `gap` rules inside a single `spacing` container are evaluated independently. All rules that match the
+ * current page have their sizes summed. On a page where two rules match with sizes `2` and `1`, a total gap of `3`
+ * slots is reserved, and only `pageSize - 3` entities are returned.
+ *
+ * ## Expression language
+ *
+ * The expression has access to only a single variable, `$pageNumber`. The full expression grammar is documented at
+ * [the separate page](https://evitadb.io/documentation/user/en/query/expression-language.md).
+ *
+ * ## Usage example
+ *
+ * Reserve 2 slots on odd pages 1–6 for a wide ad banner, and 1 additional slot on even pages 2–6 for a teaser:
+ *
+ * ```evitaql
+ * spacing(
+ *    gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+ *    gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
  * )
- * </pre>
+ * ```
  *
- * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
- * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
- * the currently examined page number.
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/paging#spacing-gap)
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing-gap">Visit detailed user documentation</a></p>
- *
+ * @see Spacing
+ * @see Page
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  **/
 @ConstraintDefinition(
 	name = "gap",
-	shortDescription = "The constraint sizes the number of entities in particular segment of the output.",
+	shortDescription = "The constraint reserves a fixed number of visual slots on a specific page for non-entity content within a spacing container.",
 	userDocsLink = "/documentation/query/requirements/paging#spacing-gap",
 	supportedIn = ConstraintDomain.SEGMENT
 )

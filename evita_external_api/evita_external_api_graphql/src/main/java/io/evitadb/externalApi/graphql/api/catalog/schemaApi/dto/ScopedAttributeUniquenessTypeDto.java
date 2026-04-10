@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.dto;
 
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 

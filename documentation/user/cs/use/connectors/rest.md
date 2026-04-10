@@ -5,6 +5,7 @@ date: '24.3.2023'
 author: Lukáš Hornych
 preferredLang: rest
 commit: '151ed5c62c63f3e087500e5f2d76d7ffad686420'
+translated: true
 ---
 <LS to="e,j,c,g">
 Tato kapitola popisuje REST protokol pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají

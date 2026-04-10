@@ -30,9 +30,9 @@ proofreading: 'needed'
 		<dd>A product with a variant is a "virtual product" that cannot be bought directly. A customer must choose one of its variants
 			instead. Products with variants are very often seen in e-commerce fashion stores where clothes come in various sizes
 			and colors. A single product can have dozens combinations of size and color. If each combination represented standard
-			[product](#product), a product listing in [a category](#category) and other places would become unusable.
+			product, a product listing in a category and other places would become unusable.
 			In this situation, products with variants become very handy. This &quot;virtual product&quot; can be listed instead of variants
-			and a variant selection is performed at the time of placing the goods into the [cart](#cart). Let's have an example:			
+			and a variant selection is performed at the time of placing the goods into the cart. Let's have an example:			
 			We have a T-Shirt with a unicorn picture on it. The T-Shirt is produced in different sizes and colors - namely:<br/><br/>
 			&ndash; size: S, M, L, XL, XXL<br/>
 			&ndash; color: blue, pink, violet<br/><br/>			

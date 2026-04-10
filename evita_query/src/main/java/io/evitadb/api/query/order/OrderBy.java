@@ -37,7 +37,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `orderBy` is container for ordering. It is mandatory container when any ordering is to be used.
+ * This `orderBy` is a container for ordering. It is mandatory container when any ordering is to be used.
  * evitaDB requires a previously prepared sort index to be able to sort entities. This fact makes sorting much faster
  * than ad-hoc sorting by attribute value. Also, the sorting mechanism of evitaDB is somewhat different from what you
  * might be used to. If you sort entities by two attributes in an orderBy clause of the query, evitaDB sorts them first
@@ -56,21 +56,21 @@ import java.io.Serializable;
  *
  * Example:
  *
- * <pre>
+ * ```evitaql
  * orderBy(
  *     ascending("code"),
  *     ascending("create"),
  *     priceDescending()
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/basics#order-by)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "orderBy",
-	shortDescription = "The container encapsulates inner order constraints into one main constraint that is required by the query.",
+	shortDescription = "Top-level container for ordering constraints that defines how query results are sorted.",
 	userDocsLink = "/documentation/query/basics#order-by",
 	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.ENTITY, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.SEGMENT }
 )
@@ -94,7 +94,10 @@ public class OrderBy extends AbstractOrderConstraintContainer implements Generic
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isPremiseValid(
 			additionalChildren.length == 0,
 			"OrderBy ordering query allows no additional children!"

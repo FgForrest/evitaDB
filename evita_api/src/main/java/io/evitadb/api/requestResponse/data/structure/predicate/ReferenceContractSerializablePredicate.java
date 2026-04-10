@@ -42,19 +42,40 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
 /**
- * This predicate allows limiting number of references visible to the client based on query constraints.
+ * Serializable predicate that filters entity references based on query requirements.
+ *
+ * This predicate controls which references (relationships to other entities) are visible to clients by filtering
+ * based on reference names and their associated attribute requirements specified in the query. Each reference can
+ * have its own specific attribute filtering rules, allowing fine-grained control over what reference data is
+ * exposed.
+ *
+ * The predicate supports:
+ * - Reference name-based filtering (specific references or all references)
+ * - Per-reference attribute requirements (managed via `AttributeRequest` objects)
+ * - Default attribute requirements for references without explicit attribute rules
+ * - Locale filtering for reference attributes (inherited from entity-level locale requirements)
+ *
+ * Reference filtering is hierarchical: first references are filtered by name, then attributes within each
+ * reference are filtered by name and locale. The predicate creates {@link ReferenceAttributeValueSerializablePredicate}
+ * instances for individual references to handle attribute-level filtering.
+ *
+ * **Thread-safety**: This class is immutable and thread-safe.
+ *
+ * **Underlying predicate pattern**: Supports an optional underlying predicate that represents the original entity's
+ * complete reference scope. This pattern is used when creating limited views from fully-fetched entities.
+ *
+ * **Empty map semantics**: An empty `referenceSet` map means "all references are allowed" when
+ * `requiresEntityReferences` is true.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -63,40 +84,48 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	@Serial private static final long serialVersionUID = -3182607338600238414L;
 
 	/**
-	 * Contains information about all reference names that has been fetched / requested for the entity.
+	 * Map of reference names to their associated attribute requirements. Each entry specifies which attributes
+	 * should be fetched for a particular reference type. An empty map means all references are allowed when
+	 * `requiresEntityReferences` is true; otherwise specific references are filtered by name.
 	 */
 	@Nonnull @Getter private final Map<String, AttributeRequest> referenceSet;
 	/**
-	 * Contains information about default attribute request for references that has no explicit attribute request.
+	 * Default attribute requirements applied to references that don't have explicit attribute requirements in
+	 * `referenceSet`. This allows setting a baseline attribute policy for all references while allowing specific
+	 * overrides per reference type. May be null if no default is specified.
 	 */
 	@Nullable @Getter private final AttributeRequest defaultAttributeRequest;
 	/**
-	 * Contains true if any of the references of the entity has been fetched / requested.
+	 * Indicates whether any references were requested with the entity. When false, all reference access will fail.
+	 * When true, references are accessible subject to name and attribute filtering.
 	 */
 	@Getter private final boolean requiresEntityReferences;
 	/**
-	 * Contains information about implicitly derived locale during entity fetch.
+	 * Implicitly derived locale determined from query context or defaults. Passed to reference attribute predicates
+	 * for filtering localized reference attributes. May be null if no implicit locale was derived.
 	 */
 	@Nullable @Getter private final Locale implicitLocale;
 	/**
-	 * Contains information about all attribute locales that has been fetched / requested for the entity.
+	 * Set of explicitly requested locales from the query. Passed to reference attribute predicates for filtering
+	 * localized reference attributes. An empty set means all locales are allowed; null means no locales were
+	 * requested.
 	 */
 	@Nullable private final Set<Locale> locales;
 	/**
-	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
-	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}
-	 * is invoked on the entity.
+	 * Optional underlying predicate representing the complete entity's reference scope. Used when creating
+	 * limited views from fully-fetched entities via
+	 * {@link io.evitadb.api.EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}.
+	 * Must not be nested (only one level allowed).
 	 */
 	@Nullable @Getter private final ReferenceContractSerializablePredicate underlyingPredicate;
 
 	/**
 	 * Creates a map of reference names to their associated attribute requests based on the entity fetch
-	 * requirements specified in the provided {@code EvitaRequest}.
+	 * requirements specified in the provided `EvitaRequest`.
 	 * Only unnamed references are processed; named references are ignored.
 	 *
-	 * @param evitaRequest the {@code EvitaRequest} containing details about the reference entity fetch requirements.
-	 * @return a map where the keys are reference names and the values are the associated {@code AttributeRequest} objects.
+	 * @param evitaRequest the `EvitaRequest` containing details about the reference entity fetch requirements.
+	 * @return a map where the keys are reference names and the values are the associated `AttributeRequest` objects.
 	 */
 	@Nonnull
 	private static Map<String, AttributeRequest> getReferenceSet(@Nonnull EvitaRequest evitaRequest) {
@@ -152,6 +181,11 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		return mergedAttributeRequest;
 	}
 
+	/**
+	 * Creates a default predicate with reference access enabled but no specific reference filtering.
+	 *
+	 * This allows all references to be visible.
+	 */
 	public ReferenceContractSerializablePredicate() {
 		this.requiresEntityReferences = true;
 		this.referenceSet = Collections.emptyMap();
@@ -161,6 +195,15 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates a reference predicate from an Evita request.
+	 *
+	 * Extracts reference requirements, attribute requirements per reference, default attribute requirements,
+	 * and locale requirements from the request. This constructor is typically used when building entity
+	 * decorators for query responses.
+	 *
+	 * @param evitaRequest the request containing reference and attribute requirements
+	 */
 	public ReferenceContractSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
 		this.requiresEntityReferences = evitaRequest.isRequiresEntityReferences();
 		this.referenceSet = getReferenceSet(evitaRequest);
@@ -172,6 +215,16 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates a reference predicate for a single specific reference with explicit attribute requirements.
+	 *
+	 * This constructor is used when filtering for a specific reference type with known attribute requirements,
+	 * such as when processing reference-specific queries.
+	 *
+	 * @param evitaRequest the request containing locale and default reference requirements
+	 * @param referenceName the specific reference name to filter for
+	 * @param requirementContext the attribute requirements for this specific reference
+	 */
 	public ReferenceContractSerializablePredicate(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull String referenceName,
@@ -190,6 +243,13 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates a simple reference predicate with explicit reference requirement flag.
+	 *
+	 * Used internally for creating enriched copies via {@link #createRicherCopyWith(EvitaRequest)}.
+	 *
+	 * @param requiresEntityReferences whether references are required at all
+	 */
 	public ReferenceContractSerializablePredicate(boolean requiresEntityReferences) {
 		this.requiresEntityReferences = requiresEntityReferences;
 		this.referenceSet = Collections.emptyMap();
@@ -199,6 +259,16 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates a reference predicate with an underlying predicate for entity limitation scenarios.
+	 *
+	 * This constructor is used when applying additional restrictions to an already-fetched entity
+	 * (e.g., when calling `limitEntity`). The underlying predicate preserves the original fetch scope.
+	 *
+	 * @param evitaRequest the request containing new reference and attribute requirements
+	 * @param underlyingPredicate the predicate representing the original entity's complete reference scope
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if underlyingPredicate is already nested
+	 */
 	public ReferenceContractSerializablePredicate(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull ReferenceContractSerializablePredicate underlyingPredicate
@@ -235,14 +305,21 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	}
 
 	/**
-	 * Returns true if the references were fetched along with the entity.
+	 * Checks whether any references were fetched with the entity.
+	 *
+	 * @return true if references are accessible (subject to name and attribute filtering)
 	 */
 	public boolean wasFetched() {
 		return this.requiresEntityReferences;
 	}
 
 	/**
-	 * Returns true if the references of particular name were fetched along with the entity.
+	 * Checks whether references with the specified name were fetched with the entity.
+	 *
+	 * An empty `referenceSet` means all references were fetched (when `requiresEntityReferences` is true).
+	 *
+	 * @param referenceName the reference name to check
+	 * @return true if the reference is accessible
 	 */
 	public boolean wasFetched(@Nonnull String referenceName) {
 		return this.requiresEntityReferences &&
@@ -250,7 +327,11 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	}
 
 	/**
-	 * Method verifies that references were fetched with the entity.
+	 * Verifies that references were fetched with the entity, throwing an exception if not.
+	 *
+	 * This method should be called before accessing any reference data to ensure the data is available.
+	 *
+	 * @throws ContextMissingException if no references were fetched with the entity
 	 */
 	public void checkFetched() throws ContextMissingException {
 		if (!this.requiresEntityReferences) {
@@ -259,7 +340,12 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	}
 
 	/**
-	 * Method verifies that the requested attribute was fetched with the entity.
+	 * Verifies that references with a specific name were fetched with the entity, throwing an exception if not.
+	 *
+	 * This method should be called before accessing specific reference data to ensure the data is available.
+	 *
+	 * @param referenceName the reference name to check
+	 * @throws ContextMissingException if the reference was not fetched with the entity
 	 */
 	public void checkFetched(@Nonnull String referenceName) throws ContextMissingException {
 		if (!(this.requiresEntityReferences && (this.referenceSet.isEmpty() || this.referenceSet.containsKey(
@@ -268,6 +354,19 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		}
 	}
 
+	/**
+	 * Tests whether the given reference should be visible based on query requirements.
+	 *
+	 * A reference passes the test if all of the following conditions are met:
+	 * - References are required (`requiresEntityReferences` is true)
+	 * - The reference exists (not dropped)
+	 * - The reference name matches (if `referenceSet` is non-empty)
+	 *
+	 * Note: This method only tests reference-level visibility, not attribute-level filtering within the reference.
+	 *
+	 * @param reference the reference to test
+	 * @return true if the reference should be visible to the client
+	 */
 	@Override
 	public boolean test(ReferenceContract reference) {
 		if (this.requiresEntityReferences) {
@@ -284,8 +383,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * of reference requirements and the reference set.
 	 *
 	 * @param referenceName the name of the reference to check.
-	 * @return {@code true} if references are required and the reference name is either part of the set
-	 * or the set is empty; {@code false} otherwise.
+	 * @return `true` if references are required and the reference name is either part of the set
+	 * or the set is empty; `false` otherwise.
 	 */
 	public boolean isReferenceRequested(@Nonnull String referenceName) {
 		if (this.requiresEntityReferences) {
@@ -296,22 +395,17 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	}
 
 	/**
-	 * Creates a richer copy of the current {@code ReferenceContractSerializablePredicate} instance
-	 * by combining its existing state with the details from the provided {@code EvitaRequest}.
+	 * Creates a richer copy of the current `ReferenceContractSerializablePredicate` instance
+	 * by combining its existing state with the details from the provided `EvitaRequest`.
 	 *
-	 * @param evitaRequest the {@code EvitaRequest} containing additional requirements and state to merge into the new instance.
-	 * @return a new {@code ReferenceContractSerializablePredicate} instance that combines the state from the current instance
-	 * with the requirements from the provided {@code EvitaRequest}.
+	 * @param evitaRequest the `EvitaRequest` containing additional requirements and state to merge into the new instance.
+	 * @return a new `ReferenceContractSerializablePredicate` instance that combines the state from the current instance
+	 * with the requirements from the provided `EvitaRequest`.
 	 */
 	@Nonnull
 	public ReferenceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		final Set<Locale> requiredLocales = combineLocales(evitaRequest);
-		Assert.isPremiseValid(
-			evitaRequest.getImplicitLocale() == null ||
-				this.implicitLocale == null ||
-				Objects.equals(this.implicitLocale, evitaRequest.getImplicitLocale()),
-			"Implicit locales cannot differ (`" + this.implicitLocale + "` vs. `" + evitaRequest.getImplicitLocale() + "`)!"
-		);
+		final Set<Locale> requiredLocales = PredicateLocaleHelper.combineLocales(this.locales, evitaRequest);
+		PredicateLocaleHelper.assertImplicitLocalesConsistent(this.implicitLocale, evitaRequest);
 
 		final Map<String, AttributeRequest> requiredReferencedEntities = combineReferencedEntities(evitaRequest);
 		final boolean doesRequireEntityReferences = evitaRequest.isRequiresEntityReferences();
@@ -331,7 +425,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 				requiredReferencedEntities,
 				mergeAttributeRequests(this.defaultAttributeRequest, defaultAttributeRequest),
 				this.requiresEntityReferences || doesRequireEntityReferences,
-				this.implicitLocale,
+				PredicateLocaleHelper.resolveImplicitLocale(this.implicitLocale, evitaRequest),
 				requiredLocales
 			);
 		}
@@ -341,7 +435,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Retrieves a predicate that can be used to filter attribute values for a specific reference.
 	 *
 	 * @param referenceName the name of the reference for which to obtain the attribute predicate.
-	 * @return a {@code ReferenceAttributeValueSerializablePredicate} configured for the specified reference name.
+	 * @return a `ReferenceAttributeValueSerializablePredicate` configured for the specified reference name.
 	 */
 	@Nonnull
 	public ReferenceAttributeValueSerializablePredicate getAttributePredicate(@Nonnull String referenceName) {
@@ -357,7 +451,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Retrieves a predicate that includes all attributes for the reference.
 	 *
-	 * @return a {@code ReferenceAttributeValueSerializablePredicate} configured to include all attributes.
+	 * @return a `ReferenceAttributeValueSerializablePredicate` configured to include all attributes.
 	 */
 	@Nonnull
 	public ReferenceAttributeValueSerializablePredicate getAllAttributePredicate() {
@@ -378,16 +472,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 */
 	@Nullable
 	public Set<Locale> getAllLocales() {
-		if (this.implicitLocale != null && this.locales == null) {
-			return Set.of(this.implicitLocale);
-		} else if (this.implicitLocale != null) {
-			return Stream.concat(
-				Stream.of(this.implicitLocale),
-				this.locales.stream()
-			).collect(Collectors.toSet());
-		} else {
-			return this.locales;
-		}
+		return PredicateLocaleHelper.getAllLocales(this.implicitLocale, this.locales);
 	}
 
 	/**
@@ -418,28 +503,6 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			requiredReferences = this.referenceSet;
 		}
 		return requiredReferences;
-	}
-
-	/**
-	 * Combines the locales from the current instance and the given EvitaRequest.
-	 *
-	 * @param evitaRequest the EvitaRequest containing additional locales to merge.
-	 * @return a set of combined locales, potentially null if no locales are present.
-	 */
-	@Nullable
-	private Set<Locale> combineLocales(@Nonnull EvitaRequest evitaRequest) {
-		final Set<Locale> requiredLanguages;
-		final Set<Locale> newlyRequiredLanguages = evitaRequest.getRequiredLocales();
-		if (this.locales == null) {
-			requiredLanguages = newlyRequiredLanguages;
-		} else if (newlyRequiredLanguages != null) {
-			requiredLanguages = new HashSet<>(this.locales.size() + newlyRequiredLanguages.size());
-			requiredLanguages.addAll(this.locales);
-			requiredLanguages.addAll(newlyRequiredLanguages);
-		} else {
-			requiredLanguages = this.locales;
-		}
-		return requiredLanguages;
 	}
 
 }

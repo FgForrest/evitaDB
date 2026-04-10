@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link RequirementContext}, {@link AttributeRequest},
  * and {@link ReferenceContentKey}.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvitaRequest inner records")
 class EvitaRequestInnerRecordsTest {

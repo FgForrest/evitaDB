@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,21 +29,19 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.ConsistencyChecks;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -55,14 +53,14 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Internal {@link ReflectedReferenceSchema} builder used solely from within {@link InternalEntitySchemaBuilder}.
@@ -70,58 +68,31 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class ReflectedReferenceSchemaBuilder
-	implements ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder, InternalSchemaBuilderHelper {
-	@Serial private static final long serialVersionUID = -6435272035844056999L;
+	extends AbstractReferenceSchemaBuilder<ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder, ReflectedReferenceSchema>
+	implements ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder {
+	@Serial private static final long serialVersionUID = 3141592653589793238L;
 
-	private final CatalogSchemaContract catalogSchema;
-	private final EntitySchemaContract entitySchema;
-	private final ReflectedReferenceSchema baseSchema;
-	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
-	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
-	private int lastMutationReflectedInSchema = 0;
-	private ReflectedReferenceSchema updatedSchema;
-
-	ReflectedReferenceSchemaBuilder(
-		@Nonnull CatalogSchemaContract catalogSchema,
+	/**
+	 * Computes the correct base schema for the constructor's `super()` call.
+	 *
+	 * When `createNew` is true, the base is either the caller-supplied hint or a freshly built
+	 * placeholder. When `createNew` is false, the base MUST be the raw persisted reflected
+	 * reference — never the caller-supplied `existingSchema`, which may already have pending
+	 * mutations baked in. Re-using it would cause double-application during replay.
+	 */
+	@Nonnull
+	private static ReflectedReferenceSchema resolveBaseSchema(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReflectedReferenceSchemaContract existingSchema,
 		@Nonnull String name,
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
-		@Nonnull List<LocalEntitySchemaMutation> mutations,
 		boolean createNew
 	) {
-		this.catalogSchema = catalogSchema;
-		this.entitySchema = entitySchema;
 		if (createNew) {
-			// caller promises there is no reflected reference persisted under `name` yet, so the
-			// base is either the caller-supplied hint (e.g. a standard reference being replaced)
-			// or a freshly built placeholder that the CreateReflectedReferenceSchemaMutation below
-			// will hydrate during replay.
-			this.baseSchema = existingSchema == null ?
+			return existingSchema == null ?
 				ReflectedReferenceSchema._internalBuild(name, entityType, reflectedReferenceName) :
 				(ReflectedReferenceSchema) existingSchema;
-			this.mutations.add(
-				new CreateReflectedReferenceSchemaMutation(
-					this.baseSchema.getName(),
-					this.baseSchema.isDescriptionInherited() ? null : this.baseSchema.getDescription(),
-					this.baseSchema.isDeprecatedInherited() ? null : this.baseSchema.getDeprecationNotice(),
-					this.baseSchema.isCardinalityInherited() ? null : this.baseSchema.getCardinality(),
-					entityType,
-					reflectedReferenceName,
-					this.baseSchema.isIndexedInherited() ?
-						null :
-						this.baseSchema.getReferenceIndexTypeInScopes()
-							.entrySet()
-							.stream()
-							.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
-							.toArray(ScopedReferenceIndexType[]::new),
-					this.baseSchema.isFacetedInherited() ?
-						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new),
-					this.baseSchema.getAttributesInheritanceBehavior(),
-					this.baseSchema.getAttributeInheritanceFilter()
-				)
-			);
 		} else {
 			Assert.isPremiseValid(
 				existingSchema != null,
@@ -147,7 +118,64 @@ public final class ReflectedReferenceSchemaBuilder
 					" when the builder is constructed with createNew=false, but found `" +
 					persistedReference.getClass().getSimpleName() + "`."
 			);
-			this.baseSchema = (ReflectedReferenceSchema) persistedReference;
+			return (ReflectedReferenceSchema) persistedReference;
+		}
+	}
+
+	/**
+	 * Creates a new builder for a reflected reference schema. When `createNew` is true,
+	 * a {@link CreateReflectedReferenceSchemaMutation} is automatically emitted with the current
+	 * schema state (or inherited defaults when no overrides exist). Pre-existing mutations
+	 * targeting this reference (excluding create/remove) are also replayed.
+	 */
+	ReflectedReferenceSchemaBuilder(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReflectedReferenceSchemaContract existingSchema,
+		@Nonnull String name,
+		@Nonnull String entityType,
+		@Nonnull String reflectedReferenceName,
+		@Nonnull List<LocalEntitySchemaMutation> mutations,
+		boolean createNew
+	) {
+		super(
+			catalogSchema, entitySchema,
+			resolveBaseSchema(entitySchema, existingSchema, name, entityType, reflectedReferenceName, createNew)
+		);
+		if (createNew) {
+			this.mutations.add(
+				new CreateReflectedReferenceSchemaMutation(
+					this.baseSchema.getName(),
+					this.baseSchema.isDescriptionInherited() ? null : this.baseSchema.getDescription(),
+					this.baseSchema.isDeprecatedInherited() ? null : this.baseSchema.getDeprecationNotice(),
+					this.baseSchema.isCardinalityInherited() ? null : this.baseSchema.getCardinality(),
+					entityType,
+					reflectedReferenceName,
+					this.baseSchema.isIndexedInherited() ?
+						null :
+						this.baseSchema.getReferenceIndexTypeInScopes()
+							.entrySet()
+							.stream()
+							.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+							.toArray(ScopedReferenceIndexType[]::new),
+					this.baseSchema.isIndexedComponentsInherited()
+						? null
+						: this.baseSchema.getIndexedComponentsInScopes()
+							.entrySet()
+							.stream()
+							.map(
+								it -> new ScopedReferenceIndexedComponents(
+									it.getKey(),
+									it.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+								)
+							)
+							.toArray(ScopedReferenceIndexedComponents[]::new),
+					this.baseSchema.isFacetedInherited() ?
+						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new),
+					this.baseSchema.getAttributesInheritanceBehavior(),
+					this.baseSchema.getAttributeInheritanceFilter()
+				)
+			);
 		}
 		mutations.stream()
 			.filter(
@@ -163,20 +191,16 @@ public final class ReflectedReferenceSchemaBuilder
 	 * Note: setting null to the description will cause the description is inherited from the original reference.
 	 * The description cannot be reset to NULL on the reflected reference if the original one has description set.
 	 *
+	 * This override is required to prevent Lombok's `@Delegate` from generating a conflicting delegation
+	 * for the `withDescription` method declared on `ReflectedReferenceSchema` DTO.
+	 *
 	 * @param description new value of description
 	 * @return this
 	 */
 	@Override
 	@Nonnull
 	public ReflectedReferenceSchemaBuilder withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSchemaDescriptionMutation(getName(), description)
-			)
-		);
-		return this;
+		return super.withDescription(description);
 	}
 
 	@Nonnull
@@ -305,27 +329,6 @@ public final class ReflectedReferenceSchemaBuilder
 	}
 
 	/**
-	 * Note: setting null to the deprecation notice will cause the deprecation status is inherited from the original
-	 * reference. The deprecation notice cannot be reset to not deprecated on the reflected reference if the original
-	 * one is deprecated.
-	 *
-	 * @param deprecationNotice new value of deprecation notice
-	 * @return this
-	 */
-	@Override
-	@Nonnull
-	public ReflectedReferenceSchemaBuilder deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSchemaDeprecationNoticeMutation(getName(), deprecationNotice)
-			)
-		);
-		return this;
-	}
-
-	/**
 	 * Note: this method will cause the deprecation status is inherited from the original reference. The deprecation
 	 * cannot be reset to not deprecated on the reflected reference if the original one is deprecated.
 	 *
@@ -409,6 +412,15 @@ public final class ReflectedReferenceSchemaBuilder
 	@Nonnull
 	@Override
 	public ReflectedReferenceSchemaBuilder facetedInScope(@Nonnull Scope... inScope) {
+		// breaking inheritance: the mutation carries the complete explicit state from scratch
+		final EnumSet<Scope> newScopeSet = ArrayUtils.toEnumSet(Scope.class, inScope);
+		// when breaking inheritance, facetedPartially starts empty; when already explicit, filter
+		final ScopedFacetedPartially[] filteredPartially;
+		if (isFacetedInherited()) {
+			filteredPartially = ScopedFacetedPartially.EMPTY;
+		} else {
+			filteredPartially = toScopedFacetedPartiallyArray(filterPartiallyToScopes(newScopeSet));
+		}
 		final boolean reflectedReferenceAvailable = isReflectedReferenceAvailable();
 		final boolean indexedInherited = isIndexedInherited();
 		final boolean allInformationPresent = reflectedReferenceAvailable || !indexedInherited;
@@ -418,12 +430,11 @@ public final class ReflectedReferenceSchemaBuilder
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaFacetedMutation(getName(), inScope)
+					new SetReferenceSchemaFacetedMutation(getName(), inScope, filteredPartially)
 				)
 			);
 		} else {
 			// update both indexed and faceted scopes
-			final EnumSet<Scope> includedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
@@ -431,10 +442,73 @@ public final class ReflectedReferenceSchemaBuilder
 					new SetReferenceSchemaIndexedMutation(
 						getName(),
 						Arrays.stream(Scope.values())
-							.filter(scope -> includedScopes.contains(scope) || (allInformationPresent && this.isIndexedInScope(scope)))
+							.filter(scope -> newScopeSet.contains(scope)
+								|| (allInformationPresent && this.isIndexedInScope(scope)))
 							.toArray(Scope[]::new)
 					),
-					new SetReferenceSchemaFacetedMutation(getName(), inScope)
+					new SetReferenceSchemaFacetedMutation(getName(), inScope, filteredPartially)
+				)
+			);
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder facetedPartiallyInScope(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		// compute complete state: when inherited, start from scratch; when explicit, build on top
+		final EnumSet<Scope> allScopes;
+		final Map<Scope, Expression> allPartially;
+		if (isFacetedInherited()) {
+			// breaking inheritance — start from scratch with just this scope
+			allScopes = EnumSet.of(scope);
+			allPartially = new EnumMap<>(Scope.class);
+		} else {
+			// already explicit — accumulate on top of current state
+			final Set<Scope> currentFacetedScopes = this.getFacetedInScopes();
+			allScopes = currentFacetedScopes.isEmpty()
+				? EnumSet.noneOf(Scope.class) : EnumSet.copyOf(currentFacetedScopes);
+			allScopes.add(scope);
+			final Map<Scope, Expression> currentPartially = this.getFacetedPartiallyInScopes();
+			allPartially = currentPartially.isEmpty()
+				? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
+		}
+		allPartially.put(scope, expression);
+		final Scope[] completeFacetedScopes = allScopes.toArray(Scope[]::new);
+		final ScopedFacetedPartially[] completePartially = toScopedFacetedPartiallyArray(allPartially);
+		final boolean reflectedReferenceAvailable = isReflectedReferenceAvailable();
+		final boolean indexedInherited = isIndexedInherited();
+		final boolean allInformationPresent = reflectedReferenceAvailable || !indexedInherited;
+		if (allInformationPresent && this.isIndexedInScope(scope)) {
+			// scope is already indexed — just emit the faceted mutation
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaFacetedMutation(
+						getName(), completeFacetedScopes, completePartially
+					)
+				)
+			);
+		} else {
+			// auto-promote to indexed before enabling faceting
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaIndexedMutation(
+						getName(),
+						Arrays.stream(Scope.values())
+							.filter(s -> s == scope
+								|| (allInformationPresent && this.isIndexedInScope(s)))
+							.toArray(Scope[]::new)
+					),
+					new SetReferenceSchemaFacetedMutation(
+						getName(), completeFacetedScopes, completePartially
+					)
 				)
 			);
 		}
@@ -451,7 +525,9 @@ public final class ReflectedReferenceSchemaBuilder
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaFacetedMutation(getName(), Scope.NO_SCOPE)
+					new SetReferenceSchemaFacetedMutation(
+						getName(), Scope.NO_SCOPE, ScopedFacetedPartially.EMPTY
+					)
 				)
 			);
 			return this;
@@ -463,40 +539,150 @@ public final class ReflectedReferenceSchemaBuilder
 	public ReflectedReferenceSchemaBuilder nonFaceted(@Nonnull Scope... inScope) {
 		Assert.isTrue(
 			!isFacetedInherited() || isReflectedReferenceAvailable(),
-			() -> new InvalidSchemaMutationException("Cannot update non-indexed scopes on inherited reference schema when the referenced schema is not available!")
+			() -> new InvalidSchemaMutationException(
+				"Cannot update non-indexed scopes on inherited reference schema "
+					+ "when the referenced schema is not available!"
+			)
 		);
 
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		final Scope[] newScopes = getFacetedInScopes().stream()
+		final Scope[] remainingScopes = getFacetedInScopes().stream()
 			.filter(it -> !excludedScopes.contains(it))
 			.toArray(Scope[]::new);
+		return applyNonFacetedMutation(remainingScopes);
+	}
 
+	/**
+	 * Overrides the base implementation to handle reflected reference null semantics.
+	 * For reflected references, passing `null` for `facetedInScopes` means "inherit from
+	 * original" — so we must always pass the current explicit scopes to preserve them.
+	 * When inherited, we pass `null` to keep inheritance intact.
+	 */
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder nonFacetedPartially(@Nonnull Scope... inScope) {
+		if (isFacetedInherited()) {
+			// when inherited, clearing a partial expression should stay inherited
+			// but remove the partial expression for the specified scopes
+			final EnumSet<Scope> clearedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+			final Map<Scope, Expression> currentPartially = this.getFacetedPartiallyInScopes();
+			final Map<Scope, Expression> remaining = currentPartially.isEmpty()
+				? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
+			for (final Scope scope : clearedScopes) {
+				remaining.remove(scope);
+			}
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaFacetedMutation(
+						getName(), null, toScopedFacetedPartiallyArray(remaining)
+					)
+				)
+			);
+		} else {
+			// when explicit, use the base implementation which reads the complete state
+			super.nonFacetedPartially(inScope);
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder bucketedInScope(
+		@Nonnull Scope scope,
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression
+	) {
+		// accumulate on top of current state
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
+			allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+		}
+		final Map<Scope, Expression> filteredPartially = new EnumMap<>(Scope.class);
+		allBucketed.computeIfAbsent(scope, k -> new LinkedHashMap<>(8))
+			.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+		// filter partially to retained scopes
+		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+		for (final Map.Entry<Scope, Expression> entry : currentPartially.entrySet()) {
+			if (allBucketed.containsKey(entry.getKey())) {
+				filteredPartially.put(entry.getKey(), entry.getValue());
+			}
+		}
+		final boolean allInformationPresent = isReflectedReferenceAvailable() || !isIndexedInherited();
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(allBucketed),
+			toScopedBucketedPartiallyArray(filteredPartially),
+			allInformationPresent
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder bucketedPartiallyInScope(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		// accumulate on top of current state
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
+			allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+		}
+		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
+			? new EnumMap<>(Scope.class)
+			: new EnumMap<>(currentPartially);
+		allPartially.put(scope, expression);
+		final boolean allInformationPresent = isReflectedReferenceAvailable() || !isIndexedInherited();
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(allBucketed),
+			toScopedBucketedPartiallyArray(allPartially),
+			allInformationPresent
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder nonBucketed() {
+		if (isReflectedReferenceAvailable()) {
+			return nonBucketed(Scope.DEFAULT_SCOPE);
+		} else {
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaBucketedMutation(
+						getName(),
+						ScopedHistogramIndexDefinition.EMPTY,
+						ScopedBucketedPartially.EMPTY
+					)
+				)
+			);
+			return this;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder withIndexedComponentsInherited() {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFacetedMutation(getName(), newScopes)
+				new SetReferenceSchemaIndexedMutation(
+					getName(),
+					this.getReferenceIndexTypeInScopes()
+						.entrySet()
+						.stream()
+						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new),
+					null
+				)
 			)
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
-		this.updatedSchemaDirty = indexedForTypeInScope(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING, inScope
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
-		this.updatedSchemaDirty = indexedForTypeInScope(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, inScope
 		);
 		return this;
 	}
@@ -515,24 +701,8 @@ public final class ReflectedReferenceSchemaBuilder
 		@Nullable Consumer<AttributeSchemaEditor.AttributeSchemaBuilder> whichIs
 	) {
 		final ReflectedReferenceSchema instance = this.toInstanceInternal();
-		final Optional<AttributeSchemaContract> existingAttribute = instance.getDeclaredAttribute(attributeName);
-		final AttributeSchemaBuilder attributeSchemaBuilder =
-			existingAttribute
-				.map(it -> {
-					Assert.isTrue(
-						ofType.equals(it.getType()),
-						() -> new InvalidSchemaMutationException(
-							"Attribute " + attributeName + " has already assigned type " + it.getType() +
-								", cannot change this type to: " + ofType + "!"
-						)
-					);
-					return new AttributeSchemaBuilder(this.entitySchema, it);
-				})
-				.orElseGet(() -> new AttributeSchemaBuilder(this.entitySchema, attributeName, ofType));
-
-		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
-		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
-		checkSortableTraits(attributeName, attributeSchema);
+		final AttributeSchemaContract existingAttribute = instance.getDeclaredAttribute(attributeName).orElse(null);
+		final AttributeSchemaBuildResult result = buildAttributeSchema(attributeName, ofType, existingAttribute, whichIs);
 
 		// check the names in all naming conventions are unique in the catalog schema
 		checkNamesAreUniqueInAllNamingConventions(
@@ -542,83 +712,10 @@ public final class ReflectedReferenceSchemaBuilder
 			instance.isReflectedReferenceAvailable() ?
 				instance.getSortableAttributeCompounds().values() :
 				instance.getDeclaredSortableAttributeCompounds().values(),
-			attributeSchema
+			result.schema()
 		);
 
-		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
-			this.updatedSchemaDirty = updateMutationImpact(
-				this.updatedSchemaDirty,
-				addMutations(
-					this.catalogSchema, this.entitySchema, this.mutations,
-					attributeSchemaBuilder
-						.toReferenceMutation(getName())
-						.stream()
-						.map(LocalEntitySchemaMutation.class::cast)
-						.toArray(LocalEntitySchemaMutation[]::new)
-				)
-			);
-		}
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public ReflectedReferenceSchemaBuilder withoutAttribute(@Nonnull String attributeName) {
-		checkSortableAttributeCompoundsWithoutAttribute(
-			attributeName, this.getSortableAttributeCompounds().values()
-		);
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceAttributeSchemaMutation(
-					this.getName(),
-					new RemoveAttributeSchemaMutation(attributeName)
-				)
-			)
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder withSortableAttributeCompound(
-		@Nonnull String name,
-		@Nonnull AttributeElement... attributeElements
-	) {
-		return withSortableAttributeCompound(
-			name, attributeElements, null
-		);
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder withSortableAttributeCompound(
-		@Nonnull String name,
-		@Nonnull AttributeElement[] attributeElements,
-		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
-	) {
-		this.updatedSchemaDirty = addSortableAttributeCompoundToReference(
-			this.catalogSchema, this.entitySchema, this, this.baseSchema,
-			this.mutations, this.updatedSchemaDirty,
-			name, attributeElements, whichIs
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReflectedReferenceSchemaBuilder withoutSortableAttributeCompound(@Nonnull String name) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSortableAttributeCompoundSchemaMutation(
-					this.getName(),
-					new RemoveSortableAttributeCompoundSchemaMutation(name)
-				)
-			)
-		);
+		addAttributeMutationsIfChanged(existingAttribute, result.schema(), result.builder());
 		return this;
 	}
 
@@ -642,12 +739,20 @@ public final class ReflectedReferenceSchemaBuilder
 		return new ReferenceSchemaBuilderResult(currentSchema, mutations);
 	}
 
-	@Override
 	@Nonnull
-	public Collection<LocalEntitySchemaMutation> toMutation() {
-		// apply necessary mutation sort
-		sortReferenceAttributeMutationsLast(this.mutations);
-		return this.mutations;
+	@Override
+	protected ReflectedReferenceSchema mutateSchema(
+		@Nonnull ReflectedReferenceSchema currentSchema,
+		@Nonnull LocalEntitySchemaMutation mutation
+	) {
+		final ReflectedReferenceSchema result = (ReflectedReferenceSchema)
+			((ReferenceSchemaMutation) mutation).mutate(
+				this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP
+			);
+		if (result == null) {
+			throw new GenericEvitaInternalError("Reflected reference unexpectedly removed from inside!");
+		}
+		return result;
 	}
 
 	/**
@@ -655,32 +760,7 @@ public final class ReflectedReferenceSchemaBuilder
 	 */
 	@Delegate(types = ReflectedReferenceSchema.class)
 	private ReflectedReferenceSchema toInstanceInternal() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
-			// if the dirty flag is set to modified previous we need to start from the base schema again
-			// and reapply all mutations
-			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
-				this.lastMutationReflectedInSchema = 0;
-			}
-			// if the last mutation reflected in the schema is zero we need to start from the base schema
-			// else we can continue modification last known updated schema by adding additional mutations
-			ReflectedReferenceSchema currentSchema = this.lastMutationReflectedInSchema == 0 ?
-				this.baseSchema : this.updatedSchema;
-
-			if (this.lastMutationReflectedInSchema < this.mutations.size()) {
-				// apply the mutations not reflected in the schema
-				for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
-					final LocalEntitySchemaMutation mutation = this.mutations.get(i);
-					currentSchema = (ReflectedReferenceSchema) ((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
-					if (currentSchema == null) {
-						throw new GenericEvitaInternalError("Reflected reference unexpectedly removed from inside!");
-					}
-				}
-			}
-			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
-			this.lastMutationReflectedInSchema = this.mutations.size();
-		}
-		return this.updatedSchema;
+		return toInstance();
 	}
 
 }

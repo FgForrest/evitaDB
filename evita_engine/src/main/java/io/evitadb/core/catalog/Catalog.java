@@ -65,6 +65,7 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -94,6 +95,8 @@ import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.expression.trigger.FacetExpressionTriggerFactory;
+import io.evitadb.core.expression.trigger.HistogramExpressionTriggerFactory;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -121,6 +124,7 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
@@ -239,6 +243,17 @@ public final class Catalog
 	 */
 	private final TransactionalReference<CatalogSchemaDecorator> schema;
 	/**
+	 * Catalog-level inverted index mapping mutated entity types to expression-based index triggers that depend
+	 * on their data. Rebuilt when entity schemas change. Consulted during post-processing of mutations to
+	 * discover which cross-entity triggers need to fire.
+	 *
+	 * Follows the same copy-on-write immutability principle as {@link #schema}: within a transaction,
+	 * `set()` writes to the transactional layer; outside, it writes directly to the `AtomicReference`.
+	 *
+	 * @see CatalogExpressionTriggerRegistry
+	 */
+	private final TransactionalReference<CatalogExpressionTriggerRegistry> expressionTriggerRegistry;
+	/**
 	 * Contains unique catalog id that doesn't change with catalog schema changes - such as renaming.
 	 * The id is assigned to the catalog when it is created and never changes.
 	 */
@@ -347,8 +362,7 @@ public final class Catalog
 	 * @param readOnly                  indicates whether the catalog shouldbe loaded in read-only mode
 	 * @param cacheSupervisor           the supervisor responsible for cache management within the catalog
 	 * @param evita                     reference to the main Evita instance
-	 * @param reflectionLookup          utility for reflection-based operations
-	 * @param exportService         service used for handling file export operations
+	 * @param exportService             service used for handling file export operations
 	 * @param newCatalogVersionConsumer consumer to handle actions when a new catalog version is created
 	 * @param onSuccess                 callback function to be invoked upon successful catalog load, receiving the catalog name and loaded catalog
 	 * @param onFailure                 callback function to be invoked upon failure, receiving the catalog name and the encountered exception
@@ -457,24 +471,34 @@ public final class Catalog
 									return entityHeader
 										.usedEntityIndexPrimaryKeys()
 										.stream()
-										.map(eid -> new ProgressingFuture<EntityIndex>(
-											0,
-											theFuture -> {
-												final EntityIndex loadedIndex = entityCollectionPersistenceService.readEntityIndex(
-													catalogVersion, eid, entityCollection.getInternalSchema()
-												);
-												if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL && !Objects.equals(globalIndexPk, eid)) {
-													initBulk.addGlobalIndex(entityCollection.getEntityType(), loadedIndex);
+										.map(
+											eid -> new ProgressingFuture<EntityIndex>(
+												0,
+												theFuture -> {
+													final EntityIndex loadedIndex = entityCollectionPersistenceService
+														.readEntityIndex(
+															catalogVersion, eid, entityCollection.getInternalSchema()
+														);
+													if (
+														loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL
+															&& !Objects.equals(globalIndexPk, eid)
+													) {
+														initBulk.addGlobalIndex(
+															entityCollection.getEntityType(), loadedIndex);
+													}
+													return loadedIndex;
 												}
-												return loadedIndex;
-											}
-										))
+											)
+										)
 										.toList();
 								},
 								(theFuture, entityCollection, loadedIndexes) -> {
 									// we need to add global indexes first, other indexes might look up in these indexes for data
 									// we pass them via init bulk to avoid duplicate collection iteration here (collection might be large)
-									for (EntityIndex entityIndex : initBulk.globalIndexes(entityCollection.getEntityType())) {
+									final List<EntityIndex> globalIndexes = initBulk.globalIndexes(
+										entityCollection.getEntityType()
+									);
+									for (EntityIndex entityIndex : globalIndexes) {
 										entityCollection.addIndex(entityIndex);
 									}
 									// then we add the rest of indexes
@@ -504,6 +528,8 @@ public final class Catalog
 				for (EntityCollection collection : initBulk.collections().values()) {
 					collection.initSchema();
 				}
+				// after all schemas are resolved, build the expression trigger registry
+				catalog.buildInitialExpressionTriggerRegistry();
 				onSuccess.accept(catalogName, catalog);
 				theFuture.updateProgress(1);
 				return catalog;
@@ -571,6 +597,7 @@ public final class Catalog
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
 			createHashMap(0), EntityCollection.class, Function.identity());
 		this.entitySchemaIndex = new TransactionalMap<>(createHashMap(0));
+		this.expressionTriggerRegistry = new TransactionalReference<>(CatalogExpressionTriggerRegistry.EMPTY);
 		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
@@ -705,8 +732,10 @@ public final class Catalog
 		);
 		this.entityCollections = new TransactionalMap<>(collections, EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
-			collectionByPk, EntityCollection.class, Function.identity());
+			collectionByPk, EntityCollection.class, Function.identity()
+		);
 		this.entitySchemaIndex = new TransactionalMap<>(entitySchemaIndex);
+		this.expressionTriggerRegistry = new TransactionalReference<>(CatalogExpressionTriggerRegistry.EMPTY);
 
 		this.automaticBackupTasks = initializeBackupTasks(
 			catalogName,
@@ -797,6 +826,9 @@ public final class Catalog
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
 			newEntityCollectionsIndex, EntityCollection.class, Function.identity());
 		this.entitySchemaIndex = new TransactionalMap<>(newEntitySchemaIndex);
+		this.expressionTriggerRegistry = new TransactionalReference<>(
+			previousCatalogVersion.getExpressionTriggerRegistry()
+		);
 		this.lastPersistedSchemaVersion = previousCatalogVersion.lastPersistedSchemaVersion;
 		// finally attach every collection to this instance of the catalog
 		for (EntityCollection entityCollection : entityCollections) {
@@ -811,7 +843,11 @@ public final class Catalog
 			// when the collection is attached to the catalog, we can access its schema and put it into the schema index
 			newEntitySchemaIndex.put(entityCollection.getEntityType(), entityCollection.getSchema());
 		}
-
+		if (initSchemas) {
+			// after all schemas are resolved (including reflected references), rebuild the expression
+			// trigger registry from the fully-resolved schema state
+			buildInitialExpressionTriggerRegistry();
+		}
 		this.automaticBackupTasks = previousCatalogVersion.automaticBackupTasks;
 	}
 
@@ -860,11 +896,12 @@ public final class Catalog
 						}
 						currentSchema = createEntitySchema(
 							new CreateEntitySchemaMutation(entityType), transaction, updatedSchema);
-						entityCollection = this.entityCollections.get(entityType);
+						entityCollection = Objects.requireNonNull(this.entityCollections.get(entityType));
 					}
 					updatedSchema = modifyEntitySchema(
 						sessionId,
-						modifyEntitySchemaMutation, updatedSchema, entityCollection
+						modifyEntitySchemaMutation, updatedSchema,
+						entityCollection
 					);
 				} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
 					updatedSchema = removeEntitySchema(removeEntitySchemaMutation, transaction, updatedSchema);
@@ -1228,7 +1265,9 @@ public final class Catalog
 
 	@Nonnull
 	@Override
-	public MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+	public MaterializedVersionBlock getFirstCatalogVersionAfter(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException {
 		return this.persistenceService.getFirstCatalogVersionAfter(moment);
 	}
 
@@ -1242,7 +1281,9 @@ public final class Catalog
 
 	@Nonnull
 	@Override
-	public PaginatedList<MaterializedVersionBlock> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+	public PaginatedList<MaterializedVersionBlock> getCatalogVersions(
+		@Nonnull TimeFlow timeFlow, int page, int pageSize
+	) {
 		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
 	}
 
@@ -1434,21 +1475,43 @@ public final class Catalog
 	}
 
 	/**
-	 * Updates schema in the map index on schema change.
+	 * Returns the catalog-level expression trigger registry. Used by `EntityIndexLocalMutationExecutor`
+	 * post-processing to discover which cross-entity triggers need to fire when a mutation occurs.
+	 *
+	 * @return the current expression trigger registry (never `null`)
+	 */
+	@Nonnull
+	public CatalogExpressionTriggerRegistry getExpressionTriggerRegistry() {
+		return Objects.requireNonNull(this.expressionTriggerRegistry.get());
+	}
+
+	/**
+	 * Updates schema in the map index on schema change, and rebuilds the expression trigger registry
+	 * for the changed entity type.
+	 *
+	 * The registry rebuild uses the fully-resolved schema (including reflected reference inheritance)
+	 * because this method is called after `refreshReflectedSchemas()` has resolved inheritance via
+	 * the call chain: `updateSchema()` -> `refreshReflectedSchemas()` -> `exchangeSchema()` ->
+	 * `entitySchemaUpdated()`. No additional cascade mechanism is needed for `ReflectedReferenceSchema`
+	 * because the existing `EntityCollection.notifyAboutExternalReferenceUpdate()` already cascades
+	 * schema changes to all collections with reflected references, each firing `entitySchemaUpdated()`.
 	 *
 	 * @param entitySchema updated entity schema
 	 */
 	public void entitySchemaUpdated(@Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchemaIndex.put(entitySchema.getName(), entitySchema);
+		rebuildExpressionTriggerRegistryForEntityType(entitySchema.getName());
 	}
 
 	/**
-	 * Removes the entity schema from the map index.
+	 * Removes the entity schema from the map index, and purges all triggers owned by the removed
+	 * entity type from the expression trigger registry.
 	 *
 	 * @param entityType the type of the entity schema to be removed
 	 */
 	public void entitySchemaRemoved(@Nonnull String entityType) {
 		this.entitySchemaIndex.remove(entityType);
+		rebuildExpressionTriggerRegistryForEntityType(entityType);
 	}
 
 	@Override
@@ -1471,6 +1534,7 @@ public final class Catalog
 		}
 		this.entityCollectionsByPrimaryKey.removeLayer(transactionalLayer);
 		this.entitySchemaIndex.removeLayer(transactionalLayer);
+		this.expressionTriggerRegistry.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
@@ -1547,6 +1611,7 @@ public final class Catalog
 				.orElse(null);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entitySchemaIndex);
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.expressionTriggerRegistry);
 
 		if (transactionalChanges != null) {
 			final StoragePartPersistenceService<?> storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(
@@ -1851,6 +1916,66 @@ public final class Catalog
 		return this.transactionManager.hasGranularConflictPolicy();
 	}
 
+	/**
+	 * Rebuilds the expression trigger registry for the specified entity type. If the entity type's schema exists
+	 * in the schema index, builds triggers from all its reference schemas. If the schema does not exist (entity
+	 * removed), passes an empty trigger list to purge stale triggers.
+	 *
+	 * @param entityType the owner entity type whose triggers should be rebuilt
+	 */
+	private void rebuildExpressionTriggerRegistryForEntityType(@Nonnull String entityType) {
+		final CatalogExpressionTriggerRegistry currentRegistry = Objects.requireNonNull(
+			this.expressionTriggerRegistry.get()
+		);
+		final EntitySchemaContract entitySchema = this.entitySchemaIndex.get(entityType);
+		final List<ExpressionIndexTrigger> newTriggers;
+		if (entitySchema == null) {
+			newTriggers = Collections.emptyList();
+		} else {
+			final List<ExpressionIndexTrigger> collected = new ArrayList<>(4);
+			for (final ReferenceSchemaContract refSchema : entitySchema.getReferences().values()) {
+				collected.addAll(
+					FacetExpressionTriggerFactory.buildTriggersForReference(entityType, refSchema)
+				);
+				collected.addAll(
+					HistogramExpressionTriggerFactory.buildTriggersForReference(
+						entityType, refSchema, this.entitySchemaIndex::get
+					)
+				);
+			}
+			newTriggers = collected;
+		}
+		this.expressionTriggerRegistry.set(
+			currentRegistry.rebuildForEntityType(entityType, newTriggers)
+		);
+	}
+
+	/**
+	 * Builds the initial expression trigger registry by scanning all entity schemas in the schema index.
+	 * Called after all `initSchema()` calls complete during catalog loading (cold start) or in the copy
+	 * constructor when schemas are re-initialized (e.g., during `goingLive()` transition).
+	 *
+	 * Must be called **before** WAL replay or client mutations begin — the registry must be fully populated
+	 * so that source-side detection in `ReferenceIndexMutator` can look up cross-entity triggers. At call time,
+	 * the `entitySchemaIndex` contains schemas with fully resolved reflected reference inheritance (i.e.,
+	 * `ReflectedReferenceSchema` instances have already inherited `facetedPartiallyInScopes` from their source
+	 * references via `initSchema()` -> `withReferencedSchema()`).
+	 */
+	private void buildInitialExpressionTriggerRegistry() {
+		final CatalogExpressionTriggerRegistry registry =
+			DefaultCatalogExpressionTriggerRegistry.buildFromSchemas(this.entitySchemaIndex);
+		this.expressionTriggerRegistry.set(registry);
+		if (registry instanceof DefaultCatalogExpressionTriggerRegistry impl) {
+			final int triggerCount = impl.getTriggerCount();
+			if (triggerCount > 0) {
+				log.debug(
+					"Expression trigger registry initialized with {} triggers for catalog '{}'.",
+					triggerCount, this.getName()
+				);
+			}
+		}
+	}
+
 	/*
 		PRIVATE METHODS
 	 */
@@ -2049,7 +2174,7 @@ public final class Catalog
 		@Nonnull CatalogSchemaContract catalogSchema
 	) {
 		final EntityCollection collectionToRemove = this.entityCollections.remove(removeEntitySchemaMutation.getName());
-		if (transaction == null) {
+		if (transaction == null && collectionToRemove != null) {
 			final long catalogVersion = getVersion();
 			this.persistenceService.deleteEntityCollection(
 				catalogVersion,
@@ -2326,7 +2451,7 @@ public final class Catalog
 		 * If no indexes are currently associated with the given entity type, a new list is created to store them.
 		 *
 		 * @param entityType the name of the entity type to which the global index should be added; must not be null
-		 * @param index the global index to be added; must not be null and must have a type of {@link EntityIndexType#GLOBAL}
+		 * @param index      the global index to be added; must not be null and must have a type of {@link EntityIndexType#GLOBAL}
 		 */
 		public void addGlobalIndex(@Nonnull String entityType, @Nonnull EntityIndex index) {
 			Assert.isPremiseValid(
@@ -2342,7 +2467,7 @@ public final class Catalog
 		 *
 		 * @param entityType the name of the entity type for which global indexes are requested; must not be null
 		 * @return a list of {@link EntityIndex} objects that represent the global indexes for the specified entity type;
-		 *         an empty list if no global indexes are found
+		 * an empty list if no global indexes are found
 		 */
 		@Nonnull
 		public List<EntityIndex> globalIndexes(@Nonnull String entityType) {
@@ -2368,6 +2493,18 @@ public final class Catalog
 		}
 
 		/**
+		 * Catalog indexes are not addressable by storage primary key — always returns null.
+		 */
+		@Nonnull
+		@Override
+		public CatalogIndex getOrCreateIndexByPrimaryKey(int indexPrimaryKey) {
+			return Catalog.this.dataStoreBuffer.getOrCreateIndexForModification(
+				indexPrimaryKey,
+				Catalog.this.catalogIndexMaintainer::getIndexByPrimaryKey
+			);
+		}
+
+		/**
 		 * Returns existing index for passed `catalogIndexKey` or returns null.
 		 */
 		@Nullable
@@ -2377,10 +2514,13 @@ public final class Catalog
 				Catalog.this.archiveCatalogIndex : Catalog.this.catalogIndex;
 		}
 
-		@Nonnull
+		/**
+		 * Catalog indexes are not addressable by storage primary key — always returns null.
+		 */
+		@Nullable
 		@Override
-		public CatalogIndex getIndexByPrimaryKey(int indexPrimaryKey) {
-			throw new UnsupportedOperationException("Catalog index doesn't support retrieval by primary key!");
+		public CatalogIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+			return null;
 		}
 
 		/**

@@ -257,6 +257,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 					typeRefTo(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(RemoveReferenceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(SetReferenceSchemaBucketedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaFacetedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaIndexedMutationDescriptor.THIS.name()),
 
@@ -370,6 +371,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS_INPUT,
 			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS_INPUT,
 			RemoveReferenceSchemaMutationDescriptor.THIS_INPUT,
+			SetReferenceSchemaBucketedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT,
 
@@ -490,6 +492,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS,
 			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS,
 			RemoveReferenceSchemaMutationDescriptor.THIS,
+			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS
 		);

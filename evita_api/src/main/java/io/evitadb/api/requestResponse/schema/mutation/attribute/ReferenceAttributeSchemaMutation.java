@@ -173,7 +173,11 @@ public interface ReferenceAttributeSchemaMutation extends
 					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
 					referenceSchema.getReferenceIndexTypeInScopes(),
+					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getFacetedPartiallyInScopes(),
+					referenceSchema.getAllHistogramIndexDefinitions(),
+					referenceSchema.getBucketedPartiallyInScopes(),
 					Stream.concat(
 							referenceSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
 							Stream.of(updatedAttributeSchema)

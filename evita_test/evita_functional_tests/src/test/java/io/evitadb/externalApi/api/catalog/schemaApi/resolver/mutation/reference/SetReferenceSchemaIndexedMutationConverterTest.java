@@ -23,18 +23,23 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -50,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@DisplayName("SetReferenceSchemaIndexedMutation REST converter test")
 class SetReferenceSchemaIndexedMutationConverterTest {
 
 	private SetReferenceSchemaIndexedMutationConverter converter;
@@ -60,6 +66,7 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should resolve input to local mutation")
 	void shouldResolveInputToLocalMutation() {
 		final SetReferenceSchemaIndexedMutation expectedMutation = new SetReferenceSchemaIndexedMutation(
 			"tags",
@@ -73,7 +80,7 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 					SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
 					list().i(
 						map()
-							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
 					)
 				)
@@ -87,7 +94,7 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
 					list().i(
 						map()
-							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
 					)
 				)
@@ -97,6 +104,55 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should resolve input with indexed components to local mutation")
+	void shouldResolveInputWithIndexedComponentsToLocalMutation() {
+		final SetReferenceSchemaIndexedMutation expectedMutation = new SetReferenceSchemaIndexedMutation(
+			"tags",
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+			},
+			new ScopedReferenceIndexedComponents[]{
+				new ScopedReferenceIndexedComponents(
+					Scope.LIVE,
+					new ReferenceIndexedComponents[]{
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					}
+				)
+			}
+		);
+
+		final SetReferenceSchemaIndexedMutation convertedMutation = this.converter.convertFromInput(
+			map()
+				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+				.e(
+					SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING.name())
+					)
+				)
+				.e(
+					SetReferenceSchemaIndexedMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES.name(),
+					list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+								new ReferenceIndexedComponents[]{
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								}
+							)
+					)
+				)
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation);
+	}
+
+	@Test
+	@DisplayName("should not resolve input when missing required data")
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
@@ -111,6 +167,7 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should serialize local mutation to output")
 	void shouldSerializeLocalMutationToOutput() {
 		final SetReferenceSchemaIndexedMutation inputMutation = new SetReferenceSchemaIndexedMutation(
 			"tags",
@@ -123,13 +180,63 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(ReferenceSchemaMutationDescriptor.MUTATION_TYPE.name(), SetReferenceSchemaIndexedMutation.class.getSimpleName())
+					.e(MutationDescriptor.MUTATION_TYPE.name(), SetReferenceSchemaIndexedMutation.class.getSimpleName())
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
 					   list().i(
 						   map()
 							   .e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 							   .e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING.name())
+					   )
+					)
+					.build()
+			);
+	}
+
+	@Test
+	@DisplayName("should serialize local mutation with indexed components to output")
+	void shouldSerializeLocalMutationWithIndexedComponentsToOutput() {
+		final SetReferenceSchemaIndexedMutation inputMutation = new SetReferenceSchemaIndexedMutation(
+			"tags",
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+			},
+			new ScopedReferenceIndexedComponents[]{
+				new ScopedReferenceIndexedComponents(
+					Scope.LIVE,
+					new ReferenceIndexedComponents[]{
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					}
+				)
+			}
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), SetReferenceSchemaIndexedMutation.class.getSimpleName())
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					   list().i(
+						   map()
+							   .e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							   .e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING.name())
+					   )
+					)
+					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES.name(),
+					   list().i(
+						   map()
+							   .e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							   .e(ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+								  new String[]{
+									  ReferenceIndexedComponents.REFERENCED_ENTITY.name(),
+									  ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY.name()
+								  }
+							   )
 					   )
 					)
 					.build()

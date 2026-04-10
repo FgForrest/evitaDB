@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 Hierarchické filtrování lze použít pouze na entity [označené jako hierarchické](../../use/data-model.md#hierarchické-umístění)
 nebo na entity, které [odkazují](../../use/data-model.md#reference) na tyto hierarchické entity. Hierarchické filtrování

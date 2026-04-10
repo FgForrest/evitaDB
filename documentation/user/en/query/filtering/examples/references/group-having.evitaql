@@ -1,0 +1,25 @@
+query(
+    collection("Product"),
+    filterBy(
+        referenceHaving(
+            "brand",
+            groupHaving(
+                attributeEquals("code", "TODO JNO")
+            )
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent("code"),
+            referenceContent(
+                "brand",
+                entityFetch(
+                    attributeContent("code")
+                ),
+                entityGroupFetch(
+                    attributeContent("code")
+                )
+            )
+        )
+    )
+)

@@ -26,14 +26,23 @@ package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 import io.evitadb.index.EntityIndexKey;
 
 /**
- * Implementations of this interface provide access to the {@link EntityIndexKey}.
+ * Mixin interface implemented by storage parts that are logically associated with a specific
+ * {@link io.evitadb.index.EntityIndex}. It provides a uniform way for the persistence layer to obtain the
+ * {@link EntityIndexKey} from any index-related storage part without casting to a concrete type.
+ *
+ * This interface is implemented by storage parts such as
+ * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart},
+ * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart} and similar parts
+ * that belong to a particular entity index scope.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface EntityIndexKeyAccessor {
 
 	/**
-	 * Returns key that uniquely identifies {@link io.evitadb.index.EntityIndex}.
+	 * Returns the composite business key that uniquely identifies the owning {@link io.evitadb.index.EntityIndex}
+	 * within the entity collection. The key encodes the index type (global, reduced, referenced-type) and, when
+	 * applicable, the reference name and entity primary key the index belongs to.
 	 */
 	EntityIndexKey entityIndexKey();
 

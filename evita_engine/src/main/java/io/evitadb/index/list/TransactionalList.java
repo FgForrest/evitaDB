@@ -50,10 +50,10 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
 import static java.util.Optional.ofNullable;
 
 /**
- * This class envelopes simple list and makes it transactional. This means, that the list contents can be updated
- * by multiple writers and also multiple readers can read from it's original list without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * This class envelops a list and makes it transactional. This means, that the list contents can be updated
+ * by multiple writers and also multiple readers can read from its original list without spotting the changes made
+ * in transactional access. Each transaction is bound to the same thread and different threads don't see changes in
+ * other threads.
  *
  * If no transaction is opened, changes are applied directly to the delegate list. In such case the class is not thread
  * safe for multiple writers!
@@ -61,7 +61,13 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 @ThreadSafe
-public class TransactionalList<V> implements List<V>, Serializable, Cloneable, TransactionalLayerCreator<ListChanges<V>>, TransactionalLayerProducer<ListChanges<V>, List<V>> {
+public class TransactionalList<V> implements
+	List<V>,
+	Serializable,
+	Cloneable,
+	TransactionalLayerCreator<ListChanges<V>>,
+	TransactionalLayerProducer<ListChanges<V>, List<V>>
+{
 	@Serial private static final long serialVersionUID = 7969800648176780425L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -82,7 +88,12 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		return (Class<TransactionalList<V>>) (Class<?>) TransactionalList.class;
 	}
 
-	public TransactionalList(List<V> listDelegate) {
+	/**
+	 * Creates a new transactional wrapper around the given list delegate.
+	 *
+	 * @param listDelegate the underlying list to wrap; changes recorded in transactional memory are applied on top of it
+	 */
+	public TransactionalList(@Nonnull List<V> listDelegate) {
 		this.listDelegate = listDelegate;
 	}
 
@@ -90,29 +101,43 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		TransactionalLayerCreator IMPLEMENTATION
 	 */
 
+	/**
+	 * Creates a new transactional diff layer capturing changes made within a single transaction.
+	 */
+	@Nonnull
 	@Override
 	public ListChanges<V> createLayer() {
 		return new ListChanges<>(this.listDelegate);
 	}
 
+	/**
+	 * Produces an immutable copy of this list with all transactional changes from `layer` merged in.
+	 *
+	 * @param layer              the diff layer to merge; may be `null` if no changes were recorded
+	 * @param transactionalLayer the maintainer used to recursively commit nested transactional objects
+	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override
-	public List<V> createCopyWithMergedTransactionalMemory(@Nullable ListChanges<V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public List<V> createCopyWithMergedTransactionalMemory(
+		@Nullable ListChanges<V> layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		return createCopyWithMergedTransactionalMemory(
 			layer,
-			value -> (V) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer) value)
+			value -> (V) transactionalLayer.getStateCopyWithCommittedChanges(
+				(TransactionalLayerProducer) value
+			)
 		);
 	}
 
+	/**
+	 * Discards the transactional diff layer for this object, releasing all recorded changes.
+	 */
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 	}
-
-	/*
-		LIST CONTRACT IMPLEMENTATION
-	 */
 
 	@Override
 	public int size() {
@@ -167,16 +192,17 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	public <T> T[] toArray(@Nonnull T[] array) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
+			//noinspection SuspiciousArrayCast
 			return (T[]) this.listDelegate.toArray();
 		} else {
 			// create copy of the list with all changes applied and convert it to the array
-			return createCopyWithMergedTransactionalMemory(layer, value -> (V) value).toArray(array);
+			return createCopyWithMergedTransactionalMemory(layer, value -> (V) value)
+				.toArray(array);
 		}
 	}
 
 	@Override
 	public boolean add(V v) {
-		// add the element at the end
 		this.add(size(), v);
 		return true;
 	}
@@ -192,7 +218,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	}
 
 	@Override
-	public boolean containsAll(Collection<?> c) {
+	public boolean containsAll(@Nonnull Collection<?> c) {
 		for (Object e : c) {
 			if (!contains(e)) {
 				return false;
@@ -202,7 +228,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	}
 
 	@Override
-	public boolean addAll(Collection<? extends V> c) {
+	public boolean addAll(@Nonnull Collection<? extends V> c) {
 		boolean modified = false;
 		for (V e : c) {
 			add(e);
@@ -212,7 +238,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	}
 
 	@Override
-	public boolean addAll(int index, Collection<? extends V> c) {
+	public boolean addAll(int index, @Nonnull Collection<? extends V> c) {
 		boolean modified = false;
 		for (V e : c) {
 			add(index++, e);
@@ -260,6 +286,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nullable
 	@Override
 	public V get(int index) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
@@ -293,6 +320,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nullable
 	@Override
 	public V remove(int index) {
 		final ListChanges<V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
@@ -305,7 +333,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public int indexOf(Object o) {
-		// use simple iterator - this won't be much fast
+		// use simple iterator - this won't be very fast
 		final ListIterator<V> it = listIterator();
 		if (o == null) {
 			while (it.hasNext())
@@ -321,7 +349,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public int lastIndexOf(Object o) {
-		// use simple iterator - this won't be much fast
+		// use simple iterator - this won't be very fast
 		final ListIterator<V> it = listIterator(size());
 		if (o == null) {
 			while (it.hasPrevious())
@@ -364,20 +392,26 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		if (layer == null) {
 			return this.listDelegate.subList(fromIndex, toIndex);
 		} else {
-			final List<V> sublist = new ArrayList<>(toIndex - fromIndex);
+			final List<V> subList = new ArrayList<>(toIndex - fromIndex);
 			// create copy of new list with all changes merged - not entirely fast, but safe
 			final Iterator<V> it = iterator();
-			int counter = -1;
+			int counter = 0;
 			while (it.hasNext()) {
-				counter++;
+				final V element = it.next();
 				if (counter >= fromIndex && counter < toIndex) {
-					sublist.add(it.next());
+					subList.add(element);
+				}
+				counter++;
+				// stop early once all requested elements are collected
+				if (counter >= toIndex) {
+					break;
 				}
 			}
-			return sublist;
+			return subList;
 		}
 	}
 
+	@Override
 	public int hashCode() {
 		int hashCode = 1;
 		for (V e : this)
@@ -385,7 +419,8 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		return hashCode;
 	}
 
-	public boolean equals(Object o) {
+	@Override
+	public boolean equals(@Nullable Object o) {
 		if (o == this)
 			return true;
 		if (!(o instanceof List))
@@ -396,12 +431,13 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		while (e1.hasNext() && e2.hasNext()) {
 			V o1 = e1.next();
 			Object o2 = e2.next();
-			if (!(o1 == null ? o2 == null : o1.equals(o2)))
+			if (!(Objects.equals(o1, o2)))
 				return false;
 		}
 		return !(e1.hasNext() || e2.hasNext());
 	}
 
+	@Nonnull
 	@Override
 	public Object clone() throws CloneNotSupportedException {
 		// clone transactional list contents with all recorded changes and create separate transactional memory piece for it
@@ -417,12 +453,14 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		return clone;
 	}
 
+	@Nonnull
+	@Override
 	public String toString() {
 		final Iterator<V> it = iterator();
 		if (!it.hasNext())
 			return "[]";
 
-		StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder(64);
 		sb.append('[');
 		for (; ; ) {
 			V e = it.next();
@@ -438,7 +476,10 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	 */
 	@Nonnull
 	@SuppressWarnings({"rawtypes"})
-	private List<V> createCopyWithMergedTransactionalMemory(@Nullable ListChanges<V> layer, Function<TransactionalLayerProducer<?, ?>, V> transactionLayerExtractor) {
+	private List<V> createCopyWithMergedTransactionalMemory(
+		@Nullable ListChanges<V> layer,
+		@Nonnull Function<TransactionalLayerProducer<?, ?>, V> transactionLayerExtractor
+	) {
 		// create new array list of requested size
 		final ArrayList<V> copy = new ArrayList<>(size());
 		// iterate original list and copy all values from it
@@ -471,13 +512,22 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	}
 
 	/**
-	 * List iterator implementation that supports modifications on the original list.
+	 * `ListIterator` implementation backed by a transactional diff layer that supports in-place modifications.
+	 * Reads are served from the diff layer's merged view; writes (add, set, remove) are forwarded to the layer.
+	 *
+	 * @param <V> the element type of the list
 	 */
 	private static class TransactionalMemoryEntryAbstractIterator<V> implements ListIterator<V> {
 		private final ListChanges<V> layer;
 		private int currentPosition;
 		private int previousPosition = -1;
 
+		/**
+		 * Creates a new iterator starting at the given index within the transactional diff layer.
+		 *
+		 * @param layer        the diff layer providing the merged list view
+		 * @param initialIndex the index at which iteration begins
+		 */
 		TransactionalMemoryEntryAbstractIterator(@Nonnull ListChanges<V> layer, int initialIndex) {
 			this.currentPosition = initialIndex;
 			this.layer = layer;
@@ -508,8 +558,10 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 			if (this.currentPosition <= 0) {
 				throw new NoSuchElementException();
 			}
+			// decrement first, then record the position of the element being returned
+			--this.currentPosition;
 			this.previousPosition = this.currentPosition;
-			return this.layer.get(--this.currentPosition);
+			return this.layer.get(this.currentPosition);
 		}
 
 		@Override
@@ -527,6 +579,8 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 			if (this.previousPosition > -1) {
 				this.currentPosition = this.previousPosition;
 				this.layer.remove(this.previousPosition);
+				// reset to -1 to prevent a second consecutive remove() call (per ListIterator contract)
+				this.previousPosition = -1;
 			} else {
 				throw new GenericEvitaInternalError("Previous position unexpectedly: " + this.previousPosition);
 			}
@@ -537,10 +591,10 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 			if (this.currentPosition > 0) {
 				final int index = this.currentPosition - 1;
 				// remove element and add on the same index new value
-				final V result = this.layer.remove(index);
+				this.layer.remove(index);
 				this.layer.add(index, v);
 			} else {
-				throw new GenericEvitaInternalError("Current position unexpectedly: " + this.previousPosition);
+				throw new GenericEvitaInternalError("Current position unexpectedly: " + this.currentPosition);
 			}
 		}
 

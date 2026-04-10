@@ -1438,6 +1438,23 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
+    void shouldParseGroupHavingConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("groupHaving(attributeEquals('a',1))");
+        assertEquals(groupHaving(attributeEquals("a", 1L)), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("groupHaving ( attributeEquals('a',1)  )");
+        assertEquals(groupHaving(attributeEquals("a", 1L)), constraint2);
+    }
+
+    @Test
+    void shouldNotParseGroupHavingConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving(attributeEquals('a',1),attributeEquals('b','c'))"));
+    }
+
+    @Test
     void shouldParseScopeConstraint() {
         final FilterConstraint constraint1 = parseFilterConstraintUnsafe("scope(LIVE)");
         assertEquals(scope(Scope.LIVE), constraint1);
@@ -1505,7 +1522,10 @@ class EvitaQLFilterConstraintVisitorTest {
      * @param positionalArguments positional arguments to substitute
      * @return parsed constraint
      */
-    private FilterConstraint parseFilterConstraint(@Nonnull String string, @Nonnull Object... positionalArguments) {
+    @Nonnull
+    private static FilterConstraint parseFilterConstraint(
+        @Nonnull String string, @Nonnull Object... positionalArguments
+    ) {
         return ParserExecutor.execute(
             new ParseContext(positionalArguments),
             () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
@@ -1519,7 +1539,10 @@ class EvitaQLFilterConstraintVisitorTest {
      * @param namedArguments named arguments to substitute
      * @return parsed constraint
      */
-    private FilterConstraint parseFilterConstraint(@Nonnull String string, @Nonnull Map<String, Object> namedArguments) {
+    @Nonnull
+    private static FilterConstraint parseFilterConstraint(
+        @Nonnull String string, @Nonnull Map<String, Object> namedArguments
+    ) {
         return ParserExecutor.execute(
             new ParseContext(namedArguments),
             () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
@@ -1534,7 +1557,10 @@ class EvitaQLFilterConstraintVisitorTest {
      * @param positionalArguments positional arguments to substitute
      * @return parsed constraint
      */
-    private FilterConstraint parseFilterConstraint(@Nonnull String string, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments) {
+    @Nonnull
+    private static FilterConstraint parseFilterConstraint(
+        @Nonnull String string, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments
+    ) {
         return ParserExecutor.execute(
             new ParseContext(namedArguments, positionalArguments),
             () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
@@ -1547,7 +1573,8 @@ class EvitaQLFilterConstraintVisitorTest {
      * @param string string to parse
      * @return parsed constraint
      */
-    private FilterConstraint parseFilterConstraintUnsafe(@Nonnull String string) {
+    @Nonnull
+    private static FilterConstraint parseFilterConstraintUnsafe(@Nonnull String string) {
         final ParseContext context = new ParseContext();
         context.setMode(ParseMode.UNSAFE);
         return ParserExecutor.execute(

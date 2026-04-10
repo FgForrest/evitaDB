@@ -23,50 +23,163 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.FilterConstraint;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEndsWith;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link AttributeEndsWith} query.
+ * Tests for {@link AttributeEndsWith} verifying construction, applicability, property accessors,
+ * cloning, visitor support, string representation, and equality contract.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("AttributeEndsWith constraint")
 class AttributeEndsWithTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final AttributeEndsWith attributeEndsWith = attributeEndsWith("abc", "def");
-		assertEquals("abc", attributeEndsWith.getAttributeName());
-		assertEquals("def", attributeEndsWith.getTextToSearch());
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should create via factory method with correct properties")
+		void shouldCreateViaFactoryClassWorkAsExpected() {
+			final AttributeEndsWith constraint = attributeEndsWith("abc", "def");
+
+			assertEquals("abc", constraint.getAttributeName());
+			assertEquals("def", constraint.getTextToSearch());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertFalse(new AttributeEndsWith("abc", null).isApplicable());
-		assertFalse(new AttributeEndsWith(null, "abc").isApplicable());
-		assertFalse(new AttributeEndsWith(null, null).isApplicable());
-		assertTrue(attributeEndsWith("abc", "def").isApplicable());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should recognize applicable and non-applicable instances")
+		void shouldRecognizeApplicability() {
+			assertFalse(new AttributeEndsWith("abc", null).isApplicable());
+			assertFalse(new AttributeEndsWith(null, "abc").isApplicable());
+			assertFalse(new AttributeEndsWith(null, null).isApplicable());
+			assertTrue(attributeEndsWith("abc", "def").isApplicable());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final AttributeEndsWith attributeEndsWith = attributeEndsWith("abc", "def");
-		assertEquals("attributeEndsWith('abc','def')", attributeEndsWith.toString());
+	@Nested
+	@DisplayName("Property accessors")
+	class PropertyAccessorsTest {
+
+		@Test
+		@DisplayName("should return attribute name")
+		void shouldReturnAttributeName() {
+			final AttributeEndsWith constraint = attributeEndsWith("myAttr", "search");
+
+			assertEquals("myAttr", constraint.getAttributeName());
+		}
+
+		@Test
+		@DisplayName("should return text to search")
+		void shouldReturnTextToSearch() {
+			final AttributeEndsWith constraint = attributeEndsWith("abc", "searchText");
+
+			assertEquals("searchText", constraint.getTextToSearch());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "def"));
-		assertEquals(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "def"));
-		assertNotEquals(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "defe"));
-		assertNotEquals(attributeEndsWith("abc", "def"), new AttributeEndsWith("abc", null));
-		assertNotEquals(attributeEndsWith("abc", "def"), new AttributeEndsWith(null, "abc"));
-		assertEquals(attributeEndsWith("abc", "def").hashCode(), attributeEndsWith("abc", "def").hashCode());
-		assertNotEquals(attributeEndsWith("abc", "def").hashCode(), attributeEndsWith("abc", "defe").hashCode());
-		assertNotEquals(attributeEndsWith("abc", "def").hashCode(), new AttributeEndsWith("abc", null).hashCode());
-		assertNotEquals(attributeEndsWith("abc", "def").hashCode(), new AttributeEndsWith(null, "abc").hashCode());
+	@Nested
+	@DisplayName("Cloning")
+	class CloningTest {
+
+		@Test
+		@DisplayName("should produce equal but not same instance via cloneWithArguments")
+		void shouldCloneWithArguments() {
+			final AttributeEndsWith original = attributeEndsWith("abc", "def");
+			final FilterConstraint clone = original.cloneWithArguments(new Serializable[]{"abc", "def"});
+
+			assertEquals(original, clone);
+			assertNotSame(original, clone);
+			assertInstanceOf(AttributeEndsWith.class, clone);
+		}
 	}
 
+	@Nested
+	@DisplayName("Visitor support")
+	class VisitorSupportTest {
+
+		@Test
+		@DisplayName("should accept visitor and call visit method")
+		void shouldAcceptVisitor() {
+			final AttributeEndsWith constraint = attributeEndsWith("abc", "def");
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			constraint.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> c) {
+					visited.set(c);
+				}
+			});
+
+			assertSame(constraint, visited.get());
+		}
+
+		@Test
+		@DisplayName("should return FilterConstraint class as type")
+		void shouldReturnCorrectType() {
+			final AttributeEndsWith constraint = attributeEndsWith("abc", "def");
+
+			assertEquals(FilterConstraint.class, constraint.getType());
+		}
+	}
+
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce expected toString format")
+		void shouldToStringReturnExpectedFormat() {
+			final AttributeEndsWith constraint = attributeEndsWith("abc", "def");
+
+			assertEquals("attributeEndsWith('abc','def')", constraint.toString());
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "def"));
+			assertEquals(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "def"));
+			assertNotEquals(attributeEndsWith("abc", "def"), attributeEndsWith("abc", "defe"));
+			assertNotEquals(attributeEndsWith("abc", "def"), new AttributeEndsWith("abc", null));
+			assertNotEquals(attributeEndsWith("abc", "def"), new AttributeEndsWith(null, "abc"));
+			assertEquals(
+				attributeEndsWith("abc", "def").hashCode(),
+				attributeEndsWith("abc", "def").hashCode()
+			);
+			assertNotEquals(
+				attributeEndsWith("abc", "def").hashCode(),
+				attributeEndsWith("abc", "defe").hashCode()
+			);
+			assertNotEquals(
+				attributeEndsWith("abc", "def").hashCode(),
+				new AttributeEndsWith("abc", null).hashCode()
+			);
+			assertNotEquals(
+				attributeEndsWith("abc", "def").hashCode(),
+				new AttributeEndsWith(null, "abc").hashCode()
+			);
+		}
+	}
 }

@@ -4,6 +4,7 @@ perex: Zjistěte, jak zálohovat a obnovovat svá data v evitaDB pomocí různý
 date: '24.8.2025'
 author: Ing. Jan Novotný
 commit: c8045726a3eae7ec97b8d37ae53989afd9d1fbe9
+translated: true
 ---
 evitaDB nabízí několik způsobů, jak zálohovat vaše data. Nakonec budou všechny tyto administrativní operace dostupné prostřednictvím všech klientských API, ale v současnosti je podporuje pouze gRPC/Java API (viz [issue #627](https://github.com/FgForrest/evitaDB/issues/627)). Existují tři hlavní způsoby zálohování dat – PIT (point-in-time) záloha je dostupná pouze tehdy, když je v [konfiguraci](configure.md#konfigurace-úložiště) povolena možnost *time-travel*:
 

@@ -41,8 +41,18 @@ import javax.annotation.Nullable;
 public interface AttributeIndexStoragePart extends StoragePart {
 
 	/**
-	 * Method computes unique part id as long, that composes of integer primary key of the {@link io.evitadb.index.EntityIndex}
-	 * attributes belong to and compressed attribute key integer that is assigned as soon as attribute is first stored.
+	 * Computes the unique storage part primary key for an attribute index by bit-joining the entity index primary key
+	 * (high 32 bits) with the compressed integer id for the `(attributeKey, indexType)` pair (low 32 bits). The
+	 * compressed id is obtained from `keyCompressor`, which may register a new mapping if the combination has not
+	 * been seen before.
+	 *
+	 * @param entityIndexPrimaryKey integer primary key of the owning {@link io.evitadb.index.EntityIndex}
+	 * @param indexType             the kind of attribute index (filter, sort, unique, …) — needed because the same
+	 *                              attribute may have several independent index structures
+	 * @param attributeKey          the attribute key identifying the attribute and its locale (if localized)
+	 * @param keyCompressor         the key compressor used to translate the compound key into a compact integer id
+	 * @return a 64-bit storage part primary key that is unique among all {@link AttributeIndexStoragePart} instances
+	 *         within the same entity collection
 	 */
 	static long computeUniquePartId(
 		@Nonnull Integer entityIndexPrimaryKey,
@@ -55,7 +65,9 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	}
 
 	/**
-	 * Returns {@link EntityIndex#getPrimaryKey()}
+	 * Returns the integer primary key of the {@link io.evitadb.index.EntityIndex} that owns this attribute index
+	 * storage part. Together with the {@link AttributeIndexType} and the attribute key, this value forms the compound
+	 * logical key used to locate the part in the persistent storage.
 	 */
 	@Nonnull
 	Integer getEntityIndexPrimaryKey();
@@ -95,11 +107,26 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	}
 
 	/**
-	 * This enum distinguishes different types of {@link AttributeIndexStoragePart}.
+	 * Discriminator for the concrete kind of attribute index stored in an {@link AttributeIndexStoragePart}. Because
+	 * a single attribute may have multiple index structures (e.g. both a filter bitmap index and a sort index), the
+	 * type is embedded in the storage part key so each structure is persisted and loaded independently.
 	 */
 	enum AttributeIndexType {
 
-		UNIQUE, FILTER, SORT, CHAIN, CARDINALITY
+		/** Index that enforces uniqueness of attribute values across all entities; supports exact-match lookups. */
+		UNIQUE,
+
+		/** Inverted bitmap index over discrete attribute values; supports equality and range filter queries. */
+		FILTER,
+
+		/** Sorted order index over attribute values; supports ordering results and range scans in sorted order. */
+		SORT,
+
+		/** Chain / predecessor index that tracks linked-list ordering of entities by attribute value. */
+		CHAIN,
+
+		/** Cardinality index that counts how many entities share each distinct attribute value; used for facets. */
+		CARDINALITY
 
 	}
 

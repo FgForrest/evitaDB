@@ -34,32 +34,45 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * The `accompanyingPrice` constraint defines the ordered price list names that should be used for calculation of
- * so-called accompanying price, which is a price not used for selling, but rather for displaying additional price
- * information (such as "previous price", "recommended price", etc.).
+ * The `defaultAccompanyingPriceLists` require constraint establishes the default ordered list of price-list names that
+ * should be used when calculating *accompanying prices* for entities returned by the query. An accompanying price is
+ * an informational price shown alongside the selling price — typical examples are "recommended retail price",
+ * "previous price", or "list price" — and it is never used for filtering or ordering.
  *
- * <pre>
- * defaultAccompanyingPriceLists(
- *     "reference",
- *     "basic"
- * )
- * </pre>
+ * **Relationship with `accompanyingPriceContent`**
  *
- * This constraint doesn't trigger the accompanying price calculation itself, but rather defines the default price lists
- * that should be used in place where {@link AccompanyingPriceContent} requirement is used.
+ * This constraint does **not** trigger accompanying price computation on its own. It acts as a query-level default that
+ * is referenced whenever an {@link AccompanyingPriceContent} requirement inside an `entityFetch` (or similar) is used
+ * in its parameterless form (`accompanyingPriceContent()`). In that case the engine substitutes the price lists
+ * declared here as if they had been passed directly to `accompanyingPriceContent`. This eliminates repetition when
+ * the same price list sequence is needed across multiple nested entity fetches in a single query.
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
+ * If an `accompanyingPriceContent` constraint is given its own price list arguments, those arguments take precedence
+ * and this default is ignored for that particular occurrence.
+ *
+ * **Argument**
+ *
+ * An ordered list of price-list names (strings). The order is significant: the engine selects the first price it finds
+ * when iterating through the list, matching the semantics of the standard price-for-sale calculation.
+ *
+ * **Example**
+ *
+ * ```evitaql
+ * defaultAccompanyingPriceLists("reference", "basic")
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/price#accompanying-price)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "defaultAccompanyingPriceLists",
-	shortDescription = "The requirement defines the ordered price list names that should be used for calculation of" +
-		" so-called accompanying price, which is a price not used for selling, but rather for displaying additional" +
-		" price information (such as \"previous price\", \"recommended price\", etc.)..",
+	shortDescription = "The constraint defines the default ordered price list names used to calculate accompanying prices" +
+		" — non-selling prices shown for comparison (e.g. 'previous price', 'recommended retail price').",
 	userDocsLink = "/documentation/query/requirements/price#accompanying-price"
 )
-public class DefaultAccompanyingPriceLists extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint> {
+public class DefaultAccompanyingPriceLists extends AbstractRequireConstraintLeaf
+	implements PriceConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -5786325458930138452L;
 
 	private DefaultAccompanyingPriceLists(@Nonnull Serializable... priceLists) {
@@ -72,7 +85,7 @@ public class DefaultAccompanyingPriceLists extends AbstractRequireConstraintLeaf
 	}
 
 	/**
-	 * Returns primary keys of all price lists that should be used for default accompanying price calculation.
+	 * Returns names of all price lists that should be used for default accompanying price calculation.
 	 */
 	@Nonnull
 	public String[] getPriceLists() {

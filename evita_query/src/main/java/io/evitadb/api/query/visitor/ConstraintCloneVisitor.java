@@ -32,6 +32,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.lang.reflect.Array;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -42,10 +43,19 @@ import java.util.function.BiFunction;
 import static java.util.Optional.ofNullable;
 
 /**
- * Returns this constraint or copy of this constraint applying the transformation logic.
+ * Creates a clone or a modified copy of the constraint tree, optionally applying transformation logic
+ * during the cloning process via a {@link BiFunction} translator.
+ *
+ * The visitor uses reference identity (==) to detect whether any child changed during traversal.
+ * If no children were modified, the original container instance is reused without creating a copy.
+ *
+ * This class is not thread-safe. Each visitor instance maintains mutable state during traversal
+ * and must not be shared between threads. Use the static {@link #clone} method which creates
+ * a new visitor instance for each operation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@NotThreadSafe
 public class ConstraintCloneVisitor implements ConstraintVisitor {
 	/**
 	 * Stack of parent constraints.
@@ -104,16 +114,17 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Returns true only if array and list contents are same - i.e. have same quantity, and same instances (in terms of
-	 * reference identity).
+	 * Returns true only if array and list contents are same - i.e. have same quantity and same instances
+	 * in terms of reference identity (==), not value equality. This is intentional for performance:
+	 * if no child constraint object was replaced by a new instance, the original container can be reused.
 	 */
 	private static boolean isEqual(@Nonnull Constraint<?>[] constraints, @Nonnull List<Constraint<?>> comparedConstraints) {
 		if (constraints.length != comparedConstraints.size()) {
 			return false;
 		}
 		for (int i = 0; i < constraints.length; i++) {
-			Constraint<?> constraint = constraints[i];
-			Constraint<?> comparedConstraint = comparedConstraints.get(i);
+			final Constraint<?> constraint = constraints[i];
+			final Constraint<?> comparedConstraint = comparedConstraints.get(i);
 			if (constraint != comparedConstraint) {
 				return false;
 			}
@@ -166,8 +177,16 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Method traverses the passed container applying cloning logic of this visitor. The method is expected to be called
-	 * from within the {@link #constraintTranslator} lambda.
+	 * Traverses the children of the passed container applying the cloning logic of this visitor and returns
+	 * the resulting list of (potentially transformed) children.
+	 *
+	 * This method is designed to be called from within the {@link #constraintTranslator} lambda
+	 * when the translator needs to inspect or transform children before deciding how to handle
+	 * a container constraint. It pushes a new level onto the internal stack, visits each child,
+	 * and pops the collected results.
+	 *
+	 * @param constraint the container whose children should be analyzed
+	 * @return list of cloned/transformed children
 	 */
 	@Nonnull
 	public List<Constraint<?>> analyseChildren(@Nonnull ConstraintContainer<?> constraint) {

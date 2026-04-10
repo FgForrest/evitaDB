@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -57,5 +57,23 @@ public @interface ScopeReferenceSettings {
 	 * Propagates to {@link ReferenceSchemaContract#isFacetedInScope(Scope)}.
 	 */
 	boolean faceted() default false;
+
+	/**
+	 * Defines a condition to further narrow down the facet scope.
+	 * This is only evaluated if {@link #faceted()} is set to true.
+	 */
+	Expression facetedPartially() default @Expression;
+
+	/**
+	 * Enables histogram (bucketed) computation for reference of this name
+	 * in this scope.
+	 */
+	Histogram bucketed() default @Histogram;
+
+	/**
+	 * Defines a condition to further narrow down the histogram scope.
+	 * This is only evaluated if {@link #bucketed()} is set up.
+	 */
+	Expression bucketedPartially() default @Expression;
 
 }

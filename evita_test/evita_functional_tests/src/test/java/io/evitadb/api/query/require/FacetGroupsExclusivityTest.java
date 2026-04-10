@@ -23,69 +23,199 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.RequireConstraint;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.facetGroupsExclusivity;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link FacetGroupsExclusivity} query.
+ * Tests for {@link FacetGroupsExclusivity} verifying construction, applicability, getters,
+ * copy/clone operations, visitor acceptance, and equality contract.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@DisplayName("FacetGroupsExclusivity constraint")
 class FacetGroupsExclusivityTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final FacetGroupsExclusivity facetGroupsExclusivity1 = facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
-		assertEquals("brand", facetGroupsExclusivity1.getReferenceName());
-		assertEquals(WITH_DIFFERENT_FACETS_IN_GROUP, facetGroupsExclusivity1.getFacetGroupRelationLevel());
-		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsExclusivity1.getFacetGroups().orElseThrow());
+	@Nested
+	@DisplayName("Construction and factory methods")
+	class ConstructionTest {
 
-		final FacetGroupsExclusivity facetGroupsExclusivity2 = facetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 7)));
-		assertEquals("brand", facetGroupsExclusivity2.getReferenceName());
-		assertEquals(WITH_DIFFERENT_GROUPS, facetGroupsExclusivity2.getFacetGroupRelationLevel());
-		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsExclusivity2.getFacetGroups().orElseThrow());
+		@Test
+		@DisplayName("should create with default relation level")
+		void shouldCreateWithDefaultRelationLevel() {
+			final FacetGroupsExclusivity constraint = facetGroupsExclusivity(
+				"brand", filterBy(entityPrimaryKeyInSet(1, 5, 7))
+			);
+
+			assertEquals("brand", constraint.getReferenceName());
+			assertEquals(WITH_DIFFERENT_FACETS_IN_GROUP, constraint.getFacetGroupRelationLevel());
+			assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), constraint.getFacetGroups().orElseThrow());
+		}
+
+		@Test
+		@DisplayName("should create with explicit relation level")
+		void shouldCreateWithExplicitRelationLevel() {
+			final FacetGroupsExclusivity constraint = facetGroupsExclusivity(
+				"brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 7))
+			);
+
+			assertEquals("brand", constraint.getReferenceName());
+			assertEquals(WITH_DIFFERENT_GROUPS, constraint.getFacetGroupRelationLevel());
+			assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), constraint.getFacetGroups().orElseThrow());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertFalse(new FacetGroupsExclusivity(null, null).isApplicable());
-		assertFalse(new FacetGroupsExclusivity(null, WITH_DIFFERENT_GROUPS, null).isApplicable());
-		assertTrue(new FacetGroupsExclusivity("brand", null).isApplicable());
-		assertTrue(new FacetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, null).isApplicable());
-		assertTrue(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
-		assertTrue(facetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1))).isApplicable());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should be applicable when reference name is non-null")
+		void shouldBeApplicableWithReferenceName() {
+			assertTrue(new FacetGroupsExclusivity("brand", null).isApplicable());
+			assertTrue(new FacetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, null).isApplicable());
+			assertTrue(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
+		}
+
+		@Test
+		@DisplayName("should not be applicable when reference name is null")
+		void shouldNotBeApplicableWithNullReferenceName() {
+			assertFalse(new FacetGroupsExclusivity(null, null).isApplicable());
+			assertFalse(new FacetGroupsExclusivity(null, WITH_DIFFERENT_GROUPS, null).isApplicable());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final FacetGroupsExclusivity facetGroupsExclusivity1 = facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
-		assertEquals("facetGroupsExclusivity('brand',filterBy(entityPrimaryKeyInSet(1,5,7)))", facetGroupsExclusivity1.toString());
+	@Nested
+	@DisplayName("Type and visitor")
+	class TypeAndVisitorTest {
 
-		final FacetGroupsExclusivity facetGroupsExclusivity2 = facetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 7)));
-		assertEquals("facetGroupsExclusivity('brand',WITH_DIFFERENT_GROUPS,filterBy(entityPrimaryKeyInSet(1,5,7)))", facetGroupsExclusivity2.toString());
+		@Test
+		@DisplayName("should return RequireConstraint class as type")
+		void shouldReturnRequireConstraintClassAsType() {
+			assertEquals(
+				RequireConstraint.class,
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1))).getType()
+			);
+		}
+
+		@Test
+		@DisplayName("should accept visitor")
+		void shouldAcceptVisitor() {
+			final FacetGroupsExclusivity constraint = facetGroupsExclusivity(
+				"brand", filterBy(entityPrimaryKeyInSet(1))
+			);
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			constraint.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> constraint) {
+					visited.set(constraint);
+				}
+			});
+
+			assertSame(constraint, visited.get());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))));
-		assertNotSame(facetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 1, 5))));
-		assertEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))));
-		assertEquals(facetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 1, 5))));
-		assertNotEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 6))));
-		assertNotEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 1, 6))));
-		assertNotEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1))));
-		assertNotEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(2, 1, 5))));
-		assertNotEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("category", filterBy(entityPrimaryKeyInSet(1, 1, 6))));
-		assertNotEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1))));
-		assertEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode());
-		assertNotEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 6))).hashCode());
-		assertNotEquals(facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1))).hashCode());
+	@Nested
+	@DisplayName("Copy and clone operations")
+	class CopyAndCloneTest {
+
+		@Test
+		@DisplayName("should create copy with new additional children")
+		void shouldCreateCopyWithNewAdditionalChildren() {
+			final FacetGroupsExclusivity original = facetGroupsExclusivity(
+				"brand", filterBy(entityPrimaryKeyInSet(1))
+			);
+			final RequireConstraint copy = original.getCopyWithNewChildren(
+				new RequireConstraint[0],
+				new Constraint<?>[]{filterBy(entityPrimaryKeyInSet(2, 3))}
+			);
+
+			assertNotSame(original, copy);
+			assertInstanceOf(FacetGroupsExclusivity.class, copy);
+			assertEquals("brand", ((FacetGroupsExclusivity) copy).getReferenceName());
+		}
+
+		@Test
+		@DisplayName("should clone with new arguments preserving additional children")
+		void shouldCloneWithNewArguments() {
+			final FacetGroupsExclusivity original = facetGroupsExclusivity(
+				"brand", filterBy(entityPrimaryKeyInSet(1))
+			);
+			final RequireConstraint cloned = original.cloneWithArguments(
+				new Serializable[]{"category", WITH_DIFFERENT_GROUPS}
+			);
+
+			assertNotSame(original, cloned);
+			assertInstanceOf(FacetGroupsExclusivity.class, cloned);
+			assertEquals("category", ((FacetGroupsExclusivity) cloned).getReferenceName());
+		}
 	}
 
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce expected toString with default relation level")
+		void shouldProduceToStringWithDefaultLevel() {
+			assertEquals(
+				"facetGroupsExclusivity('brand',filterBy(entityPrimaryKeyInSet(1,5,7)))",
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7))).toString()
+			);
+		}
+
+		@Test
+		@DisplayName("should produce expected toString with non-default relation level")
+		void shouldProduceToStringWithNonDefaultLevel() {
+			assertEquals(
+				"facetGroupsExclusivity('brand',WITH_DIFFERENT_GROUPS,filterBy(entityPrimaryKeyInSet(1,5,7)))",
+				facetGroupsExclusivity(
+					"brand", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 7))
+				).toString()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))),
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5)))
+			);
+			assertEquals(
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))),
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5)))
+			);
+			assertNotEquals(
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))),
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 6)))
+			);
+			assertNotEquals(
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))),
+				facetGroupsExclusivity("category", filterBy(entityPrimaryKeyInSet(1, 1, 5)))
+			);
+			assertEquals(
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(),
+				facetGroupsExclusivity("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode()
+			);
+		}
+	}
 }

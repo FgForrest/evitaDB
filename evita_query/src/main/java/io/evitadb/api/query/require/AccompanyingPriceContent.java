@@ -39,40 +39,57 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * The `accompanyingPriceContent` constraint defines that entity should have another price calculated with a different
- * price list sequence than the price for sale (but this accompanying price cannot be calculated without also calculating
- * price for sale).
+ * The `accompanyingPriceContent` requirement instructs the engine to calculate and return an additional price
+ * alongside the regular selling price. This is called the *accompanying price* and is typically used to display
+ * comparison prices such as "original price", "recommended retail price", or "reference price" in the UI.
  *
- * <pre>
+ * An accompanying price is calculated using a different price-list sequence than the selling price but shares the
+ * same currency, validity date, and price-type rules. Because the accompanying price is derived from the same pricing
+ * engine pass, it **cannot be requested without also calculating the selling price** — a `priceContent` requirement
+ * (with a mode other than `NONE`) or an active price filter must be present.
+ *
+ * ## Arguments
+ *
+ * - **First argument** — the logical name used to label this accompanying price in the result. Multiple
+ *   `accompanyingPriceContent` constraints with distinct names can be specified inside the same `entityFetch`
+ *   to retrieve multiple accompanying prices simultaneously.
+ * - **Subsequent arguments** — an ordered list of price-list names that define the price-list lookup sequence
+ *   for this particular accompanying price calculation. The order matters: the engine selects the first matching
+ *   price found in the list.
+ *
+ * ## Default form
+ *
+ * When no arguments are provided (`accompanyingPriceContentDefault()`), the constraint uses the label
+ * `"default"` and delegates the price-list sequence to the {@link DefaultAccompanyingPriceLists} constraint
+ * in the same `require` clause. This allows defining the price-list sequence once and reusing it across
+ * multiple entity fetches.
+ *
+ * ## EvitaQL representations
+ *
+ * Named form with explicit price lists:
+ *
+ * ```
  * accompanyingPriceContent(
  *     "myCalculatedPrice",
  *     "reference",
  *     "basic"
  * )
- * </pre>
+ * ```
  *
- * First argument is the name of the accompanying price that should be used to label the price calculation. Second and
- * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
- * The order of price lists is important, because it defines the order in which the prices are used in calculation.
+ * Default form (requires {@link DefaultAccompanyingPriceLists} in the query):
  *
- * You can also use {@link DefaultAccompanyingPriceLists} constraint to define default rules for accompanying price
- * and then use only simple form of this constraint without arguments:
+ * ```
+ * accompanyingPriceContentDefault()
+ * ```
  *
- * <pre>
- *     accompanyingPriceContent()
- * </pre>
- *
- * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPriceLists` constraint.
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/price#accompanying-price)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "accompanyingPriceContent",
-	shortDescription = "The requirement defines the ordered price list names that should be used for calculation of" +
-		" so-called accompanying price, which is a price not used for selling, but rather for displaying additional" +
-		" price information (such as \"previous price\", \"recommended price\", etc.)..",
+	shortDescription = "The constraint defines ordered price list names used to calculate an accompanying price" +
+		" — a non-selling price shown for comparison (e.g. 'previous price', 'recommended retail price').",
 	userDocsLink = "/documentation/query/requirements/price#accompanying-price",
 	supportedIn = ConstraintDomain.ENTITY
 )
@@ -117,7 +134,7 @@ public class AccompanyingPriceContent
 	}
 
 	/**
-	 * Returns primary keys of all price lists that should be used for default accompanying price calculation.
+	 * Returns names of all price lists that should be used for default accompanying price calculation.
 	 */
 	@Nonnull
 	public String[] getPriceLists() {

@@ -26,8 +26,19 @@ package io.evitadb.api.query.require;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * This enum controls whether {@link FacetSummary} should contain only basic statistics about facets - e.g. count only,
- * or whether the selection impact should be computed as well.
+ * Controls the depth of statistics computed for each facet option in a {@link FacetSummary} extra result. The two
+ * values represent a cost/detail trade-off:
+ *
+ * - `COUNTS` (default) — only the number of entities that have the facet selected is computed. This is the cheaper
+ *   option because it only requires intersecting the base result set with each facet bitmap. The count is useful for
+ *   displaying how many results each facet option represents without any user selection applied.
+ * - `IMPACT` — in addition to counts, the engine also computes the *selection impact* for every facet option that
+ *   is not already selected. The impact is the predicted change in result count if the user were to add that facet
+ *   to the current selection. This allows UIs to show "adding this option would yield N results" next to each facet
+ *   checkbox. Impact computation is more expensive because it requires a separate result-set evaluation per facet.
+ *
+ * The `IMPACT` mode is only meaningful in combination with a `userFilter` that already contains some facet
+ * selections; with an empty user filter the impact equals the count.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

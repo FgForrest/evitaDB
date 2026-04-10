@@ -28,10 +28,13 @@ import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
@@ -69,9 +72,7 @@ import io.evitadb.externalApi.api.system.model.mutation.engine.ModifyCatalogSche
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.mutation.CatalogSchemaMutationUnionDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.ChangeCatalogSchemaCaptureUntypedBodyDataFetcher;
-import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 
@@ -87,12 +88,6 @@ import static graphql.schema.GraphQLTypeReference.typeRef;
  */
 public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<CatalogGraphQLSchemaBuildingContext> {
 
-	private static final NameVariantDataFetcher CAMEL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.CAMEL_CASE);
-	private static final NameVariantDataFetcher PASCAL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.PASCAL_CASE);
-	private static final NameVariantDataFetcher SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.SNAKE_CASE);
-	private static final NameVariantDataFetcher UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE);
-	private static final NameVariantDataFetcher KEBAB_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.KEBAB_CASE);
-
 	public CommonEvitaSchemaSchemaBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext catalogGraphQLSchemaBuildingContext) {
 		super(catalogGraphQLSchemaBuildingContext);
 	}
@@ -102,18 +97,48 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		this.buildingContext.registerType(scalarEnum);
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
-		this.buildingContext.registerType(buildNameVariantsObject());
+		this.buildingContext.registerType(buildNameVariantsObject(this.buildingContext, this.objectBuilderTransformer));
 		this.buildingContext.registerType(
 			ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
-			this.inputObjectBuilderTransformer).build());
+			this.inputObjectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(
-			this.objectBuilderTransformer).build());
+			this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
-			this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+			this.inputObjectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(
+			this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(
-			this.inputObjectBuilderTransformer).build());
+			this.inputObjectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedReferenceIndexedComponentsDescriptor.THIS.to(
+			this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedReferenceIndexedComponentsDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedFacetedPartiallyDescriptor.THIS.to(
+			this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedFacetedPartiallyDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedHistogramIndexDefinitionDescriptor.THIS.to(
+			this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedHistogramIndexDefinitionDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedBucketedPartiallyDescriptor.THIS.to(
+			this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(ScopedBucketedPartiallyDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.inputObjectBuilderTransformer).build());
 
@@ -123,39 +148,6 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		this.buildingContext.registerType(buildGenericChangeCatalogCaptureObject());
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildNameVariantsObject() {
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.CAMEL_CASE,
-			CAMEL_CASE_VARIANT_DATA_FETCHER
-		);
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.PASCAL_CASE,
-			PASCAL_CASE_VARIANT_DATA_FETCHER
-		);
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.SNAKE_CASE,
-			SNAKE_CASE_VARIANT_DATA_FETCHER
-		);
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.UPPER_SNAKE_CASE,
-			UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER
-		);
-		this.buildingContext.registerDataFetcher(
-			NameVariantsDescriptor.THIS,
-			NameVariantsDescriptor.KEBAB_CASE,
-			KEBAB_CASE_VARIANT_DATA_FETCHER
-		);
-
-		return NameVariantsDescriptor.THIS
-			.to(this.objectBuilderTransformer)
-			.build();
 	}
 
 	@Nonnull
@@ -248,6 +240,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS_INPUT,
 			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS_INPUT,
 			RemoveReferenceSchemaMutationDescriptor.THIS_INPUT,
+			SetReferenceSchemaBucketedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT,
 
@@ -345,6 +338,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS,
 			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS,
 			RemoveReferenceSchemaMutationDescriptor.THIS,
+			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS
 		);

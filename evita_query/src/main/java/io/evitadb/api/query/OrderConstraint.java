@@ -24,8 +24,64 @@
 package io.evitadb.api.query;
 
 /**
- * Marks query as ordering one. That means, that query will be for determining order of listing results.
+ * Marker interface for constraints that define the ordering of entities in an evitaDB query result set. Order
+ * constraints specify how entities should be sorted when returned from the database, analogous to the `ORDER BY`
+ * clause in SQL.
  *
+ * Unlike traditional SQL databases, evitaDB relies on pre-built sort indexes for efficient ordering. This design
+ * choice sacrifices ad-hoc sorting flexibility for predictable query performance. Queries can only sort by attributes
+ * and compounds that have been explicitly marked as sortable in the entity schema.
+ *
+ * **Design Context:**
+ *
+ * This interface extends {@link TypeDefiningConstraint} which provides type identity for the constraint system.
+ * Order constraints are one of the four primary constraint categories in evitaDB's query language (EvitaQL),
+ * alongside {@link HeadConstraint}, {@link FilterConstraint}, and {@link RequireConstraint}.
+ *
+ * Order constraints are used in the {@link io.evitadb.api.query.order.OrderBy} container which wraps all ordering
+ * specifications in a query. When multiple ordering constraints are specified, evitaDB applies them in a specific
+ * manner: entities are first sorted by the first attribute, then entities **missing** the first attribute are
+ * sorted by the second attribute, and so on. Entities with the same value for the primary sorting attribute are
+ * **not** further sorted by subsequent attributes — they are instead ordered by primary key in ascending order.
+ *
+ * For traditional multi-level sorting behavior (where secondary attributes sort entities with equal primary values),
+ * use sortable attribute compounds defined in the entity schema. These compounds pre-compute the multi-level sort
+ * order into a single virtual attribute.
+ *
+ * **Common Implementations:**
+ *
+ * - **Attribute ordering**: `ascending`, `descending`
+ * - **Price ordering**: `priceAscending`, `priceDescending`, `priceNatural`
+ * - **Natural language ordering**: `natural` (for locale-aware text sorting)
+ * - **Reference ordering**: `referenceProperty` (sort by attributes of referenced entities)
+ * - **Random ordering**: `random` (randomized entity order, optionally stable with a seed)
+ * - **Compound ordering**: `attributeSetExact`, `attributeSetInFilter` (for sorting by set membership)
+ *
+ * **Usage Example:**
+ *
+ * ```java
+ * // Using order constraints via QueryConstraints factory methods
+ * Query query = query(
+ *     collection("Product"),
+ *     filterBy(
+ *         equals("visible", true)
+ *     ),
+ *     orderBy(
+ *         descending("priority"),
+ *         priceDescending(),
+ *         ascending("name")
+ *     )
+ * );
+ * ```
+ *
+ * **Thread Safety:**
+ *
+ * All implementations of this interface must be immutable and therefore thread-safe. Order constraints are
+ * designed to be safely shared across multiple queries and threads without synchronization.
+ *
+ * @see io.evitadb.api.query.order.OrderBy
+ * @see io.evitadb.api.query.QueryConstraints
+ * @see TypeDefiningConstraint
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 public interface OrderConstraint extends TypeDefiningConstraint<OrderConstraint> {

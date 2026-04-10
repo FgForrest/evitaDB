@@ -36,24 +36,62 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `greaterThanEquals` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
- * Type of the attribute value and second argument must be convertible one to another otherwise `greaterThanEquals` function
- * returns false.
+ * Filters entities where a named attribute value meets or exceeds a specified threshold value, establishing an
+ * inclusive lower bound for range-based queries. This constraint differs from {@link AttributeGreaterThan} by
+ * including the boundary value itself in the match set, making it suitable for closed and half-closed intervals.
  *
- * Function returns true if value in a filterable attribute of such a name is greater than value in second argument or
- * equal.
+ * The constraint performs type-safe comparison via {@link io.evitadb.dataType.EvitaDataTypes} conversion. Both the
+ * attribute value and threshold must be convertible to a common comparable type, or the constraint evaluates to false.
+ * String comparisons follow alphabetical ordering (locale-specific collation for localized attributes). Range types
+ * compare left boundary first, then right boundary. Boolean values are treated as numeric (true=1, false=0).
  *
- * Function currently doesn't support attribute arrays and when attribute is of array type. Query returns error when this
- * query is used in combination with array type attribute. This may however change in the future.
+ * **EvitaQL syntax:**
  *
- * Example:
+ * ```
+ * attributeGreaterThanEquals(attributeName:string!, value:comparable!)
+ * ```
  *
- * <pre>
- * greaterThanEquals("age", 20)
- * </pre>
+ * **Constraint classification:**
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than-equals">Visit detailed user documentation</a></p>
+ * - Implements {@link FilterConstraint} - usable in filterBy clauses
+ * - Implements {@link io.evitadb.api.query.AttributeConstraint} - operates on named attributes
+ * - Supported in: {@link ConstraintDomain#ENTITY}, {@link ConstraintDomain#REFERENCE},
+ *   {@link ConstraintDomain#INLINE_REFERENCE}
+ *
+ * **Array attribute limitations:**
+ *
+ * When the attribute is array-typed, the constraint matches if **any** element in the array is greater than or equal to
+ * the threshold value.
+ *
+ * **Common use cases:**
+ *
+ * - Inclusive minimum thresholds: `attributeGreaterThanEquals("age", 18)` (includes 18-year-olds)
+ * - Budget range lower bounds: `attributeGreaterThanEquals("price", 50.00)` (includes exactly $50.00)
+ * - Date range inclusivity: `attributeGreaterThanEquals("startDate", "2024-01-01")`
+ * - Rating minimums: `attributeGreaterThanEquals("rating", 4.0)` (includes exactly 4-star ratings)
+ * - Quantity checks: `attributeGreaterThanEquals("stock", 1)` (includes items with exactly 1 in stock)
+ *
+ * **Difference from AttributeGreaterThan:**
+ *
+ * ```
+ * attributeGreaterThan("age", 18)         // Matches 19, 20, 21, ... (exclusive)
+ * attributeGreaterThanEquals("age", 18)   // Matches 18, 19, 20, ... (inclusive)
+ * ```
+ *
+ * **Combining with other constraints:**
+ *
+ * Commonly paired with upper-bound constraints for closed intervals:
+ *
+ * ```
+ * and(
+ *     attributeGreaterThanEquals("price", 50.00),
+ *     attributeLessThanEquals("price", 100.00)
+ * )
+ * ```
+ *
+ * For such closed intervals, {@link AttributeBetween} offers better readability and performance.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than-equals)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -67,7 +105,7 @@ import java.io.Serializable;
 public class AttributeGreaterThanEquals extends AbstractAttributeFilterComparisonConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -7346624370759447859L;
 
-	private AttributeGreaterThanEquals(Serializable... arguments) {
+	private AttributeGreaterThanEquals(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -78,7 +116,7 @@ public class AttributeGreaterThanEquals extends AbstractAttributeFilterCompariso
 	}
 
 	/**
-	 * Returns value that must be more than or equals attribute value.
+	 * Returns the threshold value that the attribute value must be greater than or equal to.
 	 */
 	@Nonnull
 	public <T extends Serializable> T getAttributeValue() {

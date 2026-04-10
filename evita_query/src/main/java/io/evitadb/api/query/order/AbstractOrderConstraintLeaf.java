@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,9 +32,35 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Represents base query leaf accepting only ordering constraints.
+ * Abstract base class for all leaf order constraints — terminal nodes in the order constraint tree that cannot
+ * contain child constraints. Leaf order constraints represent atomic ordering operations like sorting by attribute
+ * value, price, entity primary key, or random ordering.
+ *
+ * **Design Purpose**
+ *
+ * This class specializes {@link ConstraintLeaf} for the order constraint domain by restricting the constraint type
+ * to {@link OrderConstraint}. It serves as the foundation for all terminal ordering conditions in evitaDB queries,
+ * analogous to columns in SQL `ORDER BY` clauses.
+ *
+ * **Class Hierarchy**
+ *
+ * The order constraint leaf hierarchy is organized by property domains:
+ *
+ * - **Attribute ordering**: {@link AttributeNatural} — orders by attribute value in natural (ascending/descending)
+ *   order; {@link AttributeSetExact} — orders by explicit attribute value sequence;
+ *   {@link AttributeSetInFilter} — orders by attribute values matching the filter
+ * - **Price ordering**: {@link PriceNatural} — orders by selling price; {@link PriceDiscount} — orders by
+ *   the discount amount between accompanying and selling price
+ * - **Entity key ordering**: {@link EntityPrimaryKeyNatural} — orders by entity primary key;
+ *   {@link EntityPrimaryKeyExact} — orders by explicit primary key sequence;
+ *   {@link EntityPrimaryKeyInFilter} — orders by primary keys matching the filter
+ * - **Random ordering**: {@link Random} — randomizes the order of results
+ * - **Segment limit**: {@link SegmentLimit} — limits the number of entities in a segment
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
+ * @see AbstractOrderConstraintContainer
+ * @see OrderConstraint
+ * @see ConstraintLeaf
  */
 abstract class AbstractOrderConstraintLeaf extends ConstraintLeaf<OrderConstraint> implements OrderConstraint {
 	@Serial private static final long serialVersionUID = 3475944299512789481L;

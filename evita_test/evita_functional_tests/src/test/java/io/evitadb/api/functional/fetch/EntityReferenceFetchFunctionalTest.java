@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.core.query.response.ServerEntityDecorator;
@@ -47,14 +48,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -534,6 +539,451 @@ class EntityReferenceFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 					assertFalse(product.getReferences(Entities.STORE).isEmpty());
 					assertThrows(ContextMissingException.class, () -> product.getReferences(Entities.BRAND));
 					assertThrows(ContextMissingException.class, () -> product.getReferences(Entities.CATEGORY));
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Store references filtered by entityHaving should return only references to matching entities")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterStoreReferencesByEntityHavingAttributeEquals(
+		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores
+	) {
+		final SealedEntity firstStore = originalStores.get(0);
+		final String targetStoreCode = firstStore.getAttribute(ATTRIBUTE_CODE, String.class);
+		final int targetStorePk = firstStore.getPrimaryKey();
+
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE)
+				.stream()
+				.anyMatch(ref -> ref.getReferencedPrimaryKey() == targetStorePk)
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(entitiesMatchingTheRequirements)),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									filterBy(entityHaving(attributeEquals(ATTRIBUTE_CODE, targetStoreCode))),
+									entityFetch(attributeContent())
+								)
+							),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				);
+
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					final Collection<ReferenceContract> storeRefs = product.getReferences(Entities.STORE);
+					assertFalse(storeRefs.isEmpty());
+					for (ReferenceContract ref : storeRefs) {
+						assertEquals(targetStorePk, ref.getReferencedPrimaryKey());
+						final SealedEntity referencedStore = ref.getReferencedEntity().orElseThrow();
+						assertEquals(targetStoreCode, referencedStore.getAttribute(ATTRIBUTE_CODE, String.class));
+					}
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Category references filtered by entityPrimaryKeyInSet should return only references matching specified PKs")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterCategoryReferencesByEntityPrimaryKeyInSet(
+		Evita evita, List<SealedEntity> originalProducts, Map<Integer, SealedEntity> originalCategories
+	) {
+		final Integer[] targetCategoryPks = originalCategories.keySet()
+			.stream()
+			.sorted()
+			.limit(3)
+			.toArray(Integer[]::new);
+		final Set<Integer> targetCategorySet = Set.of(targetCategoryPks);
+
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.CATEGORY)
+				.stream()
+				.anyMatch(ref -> targetCategorySet.contains(ref.getReferencedPrimaryKey()))
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(entitiesMatchingTheRequirements)),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									filterBy(entityPrimaryKeyInSet(targetCategoryPks))
+								)
+							),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				);
+
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					final Collection<ReferenceContract> categoryRefs = product.getReferences(Entities.CATEGORY);
+					assertFalse(categoryRefs.isEmpty());
+					for (ReferenceContract ref : categoryRefs) {
+						assertTrue(
+							targetCategorySet.contains(ref.getReferencedPrimaryKey()),
+							"Reference to category " + ref.getReferencedPrimaryKey() +
+								" should not be present, expected only " + targetCategorySet
+						);
+					}
+
+					final SealedEntity originalProduct = originalProducts.stream()
+						.filter(p -> p.getPrimaryKey().equals(product.getPrimaryKey()))
+						.findFirst()
+						.orElseThrow();
+					final long expectedCount = originalProduct.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(ref -> targetCategorySet.contains(ref.getReferencedPrimaryKey()))
+						.count();
+					assertEquals(expectedCount, categoryRefs.size());
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Parameter references filtered by groupHaving should return only references from matching groups")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterParameterReferencesByGroupHaving(Evita evita, List<SealedEntity> originalProducts) {
+		final Set<Integer> allGroupPks = originalProducts.stream()
+			.flatMap(p -> p.getReferences(Entities.PARAMETER).stream())
+			.map(ref -> ref.getGroup().orElse(null))
+			.filter(Objects::nonNull)
+			.map(GroupEntityReference::getPrimaryKey)
+			.collect(Collectors.toSet());
+
+		assertFalse(allGroupPks.isEmpty(), "There should be at least one parameter group.");
+
+		final int targetGroupPk = allGroupPks.iterator().next();
+
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.PARAMETER)
+				.stream()
+				.anyMatch(
+					ref -> ref.getGroup()
+						.map(group -> group.getPrimaryKey() == targetGroupPk)
+						.orElse(false)
+				)
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(entitiesMatchingTheRequirements)),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									filterBy(groupHaving(entityPrimaryKeyInSet(targetGroupPk))),
+									entityFetch(attributeContent()),
+									entityGroupFetch(attributeContent())
+								)
+							),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				);
+
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					final Collection<ReferenceContract> paramRefs = product.getReferences(Entities.PARAMETER);
+					assertFalse(paramRefs.isEmpty());
+					for (ReferenceContract ref : paramRefs) {
+						final int groupPk = ref.getGroup().orElseThrow().getPrimaryKey();
+						assertEquals(
+							targetGroupPk, groupPk,
+							"Parameter reference group PK should be " + targetGroupPk + " but was " + groupPk
+						);
+						assertTrue(ref.getGroupEntity().isPresent());
+					}
+
+					final SealedEntity originalProduct = originalProducts.stream()
+						.filter(p -> p.getPrimaryKey().equals(product.getPrimaryKey()))
+						.findFirst()
+						.orElseThrow();
+					final long expectedCount = originalProduct.getReferences(Entities.PARAMETER)
+						.stream()
+						.filter(
+							ref -> ref.getGroup()
+								.map(group -> group.getPrimaryKey() == targetGroupPk)
+								.orElse(false)
+						)
+						.count();
+					assertEquals(expectedCount, paramRefs.size());
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Store references filtered by entityHaving combined with entityPrimaryKeyInSet should satisfy both")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterStoreReferencesByEntityHavingCombinedWithEntityPrimaryKeyInSet(
+		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores
+	) {
+		final Map<Integer, String> storeCodeByPk = originalStores.stream()
+			.collect(
+				Collectors.toMap(
+					SealedEntity::getPrimaryKey,
+					store -> store.getAttribute(ATTRIBUTE_CODE, String.class)
+				)
+			);
+
+		final Integer[] pkSubset = originalStores.stream()
+			.limit(6)
+			.map(SealedEntity::getPrimaryKey)
+			.toArray(Integer[]::new);
+		final Set<Integer> pkSubsetSet = Set.of(pkSubset);
+
+		final String[] codeSubset = originalStores.stream()
+			.limit(4)
+			.map(store -> store.getAttribute(ATTRIBUTE_CODE, String.class))
+			.toArray(String[]::new);
+		final Set<String> codeSubsetSet = Set.of(codeSubset);
+
+		final Set<Integer> expectedStorePks = storeCodeByPk.entrySet()
+			.stream()
+			.filter(e -> pkSubsetSet.contains(e.getKey()) && codeSubsetSet.contains(e.getValue()))
+			.map(Map.Entry::getKey)
+			.collect(Collectors.toSet());
+
+		assertFalse(expectedStorePks.isEmpty(), "There should be at least one store in the intersection.");
+
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.STORE)
+				.stream()
+				.anyMatch(ref -> expectedStorePks.contains(ref.getReferencedPrimaryKey()))
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(entitiesMatchingTheRequirements)),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									filterBy(
+										entityHaving(attributeInSet(ATTRIBUTE_CODE, codeSubset)),
+										entityPrimaryKeyInSet(pkSubset)
+									),
+									entityFetch(attributeContent())
+								)
+							),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				);
+
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					final Collection<ReferenceContract> storeRefs = product.getReferences(Entities.STORE);
+					assertFalse(storeRefs.isEmpty());
+					for (ReferenceContract ref : storeRefs) {
+						assertTrue(
+							expectedStorePks.contains(ref.getReferencedPrimaryKey()),
+							"Store reference PK " + ref.getReferencedPrimaryKey() +
+								" should be in expected set " + expectedStorePks
+						);
+					}
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Parameter references filtered by groupHaving and entityHaving should satisfy both constraints")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterParameterReferencesByGroupHavingCombinedWithEntityHaving(
+		Evita evita, List<SealedEntity> originalProducts
+	) {
+		final SealedEntity richProduct = originalProducts.stream()
+			.filter(p -> p.getReferences(Entities.PARAMETER).size() > 4)
+			.findFirst()
+			.orElseThrow();
+
+		final int targetGroupPk = richProduct.getReferences(Entities.PARAMETER)
+			.stream()
+			.map(ref -> ref.getGroup().orElse(null))
+			.filter(Objects::nonNull)
+			.map(GroupEntityReference::getPrimaryKey)
+			.findFirst()
+			.orElseThrow();
+
+		final Set<Integer> paramsInTargetGroup = richProduct.getReferences(Entities.PARAMETER)
+			.stream()
+			.filter(
+				ref -> ref.getGroup()
+					.map(group -> group.getPrimaryKey() == targetGroupPk)
+					.orElse(false)
+			)
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+
+		final Set<Integer> paramsNotInTargetGroup = richProduct.getReferences(Entities.PARAMETER)
+			.stream()
+			.filter(
+				ref -> ref.getGroup()
+					.map(group -> group.getPrimaryKey() != targetGroupPk)
+					.orElse(true)
+			)
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.limit(2)
+			.collect(Collectors.toSet());
+
+		final Set<Integer> targetParamPkSet = new HashSet<>(paramsInTargetGroup);
+		targetParamPkSet.addAll(paramsNotInTargetGroup);
+		final Integer[] targetParamPks = targetParamPkSet.toArray(Integer[]::new);
+
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.PARAMETER)
+				.stream()
+				.anyMatch(
+					ref -> paramsInTargetGroup.contains(ref.getReferencedPrimaryKey()) &&
+						ref.getGroup()
+							.map(group -> group.getPrimaryKey() == targetGroupPk)
+							.orElse(false)
+				)
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(entitiesMatchingTheRequirements)),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									filterBy(
+										groupHaving(entityPrimaryKeyInSet(targetGroupPk)),
+										entityHaving(entityPrimaryKeyInSet(targetParamPks))
+									),
+									entityFetch(attributeContent()),
+									entityGroupFetch(attributeContent())
+								)
+							),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				);
+
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					final Collection<ReferenceContract> paramRefs = product.getReferences(Entities.PARAMETER);
+					assertFalse(paramRefs.isEmpty());
+					for (ReferenceContract ref : paramRefs) {
+						assertTrue(
+							paramsInTargetGroup.contains(ref.getReferencedPrimaryKey()),
+							"Parameter PK " + ref.getReferencedPrimaryKey() +
+								" should be in expected set " + paramsInTargetGroup
+						);
+						assertEquals(
+							targetGroupPk,
+							ref.getGroup().orElseThrow().getPrimaryKey(),
+							"Parameter reference should belong to group " + targetGroupPk
+						);
+					}
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Category references filtered by shadow reference attribute should return only matching references")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterCategoryReferencesByShadowAttribute(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.CATEGORY)
+				.stream()
+				.anyMatch(ref -> Boolean.TRUE.equals(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)))
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(entitiesMatchingTheRequirements)),
+						require(
+							entityFetch(
+								referenceContentWithAttributes(
+									Entities.CATEGORY,
+									filterBy(attributeEquals(ATTRIBUTE_CATEGORY_SHADOW, true)),
+									attributeContentAll()
+								)
+							),
+							page(1, Integer.MAX_VALUE)
+						)
+					)
+				);
+
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					final Collection<ReferenceContract> categoryRefs = product.getReferences(Entities.CATEGORY);
+					assertFalse(categoryRefs.isEmpty());
+					for (ReferenceContract ref : categoryRefs) {
+						assertTrue(
+							ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class),
+							"Category reference should have shadow attribute set to true"
+						);
+					}
+
+					final SealedEntity originalProduct = originalProducts.stream()
+						.filter(p -> p.getPrimaryKey().equals(product.getPrimaryKey()))
+						.findFirst()
+						.orElseThrow();
+					final long expectedCount = originalProduct.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(
+							ref -> Boolean.TRUE.equals(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class))
+						)
+						.count();
+					assertEquals(expectedCount, categoryRefs.size());
 				}
 				return null;
 			}

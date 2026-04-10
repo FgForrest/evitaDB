@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.require;
 
-
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
@@ -38,40 +37,80 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * This `facetCalculationRules` require constraint allows specifying default facet relation for each recognized level.
- * If this constraint is not present, the default behavior is to use the disjunction relation (logical OR) for facets
- * within the same group and conjunction relation (logical AND) for facets among different groups or relations.
+ * The `facetCalculationRules` requirement sets **query-wide default relation types** for the two independent levels
+ * at which evitaDB combines selected facets. It is the global counterpart to the per-reference, per-group constraints
+ * ({@link FacetGroupsConjunction}, {@link FacetGroupsDisjunction}, {@link FacetGroupsNegation},
+ * {@link FacetGroupsExclusivity}): it affects all faceted references and groups in the query, while the per-group
+ * constraints take precedence for the specific groups they target.
  *
- * By using this constraint, you can change the default behavior of the facet calculation rules. The constraint accepts
- * two arguments:
+ * Without this constraint the built-in defaults are:
  *
- * - `facetsWithSameGroup`: type of relation that should be applied on facets within the same group by default.
- * - `facetsWithDifferentGroups`: type of relation that should be applied on facets among different groups or relations by default.
+ * - facets **within the same group** → `DISJUNCTION` (logical OR)
+ * - facets **across different groups or references** → `CONJUNCTION` (logical AND)
  *
- * Example:
+ * ## Arguments
  *
- * <pre>
+ * Both arguments are mandatory and must be values of {@link FacetRelationType}:
+ *
+ * - **facetsWithSameGroup** — the default relation applied to facets **within** the same group; null defaults to
+ *   `DISJUNCTION`
+ * - **facetsWithDifferentGroups** — the default relation applied to facets **across** different groups or references;
+ *   null defaults to `CONJUNCTION`
+ *
+ * Available relation types:
+ *
+ * - `DISJUNCTION` — logical OR; any selected option is sufficient (more results)
+ * - `CONJUNCTION` — logical AND; all selected options must be present (fewer results)
+ * - `NEGATION` — logical NOT; entities with the selected facet are **excluded**
+ * - `EXCLUSIVITY` — at most one option can be active at this level; impact predictions treat selection as
+ *   replacement rather than addition
+ *
+ * ## Scope
+ *
+ * This constraint is scoped to the single query in which it appears. It does not persist across queries.
+ *
+ * Per-reference constraints ({@link FacetGroupsConjunction} etc.) always override the rules set here for the
+ * specific groups they target.
+ *
+ * ## Example — AND within groups, OR across groups
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     require(
+ *         facetSummary(IMPACT),
+ *         facetCalculationRules(CONJUNCTION, DISJUNCTION)
+ *     )
+ * )
+ * ```
+ *
+ * ## Example — conjunction within groups, exclusivity across groups
+ *
+ * ```evitaql
+ * query(
+ *     collection("Product"),
+ *     require(
+ *         facetSummary(IMPACT),
  *         facetCalculationRules(CONJUNCTION, EXCLUSIVITY)
  *     )
  * )
- * </pre>
+ * ```
  *
- * This query will change the default behavior of the facet calculation rules (only for this particular query) to use
- * the conjunction relation for facets within the same group and exclusivity relation for facets among different groups.
- * It is the equivalent for using the `facetGroupsConjunction` and `facetGroupsExclusivity` require constraints together
- * without specifying filter for the particular facet groups.
+ * This is equivalent to applying `facetGroupsConjunction` and `facetGroupsExclusivity` (without a filterBy) to every
+ * faceted reference in the query.
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-calculation-rules">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-calculation-rules)
  *
  * @see FacetRelationType
+ * @see FacetGroupsConjunction
+ * @see FacetGroupsDisjunction
+ * @see FacetGroupsNegation
+ * @see FacetGroupsExclusivity
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @ConstraintDefinition(
 	name = "calculationRules",
-	shortDescription = "Allows specifying default facet relation for each recognized level.",
+	shortDescription = "The constraint sets query-wide default facet relation types (conjunction, disjunction, negation, exclusivity) for intra-group and inter-group levels.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-calculation-rules"
 )
 public class FacetCalculationRules extends AbstractRequireConstraintLeaf implements FacetConstraint<RequireConstraint> {
@@ -113,7 +152,10 @@ public class FacetCalculationRules extends AbstractRequireConstraintLeaf impleme
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		Assert.isTrue(newArguments.length == 2, "FacetCalculationRules requires exactly two arguments.");
-		Assert.isPremiseValid(Arrays.stream(newArguments).allMatch(FacetGroupRelationLevel.class::isInstance), "All arguments must be of type FacetGroupRelationLevel.");
+		Assert.isPremiseValid(
+			Arrays.stream(newArguments).allMatch(FacetRelationType.class::isInstance),
+			"All arguments must be of type FacetRelationType."
+		);
 		return new FacetCalculationRules(newArguments);
 	}
 

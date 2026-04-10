@@ -5,6 +5,7 @@ date: '25.2.2023'
 author: Ing. Jan Novotný
 proofreading: done
 commit: '734e5a570edecd6d7697813622fe09fc1de1cd83'
+translated: true
 ---
 ## Přirozené modelování
 

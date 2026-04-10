@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Tests for {@link ReflectedReferenceSchemaEditor} default methods that throw
  * exceptions to prevent unsupported operations on reflected references.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReflectedReferenceSchemaEditor default methods")
 class ReflectedReferenceSchemaEditorTest {

@@ -137,6 +137,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		return newInputObjectField()
 			.name(constraintKey)
 			.description(constructConstraintDescription(constraintDescriptor))
+			.deprecate(constraintDescriptor.deprecated())
 			.type(constraintValue)
 			.build();
 	}

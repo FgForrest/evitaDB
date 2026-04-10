@@ -6,6 +6,7 @@ perex: |
 date: '1.11.2025'
 author: Jan Novotný, Lukáš Hornych
 commit: e436a1f995cb775fb4eaec09c4e947f876e5cd29
+translated: true
 ---
 Change Data Capture (CDC) je v podstatě filtrovaný proud logických operací čtených z Write-Ahead Logu (WAL) databáze. Když provedete změny v databázi a potvrdíte je, tyto změny jsou nejprve zapsány do WAL, než jsou aplikovány do skutečného sdíleného stavu databáze a jejích datových souborů. To zajišťuje, že v případě havárie nebo selhání může databáze stále aplikovat všechny transakce, které byly potvrzeny a označeny jako trvalé.
 

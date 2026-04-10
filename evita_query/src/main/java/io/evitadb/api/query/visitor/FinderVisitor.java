@@ -31,16 +31,25 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * This visitor traverses through specific constraint tree and finds all constraints that match the passed predicate.
+ * This visitor traverses a constraint tree and finds all constraints matching the given predicate.
+ * Optionally, a stopper predicate can be provided to prevent descent into certain subtrees.
+ *
+ * When a constraint matches both the matcher and the stopper, it IS added to results
+ * (matcher is evaluated first) but its children are NOT traversed.
+ *
+ * This class is not thread-safe. Use the static factory methods which create a new visitor
+ * instance for each search operation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@NotThreadSafe
 @RequiredArgsConstructor
 public class FinderVisitor implements ConstraintVisitor {
 	private final List<Constraint<?>> result = new LinkedList<>();

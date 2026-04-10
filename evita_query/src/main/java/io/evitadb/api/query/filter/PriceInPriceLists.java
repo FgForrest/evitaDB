@@ -32,33 +32,64 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
- * The `priceInPriceLists` constraint defines the allowed set(s) of price lists that the entity must have to be included
- * in the result set. The order of the price lists in the argument is important for the final price for sale calculation
- * - see the <a href="https://evitadb.io/documentation/deep-dive/price-for-sale-calculation">price for sale calculation
- * algorithm documentation</a>. Price list names are represented by plain String and are case-sensitive. Price lists
- * don't have to be stored in the database as an entity, and if they are, they are not currently associated with
- * the price list code defined in the prices of other entities. The pricing structure is simple and flat for now
- * (but this may change in the future).
+ * Restricts the result set to entities that have at least one price in any of the specified price lists. This
+ * constraint is one of the three primary price constraints (along with {@link PriceInCurrency} and
+ * {@link PriceValidIn}) that together determine which price is selected as the entity's "price for sale" during query
+ * evaluation.
  *
- * Except for the <a href="https://evitadb.io/documentation/query/filtering/price?lang=evitaql#typical-usage-of-price-constraints">standard use-case</a>
- * you can also create query with this constraint only:
+ * **Price list identification and priority:**
  *
- * <pre>
- * priceInPriceLists(
- *     "vip-group-1-level",
- *     "vip-group-2-level",
- *     "vip-group-3-level"
+ * Price list names are case-sensitive String identifiers. The order in which price lists are specified is critical —
+ * it defines the priority for selecting the final "price for sale". When an entity has multiple prices that satisfy
+ * the currency and validity constraints, the engine selects the price from the first matching price list in the
+ * provided order.
+ *
+ * Price lists are lightweight identifiers and do not need to exist as separate entities in the database. They are
+ * simply String codes attached to entity prices. The pricing structure is flat — there is no inheritance or hierarchy
+ * among price lists (this may change in future versions).
+ *
+ * **Usage patterns:**
+ *
+ * Standalone usage (filters entities by price list availability with priority):
+ * ```
+ * priceInPriceLists("vip-level-1", "vip-level-2", "basic")
+ * ```
+ *
+ * Standard e-commerce query (combines price lists with currency and validity):
+ * ```
+ * filterBy(
+ *   and(
+ *     priceInCurrency("EUR"),
+ *     priceInPriceLists("vip", "reference", "basic"),
+ *     priceValidInNow()
+ *   )
  * )
- * </pre>
+ * ```
  *
- * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
- * Currently, there is no way to switch context between different parts of the filter and build queries such as find
- * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * In the above example, an entity with prices in both `vip` and `basic` price lists will use the `vip` price as its
+ * "price for sale" because `vip` appears first in the priority list.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-price-lists">Visit detailed user documentation</a></p>
+ * **Behavior and constraints:**
+ *
+ * - Entities must have at least one price in one of the specified price lists to match. Entities without any matching
+ *   prices are excluded from the result set.
+ * - Priority is left-to-right: the first price list match determines the selected price.
+ * - When combined with {@link PriceInCurrency}, only prices in the target currency are considered.
+ * - When combined with {@link PriceValidIn}, only prices valid at the specified moment are considered.
+ * - Only one `priceInPriceLists` constraint is allowed per query. Multiple independent price list sets cannot be
+ *   specified in a single filter (no OR logic for price lists within a single query).
+ * - This constraint cannot be nested inside {@link UserFilter} — it defines a mandatory pricing context that applies
+ *   to the entire query and cannot be toggled by user interface controls.
+ *
+ * **Price for sale calculation:**
+ *
+ * The selected "price for sale" is the result of a priority-based algorithm that considers currency, validity, and
+ * price list order. See the [price for sale calculation documentation](https://evitadb.io/documentation/deep-dive/price-for-sale-calculation)
+ * for the complete algorithm and edge case handling.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/price#price-in-price-lists)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -70,7 +101,8 @@ import java.util.Arrays;
 	userDocsLink = "/documentation/query/filtering/price#price-in-price-lists",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, FilterConstraint {
+public class PriceInPriceLists extends AbstractFilterConstraintLeaf
+	implements PriceConstraint<FilterConstraint>, FilterConstraint {
 	@Serial private static final long serialVersionUID = 7018968762648494243L;
 
 	private PriceInPriceLists(@Nonnull Serializable... priceLists) {
@@ -83,11 +115,16 @@ public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements P
 	}
 
 	/**
-	 * Returns primary keys of all price lists that should be considered in query.
+	 * Returns names of all price lists that should be considered in query.
 	 */
 	@Nonnull
 	public String[] getPriceLists() {
-		return Arrays.stream(getArguments()).map(String.class::cast).toArray(String[]::new);
+		final Serializable[] arguments = getArguments();
+		final String[] result = new String[arguments.length];
+		for (int i = 0; i < arguments.length; i++) {
+			result[i] = (String) arguments[i];
+		}
+		return result;
 	}
 
 	@Override

@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: true
 ---
 ## V rozsahu
 

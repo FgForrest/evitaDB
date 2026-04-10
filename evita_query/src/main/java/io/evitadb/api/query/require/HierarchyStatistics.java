@@ -40,58 +40,86 @@ import java.util.Arrays;
 import java.util.EnumSet;
 
 /**
- * The statistics constraint allows you to retrieve statistics about the hierarchy nodes that are returned by the
- * current query. When used it triggers computation of the queriedEntityCount, childrenCount statistics, or both for
- * each hierarchy node in the returned hierarchy tree.
+ * Requests statistical metadata for each hierarchy node returned by the enclosing traversal constraint
+ * ({@link HierarchyFromRoot}, {@link HierarchyFromNode}, {@link HierarchyChildren}, {@link HierarchyParents},
+ * or {@link HierarchySiblings}). Without this constraint, the hierarchy result contains only structural data
+ * (node identity and fetched entity content); no counts are computed.
  *
- * It requires mandatory argument of type {@link StatisticsType} enum that specifies which statistics to compute:
+ * **Statistics types (what to compute):**
  *
- * - {@link StatisticsType#CHILDREN_COUNT}: triggers calculation of the count of child hierarchy nodes that exist in
- *   the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
- *   requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
- *   of hierarchy nodes that would contain empty result set of queried entities ({@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY})
- * - {@link StatisticsType#QUERIED_ENTITY_COUNT}: triggers the calculation of the total number of queried entities that
- *   will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
- *   constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
- *   account).
+ * - {@link StatisticsType#CHILDREN_COUNT}: the count of child hierarchy nodes that exist below a given node,
+ *   regardless of whether those children are themselves traversed or returned by the current constraint.
+ *   Respects the {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY} setting: nodes that would otherwise be
+ *   empty are not counted. Relatively inexpensive because dead branches can be pruned early.
  *
- * And optional argument of type {@link StatisticsBase} enum allowing you to specify the base queried entity set that
- * is the source for statistics calculations:
+ * - {@link StatisticsType#QUERIED_ENTITY_COUNT}: the total number of entities that would appear in query results
+ *   if `hierarchyWithin` were focused on this particular node (without `directRelation` or `excludingRoot`
+ *   refinements). This requires counting all matching entities under each node and is significantly more expensive
+ *   than `CHILDREN_COUNT`. Both types may be requested together.
  *
- * - {@link StatisticsBase#COMPLETE_FILTER}: complete filtering query constraint
- * - {@link StatisticsBase#WITHOUT_USER_FILTER}: filtering query constraint where the contents of optional userFilter
- *    are ignored
+ * **Statistics base (which filter context to use):**
  *
- * The calculation always ignores hierarchyWithin because the focused part of the hierarchy tree is defined on
- * the requirement constraint level, but including having/excluding constraints. The having/excluding constraints are
- * crucial for the calculation of queriedEntityCount (and therefore also affects the value of childrenCount
- * transitively).
+ * - {@link StatisticsBase#WITHOUT_USER_FILTER} _(default)_: counts are computed against the filter excluding the
+ *   contents of `userFilter`, making the counts stable as the user refines their facet selection. This is the
+ *   expected behavior for faceted navigation where counts should show potential results, not just the current ones.
  *
- * <strong>Computational complexity of statistical data calculation</strong>
+ * - {@link StatisticsBase#COMPLETE_FILTER}: counts are computed against the complete `filterBy` constraint including
+ *   any `userFilter` contents. Use this when you want counts that reflect the currently active filter exactly.
  *
- * The performance price paid for calculating statistics is not negligible. The calculation of {@link StatisticsType#CHILDREN_COUNT}
- * is cheaper because it allows to eliminate "dead branches" early and thus conserve the computation cycles.
- * The calculation of the {@link StatisticsType#QUERIED_ENTITY_COUNT} is more expensive because it requires counting
- * items up to the last one and must be precise.
+ * - {@link StatisticsBase#COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER}: similar to `COMPLETE_FILTER` but excludes
+ *   `userFilter` constraints that filter on references of the same hierarchical entity type this constraint is
+ *   applied to. Useful for hierarchical faceted navigation where the hierarchy constraint itself is one of the
+ *   active user filters.
  *
- * We strongly recommend that you avoid using {@link StatisticsType#QUERIED_ENTITY_COUNT} for root hierarchy nodes for
- * large datasets.
+ * **Important:** regardless of the `statisticsBase`, the `hierarchyWithin` pivot node is always ignored during
+ * statistics calculation (the focused subtree is determined by the enclosing traversal requirement, not the filter).
+ * The `having`, `anyHaving`, and `excluding` inner constraints of `hierarchyWithin` are, however, respected.
  *
- * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
- * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
- * to crunch these numbers.
+ * **Performance warning:** `QUERIED_ENTITY_COUNT` for root-level nodes on large datasets is very expensive —
+ * it requires aggregating across the entire indexed dataset. Even with in-memory indexes, this can be slow.
+ * Restrict the traversal with {@link HierarchyStopAt} or cache the results whenever possible.
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
+ * **Example — statistics with default base (excluding user filter):**
+ *
+ * ```evitaql
+ * require(
+ *     hierarchyOfReference(
+ *         "categories",
+ *         children(
+ *             "subcategories",
+ *             stopAt(distance(1)),
+ *             statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * **Example — statistics based on the complete active filter:**
+ *
+ * ```evitaql
+ * require(
+ *     hierarchyOfReference(
+ *         "categories",
+ *         fromRoot(
+ *             "megaMenu",
+ *             statistics(COMPLETE_FILTER, CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#statistics)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "statistics",
-	shortDescription = "The constraint triggers computing the count of children for each returned hierarchy node.",
+	shortDescription = "The constraint requests entity count statistics (queried and direct children counts) for each hierarchy node returned by the enclosing traversal.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#statistics",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
-public class HierarchyStatistics extends AbstractRequireConstraintLeaf implements ConstraintWithDefaults<RequireConstraint>, HierarchyOutputRequireConstraint {
+public class HierarchyStatistics extends AbstractRequireConstraintLeaf
+	implements ConstraintWithDefaults<RequireConstraint>, HierarchyOutputRequireConstraint {
 	@Serial private static final long serialVersionUID = 264601966496432983L;
 	private static final String CONSTRAINT_NAME = "statistics";
 

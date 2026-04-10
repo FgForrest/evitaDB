@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,44 +23,45 @@
 
 package io.evitadb.index;
 
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.Assert;
+
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * Interface allows providing custom implementations to the logic that creates new {@link EntityIndex} instances
+ * Extends {@link IndexProvider} with mutative operations — index removal and a fail-fast (throwing) primary key
+ * lookup. Allows providing custom implementations to the logic that creates new {@link EntityIndex} instances
  * (allowing for example to create altered forms of the EntityIndex if needed) or removing existing ones.
+ *
+ * The throwing {@link #getIndexByPrimaryKey(int)} is a convenience default method that delegates to
+ * {@link #getIndexByPrimaryKeyIfExists(int)} and throws if the result is null. Implementations only need to
+ * provide the nullable variant.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface IndexMaintainer<K extends IndexKey, T extends Index<K>> {
+public interface IndexMaintainer<K extends IndexKey, T extends Index<K>> extends IndexProvider<K, T> {
 
 	/**
-	 * Returns existing index for passed `entityIndexKey` or uses `creatorFct` to create new index instance and associate
-	 * it with the passed `entityIndexKey`.
+	 * Retrieves an existing index by its unique storage primary key. Throws if no index with the given key exists.
 	 *
-	 * @param entityIndexKey the key of the index to be retrieved or created
-	 * @return the index associated with the provided key
-	 */
-	@Nonnull
-	T getOrCreateIndex(@Nonnull K entityIndexKey);
-
-	/**
-	 * Returns existing index for passed `entityIndexKey` or returns null.
-	 *
-	 * @param entityIndexKey the key of the index to be retrieved
-	 * @return the index associated with the provided key, or null if no index exists
-	 */
-	@Nullable
-	T getIndexIfExists(@Nonnull K entityIndexKey);
-
-	/**
-	 * Retrieves an existing index by its unique primary key.
+	 * This is a convenience default that delegates to {@link #getIndexByPrimaryKeyIfExists(int)} and fails fast
+	 * when the index is not found. Implementations that need custom error messages can override this method.
 	 *
 	 * @param indexPrimaryKey the unique primary key of the index to be retrieved
-	 * @return the index associated with the provided primary key
+	 * @return the index associated with the provided primary key, never null
+	 * @throws GenericEvitaInternalError if no index with the given primary key exists
 	 */
 	@Nonnull
-	T getIndexByPrimaryKey(int indexPrimaryKey);
+	default T getIndexByPrimaryKey(int indexPrimaryKey) {
+		final T index = getIndexByPrimaryKeyIfExists(indexPrimaryKey);
+		Assert.isPremiseValid(
+			index != null,
+			() -> new GenericEvitaInternalError(
+				"Index for primary key " + indexPrimaryKey + " doesn't exist!"
+			)
+		);
+		return index;
+	}
 
 	/**
 	 * Removes existing index with passed `entityIndexKey`.
@@ -68,4 +69,5 @@ public interface IndexMaintainer<K extends IndexKey, T extends Index<K>> {
 	 * @throws IllegalArgumentException if no index for passed key exists
 	 */
 	void removeIndex(@Nonnull K entityIndexKey);
+
 }

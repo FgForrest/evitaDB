@@ -23,63 +23,177 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link AttributeLessThan} query.
+ * Tests for {@link AttributeLessThan} verifying construction, applicability, property accessors,
+ * cloning, visitor support, string representation, and equality contract.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("AttributeLessThan constraint")
 class AttributeLessThanTest {
 
-	@Test
-	void shouldFailToUseInvalidDataType() {
-		assertThrows(UnsupportedDataTypeException.class, () -> attributeLessThan("abc", new MockObject()));
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should fail to use invalid data type")
+		void shouldFailToUseInvalidDataType() {
+			assertThrows(UnsupportedDataTypeException.class, () -> attributeLessThan("abc", new MockObject()));
+		}
+
+		@Test
+		@DisplayName("should automatically convert data type")
+		void shouldAutomaticallyConvertDataType() {
+			assertEquals(new BigDecimal("1.0"), attributeLessThan("abc", 1f).getAttributeValue());
+		}
+
+		@Test
+		@DisplayName("should create via factory method with correct properties")
+		void shouldCreateViaFactoryClassWorkAsExpected() {
+			final AttributeLessThan constraint = attributeLessThan("abc", "def");
+
+			assertEquals("abc", constraint.getAttributeName());
+			assertEquals("def", constraint.getAttributeValue());
+		}
 	}
 
-	@Test
-	void shouldAutomaticallyConvertDataType() {
-		assertEquals(new BigDecimal("1.0"), attributeLessThan("abc", 1f).getAttributeValue());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should recognize applicable and non-applicable instances")
+		void shouldRecognizeApplicability() {
+			assertFalse(new AttributeLessThan("abc", null).isApplicable());
+			assertFalse(new AttributeLessThan(null, "abc").isApplicable());
+			assertFalse(new AttributeLessThan(null, null).isApplicable());
+			assertTrue(attributeLessThan("abc", "def").isApplicable());
+		}
 	}
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final AttributeLessThan attributeLessThan = attributeLessThan("abc", "def");
-		assertEquals("abc", attributeLessThan.getAttributeName());
-		assertEquals("def", attributeLessThan.getAttributeValue());
+	@Nested
+	@DisplayName("Property accessors")
+	class PropertyAccessorsTest {
+
+		@Test
+		@DisplayName("should return attribute name")
+		void shouldReturnAttributeName() {
+			final AttributeLessThan constraint = attributeLessThan("testAttr", "val");
+
+			assertEquals("testAttr", constraint.getAttributeName());
+		}
+
+		@Test
+		@DisplayName("should return attribute value")
+		void shouldReturnAttributeValue() {
+			final AttributeLessThan constraint = attributeLessThan("abc", 42);
+
+			assertEquals(42, (int) constraint.getAttributeValue());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertFalse(new AttributeLessThan("abc", null).isApplicable());
-		assertFalse(new AttributeLessThan(null, "abc").isApplicable());
-		assertFalse(new AttributeLessThan(null, null).isApplicable());
-		assertTrue(attributeLessThan("abc", "def").isApplicable());
+	@Nested
+	@DisplayName("Cloning")
+	class CloningTest {
+
+		@Test
+		@DisplayName("should produce equal but not same instance via cloneWithArguments")
+		void shouldCloneWithArguments() {
+			final AttributeLessThan original = attributeLessThan("abc", "def");
+			final FilterConstraint clone = original.cloneWithArguments(new Serializable[]{"abc", "def"});
+
+			assertEquals(original, clone);
+			assertNotSame(original, clone);
+			assertInstanceOf(AttributeLessThan.class, clone);
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final AttributeLessThan attributeLessThan = attributeLessThan("abc", "def");
-		assertEquals("attributeLessThan('abc','def')", attributeLessThan.toString());
+	@Nested
+	@DisplayName("Visitor support")
+	class VisitorSupportTest {
+
+		@Test
+		@DisplayName("should accept visitor and call visit method")
+		void shouldAcceptVisitor() {
+			final AttributeLessThan constraint = attributeLessThan("abc", "def");
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			constraint.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> c) {
+					visited.set(c);
+				}
+			});
+
+			assertSame(constraint, visited.get());
+		}
+
+		@Test
+		@DisplayName("should return FilterConstraint class as type")
+		void shouldReturnCorrectType() {
+			final AttributeLessThan constraint = attributeLessThan("abc", "def");
+
+			assertEquals(FilterConstraint.class, constraint.getType());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(attributeLessThan("abc", "def"), attributeLessThan("abc", "def"));
-		assertEquals(attributeLessThan("abc", "def"), attributeLessThan("abc", "def"));
-		assertNotEquals(attributeLessThan("abc", "def"), attributeLessThan("abc", "defe"));
-		assertNotEquals(attributeLessThan("abc", "def"), new AttributeLessThan("abc", null));
-		assertNotEquals(attributeLessThan("abc", "def"), new AttributeLessThan(null, "abc"));
-		assertEquals(attributeLessThan("abc", "def").hashCode(), attributeLessThan("abc", "def").hashCode());
-		assertNotEquals(attributeLessThan("abc", "def").hashCode(), attributeLessThan("abc", "defe").hashCode());
-		assertNotEquals(attributeLessThan("abc", "def").hashCode(), new AttributeLessThan("abc", null).hashCode());
-		assertNotEquals(attributeLessThan("abc", "def").hashCode(), new AttributeLessThan(null, "abc").hashCode());
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce expected toString format")
+		void shouldToStringReturnExpectedFormat() {
+			final AttributeLessThan constraint = attributeLessThan("abc", "def");
+
+			assertEquals("attributeLessThan('abc','def')", constraint.toString());
+		}
 	}
 
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(attributeLessThan("abc", "def"), attributeLessThan("abc", "def"));
+			assertEquals(attributeLessThan("abc", "def"), attributeLessThan("abc", "def"));
+			assertNotEquals(attributeLessThan("abc", "def"), attributeLessThan("abc", "defe"));
+			assertNotEquals(attributeLessThan("abc", "def"), new AttributeLessThan("abc", null));
+			assertNotEquals(attributeLessThan("abc", "def"), new AttributeLessThan(null, "abc"));
+			assertEquals(
+				attributeLessThan("abc", "def").hashCode(),
+				attributeLessThan("abc", "def").hashCode()
+			);
+			assertNotEquals(
+				attributeLessThan("abc", "def").hashCode(),
+				attributeLessThan("abc", "defe").hashCode()
+			);
+			assertNotEquals(
+				attributeLessThan("abc", "def").hashCode(),
+				new AttributeLessThan("abc", null).hashCode()
+			);
+			assertNotEquals(
+				attributeLessThan("abc", "def").hashCode(),
+				new AttributeLessThan(null, "abc").hashCode()
+			);
+		}
+	}
 }

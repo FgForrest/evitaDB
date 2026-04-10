@@ -30,8 +30,18 @@ import javax.annotation.Nonnull;
 import java.util.function.IntConsumer;
 
 /**
- * Interface extends {@link PersistenceService} and provides additional methods for storing rich data structures
- * like indexes and storage parts.
+ * Intermediate sealed interface in the persistence service hierarchy that adds bulk-flush capability on top of the
+ * basic lifecycle contract from {@link PersistenceService}. Implementations manage complex in-memory data structures
+ * such as entity indexes and storage parts that may accumulate changes across many short-lived transactions before
+ * being persisted in a single consolidated write.
+ *
+ * The two permitted sub-interfaces cover the two kinds of rich storage in evitaDB:
+ * - {@link CatalogPersistenceService} — catalog-level data (catalog schema, catalog index, WAL, collection registry)
+ * - {@link EntityCollectionPersistenceService} — entity-level data (entity bodies, attribute/price/reference indexes)
+ *
+ * The {@link #flushTrappedUpdates} method distinguishes this interface from a plain `StoragePartPersistenceService`:
+ * it is specifically designed for the *bulk-write* code path where a large number of in-memory changes have already
+ * been logically committed and need to be persisted as efficiently as possible.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -39,8 +49,21 @@ public sealed interface RichPersistenceService extends PersistenceService
 	permits CatalogPersistenceService, EntityCollectionPersistenceService {
 
 	/**
-	 * Flushes all trapped memory data to the persistent storage.
-	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
+	 * Writes all {@link TrappedChanges} collected during a bulk-write phase (e.g. during initial catalog population
+	 * or WAL replay) directly to the underlying persistent storage file. Unlike the transactional write path this
+	 * method bypasses the transactional memory layer: it is intended for situations where changes have already been
+	 * logically committed and only the physical persistence step is pending.
+	 *
+	 * The progress of the flush is reported through `trappedUpdatedProgress`, which receives the count of storage
+	 * parts written so far. This allows callers to update a progress indicator for long-running operations.
+	 *
+	 * @param catalogVersion        the catalog version these trapped changes belong to; used to label the flushed
+	 *                              records so that concurrent readers see a consistent snapshot
+	 * @param trappedChanges        the pending
+	 *                              {@link io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart} changes
+	 *                              accumulated since the last flush
+	 * @param trappedUpdatedProgress callback that receives the running count of storage parts flushed; invoked at
+	 *                              least once per batch to enable progress reporting
 	 */
 	void flushTrappedUpdates(
 		long catalogVersion,

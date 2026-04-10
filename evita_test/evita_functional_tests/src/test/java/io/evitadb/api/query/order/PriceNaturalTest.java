@@ -23,55 +23,188 @@
 
 package io.evitadb.api.query.order;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.OrderConstraint;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.priceNatural;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link PriceNatural} query.
+ * Tests for {@link PriceNatural} verifying construction, applicability, property accessors,
+ * cloning, visitor support, string representation, and equality contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("PriceNatural constraint")
 class PriceNaturalTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final PriceNatural priceNatural1 = priceNatural();
-		assertEquals(ASC, priceNatural1.getOrderDirection());
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
 
-		final PriceNatural priceNatural2 = priceNatural(DESC);
-		assertEquals(DESC, priceNatural2.getOrderDirection());
+		@Test
+		@DisplayName("should default to ASC when no direction specified")
+		void shouldDefaultToAsc() {
+			final PriceNatural constraint = priceNatural();
+
+			assertEquals(ASC, constraint.getOrderDirection());
+		}
+
+		@Test
+		@DisplayName("should create with explicit DESC direction")
+		void shouldCreateWithDescDirection() {
+			final PriceNatural constraint = priceNatural(DESC);
+
+			assertEquals(DESC, constraint.getOrderDirection());
+		}
+
+		@Test
+		@DisplayName("should create with explicit ASC direction")
+		void shouldCreateWithAscDirection() {
+			final PriceNatural constraint = priceNatural(ASC);
+
+			assertEquals(ASC, constraint.getOrderDirection());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertTrue(priceNatural().isApplicable());
-		assertTrue(priceNatural(DESC).isApplicable());
-		assertFalse(new PriceNatural(null).isApplicable());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should be applicable with default ASC direction")
+		void shouldBeApplicableWithDefault() {
+			assertTrue(priceNatural().isApplicable());
+		}
+
+		@Test
+		@DisplayName("should be applicable with explicit DESC direction")
+		void shouldBeApplicableWithDesc() {
+			assertTrue(priceNatural(DESC).isApplicable());
+		}
+
+		@Test
+		@DisplayName("should not be applicable with null direction")
+		void shouldNotBeApplicableWithNull() {
+			assertFalse(new PriceNatural(null).isApplicable());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final PriceNatural priceNatural1 = priceNatural();
-		assertEquals("priceNatural(ASC)", priceNatural1.toString());
+	@Nested
+	@DisplayName("Property accessors")
+	class PropertyAccessorsTest {
 
-		final PriceNatural priceNatural2 = priceNatural(DESC);
-		assertEquals("priceNatural(DESC)", priceNatural2.toString());
+		@Test
+		@DisplayName("should return ASC order direction by default")
+		void shouldReturnAscByDefault() {
+			assertEquals(ASC, priceNatural().getOrderDirection());
+		}
+
+		@Test
+		@DisplayName("should return DESC order direction when specified")
+		void shouldReturnDescWhenSpecified() {
+			assertEquals(DESC, priceNatural(DESC).getOrderDirection());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(priceNatural(), priceNatural());
-		assertEquals(priceNatural(), priceNatural());
-		assertEquals(priceNatural(ASC), priceNatural());
-		assertEquals(priceNatural().hashCode(), priceNatural().hashCode());
-		assertEquals(priceNatural(ASC).hashCode(), priceNatural().hashCode());
+	@Nested
+	@DisplayName("Cloning")
+	class CloningTest {
+
+		@Test
+		@DisplayName("should produce equal but not same instance via cloneWithArguments")
+		void shouldCloneWithArguments() {
+			final PriceNatural original = priceNatural(DESC);
+			final OrderConstraint clone = original.cloneWithArguments(new Serializable[]{DESC});
+
+			assertEquals(original, clone);
+			assertNotSame(original, clone);
+			assertInstanceOf(PriceNatural.class, clone);
+		}
+
+		@Test
+		@DisplayName("should clone with different arguments")
+		void shouldCloneWithDifferentArguments() {
+			final PriceNatural original = priceNatural(ASC);
+			final OrderConstraint clone = original.cloneWithArguments(new Serializable[]{DESC});
+
+			assertNotEquals(original, clone);
+			assertInstanceOf(PriceNatural.class, clone);
+		}
 	}
 
+	@Nested
+	@DisplayName("Visitor support")
+	class VisitorSupportTest {
+
+		@Test
+		@DisplayName("should accept visitor and call visit method")
+		void shouldAcceptVisitor() {
+			final PriceNatural constraint = priceNatural();
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			constraint.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> c) {
+					visited.set(c);
+				}
+			});
+
+			assertSame(constraint, visited.get());
+		}
+
+		@Test
+		@DisplayName("should return OrderConstraint class as type")
+		void shouldReturnCorrectType() {
+			assertEquals(OrderConstraint.class, priceNatural().getType());
+		}
+	}
+
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce expected format with ASC")
+		void shouldToStringWithAsc() {
+			assertEquals("priceNatural(ASC)", priceNatural().toString());
+		}
+
+		@Test
+		@DisplayName("should produce expected format with DESC")
+		void shouldToStringWithDesc() {
+			assertEquals("priceNatural(DESC)", priceNatural(DESC).toString());
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should be equal for same direction")
+		void shouldBeEqualForSameDirection() {
+			assertNotSame(priceNatural(), priceNatural());
+			assertEquals(priceNatural(), priceNatural());
+			assertEquals(priceNatural(ASC), priceNatural());
+			assertEquals(priceNatural().hashCode(), priceNatural().hashCode());
+			assertEquals(priceNatural(ASC).hashCode(), priceNatural().hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal for different directions")
+		void shouldNotBeEqualForDifferentDirections() {
+			assertNotEquals(priceNatural(ASC), priceNatural(DESC));
+			assertNotEquals(priceNatural(ASC).hashCode(), priceNatural(DESC).hashCode());
+		}
+	}
 }

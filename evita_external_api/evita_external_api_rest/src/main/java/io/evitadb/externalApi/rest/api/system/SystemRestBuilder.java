@@ -282,6 +282,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS,
 			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS,
 			RemoveReferenceSchemaMutationDescriptor.THIS,
+			SetReferenceSchemaBucketedMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
 
@@ -414,6 +415,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.name()),
 					typeRefTo(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(RemoveReferenceSchemaMutationDescriptor.THIS.name()),
+					typeRefTo(SetReferenceSchemaBucketedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaFacetedMutationDescriptor.THIS.name()),
 					typeRefTo(SetReferenceSchemaIndexedMutationDescriptor.THIS.name()),
 

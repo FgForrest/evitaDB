@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * in descending order, exact order from filter constraints, exact order specifications,
  * duplicate key handling, and appending remaining results.
  *
- * @author evitaDB contributors
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity fetch sorting functionality")
 @Tag(FUNCTIONAL_TEST)

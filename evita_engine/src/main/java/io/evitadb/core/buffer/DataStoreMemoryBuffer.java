@@ -31,6 +31,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /**
  * DataStoreMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
@@ -47,12 +48,24 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	 * memory and will be written when buffer is flushed. This is usually the case when entity index is just being
 	 * created for the first time and the transaction were not yet enabled on it.
 	 */
+	@Nonnull
 	<IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing);
+
+	/**
+	 * Returns an existing index for the passed `entityIndexPrimaryKey` and registers it in the "dirty" memory so that
+	 * its modified storage parts are captured by {@link #popTrappedChanges()}. Returns `null` when no index with the
+	 * given primary key exists. Use this method instead of
+	 * {@link DataStoreReader#getIndexIfExists(int, java.util.function.IntFunction)} when the caller intends to mutate
+	 * the returned index.
+	 */
+	@Nonnull
+	<IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(int entityIndexPrimaryKey, @Nonnull IntFunction<I> accessorWhenMissing);
 
 	/**
 	 * Removes {@link EntityIndex} from the change set. After removal (either successfully or unsuccessful)
 	 * `removalPropagation` function is called to propagate deletion to the origin collection.
 	 */
+	@Nonnull
 	<IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation);
 
 	/**

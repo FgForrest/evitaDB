@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -368,6 +368,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				return parameterReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.PARAMETER)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Parametr " + number)
 							.setAttribute(ATTRIBUTE_CODE, "parameter-" + number)
 							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
 							.upsertVia(evitaSession)
@@ -396,6 +397,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				return parameterReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.PARAMETER_GROUP)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Parameter Group " + number)
 							.setAttribute(ATTRIBUTE_CODE, "parameterGroup-" + number)
 							.upsertVia(evitaSession)
 					)
@@ -419,6 +421,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				return parameterReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.BRAND)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Brand 1")
 							.setAttribute(ATTRIBUTE_CODE, "brand-1")
 							.setReference(Entities.STORE, 1)
 							.upsertVia(evitaSession)
@@ -443,6 +446,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				return categoryReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.CATEGORY, 2000 + number)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Category " + number)
 							.setAttribute(ATTRIBUTE_CODE, "category-" + number)
 							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
 							.setAssociatedData(ASSOCIATED_DATA_LABELS, new Labels())
@@ -722,9 +726,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		).orElseThrow();
 	}
 
+	@Nonnull
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
-	protected DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(@Nonnull Evita evita) {
 		return super.setUp(evita);
 	}
 
@@ -1515,18 +1520,19 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setNewBrand(brand -> brand.setCode(
-						"consumer-created-brand").setStore(1))
+					.setNewBrand(brand -> brand
+						.setCode("consumer-created-brand")
+						.setName("Consumer created brand", CZECH_LOCALE)
+						.setStore(1)
+					)
 					.setOrUpdateParameter(
-						parameterId, that -> that.setPriority(10L))
+						parameterId,
+						that -> that.setPriority(10L)
+					)
 					.addProductCategory(
-						categoryId1, that -> that.setOrderInCategory(
-								1L)
+						categoryId1, that -> that.setOrderInCategory(1L)
 							.setShadow(true)
-							.setLabel(
-								CZECH_LOCALE,
-								"Kategorie 1"
-							)
+							.setLabel(CZECH_LOCALE, "Kategorie 1")
 					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
@@ -1589,10 +1595,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setOrUpdateParameter(
-						parameterId, that -> that.setPriority(10L))
+						parameterId, that -> that.setPriority(10L)
+					)
 					.addProductCategory(
-						categoryId1, that -> that.setOrderInCategory(
-								1L)
+						categoryId1, that -> that.setOrderInCategory(1L)
 							.setShadow(true)
 							.setLabel(
 								CZECH_LOCALE,
@@ -1600,8 +1606,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							)
 					)
 					.addProductCategory(
-						categoryId2, that -> that.setOrderInCategory(
-								2L)
+						categoryId2, that -> that.setOrderInCategory(2L)
 							.setShadow(true)
 							.setLabel(
 								CZECH_LOCALE,
@@ -1611,7 +1616,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				assertNull(newProduct.getBrand());
 				final BrandInterfaceEditor newBrand = newProduct.getOrCreateBrand();
-				newBrand.setCode("getorcreate-created-brand").setStore(1);
+				newBrand
+					.setCode("getorcreate-created-brand")
+					.setName("Get or create created brand", CZECH_LOCALE)
+					.setStore(1);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -3214,7 +3222,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newProduct.getParameter(parameterId)
 					.openForWrite()
-					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-2"))
+					.getOrCreateParameterGroupEntity(newGroup -> {
+						newGroup.setCode("parameterGroup-2");
+						newGroup.setName(Locale.ENGLISH, "Parameter Group 2");
+					})
 					.upsertDeeplyVia(evitaSession);
 
 				final EntityReferenceContract createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-2")
@@ -3271,7 +3282,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newProduct.getParameter(parameterId)
 					.openForWrite()
-					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-20"))
+					.getOrCreateParameterGroupEntity(newGroup -> {
+						newGroup.setCode("parameterGroup-20");
+						newGroup.setName(Locale.ENGLISH, "Parameter Group 20");
+					})
 					.upsertDeeplyVia(evitaSession);
 
 				final EntityReferenceContract createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-20")

@@ -143,6 +143,12 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		return schemaCardinality;
 	}
 
+	@Nonnull
+	@Override
+	public EntitySchemaContract getSchema() {
+		return this.entitySchema;
+	}
+
 	InitialReferencesBuilder(@Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
 		this.referenceCollection = null;

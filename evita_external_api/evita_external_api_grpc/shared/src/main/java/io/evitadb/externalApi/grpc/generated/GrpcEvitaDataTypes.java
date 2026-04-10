@@ -40,239 +40,259 @@ public final class GrpcEvitaDataTypes {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcIntegerNumberRange_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcIntegerNumberRange_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLongNumberRange_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcLongNumberRange_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBigDecimalNumberRange_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcBigDecimalNumberRange_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDateTimeRange_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDateTimeRange_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBigDecimal_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcBigDecimal_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocale_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocale_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCurrency_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcCurrency_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcUuid_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcUuid_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcPredecessor_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcPredecessor_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcOffsetDateTime_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcOffsetDateTime_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcStringArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcStringArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcIntegerArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcIntegerArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLongArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcLongArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBooleanArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcBooleanArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBigDecimalArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcBigDecimalArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDateTimeRangeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDateTimeRangeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcIntegerNumberRangeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcIntegerNumberRangeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLongNumberRangeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcLongNumberRangeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBigDecimalNumberRangeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcBigDecimalNumberRangeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcOffsetDateTimeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcOffsetDateTimeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocaleArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocaleArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCurrencyArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcCurrencyArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcUuidArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcUuidArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetStatisticsDepthArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetStatisticsDepthArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcQueryPriceModeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcQueryPriceModeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcPriceContentModeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcPriceContentModeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSpecialValueArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSpecialValueArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcOrderDirectionArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcOrderDirectionArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEmptyHierarchicalEntityBehaviourArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEmptyHierarchicalEntityBehaviourArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcStatisticsBaseArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcStatisticsBaseArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcStatisticsTypeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcStatisticsTypeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogramBehaviorTypeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogramBehaviorTypeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityScopeArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityScopeArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaValue_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaValue_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataValue_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataValue_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataItem_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataItem_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataItemArray_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataItemArray_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_DataItemMap_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_DataItemMap_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_DataItemMap_DataEntry_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_DataItemMap_DataEntry_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedAttributeUniquenessType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedAttributeUniquenessType_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedGlobalAttributeUniquenessType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedGlobalAttributeUniquenessType_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceIndexType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceIndexType_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceIndexedComponents_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceIndexedComponents_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedFacetedPartially_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedFacetedPartially_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -493,20 +513,76 @@ public final class GrpcEvitaDataTypes {
       "onvention\022\014\n\004name\030\002 \001(\t\"\306\001\n!GrpcScopedAt" +
       "tributeUniquenessType\022E\n\005scope\030\001 \001(\01626.i" +
       "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cEntityScope\022Z\n\016uniquenessType\030\002 \001(\0162B.i" +
-      "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cAttributeUniquenessType\"\322\001\n\'GrpcScopedG" +
-      "lobalAttributeUniquenessType\022E\n\005scope\030\001 " +
-      "\001(\01626.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcEntityScope\022`\n\016uniquenessType\030\002 " +
-      "\001(\0162H.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcGlobalAttributeUniquenessType\"\267\001" +
-      "\n\034GrpcScopedReferenceIndexType\022E\n\005scope\030" +
-      "\001 \001(\01626.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcEntityScope\022P\n\tindexType\030\002 \001(\016" +
-      "2=.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcReferenceIndexTypeB\014P\001\252\002\007EvitaDBb\006p" +
-      "roto3"
+      "cUuid\0221\n\013catalogName\030\004 \001(\0132\034.google.prot" +
+      "obuf.StringValue\022I\n\006issued\030\005 \001(\01329.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcOff" +
+      "setDateTime\022J\n\007started\030\006 \001(\01329.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcOffsetD" +
+      "ateTime\022K\n\010finished\030\007 \001(\01329.io.evitadb.e" +
+      "xternalApi.grpc.generated.GrpcOffsetDate" +
+      "Time\022W\n\017simplifiedState\030\010 \001(\0162>.io.evita" +
+      "db.externalApi.grpc.generated.GrpcTaskSi" +
+      "mplifiedState\022\020\n\010progress\030\t \001(\005\022.\n\010setti" +
+      "ngs\030\n \001(\0132\034.google.protobuf.StringValue\022" +
+      ",\n\004text\030\013 \001(\0132\034.google.protobuf.StringVa" +
+      "lueH\000\022?\n\004file\030\014 \001(\0132/.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcFileH\000\022/\n\texcept" +
+      "ion\030\r \001(\0132\034.google.protobuf.StringValue\022" +
+      "C\n\005trait\030\016 \003(\01624.io.evitadb.externalApi." +
+      "grpc.generated.GrpcTaskTrait\022J\n\007created\030" +
+      "\017 \001(\01329.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcOffsetDateTimeB\010\n\006result\"\302\003\n\025G" +
+      "rpcCatalogStatistics\022B\n\tcatalogId\030\001 \001(\0132" +
+      "/.io.evitadb.externalApi.grpc.generated." +
+      "GrpcUuid\022\023\n\013catalogName\030\002 \001(\t\022\025\n\tcorrupt" +
+      "ed\030\003 \001(\010B\002\030\001\022M\n\014catalogState\030\004 \001(\01627.io." +
+      "evitadb.externalApi.grpc.generated.GrpcC" +
+      "atalogState\022\026\n\016catalogVersion\030\005 \001(\003\022\024\n\014t" +
+      "otalRecords\030\006 \001(\003\022\022\n\nindexCount\030\007 \001(\003\022\031\n" +
+      "\021sizeOnDiskInBytes\030\010 \001(\003\022i\n\032entityCollec" +
+      "tionStatistics\030\t \003(\0132E.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcEntityCollectio" +
+      "nStatistics\022\020\n\010readOnly\030\n \001(\010\022\020\n\010unusabl" +
+      "e\030\013 \001(\010\"y\n\036GrpcEntityCollectionStatistic" +
+      "s\022\022\n\nentityType\030\001 \001(\t\022\024\n\014totalRecords\030\002 " +
+      "\001(\005\022\022\n\nindexCount\030\003 \001(\005\022\031\n\021sizeOnDiskInB" +
+      "ytes\030\004 \001(\003\"v\n\017GrpcNameVariant\022U\n\020namingC" +
+      "onvention\030\001 \001(\0162;.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcNamingConvention\022\014\n\004" +
+      "name\030\002 \001(\t\"\306\001\n!GrpcScopedAttributeUnique" +
+      "nessType\022E\n\005scope\030\001 \001(\01626.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcEntityScope\022" +
+      "Z\n\016uniquenessType\030\002 \001(\0162B.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcAttributeUni" +
+      "quenessType\"\322\001\n\'GrpcScopedGlobalAttribut" +
+      "eUniquenessType\022E\n\005scope\030\001 \001(\01626.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcEntit" +
+      "yScope\022`\n\016uniquenessType\030\002 \001(\0162H.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcGloba" +
+      "lAttributeUniquenessType\"\267\001\n\034GrpcScopedR" +
+      "eferenceIndexType\022E\n\005scope\030\001 \001(\01626.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcEnt" +
+      "ityScope\022P\n\tindexType\030\002 \001(\0162=.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcReferenc" +
+      "eIndexType\"\317\001\n$GrpcScopedReferenceIndexe" +
+      "dComponents\022E\n\005scope\030\001 \001(\01626.io.evitadb." +
+      "externalApi.grpc.generated.GrpcEntitySco" +
+      "pe\022`\n\021indexedComponents\030\002 \003(\0162E.io.evita" +
+      "db.externalApi.grpc.generated.GrpcRefere" +
+      "nceIndexedComponents\"\225\001\n\032GrpcScopedFacet" +
+      "edPartially\022E\n\005scope\030\001 \001(\01626.io.evitadb." +
+      "externalApi.grpc.generated.GrpcEntitySco" +
+      "pe\0220\n\nexpression\030\002 \001(\0132\034.google.protobuf" +
+      ".StringValue\"\272\001\n\"GrpcScopedHistogramInde" +
+      "xDefinition\022E\n\005scope\030\001 \001(\01626.io.evitadb." +
+      "externalApi.grpc.generated.GrpcEntitySco" +
+      "pe\022\026\n\016nameOfTheIndex\030\002 \001(\t\0225\n\017valueExpre" +
+      "ssion\030\003 \001(\0132\034.google.protobuf.StringValu" +
+      "e\"\226\001\n\033GrpcScopedBucketedPartially\022E\n\005sco" +
+      "pe\030\001 \001(\01626.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcEntityScope\0220\n\nexpression\030\002" +
+      " \001(\0132\034.google.protobuf.StringValueB\014P\001\252\002" +
+      "\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -797,6 +873,30 @@ public final class GrpcEvitaDataTypes {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceIndexType_descriptor,
         new java.lang.String[] { "Scope", "IndexType", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceIndexedComponents_descriptor =
+      getDescriptor().getMessageTypes().get(46);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceIndexedComponents_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedReferenceIndexedComponents_descriptor,
+        new java.lang.String[] { "Scope", "IndexedComponents", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedFacetedPartially_descriptor =
+      getDescriptor().getMessageTypes().get(47);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedFacetedPartially_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedFacetedPartially_descriptor,
+        new java.lang.String[] { "Scope", "Expression", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_descriptor =
+      getDescriptor().getMessageTypes().get(48);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_descriptor,
+        new java.lang.String[] { "Scope", "NameOfTheIndex", "ValueExpression", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_descriptor =
+      getDescriptor().getMessageTypes().get(49);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_descriptor,
+        new java.lang.String[] { "Scope", "Expression", });
     com.google.protobuf.TimestampProto.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();

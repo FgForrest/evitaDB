@@ -89,7 +89,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	 */
 	@Nonnull private final TransactionalMap<Serializable, Integer> uniqueValueToRecordId;
 	/**
-	 * Keeps information about all record ids resent in this index.
+	 * Keeps information about all record ids present in this index.
 	 */
 	@Nonnull private final TransactionalBitmap recordIds;
 	/**
@@ -234,8 +234,16 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 
 	@Nonnull
 	@Override
-	public UniqueIndex createCopyWithMergedTransactionalMemory(@Nullable TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+	public UniqueIndex createCopyWithMergedTransactionalMemory(
+		@Nullable TransactionalContainerChanges<
+			MapChanges<Serializable, Integer>,
+			Map<Serializable, Integer>,
+			TransactionalMap<Serializable, Integer>
+		> layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		final boolean isDirty = transactionalLayer
+			.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			final UniqueIndex uniqueKeyIndex = new UniqueIndex(
 				this.entityType, this.attributeIndexKey, this.type,

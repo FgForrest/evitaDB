@@ -23,13 +23,15 @@
 
 package io.evitadb.index.array;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * This {@link java.util.Iterator} iterator iterates over passed integer array with applying the changes on the flight. This iterator
- * is expected only to be used only from {@link TransactionalIntArray}.
+ * This {@link java.util.Iterator} iterates over a passed object array
+ * applying the changes on the fly. This iterator is expected to be used
+ * only from {@link TransactionalObjArray}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -41,7 +43,17 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 	@Nullable private T[] insertion;
 	private int insertionPosition = -1;
 
-	public TransactionalObjArrayIterator(T[] original, ObjArrayChanges<T> changes) {
+	/**
+	 * Creates a new iterator over the given original array with the
+	 * specified transactional changes applied on the fly.
+	 *
+	 * @param original the immutable baseline array
+	 * @param changes  the transactional diff layer to apply
+	 */
+	public TransactionalObjArrayIterator(
+		@Nonnull T[] original,
+		@Nonnull ObjArrayChanges<T> changes
+	) {
 		this.original = original;
 		this.changes = changes;
 		this.position = -1;
@@ -53,7 +65,7 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 		if (this.nextRecord == null) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
-		T recordToReturn = this.nextRecord;
+		final T recordToReturn = this.nextRecord;
 		this.nextRecord = computeNextRecord();
 		return recordToReturn;
 	}
@@ -64,6 +76,25 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 	}
 
 	/**
+	 * Advances through the current insertion array or, once exhausted, returns the original
+	 * element at the current position (if not removed).
+	 *
+	 * @param insertion the non-null insertion array currently being consumed
+	 * @return next value from the insertion or original array, or `null` when neither applies
+	 */
+	@Nullable
+	private T exhaustInsertionOrReturnOriginal(@Nonnull T[] insertion) {
+		if (insertion.length > this.insertionPosition + 1) {
+			return insertion[++this.insertionPosition];
+		}
+		this.insertion = null;
+		if (this.original.length > this.position && !this.changes.isRemovalOnPosition(this.position)) {
+			return this.original[this.position];
+		}
+		return null;
+	}
+
+	/**
 	 * Computes next record to be returned from the iterator.
 	 * @return next record or null if there are no more records
 	 */
@@ -71,15 +102,9 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 	private T computeNextRecord() {
 		// if insertion happens on this spot - first exhaust the insertion
 		if (this.insertion != null) {
-			if (this.insertion.length > this.insertionPosition + 1) {
-				return this.insertion[++this.insertionPosition];
-			} else {
-				// if the original record should not be removed, return it
-				this.insertion = null;
-				boolean originalRemoved = this.changes.isRemovalOnPosition(this.position);
-				if (!originalRemoved && this.original.length > this.position) {
-					return this.original[this.position];
-				}
+			final T result = exhaustInsertionOrReturnOriginal(this.insertion);
+			if (result != null) {
+				return result;
 			}
 		}
 
@@ -95,8 +120,8 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 
 			// if original record should be removed skip it - otherwise return
 			if (this.position < this.original.length) {
-				boolean removalPosition = this.changes.isRemovalOnPosition(this.position);
-				if (!removalPosition) {
+				final boolean removed = this.changes.isRemovalOnPosition(this.position);
+				if (!removed) {
 					return this.original[this.position];
 				}
 			} else {

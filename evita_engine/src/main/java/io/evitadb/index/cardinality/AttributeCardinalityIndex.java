@@ -151,6 +151,13 @@ public class AttributeCardinalityIndex
 	}
 
 	/**
+	 * Returns `true` if the index contents have been modified and need persistence.
+	 */
+	public boolean isDirty() {
+		return this.dirty.isTrue();
+	}
+
+	/**
 	 * Method creates container for storing chain index from memory to the persistent storage.
 	 */
 	@Nullable
@@ -186,9 +193,12 @@ public class AttributeCardinalityIndex
 
 	@Nonnull
 	@Override
-	public AttributeCardinalityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public AttributeCardinalityIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		// we can safely throw away dirty flag now
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new AttributeCardinalityIndex(
 				this.valueType,

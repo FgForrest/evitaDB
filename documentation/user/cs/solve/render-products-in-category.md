@@ -5,10 +5,11 @@ date: '10.2.2024'
 author: Ing. Jan Novotný
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 Typická stránka s výpisem produktů může vypadat takto:
 
-[![Stránka s výpisem kategorií z Alzashop.com](../../en/solve/assets/filtering-products-in-category/category-listing.png "Stránka s výpisem kategorií z Alzashop.com")](assets/filtering-products-in-category/category-listing.png)
+[![Stránka s výpisem kategorií z Alzashop.com](../../en/solve/assets/filtering-products-in-category/category-listing.png "Stránka s výpisem kategorií z Alzashop.com")](../../en/solve/assets/filtering-products-in-category/category-listing.png)
 
 Obvykle se skládá z následujících typických bloků:
 

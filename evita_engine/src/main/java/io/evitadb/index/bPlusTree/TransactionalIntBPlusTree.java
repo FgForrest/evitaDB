@@ -682,7 +682,7 @@ public class TransactionalIntBPlusTree<V> implements
 	public ConsistencyReport getConsistencyReport() {
 		try {
 			final BPlusTreeNode<?> theRoot = getRoot();
-			int height = verifyAndReturnHeight(this);
+			final int height = verifyAndReturnHeight(this);
 			verifyMinimalCountOfValuesInNodes(theRoot, this.minValueBlockSize, this.minInternalNodeBlockSize, true);
 			verifyInternalNodeKeys(theRoot);
 
@@ -712,21 +712,30 @@ public class TransactionalIntBPlusTree<V> implements
 
 		while (cursorWithLevel != null) {
 			final N node = cursorWithLevel.currentNode();
-			// leaf node has less than minBlockSize keys, or internal nodes has less than two children
-			final boolean underFlowNode = node.keyCount() < this.minValueBlockSize;
+			// use appropriate thresholds based on node type
+			final boolean isInternal =
+				node instanceof BPlusInternalTreeNode;
+			final int minBlock = isInternal
+				? this.minInternalNodeBlockSize
+				: this.minValueBlockSize;
+			final int maxBlock = isInternal
+				? this.internalNodeBlockSize
+				: this.valueBlockSize;
+			final boolean underFlowNode =
+				node.keyCount() < minBlock;
 			if (underFlowNode) {
 				final BPlusInternalTreeNode parent = cursorWithLevel.parent();
 				if (parent != null) {
-					boolean nodeIsEmpty = node.size() == 0;
+					final boolean nodeIsEmpty = node.size() == 0;
 					final CursorWithLevel previousNodeCursor = cursorWithLevel.getCursorForPreviousNode();
 					// if previous node with current node exists and shares the same parent
 					// and we can steal from the left sibling
 					if (previousNodeCursor != null) {
 						final N previousNode = previousNodeCursor.currentNode();
-						if (previousNode.keyCount() > this.minValueBlockSize) {
+						if (previousNode.keyCount() > minBlock) {
 							// steal half of the surplus data from the left sibling
 							node.stealFromLeft(
-								Math.max(1, (previousNode.keyCount() - this.minValueBlockSize) / 2), previousNode);
+								Math.max(1, (previousNode.keyCount() - minBlock) / 2), previousNode);
 							// update parent keys
 							updateParentKeys(cursorWithLevel);
 							return;
@@ -738,14 +747,14 @@ public class TransactionalIntBPlusTree<V> implements
 					// and we can steal from the right sibling
 					if (nextNodeCursor != null) {
 						final N nextNode = nextNodeCursor.currentNode();
-						if (nextNode.keyCount() > this.minValueBlockSize) {
+						if (nextNode.keyCount() > minBlock) {
 							// steal half of the surplus data from the right sibling
 							node.stealFromRight(
-								Math.max(1, (nextNode.keyCount() - this.minValueBlockSize) / 2), nextNode);
+								Math.max(1, (nextNode.keyCount() - minBlock) / 2), nextNode);
 							// update parent keys of the next node - we've stolen its first key
 							updateParentKeys(nextNodeCursor);
 							// update parent keys, but only if node was empty - which means first key was added
-							if (node instanceof BPlusInternalTreeNode || nodeIsEmpty) {
+							if (isInternal || nodeIsEmpty) {
 								updateParentKeys(cursorWithLevel);
 							}
 							return;
@@ -755,7 +764,7 @@ public class TransactionalIntBPlusTree<V> implements
 					// if previous node with current node can be merged and share the same parent
 					if (previousNodeCursor != null) {
 						final N previousNode = previousNodeCursor.currentNode();
-						if (previousNode.keyCount() + node.keyCount() < this.valueBlockSize) {
+						if (previousNode.keyCount() + node.keyCount() < maxBlock) {
 							// merge nodes
 							node.mergeWithLeft(previousNode);
 							// remove the removed child from the parent
@@ -773,7 +782,7 @@ public class TransactionalIntBPlusTree<V> implements
 					// if next node with current node can be merged and share the same parent
 					if (nextNodeCursor != null) {
 						final N nextNode = nextNodeCursor.currentNode();
-						if (nextNode.keyCount() + node.keyCount() < this.valueBlockSize) {
+						if (nextNode.keyCount() + node.keyCount() < maxBlock) {
 							// merge nodes
 							node.mergeWithRight(nextNode);
 							// remove the removed child from the parent
@@ -862,7 +871,8 @@ public class TransactionalIntBPlusTree<V> implements
 			(V[]) Array.newInstance(this.valueType, this.valueBlockSize),
 			0,
 			mid,
-			!Transaction.isTransactionAvailable()
+			!Transaction.isTransactionAvailable(),
+			this.transactionalLayerWrapper
 		);
 
 		// Move the other half to the start of existing arrays of former leaf in the right leaf node
@@ -873,7 +883,8 @@ public class TransactionalIntBPlusTree<V> implements
 			originValues,
 			mid,
 			leftLeaf.getKeys().length,
-			!Transaction.isTransactionAvailable()
+			!Transaction.isTransactionAvailable(),
+			this.transactionalLayerWrapper
 		);
 
 		// remove changes of the previous root - it gets replaced
@@ -1105,9 +1116,9 @@ public class TransactionalIntBPlusTree<V> implements
 		@Serial private static final long serialVersionUID = -7649742437563558158L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
-		 * Signalizes this instance if permitted to create and use transactional layers. The tree nodes use themselves
-		 * (the same class) as its transactional memory and if this layer would use transactional memory as well, it would
-		 * create an infinite loop. Therefore, this flag is used to prevent this behavior.
+		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
+		 * themselves (the same class) as their transactional memory layer, and if this layer were to also use
+		 * transactional memory, it would create an infinite loop. This flag prevents that behavior.
 		 */
 		private final boolean transactionalLayer;
 		/**
@@ -1799,6 +1810,16 @@ public class TransactionalIntBPlusTree<V> implements
 					thePeek,
 					true
 				);
+			} else if (!this.transactionalLayer) {
+				// BUG-1 fix: nodes created during splits have
+				// transactionalLayer=false; after commit they
+				// must participate in STM
+				return new BPlusInternalTreeNode(
+					theKeys,
+					theChildren,
+					thePeek,
+					true
+				);
 			} else {
 				return this;
 			}
@@ -1843,9 +1864,9 @@ public class TransactionalIntBPlusTree<V> implements
 		@Serial private static final long serialVersionUID = 5744347408875846161L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
-		 * Signalizes this instance if permitted to create and use transactional layers. The tree nodes use themselves
-		 * (the same class) as its transactional memory and if this layer would use transactional memory as well, it would
-		 * create an infinite loop. Therefore, this flag is used to prevent this behavior.
+		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
+		 * themselves (the same class) as their transactional memory layer, and if this layer were to also use
+		 * transactional memory, it would create an infinite loop. This flag prevents that behavior.
 		 */
 		private final boolean transactionalLayer;
 		/**
@@ -1860,7 +1881,7 @@ public class TransactionalIntBPlusTree<V> implements
 		/**
 		 * The function to wrap the values into a transactional layer.
 		 */
-		@Nullable private Function<Object, V> transactionalLayerWrapper;
+		@Nullable private final Function<Object, V> transactionalLayerWrapper;
 
 		/**
 		 * Index of the last occupied position in the keys array.
@@ -1893,13 +1914,14 @@ public class TransactionalIntBPlusTree<V> implements
 		 * Creates a new leaf node by copying a range of keys and values from origin arrays into the target arrays.
 		 * This constructor is used during node split operations.
 		 *
-		 * @param originKeys         the source array of keys to copy from
-		 * @param originValues       the source array of values to copy from
-		 * @param keys               the target array for keys (may be the same as originKeys)
-		 * @param values             the target array for values (may be the same as originValues)
-		 * @param start              the start index (inclusive) in the origin arrays
-		 * @param end                the end index (exclusive) in the origin arrays
-		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 * @param originKeys                the source array of keys to copy from
+		 * @param originValues              the source array of values to copy from
+		 * @param keys                      the target array for keys (may be the same as originKeys)
+		 * @param values                    the target array for values (may be the same as originValues)
+		 * @param start                     the start index (inclusive) in the origin arrays
+		 * @param end                       the end index (exclusive) in the origin arrays
+		 * @param transactionalLayer        whether this node participates in the transactional memory layer
+		 * @param transactionalLayerWrapper optional function to wrap values into a transactional layer
 		 */
 		public BPlusLeafTreeNode(
 			@Nonnull int[] originKeys,
@@ -1907,7 +1929,8 @@ public class TransactionalIntBPlusTree<V> implements
 			@Nonnull int[] keys,
 			@Nonnull V[] values,
 			int start, int end,
-			boolean transactionalLayer
+			boolean transactionalLayer,
+			@Nullable Function<Object, V> transactionalLayerWrapper
 		) {
 			this.keys = keys;
 			this.values = values;
@@ -1924,18 +1947,21 @@ public class TransactionalIntBPlusTree<V> implements
 			}
 			this.peek = end - start - 1;
 			this.transactionalLayer = transactionalLayer;
+			this.transactionalLayerWrapper = transactionalLayerWrapper;
 		}
 
 		private BPlusLeafTreeNode(
 			@Nonnull int[] keys,
 			@Nonnull V[] values,
 			int peek,
-			boolean transactionalLayer
+			boolean transactionalLayer,
+			@Nullable Function<Object, V> transactionalLayerWrapper
 		) {
 			this.keys = keys;
 			this.values = values;
 			this.peek = peek;
 			this.transactionalLayer = transactionalLayer;
+			this.transactionalLayerWrapper = transactionalLayerWrapper;
 		}
 
 		@Nonnull
@@ -1951,6 +1977,7 @@ public class TransactionalIntBPlusTree<V> implements
 			}
 		}
 
+		@Override
 		public int getPeek() {
 			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -2340,7 +2367,8 @@ public class TransactionalIntBPlusTree<V> implements
 				this.values,
 				0,
 				this.peek + 1,
-				false
+				false,
+				this.transactionalLayerWrapper
 			);
 		}
 
@@ -2395,14 +2423,27 @@ public class TransactionalIntBPlusTree<V> implements
 					theKeys,
 					newValues,
 					thePeek,
-					true
+					true,
+					this.transactionalLayerWrapper
 				);
 			} else if (layer != null) {
 				return new BPlusLeafTreeNode<>(
 					theKeys,
 					theValues,
 					thePeek,
-					true
+					true,
+					this.transactionalLayerWrapper
+				);
+			} else if (!this.transactionalLayer) {
+				// BUG-1 fix: nodes created during splits have
+				// transactionalLayer=false; after commit they must
+				// participate in STM
+				return new BPlusLeafTreeNode<>(
+					theKeys,
+					theValues,
+					thePeek,
+					true,
+					this.transactionalLayerWrapper
 				);
 			} else {
 				return this;
@@ -2952,16 +2993,16 @@ public class TransactionalIntBPlusTree<V> implements
 				// easy path, there is another key in current leaf
 				this.currentKeyIndex--;
 			} else {
-				// we need to traverse up the path to find the next sibling
+				// we need to traverse up the path to find the previous sibling
 				int level = this.pathIndex.length - 1;
 				BPlusTreeNode<?>[] parentLevel = this.path[level];
 				while (parentLevel != null) {
-					// if parent has index greater than zero
+					// if there is a previous sibling at this level
 					if (this.pathIndex[level] > 0) {
-						// we found the parent that has a next sibling - so move the index
+						// move to the previous sibling
 						this.pathIndex[level] = this.pathIndex[level] - 1;
 						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
-						// all levels below, will point to the first child of the new cursor level
+						// all levels below will point to the last child of the new cursor level
 						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
 							Assert.isPremiseValid(
 								currentNode instanceof BPlusInternalTreeNode,
@@ -3171,17 +3212,16 @@ public class TransactionalIntBPlusTree<V> implements
 				// easy path, there is another value in current leaf
 				this.currentValueIndex--;
 			} else {
-				// we need to traverse up the path to find the next sibling
+				// we need to traverse up the path to find the previous sibling
 				int level = this.pathIndex.length - 1;
 				BPlusTreeNode<?>[] parentLevel = this.path[level];
 				while (parentLevel != null) {
-					// if parent has index greater than zero
+					// if there is a previous sibling at this level
 					if (this.pathIndex[level] > 0) {
-						// we found the parent that has a next sibling - so move the index
+						// move to the previous sibling
 						this.pathIndex[level] = this.pathIndex[level] - 1;
-						// all levels below, will point to the first child of the new cursor level
 						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
-						// all levels below, will point to the first child of the new cursor level
+						// all levels below will point to the last child of the new cursor level
 						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
 							Assert.isPremiseValid(
 								currentNode instanceof BPlusInternalTreeNode,

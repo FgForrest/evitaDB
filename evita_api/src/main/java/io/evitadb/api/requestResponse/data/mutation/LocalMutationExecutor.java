@@ -51,4 +51,12 @@ public interface LocalMutationExecutor {
 	 * {@link #applyMutation(LocalMutation)}. The method is called only once before the executor is thrown out.
 	 */
 	void rollback();
+
+	/**
+	 * Called after all local mutations in a batch have been applied via {@link #applyMutation(LocalMutation)}.
+	 * Implementations may override this to perform post-batch processing such as flushing deferred
+	 * evaluations, assigning IDs, or sorting internal data structures. The default implementation is a no-op.
+	 */
+	void finishLocalMutationExecutionPhase();
+
 }

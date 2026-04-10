@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
@@ -84,7 +85,13 @@ class CatalogTest implements EvitaTestSupport {
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(DIR_CATALOG_TEST))
 						.build()
-				).build()
+				)
+				.export(
+					FileSystemExportOptions.builder()
+						.directory(getTestDirectory().resolve(DIR_CATALOG_TEST + "/export"))
+						.build()
+				)
+				.build()
 		)) {
 			evita.defineCatalog(TestConstants.TEST_CATALOG);
 			evita.updateCatalog(

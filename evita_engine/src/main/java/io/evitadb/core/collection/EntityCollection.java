@@ -34,7 +34,9 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -47,7 +49,6 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
@@ -93,12 +94,17 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
+import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
@@ -114,17 +120,17 @@ import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
-import io.evitadb.index.IndexMaintainer;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.*;
+import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.EntityIndexMutation;
+import io.evitadb.index.mutation.IndexMutation;
+import io.evitadb.index.mutation.IndexMutationExecutor;
+import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
+import io.evitadb.index.mutation.IndexMutationTarget;
+import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
@@ -141,6 +147,7 @@ import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.PriceInternalIdContainer;
@@ -1446,7 +1453,9 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Returns entity index by its key. If such index doesn't exist, NULL is returned.
+	 * Returns entity index by its storage primary key, or null if not found. Used to resolve `int[]` storage PKs
+	 * returned by `ReferencedTypeEntityIndex.getAllReferenceIndexes(int)` into actual `ReducedGroupEntityIndex` /
+	 * `ReducedEntityIndex` instances.
 	 */
 	@Nullable
 	public EntityIndex getIndexByPrimaryKeyIfExists(int entityIndexPrimaryKey) {
@@ -1493,6 +1502,37 @@ public final class EntityCollection implements
 				return ofNullable((GlobalEntityIndex) it);
 			})
 			.orElse(empty());
+	}
+
+
+	/**
+	 * Dispatches {@link IndexMutation} instances to their registered {@link IndexMutationExecutor}. Passes the
+	 * {@link EntityIndexMaintainer} (which implements {@link IndexMutationTarget}) so executors can access indexes,
+	 * schema, triggers, and query evaluation without seeing the full {@link EntityCollection} API surface.
+	 *
+	 * Zero allocations — `entityIndexCreator` is the target (already exists as a field).
+	 * No switch/case or orchestration logic in the collection.
+	 *
+	 * The session is temporarily set on the `entityIndexCreator` for the duration of the dispatch so that
+	 * `evaluateFilter()` can create a `QueryPlanningContext`. The session reference is cleared in a `finally`
+	 * block to prevent leaking beyond the dispatch scope.
+	 *
+	 * @param entityIndexMutation transport envelope containing mutations to dispatch
+	 * @param session             active session for query evaluation during dispatch, may be null during WAL replay
+	 *                            when no session context is available
+	 */
+	public void applyIndexMutations(
+		@Nonnull EntityIndexMutation entityIndexMutation,
+		@Nullable EvitaSessionContract session
+	) {
+		this.entityIndexCreator.setSession(session);
+		try {
+			for (final IndexMutation mutation : entityIndexMutation.mutations()) {
+				IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
+			}
+		} finally {
+			this.entityIndexCreator.setSession(null);
+		}
 	}
 
 	/**
@@ -2467,10 +2507,13 @@ public final class EntityCollection implements
 			entityMutation.expects(),
 			this.catalog::getInternalSchema,
 			this::getInternalSchema,
-			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType).orElse(null),
+			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType)
+				.map(EntityCollection::getDataStoreReader)
+				.orElse(null),
 			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation
 		);
+		final String entityType = getInternalSchema().getName();
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
 			changeCollector,
 			entityPrimaryKey,
@@ -2479,7 +2522,16 @@ public final class EntityCollection implements
 			this::getInternalSchema,
 			this::nextInternalPriceId,
 			undoOnError,
-			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity()
+			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity(),
+			() -> this.catalog.getExpressionTriggerRegistry(),
+			(referenceName, scope) -> this.catalog.getExpressionTriggerRegistry()
+				.getLocalTrigger(entityType, referenceName, scope),
+			otherEntityType -> this.catalog.getCollectionForEntityInternal(otherEntityType)
+				.map(EntityCollection::getInternalSchema)
+				.orElseThrow(() -> new IllegalStateException(
+					"No entity collection found for entity type `" + otherEntityType + "` " +
+						"while resolving schema for cross-entity expression evaluation."
+				))
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -2695,9 +2747,35 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * This implementation just manipulates with the set of EntityIndex in entity collection.
+	 * This implementation manipulates the set of {@link EntityIndex} instances in the entity collection and
+	 * provides a narrow {@link IndexMutationTarget} view for {@link IndexMutationExecutor} implementations.
+	 *
+	 * Implements both {@link IndexMaintainer} (used by {@link EntityIndexLocalMutationExecutor} for index
+	 * creation/removal during entity mutation processing) and {@link IndexMutationTarget} (used by
+	 * {@link IndexMutationExecutor} implementations for cross-entity trigger dispatch). Both interfaces share
+	 * a common {@link IndexProvider} super-type for index lookup methods. This dual role isolates callers from
+	 * the full {@link EntityCollection} API surface — passing the entire collection would be one cast away from
+	 * accessing internal methods that should not be visible to mutation executors.
 	 */
-	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex> {
+	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>, IndexMutationTarget {
+
+		/**
+		 * Active session for query evaluation during cross-entity trigger dispatch. Set temporarily by
+		 * `applyIndexMutations()` for the duration of the dispatch and cleared in a `finally` block.
+		 * May be null during WAL replay when no session context is available.
+		 */
+		@Nullable
+		private EvitaSessionContract session;
+
+		/**
+		 * Sets the active session for query evaluation. Called by `applyIndexMutations()` before dispatch
+		 * and cleared after dispatch completes.
+		 *
+		 * @param session the active session, or null to clear
+		 */
+		void setSession(@Nullable EvitaSessionContract session) {
+			this.session = session;
+		}
 
 		/**
 		 * Returns entity index by its key. If such index doesn't exist, it is automatically created.
@@ -2720,19 +2798,32 @@ public final class EntityCollection implements
 									EntityCollection.this.getEntityType(),
 									eikAgain
 								);
-							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
-								assertReferenceIndexPrerequisities(
+							} else if (
+								eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+									eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
+							) {
+								assertReferenceIndexPrerequisites(
 									((String) Objects.requireNonNull(eikAgain.discriminator()))
 								);
 								entityIndex = new ReferencedTypeEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.getEntityType(), eikAgain
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
-								assertReferenceIndexPrerequisities(
+								assertReferenceIndexPrerequisites(
 									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
 										.referenceName()
 								);
 								entityIndex = new ReducedEntityIndex(
+									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getEntityType(),
+									eikAgain
+								);
+							} else if (eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY) {
+								assertReferenceIndexPrerequisites(
+									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
+										.referenceName()
+								);
+								entityIndex = new ReducedGroupEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
 									EntityCollection.this.getEntityType(),
 									eikAgain
@@ -2755,6 +2846,20 @@ public final class EntityCollection implements
 		}
 
 		/**
+		 * Returns entity index by its storage primary key and registers it in the "dirty" memory so that its
+		 * modified storage parts are captured on flush. Returns `null` when no index with the given PK exists.
+		 * Used by cross-entity mutation executors that modify indexes fetched by storage PK.
+		 */
+		@Nonnull
+		@Override
+		public EntityIndex getOrCreateIndexByPrimaryKey(int indexPrimaryKey) {
+			return EntityCollection.this.dataStoreBuffer.getOrCreateIndexForModification(
+				indexPrimaryKey,
+				EntityCollection.this.indexesByPrimaryKey::get
+			);
+		}
+
+		/**
 		 * Returns existing index for passed `entityIndexKey` or returns null.
 		 */
 		@Nullable
@@ -2764,35 +2869,16 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Retrieves an existing index by its unique primary key.
+		 * Returns entity index by its storage primary key, or null if not found. Used to resolve `int[]` storage PKs
+		 * returned by `ReferencedTypeEntityIndex.getAllReferenceIndexes(int)` into actual `ReducedGroupEntityIndex` /
+		 * `ReducedEntityIndex` instances. Satisfies both {@link IndexProvider#getIndexByPrimaryKeyIfExists(int)} and
+		 * the inherited contract on {@link IndexMaintainer} (where the throwing
+		 * {@link IndexMaintainer#getIndexByPrimaryKey(int)} default delegates to this method).
 		 */
-		@Nonnull
+		@Nullable
 		@Override
-		public EntityIndex getIndexByPrimaryKey(int indexPrimaryKey) {
-			final EntityIndex index = EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
-			Assert.isPremiseValid(
-				index != null,
-				() -> new GenericEvitaInternalError("Entity index for primary key " + indexPrimaryKey + " doesn't exists!")
-			);
-			return index;
-		}
-
-		/**
-		 * Ensures that the reference index prerequisites are satisfied before proceeding.
-		 * Verifies the existence of a global index and the presence of the specified reference in the entity schema.
-		 *
-		 * @param referenceName the name of the reference to check in the schema; must not be null
-		 */
-		private void assertReferenceIndexPrerequisities(@Nonnull String referenceName) {
-			final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
-			Assert.isPremiseValid(
-				globalIndex instanceof GlobalEntityIndex,
-				"When a reduced index is created global one must already exist!"
-			);
-			// check that the reference exists in the schema
-			EntityCollection.this
-				.getSchema()
-				.getReferenceOrThrowException(referenceName);
+		public EntityIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+			return EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
 		}
 
 		/**
@@ -2804,7 +2890,7 @@ public final class EntityCollection implements
 		public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
 			final EntityIndex removedIndex = EntityCollection.this.dataStoreBuffer.removeIndex(
 				entityIndexKey, eik -> {
-					final EntityIndex index = EntityCollection.this.indexes.remove(eik);
+					final EntityIndex index = Objects.requireNonNull(EntityCollection.this.indexes.remove(eik));
 					final EntityIndex indexByPk = EntityCollection.this.indexesByPrimaryKey.remove(index.getPrimaryKey());
 					Assert.isPremiseValid(
 						index == indexByPk,
@@ -2821,6 +2907,153 @@ public final class EntityCollection implements
 				ofNullable(getTransactionalLayerMaintainer())
 					.ifPresent(removedIndex::removeTransactionalMemoryOfReferencedProducers);
 			}
+		}
+
+		/**
+		 * Returns the current entity schema for this collection. Used by mutation executors to look up
+		 * `ReferenceSchemaContract` for the reference being modified.
+		 */
+		@Nonnull
+		@Override
+		public EntitySchema getEntitySchema() {
+			return EntityCollection.this.getInternalSchema();
+		}
+
+		/**
+		 * Returns the facet expression trigger for the given reference name, dependency type, and scope.
+		 * Delegates to the catalog's {@link CatalogExpressionTriggerRegistry#getLocalTrigger} which stores
+		 * one facet trigger per `(ownerEntityType, referenceName, scope)` triple.
+		 */
+		@Nullable
+		@Override
+		public FacetExpressionTrigger getFacetTrigger(
+			@Nonnull String referenceName,
+			@Nonnull DependencyType dependencyType,
+			@Nonnull Scope scope
+		) {
+			return EntityCollection.this.catalog.getExpressionTriggerRegistry()
+				.getLocalTrigger(EntityCollection.this.getEntityType(), referenceName, scope);
+		}
+
+		/**
+		 * Evaluates a {@link FilterBy} constraint against this collection's `GlobalEntityIndex` for the specified
+		 * scope and returns the matching entity PK bitmap. Uses the full query planning infrastructure
+		 * (`FilterByVisitor` + `Formula`) to evaluate the filter.
+		 *
+		 * The session is used when available (normal session execution) for cache analysis but is **not required** —
+		 * during WAL replay (trunk incorporation) no session exists and the evaluation proceeds without caching.
+		 *
+		 * @param filterBy the filter constraint to evaluate (typically a parameterized expression from a trigger)
+		 * @param scope    the scope whose `GlobalEntityIndex` should be queried
+		 * @return bitmap of entity primary keys matching the filter, never null (may be empty)
+		 */
+		@Nonnull
+		@Override
+		public Bitmap evaluateFilter(@Nonnull FilterBy filterBy, @Nonnull Scope scope) {
+			// inject EntityScope into the filter so that EvitaRequest.getScopes() returns the correct scope;
+			// without this, nested constraint processing (e.g., ReferenceHaving translator) would default to
+			// LIVE scope and look up wrong indexes when evaluating ARCHIVED entities
+			final FilterConstraint[] originalChildren = filterBy.getChildren();
+			final FilterConstraint[] scopedChildren = new FilterConstraint[originalChildren.length + 1];
+			scopedChildren[0] = scope(scope);
+			System.arraycopy(originalChildren, 0, scopedChildren, 1, originalChildren.length);
+			final FilterBy scopedFilterBy = new FilterBy(scopedChildren);
+
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				Query.query(
+					collection(EntityCollection.this.getEntityType()),
+					scopedFilterBy
+				),
+				OffsetDateTime.now(),
+				EntityReference.class,
+				null
+			);
+			// use session-optional QueryPlanningContext — session may be null during WAL replay
+			final QueryPlanningContext queryContext = new QueryPlanningContext(
+				EntityCollection.this.catalog,
+				EntityCollection.this,
+				this.session,
+				evitaRequest,
+				EntityCollection.this.indexes,
+				EntityCollection.this.indexesByPrimaryKey,
+				EntityCollection.this.cacheSupervisor
+			);
+			final Set<Scope> requestedScopes = EnumSet.of(scope);
+			final Formula formula = FilterByVisitor.createFormulaForTheFilter(
+				queryContext,
+				requestedScopes,
+				scopedFilterBy,
+				EntityCollection.this.getEntityType(),
+				() -> "Evaluating conditional facet expression"
+			);
+			return formula.compute();
+		}
+
+		/**
+		 * Returns the local histogram triggers for the given reference name and scope.
+		 */
+		@Nonnull
+		@Override
+		public Collection<HistogramExpressionTrigger> getHistogramTriggers(
+			@Nonnull String referenceName,
+			@Nonnull Scope scope
+		) {
+			return EntityCollection.this.catalog.getExpressionTriggerRegistry()
+				.getLocalHistogramTriggers(EntityCollection.this.getEntityType(), referenceName, scope);
+		}
+
+		/**
+		 * Returns the {@link FilterIndex} for a source attribute on another entity type's
+		 * `GlobalEntityIndex`. Used for cross-collection value resolution in histogram processing.
+		 */
+		@Nullable
+		@Override
+		public FilterIndex getSourceFilterIndex(
+			@Nonnull String entityType,
+			@Nonnull String attributeName,
+			@Nullable Locale locale,
+			@Nonnull Scope scope
+		) {
+			final EntityCollection sourceCollection = EntityCollection.this.catalog
+				.getCollectionForEntityOrThrowException(entityType);
+			final EntityIndex globalIndex = sourceCollection.getIndexByKeyIfExists(
+				new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+			);
+			if (globalIndex == null) {
+				return null;
+			}
+			return globalIndex.getFilterIndex(
+				new AttributeIndexKey(null, attributeName, locale)
+			);
+		}
+
+		/**
+		 * Returns locales declared in the entity schema of the given entity type.
+		 */
+		@Nonnull
+		@Override
+		public Set<Locale> getEntitySchemaLocales(@Nonnull String entityType) {
+			final EntityCollection sourceCollection = EntityCollection.this.catalog
+				.getCollectionForEntityOrThrowException(entityType);
+			return sourceCollection.getInternalSchema().getLocales();
+		}
+
+		/**
+		 * Ensures that the reference index prerequisites are satisfied before proceeding.
+		 * Verifies the existence of a global index and the presence of the specified reference in the entity schema.
+		 *
+		 * @param referenceName the name of the reference to check in the schema; must not be null
+		 */
+		private void assertReferenceIndexPrerequisites(@Nonnull String referenceName) {
+			final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
+			Assert.isPremiseValid(
+				globalIndex instanceof GlobalEntityIndex,
+				"When a reduced index is created global one must already exist!"
+			);
+			// check that the reference exists in the schema
+			EntityCollection.this
+				.getSchema()
+				.getReferenceOrThrowException(referenceName);
 		}
 
 	}

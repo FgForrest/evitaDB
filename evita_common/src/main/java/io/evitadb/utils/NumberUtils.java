@@ -26,6 +26,7 @@ package io.evitadb.utils;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
@@ -218,6 +219,37 @@ public class NumberUtils {
 	}
 
 	/**
+	 * Converts a {@link Number} to a specific target numeric type supported by evitaDB (`Byte`, `Short`, `Integer`,
+	 * `Long`, or `BigDecimal`). For integral target types, the value is first converted to {@link BigDecimal}
+	 * and then narrowed using exact-value methods to detect overflow. For `BigDecimal` targets, trailing zeros
+	 * are stripped to ensure consistent equality semantics.
+	 *
+	 * @param number     the source number to convert
+	 * @param targetType the desired numeric class
+	 * @return the converted number in the target type
+	 * @throws ArithmeticException      if the value does not fit in the target type
+	 * @throws IllegalArgumentException if the target type is not one of the supported types
+	 */
+	@Nonnull
+	public static Number convertToNumericType(
+		@Nonnull Number number,
+		@Nonnull Class<? extends Serializable> targetType
+	) {
+		if (targetType == Byte.class) {
+			return convertToBigDecimal(number).byteValueExact();
+		} else if (targetType == Short.class) {
+			return convertToBigDecimal(number).shortValueExact();
+		} else if (targetType == Integer.class) {
+			return convertToBigDecimal(number).intValueExact();
+		} else if (targetType == Long.class) {
+			return convertToBigDecimal(number).longValueExact();
+		} else if (targetType == BigDecimal.class) {
+			return convertToBigDecimal(number).stripTrailingZeros();
+		}
+		throw new IllegalArgumentException("Unsupported target numeric type: " + targetType);
+	}
+
+	/**
 	 * Creates long number as a composition of two integer numbers.
 	 * Solution taken from https://stackoverflow.com/questions/12772939/java-storing-two-ints-in-a-long/12772968
 	 */
@@ -243,6 +275,28 @@ public class NumberUtils {
 	@Nonnull
 	public static BigDecimal normalize(@Nonnull BigDecimal bigDecimal) {
 		return bigDecimal.stripTrailingZeros();
+	}
+
+	/**
+	 * Returns the value with `BigDecimal` trailing zeros stripped if the value is a `BigDecimal`;
+	 * otherwise returns the value unchanged. Used at the boundary between entity storage and
+	 * indexes to ensure consistent `BigDecimal` representation in index keys.
+	 *
+	 * @param value the serializable value to normalize
+	 * @return normalized value
+	 */
+	@Nonnull
+	public static Serializable normalizeIfBigDecimal(@Nonnull Serializable value) {
+		if (value instanceof BigDecimal bd) {
+			return normalize(bd);
+		} else if (value instanceof BigDecimal[] bdArray) {
+			final BigDecimal[] normalized = new BigDecimal[bdArray.length];
+			for (int i = 0; i < bdArray.length; i++) {
+				normalized[i] = normalize(bdArray[i]);
+			}
+			return normalized;
+		}
+		return value;
 	}
 
 }

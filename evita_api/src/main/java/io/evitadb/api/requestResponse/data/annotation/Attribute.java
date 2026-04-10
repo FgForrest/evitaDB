@@ -26,8 +26,8 @@ package io.evitadb.api.requestResponse.data.annotation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;

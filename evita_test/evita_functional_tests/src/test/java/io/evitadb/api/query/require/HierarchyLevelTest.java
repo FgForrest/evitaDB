@@ -23,51 +23,129 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.level;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link HierarchyLevel} query.
+ * Tests for {@link HierarchyLevel} verifying construction, applicability, visitor acceptance,
+ * string representation, equality contract, and cloning behavior.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("HierarchyLevel constraint")
 class HierarchyLevelTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final HierarchyLevel hierarchyLevel = level(1);
-		assertEquals(hierarchyLevel.getLevel(), 1);
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should create via factory method with level value")
+		void shouldCreateViaFactoryClassWorkAsExpected() {
+			final HierarchyLevel hierarchyLevel = level(1);
+
+			assertEquals(1, hierarchyLevel.getLevel());
+		}
+
+		@Test
+		@DisplayName("should fail to create with negative level")
+		void shouldFailToCreateLevelWithNegativeNumber() {
+			assertThrows(EvitaInvalidUsageException.class, () -> level(-1));
+		}
+
+		@Test
+		@DisplayName("should fail to create with zero level")
+		void shouldFailToCreateLevelWithZero() {
+			assertThrows(EvitaInvalidUsageException.class, () -> level(0));
+		}
 	}
 
-	@Test
-	void shouldFailToCreateLevelWithNegativeNumber() {
-		assertThrows(EvitaInvalidUsageException.class, () -> level(-1));
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should be applicable when level is provided")
+		void shouldRecognizeApplicability() {
+			assertTrue(new HierarchyLevel(1).isApplicable());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertTrue(new HierarchyLevel(1).isApplicable());
+	@Nested
+	@DisplayName("Visitor support")
+	class VisitorSupportTest {
+
+		@Test
+		@DisplayName("should accept visitor")
+		void shouldAcceptVisitor() {
+			final HierarchyLevel constraint = level(1);
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+
+			constraint.accept(c -> visited.set(c));
+
+			assertSame(constraint, visited.get());
+		}
+
+		@Test
+		@DisplayName("should return RequireConstraint type")
+		void shouldReturnRequireConstraintType() {
+			assertEquals(RequireConstraint.class, level(1).getType());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final HierarchyLevel hierarchyLevel = level(1);
-		assertEquals("level(1)", hierarchyLevel.toString());
+	@Nested
+	@DisplayName("String representation")
+	class StringRepresentationTest {
 
-		final HierarchyLevel hierarchyLevel2 = level(12);
-		assertEquals("level(12)", hierarchyLevel2.toString());
+		@Test
+		@DisplayName("should produce correct toString output")
+		void shouldToStringReturnExpectedFormat() {
+			final HierarchyLevel hierarchyLevel = level(1);
+			assertEquals("level(1)", hierarchyLevel.toString());
+
+			final HierarchyLevel hierarchyLevel2 = level(12);
+			assertEquals("level(12)", hierarchyLevel2.toString());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(level(1), level(1));
-		assertEquals(level(1), level(1));
-		assertNotEquals(level(2), level(1));
-		assertEquals(level(1).hashCode(), level(1).hashCode());
-		assertNotEquals(level(2).hashCode(), level(1).hashCode());
+	@Nested
+	@DisplayName("Equality")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(level(1), level(1));
+			assertEquals(level(1), level(1));
+			assertNotEquals(level(2), level(1));
+			assertEquals(level(1).hashCode(), level(1).hashCode());
+			assertNotEquals(level(2).hashCode(), level(1).hashCode());
+		}
 	}
 
+	@Nested
+	@DisplayName("Cloning")
+	class CloningTest {
+
+		@Test
+		@DisplayName("should return new instance from cloneWithArguments")
+		void shouldReturnNewInstanceFromCloneWithArguments() {
+			final HierarchyLevel constraint = level(1);
+
+			final RequireConstraint cloned = constraint.cloneWithArguments(new Serializable[]{1});
+
+			assertNotSame(constraint, cloned);
+			assertEquals(constraint, cloned);
+		}
+	}
 }

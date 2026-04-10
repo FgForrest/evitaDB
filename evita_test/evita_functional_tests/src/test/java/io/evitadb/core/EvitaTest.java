@@ -58,7 +58,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
@@ -2123,6 +2123,68 @@ class EvitaTest implements EvitaTestSupport {
 				assertTrue(attributes.get("categoryPriority").isSortable());
 				assertTrue(attributes.containsKey("customNote"));
 				assertTrue(attributes.containsKey("additionalAttribute"));
+			}
+		);
+	}
+
+	@Test
+	@DisplayName("Should throw context missing exception when accessing localized attribute without locale")
+	void shouldThrowContextMissingExceptionWhenAccessingLocalizedAttributeWithoutLocale() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// we can create reflected reference even before the main one is created
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute("name", String.class, whichIs -> whichIs.localized())
+					.updateVia(session);
+
+				final Locale theLocale = new Locale("cs");
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute("name", theLocale, "Produkt 1")
+					.upsertVia(session);
+
+				final SealedEntity product = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll()
+				).orElseThrow();
+
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((EntityDecorator) product).getDelegate().getAttribute("name")
+				);
+				assertThrows(
+					ContextMissingException.class,
+					() -> product.getAttribute("name")
+				);
+
+				final SealedEntity productWithAllLocalesFetched = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll(), dataInLocalesAll()
+				).orElseThrow();
+
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((EntityDecorator) productWithAllLocalesFetched).getDelegate().getAttribute("name")
+				);
+				assertThrows(
+					ContextMissingException.class,
+					() -> productWithAllLocalesFetched.getAttribute("name")
+				);
+
+				final SealedEntity productWithSingleLocaleFetched = session.getEntity(
+					Entities.PRODUCT, 1,
+					attributeContentAll(), associatedDataContentAll(), dataInLocales(theLocale)
+				).orElseThrow();
+
+				assertThrows(
+					ContextMissingException.class,
+					() -> ((EntityDecorator) productWithAllLocalesFetched).getDelegate().getAttribute("name")
+				);
+				assertEquals(
+					"Produkt 1",
+					productWithSingleLocaleFetched.getAttribute("name")
+				);
 			}
 		);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -93,9 +94,10 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForCapture";
 	private List<CatalogBoundMutation> mutations;
 
+	@Nonnull
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
 	@Override
-	protected DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(@Nonnull Evita evita) {
 		final DataCarrier dataCarrier = super.setUp(evita);
 		final List<SealedEntity> products = (List<SealedEntity>) dataCarrier.getValueByName("originalProducts");
 		final List<SealedEntity> brands = (List<SealedEntity>) dataCarrier.getValueByName("originalBrands");

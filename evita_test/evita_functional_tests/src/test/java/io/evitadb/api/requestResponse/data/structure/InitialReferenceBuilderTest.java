@@ -40,6 +40,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -50,165 +52,437 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This test verifies contract of {@link InitialReferenceBuilder}.
+ * This test verifies contract of
+ * {@link InitialReferenceBuilder}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("InitialReferenceBuilder")
 class InitialReferenceBuilderTest extends AbstractBuilderTest {
-	private HashMap<String, AttributeSchemaContract> attributeTypes = new HashMap<>(4);
+	private final HashMap<String, AttributeSchemaContract>
+		attributeTypes = new HashMap<>(4);
 
-	@Test
-	void shouldCreateReference() {
-		final ReferenceBuilder builder = new InitialReferenceBuilder(
+	/**
+	 * Creates a fresh reference builder for "brand"
+	 * reference with the given referenced entity primary
+	 * key and internal primary key.
+	 */
+	private ReferenceBuilder createBrandBuilder(
+		int referencedEntityPrimaryKey,
+		int internalPrimaryKey
+	) {
+		return new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(
+				PRODUCT_SCHEMA,
+				"brand", "brand",
+				Cardinality.ZERO_OR_ONE, null
+			),
 			"brand",
-			5,
-			-1,
+			referencedEntityPrimaryKey,
+			internalPrimaryKey,
 			this.attributeTypes
-		)
-			.setAttribute("brandPriority", 154L)
-			.setAttribute("country", Locale.ENGLISH, "Great Britain")
-			.setAttribute("country", Locale.CANADA, "Canada")
-			.setGroup("group", 78);
-
-		assertEquals(
-			new ReferenceKey("brand", 5),
-			builder.getReferenceKey()
 		);
-		assertEquals(
-			new GroupEntityReference("group", 78, 1, false),
-			builder.getGroup().orElse(null)
-		);
-		assertEquals(154L, (Long) builder.getAttribute("brandPriority"));
-		assertEquals("Great Britain", builder.getAttribute("country", Locale.ENGLISH));
-		assertEquals("Canada", builder.getAttribute("country", Locale.CANADA));
-
-		final ReferenceContract reference = builder.build();
-
-		assertEquals(
-			new ReferenceKey("brand", 5),
-			reference.getReferenceKey()
-		);
-		assertEquals(
-			new GroupEntityReference("group", 78, 1, false),
-			reference.getGroup().orElse(null)
-		);
-		assertEquals(154L, (Long) reference.getAttribute("brandPriority"));
-		assertEquals("Great Britain", reference.getAttribute("country", Locale.ENGLISH));
-		assertEquals("Canada", reference.getAttribute("country", Locale.CANADA));
-
-		final CatalogSchemaBuilder catalogSchemaBuilder = new CatalogSchemaDecorator(CATALOG_SCHEMA).openForWrite();
-		final EntitySchemaBuilder entitySchemaBuilder = new EntitySchemaDecorator(() -> CATALOG_SCHEMA, PRODUCT_SCHEMA).openForWrite();
-		builder.buildChangeSet()
-			.filter(SchemaEvolvingLocalMutation.class::isInstance)
-			.forEach(it -> ((SchemaEvolvingLocalMutation<?, ?>) it).verifyOrEvolveSchema(
-				catalogSchemaBuilder, entitySchemaBuilder
-			)
-		);
-
-		final EntitySchemaContract updatedSchema = entitySchemaBuilder.toInstance();
-		final Map<String, AttributeSchemaContract> brandRefAttributes = updatedSchema.getReference("brand").orElseThrow().getAttributes();
-		assertFalse(brandRefAttributes.isEmpty());
-		final AttributeSchemaContract brandPriority = brandRefAttributes.get("brandPriority");
-		assertNotNull(brandPriority);
-		assertEquals(Long.class, brandPriority.getType());
-		assertFalse(brandPriority.isLocalized());
-
-		final AttributeSchemaContract brandCountry = brandRefAttributes.get("country");
-		assertNotNull(brandCountry);
-		assertEquals(String.class, brandCountry.getType());
-		assertTrue(brandCountry.isLocalized());
 	}
 
-	@Test
-	void shouldOverwriteReferenceData() {
-		final ReferenceBuilder builder = new InitialReferenceBuilder(
-			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
-			"brand",
-			5,
-			-4,
-			this.attributeTypes
+	@Nested
+	@DisplayName("Creating references")
+	class CreatingReferencesTest {
+
+		@Test
+		@DisplayName("Should create reference")
+		void shouldCreateReference() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -1)
+					.setAttribute(
+						"brandPriority", 154L
+					)
+					.setAttribute(
+						"country",
+						Locale.ENGLISH,
+						"Great Britain"
+					)
+					.setAttribute(
+						"country",
+						Locale.CANADA, "Canada"
+					)
+					.setGroup("group", 78);
+
+			assertEquals(
+				new ReferenceKey("brand", 5),
+				builder.getReferenceKey()
+			);
+			assertEquals(
+				new GroupEntityReference(
+					"group", 78, 1, false
+				),
+				builder.getGroup().orElse(null)
+			);
+			assertEquals(
+				154L,
+				(Long) builder
+					.getAttribute("brandPriority")
+			);
+			assertEquals(
+				"Great Britain",
+				builder.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+			assertEquals(
+				"Canada",
+				builder.getAttribute(
+					"country", Locale.CANADA
+				)
+			);
+
+			final ReferenceContract reference =
+				builder.build();
+
+			assertEquals(
+				new ReferenceKey("brand", 5),
+				reference.getReferenceKey()
+			);
+			assertEquals(
+				new GroupEntityReference(
+					"group", 78, 1, false
+				),
+				reference.getGroup().orElse(null)
+			);
+			assertEquals(
+				154L,
+				(Long) reference
+					.getAttribute("brandPriority")
+			);
+			assertEquals(
+				"Great Britain",
+				reference.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+			assertEquals(
+				"Canada",
+				reference.getAttribute(
+					"country", Locale.CANADA
+				)
+			);
+
+			final CatalogSchemaBuilder catalogSchemaBuilder =
+				new CatalogSchemaDecorator(CATALOG_SCHEMA)
+					.openForWrite();
+			final EntitySchemaBuilder entitySchemaBuilder =
+				new EntitySchemaDecorator(
+					() -> CATALOG_SCHEMA, PRODUCT_SCHEMA
+				).openForWrite();
+			builder.buildChangeSet()
+				.filter(
+					SchemaEvolvingLocalMutation.class
+						::isInstance
+				)
+				.forEach(it ->
+					((SchemaEvolvingLocalMutation<?, ?>) it)
+						.verifyOrEvolveSchema(
+							catalogSchemaBuilder,
+							entitySchemaBuilder
+						)
+				);
+
+			final EntitySchemaContract updatedSchema =
+				entitySchemaBuilder.toInstance();
+			final Map<String, AttributeSchemaContract>
+				brandRefAttributes = updatedSchema
+				.getReference("brand")
+				.orElseThrow()
+				.getAttributes();
+			assertFalse(brandRefAttributes.isEmpty());
+			final AttributeSchemaContract brandPriority =
+				brandRefAttributes.get("brandPriority");
+			assertNotNull(brandPriority);
+			assertEquals(
+				Long.class, brandPriority.getType()
+			);
+			assertFalse(brandPriority.isLocalized());
+
+			final AttributeSchemaContract brandCountry =
+				brandRefAttributes.get("country");
+			assertNotNull(brandCountry);
+			assertEquals(
+				String.class, brandCountry.getType()
+			);
+			assertTrue(brandCountry.isLocalized());
+		}
+
+		@Test
+		@DisplayName(
+			"Should overwrite reference data"
 		)
-			.setAttribute("brandPriority", 154L)
-			.setAttribute("brandPriority", 155L)
-			.setAttribute("country", Locale.ENGLISH, "Great Britain")
-			.setAttribute("country", Locale.ENGLISH, "Great Britain #2")
-			.setAttribute("country", Locale.CANADA, "Canada")
-			.setAttribute("country", Locale.CANADA, "Canada #2")
-			.setGroup("group", 78)
-			.setGroup("group", 79);
+		void shouldOverwriteReferenceData() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -4)
+					.setAttribute(
+						"brandPriority", 154L
+					)
+					.setAttribute(
+						"brandPriority", 155L
+					)
+					.setAttribute(
+						"country",
+						Locale.ENGLISH,
+						"Great Britain"
+					)
+					.setAttribute(
+						"country",
+						Locale.ENGLISH,
+						"Great Britain #2"
+					)
+					.setAttribute(
+						"country",
+						Locale.CANADA, "Canada"
+					)
+					.setAttribute(
+						"country",
+						Locale.CANADA, "Canada #2"
+					)
+					.setGroup("group", 78)
+					.setGroup("group", 79);
 
-		assertEquals(
-			new ReferenceKey("brand", 5),
-			builder.getReferenceKey()
-		);
-		assertEquals(
-			new GroupEntityReference("group", 79, 1, false),
-			builder.getGroup().orElse(null)
-		);
-		assertEquals(155L, (Long) builder.getAttribute("brandPriority"));
-		assertEquals("Great Britain #2", builder.getAttribute("country", Locale.ENGLISH));
-		assertEquals("Canada #2", builder.getAttribute("country", Locale.CANADA));
+			assertEquals(
+				new ReferenceKey("brand", 5),
+				builder.getReferenceKey()
+			);
+			assertEquals(
+				new GroupEntityReference(
+					"group", 79, 1, false
+				),
+				builder.getGroup().orElse(null)
+			);
+			assertEquals(
+				155L,
+				(Long) builder
+					.getAttribute("brandPriority")
+			);
+			assertEquals(
+				"Great Britain #2",
+				builder.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+			assertEquals(
+				"Canada #2",
+				builder.getAttribute(
+					"country", Locale.CANADA
+				)
+			);
 
-		final ReferenceContract reference = builder.build();
+			final ReferenceContract reference =
+				builder.build();
 
-		assertEquals(
-			new ReferenceKey("brand", 5),
-			reference.getReferenceKey()
-		);
-		assertEquals(
-			new GroupEntityReference("group", 79, 1, false),
-			reference.getGroup().orElse(null)
-		);
-		assertEquals(155L, (Long) reference.getAttribute("brandPriority"));
-		assertEquals("Great Britain #2", reference.getAttribute("country", Locale.ENGLISH));
-		assertEquals("Canada #2", reference.getAttribute("country", Locale.CANADA));
+			assertEquals(
+				new ReferenceKey("brand", 5),
+				reference.getReferenceKey()
+			);
+			assertEquals(
+				new GroupEntityReference(
+					"group", 79, 1, false
+				),
+				reference.getGroup().orElse(null)
+			);
+			assertEquals(
+				155L,
+				(Long) reference
+					.getAttribute("brandPriority")
+			);
+			assertEquals(
+				"Great Britain #2",
+				reference.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+			assertEquals(
+				"Canada #2",
+				reference.getAttribute(
+					"country", Locale.CANADA
+				)
+			);
+		}
 	}
 
+	@Nested
+	@DisplayName("Group handling")
+	class GroupHandlingTest {
 
-	@Test
-	void shouldSetAndRemoveGroupWithoutType() {
-		final ReferenceBuilder builder = new InitialReferenceBuilder(
-			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
-			"brand",
-			5,
-			-1,
-			this.attributeTypes
-		).setGroup("brandGroup", 42);
+		@Test
+		@DisplayName(
+			"Should set and remove group without type"
+		)
+		void shouldSetAndRemoveGroupWithoutType() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -1)
+					.setGroup("brandGroup", 42);
 
-		assertTrue(builder.getGroup().isPresent());
-		assertEquals(42, builder.getGroup().orElseThrow().primaryKey());
-		assertEquals("brandGroup", builder.getGroup().orElseThrow().getType());
+			assertTrue(builder.getGroup().isPresent());
+			assertEquals(
+				42,
+				builder.getGroup()
+					.orElseThrow().primaryKey()
+			);
+			assertEquals(
+				"brandGroup",
+				builder.getGroup()
+					.orElseThrow().getType()
+			);
 
-		builder.removeGroup();
-		assertTrue(builder.getGroup().isEmpty());
+			builder.removeGroup();
+			assertTrue(builder.getGroup().isEmpty());
+		}
 	}
 
-	@Test
-	void shouldProduceProperChangeSetForReference() {
-		final ReferenceBuilder builder = new InitialReferenceBuilder(
-			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
-			"brand",
-			5,
-			-1,
-			this.attributeTypes
+	@Nested
+	@DisplayName("Change set")
+	class ChangeSetTest {
+
+		@Test
+		@DisplayName(
+			"Should produce proper change set"
+				+ " for reference"
 		)
-			.setAttribute("brandPriority", 154L)
-			.setGroup("group", 78);
+		void shouldProduceProperChangeSetForReference() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -1)
+					.setAttribute(
+						"brandPriority", 154L
+					)
+					.setGroup("group", 78);
 
-		final List<? extends ReferenceMutation<?>> mutations = builder.buildChangeSet().toList();
+			final List<? extends ReferenceMutation<?>>
+				mutations =
+				builder.buildChangeSet().toList();
 
-		assertEquals(3, mutations.size());
-		assertTrue(mutations.stream().anyMatch(InsertReferenceMutation.class::isInstance));
-		assertTrue(mutations.stream().anyMatch(SetReferenceGroupMutation.class::isInstance));
-		assertTrue(builder.buildChangeSet().anyMatch(ReferenceAttributeMutation.class::isInstance));
+			assertEquals(3, mutations.size());
+			assertTrue(
+				mutations.stream().anyMatch(
+					InsertReferenceMutation.class
+						::isInstance
+				)
+			);
+			assertTrue(
+				mutations.stream().anyMatch(
+					SetReferenceGroupMutation.class
+						::isInstance
+				)
+			);
+			assertTrue(
+				builder.buildChangeSet().anyMatch(
+					ReferenceAttributeMutation.class
+						::isInstance
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Accessor methods")
+	class AccessorMethodsTest {
+
+		@Test
+		@DisplayName("Should return reference key")
+		void shouldReturnReferenceKey() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -1);
+
+			final ReferenceKey key =
+				builder.getReferenceKey();
+			assertEquals("brand", key.referenceName());
+			assertEquals(5, key.primaryKey());
+		}
+
+		@Test
+		@DisplayName(
+			"Should return referenced entity type"
+		)
+		void shouldReturnReferencedEntityType() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -1);
+
+			assertEquals(
+				"brand",
+				builder.getReferencedEntityType()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"Should return reference cardinality"
+		)
+		void shouldReturnReferenceCardinality() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -1);
+
+			assertEquals(
+				Cardinality.ZERO_OR_ONE,
+				builder.getReferenceCardinality()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Attribute operations")
+	class AttributeOperationsTest {
+
+		@Test
+		@DisplayName("Should remove attribute")
+		void shouldRemoveAttribute() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -1)
+					.setAttribute(
+						"brandPriority", 154L
+					);
+
+			assertEquals(
+				154L,
+				(Long) builder
+					.getAttribute("brandPriority")
+			);
+
+			builder.removeAttribute("brandPriority");
+			assertNull(
+				builder.getAttribute("brandPriority")
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"Should remove localized attribute"
+		)
+		void shouldRemoveLocalizedAttribute() {
+			final ReferenceBuilder builder =
+				createBrandBuilder(5, -1)
+					.setAttribute(
+						"country",
+						Locale.ENGLISH,
+						"Great Britain"
+					);
+
+			assertEquals(
+				"Great Britain",
+				builder.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+
+			builder.removeAttribute(
+				"country", Locale.ENGLISH
+			);
+			assertNull(
+				builder.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+		}
 	}
 
 }

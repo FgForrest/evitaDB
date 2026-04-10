@@ -38,19 +38,48 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The stopAt container constraint is a service wrapping constraint container that only makes sense in combination with
- * one of the allowed nested constraints. See the usage examples for specific nested constraints.
+ * A wrapper container that defines the termination condition for hierarchy traversal. It is used as an inner
+ * constraint inside any of the traversal requirements ({@link HierarchyFromRoot}, {@link HierarchyFromNode},
+ * {@link HierarchyChildren}, {@link HierarchyParents}, {@link HierarchySiblings}) to prevent unbounded descent
+ * through arbitrarily deep trees.
  *
- * It accepts one of the following inner constraints:
+ * Without a `stopAt`, traversal continues all the way to the leaf nodes (for top-down traversal) or to the root
+ * (for upward traversal such as `parents`), which may be expensive for large hierarchies.
  *
- * - {@link HierarchyDistance}
- * - {@link HierarchyLevel}
- * - {@link HierarchyNode}
+ * The container must contain exactly one of the following termination strategies:
  *
- * which define the constraint that stops traversing the hierarchy tree when it's satisfied by a currently traversed
- * node.
+ * - {@link HierarchyDistance}: stops when the traversal has moved the specified number of steps away from the pivot
+ *   node (relative depth); the pivot node itself is at distance zero
+ * - {@link HierarchyLevel}: stops when the traversal reaches nodes at or beyond the specified absolute level in
+ *   the hierarchy; the virtual root is level zero, top-level nodes are level one
+ * - {@link HierarchyNode}: stops at the first node whose attributes or other properties satisfy the specified
+ *   filter constraint; allows non-uniform tree depth based on data-driven conditions
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#stop-at">Visit detailed user documentation</a></p>
+ * **Example — stop at depth 2 from the root when building a mega-menu:**
+ *
+ * ```evitaql
+ * hierarchyOfReference(
+ *     "categories",
+ *     fromRoot(
+ *         "megaMenu",
+ *         stopAt(level(2))
+ *     )
+ * )
+ * ```
+ *
+ * **Example — stop one level below the pivot node (direct children only):**
+ *
+ * ```evitaql
+ * hierarchyOfReference(
+ *     "categories",
+ *     children(
+ *         "subcategories",
+ *         stopAt(distance(1))
+ *     )
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#stop-at)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -125,7 +154,10 @@ public class HierarchyStopAt extends AbstractRequireConstraintContainer implemen
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		for (RequireConstraint requireConstraint : children) {
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyStopAtRequireConstraint ||
@@ -138,12 +170,11 @@ public class HierarchyStopAt extends AbstractRequireConstraintContainer implemen
 		return new HierarchyStopAt(children);
 	}
 
-
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		Assert.isTrue(ArrayUtils.isEmpty(newArguments), "HierarchyNode container accepts no arguments!");
-		return this;
+		Assert.isTrue(ArrayUtils.isEmpty(newArguments), "HierarchyStopAt container accepts no arguments!");
+		return new HierarchyStopAt(getChildren());
 	}
 
 }

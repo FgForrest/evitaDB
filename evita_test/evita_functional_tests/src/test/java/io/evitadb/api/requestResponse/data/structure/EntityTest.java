@@ -386,4 +386,24 @@ class EntityTest extends AbstractBuilderTest {
 		final Entity result = Entity.mutateEntity(schema, entity, noops);
 		assertSame(entity, result, "Expected same entity instance to be returned on no-op mutations");
 	}
+
+	@Test
+	@DisplayName("mutateEntity handles null entity with ReferenceMutation gracefully")
+	void shouldHandleNullEntityWithReferenceMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_ONE, r -> {})
+			.toInstance();
+
+		final ReferenceKey rk = new ReferenceKey(BRAND, 1);
+		final List<LocalMutation<?, ?>> mutations = List.of(
+			new InsertReferenceMutation(rk, Cardinality.ZERO_OR_ONE, BRAND)
+		);
+
+		final Entity result = Entity.mutateEntity(schema, null, mutations);
+
+		assertTrue(result.getReference(rk).isPresent());
+	}
 }

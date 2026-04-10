@@ -39,13 +39,40 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 /**
- * The `entityFetch` requirement is used to trigger loading one or more entity data containers from the disk by its
- * primary key. This operation requires a disk access unless the entity is already loaded in the database cache
- * (frequently fetched entities have higher chance to stay in the cache).
+ * The `entityFetch` requirement triggers loading the full entity body from storage. Without this requirement, query
+ * results contain only entity primary keys. This operation may require a disk access unless the entity is already
+ * present in the database cache — frequently accessed entities have a higher probability of remaining cached.
  *
- * Example:
+ * `entityFetch` acts as a container for one or more {@link EntityContentRequire} sub-requirements that specify
+ * which data containers to load. An empty `entityFetch()` (no sub-requirements) loads only the entity body
+ * (locale, scope, and schema reference), but no attributes, associated data, prices, or references.
  *
- * <pre>
+ * ## Performance consideration
+ *
+ * Only fetch data you actually need. Each sub-requirement causes additional data to be loaded from disk or cache.
+ * Fetching unnecessary data increases both I/O cost and network transfer size.
+ *
+ * ## Supported content requirements
+ *
+ * - {@link AttributeContent} — entity or reference attributes
+ * - {@link AssociatedDataContent} — unstructured associated data
+ * - {@link PriceContent} — price information in various modes
+ * - {@link AccompanyingPriceContent} — additional prices alongside the selling price
+ * - {@link HierarchyContent} — parent hierarchy chain
+ * - {@link ReferenceContent} — references to other entities (with optional nested entity/group fetching)
+ * - {@link DataInLocales} — localized data in specific or all locales
+ *
+ * ## Usage context
+ *
+ * `entityFetch` is valid in the top-level `require` clause, inside {@link ReferenceContent} (to load referenced entity
+ * bodies), and inside {@link HierarchyContent} (to load bodies of parent hierarchy nodes).
+ *
+ * When multiple `entityFetch` requirements are combined (e.g., from different API layers), their sub-requirements are
+ * merged via {@link EntityContentRequireCombiningCollector}, so the result always fetches the union of requested data.
+ *
+ * Example — fetching selected attributes of a Brand entity:
+ *
+ * ```
  * query(
  *     collection("Brand"),
  *     filterBy(
@@ -58,23 +85,15 @@ import java.util.stream.Stream;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * See internal contents available for fetching in {@link EntityContentRequire}:
- *
- * - {@link AttributeContent}
- * - {@link AssociatedDataContent}
- * - {@link PriceContent}
- * - {@link HierarchyContent}
- * - {@link ReferenceContent}
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#entity-fetch)
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
 	name = "fetch",
-	shortDescription = "Returns richer entities instead of just entity references (empty container returns only entity body).",
+	shortDescription = "The constraint triggers loading full entity bodies instead of just primary key references; its children control which parts of the entity are fetched.",
 	userDocsLink = "/documentation/query/requirements/fetching#entity-fetch",
 	supportedIn = {ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.FACET}
 )
@@ -149,7 +168,10 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new EntityFetch(children);
 	}
 

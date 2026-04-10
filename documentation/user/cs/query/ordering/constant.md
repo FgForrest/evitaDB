@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: true
 ---
 Konstantní pořadové omezení jsou obzvláště užitečná, pokud máte seřazenou množinu unikátních atributů nebo přímo primární klíče entit, které poskytuje externí systém a které je potřeba zachovat ve výstupu evitaDB (například představují relevanci těchto entit z fulltextového enginu).
 

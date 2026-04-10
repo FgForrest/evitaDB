@@ -50,10 +50,10 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 /**
  * This array keeps unique (distinct) integer values in strictly ordered fashion (naturally ordered - ascending).
  *
- * This class envelopes simple primitive int array and makes it transactional. This means, that the array can be updated
- * by multiple writers and also multiple readers can read from it's original array without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * This class envelops simple primitive int array and makes it transactional. This means, that the array can be updated
+ * by multiple writers and also multiple readers can read from its original array without spotting the changes made
+ * in transactional access. Each transaction is bound to the same thread and different threads don't see changes in
+ * other threads.
  *
  * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
  * safe for multiple writers!
@@ -66,11 +66,19 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private int[] delegate;
 
+	/**
+	 * Creates an empty transactional int array.
+	 */
 	public TransactionalIntArray() {
 		this.delegate = ArrayUtils.EMPTY_INT_ARRAY;
 	}
 
-	public TransactionalIntArray(int[] delegate) {
+	/**
+	 * Creates a transactional int array backed by the given sorted delegate.
+	 *
+	 * @param delegate the initial sorted int array
+	 */
+	public TransactionalIntArray(@Nonnull int[] delegate) {
 		this.delegate = delegate;
 	}
 
@@ -116,9 +124,12 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	public int addReturningIndex(int recordId) {
 		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate);
+			final InsertionPosition insertionPosition =
+				ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate);
 			if (!insertionPosition.alreadyPresent()) {
-				this.delegate = ArrayUtils.insertIntIntoArrayOnIndex(recordId, this.delegate, insertionPosition.position());
+				this.delegate = ArrayUtils.insertIntIntoArrayOnIndex(
+					recordId, this.delegate, insertionPosition.position()
+				);
 			}
 			return insertionPosition.position();
 		} else {
@@ -251,9 +262,10 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	}
 
 	/*
-		TRANSACTIONAL OBJECT IMPLEMENTATION
+		TransactionalLayerProducer implementation
 	 */
 
+	@Nullable
 	@Override
 	public IntArrayChanges createLayer() {
 		return isTransactionAvailable() ? new IntArrayChanges(this.delegate) : null;
@@ -261,7 +273,10 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 
 	@Nonnull
 	@Override
-	public int[] createCopyWithMergedTransactionalMemory(@Nullable IntArrayChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public int[] createCopyWithMergedTransactionalMemory(
+		@Nullable IntArrayChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		if (layer == null) {
 			return this.delegate;
 		} else {

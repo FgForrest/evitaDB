@@ -23,9 +23,13 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.page;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -60,6 +64,15 @@ class PageTest {
 		assertEquals(page(null, null), page(1, 20));
 		assertEquals(page(null, 2), page(1, 2));
 		assertEquals(page(1, null), page(1, 20));
+	}
+
+	@Test
+	@DisplayName("getCopyWithNewChildren() should not throw ArrayIndexOutOfBoundsException when additionalChildren is empty")
+	void shouldHandleGetCopyWithNewChildrenWithEmptyAdditionalChildren() {
+		final Page original = page(1, 20);
+		assertDoesNotThrow(() ->
+			original.getCopyWithNewChildren(new RequireConstraint[0], new Constraint<?>[0])
+		);
 	}
 
 }

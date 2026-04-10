@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ import java.util.Comparator;
  * ids to entity primary key. Also price amounts are used for sorting by price. Price indexes don't use original
  * {@link PriceContract} to minimize memory consumption (this class contains only primitive types).
  *
- * There two specializations of this interface:
+ * There are two specializations of this interface:
  *
  * - {@link PriceRecord} - represents a physical price recorded for single entity and present in indexes
  * - {@link CumulatedVirtualPriceRecord} - represents an "on the fly" record with computed prices that are required by
@@ -46,10 +46,17 @@ import java.util.Comparator;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface PriceRecordContract extends Serializable, Comparable<PriceRecordContract> {
-	Comparator<PriceRecordContract> PRICE_RECORD_COMPARATOR = Comparator.comparing(PriceRecordContract::internalPriceId);
 
 	/**
-	 * Returns internal id for {@link PriceContract#priceId()}. The is unique for the price identified
+	 * Comparator that orders {@link PriceRecordContract} instances
+	 * by {@link #internalPriceId()} in ascending order.
+	 */
+	@Nonnull
+	Comparator<PriceRecordContract> PRICE_RECORD_COMPARATOR =
+		Comparator.comparing(PriceRecordContract::internalPriceId);
+
+	/**
+	 * Returns internal id for {@link PriceContract#priceId()}. It is unique for the price identified
 	 * by {@link PriceKey} inside single entity. The id is different for two prices sharing same {@link PriceKey}
 	 * but are present in different entities.
 	 */
@@ -82,18 +89,18 @@ public interface PriceRecordContract extends Serializable, Comparable<PriceRecor
 
 	/**
 	 * Returns true if price record has inner record id specified (non-null).
-	 * The inner record id (int) is encoded with entityPrimaryKey into the local innerRecordId (long).
-	 * This allows us to sort correctly by entity primary key first and be able to any time extract both entity primary
-	 * key or inner record id from it.
+	 * The inner record id is stored alongside the entity primary key, which
+	 * allows us to be able to extract at any time both entity primary key
+	 * and inner record id from the record.
 	 */
 	boolean isInnerRecordSpecific();
 
 	/**
-	 * Method allow to check if the price relates to the another price in terms of the inner record ID equality.
+	 * Method allows checking if the price relates to another price in terms of the inner record ID equality.
 	 * Some price implementation might implement more complex logic to determine the relation.
 	 *
 	 * @param anotherPriceRecord another price to check relation with
-	 * @return true if the price relates to the another price
+	 * @return true if the price relates to another price
 	 */
 	boolean relatesTo(@Nonnull PriceRecordContract anotherPriceRecord);
 

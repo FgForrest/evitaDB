@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * Tests for all traffic recording container types.
  *
- * @author Claude
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Traffic recording containers")
 class TrafficRecordingContainerTest {

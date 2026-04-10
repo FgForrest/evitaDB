@@ -36,9 +36,19 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * A sub-interface of StoragePartPersistenceService that represents the persistence service extension for catalog.
- * This interface provides methods for reading and writing catalog headers.
+ * Extends {@link StoragePartPersistenceService} with catalog-specific header operations. While the base interface
+ * handles generic {@link io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart} read/write operations,
+ * this interface adds the ability to read and write the {@link io.evitadb.spi.store.catalog.header.model.CatalogHeader}
+ * — the top-level descriptor that records which entity collections exist, where the WAL file lives, and what catalog
+ * state (version, primary key sequences, …) is current.
  *
+ * An instance is obtained via {@link CatalogPersistenceService#getStoragePartPersistenceService(long)} and is
+ * associated with exactly one catalog data file generation. When the catalog data file is rotated (compacted) a new
+ * instance is created for the new file while the old instance remains readable until no readers reference it.
+ *
+ * @param <S> the concrete {@link LogRecordReference} type that identifies WAL file locations
+ * @param <T> the concrete {@link CollectionReference} type that describes entity collection file locations
+ * @param <U> the concrete {@link StorageDescriptor} type produced by the underlying offset-index implementation
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface CatalogStoragePartPersistenceService<S extends LogRecordReference, T extends CollectionReference, U extends StorageDescriptor> extends StoragePartPersistenceService<U> {

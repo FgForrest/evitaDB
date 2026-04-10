@@ -48,37 +48,45 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * The parents requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by
- * the filtering part of the same query using the hierarchyWithin constraint towards the root of the hierarchy.
- * The scope of the calculated information can be controlled by the stopAt constraint. By default, the traversal goes
- * all the way to the top of the hierarchy tree unless you tell it to stop at anywhere. If you need to access
- * statistical data, use the statistics constraint.
+ * Computes the ancestor axis of the hierarchy node targeted by the `hierarchyWithin` filter constraint, traversing
+ * upward from that node toward the tree root. The result is an ordered list of ancestor nodes — from the direct
+ * parent all the way up — which is the canonical building block for rendering breadcrumb navigation.
  *
- * The constraint accepts following arguments:
+ * By default, the traversal ascends all the way to the top-level nodes (depth-one nodes whose parent is the
+ * virtual root). Use a {@link HierarchyStopAt} inner constraint to limit how far up the ancestor axis is
+ * followed — for example, to stop at a configurable depth for deep hierarchies.
  *
- * - mandatory String argument specifying the output name for the calculated data structure
- * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
- *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
- *   present:
+ * **Sibling enrichment:**
  *
- *      - {@link HierarchySiblings}
- *      - {@link EntityFetch}
- *      - {@link HierarchyStopAt}
- *      - {@link HierarchyStatistics}
+ * An optional nested {@link HierarchySiblings} inner constraint enriches each node on the ancestor axis with its
+ * sibling nodes. This lets you render a fully expanded breadcrumb where each breadcrumb step also shows the other
+ * options at that level (e.g., a two-level expandable breadcrumb). When `siblings` is nested inside `parents`,
+ * it uses the parent node's output name and does not require its own separate name argument.
  *
- * The following query lists products in the category Audio and its subcategories. Along with the products returned,
- * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
- * category True wireless with a computed count of child categories for each menu item and an aggregated count of all
- * products that would fall into the given category.
+ * **Interaction with `hierarchyWithin` filter:**
  *
- * <pre>
+ * The pivot node of `hierarchyWithin` is the starting point of the upward traversal. The `having`, `anyHaving`,
+ * and `excluding` inner constraints of `hierarchyWithin` are respected when computing child-count and entity-count
+ * statistics at each ancestor node, keeping those numbers consistent with the query result.
+ *
+ * **Required arguments:**
+ *
+ * - mandatory `outputName` (`String`): key under which the computed ancestor axis is registered in the extra results
+ *
+ * **Optional inner constraints:**
+ *
+ * - {@link HierarchySiblings}: requests sibling nodes for each ancestor returned on the parent axis
+ * - {@link EntityFetch}: specifies which data to fetch for each hierarchy entity on the ancestor axis
+ * - {@link HierarchyStopAt}: limits how far up the ancestor axis the traversal proceeds
+ * - {@link HierarchyStatistics}: requests computation of `CHILDREN_COUNT` and/or `QUERIED_ENTITY_COUNT` per node
+ *
+ * **Example — breadcrumb for products within the "True Wireless" category:**
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "true-wireless")
- *         )
+ *         hierarchyWithin("categories", attributeEquals("code", "true-wireless"))
  *     ),
  *     require(
  *         hierarchyOfReference(
@@ -86,30 +94,20 @@ import static java.util.Optional.of;
  *             parents(
  *                 "parentAxis",
  *                 entityFetch(attributeContent("code")),
- *                 statistics(
- *                     CHILDREN_COUNT,
- *                     QUERIED_ENTITY_COUNT
- *                 )
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
  *             )
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
- * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
- * or {@link HierarchyExcluding}, the parents will respect them as well during child nodes / queried entities statistics
- * calculation. The reason is simple: when you render a menu for the query result, you want the calculated statistics
- * to respect the rules that apply to the {@link HierarchyWithin} so that the calculated number remains consistent for
- * the end user.
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#parents)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "parents",
-	shortDescription = "The constraint triggers computing the hierarchy parent axis starting at currently requested hierarchy node in filter by constraint.",
+	shortDescription = "The constraint computes the ancestor axis (parent chain toward root) starting at the node targeted by the hierarchyWithin filter constraint.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#parents",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
@@ -129,7 +127,11 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		}
 	}
 
-	public HierarchyParents(@Nonnull String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	public HierarchyParents(
+		@Nonnull String outputName,
+		@Nonnull EntityFetch entityFetch,
+		@Nonnull HierarchyOutputRequireConstraint... requirements
+	) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},
@@ -163,7 +165,11 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		);
 	}
 
-	public HierarchyParents(@Nonnull String outputName,  @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	public HierarchyParents(
+		@Nonnull String outputName,
+		@Nonnull HierarchySiblings siblings,
+		@Nonnull HierarchyOutputRequireConstraint... requirements
+	) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},
@@ -252,7 +258,10 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "Inner constraints of different type than `require` are not expected.");
 		return new HierarchyParents(getOutputName(), children);
 	}
