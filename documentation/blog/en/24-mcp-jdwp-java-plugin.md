@@ -62,7 +62,7 @@ It's especially useful for concurrency bugs — race conditions and deadlocks �
 
 ## Wrapping Up
 
-MCP JDWP Inspector is an open source project under the MIT license. It builds on the original work by [Nicolas Vautrin](https://github.com/nicovMusic/mcp-jdwp-inspector), which we extended with features needed for real-world use — conditional breakpoints, deferred activation, recursive breakpoint protection, logpoints, and many more. A pull request back to his repository didn't make sense, as our plugin significantly changes the original concept and adds features that would be unnecessary for his use case.
+MCP JDWP Inspector is an open source project under the MIT license. It builds on the original work by [Nicolas Vautrin](https://github.com/NicolasVautrin/mcp-jdwp-java), which we extended with features needed for real-world use — conditional breakpoints, deferred activation, recursive breakpoint protection, logpoints, and many more. A pull request back to his repository didn't make sense, as our plugin significantly changes the original concept and adds features that would be unnecessary for his use case.
 
 If you work on a Java project and use AI agents, we wholeheartedly recommend giving the plugin a try — at least on those five sandbox puzzles. It's the fastest way to understand what a difference it makes when the agent can "see inside" a running application.
 

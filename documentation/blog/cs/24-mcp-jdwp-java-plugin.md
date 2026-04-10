@@ -62,7 +62,7 @@ Zvlášť užitečné je to u souběžných chyb — race conditions a deadlock�
 
 ## Závěrem
 
-MCP JDWP Inspector je open source projekt pod MIT licencí. Vychází z původní práce [Nicolase Vautrina](https://github.com/nicovMusic/mcp-jdwp-inspector), kterou jsme rozšířili o funkce potřebné pro reálný provoz — podmíněné breakpointy, deferred aktivaci, ochranu proti rekurzivním breakpointům, logpointy a řadu dalších. Zpětný pull request do jeho repositáře však nedával smysl, protože náš plugin výrazně mění původní koncept a přidává funkce, které jsou pro něj zbytečné.
+MCP JDWP Inspector je open source projekt pod MIT licencí. Vychází z původní práce [Nicolase Vautrina](https://github.com/NicolasVautrin/mcp-jdwp-java), kterou jsme rozšířili o funkce potřebné pro reálný provoz — podmíněné breakpointy, deferred aktivaci, ochranu proti rekurzivním breakpointům, logpointy a řadu dalších. Zpětný pull request do jeho repositáře však nedával smysl, protože náš plugin výrazně mění původní koncept a přidává funkce, které jsou pro něj zbytečné.
 
 Pokud pracujete na Java projektu a používáte AI agenty, vřele doporučujeme si plugin vyzkoušet — minimálně na těch pěti sandboxových hádankách. Je to nejrychlejší způsob, jak pochopit, jaký rozdíl dělá, když agent „vidí dovnitř" běžící aplikace.
 
