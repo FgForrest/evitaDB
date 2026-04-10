@@ -24,6 +24,9 @@
 package io.evitadb.api.query.expression.visitor;
 
 import io.evitadb.api.query.expression.bool.BooleanOperator;
+import io.evitadb.api.query.expression.object.MethodInvocationStep;
+import io.evitadb.api.query.expression.object.ObjectAccessOperator;
+import io.evitadb.api.query.expression.object.ObjectOperationStep;
 import io.evitadb.api.query.expression.utility.NestedOperator;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.dataType.expression.ExpressionNode;
@@ -74,6 +77,18 @@ public class BooleanExpressionChecker implements ExpressionNodeVisitor {
 			((UnaryExpressionNode) node).getOperand().accept(this);
 		} else if (node instanceof BooleanOperator) {
 			this.booleanExpression = true;
+		} else if (node instanceof ObjectAccessOperator objectAccessOperator) {
+			// walk chain to find the terminal step — predicate methods return boolean
+			ObjectOperationStep step = objectAccessOperator.getAccessChain();
+			while (step.getNext() != null) {
+				step = step.getNext();
+			}
+			if (step instanceof MethodInvocationStep methodStep) {
+				final String method = methodStep.getMethodIdentifier();
+				if ("any".equals(method) || "all".equals(method) || "none".equals(method)) {
+					this.booleanExpression = true;
+				}
+			}
 		}
 		// everything else: booleanExpression stays false
 	}

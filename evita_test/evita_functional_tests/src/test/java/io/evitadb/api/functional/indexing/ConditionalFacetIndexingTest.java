@@ -318,7 +318,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.faceted()
 					.facetedPartially(
 						ExpressionFactory.parse(
-							"$reference.referencedEntity.references['tag'].*[$.attributes['weight'] ?? 0] > 5"
+							"$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)"
 						)
 					)
 			)
@@ -333,7 +333,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER_GROUP)
 					.facetedPartially(
 						ExpressionFactory.parse(
-							"$reference.groupEntity?.references['tag'].*[$.attributes['weight'] ?? 0] > 5"
+							"$reference.groupEntity?.references['tag']?.any(($.attributes['weight'] ?? 0) > 5)"
 						)
 					)
 			)
