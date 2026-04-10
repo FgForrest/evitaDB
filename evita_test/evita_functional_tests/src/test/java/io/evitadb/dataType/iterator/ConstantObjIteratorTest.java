@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * object iterator contract over a constant array, including
  * correct handling of `null` elements within the array.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ConstantObjIterator functionality")
 class ConstantObjIteratorTest {

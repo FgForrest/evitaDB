@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -56,12 +56,24 @@ public @interface ScopeReferenceSettings {
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#isFacetedInScope(Scope)}.
 	 */
-	Expression faceted() default @Expression;
+	boolean faceted() default false;
 
 	/**
-	 * Configures histogram computation for reference of this name
+	 * Defines a condition to further narrow down the facet scope.
+	 * This is only evaluated if {@link #faceted()} is set to true.
+	 */
+	Expression facetedPartially() default @Expression;
+
+	/**
+	 * Enables histogram (bucketed) computation for reference of this name
 	 * in this scope.
 	 */
-	Histogram histogram() default @Histogram;
+	Histogram bucketed() default @Histogram;
+
+	/**
+	 * Defines a condition to further narrow down the histogram scope.
+	 * This is only evaluated if {@link #bucketed()} is set up.
+	 */
+	Expression bucketedPartially() default @Expression;
 
 }

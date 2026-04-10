@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link DefaultPrefetchRequirementCollector} verifying construction, adding requirements, combining logic,
  * and retrieval operations.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DefaultPrefetchRequirementCollector")
 class DefaultPrefetchRequirementCollectorTest {

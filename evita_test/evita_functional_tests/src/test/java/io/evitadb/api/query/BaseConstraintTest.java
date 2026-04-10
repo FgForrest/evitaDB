@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link BaseConstraint} - the abstract base class for all evitaDB query constraints.
  * Uses concrete constraint subclasses ({@link Collection}, {@link AttributeEquals}) to test base behavior.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("BaseConstraint")
 class BaseConstraintTest {

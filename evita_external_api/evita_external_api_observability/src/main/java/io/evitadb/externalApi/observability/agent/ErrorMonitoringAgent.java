@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.observability.agent;
 
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.asm.Advice.OnMethodExit;
@@ -68,6 +69,13 @@ public class ErrorMonitoringAgent {
 				.visit(
 					Advice
 						.to(EvitaDbErrorConstructorInterceptAdvice.class)
+						.on(isConstructor())
+				))
+			.type(isSubTypeOf(EvitaInvalidUsageException.class).and(not(isAbstract())))
+			.transform((builder, typeDescription, classLoader, module, protectionDomain) -> builder
+				.visit(
+					Advice
+						.to(ClientErrorConstructorInterceptAdvice.class)
 						.on(isConstructor())
 				))
 			.installOn(inst);
@@ -126,6 +134,19 @@ public class ErrorMonitoringAgent {
 		@OnMethodExit
 		public static boolean after(@Advice.This Object thiz) {
 			ErrorMonitor.registerEvitaError(thiz.getClass().getSimpleName());
+			return true;
+		}
+
+	}
+
+	/**
+	 * Advice that sends a metric to the MetricHandler when an Error is constructed.
+	 */
+	public static class ClientErrorConstructorInterceptAdvice {
+
+		@OnMethodExit
+		public static boolean after(@Advice.This Object thiz) {
+			ErrorMonitor.registerClientError(thiz.getClass().getSimpleName());
 			return true;
 		}
 

@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * predicate filtering, default instance behavior, and richer copy
  * creation logic.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Locale predicate")
 class LocaleSerializablePredicateTest {

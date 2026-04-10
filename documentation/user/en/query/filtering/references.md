@@ -33,9 +33,10 @@ referenceHaving(
 
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/ReferenceHaving.cs</SourceClass></LS> constraint
 eliminates entities which has no reference of particular name satisfying set of filtering constraints. You can examine
-either the attributes specified on the relation itself or wrap the filtering constraint
-in [`entityHaving`](#entity-having)
-constraint to examine the attributes of the referenced entity. The constraint is similar to
+either the attributes specified on the relation itself, wrap the filtering constraint
+in [`entityHaving`](#entity-having) constraint to examine the attributes of the referenced entity,
+or in [`groupHaving`](#group-having) constraint to examine the attributes of the group entity associated
+with the reference. The constraint is similar to
 SQL [`EXISTS`](https://www.w3schools.com/sql/sql_exists.asp) operator.
 
 To demonstrate how the `referenceHaving` constraint works, let's query for products that have at least one alternative
@@ -211,6 +212,73 @@ Which returns the following result:
 <LS to="r">
 
 <MDInclude>[Products referencing `brand` of with code `apple`](/documentation/user/en/query/filtering/examples/references/entity-having.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+## Group having
+
+```evitaql-syntax
+groupHaving(
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more filter constraints that must be satisfied by the group entity of any of the source
+        entity references identified by the parent `referenceHaving` constraint
+    </dd>
+</dl>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/GroupHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/GroupHaving.cs</SourceClass></LS> constraint
+is used to examine the attributes or other filterable properties of the group entity associated with a reference.
+It can only be used within the [`referenceHaving`](#reference-having) constraint, which defines the name of the entity
+reference whose group entity will be subjected to the filtering restrictions in the `groupHaving` constraint. The
+filtering constraints for the group entity can use entire range of [filtering operators](../basics.md#filter-by).
+
+This constraint requires the reference to be configured with a group type and to have
+the `REFERENCED_GROUP_ENTITY` [indexed component](../../use/schema.md#reference) enabled. Without `groupHaving`,
+filtering constraints within `referenceHaving` apply to the reference relation attributes; with
+[`entityHaving`](#entity-having), they apply to the referenced entity attributes; and with `groupHaving`, they apply
+to the group entity attributes.
+
+Let's use our previous example to query for products that have a `brand` reference whose group entity (a `Store`)
+has a particular attribute `code`:
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products referencing `brand` with group (store) having particular code](/documentation/user/en/query/filtering/examples/references/group-having.evitaql)
+
+</SourceCodeTabs>
+
+Which returns the following result:
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Products with `brand` reference grouped by a store with specific code
+
+</NoteTitle>
+
+<LS to="e,j,c">
+
+<MDInclude>[Products referencing `brand` with group (store) having particular code](/documentation/user/en/query/filtering/examples/references/group-having.evitaql.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude>[Products referencing `brand` with group (store) having particular code](/documentation/user/en/query/filtering/examples/references/group-having.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude>[Products referencing `brand` with group (store) having particular code](/documentation/user/en/query/filtering/examples/references/group-having.rest.json.md)</MDInclude>
 
 </LS>
 

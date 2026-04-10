@@ -23,10 +23,15 @@
 
 import io.evitadb.api.query.expression.function.processor.*;
 import io.evitadb.api.query.expression.object.accessor.ObjectElementAccessor;
+import io.evitadb.api.query.expression.object.accessor.ObjectMethodAccessor;
 import io.evitadb.api.query.expression.object.accessor.ObjectPropertyAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.ArrayElementAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.ListElementAccessor;
+import io.evitadb.api.query.expression.object.accessor.common.ArrayMethodAccessor;
+import io.evitadb.api.query.expression.object.accessor.common.ListMethodAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.MapElementAccessor;
+import io.evitadb.api.query.expression.object.accessor.common.MapMethodAccessor;
+import io.evitadb.api.query.expression.object.accessor.common.DateTimeRangePropertyAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.MapEntryPropertyAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.MapPropertyAccessor;
 
@@ -37,6 +42,7 @@ module evita.query {
 	uses FunctionProcessor;
 	uses ObjectElementAccessor;
 	uses ObjectPropertyAccessor;
+	uses ObjectMethodAccessor;
 
 	provides FunctionProcessor with
 		AbsFunctionProcessor,
@@ -52,12 +58,18 @@ module evita.query {
 
 	provides ObjectPropertyAccessor with
 		MapPropertyAccessor,
-		MapEntryPropertyAccessor;
+		MapEntryPropertyAccessor,
+		DateTimeRangePropertyAccessor;
 
 	provides ObjectElementAccessor with
 		ListElementAccessor,
 		ArrayElementAccessor,
 		MapElementAccessor;
+
+	provides ObjectMethodAccessor with
+		ListMethodAccessor,
+		ArrayMethodAccessor,
+		MapMethodAccessor;
 
 	exports io.evitadb.api.query;
 	exports io.evitadb.api.query.descriptor;
@@ -74,6 +86,14 @@ module evita.query {
 	exports io.evitadb.api.query.expression.object.accessor;
 	exports io.evitadb.api.query.expression.object.accessor.common;
 	exports io.evitadb.api.query.expression.function.processor;
+	exports io.evitadb.api.query.expression.bool;
+	exports io.evitadb.api.query.expression.utility;
+	exports io.evitadb.api.query.expression.object;
+	exports io.evitadb.api.query.expression.operand;
+	exports io.evitadb.api.query.expression.numeric;
+	exports io.evitadb.api.query.expression.coalesce;
+	exports io.evitadb.api.query.expression.function;
+	exports io.evitadb.api.query.expression.visitor;
 
 	requires static jsr305;
 	requires static lombok;

@@ -809,5 +809,50 @@ class ArrayUtilsTest {
 
 			assertTrue(ArrayUtils.compare(array1, array2) < 0);
 		}
+
+		@Test
+		@DisplayName("Should return negative when first element is null (null-first ordering)")
+		void shouldReturnNegativeWhenFirstElementIsNull() {
+			Integer[] array1 = {null, 2};
+			Integer[] array2 = {1, 2};
+
+			assertTrue(ArrayUtils.compare(array1, array2) < 0);
+		}
+
+		@Test
+		@DisplayName("Should return positive when second element is null (null-first ordering)")
+		void shouldReturnPositiveWhenSecondElementIsNull() {
+			Integer[] array1 = {1, 2};
+			Integer[] array2 = {null, 2};
+
+			assertTrue(ArrayUtils.compare(array1, array2) > 0);
+		}
+
+		@Test
+		@DisplayName("Should skip both-null elements and compare next")
+		void shouldSkipBothNullAndCompareNext() {
+			Integer[] array1 = {null, 1};
+			Integer[] array2 = {null, 2};
+
+			assertTrue(ArrayUtils.compare(array1, array2) < 0);
+		}
+
+		@Test
+		@DisplayName("Should return zero when both arrays contain only nulls")
+		void shouldReturnZeroWhenBothArraysHaveOnlyNulls() {
+			Integer[] array1 = {null, null};
+			Integer[] array2 = {null, null};
+
+			assertEquals(0, ArrayUtils.compare(array1, array2));
+		}
+
+		@Test
+		@DisplayName("Should treat null as less than non-null at any position")
+		void shouldHandleNullAtDifferentPositions() {
+			Integer[] array1 = {1, null, 3};
+			Integer[] array2 = {1, 2, 3};
+
+			assertTrue(ArrayUtils.compare(array1, array2) < 0);
+		}
 	}
 }

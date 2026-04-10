@@ -1,26 +1,3 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2026
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 // Generated from EvitaEL.g4 by ANTLR 4.13.2
 
     package io.evitadb.api.query.expression.parser.grammar;
@@ -231,6 +208,12 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitNestedExpressionCallOperand(EvitaELParser.NestedExpressionCallOperandContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link EvitaELParser#methodAccessExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodAccessExpression(EvitaELParser.MethodAccessExpressionContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link EvitaELParser#elementAccessExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -254,6 +237,13 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitVariable(EvitaELParser.VariableContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code nullValueToken}
+	 * labeled alternative in {@link EvitaELParser#literal}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitNullValueToken(EvitaELParser.NullValueTokenContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code stringValueToken}
 	 * labeled alternative in {@link EvitaELParser#literal}.

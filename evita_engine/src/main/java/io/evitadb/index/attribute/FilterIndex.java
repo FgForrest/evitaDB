@@ -38,7 +38,6 @@ import io.evitadb.dataType.Range;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedException;
@@ -50,6 +49,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -57,20 +57,17 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.LinkedList;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.StringUtils.unknownToString;
 import static java.util.Optional.ofNullable;
 
@@ -112,7 +109,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	private final Class<?> attributeType;
 	/**
-	 * Instance of conversion function that converts the value before it's placed into internal index or looked up
+	 * Instance of conversion function that converts the value before it is placed into internal index or looked up
 	 * in it by {@link Comparator} interface.
 	 */
 	@Nonnull private final Function<Object, Serializable> normalizer;
@@ -120,11 +117,6 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Instance of comparator that should be used for sorting values in this filter index.
 	 */
 	@Nonnull private final Comparator<? extends Comparable> comparator;
-	/**
-	 * Value index is auxiliary data structure that allows fast O(1) access to the records of specified value.
-	 * It is created on demand on first use.
-	 */
-	@Nullable private transient Map<Serializable, Integer> valueIndex;
 	/**
 	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
 	 * computed anytime by calling `((InvertedIndex) this.histogram).getSortedRecords(null, null)`. Original operation
@@ -195,8 +187,6 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	public static Function<Object, Serializable> getNormalizer(@Nonnull Class<?> attributeType) {
 		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof OffsetDateTime offsetDateTime ? offsetDateTime.toInstant() : (Serializable) comparable;
-		} else if (BigDecimal.class.isAssignableFrom(attributeType)) {
-			return comparable -> comparable instanceof BigDecimal bigDecimal ? bigDecimal.stripTrailingZeros() : (Serializable) comparable;
 		} else if (Currency.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof Currency currency ? new ComparableCurrency(currency) : (Serializable) comparable;
 		} else if (Locale.class.isAssignableFrom(attributeType)) {
@@ -369,14 +359,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public Formula getRecordsWhoseValuesEndsWith(@Nonnull String suffix) {
 		/* TOBEDONE JNO naive and slow - use RadixTree */
-		final Formula[] foundRecords = getValueIndex().keySet()
-			.stream()
-			.map(String.class::cast)
-			.filter(it -> it.endsWith(suffix))
-			.map(this::getRecordsEqualToFormula)
-			.toArray(Formula[]::new);
-		return ArrayUtils.isEmpty(foundRecords) ?
-			EmptyFormula.INSTANCE : FormulaFactory.or(foundRecords);
+		return this.invertedIndex
+			.getSortedRecordsMatching(value -> ((String) value).endsWith(suffix))
+			.getFormula();
 	}
 
 	/**
@@ -385,14 +370,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public Formula getRecordsWhoseValuesContains(@Nonnull String text) {
 		/* TOBEDONE JNO naive and slow - use RadixTree */
-		final Formula[] foundRecords = getValueIndex().keySet()
-			.stream()
-			.map(String.class::cast)
-			.filter(it -> it.contains(text))
-			.map(this::getRecordsEqualToFormula)
-			.toArray(Formula[]::new);
-		return ArrayUtils.isEmpty(foundRecords) ?
-			EmptyFormula.INSTANCE : FormulaFactory.or(foundRecords);
+		return this.invertedIndex
+			.getSortedRecordsMatching(value -> ((String) value).contains(text))
+			.getFormula();
 	}
 
 	/**
@@ -421,10 +401,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 		if (value instanceof final Object[] valueArray) {
 			for (Object valueItem : verifyValueArray(valueArray)) {
-				addRecordToHistogramAndValueIndex(recordId, (T) valueItem);
+				this.invertedIndex.addRecord((T) valueItem, recordId);
 			}
 		} else {
-			addRecordToHistogramAndValueIndex(recordId, (T) value);
+			this.invertedIndex.addRecord((T) value, recordId);
 		}
 
 		if (!isTransactionAvailable()) {
@@ -461,7 +441,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		}
 
 		for (Object valueItem : verifyValueArray(value)) {
-			addRecordToHistogramAndValueIndex(recordId, (T) valueItem);
+			this.invertedIndex.addRecord((T) valueItem, recordId);
 		}
 
 		if (!isTransactionAvailable()) {
@@ -560,20 +540,21 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns bitmap of all record ids connected with the value in the argument
 	 */
 	@Nonnull
-	public <T> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
-		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
-			.map(this.invertedIndex::getRecordsAtIndex)
-			.orElse(EmptyBitmap.INSTANCE);
+	public <T extends Serializable> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
+		final T normalized = (T) NumberUtils.normalizeIfBigDecimal(attributeValue);
+		return this.invertedIndex.getRecordsEqualTo(this.normalizer.apply(normalized));
 	}
 
 	/**
 	 * Returns bitmap of all record ids connected with the value in the argument
 	 */
 	@Nonnull
-	public <T> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
-		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
-			.map(it -> (Formula) new ConstantFormula(this.invertedIndex.getRecordsAtIndex(it)))
-			.orElse(EmptyFormula.INSTANCE);
+	public <T extends Serializable> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
+		final T normalized = (T) NumberUtils.normalizeIfBigDecimal(attributeValue);
+		// use direct binary search to avoid stale valueIndex cache positions when
+		// the inverted index is accessed through a transactional layer on another thread
+		final Bitmap records = this.invertedIndex.getRecordsEqualTo(this.normalizer.apply(normalized));
+		return records.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(records);
 	}
 
 	/**
@@ -768,6 +749,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
+	 * Returns `true` if the index contents have been modified and need persistence.
+	 */
+	public boolean isDirty() {
+		return this.dirty.isTrue();
+	}
+
+	/**
 	 * Method creates container for storing filter index from memory to the persistent storage.
 	 */
 	@Nullable
@@ -790,7 +778,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 	@Nonnull
 	@Override
-	public FilterIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public FilterIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		// we can safely throw away dirty flag now
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new FilterIndex(
@@ -845,29 +836,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		}
 	}
 
-	@Nonnull
-	private Map<Serializable, Integer> getValueIndex() {
-		if (this.valueIndex == null) {
-			final Map<Serializable, Integer> bucketValueToPositionIndex = createHashMap(this.invertedIndex.getBucketCount());
-			final ValueToRecordBitmap[] buckets = this.invertedIndex.getValueToRecordBitmap();
-			for (int i = 0; i < buckets.length; i++) {
-				final ValueToRecordBitmap bucket = buckets[i];
-				bucketValueToPositionIndex.put(bucket.getValue(), i);
-			}
-			this.valueIndex = bucketValueToPositionIndex;
-		}
-		return this.valueIndex;
-	}
-
-	private <T extends Serializable> void addRecordToHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		this.invertedIndex.addRecord(value, recordId);
-		this.valueIndex = null;
-	}
-
 	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
 		final int removalIndex = this.invertedIndex.removeRecord(value, recordId);
 		isTrue(removalIndex >= 0, "Sanity check - record not found!");
-		this.valueIndex = null;
 	}
 
 }

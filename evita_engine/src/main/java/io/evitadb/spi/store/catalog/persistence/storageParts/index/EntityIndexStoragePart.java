@@ -96,6 +96,11 @@ public class EntityIndexStoragePart implements StoragePart {
 	 * allows to translate itself to a unique key allowing to fetch {@link StoragePart} from persistent storage.
 	 */
 	@Getter private final Set<String> facetIndexes;
+	/**
+	 * Contains references to histogram index storage parts in the form of {@link HistogramIndexStorageKey} that
+	 * allows to locate both filter and cardinality sub-parts in persistent storage.
+	 */
+	@Getter private final Set<HistogramIndexStorageKey> histogramIndexes;
 
 	public EntityIndexStoragePart(
 		int primaryKey,
@@ -106,7 +111,8 @@ public class EntityIndexStoragePart implements StoragePart {
 		@Nonnull Set<AttributeIndexStorageKey> attributeIndexes,
 		@Nonnull Set<PriceIndexKey> priceIndexes,
 		boolean hierarchyIndex,
-		@Nonnull Set<String> facetIndexes
+		@Nonnull Set<String> facetIndexes,
+		@Nonnull Set<HistogramIndexStorageKey> histogramIndexes
 	) {
 		this.primaryKey = primaryKey;
 		this.version = version;
@@ -117,6 +123,7 @@ public class EntityIndexStoragePart implements StoragePart {
 		this.priceIndexes = priceIndexes;
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndexes = facetIndexes;
+		this.histogramIndexes = histogramIndexes;
 	}
 
 	@Nullable

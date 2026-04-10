@@ -30,6 +30,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -43,11 +44,15 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * Transactional overlay data object for {@link TransactionalList} that keeps track of removed and added items
- * in the list.
+ * Transactional diff layer for {@link TransactionalList} that accumulates mutations (insertions and removals)
+ * made within a single transaction without touching the original delegate list.
  *
- * Contains combination of changes in a List and removals made upon it. There is no other possible way
- * how to track removals in a list than to keep an collection of removed ones.
+ * When a transaction reads from the list, this layer merges its recorded changes on top of the immutable
+ * delegate, presenting a consistent view. On commit, the merged state is applied; on rollback, this object
+ * is simply discarded, leaving the delegate untouched.
+ *
+ * Removed positions are tracked as a sorted set of original delegate indexes. Inserted elements are tracked
+ * in a `TreeMap` keyed by their effective logical index in the merged view.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
@@ -88,7 +93,7 @@ class ListChanges<V> implements Serializable {
 	public boolean contains(@Nonnull Object obj) {
 		// scan original contents of the list and compare them
 		for (int i = 0; i < this.listDelegate.size(); i++) {
-			V examinedValue = this.listDelegate.get(i);
+			final V examinedValue = this.listDelegate.get(i);
 			// avoid items that are known to be removed
 			if (!this.removedItems.contains(i) && Objects.equals(obj, examinedValue)) {
 				return true;
@@ -158,7 +163,11 @@ class ListChanges<V> implements Serializable {
 	/**
 	 * Returns object on specified index taking changes into the account.
 	 */
+	@Nonnull
 	public V get(int index) {
+		if (index < 0 || index >= size()) {
+			throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size());
+		}
 		// first try to find index in newly added elements
 		if (this.addedItems.containsKey(index)) {
 			return this.addedItems.get(index);
@@ -179,22 +188,24 @@ class ListChanges<V> implements Serializable {
 					return this.listDelegate.get(examinedIndex);
 				}
 			}
-			return null;
+			// unreachable: the bounds check above guarantees a valid index is always resolved above
+			throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size());
 		}
 	}
 
 	/**
 	 * Removes object on specified position.
 	 */
+	@Nullable
 	V remove(int index) {
-		if (index > size()) {
+		if (index >= size()) {
 			throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size());
 		}
 
 		// first find the position in the added elements
 		if (this.addedItems.containsKey(index)) {
 			// if found remove it and lower indexes of all following new elements
-			V result = this.addedItems.remove(index);
+			final V result = this.addedItems.remove(index);
 			lowerIndexesGreaterThan(index);
 			return result;
 		}
@@ -213,7 +224,7 @@ class ListChanges<V> implements Serializable {
 			if (j == index) {
 				// add the index of the underlying delegate list to the set of removed indexes
 				this.removedItems.add(examinedIndex);
-				V result = this.listDelegate.get(examinedIndex);
+				final V result = this.listDelegate.get(examinedIndex);
 				// lower all indexes of newly added elements greater than the new index
 				lowerIndexesGreaterThan(index);
 				return result;
@@ -244,19 +255,20 @@ class ListChanges<V> implements Serializable {
 	}
 
 	/**
-	 * Decreases indexes of all items above (excluding) passed position by one.
+	 * Decreases by one the logical indexes of all inserted items whose index is strictly greater than `position`.
+	 * Called after an element is removed to keep the index map consistent.
 	 */
-	private void lowerIndexesGreaterThan(Integer position) {
+	private void lowerIndexesGreaterThan(int position) {
 		final Map<Integer, V> items = new HashMap<>();
 		final Iterator<Entry<Integer, V>> it = this.addedItems.entrySet().iterator();
 		while (it.hasNext()) {
-			final Entry<Integer, V> removedPosition = it.next();
-			if (removedPosition.getKey() > position) {
+			final Entry<Integer, V> entry = it.next();
+			if (entry.getKey() > position) {
 				Assert.isTrue(
-					removedPosition.getKey() - 1 > -1,
+					entry.getKey() - 1 > -1,
 					"Illegal state - attempt to lower index of element that is at the start of the list!"
 				);
-				items.put(removedPosition.getKey() - 1, removedPosition.getValue());
+				items.put(entry.getKey() - 1, entry.getValue());
 				it.remove();
 			}
 		}
@@ -264,15 +276,16 @@ class ListChanges<V> implements Serializable {
 	}
 
 	/**
-	 * Increased indexes of all items above (including) passed position by one.
+	 * Increases by one the logical indexes of all inserted items whose index is greater than or equal to `position`.
+	 * Called before a new element is inserted to make room at `position`.
 	 */
-	private void increaseIndexesGreaterThanOrEquals(Integer position) {
+	private void increaseIndexesGreaterThanOrEquals(int position) {
 		final Map<Integer, V> items = new HashMap<>();
 		final Iterator<Entry<Integer, V>> it = this.addedItems.entrySet().iterator();
 		while (it.hasNext()) {
-			final Entry<Integer, V> removedPosition = it.next();
-			if (removedPosition.getKey() >= position) {
-				items.put(removedPosition.getKey() + 1, removedPosition.getValue());
+			final Entry<Integer, V> entry = it.next();
+			if (entry.getKey() >= position) {
+				items.put(entry.getKey() + 1, entry.getValue());
 				it.remove();
 			}
 		}

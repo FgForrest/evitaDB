@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link AccompanyingPriceContent} verifying construction, property access, suffix behavior, applicability,
  * EntityContentRequire contract, cloning, string representation, and equality.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("AccompanyingPriceContent constraint")
 class AccompanyingPriceContentTest {

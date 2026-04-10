@@ -24,16 +24,14 @@
 package io.evitadb.api.query.expression.bool;
 
 
-import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.api.query.expression.AbstractBinaryOperator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.utils.Assert;
+import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -50,35 +48,27 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EqualsAndHashCode
-public class GreaterThanEqualsOperator implements BooleanOperator {
+@EqualsAndHashCode(callSuper = true)
+public class GreaterThanEqualsOperator extends AbstractBinaryOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = 1614084895585789664L;
-	private final ExpressionNode leftOperator;
-	private final ExpressionNode rightOperator;
-
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public GreaterThanEqualsOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
-		this.leftOperator = leftOperator;
-		this.rightOperator = rightOperator;
-		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
+		super(leftOperator, rightOperator);
+	}
+
+	@Nonnull
+	@Override
+	protected String getOperatorSymbol() {
+		return ">=";
 	}
 
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull ExpressionEvaluationContext context) {
-		final Serializable value1 = this.leftOperator.compute(context);
-		Assert.isTrue(
-			value1 instanceof Comparable,
-			() -> new ParserException("Greater than or equals function operand must be comparable!")
-		);
-		final Serializable value2 = this.rightOperator.compute(context);
-		Assert.isTrue(
-			value2 instanceof Comparable,
-			() -> new ParserException("Greater than or equals function operand must be comparable!")
-		);
+		final Serializable value1 = getLeftOperand().compute(context);
+		ExpressionEvaluationException.assertComparableOperand(value1, "Greater than or equals", "left");
+		final Serializable value2 = getRightOperand().compute(context);
+		ExpressionEvaluationException.assertComparableOperand(value2, "Greater than or equals", "right");
 		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked
 		return ((Comparable) value1).compareTo(convertedValue2) >= 0;
@@ -87,8 +77,8 @@ public class GreaterThanEqualsOperator implements BooleanOperator {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		final BigDecimal from1 = this.leftOperator.determinePossibleRange().getPreciseFrom();
-		final BigDecimal from2 = this.rightOperator.determinePossibleRange().getPreciseFrom();
+		final BigDecimal from1 = getLeftOperand().determinePossibleRange().getPreciseFrom();
+		final BigDecimal from2 = getRightOperand().determinePossibleRange().getPreciseFrom();
 		if (from1 == null && from2 == null) {
 			return BigDecimalNumberRange.INFINITE;
 		} else if (from1 == null) {
@@ -100,15 +90,5 @@ public class GreaterThanEqualsOperator implements BooleanOperator {
 		} else {
 			return BigDecimalNumberRange.from(from1);
 		}
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
-	}
-
-	@Override
-	public String toString() {
-		return this.leftOperator.toString() + " >= " + this.rightOperator.toString();
 	}
 }

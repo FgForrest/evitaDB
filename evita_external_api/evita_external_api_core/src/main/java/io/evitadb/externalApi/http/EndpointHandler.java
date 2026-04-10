@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,10 +52,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -82,73 +82,64 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
-		final C executionContext = createExecutionContext(req);
+		final C executionContext = createExecutionContext(req, ctx);
 		validateRequest(req);
 
 		resolveRequestBodyContentType(executionContext).ifPresent(executionContext::provideRequestBodyContentType);
 		resolvePreferredResponseContentType(executionContext).ifPresent(executionContext::providePreferredResponseContentType);
 
 		beforeRequestHandled(executionContext);
-		return HttpResponse.of(
-			Objects.requireNonNull(
-				doHandleRequest(executionContext)
-					.thenApply(response -> {
-						try {
-							afterRequestHandled(executionContext, response);
 
-							if (response instanceof NotFoundEndpointResponse) {
-								throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
-							} else if (response instanceof SuccessEndpointResponse successResponse) {
-								final Object result = successResponse.getResult();
-								if (result == null) {
-									return HttpResponse.builder()
-										.status(HttpStatus.NO_CONTENT)
-										.build();
-								} else {
-									return getResponse(ctx, executionContext, successResponse.getResult(), HttpStatus.OK);
-								}
-							} else {
-								throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
-							}
-						} catch (Exception e) {
-							executionContext.notifyError(e);
-							throw e;
-						}
-					}).whenComplete((response, throwable) -> executionContext.close())
-			));
-	}
-
-	/**
-	 * Creates and configures an {@link HttpResponseWriter} to generate an HTTP response based on the provided context,
-	 * execution context, result, and HTTP status code. The method writes the response headers with the preferred content
-	 * type and includes the provided result if it is not null. The writer is closed when all data is written.
-	 *
-	 * @param ctx the service request context containing necessary details about the request; must not be null
-	 * @param executionContext the execution context providing additional configuration, including preferred content type; must not be null
-	 * @param result the result data to include in the response body, or null if no body is required
-	 * @param httpStatus the HTTP status code to set as the response status; must not be null
-	 * @return an {@link HttpResponseWriter} instance containing the configured response
-	 */
-	@Nonnull
-	private HttpResponseWriter getResponse(
-		@Nonnull ServiceRequestContext ctx,
-		@Nonnull C executionContext,
-		@Nullable Object result,
-		@Nonnull HttpStatus httpStatus
-	) {
+		// Return a streaming response immediately so that Armeria subscribes right away,
+		// triggering CancellationScheduler.start() and enabling server-side request timeout.
+		// Previously, HttpResponse.of(CompletableFuture) created a DeferredStreamMessage whose
+		// onSubscribe() was delayed until the future completed, meaning the cancellation scheduler
+		// never started during actual request processing.
 		final HttpResponseWriter responseWriter = HttpResponse.streaming();
-		responseWriter.write(
-			ResponseHeaders.of(
-				httpStatus,
-				HttpHeaderNames.CONTENT_TYPE, executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET
-			)
-		);
-		if (result != null) {
-			writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
-		}
-		if (responseWriter.isOpen()) {
-			responseWriter.close();
-		}
+
+		doHandleRequest(executionContext)
+			.thenAccept(response -> {
+				try {
+					afterRequestHandled(executionContext, response);
+
+					if (response instanceof NotFoundEndpointResponse) {
+						throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
+					} else if (response instanceof SuccessEndpointResponse successResponse) {
+						final Object result = successResponse.getResult();
+						if (result == null) {
+							responseWriter.write(ResponseHeaders.of(HttpStatus.NO_CONTENT));
+						} else {
+							responseWriter.write(
+								ResponseHeaders.of(
+									HttpStatus.OK,
+									HttpHeaderNames.CONTENT_TYPE,
+									executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET
+								)
+							);
+							writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
+						}
+					} else {
+						throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
+					}
+				} catch (Exception e) {
+					executionContext.notifyError(e);
+					throw e;
+				}
+			})
+			.whenComplete((ignored, throwable) -> {
+				try {
+					if (throwable != null && responseWriter.isOpen()) {
+						responseWriter.close(
+							throwable instanceof CompletionException ce ? ce.getCause() : throwable
+						);
+					} else if (responseWriter.isOpen()) {
+						responseWriter.close();
+					}
+				} finally {
+					executionContext.close();
+				}
+			});
+
 		return responseWriter;
 	}
 
@@ -181,7 +172,7 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 	 * Creates new instance of endpoint execution context for given HTTP request.
 	 */
 	@Nonnull
-	protected abstract C createExecutionContext(@Nonnull HttpRequest httpRequest);
+	protected abstract C createExecutionContext(@Nonnull HttpRequest httpRequest, @Nonnull ServiceRequestContext serviceRequestContext);
 
 	/**
 	 * Hook method called before actual endpoint handling logic is executed. Default implementation does nothing.

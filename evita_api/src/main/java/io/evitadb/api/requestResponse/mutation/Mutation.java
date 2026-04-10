@@ -44,7 +44,9 @@ import java.util.stream.Stream;
  */
 @Immutable
 @ThreadSafe
-public sealed interface Mutation extends Serializable permits EngineMutation, CatalogBoundMutation {
+public sealed interface Mutation
+	extends MutationContract, Serializable
+	permits EngineMutation, CatalogBoundMutation {
 
 	/**
 	 * Returns operation classification.

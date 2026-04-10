@@ -26,6 +26,7 @@ import io.evitadb.api.query.expression.object.accessor.ObjectPropertyAccessor;
 import io.evitadb.api.query.expression.object.accessor.entity.AssociatedDataContractAccessor;
 import io.evitadb.api.query.expression.object.accessor.entity.AttributesContractAccessor;
 import io.evitadb.api.query.expression.object.accessor.entity.EntityContractAccessor;
+import io.evitadb.api.query.expression.object.accessor.entity.PriceContractAccessor;
 import io.evitadb.api.query.expression.object.accessor.entity.ReferenceContractAccessor;
 import io.evitadb.api.query.expression.object.accessor.entity.ReferencesContractAccessor;
 
@@ -40,7 +41,8 @@ module evita.api {
 
 	provides ObjectPropertyAccessor with
 		EntityContractAccessor,
-		ReferenceContractAccessor;
+		ReferenceContractAccessor,
+		PriceContractAccessor;
 
 	provides ObjectElementAccessor with
 		AttributesContractAccessor,
@@ -94,6 +96,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.schema.mutation.engine;
 	exports io.evitadb.api.requestResponse.mutation.infrastructure;
 	exports io.evitadb.api.traffic;
+	exports io.evitadb.api.query.expression.object.accessor.entity;
 
 	requires static lombok;
 	requires static jsr305;

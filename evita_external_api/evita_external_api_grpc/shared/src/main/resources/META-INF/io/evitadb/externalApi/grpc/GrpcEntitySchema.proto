@@ -416,6 +416,18 @@ message GrpcReferenceSchema {
   // Scoped reference index types that define both the scope and the type of index for the reference.
   // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
   repeated GrpcScopedReferenceIndexType scopedIndexTypes = 28;
+  // Scoped reference indexed components that specify which parts of a reference relationship
+  // (referenced entity, referenced group entity) are indexed per scope.
+  repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 29;
+  // Contains true if the indexed components property settings of the reflected reference is
+  // inherited from the target reference.
+  bool indexedComponentsInherited = 30;
+  // Per-scope expressions that narrow which entities participate in faceting.
+  repeated GrpcScopedFacetedPartially facetedPartially = 31;
+  // Per-scope bucketed histogram configurations defining index name and value expression.
+  repeated GrpcScopedHistogramIndexDefinition bucketed = 32;
+  // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+  repeated GrpcScopedBucketedPartially bucketedPartially = 33;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

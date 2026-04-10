@@ -49,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link EntityAttributes} verifying construction,
  * schema resolution, attribute retrieval, and error handling.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EntityAttributes")
 class EntityAttributesTest extends AbstractBuilderTest {

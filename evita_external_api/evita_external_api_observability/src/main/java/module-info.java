@@ -34,7 +34,9 @@ module evita.external.api.observability {
 	uses io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
 	provides io.evitadb.api.observability.trace.TracingContext with io.evitadb.externalApi.observability.trace.ObservabilityTracingContext;
-	provides io.evitadb.externalApi.utils.ExternalApiTracingContext with io.evitadb.externalApi.observability.trace.DelegateExternalApiTracingContext;
+	provides io.evitadb.externalApi.utils.ExternalApiTracingContext
+		with io.evitadb.externalApi.observability.trace.JsonApiTracingContext,
+			io.evitadb.externalApi.observability.trace.GrpcTracingContext;
 	provides io.evitadb.externalApi.http.ExternalApiProviderRegistrar with io.evitadb.externalApi.observability.ObservabilityProviderRegistrar;
 	provides io.evitadb.externalApi.api.system.ProbesProvider with io.evitadb.externalApi.observability.metric.ObservabilityProbesDetector;
 

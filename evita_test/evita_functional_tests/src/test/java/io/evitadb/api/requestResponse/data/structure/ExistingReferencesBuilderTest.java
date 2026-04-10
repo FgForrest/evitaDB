@@ -62,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * cardinality management and identity semantics when modifying
  * an existing set of references.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ExistingReferencesBuilder")
 class ExistingReferencesBuilderTest extends AbstractBuilderTest {

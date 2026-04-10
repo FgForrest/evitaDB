@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.model.evolution;
 
-import io.evitadb.api.requestResponse.data.annotation.Expression;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 
 /**
@@ -34,7 +33,7 @@ import io.evitadb.api.requestResponse.data.annotation.Reference;
  */
 public interface GetterBasedEntityEvolutionV2ModifyReference extends GetterBasedEntityEvolutionV1 {
 
-	@Reference(managed = false, faceted = @Expression("true"))
+	@Reference(managed = false, faceted = true)
 	@Override
 	Brand getMarketingBrand();
 

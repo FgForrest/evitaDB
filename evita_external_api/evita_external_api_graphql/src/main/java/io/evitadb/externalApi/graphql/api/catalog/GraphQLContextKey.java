@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ public enum GraphQLContextKey {
     OPERATION_TRACING_BLOCK("operationTracingBlock"),
     METRIC_EXECUTED_EVENT("metricExecutedEvent"),
     TRAFFIC_SOURCE_QUERY_RECORDING_ID("trafficSourceQueryRecordingId"),
-    TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS("trafficSourceQueryRecordingExceptions");
+    TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS("trafficSourceQueryRecordingExceptions"),
+    SERVICE_REQUEST_CONTEXT("serviceRequestContext");
 
     @Nonnull
     private final String key;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,6 +67,10 @@ public record ThreadPoolOptions(
 	public static final int DEFAULT_MAX_SERVICE_THREAD_COUNT = Math.max(Runtime.getRuntime().availableProcessors() << 1, 1);
 	public static final int DEFAULT_SERVICE_THREAD_PRIORITY = 1;
 	public static final int DEFAULT_SERVICE_QUEUE_SIZE = 20;
+	public static final int DEFAULT_CLIENT_MIN_THREAD_COUNT = 0;
+	public static final int DEFAULT_CLIENT_MAX_THREAD_COUNT = Math.max(Runtime.getRuntime().availableProcessors() << 2, 4);
+	public static final int DEFAULT_CLIENT_THREAD_PRIORITY = Thread.NORM_PRIORITY;
+	public static final int DEFAULT_CLIENT_QUEUE_SIZE = 100;
 
 	/**
 	 * Builder for the thread pool options with recommended defaults for request tasks.
@@ -87,6 +91,13 @@ public record ThreadPoolOptions(
 	 */
 	public static ThreadPoolOptions.Builder serviceThreadPoolBuilder() {
 		return Builder.serviceThreadPool();
+	}
+
+	/**
+	 * Builder for the thread pool options with recommended defaults for client-side tasks.
+	 */
+	public static ThreadPoolOptions.Builder clientThreadPoolBuilder() {
+		return Builder.clientThreadPool();
 	}
 
 	/**
@@ -133,6 +144,16 @@ public record ThreadPoolOptions(
 				DEFAULT_MAX_SERVICE_THREAD_COUNT,
 				DEFAULT_SERVICE_THREAD_PRIORITY,
 				DEFAULT_SERVICE_QUEUE_SIZE
+			);
+		}
+
+		@Nonnull
+		static ThreadPoolOptions.Builder clientThreadPool() {
+			return new ThreadPoolOptions.Builder(
+				DEFAULT_CLIENT_MIN_THREAD_COUNT,
+				DEFAULT_CLIENT_MAX_THREAD_COUNT,
+				DEFAULT_CLIENT_THREAD_PRIORITY,
+				DEFAULT_CLIENT_QUEUE_SIZE
 			);
 		}
 

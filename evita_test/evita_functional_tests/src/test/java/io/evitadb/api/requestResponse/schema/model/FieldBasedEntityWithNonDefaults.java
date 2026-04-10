@@ -25,8 +25,8 @@ package io.evitadb.api.requestResponse.schema.model;
 
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.*;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -123,7 +123,7 @@ public class FieldBasedEntityWithNonDefaults {
 		groupEntityManaged = false,
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
-		faceted = @Expression("true"),
+		faceted = true,
 		indexed = ReferenceIndexType.FOR_FILTERING
 	)
 	private Brand[] licensingBrands;

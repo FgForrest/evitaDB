@@ -63,7 +63,11 @@ import static java.util.Optional.ofNullable;
  * @param catalogName                    contains name of the catalog that originates in {@link CatalogSchema#getName()}
  * @param catalogState                   contains the state of the catalog that originates in {@link Catalog#getCatalogState()}
  * @param lastEntityCollectionPrimaryKey contains the last assigned {@link EntityCollection#getEntityTypePrimaryKey()}
- * @param activeRecordShare              contains the share of active records in the catalog that is used for
+ * @param activeRecordShare              ratio of active (non-overwritten, non-deleted) bytes to total file size
+ *                                       in the catalog data file, in the range `[0.0, 1.0]`. A value of `1.0`
+ *                                       means every byte in the file is live data; lower values indicate how
+ *                                       much space can be reclaimed by a compaction (vacuum) pass. This value is
+ *                                       used by the storage layer to decide whether compaction should be triggered.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -81,6 +85,17 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 ) implements StoragePart {
 	@Serial private static final long serialVersionUID = 7238461925034817563L;
 
+	/**
+	 * Convenience constructor for a brand-new, empty catalog that has never been persisted.
+	 *
+	 * All counters are initialised to zero, the catalog state is set to {@link CatalogState#WARMING_UP}, the
+	 * `activeRecordShare` defaults to `1.0` (file is clean), and no WAL reference or collection entries are
+	 * populated. The `storageProtocolVersion` is taken from {@link PersistenceService#STORAGE_PROTOCOL_VERSION} so
+	 * that the header is immediately compatible with the current storage format.
+	 *
+	 * @param catalogId   stable unique identifier assigned at catalog creation time; must not be `null`
+	 * @param catalogName human-readable catalog name matching {@link CatalogSchema#getName()}; must not be `null`
+	 */
 	public CatalogHeader(@Nonnull UUID catalogId, @Nonnull String catalogName) {
 		this(
 			PersistenceService.STORAGE_PROTOCOL_VERSION,
@@ -96,12 +111,31 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 		);
 	}
 
+	/**
+	 * Returns the fixed storage-part primary key for the catalog header.
+	 *
+	 * There is always exactly one `CatalogHeader` per catalog data file, so its PK is hardcoded to `1L`. The
+	 * uniqueness constraint of {@link StoragePart} is satisfied because no other `StoragePart` type of this class
+	 * can exist in the same file.
+	 *
+	 * @return always `1L`
+	 */
 	@Nonnull
 	@Override
 	public Long getStoragePartPK() {
 		return 1L;
 	}
 
+	/**
+	 * Assigns and returns the fixed unique part identifier for the catalog header.
+	 *
+	 * Because the catalog header is a singleton within its data file, no key compression is needed and the method
+	 * simply returns `1L` without consulting the provided `keyCompressor`. The `keyCompressor` parameter is accepted
+	 * only to satisfy the {@link StoragePart} contract.
+	 *
+	 * @param keyCompressor not used; present only to satisfy the {@link StoragePart} contract
+	 * @return always `1L`
+	 */
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		return 1L;

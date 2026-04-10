@@ -25,6 +25,7 @@ package io.evitadb.externalApi.observability.trace;
 
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
@@ -48,8 +49,25 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 
 	private final TracingContext tracingContext;
 
-	public GrpcTracingContext(@Nonnull TracingContext tracingContext) {
+	/**
+	 * No-arg constructor required by {@link java.util.ServiceLoader}.
+	 * Loads the {@link TracingContext} via {@link TracingContextProvider}.
+	 */
+	public GrpcTracingContext() {
+		this.tracingContext = TracingContextProvider.getContext();
+	}
+
+	/**
+	 * Constructor accepting an explicit {@link TracingContext} — useful for testing.
+	 */
+	GrpcTracingContext(@Nonnull TracingContext tracingContext) {
 		this.tracingContext = tracingContext;
+	}
+
+	@Nonnull
+	@Override
+	public Class<Metadata> contextType() {
+		return Metadata.class;
 	}
 
 	@Override

@@ -29,9 +29,12 @@ import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import org.junit.jupiter.api.DisplayName;
@@ -43,20 +46,28 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.ListBuilder.list;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Evaluation of expressions with entity data using entity-specific accessors.
@@ -217,6 +228,179 @@ public class ExpressionWithEntityDataTest {
 		);
 	}
 
+	@DisplayName("Should evaluate expression accessing entity properties (scope, locales, version, dropped)")
+	@Test
+	void shouldEvaluateExpressionAccessingEntityProperties(Evita evita) {
+		prepareEntitySchema(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityReferenceContract brand = createBrand(session, 1).upsertVia(session);
+				final EntityReferenceContract category1 = createCategory(session, 1).upsertVia(session);
+				final EntityReferenceContract category2 = createCategory(session, 2).upsertVia(session);
+				createProduct(session, 1, brand, category1, category2).upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.getEntity(
+					PRODUCT,
+					1,
+					dataInLocalesAll(),
+					attributeContentAll()
+				)
+					.orElseThrow();
+
+				// scope
+				assertEquals("LIVE", evaluate("$entity.scope", product));
+
+				// locales
+				final List<String> allLocales = (List<String>) evaluate("$entity.allLocales", product);
+				assertNotNull(allLocales);
+				assertTrue(allLocales.contains("en"));
+				assertTrue(allLocales.contains("cs"));
+
+				final List<String> locales = (List<String>) evaluate("$entity.locales", product);
+				assertNotNull(locales);
+				assertTrue(locales.contains("en") || locales.contains("cs"));
+
+				// version and dropped
+				assertInstanceOf(Integer.class, evaluate("$entity.version", product));
+				assertEquals(false, evaluate("$entity.dropped", product));
+
+				// parentEntity is null for non-hierarchical entity
+				assertNull(evaluate("$entity.parentEntity", product));
+			}
+		);
+	}
+
+	@DisplayName("Should evaluate expression accessing price properties")
+	@Test
+	void shouldEvaluateExpressionAccessingPriceProperties(Evita evita) {
+		prepareEntitySchema(evita);
+
+		final OffsetDateTime validityFrom = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		final OffsetDateTime validityTo = OffsetDateTime.of(2026, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityReferenceContract brand = createBrand(session, 1).upsertVia(session);
+				final EntityReferenceContract category1 = createCategory(session, 1).upsertVia(session);
+				final EntityReferenceContract category2 = createCategory(session, 2).upsertVia(session);
+				final EntityBuilder product = createProduct(session, 1, brand, category1, category2);
+				product.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE);
+				product.setPrice(
+					1, "basic", Currency.getInstance("EUR"),
+					new BigDecimal("100.00"), new BigDecimal("21.00"), new BigDecimal("121.00"),
+					DateTimeRange.between(validityFrom, validityTo),
+					true
+				);
+				product.setPrice(
+					2, "vip", Currency.getInstance("EUR"),
+					new BigDecimal("80.00"), new BigDecimal("21.00"), new BigDecimal("96.80"),
+					true
+				);
+				product.upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.querySealedEntity(
+					query(
+						collection(PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1),
+							priceInCurrency(Currency.getInstance("EUR")),
+							priceInPriceLists("basic", "vip")
+						),
+						require(
+							entityFetch(priceContentAll())
+						)
+					)
+				).getRecordData().get(0);
+
+				// priceForSale properties
+				final Serializable priceForSale = evaluate("$entity.priceForSale", product);
+				assertNotNull(priceForSale);
+				assertInstanceOf(PriceContract.class, priceForSale);
+
+				assertEquals(1, evaluate("$entity.priceForSale.priceId", product));
+				assertEquals("basic", evaluate("$entity.priceForSale.priceList", product));
+				assertEquals("EUR", evaluate("$entity.priceForSale.currency", product));
+				assertEquals("EUR", evaluate("$entity.priceForSale.currencyCode", product));
+				assertEquals(new BigDecimal("100.00"), evaluate("$entity.priceForSale.priceWithoutTax", product));
+				assertEquals(new BigDecimal("21.00"), evaluate("$entity.priceForSale.taxRate", product));
+				assertEquals(new BigDecimal("121.00"), evaluate("$entity.priceForSale.priceWithTax", product));
+				assertEquals(true, evaluate("$entity.priceForSale.indexed", product));
+				assertInstanceOf(Integer.class, evaluate("$entity.priceForSale.version", product));
+				assertEquals(false, evaluate("$entity.priceForSale.dropped", product));
+
+				// validity and DateTimeRange access
+				assertNotNull(evaluate("$entity.priceForSale.validity", product));
+				assertEquals(validityFrom, evaluate("$entity.priceForSale.validity.from", product));
+				assertEquals(validityTo, evaluate("$entity.priceForSale.validity.to", product));
+
+				// prices collection
+				final List<?> prices = (List<?>) evaluate("$entity.prices", product);
+				assertNotNull(prices);
+				assertEquals(2, prices.size());
+
+				// allPricesForSale collection
+				final List<?> allPricesForSale = (List<?>) evaluate("$entity.allPricesForSale", product);
+				assertNotNull(allPricesForSale);
+				assertFalse(allPricesForSale.isEmpty());
+
+				// priceInnerRecordHandling
+				assertEquals("NONE", evaluate("$entity.priceInnerRecordHandling", product));
+
+				// accompanyingPrice — no accompanying price configured, so it should be null
+				assertNull(evaluate("$entity.accompanyingPrice", product));
+			}
+		);
+	}
+
+	@DisplayName("Should return null for priceForSale when no price context")
+	@Test
+	void shouldReturnNullForPriceForSaleWithoutContext(Evita evita) {
+		prepareEntitySchema(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityReferenceContract brand = createBrand(session, 1).upsertVia(session);
+				final EntityReferenceContract category1 = createCategory(session, 1).upsertVia(session);
+				createProduct(session, 1, brand, category1).upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.getEntity(
+					PRODUCT,
+					1,
+					attributeContentAll()
+				)
+					.orElseThrow();
+
+				// priceForSale without price context should return null
+				assertNull(evaluate("$entity.priceForSale?.priceWithTax", product));
+
+				// accompanyingPrice without price context should return null
+				assertNull(evaluate("$entity.accompanyingPrice", product));
+
+				// priceInnerRecordHandling without prices fetched should return null
+				assertNull(evaluate("$entity.priceInnerRecordHandling", product));
+			}
+		);
+	}
+
 	private static Serializable evaluate(@Nonnull String predicate, @Nonnull EntityContract entity) {
 		final ExpressionNode operator = ExpressionFactory.parse(predicate);
 		return operator.compute(
@@ -237,6 +421,7 @@ public class ExpressionWithEntityDataTest {
 
 				session.defineEntitySchema(PRODUCT)
 					.withoutHierarchy()
+					.withPrice()
 					.withLocale(Locale.ENGLISH, LOCALE_CZECH)
 					.withAttribute("code", String.class, whichIs -> whichIs.unique())
 					.withAttribute("url", String.class, whichIs -> whichIs.unique().localized())

@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link FileForFetch} record covering construction, path resolution,
  * serialization round-trips, equality, and edge cases.
  *
- * @author Claude
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("FileForFetch")
 class FileForFetchTest implements EvitaTestSupport {

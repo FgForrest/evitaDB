@@ -52,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * chaining, and default value behavior when building associated data
  * schemas through the {@link InternalEntitySchemaBuilder}.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("AssociatedDataSchemaBuilder")
 class AssociatedDataSchemaBuilderTest {

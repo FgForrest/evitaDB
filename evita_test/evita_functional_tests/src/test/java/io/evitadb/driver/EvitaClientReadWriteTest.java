@@ -88,6 +88,8 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.driver.cdc.HeartBeatSensor;
+import io.evitadb.driver.config.ClientTlsOptions;
+import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -221,11 +223,19 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
-			.mtlsEnabled(false)
-			.certificateFolderPath(clientCertificates)
-			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-			.timeout(10, TimeUnit.MINUTES)
+			.tls(
+				ClientTlsOptions.builder()
+					.mtlsEnabled(false)
+					.certificateFolderPath(clientCertificates)
+					.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+					.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+					.build()
+			)
+			.timeouts(
+				ClientTimeoutOptions.builder()
+					.timeout(10, TimeUnit.MINUTES)
+					.build()
+			)
 			.build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();
@@ -415,11 +425,19 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
-			.mtlsEnabled(false)
-			.certificateFolderPath(clientCertificates)
-			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-			.timeout(10, TimeUnit.MINUTES)
+			.tls(
+				ClientTlsOptions.builder()
+					.mtlsEnabled(false)
+					.certificateFolderPath(clientCertificates)
+					.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+					.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+					.build()
+			)
+			.timeouts(
+				ClientTimeoutOptions.builder()
+					.timeout(10, TimeUnit.MINUTES)
+					.build()
+			)
 			.build();
 
 		return new EvitaClient(evitaClientConfiguration);
@@ -3421,7 +3439,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					.host(evitaClient.getConfiguration().host())
 					.port(evitaClient.getConfiguration().port())
 					.systemApiPort(evitaClient.getConfiguration().systemApiPort())
-					.streamingTimeout(6, TimeUnit.SECONDS)
+					.timeouts(
+						ClientTimeoutOptions.builder()
+							.streamingTimeout(6, TimeUnit.SECONDS)
+							.build()
+					)
 					.build()
 			);
 

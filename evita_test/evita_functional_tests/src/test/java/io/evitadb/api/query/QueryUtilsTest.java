@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link QueryUtils} - utility methods for accessing and manipulating
  * {@link Query} constraints.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("QueryUtils")
 class QueryUtilsTest {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ import java.util.Map;
  * Global entity index contains complete set of indexed data including their bodies. It contains data for all entities
  * in the {@link EntityCollection} and it's the broadest index available. The global index is always
  * available if there is single entity in the collection and is always only one. There might be several dozens of
- * {@link ReducedEntityIndex reduced indexes} that maintain subsets, primarily of bitmap information and references
+ * {@link AbstractReducedEntityIndex reduced indexes} that maintain subsets, primarily of bitmap information and references
  * to object that are primarily held in this GlobalEntityIndex. We try to avoid duplicate memory allocations for same
  * object such as price records and expensive attribute values.
  *

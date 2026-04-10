@@ -23,13 +23,12 @@
 
 package io.evitadb.api.query.expression.coalesce;
 
+import io.evitadb.api.query.expression.AbstractBinaryOperator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,46 +45,34 @@ import java.io.Serializable;
 
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@EqualsAndHashCode
-public class NullCoalesceOperator implements ExpressionNode {
+@EqualsAndHashCode(callSuper = true)
+public class NullCoalesceOperator extends AbstractBinaryOperator {
 	@Serial private static final long serialVersionUID = 4323373715682052501L;
 
-	@Nonnull private final ExpressionNode valueOperator;
-	@Nonnull private final ExpressionNode defaultValueOperator;
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
-
 	public NullCoalesceOperator(@Nonnull ExpressionNode valueOperator, @Nonnull ExpressionNode defaultValueOperator) {
-		this.valueOperator = valueOperator;
-		this.defaultValueOperator = defaultValueOperator;
-		this.children = new ExpressionNode[]{this.valueOperator, this.defaultValueOperator};
+		super(valueOperator, defaultValueOperator);
+	}
+
+	@Nonnull
+	@Override
+	protected String getOperatorSymbol() {
+		return "??";
 	}
 
 	@Nullable
 	@Override
 	public Serializable compute(@Nonnull ExpressionEvaluationContext context) {
-		final Serializable value = this.valueOperator.compute(context);
-		final Serializable defaultValue = this.defaultValueOperator.compute(context);
+		final Serializable value = getLeftOperand().compute(context);
+		final Serializable defaultValue = getRightOperand().compute(context);
 		return value != null ? value : defaultValue;
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return BigDecimalNumberRange.union(
-			this.valueOperator.determinePossibleRange(),
-			this.defaultValueOperator.determinePossibleRange()
+			getLeftOperand().determinePossibleRange(),
+			getRightOperand().determinePossibleRange()
 		);
-	}
-
-	@Override
-	public String toString() {
-		return this.valueOperator + " ?? " + this.defaultValueOperator;
 	}
 }

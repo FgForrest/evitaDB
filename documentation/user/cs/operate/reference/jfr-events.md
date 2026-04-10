@@ -8,11 +8,10 @@ translated: true
 
 <dl>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/ReadinessEvent.java</SourceClass> Readiness probe</dt>
-  <dd>Událost, která je vyvolána, když je readiness probe buď vykonána klientem, nebo vyvolána na straně serveru.</dd>
+  <dd>Událost, která je vyvolána, když je readiness probe buď spuštěna klientem, nebo vyvolána na straně serveru.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/RequestEvent.java</SourceClass> Request</dt>
-  <dd>Událost, která je vyvolána, když je readiness probe buď vykonána klientem, nebo vyvolána na straně serveru.</dd>
+  <dd>Událost, která je vyvolána po dokončení požadavku, sleduje počty úspěchů/chyb, časování a velikosti přenášených dat.</dd>
 </dl>
-
 #### API / GraphQL / Instance / Schema
 
 <dl>

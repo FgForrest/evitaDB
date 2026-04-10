@@ -28,6 +28,7 @@ import io.evitadb.api.query.expression.object.accessor.ObjectElementAccessor;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferencesContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.exception.ExpressionEvaluationException;
@@ -36,12 +37,18 @@ import lombok.experimental.Delegate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Implementation of {@link ObjectPropertyAccessor} for {@link EntityContract} objects.
  * Enables dot-property access expressions in EvitaEL to navigate the entity structure,
  * e.g. `entity.attributes`, `entity.localizedAttributes`, `entity.associatedData`,
- * `entity.localizedAssociatedData`, or `entity.references`.
+ * `entity.localizedAssociatedData`, `entity.references`, `entity.parentEntity`,
+ * `entity.allLocales`, `entity.locales`, `entity.scope`, `entity.priceForSale`,
+ * `entity.prices`, `entity.allPricesForSale`, `entity.accompanyingPrice`,
+ * `entity.priceInnerRecordHandling`, `entity.version`, or `entity.dropped`.
  *
  * Each supported property returns a scoped DTO wrapper that limits the entity contract to
  * a specific sub-domain (attributes, associated data, or references) so that downstream
@@ -58,12 +65,24 @@ import java.io.Serializable;
  */
 public class EntityContractAccessor implements ObjectPropertyAccessor {
 
+	public static final String ENTITY_VARIABLE_NAME = "entity";
 	public static final String PRIMARY_KEY_PROPERTY = "primaryKey";
 	public static final String ATTRIBUTES_PROPERTY = "attributes";
 	public static final String LOCALIZED_ATTRIBUTES_PROPERTY = "localizedAttributes";
 	public static final String ASSOCIATED_DATA_PROPERTY = "associatedData";
 	public static final String LOCALIZED_ASSOCIATED_DATA_PROPERTY = "localizedAssociatedData";
 	public static final String REFERENCES_PROPERTY = "references";
+	public static final String PARENT_ENTITY_PROPERTY = "parentEntity";
+	public static final String ALL_LOCALES_PROPERTY = "allLocales";
+	public static final String LOCALES_PROPERTY = "locales";
+	public static final String SCOPE_PROPERTY = "scope";
+	public static final String ALL_PRICES_FOR_SALE_PROPERTY = "allPricesForSale";
+	public static final String PRICE_FOR_SALE_PROPERTY = "priceForSale";
+	public static final String PRICES_PROPERTY = "prices";
+	public static final String ACCOMPANYING_PRICE_PROPERTY = "accompanyingPrice";
+	public static final String PRICE_INNER_RECORD_HANDLING_PROPERTY = "priceInnerRecordHandling";
+	public static final String VERSION_PROPERTY = "version";
+	public static final String DROPPED_PROPERTY = "dropped";
 
 	@Nonnull
 	@Override
@@ -89,12 +108,57 @@ public class EntityContractAccessor implements ObjectPropertyAccessor {
 			case ASSOCIATED_DATA_PROPERTY -> new EntityAssociatedDataEvaluationDto(entity, false);
 			case LOCALIZED_ASSOCIATED_DATA_PROPERTY -> new EntityAssociatedDataEvaluationDto(entity, true);
 			case REFERENCES_PROPERTY -> new EntityReferencesEvaluationDto(entity);
+			case PARENT_ENTITY_PROPERTY -> entity.parentAvailable() ? (Serializable) entity.getParentEntity().orElse(null) : null;
+			case ALL_LOCALES_PROPERTY -> localesToLanguageTags(entity.getAllLocales());
+			case LOCALES_PROPERTY -> localesToLanguageTags(entity.getLocales());
+			case SCOPE_PROPERTY -> entity.getScope().name();
+			case ALL_PRICES_FOR_SALE_PROPERTY -> entity.pricesAvailable() ? (Serializable) new ArrayList<>(entity.getAllPricesForSale()) : null;
+			case PRICE_FOR_SALE_PROPERTY -> entity.getPriceForSaleIfAvailable().orElse(null);
+			case PRICES_PROPERTY -> entity.pricesAvailable() ? (Serializable) new ArrayList<>(entity.getPrices()) : null;
+			case ACCOMPANYING_PRICE_PROPERTY -> entity.isPriceForSaleContextAvailable() ? entity.getAccompanyingPrice().orElse(null) : null;
+			case PRICE_INNER_RECORD_HANDLING_PROPERTY -> entity.pricesAvailable() ? entity.getPriceInnerRecordHandling().name() : null;
+			case VERSION_PROPERTY -> entity.version();
+			case DROPPED_PROPERTY -> entity.dropped();
 			default ->
 				throw new ExpressionEvaluationException(
 					"Property `" + propertyIdentifier + "` does not exist on EntityContract.",
 					"Property `" + propertyIdentifier + "` does not exist on entity."
 				);
 		};
+	}
+
+	/**
+	 * Checks whether the given property name refers to an attributes accessor
+	 * (`attributes` or `localizedAttributes`).
+	 *
+	 * @param propertyName the property name to check
+	 * @return `true` if the name matches {@link #ATTRIBUTES_PROPERTY} or {@link #LOCALIZED_ATTRIBUTES_PROPERTY}
+	 */
+	public static boolean isAttributesProperty(@Nonnull String propertyName) {
+		return ATTRIBUTES_PROPERTY.equals(propertyName)
+			|| LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
+	}
+
+	/**
+	 * Checks whether the given property name refers to a localized attributes accessor.
+	 *
+	 * @param propertyName the property name to check
+	 * @return `true` if the name matches {@link #LOCALIZED_ATTRIBUTES_PROPERTY}
+	 */
+	public static boolean isLocalizedAttributesProperty(@Nonnull String propertyName) {
+		return LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
+	}
+
+	/**
+	 * Converts a set of {@link Locale} instances to an {@link ArrayList} of language tag strings.
+	 */
+	@Nonnull
+	private static Serializable localesToLanguageTags(@Nonnull Set<Locale> locales) {
+		final ArrayList<String> tags = new ArrayList<>(locales.size());
+		for (Locale locale : locales) {
+			tags.add(locale.toLanguageTag());
+		}
+		return tags;
 	}
 
 	/**

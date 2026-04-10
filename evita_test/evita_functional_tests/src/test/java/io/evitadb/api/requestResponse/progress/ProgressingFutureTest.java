@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,13 +39,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Comprehensive test suite for {@link ProgressingFuture} contract verification.
@@ -820,5 +818,124 @@ class ProgressingFutureTest {
 		assertEquals("Failed with init: null, error: Initializer failed", onFailureCalls.get(0));
 		// Progress should be updated to completion even on failure
 		assertTrue(progressUpdates.contains("6/6")); // 5 + 1 = 6
+	}
+
+	// ---- Unrejectable ProgressingFuture tests ----
+
+	/**
+	 * Verifies that a ProgressingFuture executed with unrejectableExecutor() completes successfully.
+	 */
+	@Test
+	@DisplayName("Should complete ProgressingFuture executed with unrejectableExecutor()")
+	void shouldCreateUnrejectableProgressingFuture() throws ExecutionException, InterruptedException, TimeoutException {
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			5,
+			theFuture -> "unrejectable result",
+			throwable -> {}
+		);
+		future.execute(ProgressingFuture.unrejectableExecutor(this.executor));
+
+		assertEquals("unrejectable result", future.get(1, TimeUnit.SECONDS));
+	}
+
+	/**
+	 * Verifies that when using unrejectableExecutor(), the executor wraps submitted runnables
+	 * with UnrejectableTask marker.
+	 */
+	@Test
+	@DisplayName("Should wrap executor when using unrejectableExecutor()")
+	void shouldWrapExecutorWhenUnrejectable() throws ExecutionException, InterruptedException, TimeoutException {
+		final AtomicBoolean runnableIsUnrejectable = new AtomicBoolean(false);
+
+		// Use a custom executor that checks whether submitted runnables implement UnrejectableTask
+		final Executor inspectingExecutor = command -> {
+			runnableIsUnrejectable.set(command instanceof UnrejectableTask);
+			command.run();
+		};
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			0,
+			theFuture -> "done",
+			throwable -> {}
+		);
+		future.execute(ProgressingFuture.unrejectableExecutor(inspectingExecutor));
+		future.get(1, TimeUnit.SECONDS);
+
+		assertTrue(runnableIsUnrejectable.get(), "Submitted runnable should implement UnrejectableTask");
+	}
+
+	/**
+	 * Verifies that the default constructors (unrejectable=false) do NOT wrap the executor.
+	 */
+	@Test
+	@DisplayName("Should not wrap executor when rejectable (default)")
+	void shouldNotWrapExecutorWhenRejectable() throws ExecutionException, InterruptedException, TimeoutException {
+		final AtomicBoolean runnableIsUnrejectable = new AtomicBoolean(false);
+
+		final Executor inspectingExecutor = command -> {
+			runnableIsUnrejectable.set(command instanceof UnrejectableTask);
+			command.run();
+		};
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			0,
+			theFuture -> "done"
+		);
+		future.execute(inspectingExecutor);
+		future.get(1, TimeUnit.SECONDS);
+
+		assertFalse(runnableIsUnrejectable.get(), "Submitted runnable should NOT implement UnrejectableTask for default constructors");
+	}
+
+	/**
+	 * Verifies that nested futures of an unrejectable parent receive the wrapped executor,
+	 * so their runnables also implement UnrejectableTask.
+	 */
+	@Test
+	@DisplayName("Should propagate unrejectable wrapper to nested futures")
+	void shouldPropagateUnrejectableToNestedFutures() throws ExecutionException, InterruptedException, TimeoutException {
+		final List<Boolean> nestedUnrejectableFlags = Collections.synchronizedList(new ArrayList<>());
+
+		final Executor inspectingExecutor = command -> {
+			nestedUnrejectableFlags.add(command instanceof UnrejectableTask);
+			command.run();
+		};
+
+		final Collection<ProgressingFuture<String>> nestedFutures = List.of(
+			new ProgressingFuture<>(0, theFuture -> "nested1"),
+			new ProgressingFuture<>(0, theFuture -> "nested2")
+		);
+
+		final ProgressingFuture<List<String>> future = new ProgressingFuture<>(
+			0,
+			nestedFutures,
+			(progress, results) -> new ArrayList<>(results),
+			throwable -> {}
+		);
+		future.execute(ProgressingFuture.unrejectableExecutor(inspectingExecutor));
+		future.get(2, TimeUnit.SECONDS);
+
+		// All nested futures should have received the wrapped executor
+		assertFalse(nestedUnrejectableFlags.isEmpty(), "At least one nested task should have been submitted");
+		assertTrue(
+			nestedUnrejectableFlags.stream().allMatch(Boolean::booleanValue),
+			"All nested future runnables should implement UnrejectableTask"
+		);
+	}
+
+	/**
+	 * Verifies that the static unrejectableExecutor() helper wraps runnables with UnrejectableTask.
+	 */
+	@Test
+	@DisplayName("Should create unrejectable executor via static helper")
+	void shouldCreateUnrejectableExecutorViaStaticHelper() {
+		final AtomicReference<Runnable> capturedRunnable = new AtomicReference<>();
+		final Executor baseExecutor = capturedRunnable::set;
+
+		final Executor unrejectableExecutor = ProgressingFuture.unrejectableExecutor(baseExecutor);
+		unrejectableExecutor.execute(() -> {});
+
+		assertInstanceOf(UnrejectableTask.class, capturedRunnable.get(),
+			"Runnable submitted through unrejectableExecutor should implement UnrejectableTask");
 	}
 }

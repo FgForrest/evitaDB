@@ -59,7 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for object access operators, access steps, null coalescing, and
  * the nested operator verifying property/element resolution and null safety.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Object access and utility operators")
 class ObjectAccessTest {
@@ -534,7 +534,7 @@ class ObjectAccessTest {
 				() -> new NestedOperator(null)
 			);
 			assertEquals(
-				"Nested operator must have at least one operand!",
+				"Unary operator must have an operand!",
 				exception.getMessage()
 			);
 		}

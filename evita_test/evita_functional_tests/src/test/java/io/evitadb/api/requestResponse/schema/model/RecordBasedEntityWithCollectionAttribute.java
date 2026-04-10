@@ -36,7 +36,7 @@ import java.util.List;
  * from `List&lt;String&gt;` using `recordComponent.getGenericType()` instead of
  * `recordComponent.getType()`.
  *
- * @author evitaDB contributors
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Entity
 public record RecordBasedEntityWithCollectionAttribute(

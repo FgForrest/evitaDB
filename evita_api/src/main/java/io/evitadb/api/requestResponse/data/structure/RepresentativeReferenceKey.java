@@ -139,6 +139,22 @@ public record RepresentativeReferenceKey(
 	}
 
 	/**
+	 * Creates a new key with the same reference name and representative attribute values but
+	 * with a different primary key. Useful for deriving a group-level key from an entity-level
+	 * key by substituting the entity primary key with the group primary key.
+	 *
+	 * @param newPrimaryKey the primary key to substitute
+	 * @return a new instance with the substituted primary key
+	 */
+	@Nonnull
+	public RepresentativeReferenceKey withPrimaryKey(int newPrimaryKey) {
+		return new RepresentativeReferenceKey(
+			new ReferenceKey(this.referenceName(), newPrimaryKey),
+			this.representativeAttributeValues
+		);
+	}
+
+	/**
 	 * Natural ordering comparator.
 	 *
 	 * Sorts by:
@@ -169,9 +185,18 @@ public record RepresentativeReferenceKey(
 					);
 				} else {
 					for (int i = 0; i < thisRepAV.length; i++) {
-						@SuppressWarnings("rawtypes") final Comparable thisAV = (Comparable) thisRepAV[i];
-						@SuppressWarnings("rawtypes") final Comparable thatAV = (Comparable) thatRepAV[i];
-						@SuppressWarnings("unchecked") final int avComparison = thisAV.compareTo(thatAV);
+						final Serializable thisVal = thisRepAV[i];
+						final Serializable thatVal = thatRepAV[i];
+						// null-first ordering: null sorts before any non-null value
+						if (thisVal == null && thatVal == null) {
+							continue;
+						} else if (thisVal == null) {
+							return -1;
+						} else if (thatVal == null) {
+							return 1;
+						}
+						@SuppressWarnings("rawtypes") final Comparable thisAV = (Comparable) thisVal;
+						@SuppressWarnings("unchecked") final int avComparison = thisAV.compareTo(thatVal);
 						if (avComparison != 0) {
 							return avComparison;
 						}

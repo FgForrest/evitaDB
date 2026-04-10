@@ -36,7 +36,6 @@ import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.exception.ExpressionEvaluationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -53,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Tests for all numeric operators in the expression language verifying
  * arithmetic computation, range determination, and error handling.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Numeric operators")
 class NumericOperatorTest {
@@ -331,7 +330,7 @@ class NumericOperatorTest {
 				() -> new PositiveOperator(null)
 			);
 			assertEquals(
-				"Positive operator must have at least one operand!",
+				"Unary operator must have an operand!",
 				exception.getMessage()
 			);
 		}

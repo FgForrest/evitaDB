@@ -26,18 +26,15 @@ package io.evitadb.api.requestResponse.schema.dto;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.SchemaAlteringException;
-import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -576,9 +573,36 @@ public final class EntitySchema implements EntitySchemaContract {
 					.stream()
 					.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
 					.toArray(ScopedReferenceIndexType[]::new),
+				referenceSchemaContract.getIndexedComponentsInScopes()
+					.entrySet()
+					.stream()
+					.map(entry -> new ScopedReferenceIndexedComponents(
+						entry.getKey(),
+						entry.getValue().toArray(ReferenceIndexedComponents[]::new)
+					))
+					.toArray(ScopedReferenceIndexedComponents[]::new),
 				Arrays.stream(Scope.values())
 					.filter(referenceSchemaContract::isFacetedInScope)
 					.toArray(Scope[]::new),
+				referenceSchemaContract.getFacetedPartiallyInScopes()
+					.entrySet()
+					.stream()
+					.map(entry -> new ScopedFacetedPartially(entry.getKey(), entry.getValue()))
+					.toArray(ScopedFacetedPartially[]::new),
+				referenceSchemaContract.getAllHistogramIndexDefinitions()
+					.entrySet()
+					.stream()
+					.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+						.map(def -> new ScopedHistogramIndexDefinition(
+							scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+						))
+					)
+					.toArray(ScopedHistogramIndexDefinition[]::new),
+				referenceSchemaContract.getBucketedPartiallyInScopes()
+					.entrySet()
+					.stream()
+					.map(entry -> new ScopedBucketedPartially(entry.getKey(), entry.getValue()))
+					.toArray(ScopedBucketedPartially[]::new),
 				referenceSchemaContract.getAttributes(),
 				referenceSchemaContract.getSortableAttributeCompounds()
 			);

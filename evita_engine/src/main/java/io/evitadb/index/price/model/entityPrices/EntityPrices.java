@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,15 +41,27 @@ import java.util.Comparator;
  * - {@link MultiplePriceEntityPrices}: maintains multiple prices that are not linked to inner record id
  * - {@link FullBlownEntityPrices}: maintains multiple prices (with or without inner record id)
  *
- * These implementations are divided into three variants to optimize memory - i.e. to keep datastructures with minimal
- * set of fields that reserve the memory on heap as possible.
+ * These implementations are divided into three variants to optimize memory - i.e. to keep data structures
+ * with a minimal set of fields to reduce heap memory consumption.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public abstract class EntityPrices {
 	protected static final PriceRecord[] EMPTY_PRICES = new PriceRecord[0];
-	protected static final Comparator<PriceRecordContract> PRICE_ID_COMPARATOR = Comparator.comparingInt(PriceRecordContract::internalPriceId);
-	protected static final Comparator<PriceRecordContract> WITHOUT_TAX_COMPARATOR = Comparator.comparingInt(PriceRecordContract::priceWithoutTax).thenComparing(PriceRecordContract::internalPriceId);
+	/**
+	 * Comparator that orders {@link PriceRecordContract} by their
+	 * {@link PriceRecordContract#internalPriceId()} in ascending order.
+	 */
+	protected static final Comparator<PriceRecordContract> PRICE_ID_COMPARATOR =
+		Comparator.comparingInt(PriceRecordContract::internalPriceId);
+	/**
+	 * Comparator that orders {@link PriceRecordContract} by
+	 * {@link PriceRecordContract#priceWithoutTax()} first, then by
+	 * {@link PriceRecordContract#internalPriceId()} to break ties.
+	 */
+	protected static final Comparator<PriceRecordContract> WITHOUT_TAX_COMPARATOR =
+		Comparator.comparingInt(PriceRecordContract::priceWithoutTax)
+			.thenComparing(PriceRecordContract::internalPriceId);
 
 	/**
 	 * Creates duplicate of the `original` DTO adding new `priceRecord` to it in the process.
@@ -78,7 +90,7 @@ public abstract class EntityPrices {
 	}
 
 	/**
-	 * Creates duplicate of the `original` DTO removing existing `priceRecord` to it in the process.
+	 * Creates duplicate of the `original` DTO removing existing `priceRecord` from it in the process.
 	 * Method doesn't check the existence of the price in the DTO - it should be checked elsewhere.
 	 */
 	@Nonnull
@@ -97,7 +109,7 @@ public abstract class EntityPrices {
 	}
 
 	/**
-	 * Returns the array of the lowest prices for the passed entity id / inner record id combination.
+	 * Returns the array of the lowest prices for each inner record id group.
 	 */
 	@Nullable
 	public abstract PriceRecordContract[] getLowestPriceRecords();
@@ -110,12 +122,12 @@ public abstract class EntityPrices {
 	}
 
 	/**
-	 * Returns true if there is no single price for the entity.
+	 * Returns the number of prices for the entity.
 	 */
 	public abstract int getSize();
 
 	/**
-	 * Returns true if there is single price that matches passed original price id.
+	 * Returns true if there is a single price that matches passed original price id.
 	 */
 	public abstract boolean containsPriceRecord(int priceId);
 
@@ -125,7 +137,7 @@ public abstract class EntityPrices {
 	public abstract boolean containsInnerRecord(int innerRecordId);
 
 	/**
-	 * Returns true if this entity contains at least single price that can be also found in passed array of price
+	 * Returns true if this entity contains at least single price that can also be found in passed array of price
 	 * triples.
 	 */
 	public boolean containsAnyOf(@Nonnull PriceRecordContract[] priceTriples) {

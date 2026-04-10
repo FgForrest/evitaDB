@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * predicate behavior including fetched state checks, test filtering,
  * and richer copy creation.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Hierarchy predicate")
 class HierarchySerializablePredicateTest {

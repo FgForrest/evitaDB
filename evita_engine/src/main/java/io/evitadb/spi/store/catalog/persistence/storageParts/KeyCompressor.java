@@ -38,16 +38,33 @@ import java.util.OptionalInt;
 import static io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 
 /**
- * Implementations of this interface allows to translate complex keys that are repeated in entities to int values and
- * thus allow big savings of space in serialized form. This is easiest form of compress that can yield significant
- * results.
+ * A `KeyCompressor` maintains a bidirectional mapping between complex, frequently repeated key objects and compact
+ * integer ids. During Kryo serialization the complex key (e.g. an
+ * {@link io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey},
+ * {@link io.evitadb.api.requestResponse.data.structure.Price.PriceKey}, or
+ * {@link io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey}) is replaced with its
+ * assigned integer id, drastically reducing the size of serialized entity records when the same keys appear in
+ * thousands of entity parts.
+ *
+ * The integer-to-key mapping is persisted as part of the storage descriptor
+ * (see {@link StorageDescriptor#compressedKeys()})
+ * so it can be restored when the storage file is reopened. Until the compressor state is flushed to disk any newly
+ * assigned ids remain in volatile memory.
+ *
+ * There are two concrete variants:
+ * - {@link io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor} — used during
+ *   deserialization; throws when an unknown key is requested
+ * - {@link io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor} — used during
+ *   serialization; allocates new ids for previously unseen keys on demand
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface KeyCompressor extends Serializable {
 
 	/**
-	 * Returns index of all collected keys and their assigned ids.
+	 * Returns a snapshot of the full id → key index that was accumulated in this compressor. The returned map is
+	 * used when flushing the compressor state to the {@link StorageDescriptor} so that it can be restored on next
+	 * startup. The map is keyed by the integer ids and values are the original key objects.
 	 */
 	@Nonnull
 	Map<Integer, Object> getKeys();

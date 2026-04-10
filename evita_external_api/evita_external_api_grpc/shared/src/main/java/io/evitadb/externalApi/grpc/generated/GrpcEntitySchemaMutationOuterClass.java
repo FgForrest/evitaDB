@@ -67,7 +67,7 @@ public final class GrpcEntitySchemaMutationOuterClass {
       "difyEntitySchemaMutation\022\022\n\nentityType\030\001" +
       " \001(\t\022^\n\025entitySchemaMutations\030\002 \003(\0132?.io" +
       ".evitadb.externalApi.grpc.generated.Grpc" +
-      "EntitySchemaMutation\"\246<\n\030GrpcEntitySchem" +
+      "EntitySchemaMutation\"\243=\n\030GrpcEntitySchem" +
       "aMutation\022{\n\"createAssociatedDataSchemaM" +
       "utation\030\001 \001(\0132M.io.evitadb.externalApi.g" +
       "rpc.generated.GrpcCreateAssociatedDataSc" +
@@ -236,32 +236,35 @@ public final class GrpcEntitySchemaMutationOuterClass {
       "bleAttributeCompoundSchemaMutation\030] \001(\013" +
       "2a.io.evitadb.externalApi.grpc.generated" +
       ".GrpcModifyReferenceSortableAttributeCom" +
-      "poundSchemaMutationH\000\022\221\001\n-createSortable" +
-      "AttributeCompoundSchemaMutation\030x \001(\0132X." +
-      "io.evitadb.externalApi.grpc.generated.Gr" +
-      "pcCreateSortableAttributeCompoundSchemaM" +
-      "utationH\000\022\263\001\n>modifySortableAttributeCom" +
-      "poundSchemaDeprecationNoticeMutation\030y \001" +
-      "(\0132i.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcModifySortableAttributeCompoundSc" +
-      "hemaDeprecationNoticeMutationH\000\022\247\001\n8modi" +
-      "fySortableAttributeCompoundSchemaDescrip" +
-      "tionMutation\030z \001(\0132c.io.evitadb.external" +
-      "Api.grpc.generated.GrpcModifySortableAtt" +
-      "ributeCompoundSchemaDescriptionMutationH" +
-      "\000\022\231\001\n1modifySortableAttributeCompoundSch" +
-      "emaNameMutation\030{ \001(\0132\\.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcModifySortable" +
-      "AttributeCompoundSchemaNameMutationH\000\022\221\001" +
-      "\n-removeSortableAttributeCompoundSchemaM" +
-      "utation\030| \001(\0132X.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcRemoveSortableAttribut" +
-      "eCompoundSchemaMutationH\000\022\215\001\n+setSortabl" +
-      "eAttributeCompoundIndexedMutation\030} \001(\0132" +
-      "V.io.evitadb.externalApi.grpc.generated." +
-      "GrpcSetSortableAttributeCompoundIndexedM" +
-      "utationH\000B\n\n\010mutationB\014P\001\252\002\007EvitaDBb\006pro" +
-      "to3"
+      "poundSchemaMutationH\000\022{\n\"setReferenceSch" +
+      "emaBucketedMutation\030^ \001(\0132M.io.evitadb.e" +
+      "xternalApi.grpc.generated.GrpcSetReferen" +
+      "ceSchemaBucketedMutationH\000\022\221\001\n-createSor" +
+      "tableAttributeCompoundSchemaMutation\030x \001" +
+      "(\0132X.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcCreateSortableAttributeCompoundSc" +
+      "hemaMutationH\000\022\263\001\n>modifySortableAttribu" +
+      "teCompoundSchemaDeprecationNoticeMutatio" +
+      "n\030y \001(\0132i.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcModifySortableAttributeCompo" +
+      "undSchemaDeprecationNoticeMutationH\000\022\247\001\n" +
+      "8modifySortableAttributeCompoundSchemaDe" +
+      "scriptionMutation\030z \001(\0132c.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcModifySortab" +
+      "leAttributeCompoundSchemaDescriptionMuta" +
+      "tionH\000\022\231\001\n1modifySortableAttributeCompou" +
+      "ndSchemaNameMutation\030{ \001(\0132\\.io.evitadb." +
+      "externalApi.grpc.generated.GrpcModifySor" +
+      "tableAttributeCompoundSchemaNameMutation" +
+      "H\000\022\221\001\n-removeSortableAttributeCompoundSc" +
+      "hemaMutation\030| \001(\0132X.io.evitadb.external" +
+      "Api.grpc.generated.GrpcRemoveSortableAtt" +
+      "ributeCompoundSchemaMutationH\000\022\215\001\n+setSo" +
+      "rtableAttributeCompoundIndexedMutation\030}" +
+      " \001(\0132V.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcSetSortableAttributeCompoundInd" +
+      "exedMutationH\000B\n\n\010mutationB\014P\001\252\002\007EvitaDB" +
+      "b\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -283,7 +286,7 @@ public final class GrpcEntitySchemaMutationOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchemaMutation_descriptor,
-        new java.lang.String[] { "CreateAssociatedDataSchemaMutation", "ModifyAssociatedDataSchemaDeprecationNoticeMutation", "ModifyAssociatedDataSchemaDescriptionMutation", "ModifyAssociatedDataSchemaNameMutation", "ModifyAssociatedDataSchemaTypeMutation", "RemoveAssociatedDataSchemaMutation", "SetAssociatedDataSchemaLocalizedMutation", "SetAssociatedDataSchemaNullableMutation", "CreateAttributeSchemaMutation", "ModifyAttributeSchemaDefaultValueMutation", "ModifyAttributeSchemaDeprecationNoticeMutation", "ModifyAttributeSchemaDescriptionMutation", "ModifyAttributeSchemaNameMutation", "ModifyAttributeSchemaTypeMutation", "RemoveAttributeSchemaMutation", "SetAttributeSchemaFilterableMutation", "SetAttributeSchemaLocalizedMutation", "SetAttributeSchemaNullableMutation", "SetAttributeSchemaRepresentativeMutation", "SetAttributeSchemaSortableMutation", "SetAttributeSchemaUniqueMutation", "UseGlobalAttributeSchemaMutation", "AllowCurrencyInEntitySchemaMutation", "AllowEvolutionModeInEntitySchemaMutation", "AllowLocaleInEntitySchemaMutation", "DisallowCurrencyInEntitySchemaMutation", "DisallowEvolutionModeInEntitySchemaMutation", "DisallowLocaleInEntitySchemaMutation", "ModifyEntitySchemaDeprecationNoticeMutation", "ModifyEntitySchemaDescriptionMutation", "SetEntitySchemaWithGeneratedPrimaryKeyMutation", "SetEntitySchemaWithHierarchyMutation", "SetEntitySchemaWithPriceMutation", "ModifyEntitySchemaNameMutation", "RemoveEntitySchemaMutation", "CreateEntitySchemaMutation", "ModifyEntitySchemaMutation", "CreateReferenceSchemaMutation", "ModifyReferenceAttributeSchemaMutation", "ModifyReferenceSchemaCardinalityMutation", "ModifyReferenceSchemaDeprecationNoticeMutation", "ModifyReferenceSchemaDescriptionMutation", "ModifyReferenceSchemaNameMutation", "ModifyReferenceSchemaRelatedEntityGroupMutation", "ModifyReferenceSchemaRelatedEntityMutation", "RemoveReferenceSchemaMutation", "SetReferenceSchemaFacetedMutation", "SetReferenceSchemaIndexedMutation", "CreateReflectedReferenceSchemaMutation", "ModifyReflectedReferenceAttributeInheritanceSchemaMutation", "ModifyReferenceSortableAttributeCompoundSchemaMutation", "CreateSortableAttributeCompoundSchemaMutation", "ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation", "ModifySortableAttributeCompoundSchemaDescriptionMutation", "ModifySortableAttributeCompoundSchemaNameMutation", "RemoveSortableAttributeCompoundSchemaMutation", "SetSortableAttributeCompoundIndexedMutation", "Mutation", });
+        new java.lang.String[] { "CreateAssociatedDataSchemaMutation", "ModifyAssociatedDataSchemaDeprecationNoticeMutation", "ModifyAssociatedDataSchemaDescriptionMutation", "ModifyAssociatedDataSchemaNameMutation", "ModifyAssociatedDataSchemaTypeMutation", "RemoveAssociatedDataSchemaMutation", "SetAssociatedDataSchemaLocalizedMutation", "SetAssociatedDataSchemaNullableMutation", "CreateAttributeSchemaMutation", "ModifyAttributeSchemaDefaultValueMutation", "ModifyAttributeSchemaDeprecationNoticeMutation", "ModifyAttributeSchemaDescriptionMutation", "ModifyAttributeSchemaNameMutation", "ModifyAttributeSchemaTypeMutation", "RemoveAttributeSchemaMutation", "SetAttributeSchemaFilterableMutation", "SetAttributeSchemaLocalizedMutation", "SetAttributeSchemaNullableMutation", "SetAttributeSchemaRepresentativeMutation", "SetAttributeSchemaSortableMutation", "SetAttributeSchemaUniqueMutation", "UseGlobalAttributeSchemaMutation", "AllowCurrencyInEntitySchemaMutation", "AllowEvolutionModeInEntitySchemaMutation", "AllowLocaleInEntitySchemaMutation", "DisallowCurrencyInEntitySchemaMutation", "DisallowEvolutionModeInEntitySchemaMutation", "DisallowLocaleInEntitySchemaMutation", "ModifyEntitySchemaDeprecationNoticeMutation", "ModifyEntitySchemaDescriptionMutation", "SetEntitySchemaWithGeneratedPrimaryKeyMutation", "SetEntitySchemaWithHierarchyMutation", "SetEntitySchemaWithPriceMutation", "ModifyEntitySchemaNameMutation", "RemoveEntitySchemaMutation", "CreateEntitySchemaMutation", "ModifyEntitySchemaMutation", "CreateReferenceSchemaMutation", "ModifyReferenceAttributeSchemaMutation", "ModifyReferenceSchemaCardinalityMutation", "ModifyReferenceSchemaDeprecationNoticeMutation", "ModifyReferenceSchemaDescriptionMutation", "ModifyReferenceSchemaNameMutation", "ModifyReferenceSchemaRelatedEntityGroupMutation", "ModifyReferenceSchemaRelatedEntityMutation", "RemoveReferenceSchemaMutation", "SetReferenceSchemaFacetedMutation", "SetReferenceSchemaIndexedMutation", "CreateReflectedReferenceSchemaMutation", "ModifyReflectedReferenceAttributeInheritanceSchemaMutation", "ModifyReferenceSortableAttributeCompoundSchemaMutation", "SetReferenceSchemaBucketedMutation", "CreateSortableAttributeCompoundSchemaMutation", "ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation", "ModifySortableAttributeCompoundSchemaDescriptionMutation", "ModifySortableAttributeCompoundSchemaNameMutation", "RemoveSortableAttributeCompoundSchemaMutation", "SetSortableAttributeCompoundIndexedMutation", "Mutation", });
     io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaMutations.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchemaMutations.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutations.getDescriptor();

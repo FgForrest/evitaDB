@@ -132,6 +132,7 @@ public class LocalEntitySchemaMutationInputAggregateConverter extends
 		registerConverter(MODIFY_REFERENCE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name(), new ModifyReferenceSortableAttributeCompoundSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(MODIFY_REFERENCE_SCHEMA_ATTRIBUTE_INHERITANCE_MUTATION.name(), new ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(REMOVE_REFERENCE_SCHEMA_MUTATION.name(), new RemoveReferenceSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_REFERENCE_SCHEMA_BUCKETED_MUTATION.name(), new SetReferenceSchemaBucketedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_REFERENCE_SCHEMA_FACETED_MUTATION.name(), new SetReferenceSchemaFacetedMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_REFERENCE_SCHEMA_INDEXED_MUTATION.name(), new SetReferenceSchemaIndexedMutationConverter(objectParser, exceptionFactory));
 	}

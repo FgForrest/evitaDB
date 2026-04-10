@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,11 +29,13 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -74,7 +76,7 @@ import java.util.stream.Stream;
 public class CreateReflectedReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -3833868605223655352L;
+	@Serial private static final long serialVersionUID = 6927605828004667958L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -82,7 +84,11 @@ public class CreateReflectedReferenceSchemaMutation
 	@Getter @Nonnull private final String referencedEntityType;
 	@Getter @Nonnull private final String reflectedReferenceName;
 	@Getter @Nullable private final ScopedReferenceIndexType[] indexedInScopes;
+	@Getter @Nullable private final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
 	@Getter @Nullable private final Scope[] facetedInScopes;
+	@Getter @Nullable private final ScopedFacetedPartially[] facetedPartiallyInScopes;
+	@Getter @Nullable private final ScopedHistogramIndexDefinition[] bucketedInScopes;
+	@Getter @Nullable private final ScopedBucketedPartially[] bucketedPartiallyInScopes;
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributeInheritanceBehavior;
 	@Getter @Nonnull private final String[] attributeInheritanceFilter;
 
@@ -110,6 +116,84 @@ public class CreateReflectedReferenceSchemaMutation
 	}
 
 	/**
+	 * Creates a single {@link SetReferenceSchemaFacetedMutation} carrying both faceted scopes and
+	 * facetedPartially expressions if either property differs between created and existing versions.
+	 * Emitting a single mutation avoids the Set+Set combining problem where a second
+	 * SetReferenceSchemaFacetedMutation would replace the first, losing the scopes data.
+	 */
+	@Nullable
+	private LocalEntitySchemaMutation createCombinedFacetedMutation(
+		@Nonnull ReflectedReferenceSchemaContract createdVersion,
+		@Nonnull ReflectedReferenceSchemaContract existingVersion
+	) {
+		final Scope[] createdScopes = createdVersion.isFacetedInherited()
+			? null
+			: Arrays.stream(Scope.values())
+				.filter(createdVersion::isFacetedInScope)
+				.toArray(Scope[]::new);
+		final Scope[] existingScopes = existingVersion.isFacetedInherited()
+			? null
+			: Arrays.stream(Scope.values())
+				.filter(existingVersion::isFacetedInScope)
+				.toArray(Scope[]::new);
+		final boolean scopesEqual = Arrays.equals(createdScopes, existingScopes);
+		final boolean partiallyEqual = createdVersion.getFacetedPartiallyInScopes()
+			.equals(existingVersion.getFacetedPartiallyInScopes());
+		if (scopesEqual && partiallyEqual) {
+			return null;
+		}
+		return new SetReferenceSchemaFacetedMutation(
+			this.name,
+			createdScopes,
+			createdVersion.getFacetedPartiallyInScopes().entrySet().stream()
+				.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
+				.toArray(ScopedFacetedPartially[]::new)
+		);
+	}
+
+	/**
+	 * Creates a single {@link SetReferenceSchemaBucketedMutation} carrying both bucketed histogram
+	 * definitions and bucketedPartially expressions if either property differs between created and
+	 * existing versions. Emitting a single mutation avoids the Set+Set combining problem where a second
+	 * SetReferenceSchemaBucketedMutation would replace the first, losing the scopes data.
+	 */
+	@Nullable
+	private LocalEntitySchemaMutation createCombinedBucketedMutation(
+		@Nonnull ReflectedReferenceSchemaContract createdVersion,
+		@Nonnull ReflectedReferenceSchemaContract existingVersion
+	) {
+		final ScopedHistogramIndexDefinition[] createdBucketed =
+			createdVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+					.map(def -> new ScopedHistogramIndexDefinition(
+						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+					))
+				)
+				.toArray(ScopedHistogramIndexDefinition[]::new);
+		final ScopedHistogramIndexDefinition[] existingBucketed =
+			existingVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+					.map(def -> new ScopedHistogramIndexDefinition(
+						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+					))
+				)
+				.toArray(ScopedHistogramIndexDefinition[]::new);
+		final boolean bucketedEqual = Arrays.equals(createdBucketed, existingBucketed);
+		final boolean partiallyEqual = createdVersion.getBucketedPartiallyInScopes()
+			.equals(existingVersion.getBucketedPartiallyInScopes());
+		if (bucketedEqual && partiallyEqual) {
+			return null;
+		}
+		return new SetReferenceSchemaBucketedMutation(
+			this.name,
+			createdBucketed,
+			createdVersion.getBucketedPartiallyInScopes().entrySet().stream()
+				.map(e -> new ScopedBucketedPartially(e.getKey(), e.getValue()))
+				.toArray(ScopedBucketedPartially[]::new)
+		);
+	}
+
+	/**
 	 * Creates mutation that sets up a new reflected reference schema using a simple boolean
 	 * flag for faceted configuration.
 	 */
@@ -128,8 +212,16 @@ public class CreateReflectedReferenceSchemaMutation
 			name, description, deprecationNotice, cardinality, referencedEntityType, reflectedReferenceName,
 			// by default reflected reference is indexed in the same scope as the entity
 			null,
+			// by default indexed components are inherited
+			null,
 			// by default reflected reference is not faceted unless explicitly set
 			faceted == null ? null : faceted ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
+			// by default facetedPartially is inherited
+			null,
+			// by default bucketed is empty
+			ScopedHistogramIndexDefinition.EMPTY,
+			// by default bucketedPartially is empty
+			ScopedBucketedPartially.EMPTY,
 			attributeInheritanceBehavior, attributeInheritanceFilter
 		);
 	}
@@ -137,6 +229,34 @@ public class CreateReflectedReferenceSchemaMutation
 	/**
 	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
 	 * indexed/faceted configuration.
+	 */
+	public CreateReflectedReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull String reflectedReferenceName,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes,
+		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
+		@Nullable String[] attributeInheritanceFilter
+	) {
+		this(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, reflectedReferenceName,
+			indexedInScopes, indexedComponentsInScopes,
+			facetedInScopes, null,
+			ScopedHistogramIndexDefinition.EMPTY, ScopedBucketedPartially.EMPTY,
+			attributeInheritanceBehavior, attributeInheritanceFilter
+		);
+	}
+
+	/**
+	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
+	 * indexed/faceted/bucketed configuration including per-scope facetedPartially and
+	 * bucketedPartially expressions.
 	 */
 	@SerializableCreator
 	public CreateReflectedReferenceSchemaMutation(
@@ -147,7 +267,11 @@ public class CreateReflectedReferenceSchemaMutation
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nullable Scope[] facetedInScopes,
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
 	) {
@@ -160,7 +284,11 @@ public class CreateReflectedReferenceSchemaMutation
 		this.referencedEntityType = referencedEntityType;
 		this.reflectedReferenceName = reflectedReferenceName;
 		this.indexedInScopes = indexedInScopes;
+		this.indexedComponentsInScopes = indexedComponentsInScopes;
 		this.facetedInScopes = facetedInScopes;
+		this.facetedPartiallyInScopes = facetedPartiallyInScopes;
+		this.bucketedInScopes = bucketedInScopes;
+		this.bucketedPartiallyInScopes = bucketedPartiallyInScopes;
 		this.attributeInheritanceBehavior = attributeInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ?
 			ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
@@ -222,9 +350,34 @@ public class CreateReflectedReferenceSchemaMutation
 								),
 								makeMutationIfDifferent(
 									createdVersion, existingVersion,
-									ref -> ref.isFacetedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isFacetedInScope).toArray(Scope[]::new),
-									newValue -> new SetReferenceSchemaFacetedMutation(this.name, newValue)
-								)
+									ref -> ref.isIndexedComponentsInherited()
+										? null
+										: ref.getIndexedComponentsInScopes(),
+									newValue -> new SetReferenceSchemaIndexedMutation(
+										this.name,
+										createdVersion.isIndexedInherited()
+											? null
+											: createdVersion.getReferenceIndexTypeInScopes()
+												.entrySet()
+												.stream()
+												.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+												.toArray(ScopedReferenceIndexType[]::new),
+										createdVersion.getIndexedComponentsInScopes()
+											.entrySet()
+											.stream()
+											.map(
+												it -> new ScopedReferenceIndexedComponents(
+													it.getKey(),
+													it.getValue().toArray(ReferenceIndexedComponents[]::new)
+												)
+											)
+											.toArray(ScopedReferenceIndexedComponents[]::new)
+									)
+								),
+								// emit a single mutation carrying both facetedInScopes and facetedPartially
+								createCombinedFacetedMutation(createdVersion, existingVersion),
+								// emit a single mutation carrying both bucketedInScopes and bucketedPartially
+								createCombinedBucketedMutation(createdVersion, existingVersion)
 							),
 							existingVersion.getAttributes()
 								.values()
@@ -259,7 +412,11 @@ public class CreateReflectedReferenceSchemaMutation
 			this.referencedEntityType, this.reflectedReferenceName,
 			this.cardinality,
 			this.indexedInScopes,
+			this.indexedComponentsInScopes,
 			this.facetedInScopes,
+			this.facetedPartiallyInScopes,
+			this.bucketedInScopes,
+			this.bucketedPartiallyInScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			this.attributeInheritanceBehavior,
@@ -302,6 +459,12 @@ public class CreateReflectedReferenceSchemaMutation
 		} else {
 			indexedDescription = "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")";
 		}
+		final String componentsDescription;
+		if (this.indexedComponentsInScopes == null) {
+			componentsDescription = "";
+		} else {
+			componentsDescription = ", indexedComponents=" + Arrays.toString(this.indexedComponentsInScopes);
+		}
 		final String facetedDescription;
 		if (this.facetedInScopes == null) {
 			facetedDescription = "(inherited)";
@@ -309,6 +472,26 @@ public class CreateReflectedReferenceSchemaMutation
 			facetedDescription = "(not faceted)";
 		} else {
 			facetedDescription = "(faceted in scopes: " + Arrays.toString(this.facetedInScopes) + ")";
+		}
+		final String facetedPartiallyDescription;
+		if (this.facetedPartiallyInScopes == null) {
+			facetedPartiallyDescription = "(inherited)";
+		} else if (this.facetedPartiallyInScopes.length == 0) {
+			facetedPartiallyDescription = "(none)";
+		} else {
+			facetedPartiallyDescription = "(in scopes: " + Arrays.toString(this.facetedPartiallyInScopes) + ")";
+		}
+		final String bucketedDescription;
+		if (this.bucketedInScopes == null || this.bucketedInScopes.length == 0) {
+			bucketedDescription = "(not bucketed)";
+		} else {
+			bucketedDescription = "(bucketed in scopes: " + Arrays.toString(this.bucketedInScopes) + ")";
+		}
+		final String bucketedPartiallyDescription;
+		if (this.bucketedPartiallyInScopes == null || this.bucketedPartiallyInScopes.length == 0) {
+			bucketedPartiallyDescription = "(none)";
+		} else {
+			bucketedPartiallyDescription = "(in scopes: " + Arrays.toString(this.bucketedPartiallyInScopes) + ")";
 		}
 		return "Create entity reflected reference schema: " +
 			"name='" + this.name + '\'' +
@@ -318,7 +501,11 @@ public class CreateReflectedReferenceSchemaMutation
 			", entityType='" + this.referencedEntityType + '\'' +
 			", reflectedReferenceName='" + this.reflectedReferenceName + '\'' +
 			", indexed=" + indexedDescription +
+			componentsDescription +
 			", faceted=" + facetedDescription +
+			", facetedPartially=" + facetedPartiallyDescription +
+			", bucketed=" + bucketedDescription +
+			", bucketedPartially=" + bucketedPartiallyDescription +
 			", attributesInherited=" + this.attributeInheritanceBehavior +
 			", attributesExcludedFromInheritance=" +
 			Arrays.toString(this.attributeInheritanceFilter);

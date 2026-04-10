@@ -26,22 +26,30 @@ package io.evitadb.spi.store.catalog.persistence.storageParts;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
 
 /**
- * This interface marks all {@link StoragePart} - or their payloads which keys are computed with the help
- * of {@link KeyCompressor}. This fact complicates access to the record id in case {@link KeyCompressor} is not flushed
- * to the disk and the assigned IDs are still present in volatile memory that cannot be easily accessed in thread safe
- * manner.
+ * Marks {@link StoragePart} implementations (or their payload types) whose {@link StoragePart#getStoragePartPK()
+ * primary key} is derived with the help of a {@link KeyCompressor}. When a part is written for the first time the
+ * compressor maps the source key (e.g. an {@link io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey})
+ * to a compact integer id, and the integer is then combined with other identifiers to produce the final 64-bit
+ * storage part primary key.
  *
+ * The complication this interface addresses is that the compressor mapping may still reside in volatile memory (not
+ * yet flushed to disk) at the moment the part needs to be located by key. The {@link #getStoragePartSourceKey()}
+ * method provides the original, pre-compression key so that callers can reconstruct the primary key once the
+ * compressor state is available, without needing thread-safe access to the compressor at arbitrary times.
+ *
+ * @param <T> the type of the source key; must implement both {@link Comparable} and have consistent `equals`/`hashCode`
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @see io.evitadb.core.buffer.DataStoreMemoryBuffer
  */
 public interface RecordWithCompressedId<T extends Comparable<T>> {
 
 	/**
-	 * Returns instance of the source key, that is required for unique part id computation.
-	 * The key must uniquely identify the record among all other records both of the same type. You need to be able
-	 * to fully compute {@link EntityStoragePart#getStoragePartPK()} based on information stored in this key. The key
-	 * must have proper equals and hashCode implementation and also {@link Comparable} interface is recommended to be
-	 * implemented by the key.
+	 * Returns the original, uncompressed source key from which the storage part primary key is computed. The key
+	 * must uniquely identify this record among all records of the same type so that
+	 * {@link StoragePart#getStoragePartPK()} can be fully reconstructed from it (given a {@link KeyCompressor}).
+	 *
+	 * Implementations must ensure proper `equals` and `hashCode` contracts on the returned key, as it is used as a
+	 * map key within the `DataStoreMemoryBuffer`.
 	 */
 	T getStoragePartSourceKey();
 

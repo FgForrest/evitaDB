@@ -24,17 +24,13 @@
 package io.evitadb.api.query.expression.numeric;
 
 
+import io.evitadb.api.query.expression.AbstractUnaryOperator;
 import io.evitadb.api.query.expression.evaluate.PossibleRange;
-import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.exception.ExpressionEvaluationException;
-import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -46,30 +42,18 @@ import java.math.BigDecimal;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EqualsAndHashCode
-public class NegativeOperator implements ExpressionNode {
+@EqualsAndHashCode(callSuper = true)
+public class NegativeOperator extends AbstractUnaryOperator {
 	@Serial private static final long serialVersionUID = -1917894061802394775L;
-	private final ExpressionNode operator;
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public NegativeOperator(@Nonnull ExpressionNode operator) {
-		Assert.isTrue(
-			operator != null,
-			() -> new ParserException("Negation must have at least one operand!")
-		);
-		this.operator = operator;
-		this.children = new ExpressionNode[]{this.operator};
+		super(operator);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimal compute(@Nonnull ExpressionEvaluationContext context) {
-		final BigDecimal number = this.operator.compute(context, BigDecimal.class);
-		if (number == null) {
-			throw new ExpressionEvaluationException("Operand is required, but evaluated to null.");
-		}
+		final BigDecimal number = computeOperand(context, BigDecimal.class);
 		return number.negate();
 	}
 
@@ -77,18 +61,13 @@ public class NegativeOperator implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return PossibleRange.transform(
-			this.operator.determinePossibleRange(),
+			getOperand().determinePossibleRange(),
 			BigDecimal::negate
 		);
 	}
 
 	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
-	}
-
-	@Override
 	public String toString() {
-		return "-" + this.operator.toString();
+		return "-" + getOperand();
 	}
 }

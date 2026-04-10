@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,37 +23,22 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
-import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -65,14 +50,14 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Internal {@link ReferenceSchema} builder used solely from within {@link InternalEntitySchemaBuilder}.
@@ -80,17 +65,17 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class ReferenceSchemaBuilder
-	implements ReferenceSchemaEditor.ReferenceSchemaBuilder, InternalSchemaBuilderHelper {
-	@Serial private static final long serialVersionUID = -6435272035844056999L;
+	extends AbstractReferenceSchemaBuilder<ReferenceSchemaEditor.ReferenceSchemaBuilder, ReferenceSchemaContract>
+	implements ReferenceSchemaEditor.ReferenceSchemaBuilder {
+	@Serial private static final long serialVersionUID = 2718281828459045235L;
 
-	private final CatalogSchemaContract catalogSchema;
-	private final EntitySchemaContract entitySchema;
-	private final ReferenceSchemaContract baseSchema;
-	private final LinkedList<LocalEntitySchemaMutation> mutations = new LinkedList<>();
-	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
-	private int lastMutationReflectedInSchema = 0;
-	private ReferenceSchemaContract updatedSchema;
-
+	/**
+	 * Creates a new builder from an existing or freshly initialized reference schema. When `createNew` is true,
+	 * a {@link CreateReferenceSchemaMutation} is automatically emitted. Otherwise, only mutations for changed
+	 * properties (entity type, cardinality) are emitted against `existingSchema`.
+	 *
+	 * Any pre-existing mutations targeting this reference (excluding create/remove) are also replayed.
+	 */
 	ReferenceSchemaBuilder(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull EntitySchemaContract entitySchema,
@@ -102,15 +87,16 @@ public final class ReferenceSchemaBuilder
 		@Nonnull List<LocalEntitySchemaMutation> mutations,
 		boolean createNew
 	) {
-		this.catalogSchema = catalogSchema;
-		this.entitySchema = entitySchema;
-		this.baseSchema = existingSchema == null ?
-			ReferenceSchema._internalBuild(
-				name, entityType, referencedEntityTypeManaged, cardinality,
-				null, false,
-				ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
-			) :
-			existingSchema;
+		super(
+			catalogSchema, entitySchema,
+			existingSchema == null ?
+				ReferenceSchema._internalBuild(
+					name, entityType, referencedEntityTypeManaged, cardinality,
+					null, false,
+					ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
+				) :
+				existingSchema
+		);
 		if (createNew) {
 			this.mutations.add(
 				new CreateReferenceSchemaMutation(
@@ -125,8 +111,19 @@ public final class ReferenceSchemaBuilder
 					this.baseSchema.getReferenceIndexTypeInScopes()
 						.entrySet()
 						.stream()
-						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.map(
+							it -> new ScopedReferenceIndexType(it.getKey(), it.getValue())
+						)
 						.toArray(ScopedReferenceIndexType[]::new),
+					this.baseSchema.getIndexedComponentsInScopes()
+						.entrySet()
+						.stream()
+						.map(
+							it -> new ScopedReferenceIndexedComponents(
+								it.getKey(), it.getValue().toArray(ReferenceIndexedComponents.EMPTY)
+							)
+						)
+						.toArray(ScopedReferenceIndexedComponents[]::new),
 					Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new)
 				)
 			);
@@ -163,40 +160,16 @@ public final class ReferenceSchemaBuilder
 			.forEach(this.mutations::add);
 	}
 
+	/**
+	 * Creates a builder for modifying an already existing reference schema without emitting a create mutation.
+	 * Used when the schema already exists and only individual property mutations are needed.
+	 */
 	public ReferenceSchemaBuilder(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract existingSchema
 	) {
-		this.catalogSchema = catalogSchema;
-		this.entitySchema = entitySchema;
-		this.baseSchema = existingSchema;
-	}
-
-	@Override
-	@Nonnull
-	public ReferenceSchemaBuilder withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSchemaDescriptionMutation(getName(), description)
-			)
-		);
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public ReferenceSchemaBuilder deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSchemaDeprecationNoticeMutation(getName(), deprecationNotice)
-			)
-		);
-		return this;
+		super(catalogSchema, entitySchema, existingSchema);
 	}
 
 	@Override
@@ -289,18 +262,22 @@ public final class ReferenceSchemaBuilder
 	@Nonnull
 	@Override
 	public ReferenceSchemaBuilder facetedInScope(@Nonnull Scope... inScope) {
+		// compute complete facetedPartially state: filter existing expressions to retained scopes
+		final EnumSet<Scope> newScopeSet = ArrayUtils.toEnumSet(Scope.class, inScope);
+		final ScopedFacetedPartially[] filteredPartially = toScopedFacetedPartiallyArray(
+			filterPartiallyToScopes(newScopeSet)
+		);
 		if (Arrays.stream(inScope).allMatch(this::isIndexedInScope)) {
 			// just update the faceted scopes
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaFacetedMutation(getName(), inScope)
+					new SetReferenceSchemaFacetedMutation(getName(), inScope, filteredPartially)
 				)
 			);
 		} else {
 			// update both indexed and faceted scopes
-			final EnumSet<Scope> includedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
@@ -308,10 +285,60 @@ public final class ReferenceSchemaBuilder
 					new SetReferenceSchemaIndexedMutation(
 						getName(),
 						Arrays.stream(Scope.values())
-							.filter(scope -> includedScopes.contains(scope) || this.isIndexedInScope(scope))
+							.filter(scope -> newScopeSet.contains(scope) || this.isIndexedInScope(scope))
 							.toArray(Scope[]::new)
 					),
-					new SetReferenceSchemaFacetedMutation(getName(), inScope)
+					new SetReferenceSchemaFacetedMutation(getName(), inScope, filteredPartially)
+				)
+			);
+		}
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder facetedPartiallyInScope(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		// compute complete state: current scopes + new scope, current expressions + new entry
+		final Set<Scope> currentFacetedScopes = this.getFacetedInScopes();
+		final EnumSet<Scope> allScopes = currentFacetedScopes.isEmpty()
+			? EnumSet.noneOf(Scope.class) : EnumSet.copyOf(currentFacetedScopes);
+		allScopes.add(scope);
+		final Map<Scope, Expression> currentPartially = this.getFacetedPartiallyInScopes();
+		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
+			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
+		allPartially.put(scope, expression);
+		final Scope[] completeFacetedScopes = allScopes.toArray(Scope[]::new);
+		final ScopedFacetedPartially[] completePartially =
+			toScopedFacetedPartiallyArray(allPartially);
+		if (this.isIndexedInScope(scope)) {
+			// scope is already indexed — just emit the faceted mutation
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaFacetedMutation(
+						getName(), completeFacetedScopes, completePartially
+					)
+				)
+			);
+		} else {
+			// auto-promote to indexed before enabling faceting
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaIndexedMutation(
+						getName(),
+						Arrays.stream(Scope.values())
+							.filter(s -> s == scope || this.isIndexedInScope(s))
+							.toArray(Scope[]::new)
+					),
+					new SetReferenceSchemaFacetedMutation(
+						getName(), completeFacetedScopes, completePartially
+					)
 				)
 			);
 		}
@@ -322,40 +349,56 @@ public final class ReferenceSchemaBuilder
 	@Override
 	public ReferenceSchemaBuilder nonFaceted(@Nonnull Scope... inScope) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFacetedMutation(
-					getName(),
-					Arrays.stream(Scope.values())
-						.filter(this::isFacetedInScope)
-						.filter(it -> !excludedScopes.contains(it))
-						.toArray(Scope[]::new)
-				)
-			)
-		);
-		return this;
+		final Scope[] remainingScopes = Arrays.stream(Scope.values())
+			.filter(this::isFacetedInScope)
+			.filter(it -> !excludedScopes.contains(it))
+			.toArray(Scope[]::new);
+		return applyNonFacetedMutation(remainingScopes);
 	}
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
-		this.updatedSchemaDirty = indexedForTypeInScope(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING, inScope
+	public ReferenceSchemaBuilder bucketedInScope(
+		@Nonnull Scope scope,
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression
+	) {
+		// compute complete state: current bucketed definitions + additive new entry
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
+			allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+		}
+		allBucketed.computeIfAbsent(scope, k -> new LinkedHashMap<>(8))
+			.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+		// compute complete bucketedPartially: filter existing to retained scopes
+		final Map<Scope, Expression> filteredPartially = filterBucketedPartiallyToScopes(allBucketed.keySet());
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(allBucketed),
+			toScopedBucketedPartiallyArray(filteredPartially),
+			true
 		);
-		return this;
 	}
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
-		this.updatedSchemaDirty = indexedForTypeInScope(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			this.updatedSchemaDirty, getName(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, inScope
+	public ReferenceSchemaBuilder bucketedPartiallyInScope(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		// compute complete state: current bucketed definitions unchanged, current expressions + new entry
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
+			? new EnumMap<>(Scope.class) : new EnumMap<>(currentPartially);
+		allPartially.put(scope, expression);
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(currentBucketed),
+			toScopedBucketedPartiallyArray(allPartially),
+			true
 		);
-		return this;
 	}
 
 	@Override
@@ -371,106 +414,17 @@ public final class ReferenceSchemaBuilder
 		@Nonnull Class<? extends Serializable> ofType,
 		@Nullable Consumer<AttributeSchemaEditor.AttributeSchemaBuilder> whichIs
 	) {
-		final Optional<AttributeSchemaContract> existingAttribute = getAttribute(attributeName);
-		final AttributeSchemaBuilder attributeSchemaBuilder =
-			existingAttribute
-				.map(it -> {
-					Assert.isTrue(
-						ofType.equals(it.getType()),
-						() -> new InvalidSchemaMutationException(
-							"Attribute " + attributeName + " has already assigned type " + it.getType() +
-								", cannot change this type to: " + ofType + "!"
-						)
-					);
-					return new AttributeSchemaBuilder(this.entitySchema, it);
-				})
-				.orElseGet(() -> new AttributeSchemaBuilder(this.entitySchema, attributeName, ofType));
-
-		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
-		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
-		checkSortableTraits(attributeName, attributeSchema);
+		final AttributeSchemaContract existingAttribute = getAttribute(attributeName).orElse(null);
+		final AttributeSchemaBuildResult result = buildAttributeSchema(attributeName, ofType, existingAttribute, whichIs);
 
 		// check the names in all naming conventions are unique in the catalog schema
 		checkNamesAreUniqueInAllNamingConventions(
 			this.getAttributes().values(),
 			this.getSortableAttributeCompounds().values(),
-			attributeSchema
+			result.schema()
 		);
 
-		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
-			this.updatedSchemaDirty = updateMutationImpact(
-				this.updatedSchemaDirty,
-				addMutations(
-					this.catalogSchema, this.entitySchema, this.mutations,
-					attributeSchemaBuilder
-						.toReferenceMutation(getName())
-						.stream()
-						.map(LocalEntitySchemaMutation.class::cast)
-						.toArray(LocalEntitySchemaMutation[]::new)
-				)
-			);
-		}
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public ReferenceSchemaBuilder withoutAttribute(@Nonnull String attributeName) {
-		checkSortableAttributeCompoundsWithoutAttribute(
-			attributeName, this.getSortableAttributeCompounds().values()
-		);
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceAttributeSchemaMutation(
-					this.getName(),
-					new RemoveAttributeSchemaMutation(attributeName)
-				)
-			)
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReferenceSchemaBuilder withSortableAttributeCompound(
-		@Nonnull String name,
-		@Nonnull AttributeElement... attributeElements
-	) {
-		return withSortableAttributeCompound(
-			name, attributeElements, null
-		);
-	}
-
-	@Nonnull
-	@Override
-	public ReferenceSchemaBuilder withSortableAttributeCompound(
-		@Nonnull String name,
-		@Nonnull AttributeElement[] attributeElements,
-		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
-	) {
-		this.updatedSchemaDirty = addSortableAttributeCompoundToReference(
-			this.catalogSchema, this.entitySchema, this, this.baseSchema,
-			this.mutations, this.updatedSchemaDirty,
-			name, attributeElements, whichIs
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReferenceSchemaBuilder withoutSortableAttributeCompound(@Nonnull String name) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new ModifyReferenceSortableAttributeCompoundSchemaMutation(
-					this.getName(),
-					new RemoveSortableAttributeCompoundSchemaMutation(name)
-				)
-			)
-		);
+		addAttributeMutationsIfChanged(existingAttribute, result.schema(), result.builder());
 		return this;
 	}
 
@@ -491,13 +445,18 @@ public final class ReferenceSchemaBuilder
 		return new ReferenceSchemaBuilderResult(currentSchema, mutations);
 	}
 
-	@Override
 	@Nonnull
-	public Collection<LocalEntitySchemaMutation> toMutation() {
-		// apply necessary mutation sort
-		sortReferenceAttributeMutationsLast(this.mutations);
-		// and return mutations
-		return this.mutations;
+	@Override
+	protected ReferenceSchemaContract mutateSchema(
+		@Nonnull ReferenceSchemaContract currentSchema,
+		@Nonnull LocalEntitySchemaMutation mutation
+	) {
+		final ReferenceSchemaContract result = ((ReferenceSchemaMutation) mutation)
+			.mutate(this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
+		if (result == null) {
+			throw new GenericEvitaInternalError("Reference unexpectedly removed from inside!");
+		}
+		return result;
 	}
 
 	/**
@@ -505,43 +464,7 @@ public final class ReferenceSchemaBuilder
 	 */
 	@Delegate(types = ReferenceSchemaContract.class)
 	private ReferenceSchemaContract toInstanceInternal() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
-			// if the dirty flag is set to modified previous we need to start from the base schema again
-			// and reapply all mutations
-			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
-				this.lastMutationReflectedInSchema = 0;
-			}
-			// if the last mutation reflected in the schema is zero we need to start from the base schema
-			// else we can continue modification last known updated schema by adding additional mutations
-			ReferenceSchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
-				this.baseSchema : this.updatedSchema;
-
-			if (this.lastMutationReflectedInSchema < this.mutations.size()) {
-				// apply the mutations not reflected in the schema
-				for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
-					final LocalEntitySchemaMutation mutation = this.mutations.get(i);
-					currentSchema = ((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
-					if (currentSchema == null) {
-						throw new GenericEvitaInternalError("Reference unexpectedly removed from inside!");
-					}
-				}
-			}
-			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
-			this.lastMutationReflectedInSchema = this.mutations.size();
-		}
-		return this.updatedSchema;
-	}
-
-	/**
-	 * The {@code ReferenceSchemaBuilderResult} class represents the result of building a reference schema.
-	 * It contains the built reference schema and a collection of mutations applied to the schema.
-	 */
-	public record ReferenceSchemaBuilderResult(
-		@Nonnull ReferenceSchemaContract schema,
-		@Nonnull Collection<LocalEntitySchemaMutation> mutations
-	) {
-
+		return toInstance();
 	}
 
 }

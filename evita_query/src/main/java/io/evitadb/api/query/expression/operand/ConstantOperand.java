@@ -24,7 +24,6 @@
 package io.evitadb.api.query.expression.operand;
 
 
-import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
@@ -32,7 +31,6 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -53,17 +51,13 @@ import java.util.Objects;
 @EqualsAndHashCode
 public class ConstantOperand implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 272389410429555636L;
-	@Getter private final Serializable value;
+	@Getter @Nullable private final Serializable value;
 
-	public ConstantOperand(@Nonnull Serializable value) {
-		Assert.isTrue(
-			value != null,
-			() -> new ParserException("Null value is not allowed!")
-		);
+	public ConstantOperand(@Nullable Serializable value) {
 		this.value = value;
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
 	public Serializable compute(@Nonnull ExpressionEvaluationContext context) {
 		return this.value;
@@ -72,6 +66,9 @@ public class ConstantOperand implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		if (this.value == null) {
+			return BigDecimalNumberRange.INFINITE;
+		}
 		try {
 			final BigDecimal valueAsBigDecimal = Objects.requireNonNull(EvitaDataTypes.toTargetType(this.value, BigDecimal.class));
 			return BigDecimalNumberRange.between(valueAsBigDecimal, valueAsBigDecimal);
@@ -93,6 +90,9 @@ public class ConstantOperand implements ExpressionNode {
 
 	@Override
 	public String toString() {
+		if (this.value == null) {
+			return "null";
+		}
 		return EvitaDataTypes.formatValue(this.value);
 	}
 }

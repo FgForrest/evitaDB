@@ -37,7 +37,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * An {@link ObjectAccessStep} that resolves a named property on the current operand using
+ * An {@link ObjectOperationStep} that resolves a named property on the current operand using
  * dot-notation syntax (`.propertyName`). The property is resolved via
  * {@link ObjectPropertyAccessor} looked up from the {@link ObjectAccessorRegistry}.
  *
@@ -49,12 +49,12 @@ import java.io.Serializable;
  */
 @RequiredArgsConstructor
 @EqualsAndHashCode
-public class PropertyAccessStep implements ObjectAccessStep {
+public class PropertyAccessStep implements ObjectOperationStep {
 	@Serial private static final long serialVersionUID = 2760082902212762061L;
 
 	@Nonnull @Getter private final String propertyIdentifier;
 
-	@Getter @Nullable private final ObjectAccessStep next;
+	@Getter @Nullable private final ObjectOperationStep next;
 
 	@Nullable
 	@Override
@@ -82,7 +82,6 @@ public class PropertyAccessStep implements ObjectAccessStep {
 		if (getNext() == null) {
 			return result;
 		}
-
 		return getNext().compute(context, result);
 	}
 

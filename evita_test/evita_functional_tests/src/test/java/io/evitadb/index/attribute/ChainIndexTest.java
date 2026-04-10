@@ -23,14 +23,23 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.attribute.ChainIndex.ChainElementState;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -41,6 +50,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -54,6 +64,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -320,7 +331,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			100,
-			new StringBuilder(),
+			new StringBuilder(256),
 			(random, codeBuffer) -> {
 				final int[] originalState = originalOrder.get();
 
@@ -425,7 +436,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 					}
 				);
 
-				return new StringBuilder();
+				return new StringBuilder(256);
 			}
 		);
 	}
@@ -449,7 +460,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			100,
-			new StringBuilder(),
+			new StringBuilder(256),
 			(random, codeBuffer) -> {
 				final int[] originalState = originalOrder.get();
 
@@ -535,11 +546,11 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 					}
 				);
 
-				return new StringBuilder();
+				return new StringBuilder(256);
 			}
 		);
 
-		final StringBuilder codeBuffer = new StringBuilder();
+		final StringBuilder codeBuffer = new StringBuilder(256);
 		final int[] originalState = originalOrder.get();
 		final AtomicReference<int[]> desiredOrder = new AtomicReference<>(initialState);
 		defineTargetState(theRandom, originalState, initialCount, desiredOrder);
@@ -656,6 +667,549 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		int temp = nums[i];
 		nums[i] = nums[j];
 		nums[j] = temp;
+	}
+
+	/**
+	 * Populates the shared `index` field with the standard 1-5 chain.
+	 */
+	private void populateStandardChain() {
+		for (int pk : EXPECTED_CHAIN) {
+			ChainIndexTest.this.index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
+		}
+	}
+
+	/**
+	 * Tests verifying construction and getter correctness for different ChainIndex constructors.
+	 */
+	@Nested
+	@DisplayName("Construction and initialization")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("two-arg constructor with RepresentativeReferenceKey sets getters correctly")
+		void shouldConstructWithReferenceKeyAndVerifyGetters() {
+			final RepresentativeReferenceKey refKey = new RepresentativeReferenceKey(
+				new ReferenceKey("brand", 42)
+			);
+			final AttributeIndexKey attrKey = new AttributeIndexKey(null, "order", null);
+			final ChainIndex idx = new ChainIndex(refKey, attrKey);
+
+			assertSame(refKey, idx.getReferenceKey());
+			assertSame(attrKey, idx.getAttributeIndexKey());
+			assertTrue(idx.isEmpty());
+			assertTrue(idx.isConsistent());
+		}
+
+		@Test
+		@DisplayName("four-arg deserialization constructor provides correct unordered lookup")
+		void shouldConstructFromDeserializedDataAndVerifyLookup() {
+			final AttributeIndexKey attrKey = new AttributeIndexKey(null, "order", null);
+			final int[][] chains = new int[][]{
+				{10, 20, 30}
+			};
+			final Map<Integer, ChainElementState> elementStates = new HashMap<>(4);
+			elementStates.put(
+				10,
+				new ChainElementState(10, ChainableType.HEAD_PK, ChainIndex.ElementState.HEAD)
+			);
+			elementStates.put(
+				20,
+				new ChainElementState(10, 10, ChainIndex.ElementState.SUCCESSOR)
+			);
+			elementStates.put(
+				30,
+				new ChainElementState(10, 20, ChainIndex.ElementState.SUCCESSOR)
+			);
+
+			final ChainIndex idx = new ChainIndex(attrKey, chains, elementStates);
+
+			assertFalse(idx.isEmpty());
+			assertTrue(idx.isConsistent());
+			assertArrayEquals(new int[]{10, 20, 30}, idx.getUnorderedLookup().getArray());
+			assertNull(idx.getReferenceKey());
+		}
+
+		@Test
+		@DisplayName("four-arg deserialization constructor with reference key")
+		void shouldConstructFromDeserializedDataWithReferenceKey() {
+			final RepresentativeReferenceKey refKey = new RepresentativeReferenceKey(
+				new ReferenceKey("category", 7)
+			);
+			final AttributeIndexKey attrKey = new AttributeIndexKey(null, "pos", null);
+			final int[][] chains = new int[][]{
+				{1, 2}
+			};
+			final Map<Integer, ChainElementState> elementStates = new HashMap<>(4);
+			elementStates.put(
+				1,
+				new ChainElementState(1, ChainableType.HEAD_PK, ChainIndex.ElementState.HEAD)
+			);
+			elementStates.put(
+				2,
+				new ChainElementState(1, 1, ChainIndex.ElementState.SUCCESSOR)
+			);
+
+			final ChainIndex idx = new ChainIndex(refKey, attrKey, chains, elementStates);
+
+			assertSame(refKey, idx.getReferenceKey());
+			assertArrayEquals(new int[]{1, 2}, idx.getUnorderedLookup().getArray());
+		}
+	}
+
+	/**
+	 * Tests for STM invariants: id uniqueness, removeLayer cleanup, commit behavior,
+	 * and createCopyWithMergedTransactionalMemory with null layer.
+	 */
+	@Nested
+	@DisplayName("STM invariants")
+	class StmInvariantsTest {
+
+		@Test
+		@DisplayName("getId() returns stable unique id across different instances")
+		void shouldReturnStableUniqueId() {
+			final ChainIndex idx1 = new ChainIndex(
+				new AttributeIndexKey(null, "a", null)
+			);
+			final ChainIndex idx2 = new ChainIndex(
+				new AttributeIndexKey(null, "b", null)
+			);
+
+			assertNotEquals(idx1.getId(), idx2.getId());
+			// id is stable across multiple calls
+			assertEquals(idx1.getId(), idx1.getId());
+		}
+
+		@Test
+		@DisplayName("after commit, original and committed are not the same instance")
+		void shouldReturnNewInstanceAfterCommit() {
+			populateStandardChain();
+
+			assertStateAfterCommit(
+				ChainIndexTest.this.index,
+				original -> {
+					original.upsertPredecessor(new Predecessor(5), 6);
+				},
+				(original, committed) -> {
+					assertNotSame(original, committed);
+					// original still has the old 5-element chain
+					assertArrayEquals(EXPECTED_CHAIN, original.getUnorderedLookup().getArray());
+					// committed has the new 6-element chain
+					assertArrayEquals(
+						new int[]{1, 2, 3, 4, 5, 6},
+						committed.getUnorderedLookup().getArray()
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("original order array is not mutated after commit")
+		void shouldNotMutateOriginalAfterCommit() {
+			populateStandardChain();
+			final int[] originalArrayBefore = ChainIndexTest.this.index
+				.getUnorderedLookup().getArray().clone();
+
+			assertStateAfterCommit(
+				ChainIndexTest.this.index,
+				original -> {
+					original.upsertPredecessor(new Predecessor(5), 6);
+					original.removePredecessor(1);
+				},
+				(original, committed) -> {
+					assertNotSame(original, committed);
+					assertArrayEquals(
+						originalArrayBefore,
+						original.getUnorderedLookup().getArray()
+					);
+				}
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying rollback semantics -- transactional changes are discarded and
+	 * the original index remains unchanged.
+	 */
+	@Nested
+	@DisplayName("Transactional rollback")
+	class TransactionalRollbackTest {
+
+		@Test
+		@DisplayName("rollback after upsert preserves original state")
+		void shouldRollbackUpsert() {
+			populateStandardChain();
+
+			assertStateAfterRollback(
+				ChainIndexTest.this.index,
+				original -> {
+					original.upsertPredecessor(new Predecessor(5), 6);
+					assertArrayEquals(
+						new int[]{1, 2, 3, 4, 5, 6},
+						original.getUnorderedLookup().getArray()
+					);
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					assertArrayEquals(
+						EXPECTED_CHAIN,
+						original.getUnorderedLookup().getArray()
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("rollback after remove preserves original state")
+		void shouldRollbackRemove() {
+			populateStandardChain();
+
+			assertStateAfterRollback(
+				ChainIndexTest.this.index,
+				original -> {
+					original.removePredecessor(3);
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					assertArrayEquals(
+						EXPECTED_CHAIN,
+						original.getUnorderedLookup().getArray()
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("rollback of circular dependency introduction preserves original state")
+		void shouldRollbackCircularDependency() {
+			populateStandardChain();
+
+			assertStateAfterRollback(
+				ChainIndexTest.this.index,
+				original -> {
+					// introduce circular: make element 1 depend on element 3
+					original.upsertPredecessor(new Predecessor(3), 1);
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					assertTrue(original.isConsistent());
+					assertArrayEquals(
+						EXPECTED_CHAIN,
+						original.getUnorderedLookup().getArray()
+					);
+				}
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying non-transactional mode: operations applied directly without
+	 * a transaction context.
+	 */
+	@Nested
+	@DisplayName("Non-transactional mode")
+	class NonTransactionalModeTest {
+
+		@Test
+		@DisplayName("upsert and remove outside transaction update state correctly")
+		void shouldUpsertAndRemoveOutsideTransaction() {
+			final ChainIndex idx = new ChainIndex(
+				new AttributeIndexKey(null, "x", null)
+			);
+
+			idx.upsertPredecessor(new Predecessor(), 10);
+			idx.upsertPredecessor(new Predecessor(10), 20);
+			idx.upsertPredecessor(new Predecessor(20), 30);
+
+			assertTrue(idx.isConsistent());
+			assertArrayEquals(
+				new int[]{10, 20, 30},
+				idx.getUnorderedLookup().getArray()
+			);
+
+			idx.removePredecessor(20);
+
+			assertArrayEquals(
+				new int[]{10, 30},
+				idx.getUnorderedLookup().getArray()
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying ReferencedEntityPredecessor support in the ChainIndex.
+	 */
+	@Nested
+	@DisplayName("ReferencedEntityPredecessor support")
+	class ReferencedEntityPredecessorTest {
+
+		@Test
+		@DisplayName("upsertPredecessor with ReferencedEntityPredecessor works correctly")
+		void shouldUpsertWithReferencedEntityPredecessor() {
+			final ChainIndex idx = new ChainIndex(
+				new AttributeIndexKey(null, "refOrder", null)
+			);
+
+			idx.upsertPredecessor(new ReferencedEntityPredecessor(), 1);
+			idx.upsertPredecessor(new ReferencedEntityPredecessor(1), 2);
+			idx.upsertPredecessor(new ReferencedEntityPredecessor(2), 3);
+
+			assertTrue(idx.isConsistent());
+			assertArrayEquals(
+				new int[]{1, 2, 3},
+				idx.getUnorderedLookup().getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("self-reference via ReferencedEntityPredecessor does NOT throw")
+		void shouldAllowSelfReferenceWithReferencedEntityPredecessor() {
+			final ChainIndex idx = new ChainIndex(
+				new AttributeIndexKey(null, "refOrder", null)
+			);
+
+			idx.upsertPredecessor(new ReferencedEntityPredecessor(), 1);
+
+			// self-reference is allowed for ReferencedEntityPredecessor
+			assertDoesNotThrow(
+				() -> idx.upsertPredecessor(new ReferencedEntityPredecessor(1), 1)
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying error paths: removing non-existent elements, self-referential Predecessor.
+	 */
+	@Nested
+	@DisplayName("Error paths")
+	class ErrorPathsTest {
+
+		@Test
+		@DisplayName("removePredecessor on non-existent element throws EvitaInvalidUsageException")
+		void shouldThrowOnRemoveNonExistent() {
+			final EvitaInvalidUsageException ex = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> ChainIndexTest.this.index.removePredecessor(999)
+			);
+			assertTrue(
+				ex.getMessage().contains("999"),
+				"Exception message should reference the missing pk"
+			);
+		}
+
+		@Test
+		@DisplayName("self-referential Predecessor throws EvitaInvalidUsageException")
+		void shouldThrowOnSelfReferentialPredecessor() {
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> ChainIndexTest.this.index.upsertPredecessor(
+					new Predecessor(5), 5
+				)
+			);
+		}
+	}
+
+	/**
+	 * Tests verifying SortedRecordsSupplier behavior for ascending and descending order.
+	 */
+	@Nested
+	@DisplayName("SortedRecordsSupplier")
+	class SortedRecordsSupplierTest {
+
+		@Test
+		@DisplayName("ascending order supplier returns correct order")
+		void shouldReturnAscendingOrder() {
+			populateStandardChain();
+
+			final SortedRecordsSupplier asc =
+				(SortedRecordsSupplier) ChainIndexTest.this.index
+					.getAscendingOrderRecordsSupplier();
+
+			assertArrayEquals(
+				EXPECTED_CHAIN,
+				asc.getSortedRecordIds()
+			);
+		}
+
+		@Test
+		@DisplayName("descending order supplier returns reverse order")
+		void shouldReturnDescendingOrder() {
+			populateStandardChain();
+
+			final SortedRecordsSupplier desc =
+				(SortedRecordsSupplier) ChainIndexTest.this.index
+					.getDescendingOrderRecordsSupplier();
+
+			assertArrayEquals(
+				new int[]{5, 4, 3, 2, 1},
+				desc.getSortedRecordIds()
+			);
+		}
+
+		@Test
+		@DisplayName("ascending supplier with referenceKey returns ReferenceSortedRecordsProvider")
+		void shouldReturnReferenceSortedRecordsProviderWhenReferenceKeyPresent() {
+			final RepresentativeReferenceKey refKey = new RepresentativeReferenceKey(
+				new ReferenceKey("brand", 1)
+			);
+			final ChainIndex idx = new ChainIndex(
+				refKey,
+				new AttributeIndexKey(null, "order", null)
+			);
+			idx.upsertPredecessor(new Predecessor(), 10);
+			idx.upsertPredecessor(new Predecessor(10), 20);
+
+			final SortedRecordsSupplier asc =
+				(SortedRecordsSupplier) idx.getAscendingOrderRecordsSupplier();
+
+			assertInstanceOf(ReferenceSortedRecordsProvider.class, asc);
+			assertArrayEquals(new int[]{10, 20}, asc.getSortedRecordIds());
+		}
+
+		@Test
+		@DisplayName("cached supplier on repeated call without modification returns same instance")
+		void shouldReturnCachedSupplier() {
+			populateStandardChain();
+
+			final SortedRecordsSupplier first =
+				(SortedRecordsSupplier) ChainIndexTest.this.index
+					.getAscendingOrderRecordsSupplier();
+			final SortedRecordsSupplier second =
+				(SortedRecordsSupplier) ChainIndexTest.this.index
+					.getAscendingOrderRecordsSupplier();
+
+			assertSame(first, second);
+		}
+	}
+
+	/**
+	 * Tests verifying dirty flag and storage part creation behavior.
+	 */
+	@Nested
+	@DisplayName("Dirty flag and storage part")
+	class DirtyFlagStoragePartTest {
+
+		@Test
+		@DisplayName("createStoragePart returns non-null after upsert")
+		void shouldReturnStoragePartAfterUpsert() {
+			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(), 1);
+
+			final StoragePart part = ChainIndexTest.this.index.createStoragePart(1);
+			assertNotNull(part);
+			assertInstanceOf(ChainIndexStoragePart.class, part);
+		}
+
+		@Test
+		@DisplayName("createStoragePart returns null on fresh (non-dirty) index")
+		void shouldReturnNullStoragePartOnFreshIndex() {
+			final StoragePart part = ChainIndexTest.this.index.createStoragePart(1);
+			assertNull(part);
+		}
+
+		@Test
+		@DisplayName("resetDirty makes createStoragePart return null")
+		void shouldReturnNullAfterResetDirty() {
+			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(), 1);
+			// consume the dirty state
+			final StoragePart firstPart = ChainIndexTest.this.index.createStoragePart(1);
+			assertNotNull(firstPart);
+
+			ChainIndexTest.this.index.resetDirty();
+
+			final StoragePart secondPart = ChainIndexTest.this.index.createStoragePart(1);
+			assertNull(secondPart);
+		}
+	}
+
+	/**
+	 * Tests verifying isEmpty behavior across lifecycle states.
+	 */
+	@Nested
+	@DisplayName("isEmpty behavior")
+	class IsEmptyTest {
+
+		@Test
+		@DisplayName("fresh index is empty")
+		void shouldBeEmptyOnFreshIndex() {
+			assertTrue(ChainIndexTest.this.index.isEmpty());
+		}
+
+		@Test
+		@DisplayName("index is not empty after upsert")
+		void shouldNotBeEmptyAfterUpsert() {
+			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(), 1);
+			assertFalse(ChainIndexTest.this.index.isEmpty());
+		}
+
+		@Test
+		@DisplayName("index is empty after all elements removed")
+		void shouldBeEmptyAfterAllRemoved() {
+			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(), 1);
+			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(1), 2);
+
+			ChainIndexTest.this.index.removePredecessor(2);
+			ChainIndexTest.this.index.removePredecessor(1);
+
+			assertTrue(ChainIndexTest.this.index.isEmpty());
+		}
+	}
+
+	/**
+	 * Tests verifying toString output for various index states.
+	 */
+	@Nested
+	@DisplayName("toString representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("toString with referenceKey includes refKey label")
+		void shouldIncludeRefKeyInToString() {
+			final RepresentativeReferenceKey refKey = new RepresentativeReferenceKey(
+				new ReferenceKey("brand", 5)
+			);
+			final ChainIndex idx = new ChainIndex(
+				refKey,
+				new AttributeIndexKey(null, "order", null)
+			);
+			idx.upsertPredecessor(new Predecessor(), 1);
+
+			final String result = idx.toString();
+			assertTrue(
+				result.contains("(refKey:"),
+				"toString should contain '(refKey:' prefix"
+			);
+		}
+
+		@Test
+		@DisplayName("toString for empty index produces valid output")
+		void shouldProduceValidToStringForEmptyIndex() {
+			final String result = ChainIndexTest.this.index.toString();
+			assertNotNull(result);
+			assertTrue(result.contains("ChainIndex"));
+		}
+	}
+
+	/**
+	 * Tests verifying consistency report states.
+	 */
+	@Nested
+	@DisplayName("Consistency report")
+	class ConsistencyReportTest {
+
+		@Test
+		@DisplayName("INCONSISTENT state when multiple chains exist")
+		void shouldReportInconsistentWhenMultipleChainsExist() {
+			populateStandardChain();
+
+			// introduce a second chain that cannot be merged
+			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(3), 6);
+			ChainIndexTest.this.index.upsertPredecessor(new Predecessor(3), 7);
+
+			assertFalse(ChainIndexTest.this.index.isConsistent());
+
+			final ConsistencyState state =
+				ChainIndexTest.this.index.getConsistencyReport().state();
+			assertEquals(ConsistencyState.INCONSISTENT, state);
+		}
 	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,4 +82,9 @@ package io.evitadb.api.query;
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 public interface FilterConstraint extends TypeDefiningConstraint<FilterConstraint> {
+	/**
+	 * Empty array constant to avoid repeated allocation.
+	 */
+	FilterConstraint[] EMPTY_ARRAY = new FilterConstraint[0];
+
 }

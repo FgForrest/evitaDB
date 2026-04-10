@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,16 +32,23 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.shared.serializer.dataType.HeterogeneousMapSerializer;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.Currency;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -67,8 +74,8 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 	 */
 	static void writeScopeSet(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Set<Scope> scopes) {
 		output.writeVarInt(scopes.size(), true);
-		for (Scope filterableInScope : scopes) {
-			kryo.writeObject(output, filterableInScope);
+		for (Scope scope : scopes) {
+			kryo.writeObject(output, scope);
 		}
 	}
 
@@ -81,7 +88,7 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 	 */
 	@Nonnull
 	static EnumSet<Scope> readScopeSet(@Nonnull Kryo kryo, @Nonnull Input input) {
-		int size = input.readVarInt(true);
+		final int size = input.readVarInt(true);
 		final EnumSet<Scope> scopes = EnumSet.noneOf(Scope.class);
 		for (int i = 0; i < size; i++) {
 			scopes.add(kryo.readObject(input, Scope.class));
@@ -117,7 +124,7 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 	 */
 	@Nonnull
 	static Map<Scope, ReferenceIndexType> readScopedReferenceIndexTypeArray(@Nonnull Kryo kryo, @Nonnull Input input) {
-		int size = input.readVarInt(true);
+		final int size = input.readVarInt(true);
 		final Map<Scope, ReferenceIndexType> indexTypeMap = CollectionUtils.createHashMap(size);
 		for (int i = 0; i < size; i++) {
 			final Scope scope = kryo.readObject(input, Scope.class);
@@ -127,15 +134,251 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		return indexTypeMap;
 	}
 
+	/**
+	 * Serializes a map of {@code Scope} to {@code Set<ReferenceIndexedComponents>} into a Kryo {@code Output}.
+	 *
+	 * @param kryo                    the Kryo instance to use for serialization
+	 * @param output                  the Output instance to write the serialized data to
+	 * @param indexedComponentsMap    the map to serialize
+	 */
+	static void writeIndexedComponentsMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsMap
+	) {
+		output.writeVarInt(indexedComponentsMap.size(), true);
+		for (Entry<Scope, Set<ReferenceIndexedComponents>> entry : indexedComponentsMap.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			output.writeVarInt(entry.getValue().size(), true);
+			for (ReferenceIndexedComponents component : entry.getValue()) {
+				kryo.writeObject(output, component);
+			}
+		}
+	}
+
+	/**
+	 * Reads a map of {@code Scope} to {@code Set<ReferenceIndexedComponents>} from a Kryo {@code Input} stream.
+	 *
+	 * @param kryo  the Kryo instance used for deserialization
+	 * @param input the Input stream to read the serialized data from
+	 * @return a map of {@code Scope} to {@code Set<ReferenceIndexedComponents>}
+	 */
+	@Nonnull
+	static Map<Scope, Set<ReferenceIndexedComponents>> readIndexedComponentsMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input
+	) {
+		final int outerSize = input.readVarInt(true);
+		final EnumMap<Scope, Set<ReferenceIndexedComponents>> result = new EnumMap<>(Scope.class);
+		for (int i = 0; i < outerSize; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final int innerSize = input.readVarInt(true);
+			final EnumSet<ReferenceIndexedComponents> components = EnumSet.noneOf(ReferenceIndexedComponents.class);
+			for (int j = 0; j < innerSize; j++) {
+				components.add(kryo.readObject(input, ReferenceIndexedComponents.class));
+			}
+			result.put(scope, components);
+		}
+		return result;
+	}
+
+	/**
+	 * Serializes a map of {@link NamingConvention} to name variant strings
+	 * into a Kryo {@link Output}.
+	 *
+	 * @param output       the Output instance to write to
+	 * @param nameVariants the map of naming convention to variant string
+	 */
+	static void writeNameVariants(
+		@Nonnull Output output,
+		@Nonnull Map<NamingConvention, String> nameVariants
+	) {
+		output.writeVarInt(nameVariants.size(), true);
+		for (Entry<NamingConvention, String> entry : nameVariants.entrySet()) {
+			output.writeVarInt(entry.getKey().ordinal(), true);
+			output.writeString(entry.getValue());
+		}
+	}
+
+	/**
+	 * Reads a map of {@link NamingConvention} to name variant strings
+	 * from a Kryo {@link Input}.
+	 *
+	 * @param input the Input instance to read from
+	 * @return the map of naming convention to variant string
+	 */
+	@Nonnull
+	static Map<NamingConvention, String> readNameVariants(@Nonnull Input input) {
+		final int nameVariantCount = input.readVarInt(true);
+		final Map<NamingConvention, String> nameVariants =
+			CollectionUtils.createLinkedHashMap(nameVariantCount);
+		for (int i = 0; i < nameVariantCount; i++) {
+			nameVariants.put(
+				NamingConvention.values()[input.readVarInt(true)],
+				input.readString()
+			);
+		}
+		return nameVariants;
+	}
+
+	/**
+	 * Serializes a map of {@link Scope} to {@link Expression} representing
+	 * faceted-partially configuration into a Kryo {@link Output}.
+	 *
+	 * @param kryo                the Kryo instance to use for serialization
+	 * @param output              the Output instance to write to
+	 * @param facetedPartiallyMap the map to serialize
+	 */
+	static void writeFacetedPartiallyMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull Map<Scope, Expression> facetedPartiallyMap
+	) {
+		output.writeVarInt(facetedPartiallyMap.size(), true);
+		for (Entry<Scope, Expression> entry : facetedPartiallyMap.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			kryo.writeObject(output, entry.getValue());
+		}
+	}
+
+	/**
+	 * Reads a map of {@link Scope} to {@link Expression} representing
+	 * faceted-partially configuration from a Kryo {@link Input}.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the deserialized map
+	 */
+	@Nonnull
+	static Map<Scope, Expression> readFacetedPartiallyMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input
+	) {
+		final int count = input.readVarInt(true);
+		final Map<Scope, Expression> facetedPartiallyMap =
+			CollectionUtils.createHashMap(count);
+		for (int i = 0; i < count; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final Expression expression = kryo.readObject(input, Expression.class);
+			facetedPartiallyMap.put(scope, expression);
+		}
+		return facetedPartiallyMap;
+	}
+
+	/**
+	 * Serializes a map of {@link Scope} to {@link HistogramIndexDefinition} representing
+	 * bucketed histogram configuration into a Kryo {@link Output}.
+	 *
+	 * The serialization format is a nested map: outer scope count, then for each scope its ordinal
+	 * followed by the inner entry count, and for each inner entry the nameOfTheIndex string and
+	 * nullable valueExpression.
+	 *
+	 * @param kryo                   the Kryo instance to use for serialization
+	 * @param output                 the Output instance to write to
+	 * @param bucketedHistogramMap   the nested map to serialize
+	 */
+	static void writeBucketedHistogramMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramMap
+	) {
+		output.writeVarInt(bucketedHistogramMap.size(), true);
+		for (final Entry<Scope, Map<String, HistogramIndexDefinition>> outerEntry : bucketedHistogramMap.entrySet()) {
+			kryo.writeObject(output, outerEntry.getKey());
+			final Map<String, HistogramIndexDefinition> innerMap = outerEntry.getValue();
+			output.writeVarInt(innerMap.size(), true);
+			for (final Entry<String, HistogramIndexDefinition> innerEntry : innerMap.entrySet()) {
+				output.writeString(innerEntry.getValue().nameOfTheIndex());
+				if (innerEntry.getValue().valueExpression() != null) {
+					output.writeBoolean(true);
+					kryo.writeObject(output, innerEntry.getValue().valueExpression());
+				} else {
+					output.writeBoolean(false);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Reads a nested map of {@link Scope} to name-keyed {@link HistogramIndexDefinition} maps
+	 * representing bucketed histogram configuration from a Kryo {@link Input}.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the deserialized nested map
+	 */
+	@Nonnull
+	static Map<Scope, Map<String, HistogramIndexDefinition>> readBucketedHistogramMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input
+	) {
+		final int outerCount = input.readVarInt(true);
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramMap =
+			CollectionUtils.createHashMap(outerCount);
+		for (int i = 0; i < outerCount; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final int innerCount = input.readVarInt(true);
+			final Map<String, HistogramIndexDefinition> innerMap =
+				new LinkedHashMap<>(innerCount);
+			for (int j = 0; j < innerCount; j++) {
+				final String nameOfTheIndex = input.readString();
+				final Expression valueExpression = input.readBoolean()
+					? kryo.readObject(input, Expression.class) : null;
+				innerMap.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+			}
+			bucketedHistogramMap.put(scope, innerMap);
+		}
+		return bucketedHistogramMap;
+	}
+
+	/**
+	 * Serializes a collection of {@link SortableAttributeCompoundSchemaContract}
+	 * into a Kryo {@link Output}.
+	 *
+	 * @param kryo      the Kryo instance to use for serialization
+	 * @param output    the Output instance to write to
+	 * @param compounds the collection of sortable attribute compounds to serialize
+	 */
+	static void writeSortableAttributeCompounds(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> compounds
+	) {
+		output.writeVarInt(compounds.size(), true);
+		for (SortableAttributeCompoundSchemaContract compound : compounds) {
+			kryo.writeObject(output, compound);
+		}
+	}
+
+	/**
+	 * Reads a map of sortable attribute compound schemas from a Kryo {@link Input},
+	 * keyed by compound name.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the map of compound name to schema contract
+	 */
+	@Nonnull
+	static Map<String, SortableAttributeCompoundSchemaContract> readSortableAttributeCompounds(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input
+	) {
+		final int count = input.readVarInt(true);
+		final Map<String, SortableAttributeCompoundSchemaContract> compounds =
+			CollectionUtils.createHashMap(count);
+		for (int i = 0; i < count; i++) {
+			final SortableAttributeCompoundSchema compound =
+				kryo.readObject(input, SortableAttributeCompoundSchema.class);
+			compounds.put(compound.getName(), compound);
+		}
+		return compounds;
+	}
+
 	@Override
 	public void write(Kryo kryo, Output output, EntitySchema entitySchema) {
 		output.writeInt(entitySchema.version());
 		output.writeString(entitySchema.getName());
-		output.writeVarInt(entitySchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : entitySchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
+		writeNameVariants(output, entitySchema.getNameVariants());
 		output.writeBoolean(entitySchema.isWithGeneratedPrimaryKey());
 		output.writeBoolean(entitySchema.isWithHierarchy());
 		writeScopeSet(kryo, output, entitySchema.getHierarchyIndexedInScopes());
@@ -161,25 +404,14 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 			output.writeBoolean(false);
 		}
 
-		final Map<String, EntitySortableAttributeCompoundSchemaContract> sortableAttributeCompounds = entitySchema.getSortableAttributeCompounds();
-		output.writeVarInt(sortableAttributeCompounds.size(), true);
-		for (EntitySortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
-			kryo.writeObject(output, sortableAttributeCompound);
-		}
+		writeSortableAttributeCompounds(kryo, output, entitySchema.getSortableAttributeCompounds().values());
 	}
 
 	@Override
 	public EntitySchema read(Kryo kryo, Input input, Class<? extends EntitySchema> aClass) {
 		final int version = input.readInt();
 		final String entityName = input.readString();
-		final int nameVariantCount = input.readVarInt(true);
-		final Map<NamingConvention, String> nameVariants = CollectionUtils.createLinkedHashMap(nameVariantCount);
-		for(int i = 0; i < nameVariantCount; i++) {
-			nameVariants.put(
-				NamingConvention.values()[input.readVarInt(true)],
-				input.readString()
-			);
-		}
+		final Map<NamingConvention, String> nameVariants = readNameVariants(input);
 		final boolean withGeneratedPrimaryKey = input.readBoolean();
 		final boolean withHierarchy = input.readBoolean();
 		final EnumSet<Scope> hierarchyIndexedInScopes = readScopeSet(kryo, input);

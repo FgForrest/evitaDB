@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,13 +47,21 @@ public class SetReferenceSchemaIndexedMutationSerializer extends Serializer<SetR
 			output.writeBoolean(true);
 			writeScopedReferenceIndexTypeArray(kryo, output, mutation.getIndexedInScopes());
 		}
+
+		if (mutation.getIndexedComponentsInScopes() == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeScopedReferenceIndexedComponentsArray(kryo, output, mutation.getIndexedComponentsInScopes());
+		}
 	}
 
 	@Override
 	public SetReferenceSchemaIndexedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaIndexedMutation> type) {
 		return new SetReferenceSchemaIndexedMutation(
 			input.readString(),
-			input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null
+			input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null,
+			input.readBoolean() ? readScopedReferenceIndexedComponentsArray(kryo, input) : null
 		);
 	}
 }

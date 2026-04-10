@@ -28,7 +28,19 @@ import io.evitadb.spi.store.engine.EnginePersistenceService;
 import java.io.Closeable;
 
 /**
- * This interface defines shared methods for permited set of persistence services.
+ * Root sealed interface of the persistence service hierarchy in evitaDB. It defines the minimal lifecycle contract —
+ * lifecycle status inspection and resource release — shared across all concrete persistence service types.
+ *
+ * The sealed hierarchy ensures that only the two permitted branches can extend this interface:
+ * - {@link io.evitadb.spi.store.engine.EnginePersistenceService} — manages the global engine state file
+ * - {@link RichPersistenceService} — base for catalog and entity-collection services that store rich data structures
+ *
+ * Implementations are `AutoCloseable` (via `Closeable`) and should be used inside try-with-resources blocks or
+ * explicitly closed when the owning catalog / engine is shut down. Once closed, no further reads or writes are
+ * permitted.
+ *
+ * File naming constants {@link #BOOT_FILE_SUFFIX} and {@link #WAL_FILE_SUFFIX} are defined here because they are
+ * shared across all concrete service implementations regardless of catalog or entity type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -44,7 +56,19 @@ sealed public interface PersistenceService
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
 	int STORAGE_PROTOCOL_VERSION = 5;
+
+	/**
+	 * File suffix for the bootstrap file that records the last known catalog header location. The bootstrap file uses
+	 * a fixed-size record format so that it can be traversed by jumping to expected byte offsets without parsing the
+	 * entire file, making startup recovery O(1) instead of O(n).
+	 */
 	String BOOT_FILE_SUFFIX = ".boot";
+
+	/**
+	 * File suffix for Write-Ahead-Log files that accumulate mutations committed in recent transactions but not yet
+	 * merged into the main catalog data file. Multiple WAL files may exist when the active file reaches its size
+	 * limit; they are rotated using a numeric index embedded in the file name.
+	 */
 	String WAL_FILE_SUFFIX = ".wal";
 
 	/**

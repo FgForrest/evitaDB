@@ -1,0 +1,1742 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.core.expression.query;
+
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.query.expression.object.accessor.entity.EntityContractAccessor;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.dataType.expression.Expression;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+
+import static io.evitadb.api.query.QueryConstraints.and;
+import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeGreaterThan;
+import static io.evitadb.api.query.QueryConstraints.attributeIsNotNull;
+import static io.evitadb.api.query.QueryConstraints.attributeIsNull;
+import static io.evitadb.api.query.QueryConstraints.attributeGreaterThanEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
+import static io.evitadb.api.query.QueryConstraints.attributeLessThanEquals;
+import static io.evitadb.api.query.QueryConstraints.directRelation;
+import static io.evitadb.api.query.QueryConstraints.entityHaving;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.groupHaving;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRootSelf;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
+import static io.evitadb.api.query.QueryConstraints.not;
+import static io.evitadb.api.query.QueryConstraints.or;
+import static io.evitadb.api.query.QueryConstraints.referenceHaving;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Tests for {@link ExpressionToQueryTranslator}.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@DisplayName("ExpressionToQueryTranslator")
+class ExpressionToQueryTranslatorTest {
+
+	private static final String REF_NAME = "refName";
+
+	// --- Happy path: entity attribute comparisons ---
+
+	@Test
+	@DisplayName("$entity.attributes['status'] == 'ACTIVE' -> filterBy(attributeEquals(\"status\", \"ACTIVE\"))")
+	void shouldTranslateEntityAttributeEqualsString() {
+		final FilterBy result = translate("$entity.attributes['status'] == 'ACTIVE'");
+		assertEquals(
+			filterBy(attributeEquals("status", "ACTIVE")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['isActive'] == true -> filterBy(attributeEquals(\"isActive\", true))")
+	void shouldTranslateEntityAttributeEqualsBooleanTrue() {
+		final FilterBy result = translate("$entity.attributes['isActive'] == true");
+		assertEquals(
+			filterBy(attributeEquals("isActive", true)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['isActive'] == false -> filterBy(attributeEquals(\"isActive\", false))")
+	void shouldTranslateEntityAttributeEqualsBooleanFalse() {
+		final FilterBy result = translate("$entity.attributes['isActive'] == false");
+		assertEquals(
+			filterBy(attributeEquals("isActive", false)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['priority'] == 1 -> filterBy(attributeEquals(\"priority\", 1L))")
+	void shouldTranslateEntityAttributeEqualsInteger() {
+		final FilterBy result = translate("$entity.attributes['priority'] == 1");
+		assertEquals(
+			filterBy(attributeEquals("priority", 1L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['price'] > 100 -> filterBy(attributeGreaterThan(\"price\", 100L))")
+	void shouldTranslateEntityAttributeGreaterThan() {
+		final FilterBy result = translate("$entity.attributes['price'] > 100");
+		assertEquals(
+			filterBy(attributeGreaterThan("price", 100L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['price'] >= 100 -> filterBy(attributeGreaterThanEquals(\"price\", 100L))")
+	void shouldTranslateEntityAttributeGreaterThanEquals() {
+		final FilterBy result = translate("$entity.attributes['price'] >= 100");
+		assertEquals(
+			filterBy(attributeGreaterThanEquals("price", 100L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['price'] < 100 -> filterBy(attributeLessThan(\"price\", 100L))")
+	void shouldTranslateEntityAttributeLessThan() {
+		final FilterBy result = translate("$entity.attributes['price'] < 100");
+		assertEquals(
+			filterBy(attributeLessThan("price", 100L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['price'] <= 100 -> filterBy(attributeLessThanEquals(\"price\", 100L))")
+	void shouldTranslateEntityAttributeLessThanEquals() {
+		final FilterBy result = translate("$entity.attributes['price'] <= 100");
+		assertEquals(
+			filterBy(attributeLessThanEquals("price", 100L)),
+			result
+		);
+	}
+
+	// --- Happy path: Expression and NestedOperator unwrapping ---
+
+	@Test
+	@DisplayName("($entity.attributes['isActive'] == true) -> same as non-parenthesized")
+	void shouldTranslateParenthesizedExpression() {
+		final FilterBy result = translate("($entity.attributes['isActive'] == true)");
+		assertEquals(
+			filterBy(attributeEquals("isActive", true)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("(($entity.attributes['isActive'] == true)) -> same as non-parenthesized")
+	void shouldTranslateDoubleParenthesizedExpression() {
+		final FilterBy result = translate("(($entity.attributes['isActive'] == true))");
+		assertEquals(
+			filterBy(attributeEquals("isActive", true)),
+			result
+		);
+	}
+
+	// --- Happy path: reversed operand order ---
+
+	@Test
+	@DisplayName("'ACTIVE' == $entity.attributes['status'] -> same as path-on-left")
+	void shouldTranslateReversedOperandOrderConstantOnLeft() {
+		final FilterBy result = translate("'ACTIVE' == $entity.attributes['status']");
+		assertEquals(
+			filterBy(attributeEquals("status", "ACTIVE")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("100 < $entity.attributes['price'] -> filterBy(attributeGreaterThan(\"price\", 100L))")
+	void shouldTranslateReversedOperandOrderForComparison() {
+		// 100 < price  ===  price > 100
+		final FilterBy result = translate("100 < $entity.attributes['price']");
+		assertEquals(
+			filterBy(attributeGreaterThan("price", 100L)),
+			result
+		);
+	}
+
+	// --- Happy path: NotEquals ---
+
+	@Test
+	@DisplayName("$entity.attributes['status'] != 'DELETED' -> filterBy(not(attributeEquals(\"status\", \"DELETED\")))")
+	void shouldTranslateEntityAttributeNotEqualsString() {
+		final FilterBy result = translate("$entity.attributes['status'] != 'DELETED'");
+		assertEquals(
+			filterBy(not(attributeEquals("status", "DELETED"))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['priority'] != 1 -> filterBy(not(attributeEquals(\"priority\", 1L)))")
+	void shouldTranslateEntityAttributeNotEqualsInteger() {
+		final FilterBy result = translate("$entity.attributes['priority'] != 1");
+		assertEquals(
+			filterBy(not(attributeEquals("priority", 1L))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("'DELETED' != $entity.attributes['status'] -> same as path-on-left")
+	void shouldTranslateReversedNotEquals() {
+		final FilterBy result = translate("'DELETED' != $entity.attributes['status']");
+		assertEquals(
+			filterBy(not(attributeEquals("status", "DELETED"))),
+			result
+		);
+	}
+
+	// --- Happy path: Inverse (!) ---
+
+	@Test
+	@DisplayName("!($entity.attributes['isActive'] == true) -> filterBy(not(attributeEquals(\"isActive\", true)))")
+	void shouldTranslateInverseOfEntityAttributeEquals() {
+		final FilterBy result = translate("!($entity.attributes['isActive'] == true)");
+		assertEquals(
+			filterBy(not(attributeEquals("isActive", true))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("!!($entity.attributes['isActive'] == true) -> filterBy(not(not(attributeEquals(...))))")
+	void shouldTranslateDoubleNegation() {
+		final FilterBy result = translate("!!($entity.attributes['isActive'] == true)");
+		assertEquals(
+			filterBy(not(not(attributeEquals("isActive", true)))),
+			result
+		);
+	}
+
+	// --- Happy path: Boolean operators (&&, ||) with flattening ---
+
+	@Test
+	@DisplayName("a == 1 && b == 2 -> filterBy(and(eq(a,1L), eq(b,2L)))")
+	void shouldTranslateConjunctionOfTwoAttributes() {
+		final FilterBy result = translate(
+			"$entity.attributes['a'] == 1 && $entity.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(and(attributeEquals("a", 1L), attributeEquals("b", 2L))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("a == 1 || b == 2 -> filterBy(or(eq(a,1L), eq(b,2L)))")
+	void shouldTranslateDisjunctionOfTwoAttributes() {
+		final FilterBy result = translate(
+			"$entity.attributes['a'] == 1 || $entity.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(or(attributeEquals("a", 1L), attributeEquals("b", 2L))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("a == 1 && b == 2 && c == 3 -> flat and(eq(a), eq(b), eq(c))")
+	void shouldTranslateConjunctionOfThreeAttributesFlattened() {
+		final FilterBy result = translate(
+			"$entity.attributes['a'] == 1 && $entity.attributes['b'] == 2 "
+				+ "&& $entity.attributes['c'] == 3"
+		);
+		assertEquals(
+			filterBy(and(
+				attributeEquals("a", 1L),
+				attributeEquals("b", 2L),
+				attributeEquals("c", 3L)
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("a == 1 || b == 2 || c == 3 -> flat or(eq(a), eq(b), eq(c))")
+	void shouldTranslateDisjunctionOfThreeAttributesFlattened() {
+		final FilterBy result = translate(
+			"$entity.attributes['a'] == 1 || $entity.attributes['b'] == 2 "
+				+ "|| $entity.attributes['c'] == 3"
+		);
+		assertEquals(
+			filterBy(or(
+				attributeEquals("a", 1L),
+				attributeEquals("b", 2L),
+				attributeEquals("c", 3L)
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("a == 1 || (b == 2 && c == 3) -> or(eq(a), and(eq(b), eq(c))) — no cross-type flattening")
+	void shouldTranslateMixedBooleanWithoutCrossFlattening() {
+		final FilterBy result = translate(
+			"$entity.attributes['a'] == 1 || "
+				+ "($entity.attributes['b'] == 2 && $entity.attributes['c'] == 3)"
+		);
+		assertEquals(
+			filterBy(or(
+				attributeEquals("a", 1L),
+				and(attributeEquals("b", 2L), attributeEquals("c", 3L))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("(a == 1 && b == 2) && c == 3 -> flat and(eq(a), eq(b), eq(c)) — flattens through parens")
+	void shouldTranslateParenthesizedConjunctionFlattened() {
+		final FilterBy result = translate(
+			"($entity.attributes['a'] == 1 && $entity.attributes['b'] == 2) "
+				+ "&& $entity.attributes['c'] == 3"
+		);
+		assertEquals(
+			filterBy(and(
+				attributeEquals("a", 1L),
+				attributeEquals("b", 2L),
+				attributeEquals("c", 3L)
+			)),
+			result
+		);
+	}
+
+	// --- Happy path: reference attribute comparisons ---
+
+	@Test
+	@DisplayName("$reference.attributes['priority'] == 1 -> referenceHaving(refName, attributeEquals(...))")
+	void shouldTranslateReferenceAttributeEquals() {
+		final FilterBy result = translate("$reference.attributes['priority'] == 1");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeEquals("priority", 1L))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$reference.attributes['order'] > 5 -> referenceHaving(refName, attributeGreaterThan(...))")
+	void shouldTranslateReferenceAttributeGreaterThan() {
+		final FilterBy result = translate("$reference.attributes['order'] > 5");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeGreaterThan("order", 5L))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$reference.attributes['priority'] != 0 -> referenceHaving(refName, not(attributeEquals(...)))")
+	void shouldTranslateReferenceAttributeNotEquals() {
+		final FilterBy result = translate("$reference.attributes['priority'] != 0");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, not(attributeEquals("priority", 0L)))),
+			result
+		);
+	}
+
+	// --- Happy path: group entity attribute comparisons ---
+
+	@Test
+	@DisplayName("$ref.groupEntity?.attributes['status'] == 'ACTIVE' -> referenceHaving(groupHaving(eq(...)))")
+	void shouldTranslateGroupEntityAttributeEquals() {
+		final FilterBy result = translate("$reference.groupEntity?.attributes['status'] == 'ACTIVE'");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, groupHaving(attributeEquals("status", "ACTIVE")))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$reference.groupEntity?.attributes['priority'] > 0 -> referenceHaving(refName, groupHaving(gt(...)))")
+	void shouldTranslateGroupEntityAttributeGreaterThan() {
+		final FilterBy result = translate("$reference.groupEntity?.attributes['priority'] > 0");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, groupHaving(attributeGreaterThan("priority", 0L)))),
+			result
+		);
+	}
+
+	// --- Happy path: referenced entity attribute comparisons ---
+
+	@Test
+	@DisplayName("$ref.referencedEntity.attributes['status'] == 'PREVIEW' -> referenceHaving(entityHaving(eq(...)))")
+	void shouldTranslateReferencedEntityAttributeEquals() {
+		final FilterBy result = translate("$reference.referencedEntity.attributes['status'] == 'PREVIEW'");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, entityHaving(attributeEquals("status", "PREVIEW")))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$reference.referencedEntity.attributes['rank'] < 50 -> referenceHaving(refName, entityHaving(lt(...)))")
+	void shouldTranslateReferencedEntityAttributeLessThan() {
+		final FilterBy result = translate("$reference.referencedEntity.attributes['rank'] < 50");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, entityHaving(attributeLessThan("rank", 50L)))),
+			result
+		);
+	}
+
+	// --- Happy path: cross-entity boolean expressions ---
+
+	@Test
+	@DisplayName("WBS example: group OR referenced entity -> each wrapped in referenceHaving independently")
+	void shouldTranslateCrossEntityOr() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.attributes['status'] == 'ACTIVE' "
+				+ "|| $reference.referencedEntity.attributes['status'] == 'PREVIEW'"
+		);
+		assertEquals(
+			filterBy(or(
+				referenceHaving(REF_NAME, groupHaving(attributeEquals("status", "ACTIVE"))),
+				referenceHaving(REF_NAME, entityHaving(attributeEquals("status", "PREVIEW")))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("WBS example: reference AND entity attribute -> and(referenceHaving(...), eq(...))")
+	void shouldTranslateMixedReferenceAndEntityAttribute() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX' "
+				+ "&& $entity.attributes['isActive'] == true"
+		);
+		assertEquals(
+			filterBy(and(
+				referenceHaving(REF_NAME, groupHaving(attributeEquals("inputWidgetType", "CHECKBOX"))),
+				attributeEquals("isActive", true)
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("reference attributes in AND -> merged into single referenceHaving(refName, and(...))")
+	void shouldTranslateReferenceAttributesInAndMerged() {
+		final FilterBy result = translate(
+			"$reference.attributes['a'] == 1 && $reference.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(attributeEquals("a", 1L), attributeEquals("b", 2L)))),
+			result
+		);
+	}
+
+	// --- Happy path: referenceHaving merging in AND context ---
+
+	@Test
+	@DisplayName("three reference attributes in AND -> single referenceHaving(refName, and(a, b, c))")
+	void shouldTranslateThreeReferenceAttributesInAndMerged() {
+		final FilterBy result = translate(
+			"$reference.attributes['a'] == 1 && $reference.attributes['b'] == 2 "
+				+ "&& $reference.attributes['c'] == 3"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				attributeEquals("a", 1L), attributeEquals("b", 2L), attributeEquals("c", 3L)
+			))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("mixed reference + entity in AND -> merge reference, leave entity separate")
+	void shouldTranslateMixedReferenceAndEntityInAndMerged() {
+		final FilterBy result = translate(
+			"$reference.attributes['a'] == 1 && $entity.attributes['b'] == 2 "
+				+ "&& $reference.attributes['c'] == 3"
+		);
+		assertEquals(
+			filterBy(and(
+				attributeEquals("b", 2L),
+				referenceHaving(REF_NAME, and(attributeEquals("a", 1L), attributeEquals("c", 3L)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("groupHaving + reference attribute in AND -> merge under single referenceHaving")
+	void shouldTranslateGroupAndReferenceAttributeInAndMerged() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.attributes['status'] == 'ACTIVE' "
+				+ "&& $reference.attributes['priority'] == 1"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				groupHaving(attributeEquals("status", "ACTIVE")),
+				attributeEquals("priority", 1L)
+			))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("reference attributes in OR -> NO merging, separate referenceHaving nodes")
+	void shouldNotMergeReferenceHavingInOr() {
+		final FilterBy result = translate(
+			"$reference.attributes['a'] == 1 || $reference.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(or(
+				referenceHaving(REF_NAME, attributeEquals("a", 1L)),
+				referenceHaving(REF_NAME, attributeEquals("b", 2L))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("negated reference in AND -> NO merging for negated operand")
+	void shouldNotMergeNegatedReferenceHaving() {
+		final FilterBy result = translate(
+			"!($reference.attributes['a'] == 1) && $reference.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(and(
+				not(referenceHaving(REF_NAME, attributeEquals("a", 1L))),
+				referenceHaving(REF_NAME, attributeEquals("b", 2L))
+			)),
+			result
+		);
+	}
+
+	// --- Happy path: edge cases ---
+
+	@Test
+	@DisplayName("attribute name with underscores and digits passes through as-is")
+	void shouldTranslateAttributeNameWithSpecialCharacters() {
+		final FilterBy result = translate("$entity.attributes['myAttr_v2'] == 1");
+		assertEquals(
+			filterBy(attributeEquals("myAttr_v2", 1L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("string value with underscores passes through unchanged")
+	void shouldTranslateStringValueWithSpecialCharacters() {
+		final FilterBy result = translate("$entity.attributes['status'] == 'ACTIVE_v2'");
+		assertEquals(
+			filterBy(attributeEquals("status", "ACTIVE_v2")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("numeric constant 42 is preserved as Long in the constraint")
+	void shouldTranslateNumericValueAsLong() {
+		final FilterBy result = translate("$entity.attributes['count'] == 42");
+		assertEquals(
+			filterBy(attributeEquals("count", 42L)),
+			result
+		);
+	}
+
+	// --- Missing happy-path tests from WBS spec ---
+
+	@Test
+	@DisplayName("$reference.attributes['weight'] <= 10 -> referenceHaving(refName, attributeLessThanEquals(...))")
+	void shouldTranslateReferenceAttributeLessThanEquals() {
+		final FilterBy result = translate("$reference.attributes['weight'] <= 10");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeLessThanEquals("weight", 10L))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("!($entity.attributes['a'] == 1 || $entity.attributes['b'] == 2) -> not(or(eq(a), eq(b)))")
+	void shouldTranslateNegationOfDisjunction() {
+		final FilterBy result = translate(
+			"!($entity.attributes['a'] == 1 || $entity.attributes['b'] == 2)"
+		);
+		assertEquals(
+			filterBy(not(or(attributeEquals("a", 1L), attributeEquals("b", 2L)))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("(a == 1 || b == 2) && c == 3 -> and(or(eq(a), eq(b)), eq(c)) — no cross-flattening")
+	void shouldTranslateOrInsideAndWithoutCrossFlattening() {
+		final FilterBy result = translate(
+			"($entity.attributes['a'] == 1 || $entity.attributes['b'] == 2) "
+				+ "&& $entity.attributes['c'] == 3"
+		);
+		assertEquals(
+			filterBy(and(
+				or(attributeEquals("a", 1L), attributeEquals("b", 2L)),
+				attributeEquals("c", 3L)
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("!(($entity.attributes['a'] == 1 && $entity.attributes['b'] == 2)) -> not(and(eq(a), eq(b)))")
+	void shouldTranslateNestedNotWithAnd() {
+		final FilterBy result = translate(
+			"!(($entity.attributes['a'] == 1 && $entity.attributes['b'] == 2))"
+		);
+		assertEquals(
+			filterBy(not(and(attributeEquals("a", 1L), attributeEquals("b", 2L)))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("three path types in AND -> all combined under single and()")
+	void shouldTranslateComplexThreePathConjunction() {
+		final FilterBy result = translate(
+			"$entity.attributes['isActive'] == true "
+				+ "&& $reference.groupEntity?.attributes['status'] == 'ACTIVE' "
+				+ "&& $reference.referencedEntity.attributes['visible'] == true"
+		);
+		assertEquals(
+			filterBy(and(
+				attributeEquals("isActive", true),
+				referenceHaving(REF_NAME, and(
+					groupHaving(attributeEquals("status", "ACTIVE")),
+					entityHaving(attributeEquals("visible", true))
+				))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("entity attribute + negated cross-entity attribute -> and(eq(...), not(referenceHaving(...)))")
+	void shouldTranslateEntityAttributeWithNegatedCrossEntityAttribute() {
+		final FilterBy result = translate(
+			"$entity.attributes['isActive'] == true "
+				+ "&& !($reference.groupEntity?.attributes['status'] == 'INACTIVE')"
+		);
+		assertEquals(
+			filterBy(and(
+				attributeEquals("isActive", true),
+				not(referenceHaving(REF_NAME, groupHaving(attributeEquals("status", "INACTIVE"))))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['refName'] == 'x' -> attributeEquals, NOT referenceHaving")
+	void shouldCorrectlyIdentifyEntityAttributePathNotConfusedWithReference() {
+		final FilterBy result = translate("$entity.attributes['refName'] == 'x'");
+		assertEquals(
+			filterBy(attributeEquals("refName", "x")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("reference name is taken from parameter, not from expression")
+	void shouldUseProvidedReferenceNameInReferenceHaving() {
+		final Expression expression = ExpressionFactory.parse("$reference.attributes['a'] == 1");
+		final FilterBy resultParameter = ExpressionToQueryTranslator.translate(expression, "parameter");
+		final FilterBy resultBrand = ExpressionToQueryTranslator.translate(expression, "brand");
+		assertEquals(
+			filterBy(referenceHaving("parameter", attributeEquals("a", 1L))),
+			resultParameter
+		);
+		assertEquals(
+			filterBy(referenceHaving("brand", attributeEquals("a", 1L))),
+			resultBrand
+		);
+	}
+
+	@Test
+	@DisplayName("two groupEntity attributes in AND -> single referenceHaving(and(groupHaving(...), groupHaving(...)))")
+	void shouldMergeGroupEntityAttributesUnderSingleReferenceHaving() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.attributes['a'] == 1 "
+				+ "&& $reference.groupEntity?.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				groupHaving(attributeEquals("a", 1L)),
+				groupHaving(attributeEquals("b", 2L))
+			))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("two referencedEntity attrs in AND -> single referenceHaving(and(entityHaving, entityHaving))")
+	void shouldMergeReferencedEntityAttributesUnderSingleReferenceHaving() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.attributes['a'] == 1 "
+				+ "&& $reference.referencedEntity.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				entityHaving(attributeEquals("a", 1L)),
+				entityHaving(attributeEquals("b", 2L))
+			))),
+			result
+		);
+	}
+
+	// --- Rejection cases ---
+
+	@Test
+	@DisplayName("rejects XOR operator with suggestion to rewrite")
+	void shouldRejectXorOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['a'] == 1 ^ $entity.attributes['b'] == 2")
+		);
+		assertTrue(ex.getMessage().contains("XOR"), "message should mention XOR");
+		assertTrue(
+			ex.getMessage().contains("(a || b) && !(a && b)"),
+			"message should suggest rewrite pattern"
+		);
+	}
+
+	@Test
+	@DisplayName("rejects addition operator")
+	void shouldRejectAdditionOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['price'] + 10 > 100")
+		);
+		assertTrue(ex.getMessage().contains("Addition"), "message should identify addition");
+	}
+
+	@Test
+	@DisplayName("rejects subtraction operator")
+	void shouldRejectSubtractionOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['price'] - 10 > 100")
+		);
+		assertTrue(ex.getMessage().contains("Subtraction"), "message should identify subtraction");
+	}
+
+	@Test
+	@DisplayName("rejects multiplication operator")
+	void shouldRejectMultiplicationOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['price'] * 2 > 100")
+		);
+		assertTrue(ex.getMessage().contains("Multiplication"), "message should identify multiplication");
+	}
+
+	@Test
+	@DisplayName("rejects division operator")
+	void shouldRejectDivisionOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['price'] / 2 > 50")
+		);
+		assertTrue(ex.getMessage().contains("Division"), "message should identify division");
+	}
+
+	@Test
+	@DisplayName("rejects modulo operator")
+	void shouldRejectModuloOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['count'] % 2 == 0")
+		);
+		assertTrue(ex.getMessage().contains("Modulo"), "message should identify modulo");
+	}
+
+	@Test
+	@DisplayName("rejects numeric negation operator (not boolean NOT)")
+	void shouldRejectNegationArithmeticOperator() {
+		// -$entity.attributes['price'] parses as NegativeOperator wrapping the path,
+		// so the comparison sees NegativeOperator (not ObjectAccessOperator) as an operand
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("-$entity.attributes['price'] < 0")
+		);
+		assertTrue(
+			ex.getMessage().contains("Unsupported comparison operand")
+				|| ex.getMessage().contains("NegativeOperator"),
+			"message should identify unsupported operand type"
+		);
+	}
+
+	@Test
+	@DisplayName("rejects function operator")
+	void shouldRejectFunctionOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("random() > 0")
+		);
+		assertTrue(ex.getMessage().contains("Function"), "message should identify function");
+	}
+
+	@Test
+	@DisplayName("($entity.attributes['name'] ?? 'default') == 'test' -> filterBy(attributeEquals(\"name\", \"test\"))")
+	void shouldTranslateNullCoalesceOperatorOnEntityAttribute() {
+		// NullCoalesceOperator wraps the data path — the default value is discarded
+		// because FilterBy null semantics already handle missing attributes correctly
+		final FilterBy result = translate("($entity.attributes['name'] ?? 'default') == 'test'");
+		assertEquals(
+			filterBy(attributeEquals("name", "test")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("($entity.attributes['isActive'] ?? false) == true -> filterBy(attributeEquals(\"isActive\", true))")
+	void shouldTranslateNullCoalesceOperatorWithBooleanDefault() {
+		final FilterBy result = translate("($entity.attributes['isActive'] ?? false) == true");
+		assertEquals(
+			filterBy(attributeEquals("isActive", true)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("groupEntity ?? coalesce -> referenceHaving(groupHaving(eq(...)))")
+	void shouldTranslateNullCoalesceOnGroupEntityAttribute() {
+		final FilterBy result = translate(
+			"($reference.groupEntity?.attributes['widgetType'] ?? '') == 'CHECKBOX'"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, groupHaving(attributeEquals("widgetType", "CHECKBOX")))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("referencedEntity ?? coalesce -> referenceHaving(entityHaving(eq(...)))")
+	void shouldTranslateNullCoalesceOnReferencedEntityAttribute() {
+		final FilterBy result = translate(
+			"($reference.referencedEntity.attributes['status'] ?? '') == 'ACTIVE'"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, entityHaving(attributeEquals("status", "ACTIVE")))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("($reference.attributes['order'] ?? 0) > 5 -> referenceHaving(attributeGreaterThan(...))")
+	void shouldTranslateNullCoalesceOnReferenceAttributeWithComparison() {
+		final FilterBy result = translate("($reference.attributes['order'] ?? 0) > 5");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeGreaterThan("order", 5L))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("'ACTIVE' == ($entity.attributes['status'] ?? '') -> reversed operand with null coalesce")
+	void shouldTranslateNullCoalesceWithReversedOperandOrder() {
+		final FilterBy result = translate("'ACTIVE' == ($entity.attributes['status'] ?? '')");
+		assertEquals(
+			filterBy(attributeEquals("status", "ACTIVE")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("compound AND with null coalesce on both sides")
+	void shouldTranslateNullCoalesceInConjunction() {
+		final FilterBy result = translate(
+			"($reference.groupEntity?.attributes['widgetType'] ?? '') == 'CHECKBOX'"
+				+ " && ($entity.attributes['isActive'] ?? false) == true"
+		);
+		assertEquals(
+			filterBy(and(
+				referenceHaving(REF_NAME, groupHaving(attributeEquals("widgetType", "CHECKBOX"))),
+				attributeEquals("isActive", true)
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("compound OR with null coalesce on both sides")
+	void shouldTranslateNullCoalesceInDisjunction() {
+		final FilterBy result = translate(
+			"($reference.groupEntity?.attributes['widgetType'] ?? '') == 'CHECKBOX'"
+				+ " || ($reference.referencedEntity.attributes['status'] ?? '') == 'ACTIVE'"
+		);
+		assertEquals(
+			filterBy(or(
+				referenceHaving(REF_NAME, groupHaving(attributeEquals("widgetType", "CHECKBOX"))),
+				referenceHaving(REF_NAME, entityHaving(attributeEquals("status", "ACTIVE")))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("spread with null coalesce in mapping -> same as non-coalesced spread")
+	void shouldTranslateSpreadMappingWithNullCoalesce() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].*[$.attributes['weight'] ?? 0] > 5"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				entityHaving(referenceHaving("tags", attributeGreaterThan("weight", 5L)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("($entity.attributes['status'] ?? '') != 'DELETED' -> filterBy(not(attributeEquals(...)))")
+	void shouldTranslateNullCoalesceWithNotEquals() {
+		final FilterBy result = translate("($entity.attributes['status'] ?? '') != 'DELETED'");
+		assertEquals(
+			filterBy(not(attributeEquals("status", "DELETED"))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("($entity.attributes['price'] ?? 0) >= 100 -> filterBy(attributeGreaterThanEquals(...))")
+	void shouldTranslateNullCoalesceWithGreaterThanEquals() {
+		final FilterBy result = translate("($entity.attributes['price'] ?? 0) >= 100");
+		assertEquals(
+			filterBy(attributeGreaterThanEquals("price", 100L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("($reference.attributes['order'] ?? 0) < 10 -> referenceHaving(attributeLessThan(...))")
+	void shouldTranslateNullCoalesceWithLessThanOnReferenceAttribute() {
+		final FilterBy result = translate("($reference.attributes['order'] ?? 0) < 10");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeLessThan("order", 10L))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("mixed null-coalesce + bare reference attribute in AND -> merges under single referenceHaving")
+	void shouldTranslateMixedNullCoalesceAndBareReferenceInConjunction() {
+		final FilterBy result = translate(
+			"($reference.groupEntity?.attributes['widgetType'] ?? '') == 'CHECKBOX'"
+				+ " && $reference.attributes['priority'] == 1"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				groupHaving(attributeEquals("widgetType", "CHECKBOX")),
+				attributeEquals("priority", 1L)
+			))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("(($entity.attributes['x'] ?? 'a') ?? 'b') == 'test' -> double nested ?? unwrapping")
+	void shouldTranslateDoubleNestedNullCoalesceUnwrapping() {
+		final FilterBy result = translate("(($entity.attributes['x'] ?? 'a') ?? 'b') == 'test'");
+		assertEquals(
+			filterBy(attributeEquals("x", "test")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("5 < ($entity.attributes['price'] ?? 0) -> reversed ordered comparison with ??")
+	void shouldTranslateReversedComparisonWithNullCoalesceAndLessThan() {
+		// 5 < price  ===  price > 5
+		final FilterBy result = translate("5 < ($entity.attributes['price'] ?? 0)");
+		assertEquals(
+			filterBy(attributeGreaterThan("price", 5L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("($entity.attributes['x'] ?? null) == null -> filterBy(attributeIsNull(\"x\"))")
+	void shouldTranslateNullCoalesceWithNullComparison() {
+		final FilterBy result = translate("($entity.attributes['x'] ?? null) == null");
+		assertEquals(
+			filterBy(attributeIsNull("x")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("rejects cross-to-local comparison (both operands are data paths)")
+	void shouldRejectCrossToLocalComparison() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate(
+				"$reference.groupEntity?.attributes['type'] == $entity.attributes['category']"
+			)
+		);
+		assertTrue(
+			ex.getMessage().contains("Cross-constraint") || ex.getMessage().contains("cross"),
+			"message should explain cross-constraint limitation"
+		);
+	}
+
+	@Test
+	@DisplayName("rejects associated data access")
+	void shouldRejectAssociatedDataAccess() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.associatedData['desc'] == 'test'")
+		);
+		assertTrue(
+			ex.getMessage().contains("associated data") || ex.getMessage().contains("Associated data"),
+			"message should explain no FilterBy equivalent for associated data"
+		);
+	}
+
+	@Test
+	@DisplayName("rejects reference primary key comparison")
+	void shouldRejectReferencePrimaryKeyComparison() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$reference.referencedPrimaryKey == 42")
+		);
+		assertTrue(
+			ex.getMessage().contains("primary key") || ex.getMessage().contains("PK"),
+			"message should explain PK scoping is handled by executor"
+		);
+	}
+
+	@Test
+	@DisplayName("rejects non-boolean expression (pure arithmetic)")
+	void shouldRejectNonBooleanExpression() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['price'] + 10")
+		);
+		assertTrue(
+			ex.getMessage().contains("boolean") || ex.getMessage().contains("Boolean"),
+			"message should explain expression must be boolean"
+		);
+	}
+
+	@Test
+	@DisplayName("rejects dynamic attribute path with variable")
+	void shouldRejectDynamicAttributePathWithVariable() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes[$someVar] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("Dynamic") || ex.getMessage().contains("compile-time constant"),
+			"message should identify dynamic path"
+		);
+	}
+
+	@Test
+	@DisplayName("rejects null attribute name in $entity.attributes[null]")
+	void shouldRejectNullAttributeNameInEntityAttributePath() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes[null] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("null") || ex.getMessage().contains("Null"),
+			"message should identify null attribute name: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("rejects spread access operator on $entity context")
+	void shouldRejectSpreadAccessOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.references['categories'].*[$.referencedPrimaryKey] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("Unsupported data path")
+				|| ex.getMessage().contains("Spread access")
+				|| ex.getMessage().contains("references"),
+			"message should identify unsupported data path: " + ex.getMessage()
+		);
+	}
+
+	// --- Bug: localizedAttributes support ---
+
+	@Test
+	@DisplayName("$entity.localizedAttributes['name'] == 'test' -> filterBy(attributeEquals(\"name\", \"test\"))")
+	void shouldTranslateEntityLocalizedAttributeEquals() {
+		final FilterBy result = translate("$entity.localizedAttributes['name'] == 'test'");
+		assertEquals(
+			filterBy(attributeEquals("name", "test")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$reference.localizedAttributes['name'] == 'test' -> referenceHaving(refName, attributeEquals(...))")
+	void shouldTranslateReferenceLocalizedAttributeEquals() {
+		final FilterBy result = translate("$reference.localizedAttributes['name'] == 'test'");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeEquals("name", "test"))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$ref.groupEntity?.localizedAttributes['name'] == 'x' -> referenceHaving(groupHaving(eq(...)))")
+	void shouldTranslateGroupEntityLocalizedAttributeEquals() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.localizedAttributes['name'] == 'x'"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, groupHaving(attributeEquals("name", "x")))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$ref.referencedEntity.localizedAttributes['name'] == 'x' -> referenceHaving(entityHaving(eq(...)))")
+	void shouldTranslateReferencedEntityLocalizedAttributeEquals() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.localizedAttributes['name'] == 'x'"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, entityHaving(attributeEquals("name", "x")))),
+			result
+		);
+	}
+
+	// --- Happy path: referenced entity reference attribute comparisons ---
+
+	@Test
+	@DisplayName("referencedEntity.references['tags'].attributes['visible'] == true -> nested referenceHaving")
+	void shouldTranslateReferencedEntityReferenceAttributeEquals() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].attributes['visible'] == true"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				entityHaving(referenceHaving("tags", attributeEquals("visible", true)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("groupEntity?.references['metrics'].attributes['score'] > 5 -> nested groupHaving referenceHaving")
+	void shouldTranslateGroupEntityReferenceAttributeGreaterThan() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.references['metrics'].attributes['score'] > 5"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				groupHaving(referenceHaving("metrics", attributeGreaterThan("score", 5L)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("referencedEntity.references['tags'].localizedAttributes['label'] == 'x' -> nested referenceHaving")
+	void shouldTranslateReferencedEntityReferenceLocalizedAttributeEquals() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].localizedAttributes['label'] == 'x'"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				entityHaving(referenceHaving("tags", attributeEquals("label", "x")))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("mixed entity attribute and reference attribute in AND -> both under single outer referenceHaving")
+	void shouldTranslateMixedEntityAttributeAndReferenceAttributeInAnd() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.attributes['code'] == 'A' " +
+				"&& $reference.referencedEntity.references['tags'].attributes['visible'] == true"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				entityHaving(attributeEquals("code", "A")),
+				entityHaving(referenceHaving("tags", attributeEquals("visible", true)))
+			))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("two reference-attribute comparisons in AND -> merge under single outer referenceHaving")
+	void shouldMergeReferenceHavingWithNestedReferenceHavingInAnd() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].attributes['visible'] == true " +
+				"&& $reference.referencedEntity.references['tags'].attributes['priority'] > 0"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(
+				entityHaving(referenceHaving("tags", attributeEquals("visible", true))),
+				entityHaving(referenceHaving("tags", attributeGreaterThan("priority", 0L)))
+			))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("spread on referencedEntity references -> same result as non-spread")
+	void shouldTranslateSpreadOnReferencedEntityReferences() {
+		final FilterBy result = translate(
+			"$reference.referencedEntity.references['tags'].*[$.attributes['visible']] == true"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				entityHaving(referenceHaving("tags", attributeEquals("visible", true)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("spread on groupEntity references -> same result as non-spread")
+	void shouldTranslateSpreadOnGroupEntityReferences() {
+		final FilterBy result = translate(
+			"$reference.groupEntity?.references['metrics'].*[$.attributes['score']] > 5"
+		);
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME,
+				groupHaving(referenceHaving("metrics", attributeGreaterThan("score", 5L)))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("spread in unsupported position still rejected")
+	void shouldRejectSpreadInUnsupportedPosition() {
+		assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.references['categories'].*[$.referencedPrimaryKey] == 1")
+		);
+	}
+
+	// --- Bug: parenthesized comparison operand unwrapping ---
+
+	@Test
+	@DisplayName("($entity.attributes['a']) == 1 -> filterBy(attributeEquals(\"a\", 1L))")
+	void shouldTranslateParenthesizedLeftOperandInComparison() {
+		final FilterBy result = translate("($entity.attributes['a']) == 1");
+		assertEquals(
+			filterBy(attributeEquals("a", 1L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("1 == ($entity.attributes['a']) -> filterBy(attributeEquals(\"a\", 1L))")
+	void shouldTranslateParenthesizedRightOperandReversedInComparison() {
+		final FilterBy result = translate("1 == ($entity.attributes['a'])");
+		assertEquals(
+			filterBy(attributeEquals("a", 1L)),
+			result
+		);
+	}
+
+	// --- Bug: localized associated data rejection ---
+
+	@Test
+	@DisplayName("rejects localized associated data access")
+	void shouldRejectLocalizedAssociatedDataAccess() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.localizedAssociatedData['desc'] == 'test'")
+		);
+		assertTrue(
+			ex.getMessage().contains("associated data") || ex.getMessage().contains("Associated data"),
+			"message should explain no FilterBy equivalent for associated data"
+		);
+	}
+
+	// --- Bug: localized attributes dynamic path pre-validation ---
+
+	@Test
+	@DisplayName("rejects dynamic localized attribute path with variable")
+	void shouldRejectDynamicLocalizedAttributePathWithVariable() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.localizedAttributes[$someVar] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("Dynamic") || ex.getMessage().contains("compile-time constant"),
+			"message should identify dynamic path"
+		);
+	}
+
+	// --- Rejection of unsupported paths/variables ---
+
+	@Test
+	@DisplayName("rejects unsupported variable name like $foo")
+	void shouldRejectUnsupportedVariableName() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$foo.attributes['x'] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("Unsupported variable"),
+			"message should mention unsupported variable: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("rejects unsupported entity property like $entity.someOtherProp")
+	void shouldRejectUnsupportedEntityProperty() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.someOtherProp['x'] == 1")
+		);
+		assertTrue(
+			ex.getMessage().contains("Unsupported data path"),
+			"message should mention unsupported data path: " + ex.getMessage()
+		);
+	}
+
+	// --- Reversed comparison operators (missing) ---
+
+	@Test
+	@DisplayName("100 >= $entity.attributes['price'] -> filterBy(attributeLessThanEquals(\"price\", 100L))")
+	void shouldTranslateReversedOperandOrderForGreaterThanEquals() {
+		// 100 >= price  ===  price <= 100
+		final FilterBy result = translate("100 >= $entity.attributes['price']");
+		assertEquals(
+			filterBy(attributeLessThanEquals("price", 100L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("100 <= $entity.attributes['price'] -> filterBy(attributeGreaterThanEquals(\"price\", 100L))")
+	void shouldTranslateReversedOperandOrderForLessThanEquals() {
+		// 100 <= price  ===  price >= 100
+		final FilterBy result = translate("100 <= $entity.attributes['price']");
+		assertEquals(
+			filterBy(attributeGreaterThanEquals("price", 100L)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("100 > $entity.attributes['price'] -> filterBy(attributeLessThan(\"price\", 100L))")
+	void shouldTranslateReversedOperandOrderForGreaterThan() {
+		// 100 > price  ===  price < 100
+		final FilterBy result = translate("100 > $entity.attributes['price']");
+		assertEquals(
+			filterBy(attributeLessThan("price", 100L)),
+			result
+		);
+	}
+
+	// --- Null literal comparison ---
+
+	@Test
+	@DisplayName("$entity.attributes['x'] == null -> filterBy(attributeIsNull(\"x\"))")
+	void shouldTranslateNullLiteralComparisonToAttributeIsNull() {
+		final FilterBy result = translate("$entity.attributes['x'] == null");
+		assertEquals(
+			filterBy(attributeIsNull("x")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("null == $entity.attributes['x'] -> filterBy(attributeIsNull(\"x\")) (reversed)")
+	void shouldTranslateNullLiteralOnLeftSideToAttributeIsNull() {
+		final FilterBy result = translate("null == $entity.attributes['x']");
+		assertEquals(
+			filterBy(attributeIsNull("x")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['x'] != null -> filterBy(attributeIsNotNull(\"x\"))")
+	void shouldTranslateNullLiteralNotEqualsToAttributeIsNotNull() {
+		final FilterBy result = translate("$entity.attributes['x'] != null");
+		assertEquals(
+			filterBy(attributeIsNotNull("x")),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.attributes['x'] > null -> throws NonTranslatableExpressionException")
+	void shouldRejectNullLiteralWithOrderedComparisonOperator() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.attributes['x'] > null")
+		);
+		assertTrue(
+			ex.getMessage().contains("null") || ex.getMessage().contains("Null"),
+			"message should mention null: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("$reference.attributes['x'] == null -> filterBy(referenceHaving(\"refName\", attributeIsNull(\"x\")))")
+	void shouldTranslateReferenceAttributeEqualsNullToAttributeIsNull() {
+		final FilterBy result = translate("$reference.attributes['x'] == null");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeIsNull("x"))),
+			result
+		);
+	}
+
+	/**
+	 * Verifies that a reference attribute not-equals-null comparison translates
+	 * to {@code referenceHaving(attributeIsNotNull(...))}.
+	 */
+	@Test
+	@DisplayName("$reference.attributes['priority'] != null -> referenceHaving(attributeIsNotNull)")
+	void shouldTranslateReferenceAttributeNotEqualsNullToAttributeIsNotNull() {
+		final FilterBy result = translate("$reference.attributes['priority'] != null");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, attributeIsNotNull("priority"))),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("groupEntity?.attributes['x'] == null -> referenceHaving(groupHaving(isNull))")
+	void shouldTranslateGroupEntityAttributeEqualsNullToAttributeIsNull() {
+		final FilterBy result = translate("$reference.groupEntity?.attributes['x'] == null");
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, groupHaving(attributeIsNull("x")))),
+			result
+		);
+	}
+
+	/**
+	 * Verifies that a conjunction of a null-check with a value comparison translates
+	 * to {@code and(attributeIsNotNull(...), attributeEquals(...))}.
+	 */
+	@Test
+	@DisplayName("attributes['status'] != null && == 'ACTIVE' -> and(isNotNull, eq)")
+	void shouldTranslateNullCheckCombinedWithValueComparison() {
+		final FilterBy result = translate(
+			"$entity.attributes['status'] != null && $entity.attributes['status'] == 'ACTIVE'"
+		);
+		assertEquals(
+			filterBy(and(attributeIsNotNull("status"), attributeEquals("status", "ACTIVE"))),
+			result
+		);
+	}
+
+	// --- Error branches in reference-attribute paths ---
+
+	@Test
+	@DisplayName("rejects dynamic reference name variable in referencedEntity references path")
+	void shouldRejectDynamicReferenceNameInReferencedEntityReferenceAttributePath() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate(
+				"$reference.referencedEntity.references[$var].attributes['x'] == 1"
+			)
+		);
+		assertTrue(
+			ex.getMessage().contains("Dynamic reference name")
+				|| ex.getMessage().contains("string literal"),
+			"message should identify dynamic reference name: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("rejects null reference name in referencedEntity references path")
+	void shouldRejectNullReferenceNameInReferencedEntityReferenceAttributePath() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate(
+				"$reference.referencedEntity.references[null].attributes['x'] == 1"
+			)
+		);
+		assertTrue(
+			ex.getMessage().contains("null") || ex.getMessage().contains("Null")
+				|| ex.getMessage().contains("string literal"),
+			"message should identify null reference name: " + ex.getMessage()
+		);
+	}
+
+	// --- Happy path: parent entity existence checks ---
+
+	@Test
+	@DisplayName("$entity.parentEntity != null -> filterBy(hierarchyWithinRootSelf())")
+	void shouldTranslateParentEntityNotEqualsNullToHierarchyWithinRootSelf() {
+		final FilterBy result = translate("$entity.parentEntity != null");
+		assertEquals(
+			filterBy(hierarchyWithinRootSelf()),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.parentEntity == null -> filterBy(not(hierarchyWithinRootSelf()))")
+	void shouldTranslateParentEntityEqualsNullToNotHierarchyWithinRootSelf() {
+		final FilterBy result = translate("$entity.parentEntity == null");
+		assertEquals(
+			filterBy(not(hierarchyWithinRootSelf())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.parentEntity > null -> throws NonTranslatableExpressionException")
+	void shouldRejectOrderedComparisonOnParentEntity() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.parentEntity > null")
+		);
+		assertTrue(
+			ex.getMessage().contains("parentEntity") || ex.getMessage().contains("Ordered"),
+			"message should mention parentEntity or ordered comparison: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.parentEntity != 42 -> throws NonTranslatableExpressionException")
+	void shouldRejectParentEntityComparedToNonNullValue() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.parentEntity != 42")
+		);
+		assertTrue(
+			ex.getMessage().contains("parentEntity") || ex.getMessage().contains("non-null"),
+			"message should mention parentEntity or non-null: " + ex.getMessage()
+		);
+	}
+
+	@Test
+	@DisplayName("parentEntity != null && attribute == 'ACTIVE' -> and(hierarchyWithinRootSelf, eq)")
+	void shouldTranslateParentEntityInConjunctionWithAttribute() {
+		final FilterBy result = translate(
+			"$entity.parentEntity != null && $entity.attributes['status'] == 'ACTIVE'"
+		);
+		assertEquals(
+			filterBy(and(hierarchyWithinRootSelf(), attributeEquals("status", "ACTIVE"))),
+			result
+		);
+	}
+
+	// --- Happy path: parent entity attribute comparisons ---
+
+	@Test
+	@DisplayName("parentEntity.attributes['code'] == 'ACTIVE' -> hierarchyWithinSelf(eq, directRelation())")
+	void shouldTranslateParentEntityAttributeEqualsString() {
+		final FilterBy result = translate("$entity.parentEntity.attributes['code'] == 'ACTIVE'");
+		assertEquals(
+			filterBy(hierarchyWithinSelf(attributeEquals("code", "ACTIVE"), directRelation())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("parentEntity.localizedAttributes['name'] == 'foo' -> hierarchyWithinSelf(eq, directRelation())")
+	void shouldTranslateParentEntityLocalizedAttributeEquals() {
+		final FilterBy result = translate(
+			"$entity.parentEntity.localizedAttributes['name'] == 'foo'"
+		);
+		assertEquals(
+			filterBy(hierarchyWithinSelf(attributeEquals("name", "foo"), directRelation())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("parentEntity.attributes['x'] != null -> hierarchyWithinSelf(isNotNull, directRelation())")
+	void shouldTranslateParentEntityAttributeIsNotNull() {
+		final FilterBy result = translate("$entity.parentEntity.attributes['x'] != null");
+		assertEquals(
+			filterBy(hierarchyWithinSelf(attributeIsNotNull("x"), directRelation())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("parentEntity.attributes['x'] == null -> hierarchyWithinSelf(isNull, directRelation())")
+	void shouldTranslateParentEntityAttributeIsNull() {
+		final FilterBy result = translate("$entity.parentEntity.attributes['x'] == null");
+		assertEquals(
+			filterBy(hierarchyWithinSelf(attributeIsNull("x"), directRelation())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("parentEntity.attributes['price'] > 100 -> hierarchyWithinSelf(gt, directRelation())")
+	void shouldTranslateParentEntityAttributeGreaterThan() {
+		final FilterBy result = translate("$entity.parentEntity.attributes['price'] > 100");
+		assertEquals(
+			filterBy(hierarchyWithinSelf(attributeGreaterThan("price", 100L), directRelation())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("($entity.parentEntity?.attributes['x'] ?? 'default') == 'foo' -> null coalesce unwrapped")
+	void shouldTranslateParentEntityAttributeWithNullCoalesce() {
+		final FilterBy result = translate(
+			"($entity.parentEntity?.attributes['x'] ?? 'default') == 'foo'"
+		);
+		assertEquals(
+			filterBy(hierarchyWithinSelf(attributeEquals("x", "foo"), directRelation())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("'ACTIVE' == $entity.parentEntity.attributes['code'] -> reversed operand order")
+	void shouldTranslateReversedParentEntityAttributeComparison() {
+		final FilterBy result = translate("'ACTIVE' == $entity.parentEntity.attributes['code']");
+		assertEquals(
+			filterBy(hierarchyWithinSelf(attributeEquals("code", "ACTIVE"), directRelation())),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("parent attribute AND entity attribute in conjunction")
+	void shouldTranslateParentEntityAttributeInConjunctionWithEntityAttribute() {
+		final FilterBy result = translate(
+			"$entity.parentEntity.attributes['a'] == 1 && $entity.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(and(
+				hierarchyWithinSelf(attributeEquals("a", 1L), directRelation()),
+				attributeEquals("b", 2L)
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("parent attribute OR entity attribute in disjunction")
+	void shouldTranslateParentEntityAttributeInDisjunctionWithEntityAttribute() {
+		final FilterBy result = translate(
+			"$entity.parentEntity.attributes['a'] == 1 || $entity.attributes['b'] == 2"
+		);
+		assertEquals(
+			filterBy(or(
+				hierarchyWithinSelf(attributeEquals("a", 1L), directRelation()),
+				attributeEquals("b", 2L)
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("parent attribute AND reference attribute in conjunction")
+	void shouldTranslateParentEntityAttributeInConjunctionWithReferenceAttribute() {
+		final FilterBy result = translate(
+			"$entity.parentEntity.attributes['code'] == 'A' && $reference.attributes['x'] == 1"
+		);
+		assertEquals(
+			filterBy(and(
+				hierarchyWithinSelf(attributeEquals("code", "A"), directRelation()),
+				referenceHaving(REF_NAME, attributeEquals("x", 1L))
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("parentEntity.references['r'].attributes['x'] == 'Y' -> hierarchyWithinSelf(refHaving, directRelation())")
+	void shouldTranslateParentEntityReferenceAttributeEquals() {
+		final FilterBy result = translate(
+			"$entity.parentEntity.references['r'].attributes['x'] == 'Y'"
+		);
+		assertEquals(
+			filterBy(hierarchyWithinSelf(
+				referenceHaving("r", attributeEquals("x", "Y")), directRelation()
+			)),
+			result
+		);
+	}
+
+	@Test
+	@DisplayName("$entity.parentEntity.associatedData['x'] == 'test' -> throws NonTranslatableExpressionException")
+	void shouldRejectParentEntityAssociatedDataAccess() {
+		final NonTranslatableExpressionException ex = assertThrows(
+			NonTranslatableExpressionException.class,
+			() -> translate("$entity.parentEntity.associatedData['x'] == 'test'")
+		);
+		assertTrue(
+			ex.getMessage().contains(EntityContractAccessor.ATTRIBUTES_PROPERTY)
+				|| ex.getMessage().contains(EntityContractAccessor.REFERENCES_PROPERTY),
+			"message should indicate expected paths: " + ex.getMessage()
+		);
+	}
+
+	// --- Single-element merging optimization ---
+
+	@Test
+	@DisplayName("two reference attributes in AND -> single referenceHaving without outer and() wrapper")
+	void shouldReturnSingleConstraintWithoutAndWrapperAfterMerge() {
+		// When two referenceHaving nodes merge, the result should be a single referenceHaving
+		// at the top level of filterBy, NOT wrapped in an extra and() container.
+		final FilterBy result = translate(
+			"$reference.attributes['a'] == 1 && $reference.attributes['b'] == 2"
+		);
+
+		// Verify the result is referenceHaving(refName, and(eq(a), eq(b)))
+		// and NOT and(referenceHaving(refName, and(eq(a), eq(b))))
+		assertEquals(
+			filterBy(referenceHaving(REF_NAME, and(attributeEquals("a", 1L), attributeEquals("b", 2L)))),
+			result
+		);
+		// Additionally verify the direct child of filterBy is a referenceHaving, not an and()
+		assertEquals(1, result.getChildrenCount());
+		assertInstanceOf(ReferenceHaving.class, result.getChildren()[0]);
+	}
+
+	// --- Helper ---
+
+	/**
+	 * Parses the given expression string and translates it into a {@link FilterBy} constraint tree
+	 * using the default reference name {@link #REF_NAME}.
+	 */
+	@Nonnull
+	private static FilterBy translate(@Nonnull String expressionString) {
+		final Expression expression = ExpressionFactory.parse(expressionString);
+		return ExpressionToQueryTranslator.translate(expression, REF_NAME);
+	}
+}

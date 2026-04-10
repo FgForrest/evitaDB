@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * retrieval by various keys, differsFrom comparison,
  * and schema enforcement.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Prices")
 class PricesTest extends AbstractBuilderTest {

@@ -60,6 +60,8 @@ import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.driver.config.ClientTlsOptions;
+import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -186,11 +188,19 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
-			.mtlsEnabled(false)
-			.certificateFolderPath(clientCertificates)
-			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-			.timeout(5, TimeUnit.MINUTES)
+			.tls(
+				ClientTlsOptions.builder()
+					.mtlsEnabled(false)
+					.certificateFolderPath(clientCertificates)
+					.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+					.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+					.build()
+			)
+			.timeouts(
+				ClientTimeoutOptions.builder()
+					.timeout(5, TimeUnit.MINUTES)
+					.build()
+			)
 			.build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();

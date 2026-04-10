@@ -23,12 +23,14 @@
 
 package io.evitadb.index.array;
 
+import javax.annotation.Nonnull;
+
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
 
 /**
- * This {@link OfInt} iterator iterates over passed integer array with applying the changes on the flight. This iterator
- * is expected only to be used only from {@link TransactionalIntArray}.
+ * This {@link OfInt} iterator iterates over passed integer array with applying the changes on the fly. This iterator
+ * is expected to be used only from {@link TransactionalIntArray}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -41,7 +43,13 @@ class TransactionalIntArrayIterator implements OfInt {
 	private int[] insertion;
 	private int insertionPosition = -1;
 
-	public TransactionalIntArrayIterator(int[] original, ArrayChangesIteratorSupport changes) {
+	/**
+	 * Creates an iterator that applies changes on the fly to the given original array.
+	 *
+	 * @param original the immutable baseline array
+	 * @param changes  the change layer to apply during iteration
+	 */
+	public TransactionalIntArrayIterator(@Nonnull int[] original, @Nonnull ArrayChangesIteratorSupport changes) {
 		this.original = original;
 		this.changes = changes;
 		this.position = -1;
@@ -53,7 +61,7 @@ class TransactionalIntArrayIterator implements OfInt {
 		if (this.nextRecord == END_OF_STREAM) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
-		int recordToReturn = this.nextRecord;
+		final int recordToReturn = this.nextRecord;
 		this.nextRecord = computeNextRecord();
 		return recordToReturn;
 	}
@@ -64,21 +72,34 @@ class TransactionalIntArrayIterator implements OfInt {
 	}
 
 	/**
+	 * Advances through the current insertion array or, once exhausted, returns the original
+	 * element at the current position (if not removed).
+	 *
+	 * @return next value from the insertion or original array, or {@link #END_OF_STREAM} when
+	 * neither applies
+	 */
+	private int exhaustInsertionOrReturnOriginal() {
+		if (this.insertion.length > this.insertionPosition + 1) {
+			return this.insertion[++this.insertionPosition];
+		}
+		this.insertion = null;
+		if (this.original.length > this.position && !this.changes.isRemovalOnPosition(this.position)) {
+			return this.original[this.position];
+		}
+		return END_OF_STREAM;
+	}
+
+	/**
 	 * Computes next record to be returned from the iterator.
-	 * @return
+	 *
+	 * @return next record id, or {@link #END_OF_STREAM} when exhausted
 	 */
 	private int computeNextRecord() {
 		// if insertion happens on this spot - first exhaust the insertion
 		if (this.insertion != null) {
-			if (this.insertion.length > this.insertionPosition + 1) {
-				return this.insertion[++this.insertionPosition];
-			} else {
-				// if the original record should not be removed, return it
-				this.insertion = null;
-				boolean originalRemoved = this.changes.isRemovalOnPosition(this.position);
-				if (!originalRemoved && this.original.length > this.position) {
-					return this.original[this.position];
-				}
+			final int result = exhaustInsertionOrReturnOriginal();
+			if (result != END_OF_STREAM) {
+				return result;
 			}
 		}
 
@@ -94,8 +115,8 @@ class TransactionalIntArrayIterator implements OfInt {
 
 			// if original record should be removed skip it - otherwise return
 			if (this.position < this.original.length) {
-				boolean removalPosition = this.changes.isRemovalOnPosition(this.position);
-				if (!removalPosition) {
+				final boolean removed = this.changes.isRemovalOnPosition(this.position);
+				if (!removed) {
 					return this.original[this.position];
 				}
 			} else {

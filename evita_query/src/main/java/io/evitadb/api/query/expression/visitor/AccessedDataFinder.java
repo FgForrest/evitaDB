@@ -26,20 +26,21 @@ package io.evitadb.api.query.expression.visitor;
 import io.evitadb.api.query.expression.object.ElementAccessStep;
 import io.evitadb.api.query.expression.object.NullSafeAccessStep;
 import io.evitadb.api.query.expression.object.ObjectAccessOperator;
-import io.evitadb.api.query.expression.object.ObjectAccessStep;
+import io.evitadb.api.query.expression.object.ObjectOperationStep;
 import io.evitadb.api.query.expression.object.PropertyAccessStep;
 import io.evitadb.api.query.expression.object.SpreadAccessStep;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
+import io.evitadb.dataType.expression.UnaryExpressionNode;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -96,6 +97,8 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 			visit(constantOperand);
 		} else if (node instanceof VariableOperand variableOperand) {
 			visit(variableOperand);
+		} else if (node instanceof UnaryExpressionNode unary) {
+			unary.getOperand().accept(this);
 		} else {
 			// traverse children to find potential nested accessed data
 			final ExpressionNode[] children = node.getChildren();
@@ -103,29 +106,23 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 				return;
 			}
 
-			if (children.length > 1) {
-				// save the current path to revert to after visiting children
-				final List<PathItem> parentPath = this.currentPath;
+			// save the current path to revert to after visiting children
+			final List<PathItem> parentPath = this.currentPath;
 
-				// traverse children and generate possible multiple paths
-				for (ExpressionNode child : children) {
-					if (parentPath == null) {
-						// no parent path yet, let the child handle its own new path
-						child.accept(this);
-					} else {
-						// link the child paths to the parent path
-						final LinkedList<PathItem> childPath = new LinkedList<>(parentPath);
-						this.currentPath = childPath;
-						child.accept(this);
-						this.accessedPaths.add(childPath);
-					}
+			// traverse children and generate possible multiple paths
+			for (ExpressionNode child : children) {
+				if (parentPath == null) {
+					child.accept(this);
+				} else {
+					final LinkedList<PathItem> childPath = new LinkedList<>(parentPath);
+					this.currentPath = childPath;
+					child.accept(this);
+					this.accessedPaths.add(childPath);
 				}
-
-				// revert to the parent path so that the parent can continue where they left off
-				this.currentPath = parentPath;
-			} else {
-				children[0].accept(this);
 			}
+
+			// revert to the parent path so that the parent can continue where they left off
+			this.currentPath = parentPath;
 		}
 	}
 
@@ -143,13 +140,12 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 		}
 
 		// add an operand path first
-		final ExpressionNode[] children = objectAccessOperator.getChildren();
-		Assert.isTrue(children != null && children.length == 1, "Object access operator must have exactly one child.");
-		children[0].accept(this);
+		objectAccessOperator.getOperand().accept(this);
 
 		// add steps path
-		ObjectAccessStep step = objectAccessOperator.getAccessChain();
+		ObjectOperationStep step = objectAccessOperator.getAccessChain();
 		do {
+			// todo lho implement method invocation
 			if (step instanceof PropertyAccessStep propertyAccessStep) {
 				path.add(new IdentifierPathItem(propertyAccessStep.getPropertyIdentifier()));
 			} else if (step instanceof ElementAccessStep elementAccessStep) {
@@ -172,7 +168,9 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 
 	private void visit(@Nonnull ConstantOperand constantOperand) {
 		if (this.currentPath != null) {
-			this.currentPath.add(new ElementPathItem(constantOperand.getValue().toString()));
+			final Serializable value = constantOperand.getValue();
+			// null literal used in element access (e.g., references[null]) — record as "null" string
+			this.currentPath.add(new ElementPathItem(value != null ? value.toString() : "null"));
 		}
 	}
 

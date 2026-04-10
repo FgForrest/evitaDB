@@ -38,7 +38,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * An {@link ObjectAccessStep} that resolves an element by index or key using bracket-notation
+ * An {@link ObjectOperationStep} that resolves an element by index or key using bracket-notation
  * syntax (`[index]` or `['key']`). The element identifier expression is evaluated at runtime and
  * must produce either a {@link String} or {@link Long} value. The element is then resolved via
  * {@link ObjectElementAccessor} looked up from the {@link ObjectAccessorRegistry}.
@@ -52,12 +52,12 @@ import java.io.Serializable;
  */
 @RequiredArgsConstructor
 @EqualsAndHashCode
-public class ElementAccessStep implements ObjectAccessStep {
+public class ElementAccessStep implements ObjectOperationStep {
 	@Serial private static final long serialVersionUID = 2760082902212762061L;
 
 	@Nonnull @Getter private final ExpressionNode elementIdentifierOperand;
 
-	@Nullable @Getter private final ObjectAccessStep next;
+	@Nullable @Getter private final ObjectOperationStep next;
 
 	@Nullable
 	@Override

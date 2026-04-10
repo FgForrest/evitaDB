@@ -159,6 +159,9 @@ message GrpcEntitySchemaMutation {
     // Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
     // `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
     GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;
+    // Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+    // in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+    GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;
 
     // Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.

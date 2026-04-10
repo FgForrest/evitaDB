@@ -24,15 +24,14 @@
 package io.evitadb.api.query.expression.numeric;
 
 
+import io.evitadb.api.query.expression.AbstractBinaryOperator;
 import io.evitadb.api.query.expression.evaluate.PossibleRange;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.exception.ExpressionEvaluationException;
+
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -47,32 +46,25 @@ import java.math.BigDecimal;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EqualsAndHashCode
-public class SubtractionOperator implements ExpressionNode {
+@EqualsAndHashCode(callSuper = true)
+public class SubtractionOperator extends AbstractBinaryOperator {
 	@Serial private static final long serialVersionUID = -2279186556905228552L;
-	private final ExpressionNode leftOperator;
-	private final ExpressionNode rightOperator;
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public SubtractionOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
-		this.leftOperator = leftOperator;
-		this.rightOperator = rightOperator;
-		this.children = new ExpressionNode[]{this.leftOperator, this.rightOperator};
+		super(leftOperator, rightOperator);
+	}
+
+	@Nonnull
+	@Override
+	protected String getOperatorSymbol() {
+		return "-";
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimal compute(@Nonnull ExpressionEvaluationContext context) {
-		final BigDecimal leftOperand = this.leftOperator.compute(context, BigDecimal.class);
-		if (leftOperand == null) {
-			throw new ExpressionEvaluationException("Left operand is required, but evaluated to null.");
-		}
-		final BigDecimal rightOperand = this.rightOperator.compute(context, BigDecimal.class);
-		if (rightOperand == null) {
-			throw new ExpressionEvaluationException("Right operand is required, but evaluated to null.");
-		}
+		final BigDecimal leftOperand = computeLeft(context, BigDecimal.class);
+		final BigDecimal rightOperand = computeRight(context, BigDecimal.class);
 		return leftOperand.subtract(rightOperand);
 	}
 
@@ -80,20 +72,10 @@ public class SubtractionOperator implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return PossibleRange.combine(
-			this.leftOperator.determinePossibleRange(),
-			this.rightOperator.determinePossibleRange(),
+			getLeftOperand().determinePossibleRange(),
+			getRightOperand().determinePossibleRange(),
 			BigDecimal::subtract
 		);
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
-	}
-
-	@Override
-	public String toString() {
-		return this.leftOperator + " - " + this.rightOperator;
 	}
 
 }

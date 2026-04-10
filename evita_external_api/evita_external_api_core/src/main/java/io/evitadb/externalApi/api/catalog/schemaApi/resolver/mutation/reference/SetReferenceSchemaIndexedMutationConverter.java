@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.externalApi.api.resolver.mutation.Input;
 import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
@@ -31,6 +32,7 @@ import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFa
 import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -73,9 +75,24 @@ public class SetReferenceSchemaIndexedMutationConverter
 			)
 		);
 
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes = input.getOptionalProperty(
+			SetReferenceSchemaIndexedMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES.name(),
+			new PropertyObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				SetReferenceSchemaIndexedMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES,
+				ScopedReferenceIndexedComponents.class,
+				nestedInput -> new ScopedReferenceIndexedComponents(
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS)
+				)
+			)
+		);
+
 		return new SetReferenceSchemaIndexedMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
-			indexedInScopes
+			indexedInScopes,
+			indexedComponentsInScopes
 		);
 	}
 

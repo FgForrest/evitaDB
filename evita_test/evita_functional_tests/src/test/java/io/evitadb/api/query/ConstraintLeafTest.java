@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * that cannot contain child constraints. Uses concrete implementations ({@link Collection},
  * {@link AttributeEquals}) to test leaf behavior.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ConstraintLeaf")
 class ConstraintLeafTest {

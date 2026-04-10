@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
 		return resolveQuery(executionContext)
-			.thenApply(query -> {
+			.thenCompose(query -> executionContext.executeAsyncInTransactionThreadPool(() -> {
 				final Query finalQuery = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
 					if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {
 						return Query.query(
@@ -104,7 +104,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 				requestExecutedEvent.finishResultSerialization();
 
 				return new SuccessEndpointResponse(result);
-			});
+			}));
 	}
 
 	@Nonnull

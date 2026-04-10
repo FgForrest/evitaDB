@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		return parseRequestBody(executionContext, UpsertEntityUpsertRequestDto.class)
-			.thenApply(requestData -> {
+			.thenCompose(requestData -> {
 				final Optional<Object> rawRequire = requestData.getRequire().map(it -> deserializeConstraintContainer(EntityUpsertRequestDescriptor.REQUIRE.name(), it));
 				requestExecutedEvent.finishInputDeserialization();
 
@@ -127,16 +127,18 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 				final Optional<EntityContentRequire[]> requires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 					rawRequire.flatMap(this::getEntityContentRequires));
 
-				final EntityClassifier upsertedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					requires.isPresent()
-						? executionContext.session().upsertAndFetchEntity(entityMutation, requires.get())
-						: executionContext.session().upsertEntity(entityMutation));
-				requestExecutedEvent.finishOperationExecution();
+				return executionContext.executeAsyncInTransactionThreadPool(() -> {
+					final EntityClassifier upsertedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+						requires.isPresent()
+							? executionContext.session().upsertAndFetchEntity(entityMutation, requires.get())
+							: executionContext.session().upsertEntity(entityMutation));
+					requestExecutedEvent.finishOperationExecution();
 
-				final Object result = convertResultIntoSerializableObject(executionContext, upsertedEntity);
-				requestExecutedEvent.finishResultSerialization();
+					final Object result = convertResultIntoSerializableObject(executionContext, upsertedEntity);
+					requestExecutedEvent.finishResultSerialization();
 
-				return new SuccessEndpointResponse(result);
+					return new SuccessEndpointResponse(result);
+				});
 			});
 	}
 

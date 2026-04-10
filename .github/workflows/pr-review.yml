@@ -23,12 +23,12 @@ jobs:
       contents: read
       checks: write
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup Java JDK
-        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -40,7 +40,7 @@ jobs:
           jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
       - name: Upload test results
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: success() || failure()
         with:
           name: test-results
@@ -55,33 +55,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
-
-      - uses: anthropics/claude-code-action@b433f16b30d54063fd3bab6b12f46f3da00e41b6 # v1.0.47
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-
-            You are reviewing a pull request for evitaDB, a specialized NoSQL
-            in-memory database for e-commerce written in Java.
-
-            First, read the file `.claude/agents/pr-reviewer.md` in the repository
-            root. That file contains your complete review persona, instructions,
-            and checklist. Follow every instruction in that file precisely.
-
-            The PR branch is already checked out in the current working directory.
-            The repository also contains a `CLAUDE.md` file with the project's
-            coding standards — use it as your reference for style compliance.
-
-            Use `gh pr diff ${{ github.event.pull_request.number }}` to examine
-            the changes. Use inline comments for file-specific feedback and a
-            single summary comment on the PR for overall assessment.
-
-          claude_args: |
-            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"

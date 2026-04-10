@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,16 +24,22 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
-import io.evitadb.externalApi.api.resolver.mutation.Input;
-import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReflectedReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
+import io.evitadb.externalApi.api.resolver.mutation.PropertyObjectListMapper;
 
 import javax.annotation.Nonnull;
 
@@ -75,6 +81,40 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			)
 		);
 
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes = input.getOptionalProperty(
+			CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES.name(),
+			new PropertyObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_COMPONENTS_IN_SCOPES,
+				ScopedReferenceIndexedComponents.class,
+				nestedInput -> new ScopedReferenceIndexedComponents(
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS)
+				)
+			)
+		);
+
+		final ScopedFacetedPartially[] facetedPartiallyInScopes = parseFacetedPartially(
+			input,
+			CreateReflectedReferenceSchemaMutationDescriptor.FACETED_PARTIALLY_IN_SCOPES
+		);
+
+		// bucketed is not inheritable — coalesce null to EMPTY
+		final ScopedHistogramIndexDefinition[] parsedBucketed = parseBucketedHistogram(
+			input,
+			CreateReflectedReferenceSchemaMutationDescriptor.BUCKETED_IN_SCOPES
+		);
+		final ScopedHistogramIndexDefinition[] bucketedInScopes =
+			parsedBucketed != null ? parsedBucketed : ScopedHistogramIndexDefinition.EMPTY;
+
+		final ScopedBucketedPartially[] parsedBucketedPartially = parseBucketedPartially(
+			input,
+			CreateReflectedReferenceSchemaMutationDescriptor.BUCKETED_PARTIALLY_IN_SCOPES
+		);
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			parsedBucketedPartially != null ? parsedBucketedPartially : ScopedBucketedPartially.EMPTY;
+
 		return new CreateReflectedReferenceSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.DESCRIPTION),
@@ -83,9 +123,24 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME),
 			indexedInScopes,
+			indexedComponentsInScopes,
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
+			facetedPartiallyInScopes,
+			bucketedInScopes,
+			bucketedPartiallyInScopes,
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(
+		@Nonnull CreateReflectedReferenceSchemaMutation mutation,
+		@Nonnull Output output
+	) {
+		serializeFacetedPartially(mutation.getFacetedPartiallyInScopes(), output);
+		serializeBucketedHistogram(mutation.getBucketedInScopes(), output);
+		serializeBucketedPartially(mutation.getBucketedPartiallyInScopes(), output);
+		super.convertToOutput(mutation, output);
 	}
 }

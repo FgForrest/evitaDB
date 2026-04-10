@@ -25,7 +25,6 @@ package io.evitadb.api.requestResponse.schema.model.evolution;
 
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.Expression;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
@@ -41,7 +40,7 @@ import javax.annotation.Nonnull;
 public record RecordBasedEntityEvolutionV2ModifyReference(
 	@PrimaryKey int id,
 	@Attribute @Nonnull String code,
-	@Reference(managed = false, faceted = @Expression("true")) Brand marketingBrand
+	@Reference(managed = false, faceted = true) Brand marketingBrand
 ) {
 
 	public record Brand(

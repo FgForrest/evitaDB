@@ -38,29 +38,30 @@ import static io.evitadb.core.transaction.Transaction.suppressTransactionalMemor
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> & Comparable<T>> implements Iterator<T> {
+class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> & Comparable<T>>
+	implements Iterator<T> {
 	/**
 	 * Contains reference to original immutable array of objects.
 	 */
 	@Nonnull private final T[] original;
 	/**
-	 * This is a consumer function that adds second argument to the first argument. Since first argument is transactional
-	 * object this addition doesn't affect the original "wrapped" object but only it's transactional layer.
+	 * Consumer function that adds second argument to the first argument. Since first argument is transactional
+	 * object this addition doesn't affect the original "wrapped" object but only its transactional layer.
 	 *
-	 * If this effect would not be in place, BiFunction<T,T,T> would be more appropriate here.
+	 * If this effect would not be in place, `BiFunction<T,T,T>` would be more appropriate here.
 	 */
 	@Nullable private final BiConsumer<T, T> combiner;
 	/**
-	 * This is a consumer function that subtracts second argument from the first argument. Since first argument is transactional
-	 * object this reduction doesn't affect the original "wrapped" object but only it's transactional layer.
+	 * Consumer function that subtracts second argument from the first argument. Since first argument is
+	 * transactional object this reduction doesn't affect the original "wrapped" object but only its
+	 * transactional layer.
 	 *
-	 * If this effect would not be in place, BiFunction<T,T,T> would be more appropriate here.
+	 * If this effect would not be in place, `BiFunction<T,T,T>` would be more appropriate here.
 	 */
 	@Nullable private final BiConsumer<T, T> reducer;
 	/**
-	 * This predicate determines whether object T is effectively empty = unnecessary and might be removed entirely.
-	 * Obsolete checker is used after reducer to check whether the reduction fully emptied the container and the container
-	 * itself might be removed.
+	 * Predicate determining whether object T is effectively empty (unnecessary) and might be removed entirely.
+	 * Used after reducer to check whether the reduction fully emptied the container and it can be removed.
 	 */
 	@Nullable private final Predicate<T> obsoleteChecker;
 	/**
@@ -70,22 +71,37 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 	/**
 	 * Contains next computed record.
 	 */
-	private T nextRecord;
+	@Nullable private T nextRecord;
 	/**
 	 * Contains current position in the record.
 	 */
 	private int position;
 	/**
-	 * Contains current insertion set (i.e. set processed for current position in orignal array).
+	 * Contains current insertion set (i.e. set processed for current position in original array).
 	 */
-	private T[] insertion;
+	@Nullable private T[] insertion;
 	/**
 	 * Contains index in the currently processed insertion set.
 	 */
 	private int insertionPosition = -1;
 	private boolean skipInsertion;
 
-	TransactionalComplexObjArrayIterator(@Nonnull T[] original, @Nonnull ComplexObjArrayChanges<T> changes, @Nullable BiConsumer<T, T> combiner, @Nullable BiConsumer<T, T> reducer, @Nullable Predicate<T> obsoleteChecker) {
+	/**
+	 * Creates a new iterator over the transactional array with recorded changes.
+	 *
+	 * @param original        the immutable baseline array
+	 * @param changes         recorded transactional changes
+	 * @param combiner        merges two equal records
+	 * @param reducer         subtracts record data on removal
+	 * @param obsoleteChecker tests if a record is empty
+	 */
+	TransactionalComplexObjArrayIterator(
+		@Nonnull T[] original,
+		@Nonnull ComplexObjArrayChanges<T> changes,
+		@Nullable BiConsumer<T, T> combiner,
+		@Nullable BiConsumer<T, T> reducer,
+		@Nullable Predicate<T> obsoleteChecker
+	) {
 		this.original = original;
 		this.changes = changes;
 		this.combiner = combiner;
@@ -105,14 +121,15 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 		if (this.nextRecord == null) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
-		T recordToReturn = this.nextRecord;
+		final T recordToReturn = this.nextRecord;
 		this.nextRecord = computeNextRecord();
 		return recordToReturn;
 	}
 
 	/**
-	 * Computes next dynamic record to returning.
+	 * Computes the next record to return from the iterator.
 	 */
+	@Nullable
 	private T computeNextRecord() {
 		// if we have insertion set already resolved, advance through it
 		if (this.insertion != null) {
@@ -122,32 +139,38 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 				return this.insertion[this.insertionPosition];
 			} else {
 				final T lastInsertedRecord = this.insertion[this.insertionPosition];
-				// if inserted set was exhausted - reset current insertion set to leave this section on next computation
+				// if inserted set was exhausted - reset current insertion set
 				this.insertion = null;
 				// get original record at current position
-				final T originalRecord = this.original.length > this.position ? this.original[this.position] : null;
+				final T originalRecord =
+					this.original.length > this.position ? this.original[this.position] : null;
 				// if inserted record matches the original
-				final boolean insertedRecordMatchesOriginal = originalRecord != null && originalRecord.compareTo(lastInsertedRecord) == 0;
+				final boolean insertedRecordMatchesOriginal =
+					originalRecord != null && originalRecord.compareTo(lastInsertedRecord) == 0;
 
 				final T recordToReturn;
 				if (insertedRecordMatchesOriginal) {
 					if (this.combiner != null) {
 						// combine both records
 						recordToReturn = originalRecord.makeClone();
-						suppressTransactionalMemoryLayerFor(recordToReturn, it -> this.combiner.accept(it, lastInsertedRecord));
+						suppressTransactionalMemoryLayerFor(
+							recordToReturn, it -> this.combiner.accept(it, lastInsertedRecord)
+						);
 					} else {
-						// return original record - skipping added one
+						// return original - skip added
 						recordToReturn = lastInsertedRecord.makeClone();
 					}
 					// look at the removal positions
 					final T removedValue = this.changes.getRemovalOnPosition(this.position);
 					// if there is none
 					if (removedValue == null) {
-						// return record on specified position in the original array
+						// return record at position
 						return recordToReturn;
 					} else if (this.reducer != null && this.obsoleteChecker != null) {
-						// if there are reducers - just reduce scope of the record
-						suppressTransactionalMemoryLayerFor(recordToReturn, it -> this.reducer.accept(it, removedValue));
+						// reduce scope of the record
+						suppressTransactionalMemoryLayerFor(
+							recordToReturn, it -> this.reducer.accept(it, removedValue)
+						);
 						// and if still not obsolete return it
 						if (!this.obsoleteChecker.test(recordToReturn)) {
 							return recordToReturn;
@@ -157,7 +180,8 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 						return computeNextRecord();
 					}
 				} else {
-					// go back with position to reduce original value at the position - but skip redoing insertion (this would make infinite loop)
+					// go back with position to reduce original value - but skip redoing
+					// insertion (infinite loop otherwise)
 					this.position--;
 					this.skipInsertion = true;
 					// return inserted record
@@ -184,18 +208,19 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 
 		/* if original array was not completely exhausted */
 		if (this.position < this.original.length) {
-			// check whether there is some removal recorded for this position
+			// check for removal at this position
 			final T removedValue = this.changes.getRemovalOnPosition(this.position);
 
 			if (removedValue == null) {
-				// if not return original record at this position
+				// return original record at position
 				return this.original[this.position];
 			} else if (this.reducer != null) {
-				// if there is and reducer is present - clone original record at this position
+				// clone and reduce scope
 				final T originalRecordClone = this.original[this.position].makeClone();
-				// reduce the scope
-				suppressTransactionalMemoryLayerFor(originalRecordClone, it -> this.reducer.accept(it, removedValue));
-				// and if the record is not yet obsolete - return it
+				suppressTransactionalMemoryLayerFor(
+					originalRecordClone, it -> this.reducer.accept(it, removedValue)
+				);
+				// if not yet obsolete - return it
 				if (this.obsoleteChecker != null && !this.obsoleteChecker.test(originalRecordClone)) {
 					return originalRecordClone;
 				} else {

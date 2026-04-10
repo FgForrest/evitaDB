@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * - Buffer management and state transitions
  * - Constructor validation and edge cases
  *
- * @author evitaDB Team
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ObservableOutput comprehensive tests")
 public class ObservableOutputTest {

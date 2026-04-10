@@ -25,8 +25,8 @@ package io.evitadb.api.requestResponse.schema.model;
 
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.*;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -118,7 +118,7 @@ public record RecordBasedEntityWithNonDefaults(
 		groupEntityManaged = false,
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
-		faceted = @Expression("true"),
+		faceted = true,
 		indexed = ReferenceIndexType.FOR_FILTERING
 	)
 	Brand[] licensingBrands

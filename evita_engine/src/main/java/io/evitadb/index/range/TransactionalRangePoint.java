@@ -35,6 +35,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -56,7 +57,12 @@ import java.util.Objects;
  */
 @ThreadSafe
 @EqualsAndHashCode(of = "threshold")
-public class TransactionalRangePoint implements TransactionalObject<TransactionalRangePoint, Void>, VoidTransactionMemoryProducer<TransactionalRangePoint>, RangePoint<TransactionalRangePoint>, TransactionalCreatorMaintainer, Serializable {
+public class TransactionalRangePoint
+	implements TransactionalObject<TransactionalRangePoint, Void>,
+	VoidTransactionMemoryProducer<TransactionalRangePoint>,
+	RangePoint<TransactionalRangePoint>,
+	TransactionalCreatorMaintainer,
+	Serializable {
 	@Serial private static final long serialVersionUID = -7357845800177404940L;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
@@ -136,11 +142,13 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 	/**
 	 * Compares this range point for all values (not only threshold but also both bitmaps).
 	 */
-	public boolean deepEquals(Object o) {
+	public boolean deepEquals(@Nullable Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		TransactionalRangePoint that = (TransactionalRangePoint) o;
-		return this.threshold == that.threshold && Objects.equals(this.starts, that.starts) && Objects.equals(this.ends, that.ends);
+		final TransactionalRangePoint that = (TransactionalRangePoint) o;
+		return this.threshold == that.threshold
+			&& Objects.equals(this.starts, that.starts)
+			&& Objects.equals(this.ends, that.ends);
 	}
 
 	@Override
@@ -152,10 +160,6 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 			'}';
 	}
 
-	/*
-		TransactionalObject implementation
-	 */
-
 	@Nonnull
 	@Override
 	public Collection<TransactionalLayerCreator<?>> getMaintainedTransactionalCreators() {
@@ -166,8 +170,12 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 
 	@Nonnull
 	@Override
-	public TransactionalRangePoint createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+	public TransactionalRangePoint createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		final boolean isDirty = transactionalLayer
+			.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new TransactionalRangePoint(
 				this.threshold,

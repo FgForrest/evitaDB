@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.driver.EvitaClient;
+import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -103,9 +104,13 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 			EvitaClientConfiguration.builder()
 				.port(GrpcOptions.DEFAULT_GRPC_PORT)
 				.systemApiPort(SystemOptions.DEFAULT_SYSTEM_PORT)
-				.mtlsEnabled(false)
-				.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-				.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+				.tls(
+					ClientTlsOptions.builder()
+						.mtlsEnabled(false)
+						.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+						.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+						.build()
+				)
 				.build()
 		);
 	}

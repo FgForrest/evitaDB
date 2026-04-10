@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * retrieval of localized and non-localized values, key/name
  * resolution, and schema violation handling.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("AssociatedData")
 class AssociatedDataTest extends AbstractBuilderTest {

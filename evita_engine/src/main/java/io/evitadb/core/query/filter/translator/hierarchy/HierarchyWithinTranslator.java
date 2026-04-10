@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -276,7 +276,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		// but! we can't do this when reference related constraints are found within the query because they'd use
 		// the record sets from different indexes than it's our hierarchy index (i.e. not subset)
 		if (filterByVisitor.isTargetIndexRepresentingConstraint(hierarchyWithin) &&
-			!filterByVisitor.isReferenceQueriedByOtherConstraints()
+			filterByVisitor.isReferenceNotQueriedByOtherConstraints()
 		) {
 			filterByVisitor.registerFormulaPostProcessor(
 				HierarchyOptimizingPostProcessor.class, HierarchyOptimizingPostProcessor::new

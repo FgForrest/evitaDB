@@ -52,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * schema resolution with reference-schema-first lookup,
  * and exception creation with reference context.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReferenceAttributes")
 class ReferenceAttributesTest extends AbstractBuilderTest {

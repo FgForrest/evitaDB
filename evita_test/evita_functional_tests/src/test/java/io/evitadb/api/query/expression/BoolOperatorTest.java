@@ -35,6 +35,7 @@ import io.evitadb.api.query.expression.bool.NotEqualsOperator;
 import io.evitadb.api.query.expression.bool.XorOperator;
 import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.api.query.expression.operand.ConstantOperand;
 import io.evitadb.api.query.expression.operand.VariableOperand;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -56,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Tests for all boolean operators in the expression language verifying
  * logical computation and possible range determination.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Boolean operators")
 class BoolOperatorTest {
@@ -487,13 +488,13 @@ class BoolOperatorTest {
 					new VariableOperand(null), num(5)
 				);
 
-			final ParserException exception = assertThrows(
-				ParserException.class,
+			final ExpressionEvaluationException exception = assertThrows(
+				ExpressionEvaluationException.class,
 				() -> op.compute(CONTEXT)
 			);
 			assertEquals(
-				"Greater than function operand " +
-					"must be comparable!",
+				"Greater than function left operand evaluated to null" +
+					" \u2014 the referenced data may be missing or not yet available.",
 				exception.getMessage()
 			);
 		}

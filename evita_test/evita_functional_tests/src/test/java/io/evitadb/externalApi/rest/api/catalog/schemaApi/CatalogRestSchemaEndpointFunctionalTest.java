@@ -30,12 +30,15 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
@@ -73,9 +76,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 	public static CatalogSchemaContract getCatalogSchemaFromTestData(@Nonnull Evita evita) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
-			session -> {
-				return session.getCatalogSchema();
-			}
+			EvitaSessionContract::getCatalogSchema
 		);
 	}
 
@@ -335,7 +336,11 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
 			.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexTypeDto(referenceSchema))
+			.e(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), createReferenceIndexedComponentsDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
+			.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), createFacetedPartiallyDto(referenceSchema))
+			.e(ReferenceSchemaDescriptor.BUCKETED.name(), createBucketedHistogramDto(referenceSchema))
+			.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), createBucketedPartiallyDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 
@@ -391,8 +396,110 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 		return Arrays.stream(Scope.values())
 			.filter(referenceSchema::isIndexedInScope)
 			.map(scope -> map()
-				.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), scope.name())
+				.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 				.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), referenceSchema.getReferenceIndexType(scope).name())
+				.build())
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the reference indexed components DTOs based on the
+	 * provided {@link ReferenceSchemaContract}. Each map entry contains a scope and an array
+	 * of indexed component names.
+	 *
+	 * @param referenceSchema the reference schema contract containing details about indexed components
+	 * @return a list of maps, where each map represents a scoped set of indexed components
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createReferenceIndexedComponentsDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return referenceSchema.getIndexedComponentsInScopes()
+			.entrySet()
+			.stream()
+			.map(entry -> map()
+				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+				.e(
+					ScopedReferenceIndexedComponentsDescriptor.INDEXED_COMPONENTS.name(),
+					entry.getValue().stream().map(ReferenceIndexedComponents::name).toList()
+				)
+				.build())
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the faceted partially expressions for different scopes
+	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope
+	 * and the corresponding partial-faceting expression string.
+	 *
+	 * @param referenceSchema the reference schema containing faceted partially expressions
+	 * @return a list of maps, where each map contains scope and expression fields
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createFacetedPartiallyDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Map<Scope, Expression> facetedPartiallyInScopes = referenceSchema.getFacetedPartiallyInScopes();
+		return facetedPartiallyInScopes.entrySet()
+			.stream()
+			.map(entry -> map()
+				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+				.e(
+					ScopedFacetedPartiallyDescriptor.EXPRESSION.name(),
+					entry.getValue().toExpressionString()
+				)
+				.build())
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the bucketed histogram definitions for different scopes
+	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope,
+	 * the histogram index name, and the optional value expression string.
+	 *
+	 * @param referenceSchema the reference schema containing bucketed histogram definitions
+	 * @return a list of maps, where each map contains scope, nameOfTheIndex, and valueExpression fields
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createBucketedHistogramDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramDefinitions =
+			referenceSchema.getAllHistogramIndexDefinitions();
+		return bucketedHistogramDefinitions.entrySet()
+			.stream()
+			.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+				.map(def -> {
+					final Expression valueExpression = def.valueExpression();
+					return map()
+						.e(ScopedDataDescriptor.SCOPE.name(), scopeEntry.getKey().name())
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
+							def.nameOfTheIndex()
+						)
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
+							valueExpression != null ? valueExpression.toExpressionString() : null
+						)
+						.build();
+				})
+			)
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the bucketed partially expressions for different scopes
+	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope
+	 * and the corresponding partial-bucketing expression string.
+	 *
+	 * @param referenceSchema the reference schema containing bucketed partially expressions
+	 * @return a list of maps, where each map contains scope and expression fields
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createBucketedPartiallyDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Map<Scope, Expression> bucketedPartiallyInScopes = referenceSchema.getBucketedPartiallyInScopes();
+		return bucketedPartiallyInScopes.entrySet()
+			.stream()
+			.map(entry -> map()
+				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+				.e(
+					ScopedBucketedPartiallyDescriptor.EXPRESSION.name(),
+					entry.getValue().toExpressionString()
+				)
 				.build())
 			.toList();
 	}

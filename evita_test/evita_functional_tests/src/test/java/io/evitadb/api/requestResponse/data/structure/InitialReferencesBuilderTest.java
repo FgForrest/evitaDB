@@ -59,7 +59,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link InitialReferencesBuilder} verifying construction,
  * querying, mutation, and cardinality management of initial references.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("InitialReferencesBuilder functionality")
 class InitialReferencesBuilderTest extends AbstractBuilderTest {

@@ -38,6 +38,7 @@ import java.util.Collection;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@SuppressWarnings("InterfaceWithOnlyOneDirectInheritor")
 public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSchemaEditor<S>> extends ReferenceSchemaEditor<S>, ReflectedReferenceSchemaContract {
 
 	String GROUP_TYPE_EXCEPTION_MESSAGE = "Group type can be set only on original reference. It makes no sense to change it on reflected one.";
@@ -118,6 +119,14 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 			"Reflected schema and original schema must always be indexed!"
 		);
 	}
+
+	/**
+	 * Specifies that the indexed components settings of the reflected reference is inherited from the target reference.
+	 *
+	 * @return this
+	 */
+	@Nonnull
+	S withIndexedComponentsInherited();
 
 	/**
 	 * Specifies that {@link ReferenceSchemaContract#isFaceted()} property settings is inherited from the target reference.
